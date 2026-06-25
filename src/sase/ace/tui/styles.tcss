@@ -361,6 +361,80 @@ QuitConfirmModal #quit-confirm-hints {
     margin-top: 1;
 }
 
+/* Revert agent commits confirmation */
+ConfirmRevertAgentModal {
+    align: center middle;
+}
+
+ConfirmRevertAgentModal > #revert-confirm-container {
+    width: 76;
+    max-width: 95%;
+    height: auto;
+    max-height: 88%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+ConfirmRevertAgentModal #revert-confirm-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+}
+
+ConfirmRevertAgentModal #revert-confirm-subtitle {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-bottom: 1;
+}
+
+ConfirmRevertAgentModal #revert-confirm-summary {
+    height: auto;
+    margin-bottom: 1;
+}
+
+ConfirmRevertAgentModal #revert-confirm-repos {
+    height: auto;
+    max-height: 16;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+    margin-bottom: 1;
+}
+
+ConfirmRevertAgentModal .revert-confirm-repo-card,
+ConfirmRevertAgentModal .revert-confirm-blocked-card {
+    height: auto;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+ConfirmRevertAgentModal .revert-confirm-blocked-card {
+    border-left: thick $error;
+}
+
+ConfirmRevertAgentModal .revert-confirm-caption {
+    height: auto;
+}
+
+ConfirmRevertAgentModal #revert-confirm-buttons {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+ConfirmRevertAgentModal Button {
+    margin: 0 1;
+    min-width: 18;
+}
+
+ConfirmRevertAgentModal #revert-confirm-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 /* Workflow HITL Modal styling */
 WorkflowHITLModal {
     align: center middle;

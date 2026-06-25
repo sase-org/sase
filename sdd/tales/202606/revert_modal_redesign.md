@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 17:27:47
-status: wip
+status: done
 prompt: sdd/prompts/202606/revert_modal_redesign.md
 ---
 # Redesign the Revert Agent Commits Confirmation Modal
