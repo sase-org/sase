@@ -32,6 +32,20 @@ launcher. If the team is not yet seeing real users stall before `uv tool install
 Recommended scope, in one sentence: **detect/offer to install `uv`, run `uv tool install sase --python 3.12`, then
 exec `sase doctor` and print the next command** — with everything beyond that delegated to tools that already exist.
 
+Recommended public command:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://sase.sh/install.sh | sh
+```
+
+Recommended inspect-before-run alternative:
+
+```bash
+curl --proto '=https' --tlsv1.2 -fLso install.sh https://sase.sh/install.sh
+less install.sh
+sh install.sh
+```
+
 ## Verified Baseline (what already exists)
 
 ### Installation today
@@ -47,6 +61,16 @@ exec `sase doctor` and print the next command** — with everything beyond that 
   requirement** — important, because it means the install script does not need to handle `cargo`.
 - Source/contributor install is a separate, heavier path (`uv venv`, `just install`) and is correctly kept under
   "Development" (`README.md:226-242`). An install script must not blur these two audiences.
+- Public PyPI snapshot on 2026-06-25: `sase==0.5.0`, `sase-core-rs==0.2.0`, `sase-github==0.1.2`, and
+  `sase-telegram==0.1.3`. The optional plugin packages publish `py3-none-any` wheels and must be installed into the
+  same uv tool environment as `sase` via `uv tool install --with ...`; installing them into a random active virtualenv
+  will not make them discoverable by the SASE CLI.
+- `sase-core-rs==0.2.0` publishes wheels for macOS universal2, manylinux 2.28 x86_64, manylinux 2.28 aarch64, and
+  Windows x86_64, plus an sdist. It does **not** publish a musllinux wheel, so Alpine/musl users may fall back to a
+  Rust source build unless the installer forbids source builds. That makes `--no-build` a good default for the guided
+  installer, with an explicit `--allow-build` escape hatch for advanced users.
+- Local `uv 0.11.24` supports the installer-critical flags and commands: `uv tool install --with`, `--force`,
+  `--upgrade`, `--reinstall`, `--python`, `--no-build`, `uv tool dir --bin`, and `uv tool update-shell`.
 
 ### Readiness is already a first-class, machine-readable gate
 
@@ -85,6 +109,16 @@ should not drift apart).
 - A SASE-supported provider already ships a `curl ... | bash` installer (`agy`:
   `curl -fsSL https://antigravity.google/cli/install.sh | bash`), so the pattern is already familiar to the target
   audience.
+- Homebrew's installer sets the useful UX expectation: print what will happen, pause before mutating state in
+  interactive mode, and provide explicit non-interactive mode for automation.
+- Deno and Bun both pair curl installers with package-manager alternatives, version checks, PATH troubleshooting, and
+  install verification. SASE should do the same: keep `uv tool install ...` documented and finish the script with
+  `sase version`.
+- Rust/rustup and cargo-binstall use stricter curl flags such as `--proto '=https' --tlsv1.2`; SASE should use those in
+  public examples.
+- pipx is a reasonable alternative for users who already standardize on it, but it should not be SASE's primary public
+  path. uv already gives SASE an isolated tool environment without routing users through system Python or
+  externally-managed Python friction.
 
 ## What problem would the script actually solve?
 
@@ -126,31 +160,57 @@ Ordered responsibilities, each delegating to something that already exists:
    target Linux + macOS; explicitly tell Windows users to use `uv` directly (or a future `.ps1`).
 3. **Ensure `uv`.** If `uv` is on `PATH`, use it. If not, **prompt** ("uv is required and not found — install it now via
    the official Astral installer? [Y/n]") and on assent delegate to `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-   On decline, abort with the manual instructions. Honor a non-interactive mode (see flags) that assumes yes.
-4. **Install SASE.** Run `uv tool install sase --python 3.12` (pass `--force` only when an explicit reinstall flag is
-   set). Let `uv` own Python provisioning, the isolated tool venv, and the prebuilt `sase-core-rs` wheel — do not
-   second-guess any of it.
-5. **Fix `PATH` visibility, don't silently rewrite it.** If the `uv` tool bin dir is not on `PATH`, print the exact
-   `export PATH=...` / shell-rc line. Only edit a shell profile when the user explicitly opts in; never edit rc files
-   silently.
-6. **Hand off to the readiness gate.** Exec `sase version` then `sase doctor`. Surface doctor's own output verbatim —
-   including its built-in provider install hints — rather than re-implementing provider detection. Optionally parse
-   `sase doctor -j` to print a one-line PASS/WARN/next-step summary.
-7. **End with the next command, not silence.** Print the safe first run from the README/quickstart, e.g.
+   On decline, abort with the manual instructions. In non-interactive mode, install uv only when `--install-uv` or
+   `SASE_INSTALL_UV=1` is set; automation should not silently install another package manager.
+4. **Install SASE.** Run `uv tool install sase --python 3.12 --no-build` by default (pass `--force` only when an
+   explicit reinstall flag is set). Let `uv` own Python provisioning, the isolated tool venv, and the prebuilt
+   `sase-core-rs` wheel. If no wheel is available, fail clearly unless the user supplied `--allow-build`.
+5. **Install optional plugins into the same tool environment.** Translate `--with github` to `--with sase-github` and
+   `--with telegram` to `--with sase-telegram`. Leave plugins opt-in, but make them discoverable because this is the
+   one thing users are likely to get wrong if they install plugin packages separately.
+6. **Fix `PATH` visibility, don't silently rewrite it.** Use `uv tool dir --bin` to find the tool binary directory. If
+   that directory is not on `PATH`, print the exact `export PATH=...` / shell-rc line or offer `uv tool update-shell`.
+   Only edit shell startup files when the user explicitly opts in; never edit rc files silently.
+7. **Verify install separately from readiness.** Run `sase version` as the hard success check. Then run `sase doctor` as
+   a readiness diagnostic, but treat provider/auth failures as "installed, not ready yet" unless `--strict-doctor` was
+   supplied. Surface doctor's own output verbatim — including its built-in provider install hints — rather than
+   re-implementing provider detection.
+8. **End with the next command, not silence.** Print the safe first run from the README/quickstart, e.g.
    `sase run "#cd:$(pwd) summarize what this repository does; do not change files"`.
 
 ### Behavior, flags, and contracts
 
 - **Idempotent**: re-running upgrades/no-ops cleanly; detect an existing install and offer upgrade vs. reinstall.
-- **Non-interactive / CI mode**: `--yes`/`-y` (or `SASE_INSTALL_YES=1`) to assume yes for the `uv` prompt; required so
-  the script is usable in Dockerfiles and CI, and so it can share logic with `smoke/pypi/entrypoint.sh`.
+- **Non-interactive / CI mode**: `--yes`/`-y` (or `SASE_INSTALL_YES=1`) to assume yes for SASE-owned prompts; required
+  so the script is usable in Dockerfiles and CI, and so it can share logic with `smoke/pypi/entrypoint.sh`.
 - **Version pinning**: `SASE_INSTALL_VERSION` / `--version` to install a specific `sase` version (and a documented
   channel story if a pre-release/dev stream ever exists — cross-reference `sase_dev_install_strategy.md`).
 - **Plugin passthrough**: optional `--with sase-github` style passthrough to `uv tool install ... --with ...`, matching
   the extras/`--with` policy in `preferred_plugins_chops_install_strategy.md`. Keep this opt-in; do not make the default
   path opinionated about plugins.
 - **`--help`, `--dry-run`, `NO_COLOR`**: table stakes for a script people are asked to pipe into a shell.
-- **Clear exit codes**: propagate `uv` and `sase doctor` failures; don't exit 0 on a broken install.
+- **Clear exit codes**: propagate `uv` and `sase version` failures; treat `sase doctor` as non-fatal by default and
+  fatal only under `--strict-doctor`.
+
+Recommended stable flag set:
+
+| Flag | Behavior |
+| --- | --- |
+| `--yes` | Non-interactive mode for SASE-owned prompts. |
+| `--version <version>` | Install `sase==<version>` instead of latest stable. |
+| `--python <version>` | Python request for `uv tool install`; default `3.12`. |
+| `--with github` | Add `--with sase-github`. |
+| `--with telegram` | Add `--with sase-telegram`. |
+| `--with <package>` | Advanced plugin package spec passthrough, e.g. `sase-github==0.1.2`. |
+| `--force` | Pass `uv tool install --force`; required for replacing conflicting executables. |
+| `--upgrade` | Pass `--upgrade --refresh`; useful for refreshing an existing uv tool install. |
+| `--allow-build` | Permit source builds. Default should pass `--no-build`. |
+| `--install-uv` | Install uv automatically if missing. |
+| `--no-install-uv` | Abort if uv is missing. |
+| `--no-modify-shell` | Never call `uv tool update-shell`; print instructions instead. |
+| `--doctor` | Run `sase doctor` after install; default in interactive mode. |
+| `--strict-doctor` | Exit nonzero if `sase doctor` exits nonzero. |
+| `--help` | Print usage and exit. |
 
 ## What it should NOT do
 
@@ -180,6 +240,8 @@ real-world attack using it against a reputable HTTPS-served script. To stay on t
 - **Offer the auditable alternative prominently**: `uv tool install sase --python 3.12` is itself the
   "package-manager" alternative reviewers will want, so the README should keep it as the primary, with the curl line as
   the convenience option — not the reverse.
+- **Narrow nested network trust**: the script should fetch only from `sase.sh`, Astral's uv installer when explicitly
+  accepted, and PyPI through uv. Do not curl arbitrary SASE release assets from GitHub inside the installer.
 - Consider checksums/signing only if/when a self-hosted binary is ever distributed; today everything downloaded is
   fetched by `uv`/PyPI, which already provides its own integrity, so the script itself is the only new trust surface.
 
@@ -193,6 +255,25 @@ real-world attack using it against a reputable HTTPS-served script. To stay on t
    15-minute quickstart. Do not demote `uv tool install`.
 4. **Maybe later**: a `.ps1` Windows variant — only if/when Windows support is declared (the POSIX classifier says it is
    not today).
+
+## Test matrix before publishing
+
+| Scenario | Expected result |
+| --- | --- |
+| Fresh Linux/macOS with uv present | Installs `sase`; `sase version` passes. |
+| Fresh Linux/macOS without uv | Interactive prompt offers uv install; decline aborts cleanly. |
+| `--yes --no-install-uv` without uv | Fails without prompting. |
+| `--yes --install-uv` without uv | Installs uv through Astral's installer, then installs SASE. |
+| PATH missing uv tool bin | Current process can run `sase`; user receives `uv tool update-shell` or explicit PATH guidance. |
+| Existing non-uv `sase` executable | Refuses or explains the conflict unless `--force` is supplied. |
+| `--with github` | Installs `sase-github` into the same uv tool environment and suggests `gh auth login` / plugin doctor. |
+| `--with telegram` | Installs `sase-telegram` into the same uv tool environment and suggests Telegram chop diagnostics. |
+| Alpine/musl with no wheel | Default `--no-build` fails with a clear unsupported-platform/source-build explanation. |
+| `--allow-build` on a no-wheel platform | Attempts source build and leaves uv's build output visible. |
+| Windows non-WSL | Exits with instructions for direct uv install or a future PowerShell path. |
+
+Also run `shellcheck` on the script and test it under the shell named in the public command. If the command is `| sh`,
+the script should stay POSIX-sh compatible; if it needs Bash features, publish `| bash` honestly.
 
 ## Open questions for Bryan
 
@@ -223,7 +304,19 @@ Internal:
   true before launch)
 
 External:
-- uv installer pattern: `curl -LsSf https://astral.sh/uv/install.sh | sh` — https://docs.astral.sh/uv/
+- PyPI package metadata: https://pypi.org/pypi/sase/json,
+  https://pypi.org/pypi/sase-core-rs/json, https://pypi.org/pypi/sase-github/json,
+  https://pypi.org/pypi/sase-telegram/json
+- uv installer and tool model: https://docs.astral.sh/uv/getting-started/installation/,
+  https://docs.astral.sh/uv/concepts/tools/, https://docs.astral.sh/uv/reference/storage/,
+  https://docs.astral.sh/uv/concepts/python-versions/
+- Homebrew installer behavior and non-interactive mode: https://brew.sh/, https://docs.brew.sh/Installation
+- Deno install docs and checksum/inspection pattern: https://docs.deno.com/runtime/getting_started/installation/,
+  https://github.com/denoland/deno_install
+- Bun install docs and verification/PATH troubleshooting pattern: https://bun.com/docs/installation
+- Rust/rustup and cargo-binstall curl flag/prompt precedent: https://rust-lang.org/tools/install/,
+  https://github.com/cargo-bins/cargo-binstall
+- pipx install docs and externally managed Python caveat: https://pipx.pypa.io/stable/how-to/install-pipx/
 - "Curl to shell isn't so bad" — https://www.arp242.net/curl-to-sh.html
 - Rust/rustup rationale (HTTPS + signed manifests, `main`-function truncation safety) —
   https://users.rust-lang.org/t/why-official-rust-sites-asks-to-pipe-curl-to-bash/36230
