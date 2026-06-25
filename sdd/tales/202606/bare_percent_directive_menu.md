@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 13:56:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/bare_percent_directive_menu.md
 ---
 # Plan: Open the directive completion menu on a bare `%`

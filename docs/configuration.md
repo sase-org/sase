@@ -250,7 +250,7 @@ ace:
 | `debounce_ms`         | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                            |
 | `auto_file_paths`     | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.      |
 | `auto_xprompt_menu`   | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens. |
-| `auto_directive_menu` | bool        | `true`  | Automatically open directive completion while typing `%name` tokens and fixed values such as `%model:`.           |
+| `auto_directive_menu` | bool        | `true`  | Automatically open directive completion on a bare `%`, `%name` tokens, and fixed values such as `%model:`.        |
 | `max_auto_rows`       | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                        |
 
 The `#+query` and first-character `+query` project/ChangeSpec picker uses the same completion panel but is triggered
