@@ -126,6 +126,113 @@ def read_pending_action_store(*, include_legacy: bool = False) -> dict[str, Any]
     return _load_store(include_legacy=include_legacy)
 
 
+# pyvision: docs/integrations.md
+def merge_transport_record(
+    notification_id: str,
+    transport: str,
+    record: Mapping[str, Any],
+    *,
+    now: float | None = None,
+) -> bool:
+    """Merge a transport-owned record into an existing action entry.
+
+    The entry is located by full notification id or unique notification-id
+    prefix. ``record`` should hold only transport-owned data such as
+    ``chat_id`` and ``message_id``. An existing record for ``transport`` is
+    replaced; otherwise the record is appended. Returns ``True`` when an entry
+    was updated, ``False`` when no matching action exists.
+    """
+    current = time.time() if now is None else now
+    with _locked_store() as store:
+        key = _find_entry_key(store, notification_id)
+        if key is None:
+            return False
+        entry = store["actions"][key]
+        transports = list(entry.get("transports") or [])
+        for item in transports:
+            if isinstance(item, dict) and item.get("transport") == transport:
+                item["record"] = dict(record)
+                break
+        else:
+            transports.append({"transport": transport, "record": dict(record)})
+        entry["transports"] = transports
+        entry["updated_at_unix"] = current
+        return True
+
+
+def mark_already_handled(
+    notification_id: str,
+    *,
+    source: str,
+    action: str | None = None,
+    now: float | None = None,
+) -> bool:
+    """Mark an action entry ``already_handled`` with audit metadata.
+
+    Locates the entry by full notification id or unique prefix and records why
+    it was resolved (``source``, timestamp, and the optional response
+    ``action``). Returns ``True`` when an entry was updated.
+    """
+    current = time.time() if now is None else now
+    with _locked_store() as store:
+        key = _find_entry_key(store, notification_id)
+        if key is None:
+            return False
+        _apply_handled(store["actions"][key], source=source, action=action, now=current)
+        return True
+
+
+def mark_plan_approval_auto_handled(
+    *,
+    plan_file: str,
+    agent_timestamp: str | None = None,
+    agent_root_timestamp: str | None = None,
+    agent_name: str | None = None,
+    source: str = "auto_approve",
+    action: str | None = None,
+    now: float | None = None,
+) -> list[str]:
+    """Mark PlanApproval actions for ``plan_file`` + agent identity handled.
+
+    Scans both shared and legacy-merged entries for PlanApproval actions whose
+    plan file matches ``plan_file`` and whose action data matches at least one
+    provided agent identity field (``agent_timestamp``, ``agent_root_timestamp``
+    or ``agent_name``). Matching legacy-only records are promoted into the
+    shared store so transport cleanup can see the handled state. Returns the
+    notification ids that were marked.
+
+    Matching never falls back to plan file alone: with no identity field
+    provided nothing is marked, avoiding clobbering unrelated approvals when a
+    plan path is reused.
+    """
+    current = time.time() if now is None else now
+    with _locked_store() as store:
+        actions = store["actions"]
+        # Build a legacy-merged view so legacy-only Telegram records can match,
+        # without persisting unrelated legacy rows into the shared store.
+        merged = dict(actions)
+        _merge_legacy_telegram({"actions": merged})
+        marked: list[str] = []
+        for key, entry in merged.items():
+            if not isinstance(entry, dict) or entry.get("action") != "PlanApproval":
+                continue
+            if not _plan_identity_matches(
+                entry,
+                plan_file=plan_file,
+                agent_timestamp=agent_timestamp,
+                agent_root_timestamp=agent_root_timestamp,
+                agent_name=agent_name,
+            ):
+                continue
+            _apply_handled(entry, source=source, action=action, now=current)
+            # Persist only the matched entry (promoting legacy-only rows).
+            actions[key] = entry
+            notification_id = entry.get("notification_id")
+            if isinstance(notification_id, str):
+                marked.append(notification_id)
+        return marked
+
+
 def _load_store(*, include_legacy: bool = False) -> dict[str, Any]:
     """Load the shared pending-action store."""
     store = _load_json(_pending_actions_path())
@@ -279,6 +386,75 @@ def _merge_legacy_telegram(store: dict[str, Any]) -> None:
         }
 
 
+def _find_entry_key(store: Mapping[str, Any], identifier: str) -> str | None:
+    """Return the actions key for a full notification id or unique prefix."""
+    actions = store.get("actions", {})
+    if identifier in actions:
+        return identifier
+    for key, entry in actions.items():
+        if isinstance(entry, dict) and entry.get("notification_id") == identifier:
+            return key
+    prefix_matches = [
+        key
+        for key, entry in actions.items()
+        if isinstance(entry, dict)
+        and str(entry.get("notification_id", "")).startswith(identifier)
+    ]
+    if len(prefix_matches) == 1:
+        return prefix_matches[0]
+    return None
+
+
+def _apply_handled(
+    entry: dict[str, Any],
+    *,
+    source: str,
+    action: str | None,
+    now: float,
+) -> None:
+    """Stamp ``entry`` with already-handled state and audit metadata."""
+    entry["state"] = "already_handled"
+    entry["handled_source"] = source
+    entry["handled_at_unix"] = now
+    entry["updated_at_unix"] = now
+    if action is not None:
+        entry["handled_action"] = action
+
+
+def _plan_identity_matches(
+    entry: Mapping[str, Any],
+    *,
+    plan_file: str,
+    agent_timestamp: str | None,
+    agent_root_timestamp: str | None,
+    agent_name: str | None,
+) -> bool:
+    """Return True when a PlanApproval entry matches a plan file plus identity."""
+    if not _entry_plan_file_matches(entry, plan_file):
+        return False
+    action_data = entry.get("action_data")
+    action_data = action_data if isinstance(action_data, Mapping) else {}
+    identity_pairs = [
+        ("agent_timestamp", agent_timestamp),
+        ("agent_root_timestamp", agent_root_timestamp),
+        ("agent_name", agent_name),
+    ]
+    provided = [(field, value) for field, value in identity_pairs if value]
+    if not provided:
+        return False
+    return any(action_data.get(field) == value for field, value in provided)
+
+
+def _entry_plan_file_matches(entry: Mapping[str, Any], plan_file: str) -> bool:
+    files = entry.get("files")
+    if isinstance(files, list) and plan_file in files:
+        return True
+    action_data = entry.get("action_data")
+    if isinstance(action_data, Mapping) and action_data.get("plan_file") == plan_file:
+        return True
+    return entry.get("plan_file") == plan_file
+
+
 def _load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -329,6 +505,9 @@ __all__ = [
     "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
     "PENDING_ACTIONS_PATH",
     "action_state_for_notification",
+    "mark_already_handled",
+    "mark_plan_approval_auto_handled",
+    "merge_transport_record",
     "read_pending_action_store",
     "register_notification",
     "resolve_prefix",

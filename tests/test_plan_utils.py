@@ -121,6 +121,49 @@ def test_handle_plan_approval_auto_tale_skips_notification() -> None:
     notify.assert_not_called()
 
 
+def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Auto-approval dismisses a stale Telegram plan keyboard via shared state.
+
+    A prior run left a registered PlanApproval action with a Telegram transport
+    record. When the same plan/agent is auto-approved (no notification, no
+    response file), the shared action must flip to ``already_handled`` so the
+    Telegram inbound chop removes the inline keyboard.
+    """
+    from sase.notifications import pending_actions
+    from sase.notifications.models import Notification
+
+    store_path = tmp_path / "pending_actions" / "actions.json"
+    plan_file = str(tmp_path / "plan.md")
+    monkeypatch.setattr(pending_actions, "PENDING_ACTIONS_PATH", store_path)
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "root-1")
+
+    stale = Notification(
+        id="abcdef01-full",
+        timestamp="2026-05-06T12:00:00+00:00",
+        sender="plan",
+        notes=["Plan ready"],
+        files=[plan_file],
+        action="PlanApproval",
+        action_data={"response_dir": "x", "agent_root_timestamp": "root-1"},
+    )
+    pending_actions.register_notification(stale, now=10.0)
+    pending_actions.merge_transport_record(
+        stale.id, "telegram", {"chat_id": "chat", "message_id": 7}, now=10.0
+    )
+
+    with patch(
+        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+        return_value="approve",
+    ):
+        result = handle_plan_approval(plan_file, "session-xyz", agent_name="plan.agent")
+
+    assert result == PlanApprovalResult(action="approve", plan_file=plan_file)
+    store = pending_actions.read_pending_action_store()
+    assert store["actions"]["abcdef01"]["state"] == "already_handled"
+
+
 def test_auto_plan_action_reads_epic_from_agent_meta(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

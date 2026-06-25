@@ -140,6 +140,22 @@ def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
     assert meta["plan_action"] == expected_meta_action
 
 
+def test_plan_approve_marks_shared_action_handled(tmp_path: Path) -> None:
+    """CLI/mobile approval flips the shared action to already_handled."""
+    from sase.notifications.pending_actions import read_pending_action_store
+
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    _approve_plan_from_cli(selector="abcdef12", kind="approve")
+
+    entry = read_pending_action_store()["actions"]["abcdef12"]
+    assert entry["state"] == "already_handled"
+    assert entry["handled_source"] == "plan_response"
+    assert entry["handled_action"] == "approve"
+
+
 def test_plan_approve_can_include_coder_prompt_and_model(tmp_path: Path) -> None:
     response_dir = _response_dir(tmp_path)
     plan = _plan_file(tmp_path)

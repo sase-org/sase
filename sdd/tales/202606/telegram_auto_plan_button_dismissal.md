@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 15:38:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/telegram_auto_plan_button_dismissal.md
 ---
 # Telegram Auto-Approved Plan Button Dismissal

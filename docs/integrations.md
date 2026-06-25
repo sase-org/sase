@@ -122,6 +122,32 @@ human-in-the-loop actions, and user-question answers. Action failures raise `Mob
 
 Source: `src/sase/integrations/mobile_notifications.py`
 
+## Notification Transport Registration
+
+`sase.notifications.pending_actions` is the shared host store for actionable notifications (plan approvals,
+human-in-the-loop, and user questions). Notification transports such as the sase-telegram plugin register the message
+they sent for an action so cross-surface cleanup can later dismiss it. After delivering an actionable notification, a
+transport calls `merge_transport_record` to attach its transport-owned data (e.g. `chat_id` and `message_id`) to the
+existing action entry:
+
+```python
+from sase.notifications.pending_actions import merge_transport_record
+
+merge_transport_record(
+    notification.id,
+    "telegram",
+    {"chat_id": chat_id, "message_id": message_id},
+)
+```
+
+The record is keyed by full notification id or unique prefix and replaces any prior record for the same transport. When
+an action is resolved outside the transport — for example an auto-approved `%auto` plan, or a plan handled in the TUI,
+CLI, or mobile bridge — core marks the entry `already_handled`. Transports read the store with their legacy records
+merged in and remove the inline keyboard for any handled, stale, or missing-target action they still hold. The call is
+best-effort from the transport's point of view: a failure must not block the legacy callback path.
+
+Source: `src/sase/notifications/pending_actions.py`
+
 ## Mobile Agent And Helper Bridges
 
 `sase.integrations.mobile_agents` and `sase.integrations.mobile_helpers` are stable facades for the workstation-hosted

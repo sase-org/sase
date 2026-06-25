@@ -179,6 +179,26 @@ def dismiss_notification_best_effort(notification_id: str) -> None:
         pass
 
 
+def _mark_action_handled_best_effort(
+    notification_id: str,
+    *,
+    source: str,
+    action: str | None = None,
+) -> None:
+    """Record that a notification action was resolved in the shared store.
+
+    Best-effort so transports (e.g. Telegram) can later dismiss any inline
+    keyboard they sent. Never raises — a failure must not block the runner
+    response that the agent is waiting on.
+    """
+    try:
+        from sase.notifications.pending_actions import mark_already_handled
+
+        mark_already_handled(notification_id, source=source, action=action)
+    except Exception:
+        pass
+
+
 def run_plan_side_effects(
     notification: PlanApprovalActionContext,
     choice: str,
@@ -186,6 +206,9 @@ def run_plan_side_effects(
     response_json: dict[str, Any],
 ) -> None:
     dismiss_notification_best_effort(notification.id)
+    _mark_action_handled_best_effort(
+        notification.id, source="plan_response", action=choice
+    )
 
     persisted_action = _persist_plan_approved_metadata(notification, response_json)
     if persisted_action is None:
