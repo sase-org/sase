@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from sase.ace.tui.agent_completion import (
+    AgentCompletionCandidate,
+    AgentVcsWorkflow,
+)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
@@ -59,6 +64,33 @@ def _entry(
 def _optional_entry(name: str = "optional") -> XPromptAssistEntry:
     """An xprompt whose single input is optional (optional-only)."""
     return _entry(name, inputs=(_input("topic", "word", required=False),))
+
+
+def _optional_agent_entry(name: str = "fork") -> XPromptAssistEntry:
+    """An optional-only xprompt whose next argument has agent completions."""
+    return _entry(name, inputs=(_input("name", "agent", required=False),))
+
+
+def _agent_candidate(
+    name: str,
+    *,
+    status: str = "RUNNING",
+    vcs_tag: str = "#gh:sase",
+    snippet: str = "Fix prompt completion",
+) -> AgentCompletionCandidate:
+    return AgentCompletionCandidate(
+        name=name,
+        label=name,
+        status=status,
+        vcs_workflow=AgentVcsWorkflow(
+            tag=vcs_tag,
+            workflow_type="gh",
+            project="sase",
+            provider_display="GitHub",
+            style="bold #5FD7FF",
+        ),
+        prompt_snippet=snippet,
+    )
 
 
 def _seed_entries(
@@ -128,6 +160,65 @@ async def test_optional_only_panel_accept_then_colon() -> None:
         await pilot.press(":")
 
     assert ta.text == "#optional:"
+
+
+async def test_optional_agent_spacer_colon_opens_agent_menu() -> None:
+    entry = _optional_agent_entry()
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+        _agent_candidate("planner"),
+    ]
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#f")
+        ta.cursor_location = (0, 2)
+        with patch(_ENTRY_PATCH, return_value=[entry]):
+            await pilot.press("ctrl+t")
+
+        assert ta.text == "#fork "
+        assert ta._pending_optional_spacer is not None
+        _seed_entries(ta, [entry])
+
+        await pilot.press(":")
+
+    assert ta.text == "#fork:"
+    assert ta._pending_optional_spacer is None
+    assert ta._file_completion_active is True
+    assert ta._completion_kind == "xprompt_arg_agent"
+    assert [c.insertion for c in ta._file_completion_candidates] == [
+        "coder",
+        "planner",
+    ]
+
+
+async def test_optional_agent_spacer_colon_respects_disabled_auto_menu() -> None:
+    entry = _optional_agent_entry()
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+    ]
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#f")
+        ta.cursor_location = (0, 2)
+        with patch(_ENTRY_PATCH, return_value=[entry]):
+            await pilot.press("ctrl+t")
+
+        assert ta.text == "#fork "
+        assert ta._pending_optional_spacer is not None
+        _seed_entries(ta, [entry])
+
+        with patch.object(
+            type(ta),
+            "_prompt_completion_settings",
+            return_value=PromptCompletionSettings(auto_xprompt_menu=False),
+        ):
+            await pilot.press(":")
+
+    assert ta.text == "#fork:"
+    assert ta._pending_optional_spacer is None
+    assert ta._file_completion_active is False
 
 
 async def test_optional_only_soft_completion_then_colon() -> None:

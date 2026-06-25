@@ -352,5 +352,4 @@ class XPromptArgHintMixin(_MixinBase):
         ):
             return False
         self._replace_absolute_range(pending.spacer_offset, spacer_end, ":")
-        self._refresh_xprompt_arg_hint_from_cursor()
         return True

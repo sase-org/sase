@@ -114,6 +114,21 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def action_open_prompt_history(self) -> None: ...
         def action_submit_prompt(self) -> None: ...
 
+    def _open_auto_reference_completion_after_change(
+        self,
+        character: str | None,
+    ) -> None:
+        settings = self._prompt_completion_settings()
+        if (
+            self._vim_mode == "insert"
+            and not self._file_completion_active
+            and (settings.auto_xprompt_menu or settings.auto_directive_menu)
+            and _is_auto_xprompt_menu_character(character)
+        ):
+            self._try_auto_prompt_reference_completion()
+        self._refresh_xprompt_arg_hint_from_cursor()
+        self._on_prompt_completion_context_changed()
+
     async def _on_key(self, event: Key) -> None:
         """Intercept keys before TextArea's default handler inserts characters."""
         # A just-accepted optional-only xprompt left a trailing spacer
@@ -127,6 +142,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             if event.character == ":" and self._consume_optional_spacer_colon(
                 pending_spacer
             ):
+                self._open_auto_reference_completion_after_change(event.character)
                 event.stop()
                 event.prevent_default()
                 return
@@ -396,16 +412,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             and not self._file_completion_active
         ):
             self._try_vcs_project_completion()
-        settings = self._prompt_completion_settings()
-        if (
-            self._vim_mode == "insert"
-            and not self._file_completion_active
-            and (settings.auto_xprompt_menu or settings.auto_directive_menu)
-            and _is_auto_xprompt_menu_character(event.character)
-        ):
-            self._try_auto_prompt_reference_completion()
-        self._refresh_xprompt_arg_hint_from_cursor()
-        self._on_prompt_completion_context_changed()
+        self._open_auto_reference_completion_after_change(event.character)
 
     def _handle_insert_g_prefix_key(self, event: Key) -> bool:
         """Handle the INSERT-mode ``Ctrl+G`` prompt-local prefix."""
