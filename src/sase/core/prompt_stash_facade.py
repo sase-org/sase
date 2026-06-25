@@ -61,7 +61,9 @@ def rewrite_prompt_stash(
 ) -> PromptStashSnapshotWire:
     """Rewrite stash rows by id through Rust and return the updated snapshot."""
     binding = require_rust_binding("rewrite_prompt_stash")
-    payload: dict[str, Any] = binding(str(path), prompt_stash_wire_to_json_dict(entries))
+    payload: dict[str, Any] = binding(
+        str(path), prompt_stash_wire_to_json_dict(entries)
+    )
     return prompt_stash_snapshot_from_dict(payload)
 
 

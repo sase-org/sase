@@ -193,10 +193,10 @@ class Agent:
     # Names this agent is waiting for (from %wait directives)
     waiting_for: list[str] = field(default_factory=list)
 
-    # Duration wait in seconds (from %wait:5m directive)
+    # Duration wait in seconds (from %wait(time=5m) directive)
     wait_duration: float | None = None
 
-    # Absolute time wait target as ISO 8601 string (from %wait:1430 directive)
+    # Absolute time wait target as ISO 8601 string (from %wait(time=1430) directive)
     wait_until: str | None = None
 
     # Explicit artifacts directory path (for workflow steps loaded from marker files)

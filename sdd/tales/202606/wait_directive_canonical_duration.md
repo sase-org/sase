@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 08:00:25
-status: wip
+status: done
 prompt: sdd/prompts/202606/wait_directive_canonical_duration.md
 ---
 # Fix: `%wait:<name>` rejects duration-shaped agent names (e.g. `%w:05s`)

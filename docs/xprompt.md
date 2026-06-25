@@ -1083,9 +1083,10 @@ applies.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 
-The old `%time:<value>` spelling is no longer accepted; use `#t:<value>` or `%wait(time=<value>)`. Time-shaped
+The old `%time:<value>` spelling is no longer accepted; use `#t:<value>` or `%wait(time=<value>)`. Canonical time-shaped
 positional values passed to `%wait` (e.g. `%wait:5m`) raise an error with a migration hint pointing to `%wait(time=5m)`
-/ `#t:5m`.
+/ `#t:5m`. Non-canonical duration-shaped values with leading-zero components, such as `%wait:05s`, are treated as agent
+names; use `%wait(time=05s)` for a timed wait.
 
 Multi-value directives (`%wait`, `%model`, `%alt`) accept comma-separated arguments to collapse what would otherwise be
 several lines: `%wait:agent_a,agent_b` is equivalent to two separate `%wait:` directives. Backtick-quoted values (e.g.

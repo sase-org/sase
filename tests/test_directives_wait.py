@@ -127,6 +127,29 @@ def test_wait_template_no_existing_latest_raises() -> None:
         extract_prompt_directives(prompt)
 
 
+@pytest.mark.parametrize("agent_name", ["05s", "00s", "007"])
+def test_wait_leading_zero_duration_shaped_arg_is_agent_name(
+    agent_name: str,
+) -> None:
+    """Leading-zero duration-shaped values are valid positional agent names."""
+    prompt = f"%w:{agent_name}\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == [agent_name]
+    assert directives.wait_duration is None
+    assert directives.wait_until is None
+
+
+def test_wait_time_keyword_accepts_leading_zero_duration() -> None:
+    """The explicit time= path keeps lenient duration parsing."""
+    prompt = "%wait(time=05s)\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == []
+    assert directives.wait_duration == 5.0
+    assert directives.wait_until is None
+
+
 def test_wait_duration_arg_raises_with_migration_hint() -> None:
     """%wait:5m raises with a migration hint pointing to time=."""
     prompt = "%wait:5m\nDo work"

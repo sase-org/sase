@@ -36,7 +36,11 @@ from ._directive_alt import (
     split_prompt_for_alternatives,
     split_prompt_for_models,
 )
-from ._directive_time import parse_absolute_time, parse_duration
+from ._directive_time import (
+    is_canonical_duration,
+    parse_absolute_time,
+    parse_duration,
+)
 from ._directive_types import (
     AUTO_MODES,
     AUTO_MODES_ORDERED,
@@ -69,6 +73,7 @@ __all__ = [
     "has_alt_directive",
     "has_deferred_start_directive",
     "has_model_directive",
+    "is_canonical_duration",
     "parse_absolute_time",
     "parse_duration",
     "plan_prompt_fanout_variants",
@@ -428,7 +433,7 @@ def extract_prompt_directives(
                     )
                 resolved_wait.append(prev_name)
                 continue
-            if parse_duration(raw_arg) is not None:
+            if is_canonical_duration(raw_arg):
                 raise DirectiveError(
                     f"%wait:{raw_arg} is a time wait; use "
                     f"%wait(time={raw_arg}) or #t:{raw_arg} instead"

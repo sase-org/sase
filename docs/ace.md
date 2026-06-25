@@ -548,7 +548,7 @@ subset; `failed` is terminal failed work; `unread` counts terminal rows that sti
 completed visible work that has already been acknowledged. During startup the metric strip renders `Agents: …` until the
 first agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping;
 cycling only changes the current session. **Waiting** holds agents that are blocked but progressing on their own —
-`WAITING` with a `wait_until` timer (`%wait:5m`, `%wait:1430`) or a non-empty `waiting_for` dependency. **Stopped**
+`WAITING` with a time wait (`%wait(time=5m)`, `%wait(time=1430)`) or a non-empty `waiting_for` dependency. **Stopped**
 keeps the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there
 because it's parked waiting on the user.
 
