@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 17:28:06
-status: wip
+status: done
 prompt: sdd/prompts/202606/move_pencil_after_runtime.md
 ---
 # Plan: Move Agent Row Pencil After Runtime

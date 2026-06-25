@@ -236,7 +236,7 @@ class TestAgentListFileChangePencil:
         assert suffix.plain == "✏️"
         assert "[pinned]" not in left.plain
 
-    def test_running_pencil_immediately_precedes_runtime_marker(self) -> None:
+    def test_running_pencil_immediately_follows_runtime_marker(self) -> None:
         start = datetime(2026, 4, 25, 14, 0, 0)
         agent = make_agent(
             diff_path="/tmp/sase/demo.diff",
@@ -252,9 +252,9 @@ class TestAgentListFileChangePencil:
         )
 
         assert "✏️" not in left.plain
-        assert suffix.plain == "✏️ 🏃‍♂️ 1m23s"
+        assert suffix.plain == "🏃‍♂️ 1m23s ✏️"
 
-    def test_finished_pencil_immediately_precedes_finish_timestamp(self) -> None:
+    def test_finished_pencil_immediately_follows_finish_timestamp(self) -> None:
         agent = make_agent(
             status="DONE",
             start_time=datetime(2026, 4, 24, 19, 38, 18),
@@ -271,7 +271,7 @@ class TestAgentListFileChangePencil:
         )
 
         assert "✏️" not in left.plain
-        assert suffix.plain == "✏️ Apr 24 20:17 · 38m45s"
+        assert suffix.plain == "Apr 24 20:17 · 38m45s ✏️"
 
 
 class TestAgentListRevertedIndicator:

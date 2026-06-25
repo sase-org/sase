@@ -318,13 +318,13 @@ def format_agent_option(
     runtime_suffix = build_runtime_suffix(agent, now=now, is_unread=is_unread)
     if _has_file_change_hint(agent):
         runtime_with_file_change = Text()
+        if runtime_suffix.cell_len:
+            runtime_with_file_change.append_text(runtime_suffix)
+            runtime_with_file_change.append(" ")
         runtime_with_file_change.append(
             _FILE_CHANGE_GLYPH,
             style=_FILE_CHANGE_GLYPH_STYLE,
         )
-        if runtime_suffix.cell_len:
-            runtime_with_file_change.append(" ")
-            runtime_with_file_change.append_text(runtime_suffix)
     else:
         runtime_with_file_change = runtime_suffix
 
