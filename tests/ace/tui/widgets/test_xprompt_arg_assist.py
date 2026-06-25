@@ -432,6 +432,15 @@ def test_detect_typed_argument_positions_rejects_broad_cases() -> None:
         assert detect_xprompt_arg_hint_at_cursor(prompt, len(prompt), entries) is None
 
 
+def test_detect_typed_argument_hint_ignores_double_colon_free_text() -> None:
+    entries = [_entry("ask", _input_hint("body", "text"))]
+
+    assert (
+        detect_xprompt_arg_hint_at_cursor("#ask:: after", len("#ask::"), entries)
+        is None
+    )
+
+
 def test_accepted_xprompt_arg_hint_requires_exact_inserted_reference() -> None:
     entries = [
         _entry("review", _input_hint("path", "path")),
@@ -494,6 +503,23 @@ def test_detects_type_aware_arg_completion_contexts() -> None:
 def test_detects_agent_arg_completion_contexts_for_fork_forms() -> None:
     entries = [_entry("fork", _input_hint("name", "agent"))]
 
+    trailing_cases = [
+        "#fork:",
+        "#fork: bar",
+        "foo #fork: bar",
+        "#fork:c bar",
+    ]
+    for prompt in trailing_cases:
+        cursor_offset = prompt.index(":") + 1
+        ctx = detect_xprompt_arg_completion_at_cursor(prompt, cursor_offset, entries)
+        assert ctx is not None
+        assert ctx.completion_kind == "xprompt_arg_agent"
+        assert ctx.active_input is not None
+        assert ctx.active_input.name == "name"
+        assert ctx.value_start == cursor_offset
+        assert ctx.value_end == cursor_offset
+        assert ctx.token == ""
+
     colon_ctx = detect_xprompt_arg_completion_at_cursor(
         "#fork:co", len("#fork:co"), entries
     )
@@ -510,3 +536,8 @@ def test_detects_agent_arg_completion_contexts_for_fork_forms() -> None:
     assert paren_ctx.completion_kind == "xprompt_arg_agent"
     assert paren_ctx.value_start == len("#fork(")
     assert paren_ctx.token == "co"
+
+    assert (
+        detect_xprompt_arg_completion_at_cursor("#fork: ag", len("#fork: ag"), entries)
+        is None
+    )

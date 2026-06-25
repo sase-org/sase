@@ -481,7 +481,11 @@ def _cursor_is_inside_reference_args(
 ) -> bool:
     if _cursor_is_inside_open_paren(text, ref):
         return True
-    return text[base_end : base_end + 1] == "(" and cursor_offset <= ref.end
+    if text[base_end : base_end + 1] == "(":
+        return cursor_offset <= ref.end
+    if ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND:
+        return False
+    return text[base_end : base_end + 1] == ":" and cursor_offset <= ref.end
 
 
 def _active_input_index_for_suffix(

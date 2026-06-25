@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 09:51:37
-status: wip
+status: done
 prompt: sdd/prompts/202606/fork_colon_trailing_text_completion.md
 ---
 # Plan: Open the `#fork:` agent-name menu even when text follows the colon
