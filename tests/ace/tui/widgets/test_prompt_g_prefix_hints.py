@@ -20,13 +20,16 @@ class _GPrefixHintApp(App[None]):
         *,
         mode: str = "prompt",
         stash_exists: bool = False,
+        pinned_exists: bool = False,
     ) -> None:
         super().__init__()
         self._initial_value = initial_value
         self._mode = mode
         self._stash_exists = stash_exists
+        self._pinned_exists = pinned_exists
         self.stashed: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
+        self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -38,6 +41,9 @@ class _GPrefixHintApp(App[None]):
     def _has_stashed_prompts(self) -> bool:
         return self._stash_exists
 
+    def _has_pinned_stashed_prompts(self) -> bool:
+        return self._pinned_exists
+
     def on_prompt_input_bar_stashed(self, event: PromptInputBar.Stashed) -> None:
         self.stashed.append(event)
 
@@ -45,6 +51,11 @@ class _GPrefixHintApp(App[None]):
         self, event: PromptInputBar.RestoreRequested
     ) -> None:
         self.restore_requests.append(event)
+
+    def on_prompt_input_bar_update_pinned_requested(
+        self, event: PromptInputBar.UpdatePinnedRequested
+    ) -> None:
+        self.update_requests.append(event)
 
 
 def _entry_pairs(
@@ -104,10 +115,41 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
         ]
 
 
+async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> None:
+    app = _GPrefixHintApp("solo draft", stash_exists=True, pinned_exists=True)
+
+    async with app.run_test(size=(80, 24)):
+        bar = app.query_one(PromptInputBar)
+
+        assert _entry_pairs(bar) == [
+            ("enter", "submit this draft"),
+            ("-", "add pane"),
+            ("=", "toggle frontmatter"),
+            ("S", "update pinned stash"),
+        ]
+        assert _entry_pairs(bar, via_ctrl_g=True) == [
+            ("enter", "submit this draft"),
+            ("-", "add pane"),
+            ("=", "toggle frontmatter"),
+            ("S", "update pinned stash"),
+            ("p", "stashed prompts…"),
+        ]
+
+
+async def test_update_pin_hint_requires_non_empty_prompt() -> None:
+    app = _GPrefixHintApp("", stash_exists=True, pinned_exists=True)
+
+    async with app.run_test(size=(80, 24)):
+        bar = app.query_one(PromptInputBar)
+
+        assert ("S", "update pinned stash") not in _entry_pairs(bar)
+
+
 async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
     app = _GPrefixHintApp(
         "first\n---\nsecond",
         stash_exists=True,
+        pinned_exists=True,
     )
 
     async with app.run_test(size=(80, 24)):
@@ -122,6 +164,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("s", "stash all panes"),
+            ("S", "update pinned stash"),
         ]
 
         assert _entry_pairs(bar, via_ctrl_g=True)[-1] == ("p", "stashed prompts…")
@@ -202,6 +245,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G=   toggle frontmatter" in plain
         assert "^Gp   stashed prompts…" in plain
         assert "^Gs" not in plain
+        assert "^GS" not in plain
         assert "^GP" not in plain
 
 
@@ -229,6 +273,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gs" not in plain
+        assert "^GS" not in plain
         assert bar.active_text_area()._vim_mode == "normal"
         assert bar.active_text_area()._normal_g_prefix_pending is True
 
@@ -472,14 +517,16 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(bar, "add_bottom_pane", lambda: calls.append("-"))
         monkeypatch.setattr(bar, "toggle_frontmatter_panel", lambda: calls.append("="))
         monkeypatch.setattr(bar, "stash_all_panes", lambda: calls.append("s"))
+        monkeypatch.setattr(
+            bar, "request_update_pinned_stash", lambda: calls.append("S")
+        )
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
 
-        for key in ("enter", "j", "k", "J", "K", "-", "=", "s"):
+        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S"):
             assert bar.dispatch_g_prefix_key(key) is True
-        assert bar.dispatch_g_prefix_key("S") is False
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
-        assert bar.dispatch_g_prefix_key("S", via_ctrl_g=True) is False
+        assert bar.dispatch_g_prefix_key("S", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("P", via_ctrl_g=True) is False
         # Unknown / vim-owned continuations fall through to vim.
         assert bar.dispatch_g_prefix_key("g") is False
@@ -495,7 +542,9 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "-",
             "=",
             "s",
+            "S",
             "p",
+            "S",
         ]
 
 

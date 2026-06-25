@@ -55,6 +55,16 @@ def set_prompt_stash_pinned(
     return prompt_stash_snapshot_from_dict(payload)
 
 
+def rewrite_prompt_stash(
+    path: Path | str,
+    entries: Sequence[PromptStashEntryWire | dict[str, Any]],
+) -> PromptStashSnapshotWire:
+    """Rewrite stash rows by id through Rust and return the updated snapshot."""
+    binding = require_rust_binding("rewrite_prompt_stash")
+    payload: dict[str, Any] = binding(str(path), prompt_stash_wire_to_json_dict(entries))
+    return prompt_stash_snapshot_from_dict(payload)
+
+
 __all__ = [
     "PromptStashEntryWire",
     "PromptStashPopOutcomeWire",
@@ -62,5 +72,6 @@ __all__ = [
     "append_prompt_stash",
     "pop_prompt_stash",
     "read_prompt_stash_snapshot",
+    "rewrite_prompt_stash",
     "set_prompt_stash_pinned",
 ]

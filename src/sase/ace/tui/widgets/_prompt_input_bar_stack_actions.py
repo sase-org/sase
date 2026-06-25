@@ -111,6 +111,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_stash_all",
     ),
     _PromptGPrefixBinding(
+        "S",
+        "request_update_pinned_stash",
+        "_g_prefix_label_update_pin",
+        "_g_prefix_available_update_pin",
+    ),
+    _PromptGPrefixBinding(
         "p",
         "request_open_prompt_stash",
         "_g_prefix_label_open_stash",
@@ -126,6 +132,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
     if TYPE_CHECKING:
         Stashed: Any
         RestoreRequested: Any
+        UpdatePinnedRequested: Any
         _mode: str
         _stack: PromptStackState
 
@@ -245,6 +252,20 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         except Exception:
             return False
 
+    def _g_prefix_available_update_pin(self) -> bool:
+        """Whether ``gS`` can save the current draft over a pinned stash."""
+        if self._mode != "prompt":
+            return False
+        try:
+            checker = getattr(self.app, "_has_pinned_stashed_prompts", None)
+            has_pin = bool(checker()) if callable(checker) else False
+        except Exception:
+            return False
+        if not has_pin:
+            return False
+        self._sync_state_from_widgets()
+        return any(item.text.strip() for item in self._stack.items)
+
     def _g_prefix_label_focus_next(self) -> str:
         """Return the ``gj`` label."""
         return "focus next pane"
@@ -278,6 +299,10 @@ class PromptInputBarStackActionsMixin(_MixinBase):
     def _g_prefix_label_stash_all(self) -> str:
         """Return the ``gs`` label."""
         return "stash all panes"
+
+    def _g_prefix_label_update_pin(self) -> str:
+        """Return the ``gS`` label."""
+        return "update pinned stash"
 
     def _g_prefix_label_open_stash(self) -> str:
         """Return the ``Ctrl+G p`` label."""
@@ -407,6 +432,24 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             return
         self._clear_active_completion_state()
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
+
+    def request_update_pinned_stash(self) -> None:
+        """Ask the app to update a pinned stash from the current prompt stack."""
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        panes = [
+            StashedPromptPane(
+                text=stripped,
+                frontmatter=self._stack.frontmatter,
+                pane_index=index,
+            )
+            for index, item in enumerate(self._stack.items)
+            if (stripped := item.text.strip())
+        ]
+        if panes:
+            self._clear_active_completion_state()
+        self.post_message(self.UpdatePinnedRequested(panes))
 
     def request_open_prompt_stash(self) -> None:
         """Ask the app to open the unified prompt-stash panel.

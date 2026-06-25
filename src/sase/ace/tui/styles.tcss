@@ -145,7 +145,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, QuitConfirmModal, InputCollectionModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
     align: center middle;
 }
 
@@ -273,6 +273,34 @@ StashedPromptsModal #stashed-prompts-list {
 }
 
 StashedPromptsModal #stashed-prompts-hints {
+    height: auto;
+    margin-top: 1;
+    color: $text-muted;
+}
+
+UpdatePinnedStashModal > #update-pinned-stash-container {
+    width: 96;
+    max-width: 96%;
+    height: auto;
+    max-height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+UpdatePinnedStashModal #update-pinned-stash-title {
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+UpdatePinnedStashModal #update-pinned-stash-list {
+    height: 18;
+    max-height: 18;
+    border: solid $secondary;
+}
+
+UpdatePinnedStashModal #update-pinned-stash-hints {
     height: auto;
     margin-top: 1;
     color: $text-muted;

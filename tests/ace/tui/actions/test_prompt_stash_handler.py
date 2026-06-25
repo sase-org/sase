@@ -58,6 +58,7 @@ class _StashHarness(PromptBarStashMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.unmount_after_submit_calls = 0
         self.applied_counts: list[int] = []
+        self.applied_pinned_counts: list[int] = []
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -67,7 +68,11 @@ class _StashHarness(PromptBarStashMixin):
 
     # Avoid the real widget query; record what the badge would show.
     def _apply_prompt_stash_count(self, count: int) -> None:
+        self._apply_prompt_stash_counts(count, 0)
+
+    def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
         self.applied_counts.append(count)
+        self.applied_pinned_counts.append(pinned_count)
 
 
 def _point_store_at(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
@@ -134,6 +139,7 @@ def test_stash_all_persists_one_bundle_row_with_metadata(
 
     assert harness.notifications == [("Stashed 2 prompts as a bundle", None)]
     assert harness.applied_counts == [1]  # badge reflects total rows on disk
+    assert harness.applied_pinned_counts == [0]
     assert harness.unmount_after_submit_calls == 1
     assert harness._prompt_context is None
 
@@ -265,6 +271,7 @@ async def test_app_focus_reconciles_badge_from_disk(
     await harness.on_app_focus(None)
 
     assert harness.applied_counts == [2]
+    assert harness.applied_pinned_counts == [0]
 
 
 async def test_app_focus_is_a_noop_on_empty_store(
@@ -279,6 +286,7 @@ async def test_app_focus_is_a_noop_on_empty_store(
 
     # No rows on disk → badge driven to zero, never a crash.
     assert harness.applied_counts == [0]
+    assert harness.applied_pinned_counts == [0]
 
 
 # --- Phase 4 hardening: graceful degradation without the Rust binding ------

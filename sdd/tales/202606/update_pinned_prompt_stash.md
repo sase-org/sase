@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 07:26:56
-status: wip
+status: done
 prompt: sdd/prompts/202606/update_pinned_prompt_stash.md
 ---
 # Plan: `gS` / `<Ctrl+G>S` — update a pinned prompt stash with the current prompt

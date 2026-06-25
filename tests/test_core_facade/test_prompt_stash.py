@@ -208,6 +208,44 @@ def test_set_pinned_passes_string_ids_and_rehydrates_snapshot(
     assert snapshot.entries[0].pinned is True
 
 
+def test_rewrite_serializes_entries_and_rehydrates_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[dict[str, Any]]]] = []
+
+    def fake_rewrite(path: str, entries: list[dict[str, Any]]) -> dict:
+        calls.append((path, entries))
+        return {
+            "schema_version": PROMPT_STASH_WIRE_SCHEMA_VERSION,
+            "entries": entries,
+            "stats": {"loaded_rows": len(entries)},
+        }
+
+    _fake_module(monkeypatch, rewrite_prompt_stash=fake_rewrite)
+
+    snapshot = facade.rewrite_prompt_stash(
+        "/tmp/prompt_stash.jsonl",
+        [
+            _entry(
+                "pin",
+                text="updated",
+                frontmatter="model: c",
+                project="proj-a",
+                pinned=True,
+            )
+        ],
+    )
+
+    assert len(calls) == 1
+    assert calls[0][0] == "/tmp/prompt_stash.jsonl"
+    assert calls[0][1][0]["id"] == "pin"
+    assert calls[0][1][0]["text"] == "updated"
+    assert calls[0][1][0]["frontmatter"] == "model: c"
+    assert calls[0][1][0]["pinned"] is True
+    assert snapshot.entries[0].id == "pin"
+    assert snapshot.entries[0].text == "updated"
+
+
 def test_wire_helpers_round_trip_entry() -> None:
     entry = _entry(
         "e1",
@@ -281,6 +319,50 @@ def test_real_extension_sets_and_clears_pinned(tmp_path: Path) -> None:
         ("a", False),
         ("b", False),
     ]
+
+
+def test_real_extension_rewrite_updates_one_entry_in_place(tmp_path: Path) -> None:
+    _skip_without_prompt_stash_bindings("rewrite_prompt_stash")
+    path = tmp_path / "prompt_stash.jsonl"
+
+    facade.append_prompt_stash(
+        path,
+        _entry(
+            "pin",
+            text="old",
+            frontmatter="old: fm",
+            project="proj-a",
+            pinned=True,
+        ),
+    )
+    facade.append_prompt_stash(path, _entry("other", text="keep"))
+    original = {
+        entry.id: entry for entry in facade.read_prompt_stash_snapshot(path).entries
+    }
+
+    updated = facade.rewrite_prompt_stash(
+        path,
+        [
+            PromptStashEntryWire(
+                id="pin",
+                created_at=original["pin"].created_at,
+                text="new text",
+                frontmatter="model: c",
+                project=original["pin"].project,
+                source=original["pin"].source,
+                pane_index=original["pin"].pane_index,
+                pinned=original["pin"].pinned,
+            )
+        ],
+    )
+
+    entries = {entry.id: entry for entry in updated.entries}
+    assert entries["pin"].text == "new text"
+    assert entries["pin"].frontmatter == "model: c"
+    assert entries["pin"].id == original["pin"].id
+    assert entries["pin"].created_at == original["pin"].created_at
+    assert entries["pin"].pinned is True
+    assert entries["other"] == original["other"]
 
 
 def test_real_extension_missing_file_is_empty(tmp_path: Path) -> None:

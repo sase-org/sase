@@ -190,10 +190,10 @@ class StartupMixin(StateInitMixin):
             self._initialize_agent_tracking(notif_state)  # type: ignore[attr-defined]
 
             # Seed the prompt-stash badge from disk (kept off the paint path).
-            stash_count = await asyncio.to_thread(
-                self._read_prompt_stash_count  # type: ignore[attr-defined]
+            stash_counts = await asyncio.to_thread(
+                self._read_prompt_stash_counts  # type: ignore[attr-defined]
             )
-            self._apply_prompt_stash_count(stash_count)  # type: ignore[attr-defined]
+            self._apply_prompt_stash_counts(*stash_counts)  # type: ignore[attr-defined]
 
             # Load initial changespecs with the startup query
             all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)  # type: ignore[attr-defined]

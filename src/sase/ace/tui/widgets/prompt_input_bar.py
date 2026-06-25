@@ -28,6 +28,7 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     SnippetRequested as _SnippetRequested,
     Stashed as _Stashed,
     Submitted as _Submitted,
+    UpdatePinnedRequested as _UpdatePinnedRequested,
     WorkflowEditorRequested as _WorkflowEditorRequested,
 )
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
@@ -63,6 +64,7 @@ class PromptInputBar(
     Cancelled = _Cancelled
     Stashed = _Stashed
     RestoreRequested = _RestoreRequested
+    UpdatePinnedRequested = _UpdatePinnedRequested
     EditorRequested = _EditorRequested
     AllEditorRequested = _AllEditorRequested
     HistoryRequested = _HistoryRequested

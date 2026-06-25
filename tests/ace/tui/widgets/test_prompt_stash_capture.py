@@ -36,6 +36,7 @@ class _CaptureApp(App[None]):
         self._mode = mode
         self.stashed: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
+        self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -51,6 +52,11 @@ class _CaptureApp(App[None]):
         self, event: PromptInputBar.RestoreRequested
     ) -> None:
         self.restore_requests.append(event)
+
+    def on_prompt_input_bar_update_pinned_requested(
+        self, event: PromptInputBar.UpdatePinnedRequested
+    ) -> None:
+        self.update_requests.append(event)
 
 
 async def _add_local_xprompt_from_panel(
@@ -275,6 +281,73 @@ async def test_gs_all_empty_is_noop() -> None:
         assert app.stashed[0].dismiss_bar is False
 
 
+# --- update pinned (gS) ----------------------------------------------------
+
+
+async def test_gS_captures_all_non_empty_panes_without_clearing_bar() -> None:
+    app = _CaptureApp("alpha\n---\nbeta\n---\ngamma")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("escape")
+        await pilot.press("g", "S")
+        await pilot.pause()
+
+        assert len(app.update_requests) == 1
+        event = app.update_requests[0]
+        assert [p.text for p in event.panes] == ["alpha", "beta", "gamma"]
+        assert [p.pane_index for p in event.panes] == [0, 1, 2]
+        assert bar.all_prompt_texts() == ["alpha", "beta", "gamma"]
+        assert app.stashed == []
+
+
+async def test_ctrl_gS_captures_all_non_empty_panes_from_insert() -> None:
+    app = _CaptureApp("alpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("ctrl+g", "S")
+        await pilot.pause()
+
+        assert len(app.update_requests) == 1
+        assert [p.text for p in app.update_requests[0].panes] == ["alpha", "beta"]
+        assert bar.all_prompt_texts() == ["alpha", "beta"]
+
+
+async def test_gS_preserves_shared_frontmatter() -> None:
+    app = _CaptureApp("---\nmodel: claude\n---\nfirst\n---\nsecond")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.press("g", "S")
+        await pilot.pause()
+
+        event = app.update_requests[0]
+        assert [p.text for p in event.panes] == ["first", "second"]
+        assert all(p.frontmatter == "---\nmodel: claude\n---" for p in event.panes)
+
+
+async def test_gS_empty_prompt_posts_empty_update_request() -> None:
+    app = _CaptureApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.press("g", "S")
+        await pilot.pause()
+
+        assert len(app.update_requests) == 1
+        assert app.update_requests[0].panes == []
+        assert app.stashed == []
+
+
 # --- guards ----------------------------------------------------------------
 
 
@@ -288,10 +361,12 @@ async def test_stash_is_noop_in_feedback_mode() -> None:
         await pilot.press("escape")
         await pilot.press("ctrl+s")
         await pilot.press("g", "s")
+        await pilot.press("g", "S")
         await pilot.pause()
 
         # Feedback bars are not stashable: no message posted, text intact.
         assert app.stashed == []
+        assert app.update_requests == []
         assert bar.all_prompt_texts() == ["plan note"]
 
 

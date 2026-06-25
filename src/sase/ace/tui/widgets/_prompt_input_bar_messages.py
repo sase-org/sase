@@ -104,6 +104,19 @@ class RestoreRequested(Message, namespace="prompt_input_bar"):
         self.mode = mode
 
 
+class UpdatePinnedRequested(Message, namespace="prompt_input_bar"):
+    """Message sent when the user asks to update an existing pinned stash.
+
+    The bar captures every non-empty prompt pane plus shared frontmatter, but
+    leaves the stack mounted and unchanged. The app layer chooses the pinned
+    target and rewrites that row through ``prompt_stash_facade``.
+    """
+
+    def __init__(self, panes: list[StashedPromptPane]) -> None:
+        super().__init__()
+        self.panes = panes
+
+
 class EditorRequested(Message, namespace="prompt_input_bar"):
     """Message sent when user requests the single-pane external editor."""
 

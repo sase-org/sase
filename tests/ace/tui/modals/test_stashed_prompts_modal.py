@@ -14,13 +14,14 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
+from sase.ace.tui.modals.prompt_stash_row import (
+    append_shortcut,
+    first_line_preview,
+    stash_row_label,
+)
 from sase.ace.tui.modals.stashed_prompts_modal import (
     StashRestoreResult,
     StashedPromptsModal,
-    _append_shortcut,
-    _first_line_preview,
-    _project_chip,
-    _stash_row_label,
 )
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 
@@ -48,45 +49,70 @@ def _entry(
 
 
 def test_first_line_preview_uses_first_nonblank_line() -> None:
-    assert _first_line_preview("\n\n  hello  \nworld", 64) == "hello"
+    assert first_line_preview("\n\n  hello  \nworld", 64) == "hello"
 
 
 def test_first_line_preview_truncates_with_ellipsis() -> None:
-    out = _first_line_preview("x" * 100, 10)
+    out = first_line_preview("x" * 100, 10)
     assert out == "xxxxxxxxx…"
     assert len(out) == 10
 
 
 def test_project_chip_pads_and_placeholders() -> None:
-    assert _project_chip("proj") == "proj".ljust(14)
-    assert _project_chip(None).strip() == "—"
-    assert len(_project_chip("a-very-long-project-name")) == 14
+    plain = stash_row_label(
+        _entry("a", "hello", project="proj"),
+        marked_for_pop=False,
+        marked_for_delete=False,
+        pinned=False,
+        age="2m ago",
+    ).plain
+    assert "proj".ljust(14) in plain
+    assert (
+        "—".ljust(14)
+        in stash_row_label(
+            _entry("b", "hello", project=None),
+            marked_for_pop=False,
+            marked_for_delete=False,
+            pinned=False,
+            age="2m ago",
+        ).plain
+    )
+    assert (
+        "a-very-long-p…"
+        in stash_row_label(
+            _entry("c", "hello", project="a-very-long-project-name"),
+            marked_for_pop=False,
+            marked_for_delete=False,
+            pinned=False,
+            age="2m ago",
+        ).plain
+    )
 
 
 def test_row_label_markers() -> None:
     entry = _entry("a", "hello")
-    plain_pop = _stash_row_label(
+    plain_pop = stash_row_label(
         entry,
         marked_for_pop=True,
         marked_for_delete=False,
         pinned=False,
         age="2m ago",
     ).plain
-    plain_pinned = _stash_row_label(
+    plain_pinned = stash_row_label(
         entry,
         marked_for_pop=False,
         marked_for_delete=False,
         pinned=True,
         age="2m ago",
     ).plain
-    plain_deleted = _stash_row_label(
+    plain_deleted = stash_row_label(
         entry,
         marked_for_pop=False,
         marked_for_delete=True,
         pinned=False,
         age="2m ago",
     ).plain
-    plain_plain = _stash_row_label(
+    plain_plain = stash_row_label(
         entry,
         marked_for_pop=False,
         marked_for_delete=False,
@@ -102,7 +128,7 @@ def test_row_label_markers() -> None:
 
 def test_row_label_shows_bundle_marker() -> None:
     entry = _entry("bundle", "one\n---\ntwo")
-    plain = _stash_row_label(
+    plain = stash_row_label(
         entry,
         marked_for_pop=False,
         marked_for_delete=False,
@@ -115,9 +141,9 @@ def test_row_label_shows_bundle_marker() -> None:
 
 def test_append_shortcut_builds_fixed_width_keycap_or_blank_gutter() -> None:
     with_key = Text()
-    _append_shortcut(with_key, "3")
+    append_shortcut(with_key, "3")
     blank = Text()
-    _append_shortcut(blank, None)
+    append_shortcut(blank, None)
 
     assert with_key.plain == " 3  "
     assert blank.plain == "    "

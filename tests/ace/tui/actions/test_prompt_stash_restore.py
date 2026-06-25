@@ -75,6 +75,7 @@ class _RestoreHarness(PromptBarStashMixin):
         self.home_mounts: list[str] = []
         self.home_mount_xprompt_markdown: list[bool] = []
         self.applied_counts: list[int] = []
+        self.applied_pinned_counts: list[int] = []
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -97,7 +98,11 @@ class _RestoreHarness(PromptBarStashMixin):
         self.home_mount_xprompt_markdown.append(as_xprompt_markdown)
 
     def _apply_prompt_stash_count(self, count: int) -> None:
+        self._apply_prompt_stash_counts(count, 0)
+
+    def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
         self.applied_counts.append(count)
+        self.applied_pinned_counts.append(pinned_count)
 
 
 def _point_store_at(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
@@ -563,7 +568,8 @@ async def test_pin_toggled_persists_without_badge_refresh(
 
     assert read_prompt_stash_snapshot(path).entries[0].pinned is True
     assert harness.notifications == []
-    assert harness.applied_counts == []
+    assert harness.applied_counts == [1]
+    assert harness.applied_pinned_counts == [1]
 
     harness.on_stashed_prompts_modal_pin_toggled(
         StashedPromptsModal.PinToggled(entry, False)
@@ -572,7 +578,8 @@ async def test_pin_toggled_persists_without_badge_refresh(
 
     assert read_prompt_stash_snapshot(path).entries[0].pinned is False
     assert harness.notifications == []
-    assert harness.applied_counts == []
+    assert harness.applied_counts == [1, 1]
+    assert harness.applied_pinned_counts == [1, 0]
 
 
 # --- keep-only confirm: load without popping -------------------------------

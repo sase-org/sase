@@ -53,6 +53,7 @@ from .prompt_submit_choice_modal import PromptSubmitChoice, PromptSubmitChoiceMo
 from .query_edit_modal import QueryEditModal
 from .quit_confirm_modal import QuitConfirmModal
 from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
+from .update_pinned_stash_modal import UpdatePinnedStashModal
 from .recursive_finder_modal import RecursiveFileFinderModal
 from .rename_cl_modal import RenameCLModal
 from .save_agent_group_modal import SaveAgentGroupModal, SaveAgentGroupResult
@@ -214,6 +215,7 @@ __all__ = [
     "TaskQueueModal",
     "TemporaryLLMOverrideModal",
     "TemporaryOverrideResult",
+    "UpdatePinnedStashModal",
     "WaitModal",
     "WaitAgentCandidate",
     "WaitModalResult",

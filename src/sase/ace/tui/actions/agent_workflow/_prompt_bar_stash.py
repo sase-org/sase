@@ -15,12 +15,17 @@ from typing import TYPE_CHECKING
 from ._types import PromptContext
 
 if TYPE_CHECKING:
+    from asyncio import Lock
+
     from sase.ace.tui.modals import StashRestoreResult
     from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
         StashedPromptPane,
     )
-    from sase.core.prompt_stash_wire import PromptStashEntryWire
+    from sase.core.prompt_stash_wire import (
+        PromptStashEntryWire,
+        PromptStashSnapshotWire,
+    )
 
 
 class PromptBarStashMixin:
@@ -43,7 +48,7 @@ class PromptBarStashMixin:
             return
 
         try:
-            self._persist_stashed_panes(panes, source=event.source)
+            snapshot = self._persist_stashed_panes(panes, source=event.source)
         except Exception as exc:  # pragma: no cover - defensive (store/IO error)
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to stash prompt: {exc}", severity="error"
@@ -61,7 +66,7 @@ class PromptBarStashMixin:
         self.notify(  # type: ignore[attr-defined]
             message
         )
-        self._refresh_prompt_stash_indicator()
+        self._apply_prompt_stash_snapshot_counts(snapshot)
 
         if event.dismiss_bar:
             # The bar emptied: drop it via the post-submit path so the stashed
@@ -74,7 +79,7 @@ class PromptBarStashMixin:
         panes: list[StashedPromptPane],
         *,
         source: str,
-    ) -> None:
+    ) -> PromptStashSnapshotWire:
         """Append the captured stash unit to the per-user prompt-stash store.
 
         The originating project (D2 metadata) comes from the active prompt
@@ -101,15 +106,118 @@ class PromptBarStashMixin:
         entry = PromptStashEntryWire(
             id=str(uuid4()),
             created_at=datetime.now(get_timezone()).isoformat(),
-            text="\n---\n".join(pane.text for pane in panes),
-            frontmatter=next(
-                (pane.frontmatter for pane in panes if pane.frontmatter), ""
-            ),
+            text=self._captured_stash_text(panes),
+            frontmatter=self._captured_stash_frontmatter(panes),
             project=project,
             source=source,
             pane_index=min(pane.pane_index for pane in panes),
         )
-        append_prompt_stash(path, entry)
+        return append_prompt_stash(path, entry)
+
+    @staticmethod
+    def _captured_stash_text(panes: list[StashedPromptPane]) -> str:
+        """Return the canonical prompt bundle text for captured panes."""
+        return "\n---\n".join(pane.text for pane in panes)
+
+    @staticmethod
+    def _captured_stash_frontmatter(panes: list[StashedPromptPane]) -> str:
+        """Return the shared frontmatter captured with a prompt bundle."""
+        return next((pane.frontmatter for pane in panes if pane.frontmatter), "")
+
+    # -- update pinned ------------------------------------------------------
+
+    async def on_prompt_input_bar_update_pinned_requested(self, event: object) -> None:
+        """Update a pinned stash row from the current prompt-bar draft."""
+        from ...widgets import PromptInputBar
+
+        if not isinstance(event, PromptInputBar.UpdatePinnedRequested):
+            return
+
+        panes = event.panes
+        if not panes:
+            self.notify("Nothing to save", severity="warning")  # type: ignore[attr-defined]
+            return
+        await self._update_pinned_stash(panes)
+
+    async def _update_pinned_stash(self, panes: list[StashedPromptPane]) -> None:
+        """Choose a pinned target and schedule an in-place stash update."""
+        import asyncio
+
+        from ...modals import UpdatePinnedStashModal
+
+        text = self._captured_stash_text(panes)
+        frontmatter = self._captured_stash_frontmatter(panes)
+        if not text.strip():
+            self.notify("Nothing to save", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        entries = await asyncio.to_thread(self._read_prompt_stash_entries)
+        pinned = [entry for entry in entries if entry.pinned]
+        if not pinned:
+            self.notify(  # type: ignore[attr-defined]
+                "No pinned prompt stash to update — pin one with space in the "
+                "stash picker (Ctrl+G p)",
+                severity="warning",
+            )
+            return
+
+        if len(pinned) == 1:
+            self._spawn_prompt_stash_task(
+                self._write_pinned_update(pinned[0], text, frontmatter)
+            )
+            return
+
+        by_id = {entry.id: entry for entry in pinned}
+
+        def _on_picked(entry_id: str | None) -> None:
+            if entry_id is None:
+                return
+            entry = by_id.get(entry_id)
+            if entry is None:
+                return
+            self._spawn_prompt_stash_task(
+                self._write_pinned_update(entry, text, frontmatter)
+            )
+
+        self.push_screen(  # type: ignore[attr-defined]
+            UpdatePinnedStashModal(pinned),
+            _on_picked,
+        )
+
+    async def _write_pinned_update(
+        self,
+        base_entry: PromptStashEntryWire,
+        text: str,
+        frontmatter: str,
+    ) -> None:
+        """Rewrite one pinned stash row with freshly captured prompt text."""
+        import asyncio
+        from dataclasses import replace
+
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import rewrite_prompt_stash
+
+        updated = replace(base_entry, text=text, frontmatter=frontmatter)
+        lock = self._prompt_stash_write_lock()
+        async with lock:
+            try:
+                snapshot = await asyncio.to_thread(
+                    rewrite_prompt_stash,
+                    prompt_stash_path(),
+                    [updated],
+                )
+            except Exception as exc:  # pragma: no cover - stale wheel/IO failure
+                self.notify(  # type: ignore[attr-defined]
+                    f"Failed to update pinned prompt: {exc}",
+                    severity="error",
+                )
+                return
+
+        self._apply_prompt_stash_snapshot_counts(snapshot)
+        from ...modals.prompt_stash_row import first_line_preview
+
+        preview = first_line_preview(text, 48)
+        self.notify(f'Updated pinned prompt 📌 "{preview}"')  # type: ignore[attr-defined]
 
     # -- restore -------------------------------------------------------------
 
@@ -216,13 +324,10 @@ class PromptBarStashMixin:
         from sase.core.paths import prompt_stash_path
         from sase.core.prompt_stash_facade import set_prompt_stash_pinned
 
-        lock = getattr(self, "_prompt_stash_pin_lock", None)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._prompt_stash_pin_lock = lock
+        lock = self._prompt_stash_write_lock()
         async with lock:
             try:
-                await asyncio.to_thread(
+                snapshot = await asyncio.to_thread(
                     set_prompt_stash_pinned,
                     prompt_stash_path(),
                     [entry_id],
@@ -233,6 +338,18 @@ class PromptBarStashMixin:
                     f"Failed to update stashed prompt pin: {exc}",
                     severity="error",
                 )
+                return
+        self._apply_prompt_stash_snapshot_counts(snapshot)
+
+    def _prompt_stash_write_lock(self) -> Lock:
+        """Return the async lock shared by prompt-stash write operations."""
+        import asyncio
+
+        lock = getattr(self, "_prompt_stash_pin_lock", None)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._prompt_stash_pin_lock = lock
+        return lock
 
     async def _apply_stash_restore(self, result: StashRestoreResult) -> None:
         """Apply per-entry pop/keep/delete decisions from the unified panel.
@@ -265,6 +382,7 @@ class PromptBarStashMixin:
             restore_entries.sort(key=lambda entry: (entry.created_at, entry.pane_index))
 
         removed_ids: set[str] = set()
+        snapshot_after_remove: PromptStashSnapshotWire | None = None
         if remove_ids:
             try:
                 outcome = await asyncio.to_thread(
@@ -276,6 +394,7 @@ class PromptBarStashMixin:
                 )
                 return
             removed_ids = {entry.id for entry in outcome.removed}
+            snapshot_after_remove = outcome.snapshot
 
         restored_count = 0
         if restore_entries:
@@ -284,8 +403,8 @@ class PromptBarStashMixin:
 
         deleted = sum(1 for entry_id in result.delete_ids if entry_id in removed_ids)
         self._notify_restore_outcome(restored_count, deleted)
-        if removed_ids:
-            self._refresh_prompt_stash_indicator()
+        if removed_ids and snapshot_after_remove is not None:
+            self._apply_prompt_stash_snapshot_counts(snapshot_after_remove)
 
     def _load_restored_entries(self, entries: list[PromptStashEntryWire]) -> None:
         """Load restored stash drafts into the prompt bar.
@@ -392,6 +511,18 @@ class PromptBarStashMixin:
             return False
         return indicator.count > 0
 
+    def _has_pinned_stashed_prompts(self) -> bool:
+        """Whether any pinned stash exists (drives the ``gS`` hint gate)."""
+        from ...widgets import StashedPromptsIndicator
+
+        try:
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#stashed-prompts-indicator", StashedPromptsIndicator
+            )
+        except Exception:
+            return False
+        return indicator.pinned_count > 0
+
     async def on_app_focus(self, _event: object) -> None:
         """Reconcile the badge when the terminal regains focus (D-P4 lifecycle).
 
@@ -407,14 +538,14 @@ class PromptBarStashMixin:
         import asyncio
 
         try:
-            count = await asyncio.to_thread(self._read_prompt_stash_count)
+            counts = await asyncio.to_thread(self._read_prompt_stash_counts)
         except Exception:  # pragma: no cover - defensive (thread/IO error)
             return
-        self._apply_prompt_stash_count(count)
+        self._apply_prompt_stash_counts(*counts)
 
     def _refresh_prompt_stash_indicator(self) -> None:
         """Reload the stash count from disk and update the top-bar badge."""
-        self._apply_prompt_stash_count(self._read_prompt_stash_count())
+        self._apply_prompt_stash_counts(*self._read_prompt_stash_counts())
 
     # -- failed-launch recovery (off the event loop) -------------------------
 
@@ -432,10 +563,10 @@ class PromptBarStashMixin:
         import asyncio
 
         try:
-            count = await asyncio.to_thread(self._read_prompt_stash_count)
+            counts = await asyncio.to_thread(self._read_prompt_stash_counts)
         except Exception:  # pragma: no cover - defensive (thread/IO error)
             return
-        self._apply_prompt_stash_count(count)
+        self._apply_prompt_stash_counts(*counts)
 
     def _schedule_failed_launch_prompt_recovery(self, submitted_prompt: str) -> None:
         """Stash a payloadless failed-launch prompt, then refresh the badge.
@@ -486,17 +617,39 @@ class PromptBarStashMixin:
         worker thread (e.g. wrapped in ``asyncio.to_thread`` during startup).
         Any read/binding failure degrades to ``0`` rather than crashing.
         """
+        return self._read_prompt_stash_counts()[0]
+
+    def _read_prompt_stash_counts(self) -> tuple[int, int]:
+        """Return total and pinned stashed-prompt counts from disk."""
         try:
             from sase.core.paths import prompt_stash_path
             from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
             snapshot = read_prompt_stash_snapshot(prompt_stash_path())
         except Exception:
-            return 0
-        return len(snapshot.entries)
+            return 0, 0
+        return self._prompt_stash_snapshot_counts(snapshot)
+
+    @staticmethod
+    def _prompt_stash_snapshot_counts(
+        snapshot: PromptStashSnapshotWire,
+    ) -> tuple[int, int]:
+        """Return ``(total, pinned)`` counts for a prompt-stash snapshot."""
+        entries = list(snapshot.entries)
+        return len(entries), sum(1 for entry in entries if entry.pinned)
+
+    def _apply_prompt_stash_snapshot_counts(
+        self, snapshot: PromptStashSnapshotWire
+    ) -> None:
+        """Apply badge counts from an already-available store snapshot."""
+        self._apply_prompt_stash_counts(*self._prompt_stash_snapshot_counts(snapshot))
 
     def _apply_prompt_stash_count(self, count: int) -> None:
         """Push *count* into the ``StashedPromptsIndicator`` badge widget."""
+        self._apply_prompt_stash_counts(count, 0)
+
+    def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
+        """Push total and pinned counts into the stash indicator widget."""
         from ...widgets import StashedPromptsIndicator
 
         try:
@@ -505,4 +658,4 @@ class PromptBarStashMixin:
             )
         except Exception:
             return
-        indicator.set_count(count)
+        indicator.set_count(count, pinned_count=pinned_count)

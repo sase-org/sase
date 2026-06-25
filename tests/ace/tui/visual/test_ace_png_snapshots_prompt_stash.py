@@ -7,15 +7,15 @@ restore picker (newest-first rows with numbered keycap gutter, relative age,
 originating-project chip, truncated preview, and the ``✓`` pop / ``📌`` pin /
 ``✗`` delete markers).
 
-Relative ages are frozen via a patched ``format_relative_time`` so the rows are
-deterministic regardless of when the suite runs.
+Relative ages are frozen via the shared row-renderer ``format_relative_time`` so
+the rows are deterministic regardless of when the suite runs.
 """
 
 from __future__ import annotations
 
 import pytest
 
-import sase.ace.tui.modals.stashed_prompts_modal as stashed_prompts_modal
+import sase.ace.tui.modals.prompt_stash_row as prompt_stash_row
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import StashedPromptsModal
 from sase.ace.tui.widgets import StashedPromptsIndicator
@@ -132,7 +132,7 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(stashed_prompts_modal, "format_relative_time", _frozen_age)
+    monkeypatch.setattr(prompt_stash_row, "format_relative_time", _frozen_age)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
