@@ -16,7 +16,7 @@ from __future__ import annotations
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
@@ -41,6 +41,7 @@ _TAB_BADGE: dict[CommandTab, tuple[str, str]] = {
 _KEY_COL_WIDTH = 10
 _LABEL_COL_WIDTH = 36
 _CATEGORY_COL_WIDTH = 18
+_POSITION_GAUGE_WIDTH = 10
 COMMAND_PALETTE_INPUT_HINT = (
     "Search command text, or use key:<key> for keymaps (key:j, key::, key:,t)"
 )
@@ -181,6 +182,65 @@ def _build_row_text(spec: CommandSpec) -> Text:
     return text
 
 
+def _build_count_text(shown: int, total: int) -> Text:
+    """Build the live command-count segment for the palette title."""
+    shown = max(0, shown)
+    total = max(0, total)
+    noun = "command" if total == 1 else "commands"
+    if shown == total:
+        label = f"{total} {noun}"
+    else:
+        label = f"{shown} of {total} {noun}"
+    return Text(label, style="dim #87D7FF")
+
+
+def _render_gauge(position: int, total: int, width: int) -> tuple[str, int]:
+    """Render a fixed-width position gauge and return its knob index.
+
+    ``position`` is 1-based for callers. ``-1`` means no knob is rendered.
+    """
+    if width <= 0:
+        return "", -1
+    if total <= 0:
+        return "━" * width, -1
+
+    position = min(max(position, 1), total)
+    if total == 1 or width == 1:
+        knob_index = 0
+    else:
+        ratio = (position - 1) / (total - 1)
+        knob_index = int(ratio * (width - 1) + 0.5)
+    knob_index = min(max(knob_index, 0), width - 1)
+    gauge = ("━" * knob_index) + "●" + ("━" * (width - knob_index - 1))
+    return gauge, knob_index
+
+
+def _build_position_text(position: int, total: int, accent: str) -> Text:
+    """Build the footer position readout with an accented current index."""
+    total = max(0, total)
+    display_position = 0
+    if total > 0:
+        display_position = min(max(position, 1), total)
+
+    gauge, knob_index = _render_gauge(display_position, total, _POSITION_GAUGE_WIDTH)
+    text = Text()
+    if gauge:
+        if knob_index < 0:
+            text.append(gauge, style="dim")
+        else:
+            text.append(gauge[:knob_index], style="dim")
+            text.append(gauge[knob_index], style=f"bold {accent}")
+            text.append(gauge[knob_index + 1 :], style="dim")
+        text.append("  ", style="dim")
+
+    if total <= 0:
+        text.append("0/0", style="dim")
+    else:
+        text.append(str(display_position), style=f"bold {accent}")
+        text.append(f"/{total}", style="dim")
+    return text
+
+
 class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
     """Filterable, context-aware palette of runnable TUI commands.
 
@@ -235,18 +295,21 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
                 self._build_empty_state(),
                 id="command-palette-empty",
             )
-            yield Static(
-                "Enter run · Esc close · ↑/↓ move",
-                id="command-palette-footer",
-            )
+            with Horizontal(id="command-palette-footer"):
+                yield Static(
+                    "⏎ run · esc close · ↑↓ move",
+                    id="command-palette-hints",
+                )
+                yield Static("", id="command-palette-position")
 
     def on_mount(self) -> None:
         self.query_one("#command-palette-filter-input", FilterInput).focus()
         self._refresh_empty_visibility()
+        self._refresh_status()
 
     # -------- rendering helpers --------
 
-    def _build_title(self) -> Text:
+    def _build_title(self, shown: int | None = None, total: int | None = None) -> Text:
         text = Text()
         text.append("✦ ", style="bold #FFD700")
         text.append("Command Palette", style="bold white")
@@ -254,6 +317,12 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
         if label:
             text.append("   ")
             text.append(f"[{label}]", style=f"bold {color}")
+        if shown is None:
+            shown = len(self._filtered_specs)
+        if total is None:
+            total = len(self._all_specs)
+        text.append("  ·  ", style="dim")
+        text.append_text(_build_count_text(shown, total))
         return text
 
     def _build_empty_state(self) -> Text:
@@ -275,6 +344,7 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
         if self._filtered_specs:
             option_list.highlighted = 0
         self._refresh_empty_visibility()
+        self._refresh_status()
 
     def _refresh_empty_visibility(self) -> None:
         empty = self.query_one("#command-palette-empty", Static)
@@ -282,6 +352,26 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
         is_empty = not self._filtered_specs
         empty.display = is_empty
         option_list.display = not is_empty
+
+    def _refresh_status(self) -> None:
+        shown = len(self._filtered_specs)
+        total = len(self._all_specs)
+        option_list = self.query_one("#command-palette-list", OptionList)
+        highlighted = option_list.highlighted
+        position = 0
+        if shown > 0:
+            if highlighted is None or highlighted < 0 or highlighted >= shown:
+                position = 1
+            else:
+                position = highlighted + 1
+
+        _label, accent = _TAB_BADGE.get(self._tab, ("", "#87D7FF"))
+        self.query_one("#command-palette-title", Static).update(
+            self._build_title(shown, total)
+        )
+        self.query_one("#command-palette-position", Static).update(
+            _build_position_text(position, shown, accent)
+        )
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "command-palette-filter-input":
@@ -294,6 +384,11 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option and event.option.id is not None:
             self.dismiss(CommandPaletteResult(selected_id=str(event.option.id)))
+
+    def on_option_list_option_highlighted(
+        self, _event: OptionList.OptionHighlighted
+    ) -> None:
+        self._refresh_status()
 
     # -------- key navigation (forwarded from focused Input) --------
 

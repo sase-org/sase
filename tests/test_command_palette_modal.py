@@ -33,9 +33,12 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.command_palette_modal import (
     COMMAND_PALETTE_INPUT_HINT,
     CommandPaletteModal,
+    _build_count_text,
+    _build_position_text,
     _build_row_text,
-    _score_match,
     _filter_specs as filter_specs,
+    _render_gauge,
+    _score_match,
 )
 
 
@@ -82,6 +85,10 @@ def _live_specs() -> list[CommandSpec]:
     catalog = build_command_catalog(reg)
     ctx = CommandContext(tab="changespecs")
     return [s for s in catalog if is_command_available(s, ctx)]
+
+
+def _static_text(modal: CommandPaletteModal, selector: str) -> str:
+    return str(modal.query_one(selector, Static).render())
 
 
 # --- _score_match / filter_specs ---
@@ -223,6 +230,65 @@ def test_build_row_text_includes_key_label_and_category() -> None:
     assert "[Display]" in text
 
 
+# --- count / position helpers ---
+
+
+def test_build_count_text_unfiltered_plural() -> None:
+    assert _build_count_text(72, 72).plain == "72 commands"
+
+
+def test_build_count_text_filtered_plural() -> None:
+    assert _build_count_text(12, 72).plain == "12 of 72 commands"
+
+
+def test_build_count_text_singular() -> None:
+    assert _build_count_text(1, 1).plain == "1 command"
+    assert _build_count_text(0, 1).plain == "0 of 1 command"
+
+
+def test_render_gauge_top_middle_bottom() -> None:
+    top, top_idx = _render_gauge(1, 9, 9)
+    middle, middle_idx = _render_gauge(5, 9, 9)
+    bottom, bottom_idx = _render_gauge(9, 9, 9)
+
+    assert top_idx == 0
+    assert top == "●━━━━━━━━"
+    assert middle_idx == 4
+    assert middle == "━━━━●━━━━"
+    assert bottom_idx == 8
+    assert bottom == "━━━━━━━━●"
+
+
+def test_render_gauge_handles_single_and_empty_totals() -> None:
+    single, single_idx = _render_gauge(1, 1, 9)
+    empty, empty_idx = _render_gauge(1, 0, 9)
+
+    assert single_idx == 0
+    assert single == "●━━━━━━━━"
+    assert empty_idx == -1
+    assert empty == "━━━━━━━━━"
+
+
+def test_render_gauge_clamps_position_to_range() -> None:
+    low, low_idx = _render_gauge(-10, 9, 9)
+    high, high_idx = _render_gauge(99, 9, 9)
+
+    assert low_idx == 0
+    assert high_idx == 8
+    assert 0 <= low_idx < 9
+    assert 0 <= high_idx < 9
+    assert low == "●━━━━━━━━"
+    assert high == "━━━━━━━━●"
+
+
+def test_build_position_text_contains_fraction_and_accent_style() -> None:
+    text = _build_position_text(5, 72, "#87D7FF")
+
+    assert "5/72" in text.plain
+    styles = [str(span.style).lower() for span in text.spans]
+    assert any("bold" in style and "#87d7ff" in style for style in styles)
+
+
 # --- modal: rendering & content ---
 
 
@@ -279,6 +345,7 @@ async def test_modal_title_includes_tab_badge() -> None:
         title = modal._build_title().plain
         assert "Command Palette" in title
         assert "Agents" in title
+        assert "1 command" in title
 
 
 # --- modal: filtering ---
@@ -302,6 +369,27 @@ async def test_modal_filtering_narrows_list() -> None:
         option_list = modal.query_one("#command-palette-list", OptionList)
         assert option_list.option_count == 1
         assert modal._filtered_specs[0].id == "app.kill_agent"
+
+
+async def test_modal_status_count_switches_to_filtered_form() -> None:
+    specs = [
+        _spec("app.git_status", "Git status"),
+        _spec("app.git_branch", "Git branch"),
+        _spec("app.refresh", "Refresh tab"),
+    ]
+    async with _TestApp().run_test() as pilot:
+        modal = CommandPaletteModal(specs=specs, tab="agents")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert "3 commands" in _static_text(modal, "#command-palette-title")
+
+        filter_input = modal.query_one("#command-palette-filter-input", Input)
+        filter_input.value = "git"
+        await pilot.pause()
+
+        assert "2 of 3 commands" in _static_text(modal, "#command-palette-title")
+        assert "1/2" in _static_text(modal, "#command-palette-position")
 
 
 async def test_modal_filtering_resets_highlight_to_top() -> None:
@@ -341,6 +429,21 @@ async def test_modal_empty_state_shown_when_no_match() -> None:
         option_list = modal.query_one("#command-palette-list", OptionList)
         assert empty.display is True
         assert option_list.display is False
+
+
+async def test_modal_status_empty_filter_shows_zero_position() -> None:
+    specs = [_spec("app.refresh", "Refresh tab")]
+    async with _TestApp().run_test() as pilot:
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#command-palette-filter-input", Input)
+        filter_input.value = "zzznoresult"
+        await pilot.pause()
+
+        assert "0 of 1 command" in _static_text(modal, "#command-palette-title")
+        assert "0/0" in _static_text(modal, "#command-palette-position")
 
 
 # --- modal: enter / escape ---
@@ -474,6 +577,28 @@ async def test_modal_down_arrow_moves_highlight() -> None:
         await pilot.press("up")
         await pilot.pause()
         assert option_list.highlighted == 0
+
+
+async def test_modal_position_updates_after_navigation() -> None:
+    specs = [
+        _spec("app.a", "Alpha"),
+        _spec("app.b", "Bravo"),
+        _spec("app.c", "Charlie"),
+    ]
+    async with _TestApp().run_test() as pilot:
+        modal = CommandPaletteModal(specs=specs, tab="agents")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert "1/3" in _static_text(modal, "#command-palette-position")
+
+        await pilot.press("down")
+        await pilot.pause()
+        assert "2/3" in _static_text(modal, "#command-palette-position")
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        assert "3/3" in _static_text(modal, "#command-palette-position")
 
 
 async def test_modal_ctrl_n_ctrl_p_navigate() -> None:
