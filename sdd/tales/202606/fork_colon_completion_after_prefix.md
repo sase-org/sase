@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 10:11:18
-status: wip
+status: done
 prompt: sdd/prompts/202606/fork_colon_completion_after_prefix.md
 ---
 # Fix `#fork:` Agent Completion After Earlier XPrompt References

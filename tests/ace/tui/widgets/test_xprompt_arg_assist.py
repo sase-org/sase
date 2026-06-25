@@ -541,3 +541,30 @@ def test_detects_agent_arg_completion_contexts_for_fork_forms() -> None:
         detect_xprompt_arg_completion_at_cursor("#fork: ag", len("#fork: ag"), entries)
         is None
     )
+
+
+def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> None:
+    entries = [
+        _entry("gh", _input_hint("project")),
+        _entry("fork", _input_hint("name", "agent")),
+    ]
+
+    prompt = "#gh:sase #fork:"
+    ctx = detect_xprompt_arg_completion_at_cursor(prompt, len(prompt), entries)
+    assert ctx is not None
+    assert ctx.completion_kind == "xprompt_arg_agent"
+    assert ctx.active_input is not None
+    assert ctx.active_input.name == "name"
+    assert ctx.value_start == len(prompt)
+    assert ctx.value_end == len(prompt)
+    assert ctx.token == ""
+
+
+def test_fork_agent_arg_completion_rejected_inside_double_colon_free_text() -> None:
+    entries = [
+        _entry("ask", _input_hint("body", "text")),
+        _entry("fork", _input_hint("name", "agent")),
+    ]
+
+    prompt = "#ask:: after #fork:"
+    assert detect_xprompt_arg_completion_at_cursor(prompt, len(prompt), entries) is None

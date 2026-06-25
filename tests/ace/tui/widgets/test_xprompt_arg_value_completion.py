@@ -61,6 +61,30 @@ def _fork_entry() -> XPromptAssistEntry:
     )
 
 
+def _gh_entry() -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name="gh",
+        insertion="#gh",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(_input_hint("project", "word", 0),),
+        content_preview=None,
+    )
+
+
+def _ask_entry() -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name="ask",
+        insertion="#ask",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(_input_hint("body", "text", 0),),
+        content_preview=None,
+    )
+
+
 def _agent_candidate(
     name: str,
     *,
@@ -200,6 +224,58 @@ async def test_fork_agent_arg_auto_menu_uses_xprompt_gate() -> None:
         ]
         panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "fork agent"
+
+
+async def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+        _agent_candidate("planner"),
+    ]
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        # ``#gh:sase`` is a leading VCS tag, so the widget resolves project
+        # ``sase`` and looks up assist entries under that key.
+        ta._xprompt_arg_assist_entries_by_project["sase"] = [
+            _gh_entry(),
+            _fork_entry(),
+        ]
+        ta.load_text("#gh:sase #fork:")
+        ta.cursor_location = (0, len("#gh:sase #fork:"))
+
+        # Ctrl+T opens the fork-agent menu for the trailing ``#fork:`` rather
+        # than falling through to file history, even though the earlier
+        # ``#gh:sase`` reference is scanned first.
+        assert ta._try_file_completion_tab() is True
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_agent"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "coder",
+            "planner",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "fork agent"
+
+
+async def test_double_colon_free_text_does_not_open_fork_agent_menu() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [
+            _ask_entry(),
+            _fork_entry(),
+        ]
+        ta.load_text("#ask:: after #fork:")
+        ta.cursor_location = (0, len("#ask:: after #fork:"))
+
+        # Ctrl+T may fall through to xprompt-name completion, but it must never
+        # open the fork-agent menu inside the double-colon free-text body.
+        ta._try_file_completion_tab()
+        assert ta._completion_kind != "xprompt_arg_agent"
 
 
 async def test_fork_agent_arg_auto_menu_respects_disabled_xprompt_gate() -> None:

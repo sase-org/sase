@@ -427,6 +427,16 @@ def detect_xprompt_arg_completion_at_cursor(
             continue
         if ref.arg_kind is XPromptReferenceArgKind.PLUS:
             continue
+        # Double-colon shorthand consumes free-form text through the rest of its
+        # parsed span. A nested ``#...`` inside that body is free text, not an
+        # argument position, so hard-stop the scan when the cursor sits inside
+        # or at the end of the span (``#ask:: after #fork:`` must not open the
+        # fork-agent menu).
+        if (
+            ref.arg_kind is XPromptReferenceArgKind.DOUBLE_COLON_SHORTHAND
+            and ref.start < cursor_offset <= ref.end
+        ):
+            return None
 
         base_end = _reference_base_end(text, ref.start, cursor_offset)
         if base_end is None or base_end > cursor_offset:
@@ -442,9 +452,16 @@ def detect_xprompt_arg_completion_at_cursor(
 
         suffix = text[base_end:cursor_offset]
         if suffix.startswith(":"):
-            return _colon_completion_context(entry, base_end, suffix)
-        if suffix.startswith("("):
-            return _paren_completion_context(entry, base_end, suffix)
+            ctx = _colon_completion_context(entry, base_end, suffix)
+        elif suffix.startswith("("):
+            ctx = _paren_completion_context(entry, base_end, suffix)
+        else:
+            continue
+        # An earlier reference whose colon/paren suffix overshoots into later
+        # text (e.g. ``#gh:sase`` in ``#gh:sase #fork:``) yields ``None`` here;
+        # keep scanning so a real later reference at the cursor still resolves.
+        if ctx is not None:
+            return ctx
     return None
 
 
