@@ -22,7 +22,6 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Complete inside Jinja tags"),
         ("#name / #!name", "Auto-open xprompt menu"),
-        ("%", "Auto-open directive menu"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%wait: / #fork:", "Complete visible agent names"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),

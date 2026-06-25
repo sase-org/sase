@@ -18,19 +18,6 @@ from ._directive_completion_helpers import (
     model_entries,
 )
 
-FULL_DIRECTIVE_INSERTIONS = [
-    "%alt",
-    "%auto",
-    "%edit",
-    "%effort",
-    "%group",
-    "%hide",
-    "%model",
-    "%name",
-    "%repeat",
-    "%wait",
-]
-
 
 async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
     app = CompletionTestApp()
@@ -118,13 +105,7 @@ async def test_percent_partial_auto_opens_directive_panel() -> None:
 
         await pilot.press("%")
         assert ta.text == "%"
-        assert ta._file_completion_active is True
-        assert ta._completion_kind == "directive"
-        assert [
-            c.insertion for c in ta._file_completion_candidates
-        ] == FULL_DIRECTIVE_INSERTIONS
-        panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "directives"
+        assert ta._file_completion_active is False
 
         await pilot.press("m")
 
@@ -134,6 +115,7 @@ async def test_percent_partial_auto_opens_directive_panel() -> None:
         assert ta._file_completion_active is True
         assert ta._completion_kind == "directive"
         assert [c.insertion for c in ta._file_completion_candidates] == ["%model"]
+        panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "directives"
 
 
@@ -344,42 +326,15 @@ async def test_directive_arg_auto_menu_uses_directive_gate() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_bare_percent_auto_opens_directive_panel() -> None:
+async def test_bare_percent_does_not_auto_open() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
-        bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptTextArea)
 
         await pilot.press("%")
 
         assert ta.text == "%"
-        assert ta._file_completion_active is True
-        assert ta._completion_kind == "directive"
-        assert [
-            c.insertion for c in ta._file_completion_candidates
-        ] == FULL_DIRECTIVE_INSERTIONS
-        panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "directives"
-
-
-async def test_bare_percent_after_space_auto_opens_directive_panel() -> None:
-    app = CompletionTestApp()
-    async with app.run_test() as pilot:
-        bar = app.query_one(PromptInputBar)
-        ta = app.query_one(PromptTextArea)
-        ta.load_text("word ")
-        ta.cursor_location = (0, len("word "))
-
-        await pilot.press("%")
-
-        assert ta.text == "word %"
-        assert ta._file_completion_active is True
-        assert ta._completion_kind == "directive"
-        assert [
-            c.insertion for c in ta._file_completion_candidates
-        ] == FULL_DIRECTIVE_INSERTIONS
-        panel = bar.query_one("#prompt-completion", Static)
-        assert panel.border_title == "directives"
+        assert ta._file_completion_active is False
 
 
 async def test_unknown_directive_does_not_show_placeholder() -> None:

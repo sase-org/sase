@@ -131,7 +131,9 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         if ctx is None:
             return False
         _row, _start, _end, token = ctx
-        # A bare ``%`` in directive context opens the full directive menu.
+        # Bare ``%`` stays quiet; open only once a directive character follows.
+        if len(token) < 2:
+            return False
         if not is_directive_like_token(token):
             return False
 
