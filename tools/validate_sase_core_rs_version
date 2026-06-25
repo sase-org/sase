@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Validate that the local ``sase-core-rs`` source version satisfies ``sase``."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import sys
+import tomllib
+from pathlib import Path
+from typing import NamedTuple
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
+DEFAULT_SASE_CORE_DIR = Path(
+    os.environ.get("SASE_CORE_DIR", REPO_ROOT.parent / "sase-core")
+)
+DEPENDENCY_NAME = "sase-core-rs"
+_PACKAGE_NAME_RE = re.compile(r"\s*([A-Za-z0-9_.-]+)")
+_SPECIFIER_RE = re.compile(r"(<=|>=|==|=|<|>)\s*(\d+(?:\.\d+)*)")
+_VERSION_RE = re.compile(r"\d+(?:\.\d+)*")
+
+
+class ValidationError(ValueError):
+    """Raised for version-consistency validation failures."""
+
+
+class ParsedVersion(NamedTuple):
+    raw: str
+    parts: tuple[int, ...]
+
+
+class Constraint(NamedTuple):
+    operator: str
+    version: ParsedVersion
+
+
+def _error(message: str) -> None:
+    print(f"[validate_sase_core_rs_version] {message}", file=sys.stderr)
+
+
+def _load_toml(path: Path) -> dict[str, object]:
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValidationError(f"missing TOML file: {path}") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ValidationError(f"invalid TOML in {path}: {exc}") from exc
+
+
+def _parse_version(value: object, label: str) -> ParsedVersion:
+    if not isinstance(value, str) or not _VERSION_RE.fullmatch(value.strip()):
+        raise ValidationError(
+            f"unsupported {label} version {value!r}; "
+            "expected a numeric dot-separated version"
+        )
+    raw = value.strip()
+    return ParsedVersion(raw=raw, parts=tuple(int(part) for part in raw.split(".")))
+
+
+def _read_source_version(sase_core_dir: Path) -> ParsedVersion:
+    cargo_toml = sase_core_dir / "Cargo.toml"
+    data = _load_toml(cargo_toml)
+    workspace = data.get("workspace")
+    package = workspace.get("package") if isinstance(workspace, dict) else None
+    version = package.get("version") if isinstance(package, dict) else None
+    if version is None:
+        raise ValidationError(
+            f"{cargo_toml} is missing [workspace.package] version"
+        )
+    return _parse_version(version, "Cargo workspace")
+
+
+def _normalize_name(name: str) -> str:
+    return name.replace("_", "-").lower()
+
+
+def _read_dependency_specifier(pyproject: Path) -> str:
+    data = _load_toml(pyproject)
+    project = data.get("project")
+    dependencies = project.get("dependencies") if isinstance(project, dict) else None
+    if not isinstance(dependencies, list):
+        raise ValidationError(f"{pyproject} is missing [project] dependencies")
+
+    for dependency in dependencies:
+        if not isinstance(dependency, str):
+            raise ValidationError(
+                f"{pyproject} contains a non-string dependency entry: {dependency!r}"
+            )
+
+        dependency_without_marker = dependency.split(";", 1)[0].strip()
+        match = _PACKAGE_NAME_RE.match(dependency_without_marker)
+        if match is None:
+            continue
+        if _normalize_name(match.group(1)) != DEPENDENCY_NAME:
+            continue
+
+        specifier = dependency_without_marker[match.end() :].strip()
+        if not specifier:
+            raise ValidationError(
+                f"{pyproject} declares {DEPENDENCY_NAME} without a version specifier"
+            )
+        return specifier
+
+    raise ValidationError(f"{pyproject} does not declare a {DEPENDENCY_NAME} dependency")
+
+
+def _parse_specifier(specifier: str) -> list[Constraint]:
+    constraints: list[Constraint] = []
+    for item in specifier.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        match = _SPECIFIER_RE.fullmatch(item)
+        if match is None:
+            raise ValidationError(
+                f"unsupported {DEPENDENCY_NAME} specifier {specifier!r}; "
+                "only comma-separated numeric comparison bounds are supported"
+            )
+        operator, version = match.groups()
+        constraints.append(
+            Constraint(operator=operator, version=_parse_version(version, "specifier"))
+        )
+
+    if not constraints:
+        raise ValidationError(f"{DEPENDENCY_NAME} dependency has an empty specifier")
+    return constraints
+
+
+def _compare_versions(left: ParsedVersion, right: ParsedVersion) -> int:
+    width = max(len(left.parts), len(right.parts))
+    left_parts = left.parts + (0,) * (width - len(left.parts))
+    right_parts = right.parts + (0,) * (width - len(right.parts))
+    return (left_parts > right_parts) - (left_parts < right_parts)
+
+
+def _satisfies_constraint(version: ParsedVersion, constraint: Constraint) -> bool:
+    comparison = _compare_versions(version, constraint.version)
+    if constraint.operator == "<":
+        return comparison < 0
+    if constraint.operator == "<=":
+        return comparison <= 0
+    if constraint.operator == ">":
+        return comparison > 0
+    if constraint.operator == ">=":
+        return comparison >= 0
+    if constraint.operator in {"=", "=="}:
+        return comparison == 0
+    raise AssertionError(f"unsupported operator: {constraint.operator}")
+
+
+def _satisfies_all(version: ParsedVersion, constraints: list[Constraint]) -> bool:
+    return all(_satisfies_constraint(version, constraint) for constraint in constraints)
+
+
+def _mismatch_kind(version: ParsedVersion, constraints: list[Constraint]) -> str:
+    for constraint in constraints:
+        if constraint.operator in {">", ">="} and not _satisfies_constraint(
+            version, constraint
+        ):
+            return "sase-core checkout is behind"
+    for constraint in constraints:
+        if constraint.operator in {"<", "<="} and not _satisfies_constraint(
+            version, constraint
+        ):
+            return "sase-core checkout is ahead of sase's compatibility window"
+    return f"{DEPENDENCY_NAME} version mismatch"
+
+
+def _remediation(kind: str) -> str:
+    if kind == "sase-core checkout is behind":
+        return (
+            "Pull/rebuild `sase-core`, or lower `sase`'s `sase-core-rs` "
+            "constraint only if that older core is intentional."
+        )
+    if kind == "sase-core checkout is ahead of sase's compatibility window":
+        return (
+            "Bump `sase`'s `sase-core-rs` constraint in `pyproject.toml` if "
+            "the newer core is compatible, or check out a compatible `sase-core`."
+        )
+    return (
+        "Make the local `sase-core` checkout and `sase`'s `sase-core-rs` "
+        "constraint agree before reinstalling."
+    )
+
+
+def validate_sase_core_rs_version(
+    sase_core_dir: Path = DEFAULT_SASE_CORE_DIR,
+    pyproject: Path = DEFAULT_PYPROJECT,
+) -> bool:
+    try:
+        source_version = _read_source_version(sase_core_dir)
+        specifier = _read_dependency_specifier(pyproject)
+        constraints = _parse_specifier(specifier)
+    except ValidationError as exc:
+        _error(str(exc))
+        return False
+
+    if _satisfies_all(source_version, constraints):
+        return True
+
+    kind = _mismatch_kind(source_version, constraints)
+    _error(
+        f"{kind}: source version {source_version.raw} from "
+        f"{sase_core_dir / 'Cargo.toml'} does not satisfy `sase`'s "
+        f"`{DEPENDENCY_NAME}{specifier}` dependency in {pyproject}. "
+        f"{_remediation(kind)}"
+    )
+    return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--sase-core-dir",
+        type=Path,
+        default=DEFAULT_SASE_CORE_DIR,
+        help="Path to the local sase-core checkout.",
+    )
+    parser.add_argument(
+        "--pyproject",
+        type=Path,
+        default=DEFAULT_PYPROJECT,
+        help="Path to sase's pyproject.toml.",
+    )
+    namespace = parser.parse_args(argv)
+
+    ok = validate_sase_core_rs_version(
+        sase_core_dir=namespace.sase_core_dir,
+        pyproject=namespace.pyproject,
+    )
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

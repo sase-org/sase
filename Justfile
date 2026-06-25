@@ -28,6 +28,7 @@ _venv:
 # available, because `sase[dev]` depends on the `sase-core-rs` distribution.
 _setup: _venv
     @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+        {{ venv_bin }}/python tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || exit 1; \
         if ! {{ venv_bin }}/python tools/validate_sase_core_rs; then \
             printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
             just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
@@ -359,12 +360,13 @@ rust-install VENV=venv_dir_abs: _venv
         printf "[rust-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
-    @{{ VENV }}/bin/maturin --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
-    @{{ VENV }}/bin/python tools/purge_sase_core_rs_extensions
-    cd {{ sase_core_dir }}/crates/sase_core_py && \
-        VIRTUAL_ENV={{ VENV }} \
+    @"{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml
+    @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
+    @"{{ VENV }}/bin/python" tools/purge_sase_core_rs_extensions
+    cd "{{ sase_core_dir }}/crates/sase_core_py" && \
+        VIRTUAL_ENV="{{ VENV }}" \
         PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
-        {{ VENV }}/bin/maturin develop --release
+        "{{ VENV }}/bin/maturin" develop --release
 
 # Build and install `sase_core_rs` into the uv-tool venv for `sase`
 # (typically ~/.local/share/uv/tools/sase). Use this when you installed
