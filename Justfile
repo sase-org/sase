@@ -142,8 +142,6 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
-        --epic-symbol "sase-57(find_plugin)" \
-        --epic-symbol "sase-57(suggest_plugins)" \
         --epic-symbol "sase-57(GhCommandError)" \
         --epic-symbol "sase-57(CatalogParseError)"
 

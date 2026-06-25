@@ -13,6 +13,10 @@ def handle_plugin_command(args: argparse.Namespace) -> None:
         from sase.plugins.cli_list import handle_plugin_list_command
 
         sys.exit(handle_plugin_list_command(args))
+    if sub == "show":
+        from sase.plugins.cli_show import handle_plugin_show_command
 
-    print("Usage: sase plugin {list}", file=sys.stderr)
+        sys.exit(handle_plugin_show_command(args))
+
+    print("Usage: sase plugin {list,show}", file=sys.stderr)
     sys.exit(2)

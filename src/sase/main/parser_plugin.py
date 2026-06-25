@@ -35,7 +35,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
     plugin_sub = plugin_parser.add_subparsers(
         dest="plugin_subcommand",
         help="Plugin subcommands",
-        metavar="{list}",
+        metavar="{list,show}",
     )
 
     list_parser = plugin_sub.add_parser(
@@ -49,3 +49,14 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Show extra columns: stars, last updated, and the full topic list",
     )
+
+    show_parser = plugin_sub.add_parser(
+        "show",
+        help="Show detailed information about a single SASE plugin",
+    )
+    show_parser.add_argument(
+        "plugin_name",
+        metavar="<plugin_name>",
+        help="Plugin name to show (short name, repo, or owner/repo full name)",
+    )
+    _add_load_flags(show_parser)

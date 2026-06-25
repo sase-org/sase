@@ -19,10 +19,10 @@ from rich.console import Console
 
 from sase.plugins.catalog import (
     PluginCatalog,
-    PluginCatalogEntry,
     PluginCatalogError,
     load_plugin_catalog,
 )
+from sase.plugins.json_payload import plugin_entry_json
 from sase.plugins.render import render_catalog_list
 
 LoadFn = Callable[..., PluginCatalog]
@@ -77,30 +77,7 @@ def _build_list_json(
             "installed": catalog.installed_count,
             "total": len(catalog.entries),
         },
-        "entries": [_entry_json(entry) for entry in catalog.entries],
-    }
-
-
-def _entry_json(entry: PluginCatalogEntry) -> dict[str, Any]:
-    return {
-        "name": entry.name,
-        "repo": entry.repo,
-        "full_name": entry.full_name,
-        "owner": entry.owner,
-        "kind": entry.kind,
-        "description": entry.description,
-        "url": entry.url,
-        "homepage": entry.homepage,
-        "topics": list(entry.topics),
-        "stars": entry.stars,
-        "archived": entry.archived,
-        "license": entry.license,
-        "updated_at": entry.updated_at,
-        "installed": {
-            "installed": entry.installed.installed,
-            "version": entry.installed.version,
-            "entry_point_groups": list(entry.installed.entry_point_groups),
-        },
+        "entries": [plugin_entry_json(entry) for entry in catalog.entries],
     }
 
 

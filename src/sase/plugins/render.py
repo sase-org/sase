@@ -2,9 +2,12 @@
 
 Phase 2 renders the ``sase plugin list`` catalog: a single titled panel holding a
 built-in section, a community section (led by an unmissable warning), and a footer
-with a glyph legend, counts, and the cache-age + refresh affordance. Color enhances
-but is never load-bearing — glyphs and explicit labels carry the meaning so the
-output stays legible when copied into an agent chat or a no-color terminal.
+with a glyph legend, counts, and the cache-age + refresh affordance. Phase 3 adds
+the ``sase plugin show <plugin_name>`` detail view: a single-plugin panel, a
+prominent community-warning panel above it for third-party plugins, and a
+ranked "did you mean…?" miss view. Color enhances but is never load-bearing —
+glyphs and explicit labels carry the meaning so the output stays legible when
+copied into an agent chat or a no-color terminal.
 """
 
 from __future__ import annotations
@@ -16,11 +19,19 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.catalog import (
+    SASE_PLUGIN_ORG,
+    PluginCatalog,
+    PluginCatalogEntry,
+)
 
 #: Glyphs (never color alone) for installed vs. available plugins.
 _INSTALLED_GLYPH = "●"
 _AVAILABLE_GLYPH = "○"
+
+#: Glyphs (never color alone) for the ``show`` installed/not-installed row.
+_INSTALLED_CHECK = "✓"
+_NOT_INSTALLED_CROSS = "✗"
 
 #: Placeholder for an empty cell (em dash).
 _EMPTY = "—"
@@ -194,4 +205,181 @@ def _humanize_age(seconds: float) -> str:
     return f"{days}d ago"
 
 
-__all__ = ["render_catalog_list"]
+# --------------------------------------------------------------------------- #
+# ``sase plugin show <plugin_name>``
+# --------------------------------------------------------------------------- #
+
+
+def render_catalog_show(
+    entry: PluginCatalogEntry,
+    *,
+    catalog: PluginCatalog,
+    now: float | None = None,
+    console: Console | None = None,
+) -> None:
+    """Print the detailed single-plugin view for ``sase plugin show``."""
+    target = console or Console()
+    now = time.time() if now is None else now
+
+    for warning in catalog.warnings:
+        target.print(Text(f"⚠ {warning}", style="yellow"))
+    if entry.is_community:
+        target.print(_community_warning_panel(entry))
+    target.print(_detail_panel(entry))
+    target.print(_show_cache_line(entry, catalog, now=now))
+
+
+def _community_warning_panel(entry: PluginCatalogEntry) -> Panel:
+    body = Text()
+    body.append("This plugin is published by ", style=_COMMUNITY_STYLE)
+    body.append(entry.owner or "an unknown owner", style=f"bold {_COMMUNITY_STYLE}")
+    body.append(
+        f", not the official `{SASE_PLUGIN_ORG}` org.\n",
+        style=_COMMUNITY_STYLE,
+    )
+    body.append(
+        "It is third-party software. Review its source before installing.",
+        style=_COMMUNITY_STYLE,
+    )
+    return Panel(
+        body,
+        title=Text("⚠  COMMUNITY PLUGIN", style=f"bold {_COMMUNITY_STYLE}"),
+        border_style=_COMMUNITY_STYLE,
+    )
+
+
+def _detail_panel(entry: PluginCatalogEntry) -> Panel:
+    border = _BUILTIN_STYLE if entry.is_builtin else _COMMUNITY_STYLE
+
+    body: list[RenderableType] = [_kind_line(entry), Text("")]
+    body.append(_detail_description(entry))
+    body.append(Text(""))
+    body.append(_detail_rows(entry))
+    if not entry.installed.installed:
+        body.append(Text(""))
+        body.append(_install_hint())
+
+    return Panel(Group(*body), title=_detail_title(entry), border_style=border)
+
+
+def _detail_title(entry: PluginCatalogEntry) -> Text:
+    title = Text()
+    title.append(entry.name or entry.repo, style="bold")
+    if entry.full_name:
+        title.append(" · ", style="dim")
+        title.append(entry.full_name, style="dim")
+    return title
+
+
+def _kind_line(entry: PluginCatalogEntry) -> Text:
+    if entry.is_builtin:
+        return Text("BUILT-IN (official)", style=f"bold {_BUILTIN_STYLE}")
+    return Text("COMMUNITY (third-party)", style=f"bold {_COMMUNITY_STYLE}")
+
+
+def _detail_description(entry: PluginCatalogEntry) -> Text:
+    description = Text(entry.description or _EMPTY)
+    if entry.archived:
+        description.append("  (archived)", style="red")
+    return description
+
+
+def _detail_rows(entry: PluginCatalogEntry) -> Table:
+    table = Table(show_header=False, box=None, pad_edge=False, padding=(0, 2))
+    table.add_column(style="dim", no_wrap=True)  # label
+    table.add_column()  # value
+
+    table.add_row("Installed", _installed_value(entry))
+    table.add_row("Repository", Text(entry.url or _EMPTY, style="dim"))
+    table.add_row("Homepage", Text(entry.homepage or _EMPTY, style="dim"))
+    table.add_row("Topics", _topics_value(entry))
+    table.add_row("Stars", _meta_value(entry))
+    return table
+
+
+def _installed_value(entry: PluginCatalogEntry) -> Text:
+    info = entry.installed
+    if not info.installed:
+        value = Text()
+        value.append(f"{_NOT_INSTALLED_CROSS}  not installed", style="dim")
+        return value
+
+    value = Text()
+    value.append(f"{_INSTALLED_CHECK}  ", style="green")
+    value.append(f"v{info.version}" if info.version else "installed", style="green")
+    if info.entry_point_groups:
+        value.append(f"   ({', '.join(info.entry_point_groups)})", style="dim")
+    return value
+
+
+def _topics_value(entry: PluginCatalogEntry) -> Text:
+    if not entry.topics:
+        return Text(_EMPTY, style="dim")
+    return Text(" · ".join(entry.topics), style="dim")
+
+
+def _meta_value(entry: PluginCatalogEntry) -> Text:
+    value = Text()
+    value.append(str(entry.stars))
+    value.append("      Updated  ", style="dim")
+    value.append(entry.updated_at or _EMPTY)
+    value.append("      License  ", style="dim")
+    value.append(entry.license or _EMPTY)
+    return value
+
+
+def _install_hint() -> Text:
+    hint = Text()
+    hint.append(
+        "Not installed — install it from its repository, then run ", style="dim"
+    )
+    hint.append("`sase doctor`", style="cyan")
+    hint.append(" to verify.", style="dim")
+    return hint
+
+
+def _show_cache_line(
+    entry: PluginCatalogEntry, catalog: PluginCatalog, *, now: float
+) -> Text:
+    age = _humanize_age(catalog.age_seconds(now))
+    command = f"`sase plugin show {entry.name or entry.repo} --refresh`"
+    line = Text()
+    if catalog.stale:
+        line.append("⚠ ", style="yellow")
+        line.append(
+            f"Cache is stale (last updated {age}) · run {command} to update",
+            style="yellow",
+        )
+    else:
+        line.append(f"Cached {age} · run {command} to update", style="dim")
+    return line
+
+
+def render_show_not_found(
+    query: str,
+    suggestions: tuple[PluginCatalogEntry, ...],
+    *,
+    console: Console | None = None,
+) -> None:
+    """Print the "no such plugin" miss view with ranked suggestions."""
+    target = console or Console(stderr=True)
+    target.print(Text(f"No plugin named '{query}' in the catalog.", style="bold red"))
+    if suggestions:
+        target.print(Text("Did you mean one of these?", style="dim"))
+        for entry in suggestions:
+            line = Text("  • ", style="dim")
+            line.append(entry.name, style="bold")
+            if entry.full_name:
+                line.append(f"  ({entry.full_name})", style="dim")
+            target.print(line)
+    else:
+        target.print(
+            Text("Run `sase plugin list` to see all known plugins.", style="dim")
+        )
+
+
+__all__ = [
+    "render_catalog_list",
+    "render_catalog_show",
+    "render_show_not_found",
+]
