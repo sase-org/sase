@@ -44,10 +44,60 @@ pip install sase
 pip install sase-github
 ```
 
-## CLI Diagnostics
+## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 
-There is no `sase plugin` command; that namespace is reserved for a future pluggy-focused rewrite. Plugin diagnostics
-are routed to the commands that already own each concern:
+`sase plugin` is a discovery surface for the whole SASE plugin ecosystem — not just what is installed locally. It treats
+the GitHub `sase-plugin` repository topic as the canonical registry, so the catalog always reflects reality: a repo
+gains or loses a listing purely by gaining or losing the topic, with no code change.
+
+```bash
+# Catalog of every known plugin (built-in and community)
+sase plugin list
+sase plugin list -v          # add stars, last-updated, and the full topic list
+sase plugin list -j          # stable machine-readable JSON
+
+# Detailed view of a single plugin
+sase plugin show github
+sase plugin show sase-github # short name, repo, or owner/repo all match
+sase plugin show github -j   # stable machine-readable JSON
+
+# Bypass the cache and refetch from GitHub
+sase plugin list -r
+sase plugin show github -r
+```
+
+- `sase plugin` with no subcommand defaults to `sase plugin list`.
+- **`list`** renders two clearly-labeled sections — **built-in** (published under the official `sase-org` org) first,
+  then **community** (third-party, shown with a warning) — and marks which plugins are installed and at what version.
+  Status uses a glyph plus a legend (`●` installed, `○` available) so the output is legible with no color. The footer
+  shows the cache age and the exact `--refresh` command.
+- **`show`** renders a detail panel: description, installed status and contributed entry points, repository, homepage,
+  topics, stars, last update, and license. Community plugins lead with a prominent third-party warning. An unknown
+  `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero.
+- Built-in vs. community is decided by the owning org: `sase-org` (case-insensitive) is built-in; anything else is
+  community. Archived repos are surfaced with an archived marker rather than hidden.
+- Installed status, version, and contributed entry-point groups come from merging the catalog with the live
+  [plugin inventory](#how-plugins-are-discovered). Plugins that carry the topic but contribute no Python entry points
+  (for example a Neovim-only integration) correctly show as not installed.
+
+### Catalog fetching and cache
+
+The catalog is fetched once with a single authenticated GitHub CLI search call and then cached, so repeat runs are
+instant and never make a surprise network call:
+
+- The data comes from `gh api --paginate -X GET "search/repositories?q=topic:sase-plugin&per_page=100"`, which returns
+  topics, owner, description, stars, license, and timestamps inline — no per-repo follow-up lookups.
+- The cache lives at `~/.sase/plugins/catalog_cache.json` and is written atomically. The first run fetches and writes
+  it; later runs read it and only touch the network when `-r|--refresh` is passed. A cache older than the soft staleness
+  threshold is still used, but the footer warns more loudly.
+- If `gh` is missing, unauthenticated, or the call fails, SASE falls back to the existing cache with a loud "stale
+  cached data" warning, or — when there is no cache — prints the same actionable `gh` install / `gh auth login` hint
+  that `sase doctor` uses. This mirrors `src/sase/doctor/checks_plugins.py`.
+
+### Related plugin diagnostics
+
+The catalog answers "what exists and what do I have installed." For deeper install and configuration diagnostics, use
+the commands that already own each concern:
 
 ```bash
 # Installed runtime and plugin packages
