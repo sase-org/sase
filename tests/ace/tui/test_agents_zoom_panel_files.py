@@ -298,6 +298,107 @@ async def test_zoom_revealed_file_panel_reverse_pages_after_first_press(
         assert str(second_path) in second_rendered
 
 
+async def test_zoom_ctrl_p_returns_to_metadata_after_reveal_single_file(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+
+    agent = _make_agent(status="DONE", extra_files=[str(first_path)])
+    modal = _collapsed_file_modal(agent)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        assert modal._target == ZoomPanelTarget.METADATA
+
+        # Ctrl-N reveals and populates the single file panel.
+        await pilot.press("ctrl+n")
+        await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert modal._target == ZoomPanelTarget.FILE
+        assert not modal.query_one("#zoom-file-scroll").has_class("hidden")
+
+        # Ctrl-P immediately after must undo the reveal and return to metadata,
+        # not "page" the lone file (which would leave the UI stuck).
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+
+        assert modal._target == ZoomPanelTarget.METADATA
+        assert modal.query_one("#zoom-file-scroll").has_class("hidden")
+        assert not modal.query_one("#zoom-metadata-scroll").has_class("hidden")
+
+
+async def test_zoom_same_direction_paging_survives_reveal_undo(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+    second_path = tmp_path / "second.md"
+    second_path.write_text("second file body\n", encoding="utf-8")
+
+    agent = _make_agent(
+        status="DONE",
+        extra_files=[str(first_path), str(second_path)],
+    )
+    modal = _collapsed_file_modal(agent)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+
+        # First Ctrl-N reveals the first file.
+        await pilot.press("ctrl+n")
+        await _wait_for_file_content(pilot, panel, "first file body")
+        assert panel.current_file_index == 0
+
+        # Second Ctrl-N (same direction) must still page to the second file.
+        await pilot.press("ctrl+n")
+        await _wait_for_file_content(pilot, panel, "second file body")
+
+        assert modal._target == ZoomPanelTarget.FILE
+        assert panel.current_file_index == 1
+
+
+async def test_zoom_ctrl_n_returns_to_metadata_after_prev_reveal(
+    tmp_path: Any,
+) -> None:
+    first_path = tmp_path / "first.md"
+    first_path.write_text("first file body\n", encoding="utf-8")
+
+    agent = _make_agent(status="DONE", extra_files=[str(first_path)])
+    modal = _collapsed_file_modal(agent)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        assert modal._target == ZoomPanelTarget.METADATA
+
+        # Ctrl-P reveals the file panel.
+        await pilot.press("ctrl+p")
+        await _wait_for_file_content(pilot, panel, "first file body")
+        assert modal._target == ZoomPanelTarget.FILE
+
+        # The opposite key (Ctrl-N) immediately after must restore metadata.
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+
+        assert modal._target == ZoomPanelTarget.METADATA
+        assert modal.query_one("#zoom-file-scroll").has_class("hidden")
+
+
 async def test_zoom_next_file_warns_when_metadata_agent_has_no_files() -> None:
     agent = _make_agent(status="DONE")
     modal = _RecordingZoomPanelModal(

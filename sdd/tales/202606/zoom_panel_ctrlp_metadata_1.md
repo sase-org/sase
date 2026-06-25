@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 16:22:52
-status: wip
+status: done
 prompt: sdd/prompts/202606/zoom_panel_ctrlp_metadata_1.md
 ---
 # Fix Zoom Panel Ctrl-P Return From Metadata-Revealed File Panel

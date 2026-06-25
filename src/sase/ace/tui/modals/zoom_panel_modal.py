@@ -139,6 +139,12 @@ class ZoomPanelModal(ModalScreen[None]):
         self._refresh_timer: Timer | None = None
         self._metadata_generation = 0
         self._content_seeded = False
+        # Reveal-undo state: when Ctrl-N/Ctrl-P reveals the file panel from
+        # another target, remember where we came from so the immediately
+        # opposite keypress can return there instead of paging files.
+        self._reveal_origin_target: ZoomPanelTarget | None = None
+        self._reveal_direction: str | None = None
+        self._reveal_file_index: int | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the zoom modal."""
@@ -430,6 +436,7 @@ class ZoomPanelModal(ModalScreen[None]):
         self._has_file_content = message.has_file
         self._update_header()
         if not message.has_file and self._target == ZoomPanelTarget.FILE:
+            self._clear_reveal_state()
             self._show_target(ZoomPanelTarget.METADATA)
         message.stop()
 
@@ -461,6 +468,7 @@ class ZoomPanelModal(ModalScreen[None]):
         self._has_tools_content = message.has_tools
         self._update_header()
         if not message.has_tools and self._target == ZoomPanelTarget.TOOLS:
+            self._clear_reveal_state()
             self._show_target(ZoomPanelTarget.METADATA)
         message.stop()
 
@@ -500,6 +508,7 @@ class ZoomPanelModal(ModalScreen[None]):
         available = self._available_targets()
         if len(available) <= 1:
             return
+        self._clear_reveal_state()
         current = available.index(self._target) if self._target in available else 0
         self._show_target(available[(current + step) % len(available)])
         self._refresh_active_panel(force=False)
@@ -513,7 +522,8 @@ class ZoomPanelModal(ModalScreen[None]):
             return True
         return agent.status in _ACTIVE_STATUSES
 
-    def _reveal_file_panel(self) -> bool:
+    def _reveal_file_panel(self, *, direction: str) -> bool:
+        origin_target = self._target
         agent = self._agent_provider()
         if agent is None or not self._agent_has_files(agent):
             self.notify("No files for this agent", severity="warning")
@@ -524,19 +534,60 @@ class ZoomPanelModal(ModalScreen[None]):
         self._has_file_content = True
         self._show_target(ZoomPanelTarget.FILE)
         self._refresh_active_panel(force=False)
+        # Record the reveal origin only if the file panel is actually active
+        # now (an attempt-pinned refresh can bounce us back to metadata).
+        if self._target == ZoomPanelTarget.FILE:
+            file_panel = self.query_one("#zoom-file-panel", _ZoomFilePanel)
+            self._reveal_origin_target = origin_target
+            self._reveal_direction = direction
+            self._reveal_file_index = file_panel.current_file_index
+        return True
+
+    def _clear_reveal_state(self) -> None:
+        self._reveal_origin_target = None
+        self._reveal_direction = None
+        self._reveal_file_index = None
+
+    def _try_reveal_undo(self, *, pressed: str) -> bool:
+        """Return to the reveal origin if ``pressed`` undoes a fresh reveal.
+
+        Only the key opposite the reveal direction undoes, and only while the
+        file panel still shows the just-revealed file (the user has not paged).
+        """
+        if self._reveal_origin_target is None or self._reveal_direction is None:
+            return False
+        opposite = {"next": "prev", "prev": "next"}[self._reveal_direction]
+        if pressed != opposite:
+            return False
+        file_panel = self.query_one("#zoom-file-panel", _ZoomFilePanel)
+        if (
+            self._reveal_file_index is None
+            or file_panel.current_file_index != self._reveal_file_index
+        ):
+            return False
+        origin = self._reveal_origin_target
+        self._clear_reveal_state()
+        self._show_target(origin)
+        self._refresh_active_panel(force=False)
         return True
 
     def action_next_file(self) -> None:
         if self._target != ZoomPanelTarget.FILE:
-            self._reveal_file_panel()
+            self._reveal_file_panel(direction="next")
             return
+        if self._try_reveal_undo(pressed="next"):
+            return
+        self._clear_reveal_state()
         self.query_one("#zoom-file-panel", _ZoomFilePanel).next_file()
         self._update_header()
 
     def action_prev_file(self) -> None:
         if self._target != ZoomPanelTarget.FILE:
-            self._reveal_file_panel()
+            self._reveal_file_panel(direction="prev")
             return
+        if self._try_reveal_undo(pressed="prev"):
+            return
+        self._clear_reveal_state()
         self.query_one("#zoom-file-panel", _ZoomFilePanel).prev_file()
         self._update_header()
 
