@@ -37,6 +37,7 @@ class _CaptureApp(App[None]):
         self.stashed: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
         self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
+        self.save_xprompt_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -57,6 +58,11 @@ class _CaptureApp(App[None]):
         self, event: PromptInputBar.UpdatePinnedRequested
     ) -> None:
         self.update_requests.append(event)
+
+    def on_prompt_input_bar_save_as_xprompt_requested(
+        self, event: PromptInputBar.SaveAsXpromptRequested
+    ) -> None:
+        self.save_xprompt_requests.append(event)
 
 
 async def _add_local_xprompt_from_panel(
@@ -348,6 +354,51 @@ async def test_gS_empty_prompt_posts_empty_update_request() -> None:
         assert app.stashed == []
 
 
+# --- save as xprompt (gx / Ctrl+G x) --------------------------------------
+
+
+async def test_gx_captures_all_non_empty_panes_without_clearing_bar() -> None:
+    app = _CaptureApp("---\ndescription: reusable\n---\nalpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("escape")
+        await pilot.press("g", "x")
+        await pilot.pause()
+
+        assert len(app.save_xprompt_requests) == 1
+        event = app.save_xprompt_requests[0]
+        assert [p.text for p in event.panes] == ["alpha", "beta"]
+        assert [p.pane_index for p in event.panes] == [0, 1]
+        assert all(
+            p.frontmatter == "---\ndescription: reusable\n---" for p in event.panes
+        )
+        assert bar.all_prompt_texts() == ["alpha", "beta"]
+        assert app.stashed == []
+
+
+async def test_ctrl_gx_captures_frontmatter_only_draft() -> None:
+    app = _CaptureApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar._stack.set_frontmatter_model(
+            PromptFrontmatter(description="frontmatter only")
+        )
+
+        await pilot.press("ctrl+g", "x")
+        await pilot.pause()
+
+        assert len(app.save_xprompt_requests) == 1
+        event = app.save_xprompt_requests[0]
+        assert len(event.panes) == 1
+        assert event.panes[0].text == ""
+        assert event.panes[0].frontmatter == "---\ndescription: frontmatter only\n---"
+
+
 # --- guards ----------------------------------------------------------------
 
 
@@ -362,11 +413,13 @@ async def test_stash_is_noop_in_feedback_mode() -> None:
         await pilot.press("ctrl+s")
         await pilot.press("g", "s")
         await pilot.press("g", "S")
+        await pilot.press("g", "x")
         await pilot.pause()
 
         # Feedback bars are not stashable: no message posted, text intact.
         assert app.stashed == []
         assert app.update_requests == []
+        assert app.save_xprompt_requests == []
         assert bar.all_prompt_texts() == ["plan note"]
 
 

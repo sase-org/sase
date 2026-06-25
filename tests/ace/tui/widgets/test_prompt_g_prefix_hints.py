@@ -30,6 +30,7 @@ class _GPrefixHintApp(App[None]):
         self.stashed: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
         self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
+        self.save_xprompt_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
@@ -56,6 +57,11 @@ class _GPrefixHintApp(App[None]):
         self, event: PromptInputBar.UpdatePinnedRequested
     ) -> None:
         self.update_requests.append(event)
+
+    def on_prompt_input_bar_save_as_xprompt_requested(
+        self, event: PromptInputBar.SaveAsXpromptRequested
+    ) -> None:
+        self.save_xprompt_requests.append(event)
 
 
 def _entry_pairs(
@@ -85,6 +91,7 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
+            ("x", "save as xprompt"),
         ]
 
 
@@ -98,6 +105,7 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
+            ("x", "save as xprompt"),
         ]
 
 
@@ -111,6 +119,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
+            ("x", "save as xprompt"),
             ("p", "stashed prompts…"),
         ]
 
@@ -126,12 +135,14 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("S", "update pinned stash"),
+            ("x", "save as xprompt"),
         ]
         assert _entry_pairs(bar, via_ctrl_g=True) == [
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("S", "update pinned stash"),
+            ("x", "save as xprompt"),
             ("p", "stashed prompts…"),
         ]
 
@@ -165,6 +176,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("=", "toggle frontmatter"),
             ("s", "stash all panes"),
             ("S", "update pinned stash"),
+            ("x", "save as xprompt"),
         ]
 
         assert _entry_pairs(bar, via_ctrl_g=True)[-1] == ("p", "stashed prompts…")
@@ -180,7 +192,7 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
         assert "p" not in keys
         assert "P" not in keys
         # Multi-pane nav and stash-all stay available.
-        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s"]
+        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s", "x"]
 
 
 async def test_feedback_bar_has_no_prompt_g_prefix_hints() -> None:
@@ -520,9 +532,10 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(
             bar, "request_update_pinned_stash", lambda: calls.append("S")
         )
+        monkeypatch.setattr(bar, "request_save_as_xprompt", lambda: calls.append("x"))
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
 
-        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S"):
+        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S", "x"):
             assert bar.dispatch_g_prefix_key(key) is True
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
@@ -543,6 +556,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "=",
             "s",
             "S",
+            "x",
             "p",
             "S",
         ]

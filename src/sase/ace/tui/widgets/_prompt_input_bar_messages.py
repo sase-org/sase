@@ -117,6 +117,19 @@ class UpdatePinnedRequested(Message, namespace="prompt_input_bar"):
         self.panes = panes
 
 
+class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
+    """Message sent when the user asks to save the draft as an xprompt.
+
+    The bar captures every non-empty prompt pane plus shared frontmatter, but
+    leaves the stack mounted and unchanged. A frontmatter-only draft is carried
+    as one empty pane with frontmatter so the app can still serialize it.
+    """
+
+    def __init__(self, panes: list[StashedPromptPane]) -> None:
+        super().__init__()
+        self.panes = panes
+
+
 class EditorRequested(Message, namespace="prompt_input_bar"):
     """Message sent when user requests the single-pane external editor."""
 

@@ -117,6 +117,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_update_pin",
     ),
     _PromptGPrefixBinding(
+        "x",
+        "request_save_as_xprompt",
+        "_g_prefix_label_save_xprompt",
+        "_g_prefix_available_save_xprompt",
+    ),
+    _PromptGPrefixBinding(
         "p",
         "request_open_prompt_stash",
         "_g_prefix_label_open_stash",
@@ -133,6 +139,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         Stashed: Any
         RestoreRequested: Any
         UpdatePinnedRequested: Any
+        SaveAsXpromptRequested: Any
         _mode: str
         _stack: PromptStackState
 
@@ -266,6 +273,15 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         self._sync_state_from_widgets()
         return any(item.text.strip() for item in self._stack.items)
 
+    def _g_prefix_available_save_xprompt(self) -> bool:
+        """Whether ``gx`` can save the current prompt draft as an xprompt."""
+        if self._mode != "prompt":
+            return False
+        self._sync_state_from_widgets()
+        return any(item.text.strip() for item in self._stack.items) or bool(
+            self._stack.frontmatter.strip()
+        )
+
     def _g_prefix_label_focus_next(self) -> str:
         """Return the ``gj`` label."""
         return "focus next pane"
@@ -303,6 +319,10 @@ class PromptInputBarStackActionsMixin(_MixinBase):
     def _g_prefix_label_update_pin(self) -> str:
         """Return the ``gS`` label."""
         return "update pinned stash"
+
+    def _g_prefix_label_save_xprompt(self) -> str:
+        """Return the ``gx`` label."""
+        return "save as xprompt"
 
     def _g_prefix_label_open_stash(self) -> str:
         """Return the ``Ctrl+G p`` label."""
@@ -450,6 +470,32 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         if panes:
             self._clear_active_completion_state()
         self.post_message(self.UpdatePinnedRequested(panes))
+
+    def request_save_as_xprompt(self) -> None:
+        """Ask the app to save the current prompt draft as an xprompt."""
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        panes = [
+            StashedPromptPane(
+                text=stripped,
+                frontmatter=self._stack.frontmatter,
+                pane_index=index,
+            )
+            for index, item in enumerate(self._stack.items)
+            if (stripped := item.text.strip())
+        ]
+        if not panes and self._stack.frontmatter.strip():
+            panes = [
+                StashedPromptPane(
+                    text="",
+                    frontmatter=self._stack.frontmatter,
+                    pane_index=self._stack.selected_index,
+                )
+            ]
+        if panes:
+            self._clear_active_completion_state()
+        self.post_message(self.SaveAsXpromptRequested(panes))
 
     def request_open_prompt_stash(self) -> None:
         """Ask the app to open the unified prompt-stash panel.

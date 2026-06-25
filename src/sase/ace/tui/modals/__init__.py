@@ -115,6 +115,8 @@ from .xprompt_item_modal import XPromptItemModal
 from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
 from .xprompt_filename_modal import XPromptFilenameModal
 from .xprompt_location_modal import XPromptLocation, XPromptLocationModal
+from .xprompt_name_modal import XPromptNameModal
+from .xprompt_save_target_modal import XPromptSaveTarget, XPromptSaveTargetModal
 from .xprompt_select_modal import XPromptSelection, XPromptSelectModal
 
 __all__ = [
@@ -229,6 +231,9 @@ __all__ = [
     "XPromptFilenameModal",
     "XPromptLocation",
     "XPromptLocationModal",
+    "XPromptNameModal",
+    "XPromptSaveTarget",
+    "XPromptSaveTargetModal",
     "XPromptSelection",
     "XPromptSelectModal",
     "WorkflowHITLInput",

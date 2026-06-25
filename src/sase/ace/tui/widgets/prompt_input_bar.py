@@ -25,6 +25,7 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     EditorRequested as _EditorRequested,
     HistoryRequested as _HistoryRequested,
     RestoreRequested as _RestoreRequested,
+    SaveAsXpromptRequested as _SaveAsXpromptRequested,
     SnippetRequested as _SnippetRequested,
     Stashed as _Stashed,
     Submitted as _Submitted,
@@ -65,6 +66,7 @@ class PromptInputBar(
     Stashed = _Stashed
     RestoreRequested = _RestoreRequested
     UpdatePinnedRequested = _UpdatePinnedRequested
+    SaveAsXpromptRequested = _SaveAsXpromptRequested
     EditorRequested = _EditorRequested
     AllEditorRequested = _AllEditorRequested
     HistoryRequested = _HistoryRequested
