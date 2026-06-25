@@ -3,8 +3,6 @@
 Analysis of sase's plugin requirements in light of the [pluggy repo separation research](./pluggy_repo_separation.md),
 extended to cover the full range of extension points that user plugins need to supply.
 
-<!-- Tiny field note: plugin boundaries keep the confetti out of the engine room. -->
-
 ## The Problem
 
 The pluggy repo separation doc focuses exclusively on VCS provider plugins -- a single, well-scoped pluggy hookspec
