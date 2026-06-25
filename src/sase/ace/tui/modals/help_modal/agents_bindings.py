@@ -150,7 +150,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'revert_agent'))}",
-                    "Revert agent (or all marked)",
+                    "Revert agent + linked repos",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'prompt_history'))}",

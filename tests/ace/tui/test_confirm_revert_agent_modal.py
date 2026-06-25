@@ -6,6 +6,7 @@ from textual.binding import Binding
 
 from sase.ace.revert_agent import (
     BulkRevertPreview,
+    RepoRevertPlan,
     RevertCommit,
     RevertPreview,
     RevertTarget,
@@ -70,6 +71,39 @@ def test_modal_commit_lines_truncate() -> None:
     assert len(lines) == 11
     assert lines[0] == "c00  subject 0"
     assert lines[-1] == "... and 3 more"
+
+
+def test_modal_repo_commit_lines_and_blocked_summary() -> None:
+    primary_commit = _commit("aaa", "primary")
+    linked_commit = _commit("bbb", "linked")
+    blocked_commit = _commit("ccc", "blocked")
+    preview = RevertPreview(
+        "foo",
+        "agent",
+        "/ws",
+        (primary_commit, linked_commit),
+        repos=(
+            RepoRevertPlan("primary", "/ws", True, (primary_commit,)),
+            RepoRevertPlan("sase-core", "/linked", False, (linked_commit,)),
+            RepoRevertPlan(
+                "sase-github",
+                "/dirty",
+                False,
+                (blocked_commit,),
+                blocked_reason="Workspace has uncommitted changes",
+            ),
+        ),
+    )
+    modal = ConfirmRevertAgentModal(preview)
+
+    repo_lines = modal._repo_commit_lines()
+    assert "primary (1 commit(s))" in repo_lines
+    assert "sase-core (1 commit(s))" in repo_lines
+    assert "aaa  primary" in repo_lines
+    assert "bbb  linked" in repo_lines
+    blocked = modal._blocked_summary()
+    assert "sase-github: 1 commit(s)" in blocked
+    assert "uncommitted" in blocked
 
 
 def test_modal_sdd_summary_none_and_some() -> None:

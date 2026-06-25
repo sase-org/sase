@@ -14,7 +14,7 @@ from sase.ace.revert_agent import (
     RevertTarget,
 )
 from sase.ace.tui.actions.agents._revert import AgentRevertMixin
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 
 
 class _FakeApp(AgentRevertMixin):
@@ -57,6 +57,7 @@ def _agent(
     name: str | None = "foo",
     ws: str | None = None,
     cl: str = "cl",
+    linked_repos: tuple[LinkedRepoMetadata, ...] = (),
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -67,6 +68,7 @@ def _agent(
         agent_name=name,
         workspace_num=0,
         workspace_dir=ws,
+        linked_repos=linked_repos,
     )
 
 
@@ -123,6 +125,34 @@ def test_submits_preview_task_for_done_agent(tmp_path: Path) -> None:
     assert submitted["task_type"] == "revert_preview"
     assert "foo" in submitted["kwargs"]["dedup_key"]
     assert submitted["kwargs"]["reload_on_complete"] is False
+
+
+def test_single_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "sase-core"
+    primary.mkdir()
+    linked.mkdir()
+    app = _FakeApp(
+        _agent(
+            "DONE",
+            name="foo",
+            ws=str(primary),
+            linked_repos=(
+                LinkedRepoMetadata(
+                    name="sase-core",
+                    workspace_dir=str(linked),
+                    workspace_strategy="suffix",
+                ),
+            ),
+        )
+    )
+
+    app._start_revert_selected_agent()
+
+    assert len(app.submitted) == 1
+    dedup = app.submitted[0]["kwargs"]["dedup_key"]
+    assert str(primary) in dedup
+    assert str(linked) in dedup
 
 
 def test_failed_retried_agent_is_revertable(tmp_path: Path) -> None:
@@ -250,6 +280,42 @@ def test_marks_route_to_single_bulk_preview(tmp_path: Path) -> None:
     assert dedup.startswith("revert_preview:bulk:")
     assert "bar,foo" in dedup  # sorted agent names
     assert submitted["kwargs"]["reload_on_complete"] is False
+
+
+def test_bulk_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "sase-core"
+    primary.mkdir()
+    linked.mkdir()
+    linked_meta = (
+        LinkedRepoMetadata(
+            name="sase-core",
+            workspace_dir=str(linked),
+            workspace_strategy="suffix",
+        ),
+    )
+    foo = _agent(
+        "DONE",
+        name="foo",
+        ws=str(primary),
+        cl="cl_foo",
+        linked_repos=linked_meta,
+    )
+    bar = _agent(
+        "DONE",
+        name="bar",
+        ws=str(primary),
+        cl="cl_bar",
+        linked_repos=linked_meta,
+    )
+    app = _bulk_app([foo, bar])
+
+    app._start_revert_selected_agent()
+
+    assert len(app.submitted) == 1
+    dedup = app.submitted[0]["kwargs"]["dedup_key"]
+    assert str(primary) in dedup
+    assert str(linked) in dedup
 
 
 def test_stale_marks_warn_and_do_not_submit() -> None:

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
         BulkRevertPreview,
         BulkRevertResult,
         RevertPreview,
+        RevertRepo,
         RevertResult,
         RevertTarget,
     )
@@ -27,7 +28,7 @@ class AgentRevertMixin:
     task that creates the revert commit and refreshes the Agents tab.
 
     When marked agents exist, ``,r`` instead reverts the combined commit set of
-    every marked agent as a single atomic transaction (see
+    every marked agent, one transaction per repository (see
     :meth:`_start_revert_marked_agents`).
     """
 
@@ -67,7 +68,7 @@ class AgentRevertMixin:
         from ....revert_agent import (
             resolve_revert_agent_name,
             resolve_revert_family_base,
-            resolve_revert_workspace_dir,
+            resolve_revert_repos,
         )
 
         agent_name = resolve_revert_agent_name(agent)
@@ -78,8 +79,8 @@ class AgentRevertMixin:
             )
             return
 
-        workspace_dir = resolve_revert_workspace_dir(agent)
-        if not workspace_dir:
+        repos = resolve_revert_repos(agent)
+        if not repos:
             self.notify(  # type: ignore[attr-defined]
                 "No workspace directory for agent",
                 severity="warning",
@@ -87,13 +88,13 @@ class AgentRevertMixin:
             return
 
         family_base = resolve_revert_family_base(agent, agent_name)
-        self._submit_revert_preview(agent, agent_name, workspace_dir, family_base)
+        self._submit_revert_preview(agent, agent_name, repos, family_base)
 
     def _submit_revert_preview(
         self,
         agent: Agent,
         agent_name: str,
-        workspace_dir: str,
+        repos: tuple[RevertRepo, ...],
         family_base: str | None,
     ) -> None:
         from ....revert_agent import preview_agent_revert
@@ -102,9 +103,7 @@ class AgentRevertMixin:
         artifacts_dir = agent.get_artifacts_dir()
 
         def _callable() -> TrackedTaskResult[RevertPreview]:
-            preview = preview_agent_revert(
-                workspace_dir, agent_name, family_base=family_base
-            )
+            preview = preview_agent_revert(repos, agent_name, family_base=family_base)
             return TrackedTaskResult(
                 success=True,
                 message=preview.error
@@ -134,7 +133,7 @@ class AgentRevertMixin:
             agent.project_file,
             _callable,
             display_name=f"Revert preview: {agent_name}",
-            dedup_key=f"revert_preview:{agent_name}:{workspace_dir}",
+            dedup_key=f"revert_preview:{agent_name}:{_repo_dedup_key(repos)}",
             on_complete=_on_complete,
             reload_on_complete=False,
             notify_on_complete=False,
@@ -167,14 +166,10 @@ class AgentRevertMixin:
         from ..task_actions import TrackedTaskResult
 
         agent_name = preview.agent_name
-        workspace_dir = preview.workspace_dir
-        shas = tuple(commit.full_sha for commit in preview.commits)
 
         def _callable() -> TrackedTaskResult[RevertResult]:
             result = execute_agent_revert(
-                workspace_dir,
-                shas,
-                agent_name=agent_name,
+                preview,
                 artifacts_dir=artifacts_dir,
             )
             return TrackedTaskResult(
@@ -197,7 +192,7 @@ class AgentRevertMixin:
             agent.project_file,
             _callable,
             display_name=f"Revert agent: {agent_name}",
-            dedup_key=f"revert_agent:{agent_name}:{workspace_dir}",
+            dedup_key=f"revert_agent:{agent_name}:{_repo_dedup_key_from_preview(preview)}",
             on_complete=_on_complete,
             reload_on_complete=False,
             notify_on_complete=True,
@@ -208,7 +203,7 @@ class AgentRevertMixin:
     # ------------------------------------------------------------------
 
     def _start_revert_marked_agents(self) -> None:
-        """Revert the combined commit set of every marked agent atomically.
+        """Revert the combined commit set of every marked agent.
 
         Resolves live marked rows, drops stale marks, skips non-revertable and
         unresolvable rows (with feedback), rejects mixed workspaces, then
@@ -239,10 +234,12 @@ class AgentRevertMixin:
             RevertTarget,
             resolve_revert_agent_name,
             resolve_revert_family_base,
+            resolve_revert_repos_for_agents,
             resolve_revert_workspace_dir,
         )
 
         targets: list[RevertTarget] = []
+        target_agents: list[Agent] = []
         seen: set[tuple[str, str]] = set()
         representative: Agent | None = None
         unresolved = 0
@@ -266,6 +263,7 @@ class AgentRevertMixin:
                     artifacts_dir=agent.get_artifacts_dir(),
                 )
             )
+            target_agents.append(agent)
             if representative is None:
                 representative = agent
 
@@ -291,22 +289,32 @@ class AgentRevertMixin:
                 severity="warning",
             )
 
-        self._submit_bulk_revert_preview(targets, representative)
+        repos = resolve_revert_repos_for_agents(target_agents)
+        if not repos:
+            self.notify(  # type: ignore[attr-defined]
+                "No workspace directory for marked agents",
+                severity="warning",
+            )
+            return
+
+        self._submit_bulk_revert_preview(targets, repos, representative)
 
     def _submit_bulk_revert_preview(
         self,
         targets: list[RevertTarget],
+        repos: tuple[RevertRepo, ...],
         representative: Agent,
     ) -> None:
         from ....revert_agent import preview_agents_revert
         from ..task_actions import TrackedTaskResult
 
-        workspace_dir = targets[0].workspace_dir
         names = sorted(t.agent_name for t in targets)
-        dedup_key = "revert_preview:bulk:" + ",".join(names) + ":" + workspace_dir
+        dedup_key = (
+            "revert_preview:bulk:" + ",".join(names) + ":" + _repo_dedup_key(repos)
+        )
 
         def _callable() -> TrackedTaskResult[BulkRevertPreview]:
-            preview = preview_agents_revert(targets)
+            preview = preview_agents_revert(targets, repos)
             return TrackedTaskResult(
                 success=True,
                 message=preview.error
@@ -368,9 +376,13 @@ class AgentRevertMixin:
         from ....revert_agent import execute_agents_revert
         from ..task_actions import TrackedTaskResult
 
-        workspace_dir = preview.workspace_dir
         names = sorted(t.agent_name for t in preview.targets)
-        dedup_key = "revert_agent:bulk:" + ",".join(names) + ":" + workspace_dir
+        dedup_key = (
+            "revert_agent:bulk:"
+            + ",".join(names)
+            + ":"
+            + _repo_dedup_key_from_preview(preview)
+        )
 
         def _callable() -> TrackedTaskResult[BulkRevertResult]:
             result = execute_agents_revert(preview)
@@ -401,3 +413,13 @@ class AgentRevertMixin:
             reload_on_complete=False,
             notify_on_complete=True,
         )
+
+
+def _repo_dedup_key(repos: tuple[RevertRepo, ...]) -> str:
+    return "|".join(repo.workspace_dir for repo in repos)
+
+
+def _repo_dedup_key_from_preview(preview: RevertPreview | BulkRevertPreview) -> str:
+    if preview.repos:
+        return "|".join(repo.workspace_dir for repo in preview.repos)
+    return preview.workspace_dir

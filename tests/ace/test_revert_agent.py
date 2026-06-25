@@ -15,7 +15,10 @@ from sase.ace.revert_agent import (
     execute_agents_revert,
     preview_agent_revert,
     preview_agents_revert,
+    resolve_revert_repos,
 )
+from sase.ace.revert_agent_models import RevertRepo
+from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -58,6 +61,10 @@ def _add_bare_origin(repo: Path, remote: Path) -> None:
 
 def _msg(subject: str, agent: str) -> str:
     return f"{subject}\n\nAGENT={agent}\nTYPE=sdd"
+
+
+def _repo(repo: Path, label: str = "primary", *, primary: bool = False) -> RevertRepo:
+    return RevertRepo(label=label, workspace_dir=str(repo), is_primary=primary)
 
 
 def test_discover_exact_tag_matching(tmp_path: Path) -> None:
@@ -174,6 +181,115 @@ def test_execute_successful_revert(tmp_path: Path) -> None:
     saved = json.loads((artifacts / "revert_result.json").read_text())
     assert saved["agent_name"] == "foo"
     assert saved["reverted_shas"] == list(shas)
+    assert saved["complete"] is True
+
+
+def test_execute_reverts_primary_and_linked_repos(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "sase-core"
+    _init_repo(primary)
+    _init_repo(linked)
+    _commit(primary, _msg("primary feature", "foo"), {"primary.txt": "p\n"})
+    _commit(linked, _msg("linked feature", "foo"), {"linked.txt": "l\n"})
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+
+    preview = preview_agent_revert(
+        (_repo(primary, primary=True), _repo(linked, "sase-core")),
+        "foo",
+    )
+
+    assert preview.ok
+    assert preview.commit_count == 2
+    assert [repo.repo_label for repo in preview.revertable_repos] == [
+        "primary",
+        "sase-core",
+    ]
+    primary_head = _git(primary, "rev-parse", "HEAD").strip()
+    linked_head = _git(linked, "rev-parse", "HEAD").strip()
+
+    result = execute_agent_revert(preview, artifacts_dir=str(artifacts))
+
+    assert result.success is True, result.message
+    assert result.complete is True
+    assert len(result.repo_outcomes) == 2
+    assert not (primary / "primary.txt").exists()
+    assert not (linked / "linked.txt").exists()
+    assert _git(primary, "rev-list", "--count", f"{primary_head}..HEAD").strip() == "1"
+    assert _git(linked, "rev-list", "--count", f"{linked_head}..HEAD").strip() == "1"
+    saved = json.loads((artifacts / "revert_result.json").read_text())
+    assert saved["complete"] is True
+    assert saved["reverted_shas"] == list(result.reverted_shas)
+    assert [repo["repo_label"] for repo in saved["repos"]] == [
+        "primary",
+        "sase-core",
+    ]
+
+
+def test_execute_reverts_linked_only_commits(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "sase-core"
+    _init_repo(primary)
+    _init_repo(linked)
+    _commit(primary, _msg("other primary", "bar"), {"primary.txt": "p\n"})
+    _commit(linked, _msg("linked feature", "foo"), {"linked.txt": "l\n"})
+
+    primary_head = _git(primary, "rev-parse", "HEAD").strip()
+    preview = preview_agent_revert(
+        (_repo(primary, primary=True), _repo(linked, "sase-core")),
+        "foo",
+    )
+
+    assert preview.ok
+    assert preview.commit_count == 1
+    assert [repo.repo_label for repo in preview.revertable_repos] == ["sase-core"]
+
+    result = execute_agent_revert(preview)
+
+    assert result.success is True, result.message
+    assert _git(primary, "rev-parse", "HEAD").strip() == primary_head
+    assert not (linked / "linked.txt").exists()
+
+
+def test_dirty_linked_repo_is_blocked_but_primary_reverts(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "sase-core"
+    _init_repo(primary)
+    _init_repo(linked)
+    _commit(primary, _msg("primary feature", "foo"), {"primary.txt": "p\n"})
+    _commit(linked, _msg("linked feature", "foo"), {"linked.txt": "l\n"})
+    (linked / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+
+    preview = preview_agent_revert(
+        (_repo(primary, primary=True), _repo(linked, "sase-core")),
+        "foo",
+    )
+
+    assert preview.ok
+    assert preview.commit_count == 1
+    assert len(preview.blocked_repos) == 1
+    blocked = preview.blocked_repos[0]
+    assert blocked.repo_label == "sase-core"
+    assert blocked.commit_count == 1
+    assert blocked.blocked_reason is not None
+    assert "uncommitted" in blocked.blocked_reason
+
+    result = execute_agent_revert(preview, artifacts_dir=str(artifacts))
+
+    assert result.success is False
+    assert result.complete is False
+    assert len(result.reverted_shas) == 1
+    assert not (primary / "primary.txt").exists()
+    assert (linked / "linked.txt").exists()
+    assert (linked / "dirty.txt").exists()
+    saved = json.loads((artifacts / "revert_result.json").read_text())
+    assert saved["complete"] is False
+    linked_outcome = next(
+        repo for repo in saved["repos"] if repo["repo_label"] == "sase-core"
+    )
+    assert linked_outcome["skipped_reason"]
 
 
 def test_execute_conflict_aborts_cleanly(tmp_path: Path) -> None:
@@ -208,7 +324,8 @@ def test_execute_rejects_dirty_worktree(tmp_path: Path) -> None:
     result = execute_agent_revert(str(repo), (sha,), agent_name="foo")
 
     assert not result.success
-    assert result.error == "dirty worktree"
+    assert result.error is not None
+    assert "uncommitted" in result.error
 
 
 def test_execute_rejects_missing_commit(tmp_path: Path) -> None:
@@ -218,7 +335,8 @@ def test_execute_rejects_missing_commit(tmp_path: Path) -> None:
     result = execute_agent_revert(str(repo), ("0" * 40,), agent_name="foo")
 
     assert not result.success
-    assert result.error == "missing commits"
+    assert result.error is not None
+    assert "no longer exist" in result.error
 
 
 def test_execute_pushes_to_bare_origin(tmp_path: Path) -> None:
@@ -339,6 +457,51 @@ def _target(
         family_base=family_base,
         artifacts_dir=artifacts,
     )
+
+
+def test_resolve_revert_repos_includes_done_suffix_linked_repos(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "sase-core"
+    missing = tmp_path / "missing"
+    nonsuffix = tmp_path / "nonsuffix"
+    primary.mkdir()
+    linked.mkdir()
+    nonsuffix.mkdir()
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="cl",
+        project_file=str(tmp_path / "project.sase"),
+        status="DONE",
+        start_time=None,
+        workspace_num=0,
+        workspace_dir=str(primary),
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir=str(linked),
+                workspace_strategy="suffix",
+            ),
+            LinkedRepoMetadata(
+                name="missing",
+                workspace_dir=str(missing),
+                workspace_strategy="suffix",
+            ),
+            LinkedRepoMetadata(
+                name="nonsuffix",
+                workspace_dir=str(nonsuffix),
+                workspace_strategy="shared",
+            ),
+        ),
+    )
+
+    repos = resolve_revert_repos(agent)
+
+    assert [(repo.label, repo.is_primary) for repo in repos] == [
+        ("primary", True),
+        ("sase-core", False),
+    ]
 
 
 def test_bulk_preview_combined_newest_first(tmp_path: Path) -> None:
@@ -485,6 +648,49 @@ def test_bulk_execute_single_commit_for_all(tmp_path: Path) -> None:
     assert json.loads((art_bar / "revert_result.json").read_text())["agent_name"] == (
         "bar"
     )
+
+
+def test_bulk_reverts_union_of_linked_repos(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    linked = tmp_path / "sase-core"
+    _init_repo(primary)
+    _init_repo(linked)
+    _commit(primary, _msg("foo primary", "foo"), {"foo.txt": "foo\n"})
+    _commit(linked, _msg("bar linked", "bar"), {"bar.txt": "bar\n"})
+    art_foo = tmp_path / "art_foo"
+    art_bar = tmp_path / "art_bar"
+    art_foo.mkdir()
+    art_bar.mkdir()
+
+    preview = preview_agents_revert(
+        [
+            _target(primary, "foo", artifacts=str(art_foo)),
+            _target(primary, "bar", artifacts=str(art_bar)),
+        ],
+        (_repo(primary, primary=True), _repo(linked, "sase-core")),
+    )
+
+    assert preview.ok
+    assert preview.commit_count == 2
+    assert [repo.repo_label for repo in preview.revertable_repos] == [
+        "primary",
+        "sase-core",
+    ]
+    assert set(preview.matched_target_names) == {"foo", "bar"}
+
+    primary_head = _git(primary, "rev-parse", "HEAD").strip()
+    linked_head = _git(linked, "rev-parse", "HEAD").strip()
+    result = execute_agents_revert(preview)
+
+    assert result.success is True, result.message
+    assert result.complete is True
+    assert set(result.agent_names) == {"foo", "bar"}
+    assert not (primary / "foo.txt").exists()
+    assert not (linked / "bar.txt").exists()
+    assert _git(primary, "rev-list", "--count", f"{primary_head}..HEAD").strip() == "1"
+    assert _git(linked, "rev-list", "--count", f"{linked_head}..HEAD").strip() == "1"
+    assert json.loads((art_foo / "revert_result.json").read_text())["complete"] is True
+    assert json.loads((art_bar / "revert_result.json").read_text())["complete"] is True
 
 
 def test_bulk_execute_conflict_rolls_back_to_original_head(tmp_path: Path) -> None:

@@ -24,6 +24,48 @@ class RevertCommit:
 
 
 @dataclass(frozen=True)
+class RevertRepo:
+    """One repository workspace participating in an agent revert."""
+
+    label: str
+    workspace_dir: str
+    is_primary: bool = False
+
+
+@dataclass(frozen=True)
+class RepoRevertPlan:
+    """Per-repository preview result."""
+
+    repo_label: str
+    workspace_dir: str
+    is_primary: bool
+    commits: tuple[RevertCommit, ...] = ()
+    blocked_reason: str | None = None
+
+    @property
+    def revertable(self) -> bool:
+        return self.blocked_reason is None and bool(self.commits)
+
+    @property
+    def commit_count(self) -> int:
+        return len(self.commits)
+
+
+@dataclass(frozen=True)
+class RepoRevertOutcome:
+    """Per-repository execution result."""
+
+    repo_label: str
+    workspace_dir: str
+    success: bool
+    reverted_shas: tuple[str, ...] = field(default_factory=tuple)
+    pushed: bool = False
+    error: str | None = None
+    skipped_reason: str | None = None
+    push_skipped_reason: str | None = None
+
+
+@dataclass(frozen=True)
 class RevertPreview:
     """Discovered revert scope shown in the confirmation modal."""
 
@@ -31,12 +73,17 @@ class RevertPreview:
     scope: str  # "agent" or "family"
     workspace_dir: str
     commits: tuple[RevertCommit, ...] = ()
+    repos: tuple[RepoRevertPlan, ...] = ()
     error: str | None = None
 
     @property
     def ok(self) -> bool:
         """True when there is something safe to revert."""
-        return self.error is None and bool(self.commits)
+        if self.error is not None:
+            return False
+        if self.repos:
+            return bool(self.revertable_repos)
+        return bool(self.commits)
 
     @property
     def commit_count(self) -> int:
@@ -52,6 +99,14 @@ class RevertPreview:
                     seen.append(path)
         return tuple(seen)
 
+    @property
+    def revertable_repos(self) -> tuple[RepoRevertPlan, ...]:
+        return tuple(repo for repo in self.repos if repo.revertable)
+
+    @property
+    def blocked_repos(self) -> tuple[RepoRevertPlan, ...]:
+        return tuple(repo for repo in self.repos if repo.blocked_reason is not None)
+
 
 @dataclass(frozen=True)
 class RevertResult:
@@ -62,6 +117,8 @@ class RevertResult:
     reverted_shas: tuple[str, ...] = field(default_factory=tuple)
     pushed: bool = False
     error: str | None = None
+    repo_outcomes: tuple[RepoRevertOutcome, ...] = field(default_factory=tuple)
+    complete: bool = False
 
 
 @dataclass(frozen=True)
@@ -95,6 +152,7 @@ class BulkRevertPreview:
     workspace_dir: str
     targets: tuple[RevertTarget, ...] = ()
     commits: tuple[RevertCommit, ...] = ()
+    repos: tuple[RepoRevertPlan, ...] = ()
     matched_target_names: tuple[str, ...] = ()
     skipped_target_names: tuple[str, ...] = ()
     error: str | None = None
@@ -102,7 +160,11 @@ class BulkRevertPreview:
     @property
     def ok(self) -> bool:
         """True when there is something safe to revert."""
-        return self.error is None and bool(self.commits)
+        if self.error is not None:
+            return False
+        if self.repos:
+            return bool(self.revertable_repos)
+        return bool(self.commits)
 
     @property
     def commit_count(self) -> int:
@@ -122,6 +184,14 @@ class BulkRevertPreview:
                     seen.append(path)
         return tuple(seen)
 
+    @property
+    def revertable_repos(self) -> tuple[RepoRevertPlan, ...]:
+        return tuple(repo for repo in self.repos if repo.revertable)
+
+    @property
+    def blocked_repos(self) -> tuple[RepoRevertPlan, ...]:
+        return tuple(repo for repo in self.repos if repo.blocked_reason is not None)
+
 
 @dataclass(frozen=True)
 class BulkRevertResult:
@@ -133,13 +203,18 @@ class BulkRevertResult:
     agent_names: tuple[str, ...] = field(default_factory=tuple)
     pushed: bool = False
     error: str | None = None
+    repo_outcomes: tuple[RepoRevertOutcome, ...] = field(default_factory=tuple)
+    complete: bool = False
 
 
 __all__ = [
     "BulkRevertPreview",
     "BulkRevertResult",
+    "RepoRevertOutcome",
+    "RepoRevertPlan",
     "RevertCommit",
     "RevertPreview",
+    "RevertRepo",
     "RevertResult",
     "RevertTarget",
 ]

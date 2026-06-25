@@ -41,7 +41,7 @@ def discover_agent_commits(
     for full_sha, short_sha, subject, body in _parse_log_records(log.stdout):
         tags = parse_trailing_commit_tags(body)
         agent_value = tags.get("AGENT")
-        if not _agent_tag_matches(agent_value, agent_name, family_base):
+        if not agent_tag_matches(agent_value, agent_name, family_base):
             continue
         commits.append(
             RevertCommit(
@@ -88,7 +88,7 @@ def discover_bulk_commits(
         matching = [
             t
             for t in targets
-            if _agent_tag_matches(agent_value, t.agent_name, t.family_base)
+            if agent_tag_matches(agent_value, t.agent_name, t.family_base)
         ]
         if not matching:
             continue
@@ -109,7 +109,7 @@ def discover_bulk_commits(
     return commits, matched
 
 
-def _agent_tag_matches(
+def agent_tag_matches(
     tag_value: str | None,
     agent_name: str,
     family_base: str | None,
@@ -122,6 +122,9 @@ def _agent_tag_matches(
         tag_base = agent_family_base(tag_value) or tag_value
         return tag_base == family_base
     return False
+
+
+_agent_tag_matches = agent_tag_matches
 
 
 def _parse_log_records(stdout: str) -> list[tuple[str, str, str, str]]:
@@ -152,6 +155,7 @@ __all__ = [
     "_agent_tag_matches",
     "_commit_changed_paths",
     "_parse_log_records",
+    "agent_tag_matches",
     "discover_agent_commits",
     "discover_bulk_commits",
 ]

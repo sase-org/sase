@@ -12,7 +12,7 @@ from textual.widgets import Button, Label
 from sase.ace.revert_agent import BulkRevertPreview
 
 if TYPE_CHECKING:
-    from sase.ace.revert_agent import RevertCommit, RevertPreview
+    from sase.ace.revert_agent import RepoRevertPlan, RevertCommit, RevertPreview
 
 # How many commit rows to show before collapsing the remainder into a count.
 _MAX_COMMIT_ROWS = 10
@@ -25,10 +25,9 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
     """Confirm reverting agent commits.
 
     Renders either a single-agent :class:`RevertPreview` or a multi-agent
-    :class:`BulkRevertPreview`. Bulk mode shows the marked-agent count, the
-    deduplicated newest-first combined commit set, any skipped (no-match)
-    targets, and warns that all marked agents are reverted in one commit that
-    rolls back as a unit on failure.
+    :class:`BulkRevertPreview`. Both modes show the per-repository commit
+    groups, blocked repositories that will be skipped, and the per-repo
+    transaction semantics.
     """
 
     BINDINGS = [
@@ -63,14 +62,16 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
             id="revert-scope",
         )
         yield Label(
-            f"{preview.commit_count} commit(s) will be reverted:",
+            f"{preview.commit_count} commit(s) across "
+            f"{len(preview.revertable_repos)} repo(s) will be reverted:",
             id="revert-count",
         )
-        yield Label(self._commit_lines(), id="revert-commits")
+        yield Label(self._repo_commit_lines(), id="revert-commits")
+        yield Label(self._blocked_summary(), id="revert-blocked")
         yield Label(self._sdd_summary(), id="revert-sdd")
         yield Label(
-            "This creates a single revert commit (and pushes when a "
-            "remote/branch is available).",
+            "This creates one revert commit per repository and pushes each "
+            "when a remote/branch is available.",
             id="revert-warning",
         )
 
@@ -83,25 +84,54 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
             id="revert-scope",
         )
         yield Label(
-            f"{preview.commit_count} commit(s) will be reverted:",
+            f"{preview.commit_count} commit(s) across "
+            f"{len(preview.revertable_repos)} repo(s) will be reverted:",
             id="revert-count",
         )
-        yield Label(self._commit_lines(), id="revert-commits")
+        yield Label(self._repo_commit_lines(), id="revert-commits")
+        yield Label(self._blocked_summary(), id="revert-blocked")
         yield Label(self._sdd_summary(), id="revert-sdd")
         yield Label(self._skipped_summary(), id="revert-skipped")
         yield Label(
-            "This reverts all marked agents in a single commit and rolls back "
-            "the whole operation on failure (pushes when a remote is available).",
+            "Each repository is reverted independently; a failure in one repo "
+            "does not undo completed repos.",
             id="revert-warning",
         )
 
     def _commit_lines(self) -> str:
         commits: tuple[RevertCommit, ...] = self._preview.commits
+        return self._commit_lines_for(commits)
+
+    def _repo_commit_lines(self) -> str:
+        repos = self._preview.revertable_repos
+        if not repos:
+            return self._commit_lines()
+
+        lines: list[str] = []
+        for repo in repos:
+            if lines:
+                lines.append("")
+            lines.append(f"{repo.repo_label} ({repo.commit_count} commit(s))")
+            for line in self._commit_lines_for(repo.commits).splitlines():
+                lines.append(f"  {line}")
+        return "\n".join(lines)
+
+    def _commit_lines_for(self, commits: tuple[RevertCommit, ...]) -> str:
         shown = commits[:_MAX_COMMIT_ROWS]
         lines = [f"{commit.sha}  {commit.subject}" for commit in shown]
         remaining = len(commits) - len(shown)
         if remaining > 0:
             lines.append(f"... and {remaining} more")
+        return "\n".join(lines)
+
+    def _blocked_summary(self) -> str:
+        blocked: tuple[RepoRevertPlan, ...] = self._preview.blocked_repos
+        if not blocked:
+            return "Blocked (will be skipped): (none)"
+        lines = ["Blocked (will be skipped):"]
+        for repo in blocked:
+            reason = repo.blocked_reason or "blocked"
+            lines.append(f"{repo.repo_label}: {repo.commit_count} commit(s), {reason}")
         return "\n".join(lines)
 
     def _sdd_summary(self) -> str:
