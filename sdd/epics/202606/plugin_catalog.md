@@ -1,5 +1,7 @@
 ---
 create_time: 2026-06-25 18:35:15
+bead_id: sase-57
+tier: epic
 status: wip
 prompt: sdd/prompts/202606/plugin_catalog.md
 ---
