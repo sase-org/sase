@@ -2007,14 +2007,14 @@ recent entry and `Ctrl+N` starts at the oldest one.
 | `Enter`          | Submit the highlighted prompt directly        |
 | `Ctrl+G`         | Open the highlighted prompt in `$EDITOR`      |
 | `Tab` / `Ctrl+I` | Load prompt into the input widget for editing |
-| `Ctrl+D`         | Load older prompts (+250)                     |
+| `Ctrl+K`         | Load older prompts (+250)                     |
 | `Ctrl+X`         | Toggle visibility of cancelled prompts        |
 | `Ctrl+Y`         | Copy prompt to clipboard                      |
 | `Esc`            | Close modal                                   |
 
 ### Filtering
 
-Type in the search box to filter the prompts that have already been loaded by text. Press `Ctrl+D` to load older pages,
+Type in the search box to filter the prompts that have already been loaded by text. Press `Ctrl+K` to load older pages,
 and press `Ctrl+X` to toggle cancelled prompts on or off — when enabled, cancelled prompts appear in the results with an
 `x` marker.
 

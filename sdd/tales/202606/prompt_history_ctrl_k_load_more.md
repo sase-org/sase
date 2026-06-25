@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 11:04:34
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_history_ctrl_k_load_more.md
 ---
 # Plan: Rebind Prompt-History Load More from Ctrl+D to Ctrl+K

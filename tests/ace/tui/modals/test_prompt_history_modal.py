@@ -252,10 +252,22 @@ def test_prompt_history_count_label_updates(monkeypatch: pytest.MonkeyPatch) -> 
     modal._history_exhausted = False
     modal._update_history_count_label()
 
-    assert label.value == "History · 1 / 3 loaded · ^d +250 older"
+    assert label.value == "History · 1 / 3 loaded · ^k +250 older"
 
 
-async def test_ctrl_d_loads_more_without_deleting_filter_text(
+def test_prompt_history_load_more_bound_to_ctrl_k_not_ctrl_d() -> None:
+    key_action_pairs = [
+        (binding[0], binding[1])
+        if isinstance(binding, tuple)
+        else (binding.key, binding.action)
+        for binding in PromptHistoryModal.BINDINGS
+    ]
+
+    assert ("ctrl+k", "load_more") in key_action_pairs
+    assert all(key != "ctrl+d" for key, _ in key_action_pairs)
+
+
+async def test_ctrl_k_loads_more_without_deleting_filter_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     first_cursor = prompt_history_modal.PromptHistoryPageCursor(offset=1)
@@ -306,7 +318,7 @@ async def test_ctrl_d_loads_more_without_deleting_filter_text(
         assert filter_input.value == "alpha"
 
         filter_input.cursor_position = 0
-        await pilot.press("ctrl+d")
+        await pilot.press("ctrl+k")
         for _ in range(20):
             await pilot.pause(0.01)
             if len(modal._all_items) == 2 and not modal._history_loading:
@@ -318,6 +330,59 @@ async def test_ctrl_d_loads_more_without_deleting_filter_text(
             "alpha second older prompt",
         ]
         assert calls[1]["cursor"] == first_cursor
+
+
+async def test_ctrl_d_no_longer_loads_more(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_cursor = prompt_history_modal.PromptHistoryPageCursor(offset=1)
+    pages = [
+        PromptHistoryPage(
+            records=[
+                record_from_entry(
+                    _item(text="alpha first loaded prompt").entry,
+                )
+            ],
+            next_cursor=first_cursor,
+            exhausted=False,
+        ),
+        PromptHistoryPage(
+            records=[
+                record_from_entry(
+                    _item(text="alpha second older prompt").entry,
+                )
+            ],
+            next_cursor=None,
+            exhausted=True,
+        ),
+    ]
+
+    def fake_load_prompt_record_page(**kwargs: object) -> PromptHistoryPage:
+        if pages:
+            return pages.pop(0)
+        return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
+
+    monkeypatch.setattr(
+        prompt_history_modal,
+        "load_prompt_record_page",
+        fake_load_prompt_record_page,
+    )
+
+    modal = PromptHistoryModal(initial_filter="alpha")
+    async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        for _ in range(20):
+            await pilot.pause(0.01)
+            if len(modal._all_items) == 1 and not modal._history_loading:
+                break
+
+        await pilot.press("ctrl+d")
+        for _ in range(20):
+            await pilot.pause(0.01)
+
+        assert [item.entry.text for item in modal._all_items] == [
+            "alpha first loaded prompt",
+        ]
 
 
 def test_prompt_history_preview_metadata_includes_prompt_metadata(
