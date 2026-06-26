@@ -15,7 +15,7 @@ from typing import Any
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.history.prompt_store import rewrite_prompt_text_exact
+from sase.history.prompt_store import PromptHistoryLoadError, rewrite_prompt_text_exact
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
 
 
@@ -185,7 +185,10 @@ def _persist_prompt_artifacts(
         _write_text_atomic(submitted_path, new_prompt)
         submitted_updated = True
 
-    history_rewrites = rewrite_prompt_text_exact(old_prompt, new_prompt)
+    try:
+        history_rewrites = rewrite_prompt_text_exact(old_prompt, new_prompt)
+    except PromptHistoryLoadError:
+        history_rewrites = 0
     stash_rewrites = _rewrite_prompt_stash_exact(old_prompt, new_prompt)
     return AgentDirectivePersistenceResult(
         raw_prompt_updated=True,
