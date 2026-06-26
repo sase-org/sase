@@ -5,6 +5,7 @@ from __future__ import annotations
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
     _catalog,
+    _core_versions,
     _entry,
     _highlight,
     _not_uv_tool,

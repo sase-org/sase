@@ -1,10 +1,9 @@
 """Reusable confirm-with-preview modal for plugin install / update mutations.
 
-Every ``sase plugin`` mutation surfaced in the TUI Plugins tab runs through this
+Every ``uv tool`` mutation surfaced in the TUI Updates tab runs through this
 modal first: it shows the **exact** ``uv`` argv that would run and the resolved
-plugin set, then asks for confirmation. The confirmation *is* the CLI's
-``--dry-run`` — both safer and more discoverable than a hidden mode (epic
-decision *D5*).
+scope, then asks for confirmation. The confirmation *is* the CLI's ``--dry-run``
+— both safer and more discoverable than a hidden mode (epic decision *D5*).
 
 The modal is purely presentational and reusable. A caller passes one or more
 :class:`PluginActionVariant` previews (built off-thread from

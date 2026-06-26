@@ -1,10 +1,11 @@
-"""Plugins browser pane for the Config Center modal.
+"""Updates pane for the Config Center modal.
 
-This widget hosts the **Plugins** tab of :class:`ConfigCenterModal`: a
-master/detail layout that mirrors the ``sase plugin list`` and
-``sase plugin show`` experience in the TUI. Catalog loading, render helpers,
-and install/update actions live in sibling modules so this file stays focused
-on widget composition, worker coordination, and input/navigation glue.
+This widget hosts the **Updates** tab of :class:`ConfigCenterModal`: a compact
+SASE core update surface plus the plugin master/detail browser mirroring the
+``sase plugin list`` and ``sase plugin show`` experience in the TUI. Catalog
+loading, render helpers, and mutation actions live in sibling modules so this
+file stays focused on widget composition, worker coordination, and
+input/navigation glue.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from __future__ import annotations
 import time
 from typing import Any, Literal
 
-from rich.text import Text
+from rich.console import RenderableType
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, OptionList, Static
@@ -33,6 +34,8 @@ from sase.plugins.operations import (
     execute_update,
 )
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
+from sase.uv_tool.render import UpdateSummary
+from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
 from .plugins_browser_constants import (
     _BUILTIN_GROUP,
@@ -57,6 +60,13 @@ from .plugins_browser_loading import (
     probe_uv_tool,
 )
 from .plugins_browser_rendering import PluginsBrowserRenderingMixin
+from .plugins_browser_sase_update import (
+    SaseUpdateActionsMixin,
+    installed_version,
+    load_receipt_for_summary,
+    run_sase_update_summary,
+    sase_update_success_message,
+)
 from .plugins_browser_uninstall import (
     PluginUninstallActionsMixin,
     UninstallPreview,
@@ -85,6 +95,7 @@ _not_found_message = install_not_found_message
 _plan_install_preview = plan_install_preview
 _PluginsLoadResult = PluginsLoadResult
 _load_plugins_catalog = load_plugins_catalog_for_pane
+_collect_installed_core_versions = collect_installed_core_versions
 _probe_uv_tool = probe_uv_tool
 _UpdatePreview = UpdatePreview
 _no_plugins_message = no_plugins_message
@@ -98,16 +109,21 @@ _already_absent_message = already_absent_message
 _plan_uninstall_preview = plan_uninstall_preview
 _uninstall_success_message = uninstall_success_message
 _uninstall_summary = uninstall_summary
+_installed_version = installed_version
+_load_receipt_for_summary = load_receipt_for_summary
+_run_sase_update_summary = run_sase_update_summary
+_sase_update_success_message = sase_update_success_message
 
 
 class PluginsBrowserPane(
+    SaseUpdateActionsMixin,
     PluginInstallActionsMixin,
     PluginUninstallActionsMixin,
     PluginUpdateActionsMixin,
     PluginsBrowserRenderingMixin,
     Vertical,
 ):
-    """Browser for the SASE plugin catalog (Config Center -> Plugins)."""
+    """Browser for SASE core + plugin updates (Config Center -> Updates)."""
 
     can_focus = False
 
@@ -118,6 +134,7 @@ class PluginsBrowserPane(
         ("x", "uninstall", "Uninstall"),
         ("u", "update", "Update"),
         ("U", "update_all", "Update all"),
+        ("S", "update_sase", "Sase update"),
         ("r", "refresh", "Refresh"),
         ("o", "toggle_offline", "Offline"),
         ("v", "toggle_verbose", "Verbose"),
@@ -128,6 +145,7 @@ class PluginsBrowserPane(
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._auto_load = auto_load
         self._catalog: PluginCatalog | None = None
+        self._core_versions: CoreVersions = _collect_installed_core_versions()
         self._error: str | None = None
         self._loading = auto_load
         self._now = time.time()
@@ -152,8 +170,11 @@ class PluginsBrowserPane(
         self._detail_name: str | None = None
         #: Plugin to re-highlight after the next reload (selection preservation).
         self._restore_name: str | None = None
+        #: Show the restart advice after a successful update changed packages.
+        self._sase_update_restart_hint = False
 
     def compose(self) -> ComposeResult:
+        yield Static(self._core_versions_panel(), id="sase-core-versions")
         yield Static(self._summary_text(), id="plugins-summary", markup=False)
         yield _PluginsFilterInput(
             placeholder="/ filter plugins…", id="plugins-filter-input"
@@ -174,7 +195,7 @@ class PluginsBrowserPane(
             self._start_load(force=False)
 
     def focus_default(self) -> None:
-        """Focus the list (browse-first) when the Plugins tab activates."""
+        """Focus the list (browse-first) when the Updates tab activates."""
         option_list = self._option_list()
         if option_list is not None:
             option_list.focus()
@@ -188,6 +209,7 @@ class PluginsBrowserPane(
         self._sync_state_visibility()
         self._update_static("#plugins-summary", self._summary_text())
         self._update_static("#plugins-hints", self._hints())
+        self._update_static("#sase-core-versions", self._core_versions_panel())
         refresh = force
         offline = self._offline
 
@@ -240,6 +262,9 @@ class PluginsBrowserPane(
             probed = getattr(result, "uv_tool", None)
             if probed is not None:
                 self._uv_tool = probed
+            core_versions = getattr(result, "core_versions", None)
+            if core_versions is not None:
+                self._core_versions = core_versions
             self._render_all()
         elif event.state == WorkerState.ERROR:
             self._loading = False
@@ -278,6 +303,10 @@ class PluginsBrowserPane(
     @staticmethod
     def _execute_uninstall(plan: UninstallReady) -> UninstallOutcome:
         return execute_uninstall(plan)
+
+    @staticmethod
+    def _run_sase_update_summary(install: object | None) -> tuple[UpdateSummary, float]:
+        return run_sase_update_summary(install)
 
     def action_next_option(self) -> None:
         """Move to the next non-header option."""
@@ -390,7 +419,7 @@ class PluginsBrowserPane(
         except Exception:
             pass
 
-    def _update_static(self, selector: str, content: Text | str) -> None:
+    def _update_static(self, selector: str, content: RenderableType) -> None:
         try:
             self.query_one(selector, Static).update(content)
         except Exception:

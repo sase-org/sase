@@ -1,4 +1,4 @@
-"""Update planning and actions for the Config Center Plugins browser."""
+"""Update planning and actions for the Config Center Updates plugin browser."""
 
 from __future__ import annotations
 

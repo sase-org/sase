@@ -1,4 +1,4 @@
-"""Shared fixtures for Config Center Plugins tab tests."""
+"""Shared fixtures for Config Center Updates tab plugin-browser tests."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from sase.plugins.operations import (
 )
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason
 from sase.uv_tool.receipt import Requirement
+from sase.uv_tool.versions import CorePackageVersion, CoreVersions
 
 _NOW = 1_700_000_000.0
 
@@ -94,14 +95,60 @@ def _catalog() -> PluginCatalog:
     )
 
 
+def _core_versions(
+    *,
+    sase_installed: str | None = "0.5.0",
+    sase_latest: str | None = "0.5.0",
+    core_installed: str | None = "1.4.2",
+    core_latest: str | None = "1.4.2",
+    checked: bool = True,
+) -> CoreVersions:
+    return CoreVersions(
+        packages=(
+            CorePackageVersion(
+                name="sase",
+                distribution_name="sase",
+                installed_version=sase_installed,
+                latest_version=sase_latest,
+                latest_checked=checked,
+                update_available=bool(
+                    checked
+                    and sase_installed
+                    and sase_latest
+                    and sase_latest != sase_installed
+                ),
+            ),
+            CorePackageVersion(
+                name="sase-core",
+                distribution_name="sase-core-rs",
+                installed_version=core_installed,
+                latest_version=core_latest,
+                latest_checked=checked,
+                update_available=bool(
+                    checked
+                    and core_installed
+                    and core_latest
+                    and core_latest != core_installed
+                ),
+            ),
+        )
+    )
+
+
 def _patch_catalog(
     monkeypatch: pytest.MonkeyPatch,
     *,
     catalog: PluginCatalog | None = None,
     error: str | None = None,
 ) -> None:
-    result = pbp._PluginsLoadResult(catalog=catalog, error=error, now=_NOW)
+    result = pbp._PluginsLoadResult(
+        catalog=catalog,
+        error=error,
+        now=_NOW,
+        core_versions=_core_versions(),
+    )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
+    monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
 
 
 def _patch_catalog_recording(
@@ -111,13 +158,19 @@ def _patch_catalog_recording(
 ) -> list[dict[str, object]]:
     """Patch the loader and return a list that records each call's kwargs."""
     calls: list[dict[str, object]] = []
-    result = pbp._PluginsLoadResult(catalog=catalog, error=None, now=_NOW)
+    result = pbp._PluginsLoadResult(
+        catalog=catalog,
+        error=None,
+        now=_NOW,
+        core_versions=_core_versions(),
+    )
 
     def _fake(**kwargs: object) -> pbp._PluginsLoadResult:
         calls.append(kwargs)
         return result
 
     monkeypatch.setattr(pbp, "_load_plugins_catalog", _fake)
+    monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
     return calls
 
 
@@ -146,11 +199,11 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def _open_plugins_pane(page: AcePage) -> PluginsBrowserPane:
-    modal = ConfigCenterModal(initial_tab="plugins")
+    modal = ConfigCenterModal(initial_tab="updates")
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
-    await page.wait_for(lambda _s: bool(modal.query("#plugins")))
-    pane = modal.query_one("#plugins", PluginsBrowserPane)
+    await page.wait_for(lambda _s: bool(modal.query("#updates")))
+    pane = modal.query_one("#updates", PluginsBrowserPane)
     await page.wait_for(lambda _s: not pane._loading)
     return pane
 

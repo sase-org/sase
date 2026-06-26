@@ -1,7 +1,7 @@
 """Tests for the promoted, console-free plugin Rich renderables.
 
 Phase 1 promotes the catalog/detail builders to public functions that return a
-``RenderableType`` and never touch a console, so the TUI Plugins tab can display
+``RenderableType`` and never touch a console, so the TUI Updates tab can display
 the exact same renderables ``sase plugin list`` / ``show`` print. These tests
 pin that contract: the builders return Rich renderables, render to text without
 a real terminal, and surface the key fields and the community warning.

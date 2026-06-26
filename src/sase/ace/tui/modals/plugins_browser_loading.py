@@ -1,4 +1,4 @@
-"""Catalog loading helpers for the Config Center Plugins browser."""
+"""Catalog loading helpers for the Config Center Updates tab."""
 
 from __future__ import annotations
 
@@ -10,11 +10,17 @@ from sase.plugins.catalog import (
     PluginCatalogError,
     load_plugin_catalog,
 )
-from sase.plugins.latest import enrich_with_latest
+from sase.plugins.latest import enrich_with_latest, is_newer
+from sase.plugins.pypi_source import fetch_latest_version
 from sase.uv_tool.detect import (
     NotUvToolInstall,
     UvToolInstall,
     probe_uv_tool_install,
+)
+from sase.uv_tool.versions import (
+    CoreVersions,
+    collect_installed_core_versions,
+    enrich_core_versions_latest,
 )
 
 
@@ -33,6 +39,7 @@ class PluginsLoadResult:
     error: str | None
     now: float
     uv_tool: UvToolInstall | NotUvToolInstall | None = None
+    core_versions: CoreVersions | None = None
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -41,6 +48,17 @@ def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
         return probe_uv_tool_install()
     except Exception:  # noqa: BLE001 - a probe failure must not break browsing.
         return None
+
+
+def _collect_core_versions_for_pane(*, offline: bool = False) -> CoreVersions:
+    """Best-effort SASE core version collection for the Updates tab."""
+    versions = collect_installed_core_versions()
+    return enrich_core_versions_latest(
+        versions,
+        offline=offline,
+        fetch_fn=fetch_latest_version,
+        is_newer=is_newer,
+    )
 
 
 def load_plugins_catalog_for_pane(
@@ -60,19 +78,31 @@ def load_plugins_catalog_for_pane(
     """
     load_now = time.time() if now is None else now
     uv_tool = probe_uv_tool()
+    core_versions = _collect_core_versions_for_pane(offline=offline)
     try:
         catalog = load_plugin_catalog(refresh=refresh, offline=offline, now=load_now)
     except PluginCatalogError as exc:
         return PluginsLoadResult(
-            catalog=None, error=str(exc), now=load_now, uv_tool=uv_tool
+            catalog=None,
+            error=str(exc),
+            now=load_now,
+            uv_tool=uv_tool,
+            core_versions=core_versions,
         )
     try:
         catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
     except Exception:  # noqa: BLE001 - list stays read-only; markers degrade only.
         pass
-    return PluginsLoadResult(catalog=catalog, error=None, now=load_now, uv_tool=uv_tool)
+    return PluginsLoadResult(
+        catalog=catalog,
+        error=None,
+        now=load_now,
+        uv_tool=uv_tool,
+        core_versions=core_versions,
+    )
 
 
 _PluginsLoadResult = PluginsLoadResult
+_collect_core_versions = _collect_core_versions_for_pane
 _probe_uv_tool = probe_uv_tool
 _load_plugins_catalog = load_plugins_catalog_for_pane

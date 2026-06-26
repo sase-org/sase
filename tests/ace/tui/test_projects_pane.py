@@ -21,6 +21,7 @@ from sase.ace.tui.modals.projects_pane import ProjectsPane
 from tests.ace.tui.modals.project_management_modal_test_helpers import (
     make_project_record,
 )
+from tests.ace.tui._plugins_browser_pane_helpers import _core_versions
 
 
 def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -35,8 +36,11 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.xprompt.loader.get_all_project_local_prompts",
         lambda: {},
     )
-    plugins_result = pbp._PluginsLoadResult(catalog=None, error="stub", now=0.0)
+    plugins_result = pbp._PluginsLoadResult(
+        catalog=None, error="stub", now=0.0, core_versions=_core_versions()
+    )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: plugins_result)
+    monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_a, **_kw: [
@@ -46,7 +50,7 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-async def test_admin_center_reaches_plugins_then_projects_tab_from_config(
+async def test_admin_center_reaches_projects_tab_from_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_panes(monkeypatch)
@@ -59,14 +63,10 @@ async def test_admin_center_reaches_plugins_then_projects_tab_from_config(
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "config"
 
-        # ``]`` from Config lands on Logs, then Plugins, then Projects.
+        # ``]`` from Config lands on Logs, then Projects.
         await page.press("]")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert switcher.current == "logs"
-
-        await page.press("]")
-        await page.wait_for(lambda _s: modal._active_tab == "plugins")
-        assert switcher.current == "plugins"
 
         await page.press("]")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
@@ -94,10 +94,10 @@ async def test_admin_center_leaves_projects_tab_with_left_bracket(
         assert switcher.current == "projects"
 
         # With the list focused, the host modal's own ``[`` binding leaves
-        # Projects for Plugins (directly to its left).
+        # Projects for Logs (directly to its left).
         await page.press("[")
-        await page.wait_for(lambda _s: modal._active_tab == "plugins")
-        assert switcher.current == "plugins"
+        await page.wait_for(lambda _s: modal._active_tab == "logs")
+        assert switcher.current == "logs"
 
 
 async def _focus_projects_filter(page: AcePage) -> None:

@@ -16,7 +16,7 @@ execute** split:
 
 The CLI handlers (:mod:`sase.plugins.cli_install` / :mod:`sase.plugins.cli_update`)
 delegate to these functions and keep only rendering, JSON, and exit-code
-mapping. The TUI Plugins tab calls the same functions: ``plan_*`` powers the
+mapping. The TUI Updates tab calls the same functions: ``plan_*`` powers the
 confirm-preview, ``execute_*`` runs inside a tracked background task.
 
 Every impure dependency (the install probe, the catalog loader, the uv runner,

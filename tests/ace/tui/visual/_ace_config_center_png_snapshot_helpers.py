@@ -36,6 +36,7 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 from tests.ace.tui.test_plugins_browser_pane import (
     _NOW as _PLUGINS_NOW,
     _catalog,
+    _core_versions,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     project_records,
@@ -226,11 +227,18 @@ def _patch_plugins_catalog(
     *,
     catalog: Any | None = "default",
     error: str | None = None,
+    core_versions: Any | None = None,
 ) -> None:
-    """Stub the Plugins pane's catalog load with a deterministic result."""
+    """Stub the Updates pane's plugin catalog load with a deterministic result."""
     resolved = _catalog() if catalog == "default" else catalog
-    result = pbp._PluginsLoadResult(catalog=resolved, error=error, now=_PLUGINS_NOW)
+    result = pbp._PluginsLoadResult(
+        catalog=resolved,
+        error=error,
+        now=_PLUGINS_NOW,
+        core_versions=core_versions or _core_versions(),
+    )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
+    monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
 
 
 def _patch_project_records(
@@ -477,11 +485,11 @@ async def _open_tasks_modal(page: AcePage) -> tuple[ConfigCenterModal, TasksPane
 async def _open_plugins_modal(
     page: AcePage,
 ) -> tuple[ConfigCenterModal, PluginsBrowserPane]:
-    modal = ConfigCenterModal(initial_tab="plugins")
+    modal = ConfigCenterModal(initial_tab="updates")
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
-    await page.wait_for(lambda _s: bool(modal.query("#plugins")))
-    pane = modal.query_one("#plugins", PluginsBrowserPane)
+    await page.wait_for(lambda _s: bool(modal.query("#updates")))
+    pane = modal.query_one("#updates", PluginsBrowserPane)
     await page.wait_for(lambda _s: not pane._loading)
     await wait_for_visual_idle(page)
     return modal, pane

@@ -8,6 +8,8 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.plugins.operations import NoPlugins, UpdateOutcome, UpdateReady, UpdateUnknown
+from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
+from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
@@ -21,6 +23,78 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _spy_notify,
     _update_ready,
 )
+
+
+async def test_updates_pane_sase_update_opens_preview_modal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        assert [v.key for v in modal._variants] == ["update-sase"]
+        preview = _render(modal._preview_renderable())
+        assert "uv tool upgrade sase" in preview
+        assert "Upgrades sase core + every installed plugin" in preview
+
+
+async def test_updates_pane_sase_update_disabled_when_not_uv_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._uv_tool = _not_uv_tool()
+        messages = _spy_notify(monkeypatch, pane)
+        pane.action_update_sase()
+        await page.pause()
+        assert messages and messages[0][1] == "warning"
+        assert "uv tool install" in messages[0][0]
+
+
+async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    executed: list[object | None] = []
+
+    def _fake_run(install: object | None) -> tuple[UpdateSummary, float]:
+        executed.append(install)
+        return (
+            UpdateSummary(
+                outcomes=(
+                    SaseUpdateOutcome(
+                        name="sase",
+                        role="primary",
+                        kind=ChangeKind.UPGRADED,
+                        old_version="0.5.0",
+                        new_version="0.6.0",
+                    ),
+                )
+            ),
+            0.2,
+        )
+
+    monkeypatch.setattr(pbp, "run_sase_update_summary", _fake_run)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        initial = len(calls)
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_confirm()
+
+        await page.wait_for(lambda _s: bool(executed) and len(calls) > initial)
+        assert pane._sase_update_restart_hint is True
+        assert any("Updated sase" in message for message, _severity in messages)
 
 
 async def test_plugins_pane_update_opens_preview_modal(

@@ -61,6 +61,12 @@ from sase.uv_tool.runner import (
     parse_uv_output,
     run_uv,
 )
+from sase.uv_tool.versions import (
+    CorePackageVersion,
+    CoreVersions,
+    collect_installed_core_versions,
+    enrich_core_versions_latest,
+)
 
 __all__ = [
     "RECEIPT_FILENAME",
@@ -68,6 +74,8 @@ __all__ = [
     "UV_TIMEOUT_SECONDS",
     "ChangeKind",
     "ColorChoice",
+    "CorePackageVersion",
+    "CoreVersions",
     "NotAUvToolInstallError",
     "NotUvToolInstall",
     "NotUvToolReason",
@@ -88,8 +96,10 @@ __all__ = [
     "build_install",
     "build_upgrade_all",
     "build_upgrade_packages",
+    "collect_installed_core_versions",
     "default_uv_tool_dir",
     "detect_uv_tool_install",
+    "enrich_core_versions_latest",
     "load_receipt",
     "parse_receipt",
     "parse_uv_output",

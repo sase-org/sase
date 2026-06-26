@@ -1,4 +1,4 @@
-"""Shared constants for the Config Center Plugins browser."""
+"""Shared constants for the Config Center Updates plugin browser."""
 
 from __future__ import annotations
 

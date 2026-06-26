@@ -8,6 +8,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from tests.ace.tui.test_plugins_browser_pane import (
     _catalog,
+    _core_versions,
     _highlight,
     _not_uv_tool,
     _ready_preview,
@@ -76,9 +77,14 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
     _patch_xprompt_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     result = pbp._PluginsLoadResult(
-        catalog=_catalog(), error=None, now=_PLUGINS_NOW, uv_tool=_not_uv_tool()
+        catalog=_catalog(),
+        error=None,
+        now=_PLUGINS_NOW,
+        uv_tool=_not_uv_tool(),
+        core_versions=_core_versions(),
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
+    monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
@@ -89,7 +95,7 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_not_uv_tool_120x40",
-            title="ACE SASE Admin Center — Plugins tab (install unavailable)",
+            title="ACE SASE Admin Center — Updates tab (install unavailable)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

@@ -57,9 +57,9 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
     assert _TAB_ORDER == (
         "config",
         "logs",
-        "plugins",
         "projects",
         "tasks",
+        "updates",
         "xprompts",
     )
 
@@ -122,14 +122,14 @@ def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
 
 def test_open_config_center_action_uses_remembered_admin_center_tab() -> None:
     app = _ActionApp()
-    app._admin_center_tab = "plugins"
+    app._admin_center_tab = "updates"
 
     app.action_open_config_center()
 
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "plugins"
+    assert modal._active_tab == "updates"
 
 
 def test_footer_omits_log_panel_on_all_tabs() -> None:

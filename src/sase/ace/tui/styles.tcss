@@ -3420,7 +3420,13 @@ _OverlayNameModal #overlay-name-hints {
     margin-top: 1;
 }
 
-/* Plugins tab: read-only plugin catalog browser (Phase 2) */
+/* Updates tab: SASE core + plugin catalog browser */
+PluginsBrowserPane #sase-core-versions {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
 PluginsBrowserPane #plugins-summary {
     width: 100%;
     height: auto;

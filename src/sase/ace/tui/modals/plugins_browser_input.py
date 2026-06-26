@@ -1,4 +1,4 @@
-"""Filter input for the Config Center Plugins browser."""
+"""Filter input for the Config Center Updates plugin browser."""
 
 from __future__ import annotations
 

@@ -11,10 +11,13 @@ from sase.plugins.catalog import PluginCatalog
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
     _catalog,
+    _core_versions,
+    _not_uv_tool,
     _open_plugins_pane,
     _option_labels,
     _patch_catalog,
     _patch_other_panes,
+    _render,
 )
 
 
@@ -54,6 +57,40 @@ async def test_plugins_pane_summary_counts(
         assert "2 installed" in summary
         assert "1 updates available" in summary
         assert "just now" in summary
+
+
+async def test_updates_pane_core_panel_shows_versions_and_update_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._core_versions = _core_versions(sase_latest="0.6.0")
+        rendered = pane._core_versions_panel()
+
+        text = str(_render(rendered))
+        assert "SASE Core" in text
+        assert "sase" in text
+        assert "v0.5.0" in text
+        assert "v0.6.0" in text
+        assert "update available" in text
+        assert "S  run `sase update`" in text
+
+
+async def test_updates_pane_core_panel_drops_cta_when_not_uv_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._uv_tool = _not_uv_tool()
+        text = str(_render(pane._core_versions_panel()))
+
+        assert "`sase update` unavailable" in text
+        assert "run `sase update`" not in text
+        assert "S sase-update" not in pane._hints()
 
 
 async def test_plugins_pane_shows_update_marker(
@@ -153,11 +190,11 @@ async def test_config_center_cycles_six_tabs(
         modal.action_next_center_tab()
         assert modal._active_tab == "logs"
         modal.action_next_center_tab()
-        assert modal._active_tab == "plugins"
-        modal.action_next_center_tab()
         assert modal._active_tab == "projects"
         modal.action_next_center_tab()
         assert modal._active_tab == "tasks"
+        modal.action_next_center_tab()
+        assert modal._active_tab == "updates"
         modal.action_next_center_tab()
         assert modal._active_tab == "xprompts"
         modal.action_next_center_tab()

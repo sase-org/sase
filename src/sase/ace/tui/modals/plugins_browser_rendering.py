@@ -1,10 +1,12 @@
-"""Rendering helpers for the Config Center Plugins browser."""
+"""Rendering helpers for the Config Center Updates tab."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Group, RenderableType
+from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
@@ -20,6 +22,7 @@ from sase.plugins.render_common import (
     humanize_age,
 )
 from sase.uv_tool.detect import NotUvToolInstall
+from sase.uv_tool.versions import CorePackageVersion, CoreVersions
 
 from .plugins_browser_constants import (
     _BUILTIN_GROUP,
@@ -35,6 +38,7 @@ class PluginsBrowserRenderingMixin:
 
     if TYPE_CHECKING:
         _catalog: PluginCatalog | None
+        _core_versions: CoreVersions
         _detail_debouncer: DetailPanelDebouncer | None
         _detail_name: str | None
         _error: str | None
@@ -44,6 +48,7 @@ class PluginsBrowserRenderingMixin:
         _now: float
         _offline: bool
         _restore_name: str | None
+        _sase_update_restart_hint: bool
         _uv_tool: object | None
         _verbose: bool
 
@@ -53,10 +58,11 @@ class PluginsBrowserRenderingMixin:
 
         def _option_list(self) -> OptionList | None: ...
 
-        def _update_static(self, selector: str, content: Text | str) -> None: ...
+        def _update_static(self, selector: str, content: RenderableType) -> None: ...
 
     def _render_all(self) -> None:
         self._rebuild_groups()
+        self._update_static("#sase-core-versions", self._core_versions_panel())
         self._update_static("#plugins-summary", self._summary_text())
         self._update_static("#plugins-hints", self._hints())
         self._rebuild_options()
@@ -228,6 +234,80 @@ class PluginsBrowserRenderingMixin:
         parts.append(build_detail_panel(entry))
         return Group(*parts)
 
+    def _core_versions_panel(self) -> Panel:
+        """Compact installed/latest display for SASE's own packages."""
+        body: list[RenderableType] = [self._core_versions_table()]
+        body.append(Text(""))
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            warning = Text()
+            warning.append("! ", style="yellow")
+            warning.append(
+                "`sase update` unavailable — sase is not a `uv tool` install.",
+                style="yellow",
+            )
+            body.append(warning)
+        else:
+            cta = Text()
+            cta.append("S", style="bold #AF87FF")
+            cta.append("  run `sase update`", style="cyan")
+            cta.append("  ·  upgrades sase core + all plugins", style="dim")
+            body.append(cta)
+        if self._sase_update_restart_hint:
+            body.append(
+                Text(
+                    "Restart running sase agents to pick up the new version.",
+                    style="dim",
+                )
+            )
+        return Panel(Group(*body), title="SASE Core", border_style="#AF87FF")
+
+    def _core_versions_table(self) -> Table:
+        table = Table(show_header=False, box=None, pad_edge=False, padding=(0, 2))
+        table.add_column(no_wrap=True)  # glyph
+        table.add_column(style="bold", no_wrap=True)  # name
+        table.add_column(no_wrap=True)  # installed/latest
+        table.add_column()  # note
+        for package in self._core_versions.packages:
+            table.add_row(
+                self._core_glyph(package),
+                Text(package.name),
+                self._core_version_cell(package),
+                self._core_note_cell(package),
+            )
+        return table
+
+    @staticmethod
+    def _core_glyph(package: CorePackageVersion) -> Text:
+        if package.update_available:
+            return Text(_UPDATE_GLYPH, style="bold cyan")
+        return Text("·", style="dim")
+
+    @staticmethod
+    def _core_version_cell(package: CorePackageVersion) -> Text:
+        installed = package.installed_version
+        latest = package.latest_version
+        if installed is None:
+            return Text("not installed", style="dim")
+        if package.update_available and latest:
+            cell = Text()
+            cell.append(f"v{installed}", style="dim")
+            cell.append(" → ", style="dim")
+            cell.append(f"v{latest}", style="cyan")
+            return cell
+        return Text(f"v{installed}", style="dim")
+
+    @staticmethod
+    def _core_note_cell(package: CorePackageVersion) -> Text:
+        if package.installed_version is None:
+            return Text("not installed", style="dim")
+        if not package.latest_checked:
+            return Text("checking latest…", style="dim")
+        if package.update_available:
+            return Text("update available", style="cyan")
+        if package.latest_version:
+            return Text("up to date", style="dim")
+        return Text("latest unknown", style="dim")
+
     def _current_entry(self) -> PluginCatalogEntry | None:
         option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
@@ -297,10 +377,10 @@ class PluginsBrowserRenderingMixin:
 
     def _summary_line(self) -> str:
         if self._loading:
-            return "SASE Plugins · loading…"
+            return "Plugins · loading…"
         catalog = self._catalog
         if catalog is None:
-            return "SASE Plugins · unavailable"
+            return "Plugins · unavailable"
         total = len(catalog.entries)
         installed = catalog.installed_count
         updates = catalog.updates_available
@@ -347,6 +427,8 @@ class PluginsBrowserRenderingMixin:
             parts.append("u update ↑" if emphasize else "u update")
         if self._can_update_all():
             parts.append("U update-all")
+        if self._can_update_sase():
+            parts.append("S sase-update")
         if self._can_uninstall_highlighted():
             parts.append("x uninstall")
         parts.extend(
@@ -391,6 +473,10 @@ class PluginsBrowserRenderingMixin:
             return False
         catalog = self._catalog
         return catalog is not None and catalog.installed_count > 0
+
+    def _can_update_sase(self) -> bool:
+        """Whether the top-level ``sase update`` action can be offered."""
+        return not isinstance(self._uv_tool, NotUvToolInstall)
 
     def _can_uninstall_highlighted(self) -> bool:
         """Whether the highlighted plugin can be uninstalled right now.

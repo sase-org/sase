@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 19:01:28
-status: wip
+status: done
 prompt: sdd/prompts/202606/updates_tab.md
 ---
 # Plan: SASE Admin Center — rename Plugins → Updates, add a SASE Core update surface

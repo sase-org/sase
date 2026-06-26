@@ -1,4 +1,4 @@
-"""SASE Admin Center modal: a tabbed home for config, logs, plugins, projects, tasks, xprompts.
+"""SASE Admin Center modal: a tabbed home for config, logs, projects, tasks, updates, xprompts.
 
 SASE Admin Center is a full-screen ``ModalScreen`` that hosts six internal
 alphabetical tabs over a :class:`ContentSwitcher`:
@@ -7,12 +7,13 @@ alphabetical tabs over a :class:`ContentSwitcher`:
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
 - **Logs** (tab 2) — the canonical SASE log browser (:class:`LogsPane`), replacing
   the standalone ``,L`` modal.
-- **Plugins** (tab 3) — the read-only plugin catalog browser
-  (:class:`PluginsBrowserPane`), mirroring ``sase plugin list``.
-- **Projects** (tab 4) — the migrated project lifecycle manager
+- **Projects** (tab 3) — the migrated project lifecycle manager
   (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
-- **Tasks** (tab 5) — the canonical background-task monitor (:class:`TasksPane`),
+- **Tasks** (tab 4) — the canonical background-task monitor (:class:`TasksPane`),
   replacing the standalone ``,t`` modal.
+- **Updates** (tab 5) — SASE core + plugin updates
+  (:class:`PluginsBrowserPane`), mirroring ``sase update`` and
+  ``sase plugin list``.
 - **XPrompts** (tab 6) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
 ``#`` opens the modal on the last Admin Center tab used in the current app
@@ -43,22 +44,22 @@ from .projects_pane import ProjectsPane
 from .tasks_pane import TasksPane
 from .xprompt_browser_pane import XPromptBrowserPane
 
-CenterTab = Literal["config", "logs", "plugins", "projects", "tasks", "xprompts"]
+CenterTab = Literal["config", "logs", "projects", "tasks", "updates", "xprompts"]
 
 _TAB_ORDER: tuple[CenterTab, ...] = (
     "config",
     "logs",
-    "plugins",
     "projects",
     "tasks",
+    "updates",
     "xprompts",
 )
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Config"),
     ("logs", "Logs"),
-    ("plugins", "Plugins"),
     ("projects", "Projects"),
     ("tasks", "Tasks"),
+    ("updates", "Updates"),
     ("xprompts", "XPrompts"),
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
@@ -66,7 +67,7 @@ _TAB_COLORS: dict[CenterTab, str] = {
     "tasks": "#5FD75F",
     "logs": "#FFD700",
     "projects": "#FFAF5F",
-    "plugins": "#AF87FF",
+    "updates": "#AF87FF",
     "xprompts": "#87D7FF",
 }
 _TITLE_TEXT = "SASE Admin Center"
@@ -174,9 +175,9 @@ class ConfigCenterModal(ModalScreen[None]):
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
                 yield LogsPane(id="logs")
-                yield PluginsBrowserPane(id="plugins")
                 yield ProjectsPane(id="projects")
                 yield TasksPane(id="tasks")
+                yield PluginsBrowserPane(id="updates")
                 yield XPromptBrowserPane(self._project, id="xprompts")
 
     def on_mount(self) -> None:

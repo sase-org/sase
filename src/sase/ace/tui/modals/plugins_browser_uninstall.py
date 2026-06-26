@@ -1,4 +1,4 @@
-"""Uninstall planning and actions for the Config Center Plugins browser."""
+"""Uninstall planning and actions for the Config Center Updates plugin browser."""
 
 from __future__ import annotations
 

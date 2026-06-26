@@ -20,16 +20,16 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 
 
 def test_numbered_tab_strip_plain_text_and_click_ranges() -> None:
-    strip = _ConfigCenterTabStrip("plugins")
+    strip = _ConfigCenterTabStrip("updates")
     text = strip._build_content()
     plain = text.plain
 
     expected_cells = [
         "1 Config",
         "2 Logs",
-        "3 Plugins",
-        "4 Projects",
-        "5 Tasks",
+        "3 Projects",
+        "4 Tasks",
+        "5 Updates",
         "6 XPrompts",
     ]
     assert [plain.index(cell) for cell in expected_cells] == sorted(
@@ -59,18 +59,22 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         await page.expect_modal("ConfigCenterModal")
 
         await page.press("3")
-        await page.wait_for(lambda _s: modal._active_tab == "plugins")
+        await page.wait_for(lambda _s: modal._active_tab == "projects")
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
-        assert switcher.current == "plugins"
+        assert switcher.current == "projects"
 
-        await page.press("5")
+        await page.press("4")
         await page.wait_for(lambda _s: modal._active_tab == "tasks")
         assert switcher.current == "tasks"
 
+        await page.press("5")
+        await page.wait_for(lambda _s: modal._active_tab == "updates")
+        assert switcher.current == "updates"
+
         await page.press("7")
         await page.pause()
-        assert modal._active_tab == "tasks"
-        assert switcher.current == "tasks"
+        assert modal._active_tab == "updates"
+        assert switcher.current == "updates"
         assert calls == []
 
 
@@ -86,8 +90,8 @@ async def test_hash_digit_composition_opens_numbered_tab(
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
 
-        await page.press("3")
-        await page.wait_for(lambda _s: modal._active_tab == "plugins")
+        await page.press("5")
+        await page.wait_for(lambda _s: modal._active_tab == "updates")
 
 
 async def test_admin_center_remembers_active_tab_across_escape_and_q(
@@ -102,7 +106,7 @@ async def test_admin_center_remembers_active_tab_across_escape_and_q(
         first = page.app.screen
         assert isinstance(first, ConfigCenterModal)
 
-        await page.press("5")
+        await page.press("4")
         await page.wait_for(lambda _s: first._active_tab == "tasks")
         assert page.app._admin_center_tab == "tasks"
 
@@ -115,7 +119,7 @@ async def test_admin_center_remembers_active_tab_across_escape_and_q(
         assert isinstance(second, ConfigCenterModal)
         assert second._active_tab == "tasks"
 
-        await page.press("4")
+        await page.press("3")
         await page.wait_for(lambda _s: second._active_tab == "projects")
         assert page.app._admin_center_tab == "projects"
 
