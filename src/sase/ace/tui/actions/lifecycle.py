@@ -271,7 +271,7 @@ class LifecycleMixin:
 
         First press enters idle (epoch 0, idle_state=True).
         Second press exits idle and resumes normal activity tracking.
-        No-op when pinned idle is active (only I can clear pinned idle).
+        No-op when pinned idle is active; only the pinned-idle action clears it.
         """
         from ..widgets import InactiveIndicator
 
@@ -304,7 +304,7 @@ class LifecycleMixin:
     def action_mark_inactive_pinned(self) -> None:
         """Toggle pinned idle mode.
 
-        Pinned idle stays active until explicitly toggled off with I.
+        Pinned idle stays active until explicitly toggled off.
         Regular keypresses do not clear pinned idle.  The state is
         persisted to disk so it survives TUI restarts.
         """

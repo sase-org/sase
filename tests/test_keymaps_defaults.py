@@ -25,10 +25,14 @@ def test_registry_default_modes_always_present() -> None:
     assert "bang_mode" in reg.modes
 
 
-def test_leader_mode_includes_mark_inactive() -> None:
-    """LeaderModeKeymaps default includes mark_inactive bound to ``I``."""
+def test_mark_inactive_defaults_to_bare_i_and_pinned_idle_defaults_to_leader_i() -> (
+    None
+):
+    """Bare ``I`` marks temporary idle; leader ``,I`` toggles pinned idle."""
     reg = load_keymap_registry({})
-    assert reg.leader_mode.keys["mark_inactive"] == "I"
+    assert reg.app.mark_inactive == "I"
+    assert reg.leader_mode.keys["mark_inactive_pinned"] == "I"
+    assert "mark_inactive" not in reg.leader_mode.keys
 
 
 def test_leader_mode_includes_agent_run_log() -> None:

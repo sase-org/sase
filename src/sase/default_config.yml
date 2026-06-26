@@ -86,7 +86,7 @@ ace:
       clear_marks: "u"
       bulk_change_status: "S"
       save_marked_agents: "s"
-      mark_inactive_pinned: "I"
+      mark_inactive: "I"
       # Agent / axe
       kill_agent: "x"
       open_agent_cleanup_panel: "X"
@@ -199,7 +199,7 @@ ace:
           full_history_refresh: "y"
           mark_all_unread_done_agents_read: "u"
           kill_and_edit: "x"
-          mark_inactive: "I"
+          mark_inactive_pinned: "I"
           activity_info: "i"
           clear_comments: "c"
           jump_to_notification: "n"

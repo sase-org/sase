@@ -279,11 +279,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                (d(a.mark_inactive), "Toggle idle (any key clears)"),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_inactive'))}",
-                    "Toggle idle (any key clears)",
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_inactive_pinned'))}",
+                    "Toggle pinned idle (sticky)",
                 ),
-                (d(a.mark_inactive_pinned), "Toggle pinned idle (sticky)"),
                 (d(a.toggle_hide_submitted), "Show/hide submitted PRs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (d(a.open_config_center), "SASE Config / XPrompts"),

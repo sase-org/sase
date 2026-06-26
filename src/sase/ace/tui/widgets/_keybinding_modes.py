@@ -247,7 +247,7 @@ class KeybindingModesMixin:
         bindings.append((k("log_panel"), "log panel"))
         bindings.append((k("projects"), "projects"))
         bindings.append((k("temporary_llm_override"), "model overrides"))
-        bindings.append((k("mark_inactive"), "mark idle"))
+        bindings.append((k("mark_inactive_pinned"), "pin idle"))
         self._update_display(bindings, mode_label="LEADER")
 
     def update_bang_bindings(self) -> None:

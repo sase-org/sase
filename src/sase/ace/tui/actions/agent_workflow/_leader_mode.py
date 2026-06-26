@@ -193,9 +193,9 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["mark_inactive"]:
+        if key == leader_keys["mark_inactive_pinned"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self.action_mark_inactive()  # type: ignore[attr-defined]
+            self.action_mark_inactive_pinned()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 

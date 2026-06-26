@@ -198,9 +198,6 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
 
-    if spec.id == "app.mark_inactive_pinned":
-        return True  # always available on agents tab
-
     # kill_agent: if marks exist or group banner focused, it acts on the
     # group. Otherwise it needs a focused agent.
     if spec.id == "app.kill_agent":

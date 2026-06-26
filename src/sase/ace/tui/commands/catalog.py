@@ -161,7 +161,7 @@ _APP_COMMAND_META: tuple[
             "saved group name",
         ),
     ),
-    ("mark_inactive_pinned", "Mark inactive pinned", "Marking", _AGENTS_ONLY, ()),
+    ("mark_inactive", "Mark inactive", "Marking", _ALL_TABS, ("idle",)),
     # Agents / Axe actions
     ("kill_agent", "Kill / dismiss / start-stop axe", "Agents", _ALL_TABS, ()),
     (
@@ -410,7 +410,7 @@ _LEADER_LABELS: dict[str, str] = {
     "full_history_refresh": "Refresh Agents from full history",
     "mark_all_unread_done_agents_read": "Mark all unread completed agents read",
     "kill_and_edit": "Kill agent and edit",
-    "mark_inactive": "Mark inactive agents",
+    "mark_inactive_pinned": "Toggle pinned idle",
     "activity_info": "Activity dashboard",
     "clear_comments": "Clear PR comments",
     "task_queue": "Task queue",
@@ -443,6 +443,7 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "jump_to_next_stopped_agent": _AGENTS_ONLY,
     "full_history_refresh": _AGENTS_ONLY,
     "mark_all_unread_done_agents_read": _AGENTS_ONLY,
+    "mark_inactive_pinned": _ALL_TABS,
     "clear_comments": _CL_ONLY,
     "jump_to_notification": _AGENTS_ONLY,
     "agent_from_cl": _CL_AGENTS,
