@@ -3,7 +3,7 @@ type: short
 parent: AGENTS.md
 ---
 
-# Glossary
+# Glossary of Terms Specific to SASE
 
 **Agent Family**  
 A `<name>` agent family refers to a group of agents that are all named with the same `<name>` prefix separated from the
