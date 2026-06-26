@@ -141,7 +141,10 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
+        --epic-symbol "sase-5b(extract_memory_title)" \
+        --epic-symbol "sase-5b(validate_short_memory_structure)" \
+        --epic-symbol "sase-5b(inline_memory_section)"
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
