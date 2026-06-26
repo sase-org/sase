@@ -41,7 +41,6 @@ from .jump_all_modal import JumpAllModal, JumpAllResult
 from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
-from .project_management_modal import ProjectManagementModal
 from .project_alias_editor_modal import ProjectAliasEditorModal
 from .projects_pane import ProjectsPane
 from .project_select_modal import ProjectSelectModal, ProjectSelectResult, SelectionItem
@@ -195,7 +194,6 @@ __all__ = [
     "ProcessSelectModal",
     "ProcessSelection",
     "ProjectAliasEditorModal",
-    "ProjectManagementModal",
     "ProjectsPane",
     "ProjectSelectModal",
     "ProjectSelectResult",

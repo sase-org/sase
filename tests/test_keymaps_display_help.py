@@ -274,14 +274,3 @@ def test_help_modal_displays_h_agent_home_leader_key() -> None:
         assert (",h", "Run agent (home)") in pairs
         assert (", Space", "Run agent (home)") not in pairs
         assert (",Space", "Run agent (home)") not in pairs
-
-
-def test_help_modal_displays_project_management_leader_key() -> None:
-    reg = load_keymap_registry({})
-    entries = [
-        entry
-        for build in (cls_bindings, agents_bindings, axe_bindings)
-        for _section_name, section_entries in build(reg)
-        for entry in section_entries
-    ]
-    assert (",p", "Project management") in entries

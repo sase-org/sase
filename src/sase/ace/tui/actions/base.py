@@ -114,11 +114,16 @@ class BaseActionsMixin:
 
     # --- Tool Actions ---
 
-    def action_open_project_management_panel(self) -> None:
-        """Open the project lifecycle management panel."""
-        from ..modals import ProjectManagementModal
+    def action_open_projects_panel(self) -> None:
+        """Open the SASE Admin Center on the Projects tab.
 
-        self.push_screen(ProjectManagementModal())  # type: ignore[attr-defined]
+        Replaces the removed ``,p`` standalone project-management modal: the
+        project lifecycle manager now lives in the Admin Center's Projects
+        tab, so this fast path opens that modal pre-focused on Projects.
+        """
+        from ..modals import ConfigCenterModal
+
+        self.push_screen(ConfigCenterModal(initial_tab="projects"))  # type: ignore[attr-defined]
 
     def action_show_log_panel(self) -> None:
         """Open the Log panel (leader ``,L``) — works from any tab."""

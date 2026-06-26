@@ -67,9 +67,9 @@ def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
     The Config Center composes its Projects pane in every screenshot even
     when that tab is hidden, so the pane constructor would otherwise read the
     real ``~/.sase/projects`` store and render non-deterministic (or
-    "Load failed") content. Patching the symbol the pane imports keeps the
-    old standalone project-management snapshots untouched (they stub
-    ``project_management_modal.list_project_records`` instead).
+    "Load failed") content. Patching the symbol the pane imports keeps every
+    Admin Center snapshot deterministic; dedicated Projects-tab snapshots can
+    override this stub with their own project records.
     """
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",

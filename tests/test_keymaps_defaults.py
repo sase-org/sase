@@ -41,10 +41,10 @@ def test_leader_mode_includes_agent_run_log() -> None:
     assert reg.leader_mode.keys["agent_run_log"] == "A"
 
 
-def test_leader_mode_includes_project_management() -> None:
-    """LeaderModeKeymaps default includes the ``,p`` project panel."""
+def test_leader_mode_drops_project_management_key() -> None:
+    """The ``,p`` project panel leader key was retired in the Projects-tab cutover."""
     reg = load_keymap_registry({})
-    assert reg.leader_mode.keys["projects"] == "p"
+    assert "projects" not in reg.leader_mode.keys
     assert reg.leader_mode.keys["temporary_llm_override"] == "o"
 
 

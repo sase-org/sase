@@ -326,15 +326,20 @@ def test_agent_panel_grouping_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "g"
 
 
-def test_project_management_leader_command_is_global() -> None:
+def test_projects_command_is_keyless_and_global() -> None:
     catalog = build_command_catalog(_registry())
-    spec = next(c for c in catalog if c.id == "leader.projects")
+    # The ``,p`` leader command was retired; the panel is now a keyless,
+    # searchable command that opens the Admin Center on the Projects tab.
+    assert not any(c.id == "leader.projects" for c in catalog)
+    spec = next(c for c in catalog if c.id == "projects")
 
     assert spec.label == "Open project management panel"
-    assert spec.key_display == ",p"
+    assert spec.key_display == ""
+    assert spec.key_sequence == ()
     assert spec.tabs == ("changespecs", "agents", "axe")
     assert spec.executor.kind == "app_action"
-    assert spec.executor.action == "open_project_management_panel"
+    assert spec.executor.action == "open_projects_panel"
+    assert "project management" in spec.aliases
 
 
 def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
@@ -453,9 +458,15 @@ def test_command_specs_are_well_formed() -> None:
         assert isinstance(spec, CommandSpec)
         assert spec.id
         assert spec.label
+        assert spec.tabs
+        if spec.id == "projects":
+            # The retired ``,p`` panel is intentionally keyless: a searchable
+            # command with no binding that opens the Admin Center on Projects.
+            assert spec.key_sequence == ()
+            assert spec.key_display == ""
+            continue
         assert spec.key_sequence and all(spec.key_sequence)
         assert spec.key_display
-        assert spec.tabs
 
 
 def test_command_catalog_ids_are_unique() -> None:

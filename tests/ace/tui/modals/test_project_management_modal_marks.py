@@ -1,4 +1,4 @@
-"""Tests for project management modal marking behavior."""
+"""Tests for Projects pane marking behavior."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ from pathlib import Path
 
 from textual.widgets import OptionList
 
-from sase.ace.tui.modals.project_management_modal import ProjectManagementModal
+from sase.ace.tui.modals.projects_pane import ProjectsPane
 
 from .project_management_modal_test_helpers import (
-    ProjectManagementTestApp,
+    ProjectsPaneTestApp,
     make_project_record,
 )
 
@@ -19,7 +19,7 @@ async def test_project_management_modal_mark_toggles_advances_and_updates_text(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_args, **_kwargs: [
             make_project_record("alpha"),
             make_project_record("beta"),
@@ -27,20 +27,20 @@ async def test_project_management_modal_mark_toggles_advances_and_updates_text(
         ],
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
         await pilot.press("m")
         await pilot.pause()
 
-        option_list = modal.query_one("#project-management-list", OptionList)
-        assert modal._marked_projects == {"alpha"}
+        option_list = pane.query_one("#projects-list", OptionList)
+        assert pane._marked_projects == {"alpha"}
         assert option_list.highlighted == 1
         assert "[✓] alpha" in option_list.get_option_at_index(0).prompt.plain
-        assert "marked:1" in modal._summary_text().plain
-        assert "marked:1" in modal._footer_text()
+        assert "marked:1" in pane._summary_text().plain
+        assert "marked:1" in pane._hints_text()
 
 
 async def test_project_management_modal_clear_marks_restores_row_labels(
@@ -48,16 +48,16 @@ async def test_project_management_modal_clear_marks_restores_row_labels(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_args, **_kwargs: [
             make_project_record("alpha"),
             make_project_record("beta"),
         ],
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
         await pilot.press("m")
@@ -65,11 +65,11 @@ async def test_project_management_modal_clear_marks_restores_row_labels(
         await pilot.press("u")
         await pilot.pause()
 
-        option_list = modal.query_one("#project-management-list", OptionList)
-        assert modal._marked_projects == set()
+        option_list = pane.query_one("#projects-list", OptionList)
+        assert pane._marked_projects == set()
         assert "[✓]" not in option_list.get_option_at_index(0).prompt.plain
         assert "[✓]" not in option_list.get_option_at_index(1).prompt.plain
-        assert modal._status_message == "Cleared 1 mark(s)"
+        assert pane._status_message == "Cleared 1 mark(s)"
 
 
 async def test_project_management_modal_marks_survive_filters_and_prune_on_reload(
@@ -86,25 +86,25 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
         return list(records.values())
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        assert [record.project_name for record in modal._filtered_records] == ["alpha"]
-
-        await pilot.press("tab")
-        await pilot.pause()
-        assert modal._state_filter == "sibling"
+        assert [record.project_name for record in pane._filtered_records] == ["alpha"]
 
         await pilot.press("tab")
         await pilot.pause()
-        assert modal._state_filter == "inactive"
-        assert [record.project_name for record in modal._filtered_records] == [
+        assert pane._state_filter == "sibling"
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert pane._state_filter == "inactive"
+        assert [record.project_name for record in pane._filtered_records] == [
             "beta",
             "gamma",
         ]
@@ -112,32 +112,32 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
         await pilot.press("m")
         await pilot.pause()
 
-        assert modal._marked_projects == {"beta"}
+        assert pane._marked_projects == {"beta"}
 
         await pilot.press("tab")
         await pilot.pause()
-        assert modal._state_filter == "all"
-        assert [record.project_name for record in modal._filtered_records] == [
+        assert pane._state_filter == "all"
+        assert [record.project_name for record in pane._filtered_records] == [
             "alpha",
             "beta",
             "gamma",
         ]
-        assert modal._marked_projects == {"beta"}
+        assert pane._marked_projects == {"beta"}
 
         await pilot.press("tab")
         await pilot.pause()
-        assert modal._state_filter == "active"
-        assert modal._marked_projects == {"beta"}
+        assert pane._state_filter == "active"
+        assert pane._marked_projects == {"beta"}
 
-        modal._text_filter = "alpha"
-        modal._apply_filters()
-        modal._refresh_options()
-        assert [record.project_name for record in modal._filtered_records] == ["alpha"]
-        assert modal._marked_projects == {"beta"}
+        pane._text_filter = "alpha"
+        pane._apply_filters()
+        pane._refresh_options()
+        assert [record.project_name for record in pane._filtered_records] == ["alpha"]
+        assert pane._marked_projects == {"beta"}
 
         del records["beta"]
         await pilot.press("R")
         await pilot.pause()
 
-        assert modal._marked_projects == set()
-        assert "marked:0" in modal._summary_text().plain
+        assert pane._marked_projects == set()
+        assert "marked:0" in pane._summary_text().plain

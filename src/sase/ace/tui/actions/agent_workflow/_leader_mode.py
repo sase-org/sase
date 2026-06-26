@@ -259,12 +259,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["projects"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self.action_open_project_management_panel()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["temporary_llm_override"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             self._open_temporary_llm_override_modal()  # type: ignore[attr-defined]

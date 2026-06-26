@@ -80,7 +80,6 @@ _LEADER_LABELS: dict[str, str] = {
     "prompt_history_cancelled": "Prompt history (cancelled)",
     "agent_run_log": "Agent run log",
     "jump_to_notification": "Jump to notification",
-    "projects": "Open project management panel",
     "temporary_llm_override": "Model overrides",
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
@@ -176,16 +175,6 @@ def _iter_leader_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
         label = _LEADER_LABELS.get(command_id, command_id.replace("_", " ").title())
         tabs = _LEADER_TABS.get(command_id, ALL_TABS)
         seq = (prefix, subkey)
-        executor = (
-            CommandExecutor(kind="app_action", action="open_project_management_panel")
-            if command_id == "projects"
-            else CommandExecutor(kind="leader_mode_key", subkey=subkey)
-        )
-        aliases = (
-            ("leader", command_id, "project management")
-            if command_id == "projects"
-            else ("leader", command_id)
-        )
         yield CommandSpec(
             id=f"leader.{command_id}",
             label=label,
@@ -193,8 +182,8 @@ def _iter_leader_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
             key_display=format_key_sequence(seq),
             category="Leader",
             tabs=tabs,
-            executor=executor,
-            aliases=aliases,
+            executor=CommandExecutor(kind="leader_mode_key", subkey=subkey),
+            aliases=("leader", command_id),
         )
 
 

@@ -89,10 +89,6 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     "Log panel (launch failures)",
                 ),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'projects'))}",
-                    "Project management",
-                ),
-                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
                     "Model overrides",
                 ),

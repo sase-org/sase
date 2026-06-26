@@ -25,11 +25,11 @@ _WORKSPACE_WIDTH = 38
 _STATE_TABS: tuple[str, ...] = ("active", "sibling", "inactive", "all")
 
 
-def warning_count(record: ProjectRecordWire) -> int:
+def _warning_count(record: ProjectRecordWire) -> int:
     return len(record.warnings) + len(record.parse_warnings)
 
 
-def short_path(path: str | None, *, max_len: int = 46) -> str:
+def _short_path(path: str | None, *, max_len: int = 46) -> str:
     if not path:
         return "-"
     text = str(Path(path).expanduser())
@@ -38,7 +38,7 @@ def short_path(path: str | None, *, max_len: int = 46) -> str:
     return "..." + text[-(max_len - 3) :]
 
 
-def state_style(state: str) -> str:
+def _state_style(state: str) -> str:
     if state == "active":
         return "bold #00D7AF"
     if state == "inactive":
@@ -98,7 +98,7 @@ def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
     badge = f"● {record.state}"
     text.append(
         f"{badge:<{_STATE_WIDTH}.{_STATE_WIDTH}}",
-        style=state_style(record.state),
+        style=_state_style(record.state),
     )
     alias_style = "#D7AF5F" if record.aliases else "dim"
     text.append(
@@ -107,13 +107,13 @@ def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
     )
     text.append(f"{record.active_claim_count:<{_CLAIMS_WIDTH}}")
     text.append(f"{_launch_label(record):<{_LAUNCH_WIDTH}}")
-    warnings = warning_count(record)
+    warnings = _warning_count(record)
     if warnings:
         text.append(f"{warnings:<{_WARN_WIDTH}}", style="bold red")
     else:
         text.append(f"{'-':<{_WARN_WIDTH}}", style="dim")
     text.append(
-        short_path(record.workspace_dir, max_len=_WORKSPACE_WIDTH),
+        _short_path(record.workspace_dir, max_len=_WORKSPACE_WIDTH),
         style="dim",
     )
     return text
@@ -188,14 +188,6 @@ def _action_hints(show_inactive_projects: bool) -> str:
     )
 
 
-def footer_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
-    base = f"{_action_hints(show_inactive_projects)}  q close"
-    mark_count = len(marked_projects)
-    if not mark_count:
-        return base
-    return f"{base}  marked:{mark_count} (a/d/Ctrl+D target marked set)"
-
-
 def hints_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
     """Single-line hints for the Projects pane.
 
@@ -223,13 +215,13 @@ def detail_text(
     launch = "yes" if record.launchable and record.state == "active" else "no"
     text.append(record.project_name, style="bold")
     text.append("   ")
-    text.append(f"● {record.state}", style=state_style(record.state))
+    text.append(f"● {record.state}", style=_state_style(record.state))
     text.append(f" ({source})", style="dim")
     text.append("\n\n")
     text.append("Project file:  ", style="dim")
     text.append(str(record.project_file))
     text.append("\nWorkspace:     ", style="dim")
-    text.append(short_path(record.workspace_dir, max_len=72))
+    text.append(_short_path(record.workspace_dir, max_len=72))
     text.append("\nActive claims: ", style="dim")
     text.append(str(record.active_claim_count))
     text.append("    Launchable: ", style="dim")

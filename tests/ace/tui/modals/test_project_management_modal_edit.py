@@ -1,4 +1,4 @@
-"""Tests for project management modal ProjectSpec editing."""
+"""Tests for Projects pane ProjectSpec editing."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from textual.widgets import Input, OptionList
 
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.project_alias_editor_modal import ProjectAliasEditorModal
-from sase.ace.tui.modals.project_management_modal import ProjectManagementModal
+from sase.ace.tui.modals.projects_pane import ProjectsPane
 
 from .project_management_modal_test_helpers import (
-    ProjectManagementTestApp,
+    ProjectsPaneTestApp,
     make_project_record,
 )
 
@@ -62,7 +62,7 @@ async def test_project_management_modal_edit_opens_selected_project_spec(
         return [alpha, beta] if list_calls == 1 else [beta, alpha]
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
     monkeypatch.setenv("EDITOR", "test-editor")
@@ -80,9 +80,9 @@ async def test_project_management_modal_edit_opens_selected_project_spec(
         run_editor,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
         monkeypatch.setattr(pilot.app, "suspend", lambda: suspend)
@@ -98,13 +98,13 @@ async def test_project_management_modal_edit_opens_selected_project_spec(
         assert suspend.enters == 1
         assert suspend.exits == 1
         assert not lock_file.exists()
-        assert [record.project_name for record in modal._filtered_records] == [
+        assert [record.project_name for record in pane._filtered_records] == [
             "beta",
             "alpha",
         ]
-        option_list = modal.query_one("#project-management-list", OptionList)
+        option_list = pane.query_one("#projects-list", OptionList)
         assert option_list.highlighted == 1
-        assert modal._status_message == "Editor closed for alpha"
+        assert pane._status_message == "Editor closed for alpha"
         pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
         pilot.app._schedule_agents_async_refresh.assert_called_once_with(
             source="project_lifecycle",
@@ -141,23 +141,23 @@ async def test_project_management_modal_alias_editor_updates_selected_project(
         return record_for(project)
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        "sase.ace.tui.modals.projects_pane.set_project_aliases_locked",
         set_aliases,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
         pilot.app._schedule_changespecs_async_refresh = MagicMock()
         pilot.app._schedule_agents_async_refresh = MagicMock()
         pilot.app._schedule_axe_async_refresh = MagicMock()
         pilot.app._refresh_current_tab = MagicMock()
-        monkeypatch.setattr(modal, "notify", MagicMock())
+        monkeypatch.setattr(pane, "notify", MagicMock())
 
         await pilot.press("A")
         await pilot.pause()
@@ -168,14 +168,14 @@ async def test_project_management_modal_alias_editor_updates_selected_project(
         await pilot.pause()
 
         assert set_calls == [("alpha", ["docs", "new"], tmp_path)]
-        assert [record.project_name for record in modal._filtered_records] == [
+        assert [record.project_name for record in pane._filtered_records] == [
             "beta",
             "alpha",
         ]
-        option_list = modal.query_one("#project-management-list", OptionList)
+        option_list = pane.query_one("#projects-list", OptionList)
         assert option_list.highlighted == 1
-        assert modal._status_message == "alpha aliases: docs, new"
-        modal.notify.assert_called_once_with("Updated aliases for 'alpha'")
+        assert pane._status_message == "alpha aliases: docs, new"
+        pane.notify.assert_called_once_with("Updated aliases for 'alpha'")
         pilot.app._schedule_changespecs_async_refresh.assert_called_once_with()
         pilot.app._schedule_agents_async_refresh.assert_called_once_with(
             source="project_lifecycle",
@@ -207,17 +207,17 @@ async def test_project_management_modal_alias_editor_empty_input_confirms_clear(
         return make_project_record(project, aliases=new_aliases)
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        "sase.ace.tui.modals.projects_pane.set_project_aliases_locked",
         set_aliases,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
         await pilot.press("A")
@@ -234,7 +234,7 @@ async def test_project_management_modal_alias_editor_empty_input_confirms_clear(
         await pilot.pause()
 
         assert set_calls == [("alpha", [])]
-        assert modal._status_message == "alpha aliases: none"
+        assert pane._status_message == "alpha aliases: none"
 
 
 async def test_project_management_modal_alias_editor_targets_highlighted_not_marked(
@@ -262,20 +262,20 @@ async def test_project_management_modal_alias_editor_targets_highlighted_not_mar
         return make_project_record(project, aliases=aliases)
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        "sase.ace.tui.modals.projects_pane.set_project_aliases_locked",
         set_aliases,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
-        modal._marked_projects = {"beta"}
-        modal._refresh_options(preferred_project="alpha")
+        pane._marked_projects = {"beta"}
+        pane._refresh_options(preferred_project="alpha")
 
         await pilot.press("A")
         await pilot.pause()
@@ -286,7 +286,7 @@ async def test_project_management_modal_alias_editor_targets_highlighted_not_mar
 
         assert set_calls == [("alpha", ["selected"])]
         assert aliases_by_project == {"alpha": ["selected"], "beta": ["marked"]}
-        assert modal._marked_projects == {"beta"}
+        assert pane._marked_projects == {"beta"}
 
 
 @pytest.mark.parametrize(
@@ -324,19 +324,19 @@ async def test_project_management_modal_alias_editor_errors_do_not_reload(
         raise ValueError(error)
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        "sase.ace.tui.modals.projects_pane.set_project_aliases_locked",
         set_aliases,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
-        monkeypatch.setattr(modal, "notify", MagicMock())
+        monkeypatch.setattr(pane, "notify", MagicMock())
 
         await pilot.press("A")
         await pilot.pause()
@@ -348,8 +348,8 @@ async def test_project_management_modal_alias_editor_errors_do_not_reload(
         assert set_calls == [("alpha", [alias_text])]
         assert list_calls == 1
         message = f"Alias update failed for alpha: {error}"
-        assert modal._status_message == message
-        modal.notify.assert_called_once_with(message, severity="error")
+        assert pane._status_message == message
+        pane.notify.assert_called_once_with(message, severity="error")
 
 
 async def test_project_management_modal_alias_editor_cancel_leaves_records_untouched(
@@ -358,17 +358,17 @@ async def test_project_management_modal_alias_editor_cancel_leaves_records_untou
 ) -> None:
     set_aliases = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_args, **_kwargs: [make_project_record("alpha", aliases=["old"])],
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.set_project_aliases_locked",
+        "sase.ace.tui.modals.projects_pane.set_project_aliases_locked",
         set_aliases,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
         await pilot.press("A")
@@ -379,7 +379,7 @@ async def test_project_management_modal_alias_editor_cancel_leaves_records_untou
         await pilot.pause()
 
         set_aliases.assert_not_called()
-        assert modal._status_message == "Alias edit cancelled"
+        assert pane._status_message == "Alias edit cancelled"
 
 
 async def test_project_management_modal_edit_no_selection_warns(
@@ -388,7 +388,7 @@ async def test_project_management_modal_edit_no_selection_warns(
 ) -> None:
     run_editor = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_args, **_kwargs: [],
     )
     monkeypatch.setattr(
@@ -396,17 +396,17 @@ async def test_project_management_modal_edit_no_selection_warns(
         run_editor,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
-        monkeypatch.setattr(modal, "notify", MagicMock())
+        monkeypatch.setattr(pane, "notify", MagicMock())
 
         await pilot.press("e")
         await pilot.pause()
 
-        assert modal._status_message == "No project selected"
-        modal.notify.assert_called_once_with("No project selected", severity="warning")
+        assert pane._status_message == "No project selected"
+        pane.notify.assert_called_once_with("No project selected", severity="warning")
         run_editor.assert_not_called()
 
 
@@ -426,7 +426,7 @@ async def test_project_management_modal_edit_allows_missing_spec_file(
     )
     run_editor = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     monkeypatch.setattr(
@@ -435,9 +435,8 @@ async def test_project_management_modal_edit_allows_missing_spec_file(
     )
     monkeypatch.setenv("EDITOR", "test-editor")
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
         await pilot.pause()
         monkeypatch.setattr(pilot.app, "suspend", lambda: _SuspendRecorder())
 
@@ -464,7 +463,7 @@ async def test_project_management_modal_edit_missing_parent_does_not_create_dire
     )
     run_editor = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_args, **_kwargs: [record],
     )
     monkeypatch.setattr(
@@ -472,17 +471,17 @@ async def test_project_management_modal_edit_missing_parent_does_not_create_dire
         run_editor,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
-        monkeypatch.setattr(modal, "notify", MagicMock())
+        monkeypatch.setattr(pane, "notify", MagicMock())
 
         await pilot.press("e")
         await pilot.pause()
 
-        assert modal._status_message == f"ProjectSpec directory missing: {project_dir}"
-        modal.notify.assert_called_once_with(
+        assert pane._status_message == f"ProjectSpec directory missing: {project_dir}"
+        pane.notify.assert_called_once_with(
             f"ProjectSpec directory missing: {project_dir}",
             severity="error",
         )
@@ -517,7 +516,7 @@ async def test_project_management_modal_edit_launch_failure_releases_lock(
         raise OSError("no editor")
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.project_management_modal.list_project_records",
+        "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
     monkeypatch.setattr(
@@ -525,12 +524,12 @@ async def test_project_management_modal_edit_launch_failure_releases_lock(
         run_editor,
     )
 
-    async with ProjectManagementTestApp().run_test() as pilot:
-        modal = ProjectManagementModal(projects_root=tmp_path)
-        pilot.app.push_screen(modal)
+    app = ProjectsPaneTestApp(projects_root=tmp_path)
+    async with app.run_test() as pilot:
+        pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
         monkeypatch.setattr(pilot.app, "suspend", lambda: _SuspendRecorder())
-        monkeypatch.setattr(modal, "notify", MagicMock())
+        monkeypatch.setattr(pane, "notify", MagicMock())
         pilot.app._schedule_changespecs_async_refresh = MagicMock()
         pilot.app._refresh_current_tab = MagicMock()
 
@@ -538,8 +537,8 @@ async def test_project_management_modal_edit_launch_failure_releases_lock(
         await pilot.pause()
 
         assert not lock_file.exists()
-        assert modal._status_message == "Editor failed for alpha: no editor"
-        modal.notify.assert_called_once_with(
+        assert pane._status_message == "Editor failed for alpha: no editor"
+        pane.notify.assert_called_once_with(
             "Editor failed for alpha: no editor",
             severity="error",
         )

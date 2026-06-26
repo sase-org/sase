@@ -345,15 +345,15 @@ def test_execute_leader_repeat_last_dispatches_configured_subkeys() -> None:
     ]
 
 
-def test_execute_project_management_command_uses_app_action() -> None:
+def test_execute_projects_command_uses_app_action() -> None:
     app = MagicMock()
     catalog = {
         spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
     }
 
-    execute_command(app, catalog["leader.projects"])
+    execute_command(app, catalog["projects"])
 
-    app.action_open_project_management_panel.assert_called_once_with()
+    app.action_open_projects_panel.assert_called_once_with()
     app._handle_leader_key.assert_not_called()
 
 

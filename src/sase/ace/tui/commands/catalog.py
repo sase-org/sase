@@ -83,16 +83,39 @@ def iter_digit_commands() -> Iterator[CommandSpec]:
         )
 
 
+def _iter_projects_command() -> Iterator[CommandSpec]:
+    """Yield the keyless Projects-tab command.
+
+    The standalone ``,p`` project-management panel was retired and re-homed
+    as the Admin Center's Projects tab. This command preserves a fast,
+    searchable path to that panel — it has no key binding (the ``,p`` leader
+    key is gone) and opens the Admin Center pre-focused on Projects via the
+    ``open_projects_panel`` app action.
+    """
+    yield CommandSpec(
+        id="projects",
+        label="Open project management panel",
+        key_sequence=(),
+        key_display="",
+        category="Display",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_projects_panel"),
+        aliases=("projects", "project management", "admin center"),
+    )
+
+
 def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     """Construct the full catalog from a :class:`KeymapRegistry`.
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
-    order), then digit bindings, then mode commands (fold, copy,
-    leader, bang, custom; each in registry insertion order).
+    order), then digit bindings, the keyless Projects command, then
+    mode commands (fold, copy, leader, bang, custom; each in registry
+    insertion order).
     """
     catalog: list[CommandSpec] = []
     catalog.extend(iter_app_commands(registry))
     catalog.extend(iter_digit_commands())
+    catalog.extend(_iter_projects_command())
     catalog.extend(iter_mode_commands(registry))
     return catalog
 

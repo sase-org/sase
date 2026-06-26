@@ -57,14 +57,15 @@ def test_footer_surfaces_agent_home_as_h_on_all_tabs() -> None:
         assert ("<space>", "agent (home)") not in captured[-1][0]
 
 
-def test_footer_surfaces_project_management_on_all_tabs() -> None:
+def test_footer_omits_project_management_after_cutover() -> None:
+    """The ``,p`` projects entry was retired when the panel moved to the
+    Admin Center's Projects tab, so the leader footer no longer surfaces it."""
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert "p" in _last_keys(captured)
-        assert "projects" in _last_labels(captured)
+        assert "projects" not in _last_labels(captured)
 
 
 def test_footer_surfaces_space_run_agent_on_cl_and_agents_tabs() -> None:

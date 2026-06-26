@@ -1,9 +1,11 @@
-"""Smoke test for the Projects tab of the SASE Admin Center (Phase 1).
+"""Integration tests for the Projects tab of the SASE Admin Center.
 
-Confirms the additive integration: the Projects pane is composed right of
-Config, is reachable with ``]``, focuses its list when activated, and renders
-the project rows. The behavioral parity tests still drive the standalone modal
-during the coexistence window and are migrated to this pane in Phase 2.
+Confirms the Projects pane is composed right of Config, is reachable with
+``]`` and left again with ``[``, focuses its list when activated, and renders
+the project rows. Also covers the filter input's key forwarding (``[`` / ``]``
+switch tabs and ``tab`` / ``shift+tab`` cycle the state filter even while the
+filter is focused). The behavioral parity suite lives in
+``tests/ace/tui/modals/test_project_management_modal_*.py``.
 """
 
 from __future__ import annotations
@@ -69,3 +71,78 @@ async def test_admin_center_reaches_projects_tab_from_config(
         assert option_list.option_count == 2
         # Activating the tab focuses the list (browse-first).
         assert page.app.focused is option_list
+
+
+async def test_admin_center_leaves_projects_tab_with_left_bracket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#config-center-switcher")))
+
+        switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
+        assert switcher.current == "projects"
+
+        # With the list focused, the host modal's own ``[`` binding leaves
+        # Projects for Config (directly to its left).
+        await page.press("[")
+        await page.wait_for(lambda _s: modal._active_tab == "config")
+        assert switcher.current == "config"
+
+
+async def _focus_projects_filter(page: AcePage) -> None:
+    """Open the Projects tab filter input via the pane's ``/`` binding."""
+    await page.press("/")
+    await page.wait_for(
+        lambda _s: (
+            page.app.focused is not None and page.app.focused.id == "projects-filter"
+        )
+    )
+
+
+async def test_projects_filter_forwards_bracket_to_switch_tabs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects-filter")))
+
+        await _focus_projects_filter(page)
+
+        # ``]`` is swallowed by the focused Input as text unless forwarded;
+        # the filter forwards it to the host's next-tab action (→ Plugins).
+        await page.press("]")
+        await page.wait_for(lambda _s: modal._active_tab == "plugins")
+        switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
+        assert switcher.current == "plugins"
+
+
+async def test_projects_filter_forwards_tab_to_cycle_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects-filter")))
+
+        pane = modal.query_one("#projects", ProjectsPane)
+        assert pane._state_filter == "active"
+        await _focus_projects_filter(page)
+
+        # ``tab`` / ``shift+tab`` cycle the state filter even while the filter
+        # is focused (preserving the old modal's priority-binding behavior).
+        await page.press("tab")
+        await page.wait_for(lambda _s: pane._state_filter == "sibling")
+        assert pane._state_filter == "sibling"
+
+        await page.press("shift+tab")
+        await page.wait_for(lambda _s: pane._state_filter == "active")
+        assert pane._state_filter == "active"
