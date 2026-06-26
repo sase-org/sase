@@ -126,6 +126,46 @@ sase doctor -C axe.chops
   (`WARN`), and Telegram chop `pass`/environment prerequisites (`WARN`). The same chop diagnostics are mirrored by
   `sase doctor -C axe.chops`.
 
+## Updating sase and plugins (`sase update`)
+
+`sase update` upgrades `sase` **and every installed sase plugin together**, in one atomic operation, by delegating to
+`uv tool upgrade sase`. uv re-resolves sase core and all injected plugins in a single shot, so they always move forward
+as a coherent set rather than drifting out of sync.
+
+```bash
+sase update            # upgrade sase + all plugins
+sase update -n         # dry run: preview the uv command and package set, change nothing
+sase update -q         # quiet: print only a one-line summary
+sase update -j         # stable machine-readable JSON
+```
+
+Typical output highlights what changed, marks what was already current, and reminds you to restart long-running agents:
+
+```text
+✓ sase           0.5.0 → 0.6.1
+✓ sase-github    0.3.2 → 0.4.0
+· sase-telegram  0.1.0   (already current)
+
+Updated sase + 1 plugin in 4.2s · 1 already current
+Restart running sase agents to pick up the new version.
+```
+
+- **Install method is required.** `sase update` only works when sase was installed with `uv tool install sase` (the
+  canonical install path). When it is run from a pip/pipx install or from a dev checkout's virtualenv, it **fails fast
+  with an actionable message** and a non-zero exit code instead of touching the environment. The check is strict: `uv`
+  must be on `PATH`, the running interpreter's `sys.prefix` must resolve to `<uv tool dir>/sase`, and that directory
+  must contain a `uv-receipt.toml`.
+- **`-n|--dry-run`** prints the exact `uv` command that would run plus the current package set (sase core and each
+  injected plugin, with versions) and exits `0` without changing anything. uv itself has no dry-run, so sase resolves
+  and prints the plan.
+- **`-j|--json`** emits a stable, sorted payload with `schema_version`, the resolved `command`, per-package outcomes
+  (`kind` of `upgraded`/`added`/`removed`/`unchanged` with `old_version`/`new_version`), and `counts`. The dry-run JSON
+  reports `dry_run: true`, the planned `command`, and each package's `current_version`.
+- A no-op run (nothing to upgrade) renders a clean "Already up to date" state and still exits `0`.
+- The authoritative record of what is in sase's environment is uv's own `uv-receipt.toml`, not anything sase stores.
+  `sase update` moves the whole environment forward at once; per-plugin install and upgrade commands are a planned
+  follow-up.
+
 ## How Plugins Are Discovered
 
 Plugin discovery uses `importlib.metadata.entry_points()` to find installed packages that declare one of Sase's entry

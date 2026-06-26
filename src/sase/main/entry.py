@@ -343,6 +343,12 @@ def main() -> NoReturn:
 
         handle_telemetry_command(args)
 
+    # --- update ---
+    if args.command == "update":
+        from .update_handler import handle_update_command
+
+        sys.exit(handle_update_command(args))
+
     # --- validate ---
     if args.command == "validate":
         from .validate_handler import handle_validate_command

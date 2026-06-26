@@ -43,6 +43,16 @@ from sase.uv_tool.receipt import (
     load_receipt,
     parse_receipt,
 )
+from sase.uv_tool.render import (
+    PackageRole,
+    PlannedPackage,
+    UpdateOutcome,
+    UpdateSummary,
+    render_update_dry_run,
+    render_update_result,
+    render_uv_tool_error,
+    summarize_update,
+)
 from sase.uv_tool.runner import (
     UV_TIMEOUT_SECONDS,
     ChangeKind,
@@ -61,10 +71,14 @@ __all__ = [
     "NotAUvToolInstallError",
     "NotUvToolInstall",
     "NotUvToolReason",
+    "PackageRole",
+    "PlannedPackage",
     "ReceiptError",
     "ReconstructedRequirements",
     "Requirement",
     "ToolReceipt",
+    "UpdateOutcome",
+    "UpdateSummary",
     "UvChangeSet",
     "UvCommandFailedError",
     "UvNotFoundError",
@@ -80,6 +94,10 @@ __all__ = [
     "parse_receipt",
     "parse_uv_output",
     "probe_uv_tool_install",
+    "render_update_dry_run",
+    "render_update_result",
+    "render_uv_tool_error",
     "run_uv",
     "sase_receipt_path",
+    "summarize_update",
 ]
