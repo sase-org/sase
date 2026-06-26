@@ -2,6 +2,8 @@
 create_time: 2026-06-26 12:51:36
 status: wip
 prompt: sdd/prompts/202606/projects_admin_center_tab.md
+bead_id: sase-5a
+tier: epic
 ---
 # Plan: Move Project Management into a "Projects" tab of the SASE Admin Center
 
