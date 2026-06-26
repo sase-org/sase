@@ -13,15 +13,20 @@ from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
+from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.config.core import ConfigLayer
 from sase.config.inventory import build_config_inventory, config_field_model
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 from tests.ace.tui.test_plugins_browser_pane import (
     _NOW as _PLUGINS_NOW,
     _catalog,
 )
-from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
+from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    project_records,
+    wait_for_visual_idle,
+)
 
 BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
@@ -212,6 +217,23 @@ def _patch_plugins_catalog(
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
 
 
+def _patch_project_records(
+    monkeypatch: pytest.MonkeyPatch,
+    records: list[ProjectRecordWire] | None = None,
+) -> None:
+    """Feed the always-mounted Projects pane deterministic lifecycle records.
+
+    Overrides the ``conftest`` autouse stub (which returns an empty list to keep
+    other Admin Center snapshots deterministic) so the Projects tab renders a
+    stable spread of states, claims, aliases, and warnings.
+    """
+    resolved = project_records() if records is None else records
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_a, **_kw: list(resolved),
+    )
+
+
 async def _open_modal(page: AcePage, initial_tab: CenterTab) -> ConfigCenterModal:
     modal = ConfigCenterModal(initial_tab=initial_tab)
     page.app.push_screen(modal)
@@ -227,6 +249,18 @@ async def _open_config_modal(page: AcePage) -> tuple[ConfigCenterModal, ConfigPa
     await page.wait_for(lambda _s: bool(modal.query("#config")))
     pane = modal.query_one("#config", ConfigPane)
     await page.wait_for(lambda _s: bool(pane._node_by_path))
+    await wait_for_visual_idle(page)
+    return modal, pane
+
+
+async def _open_projects_modal(
+    page: AcePage,
+) -> tuple[ConfigCenterModal, ProjectsPane]:
+    modal = ConfigCenterModal(initial_tab="projects")
+    page.app.push_screen(modal)
+    await page.expect_modal("ConfigCenterModal")
+    await page.wait_for(lambda _s: bool(modal.query("#projects-list")))
+    pane = modal.query_one("#projects", ProjectsPane)
     await wait_for_visual_idle(page)
     return modal, pane
 
