@@ -83,6 +83,35 @@ def test_persist_agent_directive_update_leaves_diverged_submitted_prompt(
     )
 
 
+def test_persist_agent_directive_update_finishes_when_history_is_corrupt(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    old_prompt = "%name:old\nDo work"
+    new_prompt = "%name:new\nDo work"
+    (artifacts / "raw_xprompt.md").write_text(old_prompt, encoding="utf-8")
+    history_file = tmp_path / "prompt_history.json"
+    history_dir = tmp_path / "prompt_history"
+    history_dir.mkdir()
+    (history_dir / "2606.json").write_text("{", encoding="utf-8")
+
+    with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", history_file):
+        result = persist_agent_directive_update(
+            AgentDirectivePersistenceSpec(
+                artifacts_dir=artifacts,
+                prompt_mutator=lambda prompt: set_prompt_name(prompt, "new"),
+                meta_patch=AgentMetaPatch(set_values={"name": "new"}),
+            )
+        )
+
+    assert result.raw_prompt_updated is True
+    assert result.history_rewrites == 0
+    assert result.meta_updated is True
+    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == new_prompt
+    assert json.loads((artifacts / "agent_meta.json").read_text())["name"] == "new"
+
+
 def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
     tmp_path: Path,
 ) -> None:
