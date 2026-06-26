@@ -183,7 +183,6 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
-          projects: "p"
           temporary_llm_override: "o"
           full_history_refresh: "y"
       fold_mode:
