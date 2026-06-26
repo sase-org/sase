@@ -163,15 +163,15 @@ def test_filter_specs_key_filter_matches_raw_keys_and_chords() -> None:
 
 def test_filter_specs_key_filter_matches_display_chord() -> None:
     a = _spec(
-        "leader.task_queue",
-        "Task queue",
-        key_display=",t",
-        key_sequence=("comma", "t"),
+        "leader.agent_run_log",
+        "Agent run log",
+        key_display=",A",
+        key_sequence=("comma", "A"),
     )
     b = _spec("app.task", "Task list", key_display="x", key_sequence=("x",))
 
-    out = filter_specs([a, b], "key:,t")
-    assert [s.id for s in out] == ["leader.task_queue"]
+    out = filter_specs([a, b], "key:,A")
+    assert [s.id for s in out] == ["leader.agent_run_log"]
 
 
 def test_filter_specs_key_filter_matches_app_binding_alternatives() -> None:

@@ -55,6 +55,13 @@ def test_leader_mode_drops_log_panel_key() -> None:
     assert "log_panel" not in LeaderModeKeymaps().keys
 
 
+def test_leader_mode_drops_task_queue_key() -> None:
+    """The ``,t`` task queue leader key was retired in the Tasks-tab cutover."""
+    reg = load_keymap_registry({})
+    assert "task_queue" not in reg.leader_mode.keys
+    assert "task_queue" not in LeaderModeKeymaps().keys
+
+
 def test_leader_mode_includes_agent_panel_grouping_toggle() -> None:
     """LeaderModeKeymaps default includes the ``,g`` panel grouping toggle."""
     reg = load_keymap_registry({})

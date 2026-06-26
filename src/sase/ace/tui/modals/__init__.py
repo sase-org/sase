@@ -90,7 +90,6 @@ from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
-from .task_queue_modal import TaskQueueModal
 from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from .temporary_llm_override_modal import (
     TemporaryLLMOverrideModal,
@@ -109,6 +108,7 @@ from .mentor_review_modal import MentorReviewModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
 from .logs_pane import LogsPane
+from .tasks_pane import TasksPane
 from .input_collection_modal import InputCollectionModal
 from .config_center_modal import ConfigCenterModal
 from .plugin_action_confirm_modal import (
@@ -165,6 +165,7 @@ __all__ = [
     "AgentCleanupTagResult",
     "AgentRunLogModal",
     "LogsPane",
+    "TasksPane",
     "AgentTagModal",
     "AgentTagModalResult",
     "CommandHistoryModal",
@@ -220,7 +221,6 @@ __all__ = [
     "StatusModal",
     "TabName",
     "TagInputModal",
-    "TaskQueueModal",
     "TemporaryLLMOverrideModal",
     "TemporaryOverrideResult",
     "UpdatePinnedStashModal",

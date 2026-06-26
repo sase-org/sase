@@ -207,10 +207,6 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Agent run log",
                 ),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'task_queue'))}",
-                    "Task queue viewer",
-                ),
-                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'activity_info'))}",
                     "Activity dashboard",
                 ),
@@ -280,7 +276,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (
                     d(a.open_config_center),
-                    "Admin Center: Config / Logs / Projects / Plugins / XPs",
+                    "Admin Center: Config/Tasks/Logs/Projects/…",
                 ),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),

@@ -207,8 +207,8 @@ async def test_brackets_switch_admin_center_tabs_not_log_sources(
         await pilot.press("left_square_bracket")
         await pilot.pause()
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
-        assert modal._active_tab == "config"
-        assert switcher.current == "config"
+        assert modal._active_tab == "tasks"
+        assert switcher.current == "tasks"
         assert option_list.highlighted == 0
 
         await pilot.press("right_square_bracket")

@@ -367,14 +367,6 @@ class TaskActionsMixin:
         self._update_task_indicator()
         return True
 
-    def _show_task_queue_modal(self) -> None:
-        """Open the task queue viewer modal."""
-        from ..modals import TaskQueueModal
-
-        self.push_screen(  # type: ignore[attr-defined]
-            TaskQueueModal(self._task_queue, kill_callback=self._kill_background_task)
-        )
-
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Route worker state changes for background tasks."""
         # Handle task queue workers

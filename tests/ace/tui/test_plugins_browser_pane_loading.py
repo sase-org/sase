@@ -139,7 +139,7 @@ async def test_plugins_pane_error_state(
         assert "gh not found" in pane._status_message()
 
 
-async def test_config_center_cycles_five_tabs(
+async def test_config_center_cycles_six_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -149,7 +149,9 @@ async def test_config_center_cycles_five_tabs(
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         assert modal._active_tab == "config"
-        # Logs sits directly right of Config; Projects follows it.
+        # Tasks sits directly right of Config; Logs and Projects follow it.
+        modal.action_next_center_tab()
+        assert modal._active_tab == "tasks"
         modal.action_next_center_tab()
         assert modal._active_tab == "logs"
         modal.action_next_center_tab()

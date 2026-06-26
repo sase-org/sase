@@ -131,6 +131,12 @@ class BaseActionsMixin:
 
         self.push_screen(ConfigCenterModal(initial_tab="logs"))  # type: ignore[attr-defined]
 
+    def action_open_tasks_panel(self) -> None:
+        """Open the SASE Admin Center on the Tasks tab."""
+        from ..modals import ConfigCenterModal
+
+        self.push_screen(ConfigCenterModal(initial_tab="tasks"))  # type: ignore[attr-defined]
+
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""
         if not self.changespecs:

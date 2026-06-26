@@ -291,7 +291,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (
                     d(a.open_config_center),
-                    "Admin Center: Config / Logs / Projects / Plugins / XPs",
+                    "Admin Center: Config/Tasks/Logs/Projects/…",
                 ),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),

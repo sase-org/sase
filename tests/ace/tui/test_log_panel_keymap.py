@@ -44,8 +44,20 @@ def test_stale_log_panel_override_is_filtered_out() -> None:
     assert "log_panel" not in registry.leader_mode.keys
 
 
+def test_stale_task_queue_override_is_filtered_out() -> None:
+    registry = load_keymap_registry(
+        {"keymaps": {"modes": {"leader_mode": {"keys": {"task_queue": "t"}}}}}
+    )
+
+    assert "task_queue" not in registry.leader_mode.keys
+
+
 def test_logs_tab_sits_immediately_after_config() -> None:
-    assert _TAB_ORDER[:2] == ("config", "logs")
+    assert _TAB_ORDER[:3] == ("config", "tasks", "logs")
+
+
+def test_tasks_tab_sits_immediately_after_config() -> None:
+    assert _TAB_ORDER[:2] == ("config", "tasks")
 
 
 def test_keyless_logs_command_opens_logs_tab() -> None:
@@ -62,6 +74,20 @@ def test_keyless_logs_command_opens_logs_tab() -> None:
     assert "launch failures" in spec.aliases
 
 
+def test_keyless_tasks_command_opens_tasks_tab() -> None:
+    catalog = build_command_catalog(load_keymap_registry({}))
+    assert not any(c.id == "leader.task_queue" for c in catalog)
+    spec = next(c for c in catalog if c.id == "tasks")
+
+    assert spec.label == "Open tasks panel"
+    assert spec.key_display == ""
+    assert spec.key_sequence == ()
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "open_tasks_panel"
+    assert "task queue" in spec.aliases
+
+
 def test_open_log_panel_action_pushes_admin_center_on_logs() -> None:
     app = _ActionApp()
 
@@ -73,6 +99,17 @@ def test_open_log_panel_action_pushes_admin_center_on_logs() -> None:
     assert modal._active_tab == "logs"
 
 
+def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
+    app = _ActionApp()
+
+    app.action_open_tasks_panel()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._active_tab == "tasks"
+
+
 def test_footer_omits_log_panel_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
@@ -80,3 +117,12 @@ def test_footer_omits_log_panel_on_all_tabs() -> None:
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "log panel" not in _last_labels(captured)
+
+
+def test_footer_omits_task_queue_on_all_tabs() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    for tab in ("changespecs", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert "task queue" not in _last_labels(captured)

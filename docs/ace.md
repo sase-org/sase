@@ -211,7 +211,6 @@ The modal supports live filtering as you type in the search box and displays las
 | `,M`       | Kill running mentors                                                    |
 | `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))  |
 | `,R`       | Show runners info                                                       |
-| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))       |
 | `,<space>` | Run agent from current PR (skips project selection)                     |
 | `,.`       | Open prompt history modal                                               |
 | `,>`       | Open prompt history modal with cancelled prompts visible                |
@@ -874,7 +873,7 @@ These work on all tabs:
 | Key                 | Action                                                                            |
 | ------------------- | --------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                          |
-| `#`                 | Open SASE Admin Center (Config, Projects, Plugins, and XPrompts tabs)             |
+| `#`                 | Open SASE Admin Center (Config, Tasks, Logs, Projects, Plugins, XPrompts)         |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands) |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
 | `,i`                | Open Activity Dashboard modal (global)                                            |
@@ -898,7 +897,7 @@ dialog cancels the quit and returns to the TUI.
 
 Press `:` or `;` from any tab to open the **Command Palette** — a context-aware modal listing every keymapped action
 that is currently runnable. The palette is the discovery surface for the TUI: rather than memorizing every chord, you
-can search by command label, key sequence (e.g. `%n`, `,t`, `zc`), category, or alias.
+can search by command label, key sequence (e.g. `%n`, `,A`, `zc`), category, or alias.
 
 **Behavior:**
 
@@ -2068,15 +2067,16 @@ History writes use a sidecar lock plus atomic tempfile replacement of monthly sh
 `~/.sase/prompt_history.json` store is migrated into shards before normal reads and writes when the shard directory has
 not already been created.
 
-## Task Queue Modal
+## Tasks Tab
 
-Press `,t` (leader + `t`) to open the task queue modal. It shows background tasks (hook runs, mentor executions, etc.)
-with live output for running tasks and completed output for finished ones.
+Open the SASE Admin Center with `#`, then press `]` once to switch to **Tasks**. You can also run the keyless **Open
+tasks panel** command from the command palette. The tab shows background tasks (hook runs, mentor executions, agent
+launches, plugin operations, etc.) with live output for running tasks and completed output for finished ones.
 
 ### Layout
 
-The modal uses a two-panel layout: a task list on the left and an output pane on the right. Running tasks refresh their
-output every second.
+The tab uses a two-panel layout: a task list on the left and an output pane on the right. Running tasks refresh their
+output every second while the Tasks tab is visible.
 
 ### Task Status Icons
 
@@ -2089,16 +2089,18 @@ output every second.
 
 ### Keybindings
 
-| Key            | Action                          |
-| -------------- | ------------------------------- |
-| `j` / `k`      | Navigate task list              |
-| `K`            | Kill selected running task      |
-| `d`            | Dismiss selected completed task |
-| `D`            | Dismiss all completed tasks     |
-| `e`            | Open task output in `$EDITOR`   |
-| `y`            | Copy task output to clipboard   |
-| `Ctrl+D` / `U` | Scroll output pane down / up    |
-| `q` / `Esc`    | Close modal                     |
+| Key                 | Action                          |
+| ------------------- | ------------------------------- |
+| `j` / `k`           | Navigate task list              |
+| `K`                 | Kill selected running task      |
+| `d`                 | Dismiss selected completed task |
+| `D`                 | Dismiss all completed tasks     |
+| `e`                 | Open task output in `$EDITOR`   |
+| `y`                 | Copy task output to clipboard   |
+| `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up    |
+| `g` / `G`           | Jump output pane to top/bottom  |
+| `[` / `]`           | Switch Admin Center tabs        |
+| `q` / `Esc`         | Close SASE Admin Center         |
 
 ## Snippets
 

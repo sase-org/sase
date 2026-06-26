@@ -43,7 +43,7 @@ _LABEL_COL_WIDTH = 36
 _CATEGORY_COL_WIDTH = 18
 _POSITION_GAUGE_WIDTH = 10
 COMMAND_PALETTE_INPUT_HINT = (
-    "Search command text, or use key:<key> for keymaps (key:j, key::, key:,t)"
+    "Search command text, or use key:<key> for keymaps (key:j, key::, key:,A)"
 )
 
 

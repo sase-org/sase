@@ -129,17 +129,37 @@ def _iter_logs_command() -> Iterator[CommandSpec]:
     )
 
 
+def _iter_tasks_command() -> Iterator[CommandSpec]:
+    """Yield the keyless Tasks-tab command.
+
+    The standalone ``,t`` task-queue modal was retired and re-homed as the
+    Admin Center's Tasks tab. This command preserves a fast, searchable path
+    to that live task monitor without keeping the old leader key alive.
+    """
+    yield CommandSpec(
+        id="tasks",
+        label="Open tasks panel",
+        key_sequence=(),
+        key_display="",
+        category="Display",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_tasks_panel"),
+        aliases=("tasks", "task queue", "background tasks", "jobs", "queue"),
+    )
+
+
 def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     """Construct the full catalog from a :class:`KeymapRegistry`.
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
-    order), then digit bindings, the keyless Logs and Projects commands, then
+    order), then digit bindings, the keyless Tasks, Logs, and Projects commands, then
     mode commands (fold, copy, leader, bang, custom; each in registry
     insertion order).
     """
     catalog: list[CommandSpec] = []
     catalog.extend(iter_app_commands(registry))
     catalog.extend(iter_digit_commands())
+    catalog.extend(_iter_tasks_command())
     catalog.extend(_iter_logs_command())
     catalog.extend(_iter_projects_command())
     catalog.extend(iter_mode_commands(registry))

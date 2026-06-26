@@ -74,7 +74,6 @@ _LEADER_LABELS: dict[str, str] = {
     "mark_inactive_pinned": "Toggle pinned idle",
     "activity_info": "Activity dashboard",
     "clear_comments": "Clear PR comments",
-    "task_queue": "Task queue",
     "prompt_history": "Prompt history",
     "prompt_history_edit_first": "Edit first prompt history entry",
     "prompt_history_cancelled": "Prompt history (cancelled)",

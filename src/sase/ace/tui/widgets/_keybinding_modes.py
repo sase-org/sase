@@ -242,7 +242,6 @@ class KeybindingModesMixin:
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
-        bindings.append((k("task_queue"), "task queue"))
         bindings.append((k("activity_info"), "activity"))
         bindings.append((k("temporary_llm_override"), "model overrides"))
         bindings.append((k("mark_inactive_pinned"), "pin idle"))

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 17:29:05
-status: wip
+status: done
 prompt: sdd/prompts/202606/tasks_admin_center_tab.md
 ---
 # Plan: Migrate the `,t` Tasks Queue panel into the SASE Admin Center as a "Tasks" tab

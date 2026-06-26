@@ -49,7 +49,7 @@ def _palette_specs() -> list[CommandSpec]:
         _spec("app.open_workspace", "Open agent workspace", ",w", "Workspace"),
         _spec("app.copy_name", "Copy agent name", "y n", "Copy"),
         _spec("app.toggle_files", "Toggle file panel", "F", "Display"),
-        _spec("app.task_queue", "Task queue", ",t", "Leader"),
+        _spec("leader.agent_run_log", "Agent run log", ",A", "Leader"),
     ]
 
 

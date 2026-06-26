@@ -10,7 +10,7 @@ def format_key_sequence(keys: tuple[str, ...]) -> str:
 
     Single keys go through ``key_display_name`` directly. Multi-key
     sequences (mode prefix + subkey) are concatenated without a
-    separator when both are single chars (``%n``, ``,t``, ``zc``) and
+    separator when both are single chars (``%n``, ``,A``, ``zc``) and
     space-joined otherwise to preserve readability (``Ctrl+D x``).
     """
     if not keys:

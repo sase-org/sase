@@ -59,7 +59,11 @@ async def test_admin_center_reaches_logs_then_projects_tab_from_config(
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "config"
 
-        # ``]`` from Config lands on Logs, then Projects.
+        # ``]`` from Config lands on Tasks, then Logs, then Projects.
+        await page.press("]")
+        await page.wait_for(lambda _s: modal._active_tab == "tasks")
+        assert switcher.current == "tasks"
+
         await page.press("]")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert switcher.current == "logs"

@@ -42,9 +42,15 @@ log = logging.getLogger(__name__)
 # by the app-level ``@`` binding and prompt-local ``Ctrl+G p`` panel opener;
 # ``mark_inactive`` moved from leader mode to the app-level ``I`` binding;
 # ``log_panel`` moved into the Admin Center Logs tab and is opened via command
-# palette or ``#``.
+# palette or ``#``; ``task_queue`` moved into the Admin Center Tasks tab.
 _RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
-    {"kill_marked_and_edit", "restore_prompt_stash", "mark_inactive", "log_panel"}
+    {
+        "kill_marked_and_edit",
+        "restore_prompt_stash",
+        "mark_inactive",
+        "log_panel",
+        "task_queue",
+    }
 )
 
 

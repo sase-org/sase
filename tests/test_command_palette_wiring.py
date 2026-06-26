@@ -319,14 +319,14 @@ def test_execute_copy_mode_sets_active_then_handles() -> None:
 def test_execute_leader_mode_sets_active_then_handles() -> None:
     app = MagicMock()
     spec = _spec(
-        "leader.task_queue",
-        CommandExecutor(kind="leader_mode_key", subkey="t"),
-        key_display=",t",
-        key_sequence=("comma", "t"),
+        "leader.agent_run_log",
+        CommandExecutor(kind="leader_mode_key", subkey="A"),
+        key_display=",A",
+        key_sequence=("comma", "A"),
     )
     execute_command(app, spec)
     assert app._leader_mode_active is True
-    app._handle_leader_key.assert_called_once_with("t")
+    app._handle_leader_key.assert_called_once_with("A")
 
 
 def test_execute_leader_repeat_last_dispatches_configured_subkeys() -> None:
@@ -335,12 +335,12 @@ def test_execute_leader_repeat_last_dispatches_configured_subkeys() -> None:
         spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
     }
 
-    execute_command(app, catalog["leader.task_queue"])
+    execute_command(app, catalog["leader.activity_info"])
     execute_command(app, catalog["leader.repeat_last"])
 
     assert app._leader_mode_active is True
     assert app._handle_leader_key.call_args_list == [
-        (("t",),),
+        (("i",),),
         (("comma",),),
     ]
 
@@ -366,6 +366,18 @@ def test_execute_logs_command_uses_app_action() -> None:
     execute_command(app, catalog["logs"])
 
     app.action_open_log_panel.assert_called_once_with()
+    app._handle_leader_key.assert_not_called()
+
+
+def test_execute_tasks_command_uses_app_action() -> None:
+    app = MagicMock()
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+
+    execute_command(app, catalog["tasks"])
+
+    app.action_open_tasks_panel.assert_called_once_with()
     app._handle_leader_key.assert_not_called()
 
 

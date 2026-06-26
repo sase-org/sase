@@ -1,12 +1,15 @@
-"""SASE Admin Center modal: a tabbed home for config, logs, projects, plugins, xprompts.
+"""SASE Admin Center modal: a tabbed home for config, tasks, logs, projects, plugins, xprompts.
 
-SASE Admin Center is a full-screen ``ModalScreen`` that hosts five internal
+SASE Admin Center is a full-screen ``ModalScreen`` that hosts six internal
 tabs over a :class:`ContentSwitcher`:
 
 - **Config** (leftmost, default focus on open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
+- **Tasks** — the canonical background-task monitor (:class:`TasksPane`),
+  replacing the standalone ``,t`` modal. Sits immediately to the right of
+  Config.
 - **Logs** — the canonical SASE log browser (:class:`LogsPane`), replacing
-  the standalone ``,L`` modal. Sits immediately to the right of Config.
+  the standalone ``,L`` modal.
 - **Projects** — the migrated project lifecycle manager
   (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
 - **Plugins** — the read-only plugin catalog browser
@@ -36,12 +39,14 @@ from .config_pane import ConfigPane
 from .logs_pane import LogsPane
 from .plugins_browser_pane import PluginsBrowserPane
 from .projects_pane import ProjectsPane
+from .tasks_pane import TasksPane
 from .xprompt_browser_pane import XPromptBrowserPane
 
-CenterTab = Literal["config", "logs", "projects", "plugins", "xprompts"]
+CenterTab = Literal["config", "tasks", "logs", "projects", "plugins", "xprompts"]
 
 _TAB_ORDER: tuple[CenterTab, ...] = (
     "config",
+    "tasks",
     "logs",
     "projects",
     "plugins",
@@ -49,6 +54,7 @@ _TAB_ORDER: tuple[CenterTab, ...] = (
 )
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Config"),
+    ("tasks", "Tasks"),
     ("logs", "Logs"),
     ("projects", "Projects"),
     ("plugins", "Plugins"),
@@ -56,6 +62,7 @@ _TAB_LABELS: list[tuple[CenterTab, str]] = [
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
+    "tasks": "#5FD75F",
     "logs": "#FFD700",
     "projects": "#FFAF5F",
     "plugins": "#AF87FF",
@@ -153,6 +160,7 @@ class ConfigCenterModal(ModalScreen[None]):
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
+                yield TasksPane(id="tasks")
                 yield LogsPane(id="logs")
                 yield ProjectsPane(id="projects")
                 yield PluginsBrowserPane(id="plugins")
@@ -162,9 +170,7 @@ class ConfigCenterModal(ModalScreen[None]):
         self._focus_active_pane()
 
     def on_key(self, event: Key) -> None:
-        """Forward Logs-tab detail scroll keys when the source list has focus."""
-        if self._active_tab != "logs":
-            return
+        """Forward active-pane detail scroll keys when a source list has focus."""
         character = getattr(event, "character", None)
         pane = self._active_pane()
         if event.key in ("G", "shift+g") or character == "G":

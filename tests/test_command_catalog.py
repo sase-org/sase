@@ -300,7 +300,7 @@ def test_build_command_catalog_includes_all_buckets() -> None:
     # Mode (sample one of each)
     assert "fold.cycle_commits" in ids
     assert "copy.agents.name" in ids
-    assert "leader.task_queue" in ids
+    assert "leader.activity_info" in ids
     assert "bang.toggle_axe" in ids
 
 
@@ -356,6 +356,22 @@ def test_logs_command_is_keyless_and_global() -> None:
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_log_panel"
     assert "launch failures" in spec.aliases
+
+
+def test_tasks_command_is_keyless_and_global() -> None:
+    catalog = build_command_catalog(_registry())
+    # The ``,t`` leader command was retired; the panel is now a keyless,
+    # searchable command that opens the Admin Center on the Tasks tab.
+    assert not any(c.id == "leader.task_queue" for c in catalog)
+    spec = next(c for c in catalog if c.id == "tasks")
+
+    assert spec.label == "Open tasks panel"
+    assert spec.key_display == ""
+    assert spec.key_sequence == ()
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "open_tasks_panel"
+    assert "task queue" in spec.aliases
 
 
 def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
@@ -475,7 +491,7 @@ def test_command_specs_are_well_formed() -> None:
         assert spec.id
         assert spec.label
         assert spec.tabs
-        if spec.id in {"logs", "projects"}:
+        if spec.id in {"logs", "projects", "tasks"}:
             # These retired standalone panels are intentionally keyless:
             # searchable commands with no direct binding that open the
             # corresponding Admin Center tabs.

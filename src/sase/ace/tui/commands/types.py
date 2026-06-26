@@ -153,14 +153,14 @@ class CommandSpec:
 
     Attributes:
         id: Stable identifier such as ``app.refresh``,
-            ``copy.agents.name``, ``leader.task_queue``,
+            ``copy.agents.name``, ``leader.agent_run_log``,
             ``saved_query.3``, or ``custom.<mode>.<command_id>``.
         label: Short human-readable label suitable for the palette row.
         key_sequence: Tuple of one or more Textual key names. Single-key
             bindings are length-1; mode subcommands are length-2 (prefix +
             subkey).
         key_display: Pre-formatted display string (e.g. ``"%n"``,
-            ``"Ctrl+D"``, ``",t"``, ``":"``).
+            ``"Ctrl+D"``, ``",A"``, ``":"``).
         category: One of ``CommandCategory``.
         tabs: Which tabs this command can ever appear under. Tab-agnostic
             commands list all three.
