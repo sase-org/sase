@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from rich.syntax import Syntax
 from rich.text import Text
+
+from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
 
 from ...models.agent import Agent
 from ...models.agent_bead import cached_bead_display
@@ -19,11 +23,19 @@ from ._helpers import (
 
 
 _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
-# Fira Code, the pinned visual snapshot font, does not include U+26A0 WARNING
-# SIGN. Use a supported single-cell triangle so the marker never renders as tofu.
-_UNKNOWN_WAIT_AGENT_ICON = "\u25b2"
-_UNKNOWN_WAIT_AGENT_ICON_STYLE = "bold #FFAF5F"
+_UNKNOWN_WAIT_AGENT_GLYPH = "?"
+_UNKNOWN_WAIT_AGENT_GLYPH_STYLE = "bold #FFAF5F"
 _WAITING_VALUE_STYLE = "#FF87D7"
+# Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror agent-row status
+# accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
+_WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
+    "Running": (AGENT_STATUS_BUCKET_GLYPHS["Running"], "bold #FFD700"),
+    "Waiting": (AGENT_STATUS_BUCKET_GLYPHS["Waiting"], "bold #AF87FF"),
+    "Starting": (AGENT_STATUS_BUCKET_GLYPHS["Starting"], "bold #87D7FF"),
+    "Done": (AGENT_STATUS_BUCKET_GLYPHS["Done"], "bold #5FD75F"),
+    "Failed": (AGENT_STATUS_BUCKET_GLYPHS["Failed"], "bold #FF5F5F"),
+    "Stopped": (AGENT_STATUS_BUCKET_GLYPHS["Stopped"], "bold #8787AF"),
+}
 
 
 def _append_major_section_divider(text: Text) -> None:
@@ -62,7 +74,7 @@ def build_header_text(
     cheap: bool = False,
     hint_state: HeaderHintState | None = None,
     summary: DetailHeaderSummary | None = None,
-    known_agent_names: frozenset[str] | None = None,
+    agent_status_buckets: Mapping[str, str] | None = None,
 ) -> tuple[Text, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -80,9 +92,9 @@ def build_header_text(
         summary: Optional precomputed/cached header enrichments. Expensive
             sections are rendered only from this object; the header builder
             does not do artifact listing, diff discovery, or bead lookup.
-        known_agent_names: Exact set of currently known agent names. When
-            provided, waited-for names outside this set get a passive warning
-            marker.
+        agent_status_buckets: Exact currently known agent names mapped to
+            status buckets. When provided, each waited-for name gets a status
+            badge, or an unknown-name badge when absent.
 
     Returns:
         Tuple of (header_text, error_traceback_syntax).
@@ -227,12 +239,20 @@ def build_header_text(
                 if index:
                     header_text.append(", ", style=_WAITING_VALUE_STYLE)
                 header_text.append(name, style=_WAITING_VALUE_STYLE)
-                if known_agent_names is not None and name not in known_agent_names:
-                    header_text.append(" ")
-                    header_text.append(
-                        _UNKNOWN_WAIT_AGENT_ICON,
-                        style=_UNKNOWN_WAIT_AGENT_ICON_STYLE,
+                if agent_status_buckets is not None:
+                    bucket = agent_status_buckets.get(name)
+                    badge = (
+                        _WAIT_STATUS_BADGES.get(bucket) if bucket is not None else None
                     )
+                    if badge is None:
+                        glyph, style = (
+                            _UNKNOWN_WAIT_AGENT_GLYPH,
+                            _UNKNOWN_WAIT_AGENT_GLYPH_STYLE,
+                        )
+                    else:
+                        glyph, style = badge
+                    header_text.append(" ")
+                    header_text.append(glyph, style=style)
             appended_dependency_names = True
         time_part: str | None = None
         if agent.wait_until:

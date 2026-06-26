@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import re
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import status_bucket_for_values
 from sase.plan_chain import agent_family_base
 
 if TYPE_CHECKING:
@@ -64,6 +65,19 @@ _WORKFLOW_STYLES = (
 )
 _FRONTMATTER_RE = re.compile(r"\A---[^\n]*\n.*?\n---\s*", re.DOTALL)
 _DIRECTIVE_NAME_RE = re.compile(r"%[a-zA-Z_][a-zA-Z0-9_]*")
+# When a family wait resolves to multiple agents, active work takes precedence
+# over terminal states, and a successful terminal attempt satisfies the family.
+_WAIT_DEPENDENCY_BUCKET_PRECEDENCE: tuple[str, ...] = (
+    "Running",
+    "Starting",
+    "Waiting",
+    "Done",
+    "Stopped",
+    "Failed",
+)
+_WAIT_DEPENDENCY_BUCKET_RANK = {
+    bucket: index for index, bucket in enumerate(_WAIT_DEPENDENCY_BUCKET_PRECEDENCE)
+}
 
 
 def agent_prompt_name(agent: Agent) -> str | None:
@@ -79,18 +93,37 @@ def agent_prompt_name(agent: Agent) -> str | None:
     return agent.agent_name
 
 
-def _collect_known_agent_names(agents: Iterable[Agent]) -> frozenset[str]:
-    """Return all exact agent names that can be referenced from prompts."""
-    names: set[str] = set()
+def _preferred_wait_dependency_bucket(current: str | None, candidate: str) -> str:
+    if current is None:
+        return candidate
+    current_rank = _WAIT_DEPENDENCY_BUCKET_RANK.get(
+        current,
+        len(_WAIT_DEPENDENCY_BUCKET_RANK),
+    )
+    candidate_rank = _WAIT_DEPENDENCY_BUCKET_RANK.get(
+        candidate,
+        len(_WAIT_DEPENDENCY_BUCKET_RANK),
+    )
+    return candidate if candidate_rank < current_rank else current
+
+
+def _collect_agent_status_buckets(agents: Iterable[Agent]) -> dict[str, str]:
+    """Return prompt-referenceable agent names mapped to status buckets."""
+    buckets: dict[str, str] = {}
     for agent in agents:
+        bucket = status_bucket_for_values(agent.status)
         for name in (agent_prompt_name(agent), agent.agent_name):
-            if name and name.strip():
-                names.add(name)
-    return frozenset(names)
+            if not name or not name.strip():
+                continue
+            buckets[name] = _preferred_wait_dependency_bucket(
+                buckets.get(name),
+                bucket,
+            )
+    return buckets
 
 
-def known_agent_names_for_app(app: object | None) -> frozenset[str] | None:
-    """Return known prompt-referenceable agent names for the current TUI app."""
+def agent_status_buckets_for_app(app: object | None) -> dict[str, str] | None:
+    """Return known prompt-referenceable agent status buckets for a TUI app."""
     if app is None:
         return None
 
@@ -100,7 +133,7 @@ def known_agent_names_for_app(app: object | None) -> frozenset[str] | None:
         except Exception:
             continue
         if agents:
-            return _collect_known_agent_names(agents)
+            return _collect_agent_status_buckets(agents)
     return None
 
 

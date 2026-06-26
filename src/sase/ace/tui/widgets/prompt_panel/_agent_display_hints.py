@@ -2,7 +2,7 @@
 
 from rich.text import Text
 
-from ...agent_completion import known_agent_names_for_app
+from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
 from ._agent_display_content import (
     get_phase_label,
@@ -122,8 +122,8 @@ class AgentHintsDisplayMixin:
             summary = build_detail_header_summary(agent)
             cache_detail_header_summary(self, agent, summary)
         publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
-        known_agent_names = (
-            known_agent_names_for_app(getattr(self, "app", None))
+        agent_status_buckets = (
+            agent_status_buckets_for_app(getattr(self, "app", None))
             if agent.waiting_for
             else None
         )
@@ -131,7 +131,7 @@ class AgentHintsDisplayMixin:
             agent,
             hint_state=header_hint_state,
             summary=summary,
-            known_agent_names=known_agent_names,
+            agent_status_buckets=agent_status_buckets,
         )
         hint_counter = header_hint_state.hint_counter
 

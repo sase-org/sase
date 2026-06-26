@@ -109,7 +109,7 @@ def _waiting_unknown_agents() -> list[Agent]:
             start_time=datetime(2026, 5, 9, 10, 30, 0),
             raw_suffix="20260509-103000-wait",
             agent_name="waiter",
-            waiting_for=["coder", "ghost_deploy"],
+            waiting_for=["coder", "builder", "reviewer", "ghost_deploy"],
             llm_provider="codex",
             model="gpt-5",
         ),
@@ -122,6 +122,29 @@ def _waiting_unknown_agents() -> list[Agent]:
             stop_time=datetime(2026, 5, 9, 10, 28, 0),
             raw_suffix="20260509-102000-coder",
             agent_name="coder",
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-running-builder",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 5, 9, 10, 29, 0),
+            raw_suffix="20260509-102900-builder",
+            agent_name="builder",
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-failed-reviewer",
+            project_file="/workspace/sase/visual_project.sase",
+            status="FAILED",
+            start_time=datetime(2026, 5, 9, 10, 22, 0),
+            stop_time=datetime(2026, 5, 9, 10, 27, 0),
+            raw_suffix="20260509-102200-reviewer",
+            agent_name="reviewer",
             llm_provider="codex",
             model="gpt-5",
         ),
@@ -301,7 +324,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 2)
+        await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
         await page.press("p")
         await page.press("z")
@@ -311,8 +334,13 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
 
         assert_page_svg_contains(page, "Waiting for:")
         assert_page_svg_contains(page, "coder")
+        assert_page_svg_contains(page, "builder")
+        assert_page_svg_contains(page, "reviewer")
         assert_page_svg_contains(page, "ghost_deploy")
-        assert_page_svg_contains(page, "▲")
+        assert_page_svg_contains(page, "✓")
+        assert_page_svg_contains(page, "▶")
+        assert_page_svg_contains(page, "✗")
+        assert_page_svg_contains(page, "?")
         ace_png_visual.assert_page_png(
             page,
             "agents_waiting_unknown_zoom_modal_120x40",

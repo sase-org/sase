@@ -8,7 +8,7 @@ from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 
-from ...agent_completion import known_agent_names_for_app
+from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
 from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
 from ._agent_display_attempts import (
@@ -85,15 +85,15 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         summary = get_cached_detail_header_summary(self, agent)
         if summary is not None:
             publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
-        known_agent_names = (
-            known_agent_names_for_app(getattr(self, "app", None))
+        agent_status_buckets = (
+            agent_status_buckets_for_app(getattr(self, "app", None))
             if agent.waiting_for
             else None
         )
         header_text, error_tb_syntax = build_header_text(
             agent,
             summary=summary,
-            known_agent_names=known_agent_names,
+            agent_status_buckets=agent_status_buckets,
         )
 
         # Check if this is a bash/python workflow step - display differently

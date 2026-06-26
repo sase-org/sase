@@ -1,15 +1,16 @@
-"""Tests for unknown waited-for agent markers in the metadata header."""
+"""Tests for waited-for agent status badges in the metadata header."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
 from rich.text import Text
 
 from sase.ace.tui.agent_completion import (
-    _collect_known_agent_names,
-    known_agent_names_for_app,
+    _collect_agent_status_buckets,
+    agent_status_buckets_for_app,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -29,20 +30,74 @@ def _styles_covering(text: Text, substring: str) -> set[str]:
     }
 
 
-def test_unknown_waited_for_agent_gets_warning_marker() -> None:
+@pytest.mark.parametrize(
+    ("bucket", "glyph", "style"),
+    [
+        ("Done", "✓", "bold #5FD75F"),
+        ("Running", "▶", "bold #FFD700"),
+        ("Failed", "✗", "bold #FF5F5F"),
+        ("Waiting", "⏳", "bold #AF87FF"),
+        ("Starting", "◐", "bold #87D7FF"),
+        ("Stopped", "▲", "bold #8787AF"),
+    ],
+)
+def test_known_waited_for_agent_gets_status_badge(
+    bucket: str,
+    glyph: str,
+    style: str,
+) -> None:
+    agent = make_agent(status="WAITING", waiting_for=["dep"])
+
+    header, _ = build_header_text(
+        agent,
+        cheap=True,
+        agent_status_buckets={"dep": bucket},
+    )
+
+    assert _waiting_line(header) == f"Waiting for: dep {glyph}"
+    assert style in _styles_covering(header, glyph)
+
+
+def test_unknown_waited_for_agent_gets_unknown_badge() -> None:
     agent = make_agent(status="WAITING", waiting_for=["ghost_deploy"])
 
     header, _ = build_header_text(
         agent,
         cheap=True,
-        known_agent_names=frozenset({"coder"}),
+        agent_status_buckets={"coder": "Running"},
     )
 
-    assert _waiting_line(header) == "Waiting for: ghost_deploy ▲"
-    assert "bold #FFAF5F" in _styles_covering(header, "▲")
+    assert _waiting_line(header) == "Waiting for: ghost_deploy ?"
+    assert "bold #FFAF5F" in _styles_covering(header, "?")
 
 
-def test_all_known_waited_for_agents_keep_existing_duration_format() -> None:
+def test_mixed_waited_for_agents_badge_each_name_independently() -> None:
+    agent = make_agent(
+        status="WAITING",
+        waiting_for=["coder", "ghost_deploy", "reviewer"],
+    )
+
+    header, _ = build_header_text(
+        agent,
+        cheap=True,
+        agent_status_buckets={"coder": "Done", "reviewer": "Failed"},
+    )
+
+    assert _waiting_line(header) == "Waiting for: coder ✓, ghost_deploy ?, reviewer ✗"
+    assert header.plain.index("coder ✓") < header.plain.index(", ghost_deploy ?")
+    assert header.plain.index("ghost_deploy ?") < header.plain.index(", reviewer ✗")
+
+
+def test_missing_agent_status_bucket_map_renders_no_badges() -> None:
+    agent = make_agent(status="WAITING", waiting_for=["ghost_deploy"])
+
+    header, _ = build_header_text(agent, cheap=True, agent_status_buckets=None)
+
+    assert "?" not in _waiting_line(header)
+    assert _waiting_line(header) == "Waiting for: ghost_deploy"
+
+
+def test_waited_for_status_badges_keep_duration_format() -> None:
     agent = make_agent(
         status="WAITING",
         waiting_for=["coder", "deploy"],
@@ -52,14 +107,13 @@ def test_all_known_waited_for_agents_keep_existing_duration_format() -> None:
     header, _ = build_header_text(
         agent,
         cheap=True,
-        known_agent_names=frozenset({"coder", "deploy"}),
+        agent_status_buckets={"coder": "Done", "deploy": "Running"},
     )
 
-    assert "▲" not in header.plain
-    assert _waiting_line(header) == "Waiting for: coder, deploy + 5m"
+    assert _waiting_line(header) == "Waiting for: coder ✓, deploy ▶ + 5m"
 
 
-def test_all_known_waited_for_agents_keep_existing_until_countdown_format() -> None:
+def test_waited_for_status_badges_keep_until_countdown_format() -> None:
     wait_until = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
     agent = make_agent(
         status="WAITING",
@@ -70,64 +124,84 @@ def test_all_known_waited_for_agents_keep_existing_until_countdown_format() -> N
     header, _ = build_header_text(
         agent,
         cheap=True,
-        known_agent_names=frozenset({"coder"}),
+        agent_status_buckets={"coder": "Done"},
     )
 
     line = _waiting_line(header)
-    assert "▲" not in line
-    assert line.startswith("Waiting for: coder + until ")
+    assert line.startswith("Waiting for: coder ✓ + until ")
     assert line.endswith(" left)")
 
 
-def test_mixed_waited_for_agents_mark_only_unknown_names() -> None:
-    agent = make_agent(
-        status="WAITING",
-        waiting_for=["coder", "ghost_deploy", "reviewer"],
-    )
-
-    header, _ = build_header_text(
-        agent,
-        cheap=True,
-        known_agent_names=frozenset({"coder", "reviewer"}),
-    )
-
-    assert _waiting_line(header) == "Waiting for: coder, ghost_deploy ▲, reviewer"
-    assert header.plain.count("▲") == 1
-    assert header.plain.index("ghost_deploy ▲") < header.plain.index(", reviewer")
-
-
-def test_missing_known_agent_set_renders_no_warning_marker() -> None:
-    agent = make_agent(status="WAITING", waiting_for=["ghost_deploy"])
-
-    header, _ = build_header_text(agent, cheap=True, known_agent_names=None)
-
-    assert "▲" not in header.plain
-    assert _waiting_line(header) == "Waiting for: ghost_deploy"
-
-
-def test_collect_known_agent_names_includes_family_and_raw_names() -> None:
+def test_collect_agent_status_buckets_includes_family_and_raw_names() -> None:
     root = make_agent(
         agent_name="research.plan",
         agent_family="research",
         agent_family_role="root",
         plan_chain_root=True,
+        status="WAITING",
     )
-    specific = make_agent(agent_name="research.code")
+    specific = make_agent(agent_name="research.code", status="DONE")
     blank = make_agent(agent_name="   ")
 
-    names = _collect_known_agent_names([root, specific, blank])
+    buckets = _collect_agent_status_buckets([root, specific, blank])
 
-    assert names == frozenset({"research", "research.plan", "research.code"})
+    assert buckets == {
+        "research": "Waiting",
+        "research.plan": "Waiting",
+        "research.code": "Done",
+    }
 
 
-def test_known_agent_names_for_app_uses_full_agent_set_and_falls_back() -> None:
+def test_collect_agent_status_buckets_applies_family_precedence() -> None:
+    def family_agent(agent_name: str, status: str):
+        return make_agent(
+            agent_name=agent_name,
+            agent_family="foo",
+            agent_family_role="root",
+            plan_chain_root=True,
+            status=status,
+        )
+
+    assert (
+        _collect_agent_status_buckets(
+            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "DONE")]
+        )["foo"]
+        == "Done"
+    )
+    assert (
+        _collect_agent_status_buckets(
+            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "RUNNING")]
+        )["foo"]
+        == "Running"
+    )
+    assert (
+        _collect_agent_status_buckets(
+            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "PLAN")]
+        )["foo"]
+        == "Stopped"
+    )
+    assert (
+        _collect_agent_status_buckets(
+            [family_agent("foo.1", "WAITING"), family_agent("foo.2", "STARTING")]
+        )["foo"]
+        == "Starting"
+    )
+    assert (
+        _collect_agent_status_buckets(
+            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "FAILED")]
+        )["foo"]
+        == "Failed"
+    )
+
+
+def test_agent_status_buckets_for_app_uses_full_agent_set_and_falls_back() -> None:
     folded_child = make_agent(agent_name="root.child", parent_timestamp="root")
-    fallback_agent = make_agent(agent_name="fallback")
+    fallback_agent = make_agent(agent_name="fallback", status="DONE")
 
-    assert known_agent_names_for_app(None) is None
-    assert known_agent_names_for_app(
+    assert agent_status_buckets_for_app(None) is None
+    assert agent_status_buckets_for_app(
         SimpleNamespace(_agents_with_children=[folded_child])
-    ) == frozenset({"root.child"})
-    assert known_agent_names_for_app(
+    ) == {"root.child": "Running"}
+    assert agent_status_buckets_for_app(
         SimpleNamespace(_agents_with_children=[], _agents=[fallback_agent])
-    ) == frozenset({"fallback"})
+    ) == {"fallback": "Done"}
