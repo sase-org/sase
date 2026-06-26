@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 08:18:23
-status: wip
+status: done
 prompt: sdd/prompts/202606/jinja_completion_panel_teardown_guard.md
 ---
 # Fix flaky `#prompt-completion` teardown race in live Jinja diagnostics

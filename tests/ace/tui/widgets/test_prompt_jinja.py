@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import pytest
+from textual.css.query import NoMatches
 from textual.widgets import Static
 
+from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_completion import (
     PromptCompletionSettings,
     build_prompt_soft_completion,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    ActiveXPromptArgHint,
+    XPromptAssistEntry,
+    XPromptInputHint,
+)
 from sase.xprompt import jinja_inspect
 
 from ._completion_helpers import CompletionTestApp
@@ -84,6 +92,58 @@ async def test_jinja_unknown_variable_warning(monkeypatch) -> None:
     assert "missing" in panel.render().plain
     assert panel.has_class("jinja-warning")
     assert ta._jinja_unknown_spans
+
+
+async def test_completion_panel_entrypoints_noop_when_panel_pruned() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        panel = bar.query_one("#prompt-completion", Static)
+        await panel.remove()
+
+        with pytest.raises(NoMatches):
+            bar.query_one("#prompt-completion", Static)
+
+        ta.load_text("{{}}")
+        ta.cursor_location = (0, len(ta.text))
+        _compute_jinja_now(ta)
+
+        candidate = CompletionCandidate(
+            display="alpha.txt",
+            insertion="alpha.txt",
+            is_dir=False,
+            name="alpha.txt",
+        )
+        bar.show_file_completions("a", [candidate], selected_index=0)
+        bar.hide_file_completions()
+
+        input_hint = XPromptInputHint(
+            name="path",
+            type="path",
+            required=True,
+            default_display=None,
+            position=0,
+        )
+        entry = XPromptAssistEntry(
+            name="review",
+            insertion="#review",
+            reference_prefix="#",
+            kind="xprompt",
+            input_signature=None,
+            inputs=(input_hint,),
+            content_preview=None,
+        )
+        bar.show_xprompt_arg_hint(
+            ActiveXPromptArgHint(
+                entry=entry,
+                reference_start=0,
+                reference_end=len("#review"),
+                reference_text="#review",
+            )
+        )
+
+        assert bar._completion_visible is False
 
 
 async def test_jinja_auto_pairing() -> None:

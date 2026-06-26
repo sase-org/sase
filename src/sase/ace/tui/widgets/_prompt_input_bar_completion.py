@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from rich.text import Text
+from textual.css.query import NoMatches
 from textual.widgets import Static
 
 from sase.ace.tui.agent_completion import (
@@ -85,6 +86,13 @@ class PromptInputBarCompletionMixin(_MixinBase):
         def _update_height(self) -> None: ...
         def _maybe_show_active_jinja_diagnostics(self) -> None: ...
 
+    def _completion_panel(self) -> Static | None:
+        """Return the completion panel when it is still attached."""
+        try:
+            return self.query_one("#prompt-completion", Static)
+        except NoMatches:
+            return None
+
     def show_file_completions(
         self,
         token: str,
@@ -102,7 +110,9 @@ class PromptInputBarCompletionMixin(_MixinBase):
             scroll_offset: First visible entry index for scrolling.
             completion_kind: "file" for path completion, "xprompt" for xprompt.
         """
-        panel = self.query_one("#prompt-completion", Static)
+        panel = self._completion_panel()
+        if panel is None:
+            return
         total = len(rows)
         visible = rows[scroll_offset : scroll_offset + MAX_VISIBLE]
 
@@ -404,7 +414,9 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
     def hide_file_completions(self) -> None:
         """Hide the path completion panel."""
-        panel = self.query_one("#prompt-completion", Static)
+        panel = self._completion_panel()
+        if panel is None:
+            return
         was_jinja = self._completion_panel_kind == "jinja"
         panel.update("")
         panel.border_title = ""
@@ -445,7 +457,9 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
     def show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
         """Show the post-accept xprompt argument hint panel."""
-        panel = self.query_one("#prompt-completion", Static)
+        panel = self._completion_panel()
+        if panel is None:
+            return
         content = Text()
         content.append(hint.reference_text, style="bold green")
         content.append(" arguments", style="dim")
@@ -473,8 +487,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
         """Show Jinja2 diagnostics if no higher-priority panel is active."""
         if self._completion_visible and self._completion_panel_kind != "jinja":
             return
+        panel = self._completion_panel()
+        if panel is None:
+            return
         self.hide_soft_completion()
-        panel = self.query_one("#prompt-completion", Static)
         content = Text()
         unknown = tuple(getattr(diagnostics, "unknown_variables", ()) or ())
         ok = bool(getattr(diagnostics, "ok", True))

@@ -25,6 +25,8 @@ class JinjaDiagnosticsMixin(_MixinBase):
         def _prompt_completion_settings(self) -> Any: ...
         def _refresh_jinja_overlay(self) -> None: ...
 
+        is_mounted: bool
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._jinja_diagnostics_generation = 0
@@ -68,6 +70,8 @@ class JinjaDiagnosticsMixin(_MixinBase):
         cursor_offset: int,
     ) -> None:
         self._jinja_diagnostics_timer = None
+        if not self.is_mounted:
+            return
         if generation != self._jinja_diagnostics_generation:
             return
         if text != self.text or cursor_offset != self._absolute_offset(
