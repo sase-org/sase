@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 09:35:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/plugins_tab.md
 bead_id: sase-59
 tier: epic
