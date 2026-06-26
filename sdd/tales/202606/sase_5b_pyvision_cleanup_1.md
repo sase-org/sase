@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 17:45:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/sase_5b_pyvision_cleanup_1.md
 ---
 # Plan: Finish sase-5b Pyvision Cleanup
