@@ -236,7 +236,12 @@ def test_render_error_goes_to_console() -> None:
     console = Console(file=io.StringIO(), width=200, no_color=True)
     render_uv_tool_error("sase is not a uv tool install", console=console)
 
-    assert "sase is not a uv tool install" in console.file.getvalue()  # type: ignore[attr-defined]
+    output = console.file.getvalue()  # type: ignore[attr-defined]
+    assert "sase is not a uv tool install" in output
+    # Fatal errors use the red ✗ glyph; ⚠ stays reserved for yellow warnings,
+    # matching the catalog renderer's legend.
+    assert "✗" in output
+    assert "⚠" not in output
 
 
 def test_summarize_uses_receipt_name_casing() -> None:

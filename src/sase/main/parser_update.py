@@ -33,17 +33,19 @@ def register_update_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase update -j         # stable machine-readable JSON"
         ),
     )
-    update_parser.add_argument(
-        "-n",
-        "--dry-run",
-        action="store_true",
-        help="Show the planned uv command and package set without running it",
-    )
+    # Options are listed short-alias alphabetical (-j, -n, -q) to match the bar
+    # set by the `sase plugin install` / `sase plugin update` commands.
     update_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit machine-readable JSON",
+    )
+    update_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show the planned uv command and package set without running it",
     )
     update_parser.add_argument(
         "-q",

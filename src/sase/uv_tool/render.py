@@ -30,10 +30,13 @@ from sase.version._utils import normalize_distribution_name
 #: A package's place in sase's uv tool environment.
 PackageRole = Literal["primary", "plugin", "dependency"]
 
-#: Glyphs (never color alone) for each outcome.
+#: Glyphs (never color alone) for each outcome. ``✗`` (red) marks a removal or a
+#: fatal error and ``⚠`` (yellow) is reserved for non-fatal warnings, matching
+#: the ``sase plugin`` catalog renderer's legend.
 _UPDATED_GLYPH = "✓"
 _UNCHANGED_GLYPH = "·"
 _REMOVED_GLYPH = "✗"
+_ERROR_GLYPH = "✗"
 
 #: Em dash placeholder for an unknown version.
 _EMPTY = "—"
@@ -253,7 +256,7 @@ def render_uv_tool_error(message: str, *, console: Console | None = None) -> Non
     """Print an engine error message to *console* (stderr by default)."""
     target = console or Console(stderr=True)
     line = Text()
-    line.append("⚠ ", style="bold red")
+    line.append(f"{_ERROR_GLYPH} ", style="red")
     line.append(message, style="red")
     target.print(line)
 
