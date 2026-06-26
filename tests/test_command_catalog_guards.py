@@ -146,14 +146,14 @@ def test_every_command_spec_has_at_least_one_tab() -> None:
 def test_every_command_spec_has_label_and_key_display() -> None:
     """Palette rows must not be blank.
 
-    The retired ``,p`` projects panel is the one deliberately keyless
-    command (a searchable entry that opens the Admin Center Projects tab),
-    so it is exempt from the key-sequence/display requirements.
+    The retired ``,L`` logs and ``,p`` projects panels are deliberately
+    keyless commands (searchable entries that open Admin Center tabs), so
+    they are exempt from the key-sequence/display requirements.
     """
     catalog = build_command_catalog(_registry())
     for spec in catalog:
         assert spec.label, f"{spec.id}: empty label"
-        if spec.id == "projects":
+        if spec.id in {"logs", "projects"}:
             assert spec.key_sequence == (), f"{spec.id}: expected keyless"
             assert spec.key_display == "", f"{spec.id}: expected blank key display"
             continue

@@ -1,13 +1,14 @@
-"""SASE Admin Center modal: a tabbed home for config, projects, plugins, xprompts.
+"""SASE Admin Center modal: a tabbed home for config, logs, projects, plugins, xprompts.
 
-SASE Admin Center is a full-screen ``ModalScreen`` that hosts four internal
+SASE Admin Center is a full-screen ``ModalScreen`` that hosts five internal
 tabs over a :class:`ContentSwitcher`:
 
 - **Config** (leftmost, default focus on open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
+- **Logs** — the canonical SASE log browser (:class:`LogsPane`), replacing
+  the standalone ``,L`` modal. Sits immediately to the right of Config.
 - **Projects** — the migrated project lifecycle manager
-  (:class:`ProjectsPane`), replacing the standalone ``,p`` modal. Sits
-  immediately to the right of Config.
+  (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
 - **Plugins** — the read-only plugin catalog browser
   (:class:`PluginsBrowserPane`), mirroring ``sase plugin list``.
 - **XPrompts** — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
@@ -25,28 +26,37 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container
-from textual.events import Click
+from textual.events import Click, Key
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Label, Static
 
 from .config_pane import ConfigPane
+from .logs_pane import LogsPane
 from .plugins_browser_pane import PluginsBrowserPane
 from .projects_pane import ProjectsPane
 from .xprompt_browser_pane import XPromptBrowserPane
 
-CenterTab = Literal["config", "projects", "plugins", "xprompts"]
+CenterTab = Literal["config", "logs", "projects", "plugins", "xprompts"]
 
-_TAB_ORDER: tuple[CenterTab, ...] = ("config", "projects", "plugins", "xprompts")
+_TAB_ORDER: tuple[CenterTab, ...] = (
+    "config",
+    "logs",
+    "projects",
+    "plugins",
+    "xprompts",
+)
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Config"),
+    ("logs", "Logs"),
     ("projects", "Projects"),
     ("plugins", "Plugins"),
     ("xprompts", "XPrompts"),
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
+    "logs": "#FFD700",
     "projects": "#FFAF5F",
     "plugins": "#AF87FF",
     "xprompts": "#87D7FF",
@@ -114,7 +124,7 @@ class _ConfigCenterHeaderDivider(Static):
 
 
 class ConfigCenterModal(ModalScreen[None]):
-    """Full-screen modal hosting the Config, Plugins, and XPrompts tabs."""
+    """Full-screen modal hosting the Admin Center tabs."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -143,12 +153,32 @@ class ConfigCenterModal(ModalScreen[None]):
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
+                yield LogsPane(id="logs")
                 yield ProjectsPane(id="projects")
                 yield PluginsBrowserPane(id="plugins")
                 yield XPromptBrowserPane(self._project, id="xprompts")
 
     def on_mount(self) -> None:
         self._focus_active_pane()
+
+    def on_key(self, event: Key) -> None:
+        """Forward Logs-tab detail scroll keys when the source list has focus."""
+        if self._active_tab != "logs":
+            return
+        character = getattr(event, "character", None)
+        pane = self._active_pane()
+        if event.key in ("G", "shift+g") or character == "G":
+            scroll_to_bottom = getattr(pane, "action_scroll_to_bottom", None)
+            if callable(scroll_to_bottom):
+                event.prevent_default()
+                event.stop()
+                scroll_to_bottom()
+        elif event.key == "g":
+            scroll_to_top = getattr(pane, "action_scroll_to_top", None)
+            if callable(scroll_to_top):
+                event.prevent_default()
+                event.stop()
+                scroll_to_top()
 
     def _active_pane(self) -> Widget | None:
         """Return the currently visible pane widget."""

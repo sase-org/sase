@@ -342,6 +342,22 @@ def test_projects_command_is_keyless_and_global() -> None:
     assert "project management" in spec.aliases
 
 
+def test_logs_command_is_keyless_and_global() -> None:
+    catalog = build_command_catalog(_registry())
+    # The ``,L`` leader command was retired; the panel is now a keyless,
+    # searchable command that opens the Admin Center on the Logs tab.
+    assert not any(c.id == "leader.log_panel" for c in catalog)
+    spec = next(c for c in catalog if c.id == "logs")
+
+    assert spec.label == "Open logs panel"
+    assert spec.key_display == ""
+    assert spec.key_sequence == ()
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "open_log_panel"
+    assert "launch failures" in spec.aliases
+
+
 def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.jump_to_next_unread_done_agent")
@@ -459,9 +475,10 @@ def test_command_specs_are_well_formed() -> None:
         assert spec.id
         assert spec.label
         assert spec.tabs
-        if spec.id == "projects":
-            # The retired ``,p`` panel is intentionally keyless: a searchable
-            # command with no binding that opens the Admin Center on Projects.
+        if spec.id in {"logs", "projects"}:
+            # These retired standalone panels are intentionally keyless:
+            # searchable commands with no direct binding that open the
+            # corresponding Admin Center tabs.
             assert spec.key_sequence == ()
             assert spec.key_display == ""
             continue

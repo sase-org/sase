@@ -125,11 +125,11 @@ class BaseActionsMixin:
 
         self.push_screen(ConfigCenterModal(initial_tab="projects"))  # type: ignore[attr-defined]
 
-    def action_show_log_panel(self) -> None:
-        """Open the Log panel (leader ``,L``) — works from any tab."""
-        from ..modals import LogModal
+    def action_open_log_panel(self) -> None:
+        """Open the SASE Admin Center on the Logs tab."""
+        from ..modals import ConfigCenterModal
 
-        self.push_screen(LogModal())  # type: ignore[attr-defined]
+        self.push_screen(ConfigCenterModal(initial_tab="logs"))  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""

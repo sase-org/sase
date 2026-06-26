@@ -160,7 +160,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             else:
                 # Showing a bgcmd view — paint from cache when available. On a
                 # cold miss we fall back to the quick non-I/O reads (info +
-                # running) so the header still renders; the log panel shows an
+                # running) so the header still renders; the Logs tab shows an
                 # empty string until the async collector lands.
                 slot = self._axe_current_view
                 bg_snap = self._axe_bgcmd_details.get(slot)

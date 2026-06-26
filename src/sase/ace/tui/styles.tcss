@@ -3113,11 +3113,70 @@ ConfigCenterModal #config-center-switcher {
 }
 
 ConfigCenterModal ConfigPane,
+ConfigCenterModal LogsPane,
 ConfigCenterModal ProjectsPane,
 ConfigCenterModal PluginsBrowserPane,
 ConfigCenterModal XPromptBrowserPane {
     width: 100%;
     height: 100%;
+}
+
+/* Logs tab: canonical log source browser */
+LogsPane #logs-pane-title {
+    text-style: bold;
+    height: 1;
+    margin-bottom: 1;
+}
+
+LogsPane #logs-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+LogsPane #logs-source-panel {
+    width: 38;
+    height: 100%;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+LogsPane #log-source-list {
+    width: 100%;
+    height: 1fr;
+    border: none;
+    background: transparent;
+}
+
+LogsPane #logs-detail-panel {
+    width: 1fr;
+    height: 100%;
+    border: solid $secondary;
+    padding: 0 1;
+    margin-left: 1;
+}
+
+LogsPane #log-detail-scroll {
+    width: 100%;
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+LogsPane #log-detail {
+    width: 100%;
+    height: auto;
+}
+
+LogsPane .config-region-header {
+    text-style: bold;
+    color: $text-muted;
+    height: 1;
+}
+
+LogsPane #logs-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
 }
 
 /* Projects tab: project lifecycle manager (migrated from the standalone modal) */
@@ -3571,65 +3630,6 @@ AgentRunLogModal #agent-log-detail {
 }
 
 AgentRunLogModal #agent-log-hints {
-    height: 1;
-    color: $text-muted;
-    text-align: center;
-    margin-top: 1;
-}
-
-/* ===== Log Panel Modal (,L) Styling ===== */
-
-LogModal {
-    align: center middle;
-}
-
-LogModal > Container {
-    width: 92%;
-    height: 85%;
-    border: double $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-LogModal #log-modal-title {
-    text-style: bold;
-    text-align: center;
-    margin-bottom: 1;
-}
-
-LogModal #log-modal-panels {
-    width: 100%;
-    height: 1fr;
-}
-
-LogModal #log-modal-list-panel {
-    width: 38;
-    height: 100%;
-}
-
-LogModal OptionList {
-    height: 1fr;
-    border: solid $secondary;
-}
-
-LogModal #log-modal-detail-panel {
-    width: 1fr;
-    height: 100%;
-    margin-left: 1;
-}
-
-LogModal #log-modal-detail-scroll {
-    height: 1fr;
-    border: solid $secondary;
-    padding: 0 1;
-    scrollbar-gutter: stable;
-}
-
-LogModal #log-modal-detail {
-    height: auto;
-}
-
-LogModal #log-modal-hints {
     height: 1;
     color: $text-muted;
     text-align: center;

@@ -357,6 +357,18 @@ def test_execute_projects_command_uses_app_action() -> None:
     app._handle_leader_key.assert_not_called()
 
 
+def test_execute_logs_command_uses_app_action() -> None:
+    app = MagicMock()
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+
+    execute_command(app, catalog["logs"])
+
+    app.action_open_log_panel.assert_called_once_with()
+    app._handle_leader_key.assert_not_called()
+
+
 def test_execute_bang_mode_sets_active_then_handles() -> None:
     app = MagicMock()
     spec = _spec(

@@ -1,10 +1,9 @@
 """Integration tests for the Projects tab of the SASE Admin Center.
 
-Confirms the Projects pane is composed right of Config, is reachable with
-``]`` and left again with ``[``, focuses its list when activated, and renders
-the project rows. Also covers the filter input's key forwarding (``[`` / ``]``
-switch tabs and ``tab`` / ``shift+tab`` cycle the state filter even while the
-filter is focused). The behavioral parity suite lives in
+Confirms the Projects pane is composed after Logs, focuses its list when
+activated, and renders the project rows. Also covers the filter input's key
+forwarding (``[`` / ``]`` switch tabs and ``tab`` / ``shift+tab`` cycle the
+state filter even while the filter is focused). The behavioral parity suite lives in
 ``tests/ace/tui/modals/test_project_management_modal_*.py``.
 """
 
@@ -47,7 +46,7 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-async def test_admin_center_reaches_projects_tab_from_config(
+async def test_admin_center_reaches_logs_then_projects_tab_from_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_panes(monkeypatch)
@@ -60,7 +59,11 @@ async def test_admin_center_reaches_projects_tab_from_config(
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "config"
 
-        # ``]`` from Config lands directly on the new Projects tab.
+        # ``]`` from Config lands on Logs, then Projects.
+        await page.press("]")
+        await page.wait_for(lambda _s: modal._active_tab == "logs")
+        assert switcher.current == "logs"
+
         await page.press("]")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
         assert switcher.current == "projects"
@@ -87,10 +90,10 @@ async def test_admin_center_leaves_projects_tab_with_left_bracket(
         assert switcher.current == "projects"
 
         # With the list focused, the host modal's own ``[`` binding leaves
-        # Projects for Config (directly to its left).
+        # Projects for Logs (directly to its left).
         await page.press("[")
-        await page.wait_for(lambda _s: modal._active_tab == "config")
-        assert switcher.current == "config"
+        await page.wait_for(lambda _s: modal._active_tab == "logs")
+        assert switcher.current == "logs"
 
 
 async def _focus_projects_filter(page: AcePage) -> None:

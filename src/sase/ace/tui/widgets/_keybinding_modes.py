@@ -244,7 +244,6 @@ class KeybindingModesMixin:
                 bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("task_queue"), "task queue"))
         bindings.append((k("activity_info"), "activity"))
-        bindings.append((k("log_panel"), "log panel"))
         bindings.append((k("temporary_llm_override"), "model overrides"))
         bindings.append((k("mark_inactive_pinned"), "pin idle"))
         self._update_display(bindings, mode_label="LEADER")

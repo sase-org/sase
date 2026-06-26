@@ -1,4 +1,4 @@
-"""Tests for the ``,L`` Log panel modal (Phase 2)."""
+"""Tests for the Admin Center Logs tab."""
 
 from __future__ import annotations
 
@@ -9,14 +9,17 @@ from pathlib import Path
 import pytest
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
-from textual.widgets import OptionList
+from textual.widgets import ContentSwitcher, OptionList
 
 from sase.logs import launch_log, run_log
 from sase.ace.tui.logs import log_sources
-from sase.ace.tui.modals.log_modal import (
+from sase.ace.tui.modals import config_pane as cp
+from sase.ace.tui.modals import plugins_browser_pane as pbp
+from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.logs_pane import (
     _CYAN,
     _GOLD,
-    LogModal,
+    LogsPane,
     _styled_log_line,
     _render_log_detail,
 )
@@ -38,6 +41,22 @@ def log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Redirect every canonical log path under ``tmp_path``."""
     monkeypatch.setattr(launch_log, "LOGS_DIR", str(tmp_path))
     monkeypatch.setattr(run_log, "LOGS_DIR", str(tmp_path))
+    config_result = cp._LoadResult(view=None, error=None, token=("tok", 1))
+    monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: config_result)
+    plugins_result = pbp._PluginsLoadResult(catalog=None, error="stub", now=0.0)
+    monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: plugins_result)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",
+        lambda project=None: {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_all_project_local_prompts",
+        lambda: {},
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_a, **_kw: [],
+    )
     yield tmp_path
 
 
@@ -50,6 +69,23 @@ class _ModalTestApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield from ()
+
+
+async def _wait_for_logs_loaded(pilot: object, pane: LogsPane) -> None:
+    for _ in range(50):
+        await pilot.pause(0.01)  # type: ignore[attr-defined]
+        if not pane._loading:
+            return
+    raise AssertionError("Logs pane did not finish loading")
+
+
+async def _open_logs_pane(pilot: object) -> tuple[ConfigCenterModal, LogsPane]:
+    modal = ConfigCenterModal(initial_tab="logs")
+    pilot.app.push_screen(modal)  # type: ignore[attr-defined]
+    await pilot.pause()  # type: ignore[attr-defined]
+    pane = modal.query_one("#logs", LogsPane)
+    await _wait_for_logs_loaded(pilot, pane)
+    return modal, pane
 
 
 # --------------------------------------------------------------------------
@@ -123,76 +159,78 @@ def test_every_source_renders_without_error(log_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------
-# Modal pilot behavior
+# Pane pilot behavior
 # --------------------------------------------------------------------------
 
 
-async def test_modal_opens_with_launch_failures_selected(log_dir: Path) -> None:
+async def test_logs_tab_opens_with_launch_failures_selected(log_dir: Path) -> None:
     _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
 
     async with _ModalTestApp().run_test() as pilot:
-        modal = LogModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
+        modal, pane = await _open_logs_pane(pilot)
 
-        assert isinstance(pilot.app.screen, LogModal)
-        option_list = modal.query_one("#log-source-list", OptionList)
+        assert isinstance(pilot.app.screen, ConfigCenterModal)
+        assert modal._active_tab == "logs"
+        option_list = pane.query_one("#log-source-list", OptionList)
         assert option_list.highlighted == 0  # launch_failures is the default
 
-        assert "launch_failures.log" in modal._last_detail_text.plain
+        assert "launch_failures.log" in pane._last_detail_text.plain
 
 
-async def test_modal_cycle_and_navigate_update_detail(log_dir: Path) -> None:
+async def test_logs_tab_navigation_updates_detail(log_dir: Path) -> None:
     _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
     _write(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
 
     async with _ModalTestApp().run_test() as pilot:
-        modal = LogModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
+        _, pane = await _open_logs_pane(pilot)
 
-        # ] cycles to the next source (tui diagnostics) and repaints detail.
-        await pilot.press("right_square_bracket")
-        await pilot.pause()
-        option_list = modal.query_one("#log-source-list", OptionList)
+        await pilot.press("j")
+        await _wait_for_logs_loaded(pilot, pane)
+        option_list = pane.query_one("#log-source-list", OptionList)
         assert option_list.highlighted == 1
-        assert "tui.log" in modal._last_detail_text.plain
+        assert "tui.log" in pane._last_detail_text.plain
 
         # k navigates back up to launch failures.
         await pilot.press("k")
-        await pilot.pause()
+        await _wait_for_logs_loaded(pilot, pane)
         assert option_list.highlighted == 0
 
 
-async def test_modal_cycle_prev_wraps_to_last(log_dir: Path) -> None:
+async def test_brackets_switch_admin_center_tabs_not_log_sources(
+    log_dir: Path,
+) -> None:
     async with _ModalTestApp().run_test() as pilot:
-        modal = LogModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
+        modal, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+        assert option_list.highlighted == 0
 
         await pilot.press("left_square_bracket")
         await pilot.pause()
+        switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
+        assert modal._active_tab == "config"
+        assert switcher.current == "config"
+        assert option_list.highlighted == 0
 
-        option_list = modal.query_one("#log-source-list", OptionList)
-        assert option_list.highlighted == len(modal._sources) - 1
+        await pilot.press("right_square_bracket")
+        await pilot.pause()
+        assert modal._active_tab == "logs"
+        assert switcher.current == "logs"
 
 
-async def test_modal_refresh_and_scroll_and_dismiss(log_dir: Path) -> None:
+async def test_logs_tab_refresh_and_scroll_and_dismiss(log_dir: Path) -> None:
     _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
 
     async with _ModalTestApp().run_test() as pilot:
-        modal = LogModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
+        _, pane = await _open_logs_pane(pilot)
 
-        # Log grows after the modal opened; r re-reads the tail.
+        # Log grows after the pane opened; r re-reads the tail.
         _write(
             log_dir / "launch_failures.log",
             _LAUNCH_LOG_BODY + "  error: SecondError: again\n",
         )
         await pilot.press("r")
-        await pilot.pause()
-        assert "SecondError" in modal._last_detail_text.plain
+        await _wait_for_logs_loaded(pilot, pane)
+        assert "SecondError" in pane._last_detail_text.plain
 
         # Scrolling and dismissal don't error.
         await pilot.press("ctrl+d")
@@ -201,12 +239,12 @@ async def test_modal_refresh_and_scroll_and_dismiss(log_dir: Path) -> None:
 
         await pilot.press("escape")
         await pilot.pause()
-        assert not isinstance(pilot.app.screen, LogModal)
+        assert not isinstance(pilot.app.screen, ConfigCenterModal)
 
 
 def _binding_action(key: str) -> str | None:
-    """Action bound to *key* in ``LogModal.BINDINGS`` (tuple or Binding)."""
-    for binding in LogModal.BINDINGS:
+    """Action bound to *key* in ``LogsPane.BINDINGS`` (tuple or Binding)."""
+    for binding in LogsPane.BINDINGS:
         if isinstance(binding, tuple):
             bind_key, action = binding[0], binding[1]
         else:
@@ -216,23 +254,21 @@ def _binding_action(key: str) -> str | None:
     return None
 
 
-def test_log_modal_binds_g_and_shift_g_to_scroll_extremes() -> None:
+def test_logs_pane_binds_g_and_shift_g_to_scroll_extremes() -> None:
     assert _binding_action("g") == "scroll_to_top"
     assert _binding_action("G") == "scroll_to_bottom"
 
 
-async def test_modal_g_and_shift_g_scroll_detail_extremes(log_dir: Path) -> None:
+async def test_logs_tab_g_and_shift_g_scroll_detail_extremes(log_dir: Path) -> None:
     # Enough lines that the right detail pane is genuinely scrollable.
     _write(log_dir / "launch_failures.log", "".join(f"line {i}\n" for i in range(200)))
 
     async with _ModalTestApp().run_test() as pilot:
-        modal = LogModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
+        _, pane = await _open_logs_pane(pilot)
 
-        option_list = modal.query_one("#log-source-list", OptionList)
+        option_list = pane.query_one("#log-source-list", OptionList)
         highlighted_before = option_list.highlighted
-        scroll = modal.query_one("#log-modal-detail-scroll", VerticalScroll)
+        scroll = pane.query_one("#log-detail-scroll", VerticalScroll)
 
         # G jumps to the bottom of the detail pane.
         await pilot.press("G")

@@ -51,7 +51,6 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.quick_changespec_agent_count = 0
         self.quick_selected_agent_count = 0
         self.marked_agent_run_count = 0
-        self.log_panel_count = 0
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
@@ -71,9 +70,6 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def action_show_runners(self) -> None:
         self.runners_count += 1
-
-    def action_show_log_panel(self) -> None:
-        self.log_panel_count += 1
 
     def _start_revert_selected_agent(self) -> None:
         self.revert_count += 1

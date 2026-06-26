@@ -215,10 +215,6 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Activity dashboard",
                 ),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'log_panel'))}",
-                    "Log panel (launch failures)",
-                ),
-                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
                     "Model overrides",
                 ),
@@ -284,7 +280,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (
                     d(a.open_config_center),
-                    "SASE Admin Center / Projects / Plugins / XPrompts",
+                    "Admin Center: Config / Logs / Projects / Plugins / XPs",
                 ),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),

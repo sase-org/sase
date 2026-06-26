@@ -68,6 +68,17 @@ def test_footer_omits_project_management_after_cutover() -> None:
         assert "projects" not in _last_labels(captured)
 
 
+def test_footer_omits_log_panel_after_cutover() -> None:
+    """The ``,L`` logs entry was retired when the panel moved to the
+    Admin Center's Logs tab, so the leader footer no longer surfaces it."""
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    for tab in ("changespecs", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert "log panel" not in _last_labels(captured)
+
+
 def test_footer_surfaces_space_run_agent_on_cl_and_agents_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)

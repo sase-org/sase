@@ -449,7 +449,6 @@ class LeaderModeKeymaps(ModeKeymaps):
             "prompt_history_edit_first": "ctrl+g",
             "prompt_history_cancelled": "greater_than_sign",
             "agent_run_log": "A",
-            "log_panel": "L",
             "temporary_llm_override": "o",
             "capture_agents_repro": "C",
             "toggle_agents_repro_checks": "T",

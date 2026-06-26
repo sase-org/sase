@@ -1,69 +1,82 @@
-"""Tests for the leader ``,L`` Log panel keymap wiring (Phase 2)."""
+"""Tests for the Admin Center Logs-tab cutover."""
 
 from __future__ import annotations
 
-import pytest
+from typing import Any
 
+from sase.ace.tui.actions.base import BaseActionsMixin
+from sase.ace.tui.commands import build_command_catalog
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.keymaps.types import LeaderModeKeymaps
+from sase.ace.tui.modals.config_center_modal import (
+    _TAB_ORDER,
+    ConfigCenterModal,
+)
 from sase.ace.tui.widgets import KeybindingFooter
 
 from tests.ace.tui._leader_keymap_helpers import (
     _capture_bindings,
-    _FakeApp,
-    _last_keys,
     _last_labels,
-    _make_cs,
 )
 
 
-def test_default_config_binds_leader_l_to_log_panel() -> None:
+class _ActionApp(BaseActionsMixin):
+    def __init__(self) -> None:
+        self.pushed_modals: list[Any] = []
+
+    def push_screen(self, modal: Any, callback: Any = None) -> None:
+        del callback
+        self.pushed_modals.append(modal)
+
+
+def test_leader_mode_drops_log_panel_key() -> None:
     registry = load_keymap_registry({})
 
-    assert registry.leader_mode.keys["log_panel"] == "L"
+    assert "log_panel" not in registry.leader_mode.keys
+    assert "log_panel" not in LeaderModeKeymaps().keys
 
 
-def test_types_factory_default_matches_config() -> None:
-    # config/types parity: the dataclass factory and default_config.yml agree.
-    assert LeaderModeKeymaps().keys["log_panel"] == "L"
-    assert load_keymap_registry({}).leader_mode.keys["log_panel"] == "L"
+def test_stale_log_panel_override_is_filtered_out() -> None:
+    registry = load_keymap_registry(
+        {"keymaps": {"modes": {"leader_mode": {"keys": {"log_panel": "L"}}}}}
+    )
+
+    assert "log_panel" not in registry.leader_mode.keys
 
 
-def test_leader_l_is_free_of_collisions() -> None:
-    keys = load_keymap_registry({}).leader_mode.keys
-    owners = [name for name, value in keys.items() if value == "L"]
-
-    assert owners == ["log_panel"]
+def test_logs_tab_sits_immediately_after_config() -> None:
+    assert _TAB_ORDER[:2] == ("config", "logs")
 
 
-@pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])
-def test_leader_l_opens_log_panel_from_every_tab(tab: str) -> None:
-    app = _FakeApp(changespecs=[_make_cs("alpha")], current_tab=tab)
+def test_keyless_logs_command_opens_logs_tab() -> None:
+    catalog = build_command_catalog(load_keymap_registry({}))
+    assert not any(c.id == "leader.log_panel" for c in catalog)
+    spec = next(c for c in catalog if c.id == "logs")
 
-    handled = app._handle_leader_key("L")
-
-    assert handled is True
-    assert app._leader_mode_active is False
-    assert app.log_panel_count == 1
-    assert app._last_leader_key == "L"
-    assert app.refresh_count == 1
-
-
-def test_leader_l_repeat_reopens_log_panel() -> None:
-    app = _FakeApp(current_tab="agents")
-
-    app._handle_leader_key("L")
-    app._handle_leader_key("comma")
-
-    assert app._last_leader_key == "L"
-    assert app.log_panel_count == 2
+    assert spec.label == "Open logs panel"
+    assert spec.key_display == ""
+    assert spec.key_sequence == ()
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "open_log_panel"
+    assert "launch failures" in spec.aliases
 
 
-def test_footer_surfaces_log_panel_on_all_tabs() -> None:
+def test_open_log_panel_action_pushes_admin_center_on_logs() -> None:
+    app = _ActionApp()
+
+    app.action_open_log_panel()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._active_tab == "logs"
+
+
+def test_footer_omits_log_panel_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert "L" in _last_keys(captured)
-        assert "log panel" in _last_labels(captured)
+        assert "log panel" not in _last_labels(captured)

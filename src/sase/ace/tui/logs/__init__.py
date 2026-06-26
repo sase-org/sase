@@ -1,4 +1,4 @@
-"""Log-source registry for the ``,L`` Log panel."""
+"""Log-source registry for the Admin Center Logs tab."""
 
 from .sources import LOG_SOURCES, LogSource, log_sources
 
