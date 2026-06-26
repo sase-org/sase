@@ -1,7 +1,7 @@
 """Command catalog construction for the ace TUI palette.
 
 Builds a single source-of-truth list of :class:`CommandSpec` entries
-from a :class:`KeymapRegistry`.  Coverage:
+from a :class:`KeymapRegistry`. Coverage:
 
 - Every field in :class:`AppKeymaps` (one ``app.<field>`` command).
 - The 10 saved-query digit bindings ``0``..``9``.
@@ -10,476 +10,45 @@ from a :class:`KeymapRegistry`.  Coverage:
 - Every valid user-defined custom mode command.
 
 The catalog is the input the palette filters and the applicability
-module scopes; it must stay in sync with :class:`AppKeymaps`. A
-guard in :func:`iter_app_commands` raises :class:`RuntimeError` if
-an ``AppKeymaps`` field is missing app-command metadata so this can
-never silently drift.
+module scopes; it must stay in sync with :class:`AppKeymaps`. A guard
+raises :class:`RuntimeError` if an ``AppKeymaps`` field is missing
+app-command metadata so this can never silently drift.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import fields
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.commands._app_metadata import (
+    APP_COMMAND_META as _APP_COMMAND_META,
+    ensure_metadata_covers_app_keymaps,
+)
+from sase.ace.tui.commands._formatting import (
+    format_key_sequence as _format_key_sequence,
+)
+from sase.ace.tui.commands._mode_commands import iter_mode_commands
+from sase.ace.tui.commands._tabs import ALL_TABS
 from sase.ace.tui.commands.types import (
     CATEGORY_ORDER,
-    CommandCategory,
     CommandExecutor,
     CommandSpec,
-    CommandTab,
-)
-from sase.ace.tui.keymaps.loader import key_display_name
-from sase.ace.tui.keymaps.types import (
-    BUILTIN_MODE_NAMES,
-    AppKeymaps,
 )
 
 if TYPE_CHECKING:
     from sase.ace.tui.keymaps import KeymapRegistry
 
 
-_ALL_TABS: tuple[CommandTab, ...] = ("changespecs", "agents", "axe")
-_CL_ONLY: tuple[CommandTab, ...] = ("changespecs",)
-_AGENTS_ONLY: tuple[CommandTab, ...] = ("agents",)
-_AGENTS_AXE: tuple[CommandTab, ...] = ("agents", "axe")
-_CL_AGENTS: tuple[CommandTab, ...] = ("changespecs", "agents")
-
-
-# ---------------------------------------------------------------------------
-# App command metadata
-# ---------------------------------------------------------------------------
-#
-# (action, label, category, tabs, aliases).  Action name MUST match an
-# AppKeymaps field. Labels are tuned for the palette; categories mirror
-# the help modal sections; tabs encode where the binding can ever fire
-# (entry-level applicability is layered on by ``availability.py``).
-
-_APP_COMMAND_META: tuple[
-    tuple[str, str, CommandCategory, tuple[CommandTab, ...], tuple[str, ...]],
-    ...,
-] = (
-    # Navigation
-    ("next_changespec", "Next entry", "Navigation", _ALL_TABS, ("down", "j")),
-    ("prev_changespec", "Previous entry", "Navigation", _ALL_TABS, ("up", "k")),
-    ("scroll_to_top", "Scroll to top", "Navigation", _ALL_TABS, ("g",)),
-    ("scroll_to_bottom", "Scroll to bottom", "Navigation", _ALL_TABS, ("G",)),
-    ("scroll_detail_down", "Scroll detail down", "Navigation", _ALL_TABS, ()),
-    ("scroll_detail_up", "Scroll detail up", "Navigation", _ALL_TABS, ()),
-    ("scroll_prompt_down", "Scroll prompt down", "Navigation", _AGENTS_ONLY, ()),
-    ("scroll_prompt_up", "Scroll prompt up", "Navigation", _AGENTS_ONLY, ()),
-    ("next_agent_file", "Next file / chop run", "Navigation", _AGENTS_AXE, ()),
-    ("prev_agent_file", "Previous file / chop run", "Navigation", _AGENTS_AXE, ()),
-    ("jump_to_entry", "Jump to entry", "Navigation", _ALL_TABS, ("hint",)),
-    (
-        "jump_to_entry_fast",
-        "Fast jump to entry",
-        "Navigation",
-        _ALL_TABS,
-        ("jump", "first", "back", "ctrl+o"),
-    ),
-    (
-        "jump_to_entry_forward",
-        "Jump forward through jump stack",
-        "Navigation",
-        _ALL_TABS,
-        ("jump", "forward", "ctrl+k"),
-    ),
-    ("jump_to_all_entries", "Jump to any entry", "Navigation", _ALL_TABS, ("hint",)),
-    # Tab switching
-    ("next_tab", "Next tab", "Tabs", _ALL_TABS, ()),
-    ("prev_tab", "Previous tab", "Tabs", _ALL_TABS, ()),
-    # PR Actions
-    ("quit", "Quit ace", "Misc", _ALL_TABS, ("exit",)),
-    ("change_status", "Change PR status", "PR Actions", _CL_ONLY, ()),
-    (
-        "run_workflow",
-        "Run workflow / retry agent / re-run",
-        "PR Actions",
-        _ALL_TABS,
-        ("retry", "relaunch", "edit prompt"),
-    ),
-    ("mail", "Mail PR", "PR Actions", _CL_ONLY, ("send",)),
-    ("show_diff", "Show diff", "PR Actions", _CL_ONLY, ()),
-    ("reword", "Reword PR", "PR Actions", _CL_ONLY, ()),
-    ("add_tag", "Add tag", "PR Actions", _CL_ONLY, ()),
-    ("view_files", "View PR files", "PR Actions", _CL_ONLY, ()),
-    ("edit_spec", "Edit spec / chat / chop output", "PR Actions", _ALL_TABS, ()),
-    ("rename_cl", "Rename PR / agent", "PR Actions", _CL_AGENTS, ()),
-    # ChangeSpec edits
-    (
-        "edit_hooks",
-        "Edit hooks / fork agent",
-        "ChangeSpec Edits",
-        _CL_AGENTS,
-        ("fork",),
-    ),
-    # Proposals & Sync
-    ("accept_proposal", "Accept proposal", "Proposals & Sync", _CL_AGENTS, ()),
-    ("rebase", "Rebase PR", "Proposals & Sync", _CL_ONLY, ()),
-    (
-        "start_rewind",
-        "Rewind PR / Revive agent",
-        "Proposals & Sync",
-        _CL_AGENTS,
-        (),
-    ),
-    ("sync", "Sync repo", "Proposals & Sync", _ALL_TABS, ()),
-    ("refresh", "Refresh tab", "Proposals & Sync", _ALL_TABS, ("reload",)),
-    # Folding
-    ("hooks_or_collapse", "Toggle hooks / collapse", "Folding", _ALL_TABS, ()),
-    (
-        "hooks_or_collapse_all",
-        "Toggle hooks / collapse all",
-        "Folding",
-        _ALL_TABS,
-        (),
-    ),
-    ("expand_or_layout", "Expand entry / change layout", "Folding", _ALL_TABS, ()),
-    ("expand_all_folds", "Expand all folds", "Folding", _ALL_TABS, ()),
-    ("toggle_layout", "Toggle layout", "Folding", _ALL_TABS, ()),
-    # Marking
-    ("toggle_mark", "Mark / unmark entry", "Marking", _CL_AGENTS, ()),
-    ("clear_marks", "Clear all marks", "Marking", _CL_AGENTS, ("unmark",)),
-    (
-        "bulk_change_status",
-        "Bulk status change",
-        "Marking",
-        _CL_ONLY,
-        ("marked cl", "bulk"),
-    ),
-    (
-        "save_marked_agents",
-        "Save/dismiss marked agents",
-        "Marking",
-        _AGENTS_ONLY,
-        (
-            "save marked",
-            "dismiss marked",
-            "agent group",
-            "name group",
-            "saved group name",
-        ),
-    ),
-    ("mark_inactive", "Mark inactive", "Marking", _ALL_TABS, ("idle",)),
-    # Agents / Axe actions
-    ("kill_agent", "Kill / dismiss / start-stop axe", "Agents", _ALL_TABS, ()),
-    (
-        "open_agent_cleanup_panel",
-        "Cleanup panel / clear output",
-        "Agents",
-        _AGENTS_AXE,
-        ("cleanup", "dismiss all", "clear output"),
-    ),
-    ("stop_axe_and_quit", "Stop AXE and quit", "Axe", _ALL_TABS, ()),
-    ("start_custom_agent", "Run custom agent", "Agents", _ALL_TABS, ("+",)),
-    (
-        "start_agent_home",
-        "Run agent (home mode)",
-        "Agents",
-        _ALL_TABS,
-        ("home", "home mode", "~"),
-    ),
-    (
-        "start_agent_from_changespec",
-        "Run agent from PR",
-        "Agents",
-        _CL_AGENTS,
-        (),
-    ),
-    (
-        "start_last_vcs_xprompt_in_editor",
-        "Edit last VCS xprompt",
-        "Agents",
-        _ALL_TABS,
-        ("ctrl+g", "last vcs", "editor"),
-    ),
-    (
-        "restore_prompt_stash",
-        "Restore stashed prompt",
-        "Agents",
-        _ALL_TABS,
-        ("stash", "restore", "pop"),
-    ),
-    (
-        "jump_to_agent_changespec",
-        "Jump to agent's PR",
-        "Agents",
-        _AGENTS_ONLY,
-        ("go to pr",),
-    ),
-    ("zoom_panel", "Zoom largest panel", "Display", _AGENTS_ONLY, ("zoom",)),
-    ("edit_panel", "Edit panel file", "Agents", _AGENTS_ONLY, ()),
-    (
-        "open_agent_artifacts",
-        "Open agent artifacts",
-        "Display",
-        _AGENTS_ONLY,
-        ("artifact", "image", "chat", "icat"),
-    ),
-    (
-        "show_agent_run_log",
-        "Show agent run log",
-        "Agents",
-        _CL_ONLY,
-        ("agent run log",),
-    ),
-    (
-        "toggle_attempt_view",
-        "Toggle attempt view",
-        "Agents",
-        _AGENTS_ONLY,
-        ("retry", "history"),
-    ),
-    (
-        "toggle_agent_unread",
-        "Toggle agent unread marker",
-        "Agents",
-        _AGENTS_ONLY,
-        ("unread", "read"),
-    ),
-    ("add_agent_tag", "Add / remove agent tag", "Agents", _AGENTS_ONLY, ()),
-    (
-        "focus_next_agent_panel",
-        "Focus next agent panel",
-        "Agents",
-        _AGENTS_ONLY,
-        (),
-    ),
-    (
-        "focus_prev_agent_panel",
-        "Focus previous agent panel",
-        "Agents",
-        _AGENTS_ONLY,
-        (),
-    ),
-    # Grouping (agents tab)
-    ("cycle_grouping_mode", "Cycle grouping mode", "Grouping", _AGENTS_ONLY, ()),
-    (
-        "cycle_grouping_mode_reverse",
-        "Cycle grouping mode (reverse)",
-        "Grouping",
-        _AGENTS_ONLY,
-        (),
-    ),
-    # Tools panel
-    ("toggle_thinking", "Toggle tools panel", "Display", _AGENTS_ONLY, ()),
-    (
-        "toggle_thinking_reverse",
-        "Toggle tools panel (reverse)",
-        "Display",
-        _AGENTS_ONLY,
-        (),
-    ),
-    # File trim
-    ("reset_file_trim", "Reset file trim", "Display", _AGENTS_ONLY, ()),
-    ("show_all_file_lines", "Show all file lines", "Display", _AGENTS_ONLY, ()),
-    # Queries
-    ("edit_query", "Edit query", "Queries", _ALL_TABS, ("/",)),
-    ("prev_query", "Previous saved query", "Queries", _ALL_TABS, ()),
-    ("next_query", "Next saved query", "Queries", _ALL_TABS, ()),
-    # Display / misc
-    ("toggle_hide_reverted", "Toggle hide reverted", "Display", _CL_ONLY, ()),
-    ("toggle_hide_submitted", "Toggle hide submitted", "Display", _CL_ONLY, ()),
-    ("show_notifications", "Show notifications", "Display", _ALL_TABS, ()),
-    ("show_help", "Show help", "Display", _ALL_TABS, ("?",)),
-    (
-        "open_config_center",
-        "Open SASE Admin Center",
-        "Display",
-        _ALL_TABS,
-        (
-            "#",
-            "admin",
-            "admin center",
-            "settings",
-            "config",
-            "configuration",
-            "xprompts",
-            "browse xprompts",
-        ),
-    ),
-    (
-        "dismiss_toasts",
-        "Dismiss toasts",
-        "Display",
-        _ALL_TABS,
-        ("clear toasts", "clear notifications"),
-    ),
-    # Workspace prefixes
-    ("checkout", "Checkout workspace (primary)", "Workspace", _ALL_TABS, ()),
-    ("start_checkout_mode", "Checkout workspace mode", "Modes", _ALL_TABS, ()),
-    ("open_tmux", "Open tmux (primary)", "Workspace", _ALL_TABS, ()),
-    ("start_tmux_mode", "Open tmux mode", "Modes", _ALL_TABS, ()),
-    # Tree navigation prefixes
-    (
-        "start_ancestor_mode",
-        "Ancestor navigation",
-        "Tree Navigation",
-        _CL_ONLY,
-        (),
-    ),
-    ("start_child_mode", "Child navigation", "Tree Navigation", _CL_ONLY, ()),
-    ("start_sibling_mode", "Sibling navigation", "Tree Navigation", _CL_AGENTS, ()),
-    # Mode activation prefixes
-    ("start_fold_mode", "Enter fold mode", "Modes", _ALL_TABS, ()),
-    ("start_leader_mode", "Enter leader mode", "Modes", _ALL_TABS, ()),
-    ("start_bang_mode", "Enter bang mode", "Modes", _ALL_TABS, ()),
-    ("copy_tab_content", "Enter copy mode", "Modes", _ALL_TABS, ()),
-    # Palette itself
-    (
-        "open_command_palette",
-        "Open command palette",
-        "Misc",
-        _ALL_TABS,
-        ("commands", ":"),
-    ),
-)
-
-
 def _ensure_metadata_covers_app_keymaps() -> None:
-    """Fail loudly if metadata drifts from :class:`AppKeymaps`."""
-    meta_actions = {row[0] for row in _APP_COMMAND_META}
-    field_names = {f.name for f in fields(AppKeymaps)}
-    missing = field_names - meta_actions
-    extra = meta_actions - field_names
-    if missing or extra:
-        parts: list[str] = []
-        if missing:
-            parts.append(f"AppKeymaps fields missing metadata: {sorted(missing)}")
-        if extra:
-            parts.append(f"metadata for nonexistent fields: {sorted(extra)}")
-        raise RuntimeError(
-            "_APP_COMMAND_META / AppKeymaps mismatch — " + "; ".join(parts)
-        )
+    """Fail loudly if metadata drifts from :class:`AppKeymaps`.
+
+    Kept in this module for compatibility with tests and downstream
+    guard callers that patch ``catalog._APP_COMMAND_META`` directly.
+    """
+    ensure_metadata_covers_app_keymaps(_APP_COMMAND_META)
 
 
 _ensure_metadata_covers_app_keymaps()
-
-
-# ---------------------------------------------------------------------------
-# Built-in mode metadata
-# ---------------------------------------------------------------------------
-#
-# label per command_id within each built-in mode. Tabs default to all
-# three; copy_mode subkeys are scoped per-tab by their nesting and have
-# their tabs derived in ``iter_mode_commands``.
-
-_FOLD_LABELS: dict[str, str] = {
-    "cycle_commits": "Cycle commits fold",
-    "cycle_hooks": "Cycle hooks fold",
-    "cycle_mentors": "Cycle mentors fold",
-    "cycle_timestamps": "Cycle timestamps fold",
-    "cycle_deltas": "Cycle deltas summary/files/lines",
-    "toggle_commits": "Toggle commits fold",
-    "toggle_hooks": "Toggle hooks fold",
-    "toggle_mentors": "Toggle mentors fold",
-    "toggle_timestamps": "Toggle timestamps fold",
-    "toggle_deltas": "Toggle deltas fold",
-    "cycle_all": "Cycle all folds",
-    "toggle_all": "Toggle all folds",
-}
-
-_COPY_LABELS: dict[str, dict[str, str]] = {
-    "changespecs": {
-        "raw": "Copy raw line",
-        "with_snapshot": "Copy line + snapshot",
-        "bug": "Copy bug id",
-        "cl_number": "Copy PR number",
-        "name": "Copy PR name",
-        "spec": "Copy spec text",
-        "snapshot": "Copy snapshot",
-    },
-    "agents": {
-        "chat": "Copy chat path",
-        "file_path": "Copy file path",
-        "name": "Copy agent name",
-        "prompt": "Copy prompt",
-        "snapshot": "Copy snapshot",
-    },
-    "axe": {
-        "visible": "Copy visible output",
-        "full": "Copy full output",
-        "snapshot": "Copy snapshot",
-    },
-}
-
-_LEADER_LABELS: dict[str, str] = {
-    "repeat_last": "Repeat last leader command",
-    "run_cmd": "Run background command",
-    "runners": "Show runners",
-    "revert_agent": "Revert agent commits across repos",
-    "kill_mentors": "Kill mentor workflows",
-    "review_mentors": "Review mentor results",
-    "agent_home": "Agent (home mode)",
-    "agent_from_cl": "Agent from PR (quick)",
-    "toggle_agent_panel_grouping": "Toggle agent panel grouping",
-    "jump_to_next_unread_done_agent": "Jump to next unread completed agent",
-    "jump_to_next_stopped_agent": "Jump to next stopped agent",
-    "full_history_refresh": "Refresh Agents from full history",
-    "mark_all_unread_done_agents_read": "Mark all unread completed agents read",
-    "kill_and_edit": "Kill agent and edit",
-    "mark_inactive_pinned": "Toggle pinned idle",
-    "activity_info": "Activity dashboard",
-    "clear_comments": "Clear PR comments",
-    "task_queue": "Task queue",
-    "prompt_history": "Prompt history",
-    "prompt_history_edit_first": "Edit first prompt history entry",
-    "prompt_history_cancelled": "Prompt history (cancelled)",
-    "agent_run_log": "Agent run log",
-    "jump_to_notification": "Jump to notification",
-    "projects": "Open project management panel",
-    "temporary_llm_override": "Model overrides",
-    "capture_agents_repro": "Capture Agents-tab repro bundle",
-    "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
-}
-
-_BANG_LABELS: dict[str, str] = {
-    "run_cmd": "Run command (bang)",
-    "toggle_axe": "Toggle AXE (bang)",
-}
-
-# Per-mode fallback tab scoping (refined per-command for copy_mode).
-_LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
-    "run_cmd": _CL_ONLY,
-    "kill_mentors": _CL_ONLY,
-    "review_mentors": _CL_ONLY,
-    "agent_run_log": _CL_ONLY,
-    "kill_and_edit": _AGENTS_ONLY,
-    "revert_agent": _AGENTS_ONLY,
-    "toggle_agent_panel_grouping": _AGENTS_ONLY,
-    "jump_to_next_unread_done_agent": _AGENTS_ONLY,
-    "jump_to_next_stopped_agent": _AGENTS_ONLY,
-    "full_history_refresh": _AGENTS_ONLY,
-    "mark_all_unread_done_agents_read": _AGENTS_ONLY,
-    "mark_inactive_pinned": _ALL_TABS,
-    "clear_comments": _CL_ONLY,
-    "jump_to_notification": _AGENTS_ONLY,
-    "agent_from_cl": _CL_AGENTS,
-    "capture_agents_repro": _AGENTS_ONLY,
-    "toggle_agents_repro_checks": _AGENTS_ONLY,
-}
-
-
-# ---------------------------------------------------------------------------
-# Builders
-# ---------------------------------------------------------------------------
-
-
-def _format_key_sequence(keys: tuple[str, ...]) -> str:
-    """Format a Textual key sequence for palette display.
-
-    Single keys go through ``key_display_name`` directly. Multi-key
-    sequences (mode prefix + subkey) are concatenated without a
-    separator when both are single chars (``%n``, ``,t``, ``zc``) and
-    space-joined otherwise to preserve readability (``Ctrl+D x``).
-    """
-    if not keys:
-        return ""
-    parts = [key_display_name(k) for k in keys]
-    if all(len(p) == 1 for p in parts):
-        return "".join(parts)
-    return " ".join(parts)
 
 
 def iter_app_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
@@ -508,157 +77,10 @@ def iter_digit_commands() -> Iterator[CommandSpec]:
             key_sequence=(key,),
             key_display=key,
             category="Saved Queries",
-            tabs=_ALL_TABS,
+            tabs=ALL_TABS,
             executor=CommandExecutor(kind="saved_query", digit=d),
             aliases=(f"q{d}", f"query {d}"),
         )
-
-
-def _iter_fold_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
-    fold = registry.fold_mode
-    prefix = fold.prefix
-    for command_id, subkey in fold.keys.items():
-        if not isinstance(subkey, str):
-            continue  # nested dicts not allowed in fold mode
-        label = _FOLD_LABELS.get(command_id, command_id.replace("_", " ").title())
-        seq = (prefix, subkey)
-        yield CommandSpec(
-            id=f"fold.{command_id}",
-            label=label,
-            key_sequence=seq,
-            key_display=_format_key_sequence(seq),
-            category="Fold",
-            tabs=_ALL_TABS,
-            executor=CommandExecutor(kind="fold_mode_key", subkey=subkey),
-            aliases=("fold", command_id),
-        )
-
-
-def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
-    copy = registry.copy_mode
-    prefix = copy.prefix
-    tab_to_command_tab: dict[str, CommandTab] = {
-        "changespecs": "changespecs",
-        "agents": "agents",
-        "axe": "axe",
-    }
-    for tab_name, sub in copy.keys.items():
-        if not isinstance(sub, dict):
-            continue
-        ctab = tab_to_command_tab.get(tab_name)
-        if ctab is None:
-            continue
-        labels = _COPY_LABELS.get(tab_name, {})
-        for command_id, subkey in sub.items():
-            if not isinstance(subkey, str):
-                continue
-            label = labels.get(command_id, command_id.replace("_", " ").title())
-            seq = (prefix, subkey)
-            yield CommandSpec(
-                id=f"copy.{tab_name}.{command_id}",
-                label=label,
-                key_sequence=seq,
-                key_display=_format_key_sequence(seq),
-                category="Copy",
-                tabs=(ctab,),
-                executor=CommandExecutor(
-                    kind="copy_mode_key", subkey=subkey, copy_tab=ctab
-                ),
-                aliases=("copy", command_id),
-            )
-
-
-def _iter_leader_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
-    leader = registry.leader_mode
-    prefix = leader.prefix
-    for command_id, subkey in leader.keys.items():
-        if not isinstance(subkey, str):
-            continue
-        label = _LEADER_LABELS.get(command_id, command_id.replace("_", " ").title())
-        tabs = _LEADER_TABS.get(command_id, _ALL_TABS)
-        seq = (prefix, subkey)
-        executor = (
-            CommandExecutor(kind="app_action", action="open_project_management_panel")
-            if command_id == "projects"
-            else CommandExecutor(kind="leader_mode_key", subkey=subkey)
-        )
-        aliases = (
-            ("leader", command_id, "project management")
-            if command_id == "projects"
-            else ("leader", command_id)
-        )
-        yield CommandSpec(
-            id=f"leader.{command_id}",
-            label=label,
-            key_sequence=seq,
-            key_display=_format_key_sequence(seq),
-            category="Leader",
-            tabs=tabs,
-            executor=executor,
-            aliases=aliases,
-        )
-
-
-def _iter_bang_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
-    bang = registry.bang_mode
-    prefix = bang.prefix
-    for command_id, subkey in bang.keys.items():
-        if not isinstance(subkey, str):
-            continue
-        label = _BANG_LABELS.get(command_id, command_id.replace("_", " ").title())
-        seq = (prefix, subkey)
-        yield CommandSpec(
-            id=f"bang.{command_id}",
-            label=label,
-            key_sequence=seq,
-            key_display=_format_key_sequence(seq),
-            category="Bang",
-            tabs=_ALL_TABS,
-            executor=CommandExecutor(kind="bang_mode_key", subkey=subkey),
-            aliases=("bang", command_id),
-        )
-
-
-def _iter_custom_mode_commands(
-    registry: KeymapRegistry,
-) -> Iterator[CommandSpec]:
-    for mode_name, mode in registry.modes.items():
-        if mode_name in BUILTIN_MODE_NAMES:
-            continue
-        if not mode.prefix:
-            continue
-        for command_id, payload in mode.keys.items():
-            if not isinstance(payload, dict):
-                continue
-            subkey = payload.get("key")
-            if not subkey:
-                continue
-            label = payload.get("description", command_id.replace("_", " ").title())
-            seq = (mode.prefix, subkey)
-            yield CommandSpec(
-                id=f"custom.{mode_name}.{command_id}",
-                label=label,
-                key_sequence=seq,
-                key_display=_format_key_sequence(seq),
-                category="Custom",
-                tabs=_ALL_TABS,
-                executor=CommandExecutor(
-                    kind="custom_mode_key",
-                    mode_name=mode_name,
-                    command_id=command_id,
-                    subkey=subkey,
-                ),
-                aliases=("custom", mode_name, command_id),
-            )
-
-
-def iter_mode_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
-    """Yield one CommandSpec for every mode subkey (built-in + custom)."""
-    yield from _iter_fold_commands(registry)
-    yield from _iter_copy_commands(registry)
-    yield from _iter_leader_commands(registry)
-    yield from _iter_bang_commands(registry)
-    yield from _iter_custom_mode_commands(registry)
 
 
 def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
@@ -666,7 +88,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
     order), then digit bindings, then mode commands (fold, copy,
-    leader, bang, custom — each in registry insertion order).
+    leader, bang, custom; each in registry insertion order).
     """
     catalog: list[CommandSpec] = []
     catalog.extend(iter_app_commands(registry))
