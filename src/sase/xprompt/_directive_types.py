@@ -39,8 +39,9 @@ AUTO_MODES_ORDERED: tuple[str, ...] = ("plan", "tale", "epic")
 AUTO_MODES: frozenset[str] = frozenset(AUTO_MODES_ORDERED)
 
 # Removed directive spellings that should raise targeted migration errors when
-# they reach the runtime parser. ``%edit`` (and its ``%e`` alias) became an
-# editor-only ` @` review marker; see ``strip_editor_review_markers``.
+# they reach the runtime parser. ``%edit`` became an editor-only ` @` review
+# marker; see ``strip_editor_review_markers``. ``%e`` is no longer an ``%edit``
+# alias — it now resolves to ``%effort`` (see ``_DIRECTIVE_ALIASES`` below).
 _DEPRECATED_DIRECTIVE_MESSAGES: dict[str, str] = {
     "time": (
         "The '%time' directive has been removed; use #t:<time> "
@@ -55,13 +56,13 @@ _DEPRECATED_DIRECTIVES = frozenset(_DEPRECATED_DIRECTIVE_MESSAGES)
 
 # Short aliases for directives (alias -> canonical name). ``%auto`` is the
 # unified plan auto-approval directive; ``%a`` is its advertised alias. ``%e``
-# still resolves to the removed ``edit`` directive so the runtime parser can
-# raise a targeted migration error rather than silently launching an old
-# editor buffer; it is no longer surfaced in completion (``%e`` narrows to
-# ``%effort`` there).
+# is the advertised alias for ``%effort``: it sets ``reasoning_effort`` exactly
+# like ``%effort`` and is canonicalized to ``effort`` for duplicate/conflict
+# validation, prompt cleanup, and completion. (``%edit`` remains the migration
+# surface for old editor buffers; it is still in ``_DEPRECATED_DIRECTIVES``.)
 _DIRECTIVE_ALIASES: dict[str, str] = {
     "a": "auto",
-    "e": "edit",
+    "e": "effort",
     "g": "group",
     "h": "hide",
     "m": "model",

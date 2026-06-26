@@ -20,6 +20,13 @@ def test_directive_arg_extraction_detects_empty_partial_and_alias() -> None:
         "auto",
         "",
     )
+    # %e is the %effort alias, so %e: classifies as the canonical effort context.
+    assert extract_directive_arg_token_around_cursor("%e:xh", len("%e:xh")) == (
+        3,
+        len("%e:xh"),
+        "effort",
+        "xh",
+    )
 
 
 def test_directive_arg_extraction_returns_partial_span() -> None:

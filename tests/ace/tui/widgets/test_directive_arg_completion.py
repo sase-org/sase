@@ -39,6 +39,16 @@ def test_directive_arg_completion_builds_fixed_value_candidates() -> None:
     assert auto_shared == ""
 
 
+def test_directive_arg_completion_accepts_effort_e_alias() -> None:
+    """``%e:`` offers the canonical effort vocabulary, same as ``%effort:``."""
+    e_candidates, e_shared = build_directive_arg_completion_candidates("e", "")
+
+    assert [candidate.insertion for candidate in e_candidates] == list(
+        EFFORT_LEVELS_ORDERED
+    )
+    assert e_shared == ""
+
+
 def test_directive_arg_completion_filters_case_insensitive_prefixes() -> None:
     effort_candidates, _ = build_directive_arg_completion_candidates("effort", "h")
     auto_candidates, _ = build_directive_arg_completion_candidates("auto", "t")

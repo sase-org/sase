@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 07:49:00
-status: wip
+status: done
 prompt: sdd/prompts/202606/effort_alias.md
 ---
 # Plan: make `%e` an alias for `%effort`

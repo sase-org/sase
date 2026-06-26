@@ -93,9 +93,9 @@ def test_removed_auto_approval_directives_are_unknown(token: str) -> None:
     assert directives.auto_mode is None
 
 
-def test_e_alias_raises_removed_edit_migration_error() -> None:
-    """%e still resolves to the removed %edit directive and raises a hint."""
-    with pytest.raises(DirectiveError, match=r"%edit.*has been removed.* @"):
+def test_e_alias_resolves_to_effort_not_removed_edit() -> None:
+    """%e is now the %effort alias, so bare %e asks for a level (not %edit)."""
+    with pytest.raises(DirectiveError, match="requires a level argument"):
         extract_prompt_directives("%e\nDo the work")
 
 
@@ -158,10 +158,10 @@ def test_edit_directive_removed_raises_migration_hint() -> None:
         extract_prompt_directives("%edit\nDo the work")
 
 
-def test_edit_alias_removed_raises_migration_hint() -> None:
-    """%e resolves to the removed %edit directive and raises the same hint."""
-    with pytest.raises(DirectiveError, match=r"%edit.*has been removed.* @"):
-        extract_prompt_directives("%e\nDo the work")
+def test_edit_alias_e_no_longer_maps_to_edit() -> None:
+    """%e is the %effort alias now, so %e:<level> sets effort instead of %edit."""
+    _, directives = extract_prompt_directives("%e:high\nDo the work")
+    assert directives.reasoning_effort == "high"
 
 
 def test_edit_inside_fenced_block_ignored() -> None:

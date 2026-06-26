@@ -135,11 +135,19 @@ def test_directive_completion_returns_multi_match_without_false_shared_prefix() 
 
 
 def test_e_prefix_completes_only_effort() -> None:
-    """``%edit`` was removed, so a leading ``%e`` narrows straight to ``%effort``."""
+    """``%e`` is the advertised ``%effort`` alias, so it narrows to ``%effort``."""
     candidates, shared = build_directive_completion_candidates("%e")
 
     assert [candidate.insertion for candidate in candidates] == ["%effort"]
     assert shared == ""
+
+
+def test_effort_completion_advertises_e_alias() -> None:
+    """``%effort`` metadata advertises ``%e`` as its alias."""
+    effort, _ = single_directive_candidate("%eff")
+
+    assert effort.insertion == "%effort"
+    assert directive_metadata(effort).aliases == ("e",)
 
 
 def test_directive_token_extraction_rejects_non_directive_percent_positions() -> None:

@@ -109,11 +109,36 @@ def test_no_effort_directive_defaults_none() -> None:
     assert directives.reasoning_effort is None
 
 
-def test_effort_directive_no_e_alias() -> None:
-    """``%e`` is not an %effort alias; it resolves to the removed %edit directive."""
-    # %e -> %edit (removed) raises a migration hint rather than setting effort.
-    with pytest.raises(DirectiveError, match=r"%edit.*has been removed.* @"):
-        extract_prompt_directives("%e:something\nReview")
+def test_effort_directive_e_alias_colon_arg() -> None:
+    """``%e`` is the advertised alias for ``%effort`` and sets the effort level."""
+    cleaned, directives = extract_prompt_directives("%e:xhigh\nReview this code")
+    assert cleaned == "Review this code"
+    assert directives.reasoning_effort == "xhigh"
+    assert directives.model is None
+
+
+def test_effort_directive_e_alias_paren_arg() -> None:
+    """``%e(<level>)`` works exactly like ``%effort(<level>)``."""
+    _, directives = extract_prompt_directives("%e(high)\nReview")
+    assert directives.reasoning_effort == "high"
+
+
+def test_effort_directive_e_alias_bare_requires_level() -> None:
+    """Bare ``%e`` raises the canonical effort message, not the removed-%edit one."""
+    with pytest.raises(DirectiveError, match="requires a level argument"):
+        extract_prompt_directives("%e\nReview")
+
+
+def test_duplicate_effort_e_alias_reports_canonical_directive() -> None:
+    """``%e:low`` + ``%effort:high`` are both the canonical ``%effort`` directive."""
+    with pytest.raises(DirectiveError, match="Duplicate directive '%effort'"):
+        extract_prompt_directives("%e:low\n%effort:high\nReview")
+
+
+def test_effort_e_alias_conflicts_with_model_suffix() -> None:
+    """``%e`` participates in the canonical ``%effort`` conflict check."""
+    with pytest.raises(DirectiveError, match="Conflicting effort levels"):
+        extract_prompt_directives("%model:opus@low\n%e:xhigh\nReview")
 
 
 def test_effort_directive_unknown_level_raises() -> None:
@@ -205,8 +230,24 @@ def test_clean_prompt_preview_strips_effort() -> None:
     assert clean_prompt_preview("%effort:xhigh\nReview the diff") == "Review the diff"
 
 
+def test_strip_known_directives_removes_e_alias() -> None:
+    result = strip_known_directives("%e:xhigh Do the thing")
+    assert "%e" not in result
+    assert result.strip() == "Do the thing"
+
+
+def test_clean_prompt_preview_strips_e_alias() -> None:
+    assert clean_prompt_preview("%e:xhigh\nReview the diff") == "Review the diff"
+
+
 def test_preview_directive_tokens_include_effort() -> None:
     summary = summarize_prompt_for_preview("%effort:xhigh\nReview")
+    assert "%effort:xhigh" in summary.directives
+
+
+def test_preview_directive_tokens_summarize_e_alias_as_effort() -> None:
+    """A ``%e:`` span is summarized under the canonical ``%effort`` name."""
+    summary = summarize_prompt_for_preview("%e:xhigh\nReview")
     assert "%effort:xhigh" in summary.directives
 
 

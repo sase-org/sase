@@ -87,6 +87,16 @@ def test_summarize_prompt_for_preview_preserves_verbose_metadata() -> None:
     assert summary.directives == ("%model:opus",)
 
 
+def test_effort_e_alias_is_summarized_as_effort() -> None:
+    """A ``%e:`` span is recognized as the canonical ``%effort`` directive."""
+    preview = summarize_prompt_for_preview("%e:xhigh\nReview the diff")
+    assert preview.directives == ("%effort:xhigh",)
+
+    list_summary = summarize_prompt_for_list("%e:xhigh Review the diff")
+    assert list_summary.directive_token == "%e"
+    assert list_summary.clean_preview == "Review the diff"
+
+
 def test_auto_directive_is_summarized() -> None:
     """%auto is summarized as directive metadata."""
     summary = summarize_prompt_for_preview(

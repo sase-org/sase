@@ -969,7 +969,7 @@ the prompt before further processing.
 | Directive | Alias | Description                                                      |
 | --------- | ----- | ---------------------------------------------------------------- |
 | `%model`  | `%m`  | Override the LLM model for this prompt                           |
-| `%effort` |       | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
+| `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
 | `%name`   | `%n`  | Assign, auto-generate, or force-reuse an agent name              |
 | `%wait`   | `%w`  | Wait for another agent/workflow and/or a time floor              |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display               |
@@ -990,6 +990,7 @@ Directives use the same argument syntax as xprompt references:
 %model:agy/flash35h          # Provider/model syntax for Antigravity (agy)
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %effort:xhigh                # Set the reasoning-effort level for this prompt
+%e:xhigh                     # Same, using alias
 %effort:%{medium | high | xhigh} # Fan out directive values
 %model:opus@xhigh            # Model + reasoning-effort suffix (alias: %m:opus@xhigh)
 %{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
@@ -1113,11 +1114,14 @@ will wait for the "planner" agent to complete successfully before running.
 
 ### Effort Directive
 
-The `%effort` directive sets the reasoning-effort level the agent's LLM provider should run at. There is no `%e` alias;
-`%effort` is the only `%e…` directive, so typing `%e` narrows straight to it.
+The `%effort` directive (alias `%e`) sets the reasoning-effort level the agent's LLM provider should run at.
+`%e:<level>` and `%e(<level>)` behave exactly like the `%effort` forms, and both resolve to the canonical `effort`
+directive for duplicate/conflict validation and prompt cleanup. Bare `%e` (no level) raises the same "requires a level
+argument" error as bare `%effort`.
 
 ```
 %effort:xhigh
+%e:xhigh         # same, using alias
 %name:reviewer
 Audit this module for subtle concurrency bugs.
 ```
@@ -1209,8 +1213,8 @@ Refactor the parser module to use dataclasses. @
 
 This is an editor-return syntax, not a runtime directive — it is only recognized in text handed back from the external
 editor. Typing ` @` directly in the prompt bar and submitting has no special behavior, and the marker carries no meaning
-in CLI, mobile, or workflow execution. Submitting a leftover `%edit` / `%e` from an old buffer raises a `DirectiveError`
-pointing here rather than silently launching.
+in CLI, mobile, or workflow execution. Submitting a leftover `%edit` from an old buffer raises a `DirectiveError`
+pointing here rather than silently launching. (`%e` is no longer an `%edit` alias — it is now the `%effort` alias.)
 
 When at least one line ends with ` @`, the marker is stripped from every matching line and the cleaned text is loaded
 back into the prompt input bar; the agent is not launched until you press Enter there. The returned text loads with
