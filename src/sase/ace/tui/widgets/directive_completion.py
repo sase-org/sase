@@ -376,6 +376,8 @@ def _extract_wait_colon_arg_token(
     colon_index: int,
 ) -> tuple[int, int, str, str] | None:
     value_start = colon_index + 1
+    if not _is_valid_wait_argument_prefix(line[value_start:col]):
+        return None
     fragment_start = line.rfind(",", value_start, col) + 1
     if fragment_start <= 0:
         fragment_start = value_start
@@ -404,6 +406,8 @@ def _extract_wait_paren_arg_token(
 ) -> tuple[int, int, str, str] | None:
     value_start = open_index + 1
     if ")" in line[value_start:col]:
+        return None
+    if not _is_valid_wait_argument_prefix(line[value_start:col]):
         return None
 
     fragment_start = line.rfind(",", value_start, col) + 1
@@ -465,6 +469,22 @@ def _is_model_directive_argument_identifier(char: str) -> bool:
 
 def _is_wait_directive_argument_identifier(char: str) -> bool:
     return _is_directive_identifier(char) or char in "-.="
+
+
+def _is_valid_wait_argument_prefix(prefix: str) -> bool:
+    """Return True when prefix is a well-formed (possibly partial) wait list.
+
+    Each comma-separated segment may carry surrounding whitespace but must
+    otherwise contain only wait-argument identifier characters. Prose with
+    internal spaces before the active fragment is therefore rejected, so a
+    later prose comma cannot masquerade as a new comma-separated wait argument.
+    """
+    for segment in prefix.split(","):
+        if any(
+            not _is_wait_directive_argument_identifier(char) for char in segment.strip()
+        ):
+            return False
+    return True
 
 
 def _directive_argument_predicate(directive_name: str) -> Callable[[str], bool]:

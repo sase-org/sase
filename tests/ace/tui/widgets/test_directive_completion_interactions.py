@@ -249,6 +249,40 @@ async def test_wait_arg_completion_replaces_only_active_fragment() -> None:
     assert ta._file_completion_active is False
 
 
+async def test_prose_comma_after_wait_directive_does_not_reopen_panel() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        agent_candidate("coder")
+    ]
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%w:coder some prose")
+        ta.cursor_location = (0, len("%w:coder some prose"))
+
+        await pilot.press(",")
+
+        assert ta.text == "%w:coder some prose,"
+        assert ta._file_completion_active is False
+
+
+async def test_real_comma_after_wait_agent_reopens_panel() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        agent_candidate("coder"),
+        agent_candidate("planner"),
+    ]
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%w:coder")
+        ta.cursor_location = (0, len("%w:coder"))
+
+        await pilot.press(",")
+
+        assert ta.text == "%w:coder,"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "directive_arg"
+
+
 async def test_wait_paren_completion_preserves_later_arguments() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]

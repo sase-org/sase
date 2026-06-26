@@ -88,6 +88,32 @@ def test_wait_arg_extraction_supports_paren_form_and_time_fragment() -> None:
     )
 
 
+def test_wait_arg_extraction_rejects_prose_comma_after_directive() -> None:
+    # A line that begins with a valid wait directive then continues with normal
+    # prose must not treat a later prose comma as a new wait argument fragment.
+    line = "%w:sase-59 Can you help me get rid of the ,"
+    assert extract_directive_arg_token_around_cursor(line, len(line)) is None
+
+    paren_line = "%wait(sase-59 fix the bug ,"
+    assert (
+        extract_directive_arg_token_around_cursor(paren_line, len(paren_line)) is None
+    )
+
+
+def test_wait_arg_extraction_keeps_valid_comma_fragments() -> None:
+    # Valid comma-separated wait fragments must continue to extract, including a
+    # trailing comma that begins a fresh (empty) agent fragment.
+    for line, expected_partial in (
+        ("%wait:planner, co", "co"),
+        ("%wait:planner,", ""),
+        ("%wait(planner, co, time=5m", "time=5m"),
+    ):
+        result = extract_directive_arg_token_around_cursor(line, len(line))
+        assert result is not None
+        assert result[2] == "wait"
+        assert result[3] == expected_partial
+
+
 def test_directive_arg_extraction_redirects_model_at_suffix_to_effort() -> None:
     assert extract_directive_arg_token_around_cursor(
         "%model:opus@",
