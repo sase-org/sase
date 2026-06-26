@@ -90,9 +90,11 @@ instant and never make a surprise network call:
 - The cache lives at `~/.sase/plugins/catalog_cache.json` and is written atomically. The first run fetches and writes
   it; later runs read it and only touch the network when `-r|--refresh` is passed. A cache older than the soft staleness
   threshold is still used, but the footer warns more loudly.
-- If `gh` is missing, unauthenticated, or the call fails, SASE falls back to the existing cache with a loud "stale
-  cached data" warning, or — when there is no cache — prints the same actionable `gh` install / `gh auth login` hint
-  that `sase doctor` uses. This mirrors `src/sase/doctor/checks_plugins.py`.
+- If `gh` runs but the call fails (network error, non-zero exit, or an unauthenticated/auth error), SASE falls back to
+  the existing cache with a loud "stale cached data" warning, or — when there is no cache — re-raises the error.
+- A missing `gh` (not on `PATH`) is always a hard error, even when a cache exists: SASE never silently serves stale data
+  while the CLI it needs is absent, and instead prints the same actionable `gh` install / `gh auth login` hint that
+  `sase doctor` uses. This mirrors `src/sase/doctor/checks_plugins.py`.
 
 ### Related plugin diagnostics
 

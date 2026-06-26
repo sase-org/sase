@@ -52,11 +52,11 @@ class GhNotFoundError(PluginCatalogError):
         )
 
 
-class GhCommandError(PluginCatalogError):
+class _GhCommandError(PluginCatalogError):
     """The ``gh`` CLI ran but failed (non-zero, timeout, or OS error)."""
 
 
-class CatalogParseError(PluginCatalogError):
+class _CatalogParseError(PluginCatalogError):
     """The ``gh`` output could not be parsed into catalog entries."""
 
 
@@ -69,8 +69,8 @@ def fetch_catalog_payload(
     """Fetch the live plugin catalog from GitHub and return entry payloads.
 
     Returns a list of canonical entry ``dict``s (see :func:`_entry_payload`).
-    Raises :class:`GhNotFoundError` when ``gh`` is missing, :class:`GhCommandError`
-    when the call fails, and :class:`CatalogParseError` when the output cannot be
+    Raises :class:`GhNotFoundError` when ``gh`` is missing, :class:`_GhCommandError`
+    when the call fails, and :class:`_CatalogParseError` when the output cannot be
     parsed.
     """
     if which_fn("gh") is None:
@@ -84,18 +84,18 @@ def fetch_catalog_payload(
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        raise GhCommandError(
+        raise _GhCommandError(
             f"`gh api` timed out after {timeout:g}s while fetching the plugin catalog."
         ) from exc
     except (OSError, subprocess.SubprocessError) as exc:
-        raise GhCommandError(
+        raise _GhCommandError(
             f"`gh api` could not be run: {type(exc).__name__}: {exc}"
         ) from exc
 
     if result.returncode != 0:
         detail = _first_nonempty_line(result.stderr, result.stdout)
         suffix = f": {detail}" if detail else ""
-        raise GhCommandError(
+        raise _GhCommandError(
             "`gh api` failed while fetching the plugin catalog"
             f" (exit {result.returncode}){suffix}. {_GH_INSTALL_HINT}"
         )
@@ -126,7 +126,7 @@ def _parse_search_items(stdout: str) -> list[dict[str, Any]]:
         try:
             value, end = decoder.raw_decode(text, index)
         except json.JSONDecodeError as exc:
-            raise CatalogParseError(
+            raise _CatalogParseError(
                 f"could not parse `gh api` output as JSON: {exc}"
             ) from exc
         index = end
@@ -218,8 +218,6 @@ def _first_nonempty_line(*texts: str) -> str | None:
 __all__ = [
     "GH_SEARCH_QUERY",
     "GH_TIMEOUT_SECONDS",
-    "CatalogParseError",
-    "GhCommandError",
     "GhNotFoundError",
     "PluginCatalogError",
     "fetch_catalog_payload",

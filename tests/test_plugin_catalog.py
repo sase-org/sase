@@ -14,7 +14,7 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
     suggest_plugins,
 )
-from sase.plugins.github_source import GhCommandError, GhNotFoundError
+from sase.plugins.github_source import _GhCommandError, GhNotFoundError
 from sase.plugins.installed import InstalledInfo
 
 
@@ -174,7 +174,7 @@ def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
     )
 
     def _fail() -> list[dict[str, Any]]:
-        raise GhCommandError("HTTP 401: Bad credentials")
+        raise _GhCommandError("HTTP 401: Bad credentials")
 
     catalog = _load([], refresh=True, cached=cached, fetch_fn=_fail)
 
@@ -185,9 +185,9 @@ def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
 
 def test_gh_command_error_without_cache_raises() -> None:
     def _fail() -> list[dict[str, Any]]:
-        raise GhCommandError("boom")
+        raise _GhCommandError("boom")
 
-    with pytest.raises(GhCommandError):
+    with pytest.raises(_GhCommandError):
         _load([], refresh=True, cached=None, fetch_fn=_fail)
 
 
