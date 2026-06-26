@@ -1,15 +1,21 @@
-"""Widget-level tests for the Config Center Plugins tab (Phase 2).
+"""Widget-level tests for the Config Center Plugins tab (Phases 2 & 3).
 
-These cover the worker-backed catalog load populating the grouped list, the
-loading→populated transition, the live filter, and the empty / error states.
-The catalog backend is patched with a deterministic fixture so no real
-``gh`` / network / cache is touched. The sibling Settings and XPrompts panes
-are also stubbed so opening the modal stays cheap and deterministic.
+Phase 2 cases cover the worker-backed catalog load populating the grouped
+list, the loading→populated transition, the live filter, and the empty /
+error states. Phase 3 cases cover the ``show``-equivalent detail panel
+following the highlighted row (including the community warning), the offline
+badge / reload, the verbose row columns, and the refresh reload. The catalog
+backend is patched with a deterministic fixture so no real ``gh`` / network /
+cache is touched. The sibling Settings and XPrompts panes are also stubbed so
+opening the modal stays cheap and deterministic.
 """
 
 from __future__ import annotations
 
+import io
+
 import pytest
+from rich.console import Console
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
@@ -96,6 +102,29 @@ def _patch_catalog(
 ) -> None:
     result = pbp._PluginsLoadResult(catalog=catalog, error=error, now=_NOW)
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
+
+
+def _patch_catalog_recording(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    catalog: PluginCatalog | None = None,
+) -> list[dict[str, object]]:
+    """Patch the loader and return a list that records each call's kwargs."""
+    calls: list[dict[str, object]] = []
+    result = pbp._PluginsLoadResult(catalog=catalog, error=None, now=_NOW)
+
+    def _fake(**kwargs: object) -> pbp._PluginsLoadResult:
+        calls.append(kwargs)
+        return result
+
+    monkeypatch.setattr(pbp, "_load_plugins_catalog", _fake)
+    return calls
+
+
+def _render(renderable: object) -> str:
+    console = Console(file=io.StringIO(), width=120, no_color=True)
+    console.print(renderable)
+    return console.file.getvalue()  # type: ignore[attr-defined]
 
 
 def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -276,3 +305,107 @@ async def test_config_center_cycles_three_tabs(
         # Wrapping backwards lands on the new Plugins tab between the two.
         modal.action_prev_center_tab()
         assert modal._active_tab == "xprompts"
+
+
+# --- Phase 3: detail panel + refresh / offline / verbose -------------------
+
+
+async def test_plugins_pane_detail_follows_highlight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        # The first non-header row (github, built-in) is shown on load.
+        assert pane._detail_name == "github"
+        entry = pane._entry_by_name("github")
+        assert entry is not None
+        text = _render(pane._detail_renderable(entry))
+        assert "github" in text
+        assert "BUILT-IN" in text
+        assert "GitHub VCS" in text
+
+
+async def test_plugins_pane_detail_shows_community_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        # Navigate down to the lone community plugin (acme).
+        pane.action_next_option()
+        pane.action_next_option()
+        pane.action_next_option()
+        await page.wait_for(lambda _s: pane._detail_name == "acme")
+        entry = pane._entry_by_name("acme")
+        assert entry is not None
+        assert entry.is_community
+        text = _render(pane._detail_renderable(entry))
+        assert "COMMUNITY" in text
+        assert "acme-corp" in text
+
+
+async def test_plugins_pane_offline_toggle_reloads_and_badges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert calls[-1].get("offline") is False
+        pane.action_toggle_offline()
+        await page.wait_for(lambda _s: not pane._loading and pane._offline)
+        # The reload was issued in offline mode and the header badges it.
+        assert calls[-1].get("offline") is True
+        assert "OFFLINE" in pane._summary_text()
+        assert "(on)" in pane._hints()
+
+
+async def test_plugins_pane_verbose_toggle_adds_columns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert not any("★" in label for label in _option_labels(pane))
+        pane.action_toggle_verbose()
+        await page.wait_for(
+            lambda _s: any("★" in label for label in _option_labels(pane))
+        )
+        labels = _option_labels(pane)
+        github_row = next(label for label in labels if "github" in label)
+        assert "★" in github_row
+        assert "2026-06-01" in github_row
+
+
+async def test_plugins_pane_refresh_forces_reload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        # The initial cache-first load does not force a network refresh.
+        assert calls[-1].get("refresh") is False
+        pane.action_refresh()
+        await page.wait_for(lambda _s: not pane._loading and len(calls) >= 2)
+        assert calls[-1].get("refresh") is True
+
+
+async def test_plugins_pane_stale_cache_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    stale = PluginCatalog(
+        fetched_at=_NOW - 10_000,
+        entries=_catalog().entries,
+        from_cache=True,
+        stale=True,
+    )
+    _patch_catalog(monkeypatch, catalog=stale)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        assert "stale" in pane._summary_text().plain

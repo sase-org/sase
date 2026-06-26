@@ -2,20 +2,30 @@
 
 This widget hosts the **Plugins** tab of :class:`ConfigCenterModal`: a
 master/detail layout (mirroring the XPrompts tab) that brings the
-``sase plugin list`` experience into the TUI. Phase 2 builds the read-only
-list browse — a header summary line, a filter input, a grouped
-``OptionList`` split into Built-in / Community sections with CLI-matching
-status glyphs, and a placeholder detail panel. The catalog loads
-cache-first off the event loop (``run_worker(thread=True)``) so a slow
-``gh`` / network call never blocks the UI; loading, empty, and error states
-are surfaced in place.
+``sase plugin list`` *and* ``sase plugin show`` experience into the TUI.
+Phase 2 built the read-only list browse — a header summary line, a filter
+input, a grouped ``OptionList`` split into Built-in / Community sections
+with CLI-matching status glyphs. Phase 3 fills in the right-hand detail
+panel and the read-side affordances:
 
-The ``show``-equivalent detail panel and the refresh / offline / verbose
-affordances arrive in later phases. This pane intentionally reuses the same
-single source of truth as the CLI
-(:func:`sase.plugins.catalog.load_plugin_catalog` plus
-:func:`sase.plugins.latest.enrich_with_latest`) so the TUI list and
-``sase plugin list`` never drift.
+- the ``show``-equivalent detail panel, built from the promoted, console-free
+  Rich renderables (:func:`sase.plugins.render.build_detail_panel` and
+  :func:`~sase.plugins.render.build_community_warning_panel`) so the TUI and
+  ``sase plugin show`` are visually identical. The detail follows the
+  highlighted row, debounced (:class:`DetailPanelDebouncer`) so a held
+  ``j``/``k`` paints exactly one final detail while the highlight stays
+  instant;
+- ``r`` refresh (refetch catalog + latest versions), ``o`` offline toggle
+  (with a header badge), and ``v`` verbose toggle (stars / updated columns on
+  the list rows; the detail panel always shows the full metadata);
+- live header summary counts plus a warnings / stale-cache hint.
+
+The catalog loads cache-first off the event loop (``run_worker(thread=True)``)
+so a slow ``gh`` / network call never blocks the UI; loading, empty, and error
+states are surfaced in place. This pane intentionally reuses the same single
+source of truth as the CLI (:func:`sase.plugins.catalog.load_plugin_catalog`,
+:func:`sase.plugins.latest.enrich_with_latest`, and the promoted renderables)
+so the TUI and the CLI never drift.
 """
 
 from __future__ import annotations
@@ -24,6 +34,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from rich.console import Group, RenderableType
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -32,6 +43,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plugins.catalog import (
     PluginCatalog,
     PluginCatalogEntry,
@@ -39,6 +51,7 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
 )
 from sase.plugins.latest import enrich_with_latest
+from sase.plugins.render import build_community_warning_panel, build_detail_panel
 from sase.plugins.render_common import (
     _AVAILABLE_GLYPH,
     _COMMUNITY_STYLE,
@@ -47,7 +60,7 @@ from sase.plugins.render_common import (
     humanize_age,
 )
 
-#: Right-panel placeholder until the detail view lands (Phase 3).
+#: Right-panel placeholder shown until a plugin row is highlighted.
 _DETAIL_PLACEHOLDER = "Select a plugin to view its details."
 
 _BUILTIN_GROUP = "Built-in"
@@ -132,6 +145,9 @@ class PluginsBrowserPane(Vertical):
     BINDINGS = [
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
+        ("r", "refresh", "Refresh"),
+        ("o", "toggle_offline", "Offline"),
+        ("v", "toggle_verbose", "Verbose"),
         ("slash", "focus_filter", "Filter"),
     ]
 
@@ -143,8 +159,17 @@ class PluginsBrowserPane(Vertical):
         self._loading = auto_load
         self._now = time.time()
         self._filter_text = ""
+        self._offline = False
+        self._verbose = False
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
         self._worker: Worker[Any] | None = None
+        #: Debounces the (cheap-but-not-free) detail rebuild so a held j/k
+        #: paints exactly one final detail; created on mount once an app exists.
+        self._detail_debouncer: DetailPanelDebouncer | None = None
+        #: Name of the plugin currently shown in the detail panel (dedup guard).
+        self._detail_name: str | None = None
+        #: Plugin to re-highlight after the next reload (selection preservation).
+        self._restore_name: str | None = None
 
     # -- composition --
 
@@ -163,6 +188,7 @@ class PluginsBrowserPane(Vertical):
         yield Static(self._hints(), id="plugins-hints", markup=False)
 
     def on_mount(self) -> None:
+        self._detail_debouncer = DetailPanelDebouncer(self.app)
         self._sync_state_visibility()
         if self._auto_load:
             self._start_load(force=False)
@@ -178,12 +204,17 @@ class PluginsBrowserPane(Vertical):
     def _start_load(self, *, force: bool) -> None:
         self._loading = True
         self._error = None
+        # Re-highlight whatever is selected now once the reload lands so a
+        # refresh / offline toggle doesn't snap the user back to the top.
+        self._restore_name = self._highlighted_name()
         self._sync_state_visibility()
         self._update_static("#plugins-summary", self._summary_text())
+        self._update_static("#plugins-hints", self._hints())
         refresh = force
+        offline = self._offline
 
         def task() -> _PluginsLoadResult:
-            return _load_plugins_catalog(refresh=refresh)
+            return _load_plugins_catalog(refresh=refresh, offline=offline)
 
         self._worker = self.run_worker(task, thread=True, exclusive=True)
 
@@ -212,6 +243,9 @@ class PluginsBrowserPane(Vertical):
         self._update_static("#plugins-hints", self._hints())
         self._rebuild_options()
         self._sync_state_visibility()
+        # A fresh load may have changed the highlighted plugin's data (e.g. a
+        # new latest version), so force the detail to repaint immediately.
+        self._render_detail_now(force=True)
 
     def _rebuild_groups(self) -> None:
         self._grouped = []
@@ -242,9 +276,13 @@ class PluginsBrowserPane(Vertical):
         option_list = self._option_list()
         if option_list is None:
             return
+        preferred = self._restore_name
+        self._restore_name = None
         option_list.clear_options()
         for opt in self._create_options():
             option_list.add_option(opt)
+        if preferred is not None and self._highlight_named(option_list, preferred):
+            return
         self._skip_to_first_item(option_list)
 
     def _create_options(self) -> list[Option]:
@@ -276,6 +314,12 @@ class PluginsBrowserPane(Vertical):
         if entry.update_available:
             text.append("  ")
             text.append(_UPDATE_GLYPH, style="bold cyan")
+        if self._verbose:
+            text.append("  ")
+            text.append(f"★{entry.stars}", style="dim")
+            if entry.updated_at:
+                text.append("  ")
+                text.append(entry.updated_at, style="dim")
         return text
 
     @staticmethod
@@ -302,10 +346,103 @@ class PluginsBrowserPane(Vertical):
                 option_list.highlighted = index
                 return
 
+    def _highlight_named(self, option_list: OptionList, name: str) -> bool:
+        """Highlight the row for *name* if it is present; return success."""
+        target = f"{_ITEM_PREFIX}{name}"
+        for index in range(option_list.option_count):
+            opt = option_list.get_option_at_index(index)
+            if opt.id == target:
+                option_list.highlighted = index
+                return True
+        return False
+
+    # -- detail panel --
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        """Repaint the detail panel for the newly highlighted row (debounced).
+
+        The cursor highlight is already instant (the ``OptionList`` paints it
+        itself); only the comparatively expensive detail rebuild is funneled
+        through the debouncer so a held j/k collapses to one final paint.
+        """
+        self._schedule_detail()
+
+    def _schedule_detail(self) -> None:
+        debouncer = self._detail_debouncer
+        if debouncer is None:
+            self._render_detail_now()
+            return
+        debouncer.schedule(self._render_detail_now)
+
+    def _render_detail_now(self, *, force: bool = False) -> None:
+        """Paint the detail panel for the currently highlighted plugin.
+
+        Re-reads the live highlight (so the latest selection wins after a
+        debounced burst) and skips redundant work when the same plugin is
+        already shown, unless *force* is set (used after a reload whose data
+        may have changed under an unchanged selection).
+        """
+        entry = self._current_entry()
+        name = entry.name if entry is not None else None
+        if not force and name == self._detail_name:
+            return
+        self._detail_name = name
+        self._update_detail(entry)
+
+    def _update_detail(self, entry: PluginCatalogEntry | None) -> None:
+        detail = self._detail_widget()
+        if detail is None:
+            return
+        if entry is None:
+            detail.update(_DETAIL_PLACEHOLDER)
+            return
+        detail.update(self._detail_renderable(entry))
+
+    @staticmethod
+    def _detail_renderable(entry: PluginCatalogEntry) -> RenderableType:
+        """The ``show``-equivalent detail: community warning (if any) + panel."""
+        parts: list[RenderableType] = []
+        if entry.is_community:
+            parts.append(build_community_warning_panel(entry))
+        parts.append(build_detail_panel(entry))
+        return Group(*parts)
+
+    def _current_entry(self) -> PluginCatalogEntry | None:
+        option_list = self._option_list()
+        if option_list is None or option_list.highlighted is None:
+            return None
+        try:
+            opt = option_list.get_option_at_index(option_list.highlighted)
+        except Exception:
+            return None
+        if not opt.id or str(opt.id).startswith(_HEADER_PREFIX):
+            return None
+        return self._entry_by_name(str(opt.id).removeprefix(_ITEM_PREFIX))
+
+    def _entry_by_name(self, name: str) -> PluginCatalogEntry | None:
+        for _, _, entries in self._grouped:
+            for entry in entries:
+                if entry.name == name:
+                    return entry
+        return None
+
+    def _highlighted_name(self) -> str | None:
+        entry = self._current_entry()
+        return entry.name if entry is not None else None
+
     # -- state visibility --
 
     def _sync_state_visibility(self) -> None:
-        """Show the list when populated, else the status placeholder."""
+        """Show the list when populated, else the status placeholder.
+
+        A *reload* (refresh / offline toggle) keeps the already-painted rows
+        visible — the header reports "loading…" instead — so the list never
+        flashes away and the focused highlight is preserved. The status
+        placeholder is reserved for the initial load, the error state, and the
+        genuinely empty / no-match cases.
+        """
         has_rows = any(entries for _, _, entries in self._grouped)
         try:
             status = self.query_one("#plugins-status", Static)
@@ -313,13 +450,26 @@ class PluginsBrowserPane(Vertical):
         except Exception:
             return
         status.update(self._status_message())
-        show_status = self._loading or self._error is not None or not has_rows
+        show_status = self._error is not None or not has_rows
         status.display = show_status
         option_list.display = not show_status
 
     # -- dynamic text --
 
-    def _summary_text(self) -> str:
+    def _summary_text(self) -> Text:
+        """Header summary: counts line + offline badge + warning/stale hint."""
+        text = Text(self._summary_line())
+        if self._offline:
+            text.append("   ")
+            text.append("⚠ OFFLINE", style="bold yellow")
+        hint = self._summary_hint()
+        if hint is not None:
+            text.append("\n")
+            text.append("⚠ ", style="yellow")
+            text.append(hint, style="yellow")
+        return text
+
+    def _summary_line(self) -> str:
         if self._loading:
             return "SASE Plugins · loading…"
         catalog = self._catalog
@@ -333,6 +483,18 @@ class PluginsBrowserPane(Vertical):
             f"{total} plugins · {installed} installed · "
             f"{updates} updates available · cached {age}"
         )
+
+    def _summary_hint(self) -> str | None:
+        """A warning / stale-cache line to surface under the counts, if any."""
+        catalog = self._catalog
+        if self._loading or catalog is None:
+            return None
+        if catalog.warnings:
+            return catalog.warnings[0]
+        if catalog.stale:
+            age = humanize_age(catalog.age_seconds(self._now))
+            return f"cache is stale (last updated {age}) — press r to refresh"
+        return None
 
     def _status_message(self) -> str:
         if self._loading:
@@ -348,7 +510,12 @@ class PluginsBrowserPane(Vertical):
         return ""
 
     def _hints(self) -> str:
-        return "j/k: navigate   /: filter   [ / ]: switch tab   Esc: close"
+        offline = " (on)" if self._offline else ""
+        verbose = " (on)" if self._verbose else ""
+        return (
+            f"j/k navigate · r refresh · o offline{offline} · "
+            f"v verbose{verbose} · / filter · [ / ] tab · esc close"
+        )
 
     # -- navigation --
 
@@ -380,6 +547,28 @@ class PluginsBrowserPane(Vertical):
         except Exception:
             pass
 
+    # -- read-side actions (refresh / offline / verbose) --
+
+    def action_refresh(self) -> None:
+        """Refetch the catalog and latest versions (the ``-r/--refresh`` analog)."""
+        if self._loading:
+            return
+        self._start_load(force=True)
+
+    def action_toggle_offline(self) -> None:
+        """Toggle offline (cache-only) mode and reload (the ``-o`` analog)."""
+        if self._loading:
+            return
+        self._offline = not self._offline
+        self._start_load(force=False)
+
+    def action_toggle_verbose(self) -> None:
+        """Toggle the list rows' verbose columns (stars / updated)."""
+        self._verbose = not self._verbose
+        self._rebuild_options()
+        self._update_static("#plugins-hints", self._hints())
+        self._render_detail_now(force=True)
+
     # -- input events --
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -389,6 +578,7 @@ class PluginsBrowserPane(Vertical):
         self._rebuild_groups()
         self._rebuild_options()
         self._sync_state_visibility()
+        self._render_detail_now(force=True)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "plugins-filter-input":
@@ -403,6 +593,7 @@ class PluginsBrowserPane(Vertical):
             self._rebuild_groups()
             self._rebuild_options()
             self._sync_state_visibility()
+            self._render_detail_now(force=True)
         self.focus_default()
 
     # -- helpers --
@@ -410,6 +601,12 @@ class PluginsBrowserPane(Vertical):
     def _option_list(self) -> OptionList | None:
         try:
             return self.query_one("#plugins-list", OptionList)
+        except Exception:
+            return None
+
+    def _detail_widget(self) -> Static | None:
+        try:
+            return self.query_one("#plugins-detail", Static)
         except Exception:
             return None
 

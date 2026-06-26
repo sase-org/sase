@@ -290,6 +290,19 @@ async def _open_plugins_modal(
     return modal, pane
 
 
+async def _wait_for_plugins_detail(page: AcePage, pane: PluginsBrowserPane) -> None:
+    """Let the pane's debounced detail repaint settle before snapshotting.
+
+    The Plugins pane owns its own :class:`DetailPanelDebouncer` (not one of the
+    app-level debouncers ``wait_for_visual_idle`` tracks), so wait for it to
+    drain explicitly, then flush layout/paints.
+    """
+    debouncer = pane._detail_debouncer
+    if debouncer is not None:
+        await page.wait_for(lambda _s: not debouncer.is_pending)
+    await wait_for_visual_idle(page)
+
+
 # --- Snapshots -------------------------------------------------------------
 
 
@@ -413,7 +426,7 @@ async def test_config_center_plugins_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Populated list: Built-in / Community groups, glyphs, header summary."""
+    """Populated list + the built-in plugin's ``show``-equivalent detail panel."""
     patch_startup_loaders(monkeypatch)
     _patch_xprompt_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
@@ -422,13 +435,98 @@ async def test_config_center_plugins_tab_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         _, pane = await _open_plugins_modal(page)
-        await page.wait_for(lambda _s: bool(pane._grouped))
-        await wait_for_visual_idle(page)
+        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await _wait_for_plugins_detail(page, pane)
 
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_tab_120x40",
-            title="ACE SASE Config — Plugins tab (populated list)",
+            title="ACE SASE Config — Plugins tab (list + built-in detail)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_community_detail_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A highlighted community plugin leads its detail with the warning panel."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        # Walk down to the lone community plugin (acme).
+        pane.action_next_option()
+        pane.action_next_option()
+        pane.action_next_option()
+        await page.wait_for(lambda _s: pane._detail_name == "acme")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_community_detail_120x40",
+            title="ACE SASE Config — Plugins tab (community warning + detail)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_offline_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Offline toggle surfaces the header OFFLINE badge; detail still renders."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        pane.action_toggle_offline()
+        await page.wait_for(lambda _s: pane._offline and not pane._loading)
+        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_offline_120x40",
+            title="ACE SASE Config — Plugins tab (offline badge)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_verbose_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verbose toggle adds the stars / updated columns to the list rows."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        pane.action_toggle_verbose()
+        await page.wait_for(
+            lambda _s: any(
+                "★" in pane._row_text(entry).plain
+                for _, _, entries in pane._grouped
+                for entry in entries
+            )
+        )
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_verbose_120x40",
+            title="ACE SASE Config — Plugins tab (verbose rows)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

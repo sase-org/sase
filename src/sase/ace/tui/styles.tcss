@@ -3442,7 +3442,7 @@ PluginsBrowserPane #plugins-detail-scroll {
 PluginsBrowserPane #plugins-detail {
     width: 100%;
     height: auto;
-    color: $text-muted;
+    color: $text;
 }
 
 PluginsBrowserPane #plugins-hints {
