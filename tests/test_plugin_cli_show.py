@@ -213,7 +213,7 @@ def test_show_not_installed_marks_cross_and_hint() -> None:
     assert code == 0
     assert "✗" in out
     assert "not installed" in out
-    assert "sase doctor" in out
+    assert "sase plugin install telegram" in out
 
 
 def test_show_footer_has_cache_age_and_refresh_command() -> None:

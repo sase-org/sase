@@ -9,6 +9,10 @@ import sys
 def handle_plugin_command(args: argparse.Namespace) -> None:
     """Dispatch a parsed ``sase plugin ...`` command to its handler."""
     sub = getattr(args, "plugin_subcommand", None)
+    if sub == "install":
+        from sase.plugins.cli_install import handle_plugin_install_command
+
+        sys.exit(handle_plugin_install_command(args))
     if sub == "list":
         from sase.plugins.cli_list import handle_plugin_list_command
 
@@ -17,6 +21,10 @@ def handle_plugin_command(args: argparse.Namespace) -> None:
         from sase.plugins.cli_show import handle_plugin_show_command
 
         sys.exit(handle_plugin_show_command(args))
+    if sub == "update":
+        from sase.plugins.cli_update import handle_plugin_update_command
 
-    print("Usage: sase plugin {list,show}", file=sys.stderr)
+        sys.exit(handle_plugin_update_command(args))
+
+    print("Usage: sase plugin {install,list,show,update}", file=sys.stderr)
     sys.exit(2)

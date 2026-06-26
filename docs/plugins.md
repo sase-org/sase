@@ -163,8 +163,49 @@ Restart running sase agents to pick up the new version.
   reports `dry_run: true`, the planned `command`, and each package's `current_version`.
 - A no-op run (nothing to upgrade) renders a clean "Already up to date" state and still exits `0`.
 - The authoritative record of what is in sase's environment is uv's own `uv-receipt.toml`, not anything sase stores.
-  `sase update` moves the whole environment forward at once; per-plugin install and upgrade commands are a planned
-  follow-up.
+  `sase update` moves the whole environment forward at once; to install or upgrade individual plugins, use
+  [`sase plugin install` / `sase plugin update`](#installing-and-updating-plugins-sase-plugin-install-sase-plugin-update).
+
+## Installing and updating plugins (`sase plugin install` / `sase plugin update`)
+
+`sase plugin install <plugin>` adds a plugin to the **same** uv tool environment as `sase`, so its entry points are
+discovered the next time `sase` runs. `sase plugin update <plugin>` upgrades one already-installed plugin (and
+`-a|--all` upgrades every installed plugin), leaving `sase` core pinned. Both build on the same `uv tool` engine as
+`sase update` and share its install-method requirement and beautiful, copy-pasteable output.
+
+```bash
+# Install (resolved through the GitHub catalog)
+sase plugin install github          # `github` -> the `sase-github` distribution
+sase plugin install sase-github     # repo name also works
+sase plugin install github -g       # install from the plugin's git repository
+sase plugin install github -n       # dry run: preview the uv command, change nothing
+sase plugin install 'sase-foo==1.2' # a raw requirement / git URL / path is passed through verbatim
+
+# Update
+sase plugin update github           # upgrade one installed plugin (sase core stays pinned)
+sase plugin update -a               # upgrade every installed plugin
+sase plugin update github -n        # dry run
+sase plugin install github -j       # stable machine-readable JSON (also on update)
+```
+
+- **Name resolution.** A bare `<plugin>` is resolved through the catalog (`github` → `sase-github`), so the short name,
+  repo, or `owner/repo` full name all work. By default the plugin is installed from its published distribution (PyPI);
+  pass `-g|--git` to install from its repository instead. A value that already looks like a requirement, git URL, or
+  local path (`==`, `git+…`, `…://…`, `/path`) is passed through to uv verbatim. An unknown name prints ranked
+  `did you mean…?` suggestions and exits non-zero.
+- **The receipt is the source of truth.** uv's `--with X` _replaces_ the injected set rather than appending to it, so
+  both commands reconstruct the **full** `--with` set from sase's `uv-receipt.toml` — faithfully preserving existing
+  plugins, editable/dev installs, version specifiers, and extras — before re-running `uv tool install`. `update`
+  additionally passes `--upgrade-package <name>` per target so only those plugins move while everything else is pinned;
+  this is why "update plugins" never silently bumps `sase` core (use `sase update` for that).
+- **Install method is required**, exactly as for `sase update`: the commands only work when sase was installed with
+  `uv tool install sase`, and otherwise fail fast with an actionable message instead of touching the environment.
+- **Idempotent install.** Installing a plugin that is already injected prints "already installed" and points at
+  `sase plugin update <plugin>` rather than re-running uv. Updating a plugin that is **not** installed points at
+  `sase plugin install <plugin>` instead.
+- **`-n|--dry-run`** prints the exact `uv` command (and, for install, the resulting plugin set) and exits `0` without
+  changing anything. **`-j|--json`** emits a stable, sorted payload with `schema_version`, the resolved `command`, and
+  per-package outcomes; **`-r|--refresh`** refetches the catalog before resolving a name.
 
 ## How Plugins Are Discovered
 
