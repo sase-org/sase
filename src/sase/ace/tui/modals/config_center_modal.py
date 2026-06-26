@@ -1,24 +1,24 @@
-"""SASE Admin Center modal: a tabbed home for config, tasks, logs, projects, plugins, xprompts.
+"""SASE Admin Center modal: a tabbed home for config, logs, plugins, projects, tasks, xprompts.
 
 SASE Admin Center is a full-screen ``ModalScreen`` that hosts six internal
-tabs over a :class:`ContentSwitcher`:
+alphabetical tabs over a :class:`ContentSwitcher`:
 
-- **Config** (leftmost, default focus on open) — the schema-driven config
+- **Config** (tab 1, default focus on first open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
-- **Tasks** — the canonical background-task monitor (:class:`TasksPane`),
-  replacing the standalone ``,t`` modal. Sits immediately to the right of
-  Config.
-- **Logs** — the canonical SASE log browser (:class:`LogsPane`), replacing
+- **Logs** (tab 2) — the canonical SASE log browser (:class:`LogsPane`), replacing
   the standalone ``,L`` modal.
-- **Projects** — the migrated project lifecycle manager
-  (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
-- **Plugins** — the read-only plugin catalog browser
+- **Plugins** (tab 3) — the read-only plugin catalog browser
   (:class:`PluginsBrowserPane`), mirroring ``sase plugin list``.
-- **XPrompts** — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
+- **Projects** (tab 4) — the migrated project lifecycle manager
+  (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
+- **Tasks** (tab 5) — the canonical background-task monitor (:class:`TasksPane`),
+  replacing the standalone ``,t`` modal.
+- **XPrompts** (tab 6) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
-``#`` opens the modal on the **Config** tab. ``[`` / ``]`` cycle the
-tabs with modulo wrapping, mirroring the notification panel's sub-tab
-navigation. The clickable tab strip mirrors the app's :class:`TabBar`.
+``#`` opens the modal on the last Admin Center tab used in the current app
+session (Config on a fresh session). ``1``-``6`` jump directly to the matching
+tab, and ``[`` / ``]`` cycle the tabs with modulo wrapping. The clickable tab
+strip mirrors the app's :class:`TabBar`.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from typing import Any, Literal
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.events import Click, Key
 from textual.message import Message
@@ -42,22 +43,22 @@ from .projects_pane import ProjectsPane
 from .tasks_pane import TasksPane
 from .xprompt_browser_pane import XPromptBrowserPane
 
-CenterTab = Literal["config", "tasks", "logs", "projects", "plugins", "xprompts"]
+CenterTab = Literal["config", "logs", "plugins", "projects", "tasks", "xprompts"]
 
 _TAB_ORDER: tuple[CenterTab, ...] = (
     "config",
-    "tasks",
     "logs",
-    "projects",
     "plugins",
+    "projects",
+    "tasks",
     "xprompts",
 )
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Config"),
-    ("tasks", "Tasks"),
     ("logs", "Logs"),
-    ("projects", "Projects"),
     ("plugins", "Plugins"),
+    ("projects", "Projects"),
+    ("tasks", "Tasks"),
     ("xprompts", "XPrompts"),
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
@@ -101,9 +102,11 @@ class _ConfigCenterTabStrip(Static):
             if index > 0:
                 text.append(" │ ", style="#444444")
             is_active = tab == self._active_tab
-            style = f"bold {_TAB_COLORS[tab]}" if is_active else "#888888"
+            number_style = _TAB_COLORS[tab] if is_active else "#666666"
+            label_style = f"bold {_TAB_COLORS[tab]}" if is_active else "#888888"
             start = len(text.plain)
-            text.append(f" {label} ", style=style)
+            text.append(f" {index + 1} ", style=number_style)
+            text.append(f"{label} ", style=label_style)
             self._tab_ranges[tab] = (start, len(text.plain))
         self._line_width = len(text.plain)
         return text
@@ -136,6 +139,16 @@ class ConfigCenterModal(ModalScreen[None]):
     BINDINGS = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
+        Binding("1", "focus_center_tab(1)", "Tab 1", show=False),
+        Binding("2", "focus_center_tab(2)", "Tab 2", show=False),
+        Binding("3", "focus_center_tab(3)", "Tab 3", show=False),
+        Binding("4", "focus_center_tab(4)", "Tab 4", show=False),
+        Binding("5", "focus_center_tab(5)", "Tab 5", show=False),
+        Binding("6", "focus_center_tab(6)", "Tab 6", show=False),
+        Binding("7", "focus_center_tab(7)", "Tab 7", show=False),
+        Binding("8", "focus_center_tab(8)", "Tab 8", show=False),
+        Binding("9", "focus_center_tab(9)", "Tab 9", show=False),
+        Binding("0", "focus_center_tab(0)", "Tab 0", show=False),
         ("left_square_bracket", "prev_center_tab", "Prev Tab"),
         ("right_square_bracket", "next_center_tab", "Next Tab"),
     ]
@@ -160,13 +173,14 @@ class ConfigCenterModal(ModalScreen[None]):
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
-                yield TasksPane(id="tasks")
                 yield LogsPane(id="logs")
-                yield ProjectsPane(id="projects")
                 yield PluginsBrowserPane(id="plugins")
+                yield ProjectsPane(id="projects")
+                yield TasksPane(id="tasks")
                 yield XPromptBrowserPane(self._project, id="xprompts")
 
     def on_mount(self) -> None:
+        self._remember_active_tab()
         self._focus_active_pane()
 
     def on_key(self, event: Key) -> None:
@@ -199,6 +213,13 @@ class ConfigCenterModal(ModalScreen[None]):
         if callable(focus_default):
             focus_default()
 
+    def _remember_active_tab(self) -> None:
+        """Persist the active Admin Center tab on the long-lived app."""
+        try:
+            self.app._admin_center_tab = self._active_tab  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     def _switch_to(self, tab: CenterTab) -> None:
         if tab == self._active_tab:
             return
@@ -214,6 +235,7 @@ class ConfigCenterModal(ModalScreen[None]):
         except Exception:
             pass
         self._focus_active_pane()
+        self._remember_active_tab()
 
     def action_close(self) -> None:
         """Close SASE Admin Center."""
@@ -232,6 +254,12 @@ class ConfigCenterModal(ModalScreen[None]):
             return
         index = _TAB_ORDER.index(self._active_tab)
         self._switch_to(_TAB_ORDER[(index + 1) % len(_TAB_ORDER)])
+
+    def action_focus_center_tab(self, number: int) -> None:
+        """Switch directly to the numbered tab; out-of-range digits are ignored."""
+        if not 1 <= number <= len(_TAB_ORDER):
+            return
+        self._switch_to(_TAB_ORDER[number - 1])
 
     @on(_ConfigCenterTabStrip.TabClicked)
     def _on_tab_clicked(self, event: _ConfigCenterTabStrip.TabClicked) -> None:

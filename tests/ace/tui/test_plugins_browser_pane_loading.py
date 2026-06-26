@@ -149,15 +149,15 @@ async def test_config_center_cycles_six_tabs(
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         assert modal._active_tab == "config"
-        # Tasks sits directly right of Config; Logs and Projects follow it.
-        modal.action_next_center_tab()
-        assert modal._active_tab == "tasks"
+        # Tabs cycle alphabetically by their visible labels.
         modal.action_next_center_tab()
         assert modal._active_tab == "logs"
         modal.action_next_center_tab()
+        assert modal._active_tab == "plugins"
+        modal.action_next_center_tab()
         assert modal._active_tab == "projects"
         modal.action_next_center_tab()
-        assert modal._active_tab == "plugins"
+        assert modal._active_tab == "tasks"
         modal.action_next_center_tab()
         assert modal._active_tab == "xprompts"
         modal.action_next_center_tab()

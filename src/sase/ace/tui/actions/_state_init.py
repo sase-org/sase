@@ -69,6 +69,7 @@ class StateInitMixin:
         self._reactive_current_tab = initial_tab  # type: ignore[attr-defined]
         self._init_task_queue()  # type: ignore[attr-defined]
         self.theme = "flexoki"
+        self._admin_center_tab: str = "config"
         self._auto_start_axe = auto_start_axe
         self._restart_axe = restart_axe
         # Set during on_mount to suppress reactive-watcher cold loads that

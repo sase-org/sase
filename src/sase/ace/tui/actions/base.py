@@ -514,10 +514,11 @@ class BaseActionsMixin:
         self.push_screen(QueryEditModal(current_canonical), on_dismiss)  # type: ignore[attr-defined]
 
     def action_open_config_center(self) -> None:
-        """Open the SASE Admin Center modal on the Config tab."""
+        """Open the SASE Admin Center modal on the last session tab."""
         from ..modals import ConfigCenterModal
 
-        self.push_screen(ConfigCenterModal())  # type: ignore[attr-defined]
+        initial_tab: Any = getattr(self, "_admin_center_tab", "config")
+        self.push_screen(ConfigCenterModal(initial_tab=initial_tab))  # type: ignore[attr-defined]
 
     def action_open_command_palette(self) -> None:
         """Open the context-aware command palette modal (bound to ``:``)."""
