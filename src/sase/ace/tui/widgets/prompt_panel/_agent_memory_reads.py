@@ -15,7 +15,6 @@ from ._agent_context_common import (
     COLOR_TRUNCATION,
     FRONTMATTER_MARKER,
     MEMORY_GLYPH,
-    REASON_WRAP_WIDTH,
     append_context_lane_header,
     append_context_reason,
     append_lane_row,
@@ -32,7 +31,6 @@ PATH_LIMIT = 64
 __all__ = [
     "MAX_VISIBLE_READS",
     "PATH_LIMIT",
-    "REASON_WRAP_WIDTH",
     "append_agent_memory_reads_section",
     "append_context_reason",
     "format_local_hhmm",

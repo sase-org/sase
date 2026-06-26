@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 08:36:34
-status: wip
+status: done
 prompt: sdd/prompts/202606/context_reason_80_col_wrap.md
 ---
 # Plan: SASE CONTEXT Reason Wrapping at 80 Columns

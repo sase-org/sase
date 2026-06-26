@@ -5,13 +5,16 @@ from __future__ import annotations
 from zoneinfo import ZoneInfo
 
 import pytest
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
+from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
+    REASON_LINE_CELL_LIMIT,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_memory_reads import (
     MAX_VISIBLE_READS,
-    REASON_WRAP_WIDTH,
     append_agent_memory_reads_section,
 )
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
@@ -131,10 +134,62 @@ def test_long_reason_is_wrapped_without_truncation() -> None:
     first_reason_line = lines[first_reason_line_index]
     continuation_line = lines[first_reason_line_index + 1]
 
-    assert len(first_reason_line.partition("↳ ")[2]) <= REASON_WRAP_WIDTH
+    # Every rendered reason line, including its full prefix, fits in 80 columns.
+    for line in lines:
+        assert cell_len(line) <= REASON_LINE_CELL_LIMIT
+    assert first_reason_line.partition("↳ ")[2]
     assert continuation_line.startswith(" " * len("              ↳ "))
     assert "↳" not in continuation_line
     assert continuation_line.strip()
+
+
+def test_long_attributed_reason_wraps_within_limit_and_aligns() -> None:
+    long_reason = " ".join(f"reason-word-{index:02d}" for index in range(18))
+    text = Text()
+    event = _event(
+        canonical_path="tui_perf.md",
+        timestamp="2026-05-24T14:22:08+00:00",
+        reason=long_reason,
+    )
+    append_agent_memory_reads_section(text, events=(_display(event, "coder"),))
+
+    plain = text.plain
+    assert "…" not in plain
+    assert long_reason in " ".join(plain.split())
+
+    lines = plain.splitlines()
+    row = next(line for line in lines if "tui_perf.md" in line)
+    first_reason_index = next(index for index, line in enumerate(lines) if "↳ " in line)
+    first_reason_line = lines[first_reason_index]
+    continuation_line = lines[first_reason_index + 1]
+
+    # The wider attributed prefix still keeps every line within 80 columns.
+    for line in lines:
+        assert cell_len(line) <= REASON_LINE_CELL_LIMIT
+    # Reason glyph and continuation align under the primary text column.
+    assert first_reason_line.index("↳") == row.index("tui_perf.md")
+    assert continuation_line.startswith(" " * (row.index("tui_perf.md") + 2))
+    assert "↳" not in continuation_line
+    assert continuation_line.strip()
+
+
+def test_overlong_token_is_hard_split_within_limit() -> None:
+    token = "x" * 200
+    text = Text()
+    event = _event(
+        canonical_path="skill.md",
+        timestamp="2026-05-24T14:00:00+00:00",
+        reason=token,
+    )
+    append_agent_memory_reads_section(text, events=(_display(event),))
+
+    plain = text.plain
+    assert "…" not in plain
+    lines = plain.splitlines()
+    for line in lines:
+        assert cell_len(line) <= REASON_LINE_CELL_LIMIT
+    # The unbroken token is split across multiple lines, losing no characters.
+    assert plain.count("x") == 200
 
 
 def test_frontmatter_marker_present_when_stripped() -> None:
