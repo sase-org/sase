@@ -1,13 +1,16 @@
-"""Orchestration for ``sase plugin update <plugin>`` / ``--all``.
+"""CLI rendering for ``sase plugin update <plugin>`` / ``--all``.
 
-Like :mod:`sase.plugins.cli_install`, this joins the plugin catalog to the shared
-``uv tool`` engine. It detects a managed ``uv tool install sase`` (*D4*), reads
-sase's uv receipt as the source of truth for the injected set (*D2*), and upgrades
-the requested plugin(s) with ``uv tool install <full set> --upgrade-package <name>``
-— upgrading only the named plugins while leaving sase core and every other plugin
-pinned (decision *D3*'s complement: "update plugins" never silently bumps core).
-``-a|--all`` upgrades every injected plugin in one shot; ``-n|--dry-run`` previews
-the uv argv; ``-j|--json`` emits a stable payload.
+Like :mod:`sase.plugins.cli_install`, this delegates all *resolution* and
+*orchestration* to the console-free :mod:`sase.plugins.operations` layer and
+keeps only presentation: a spinner, the Rich result panels, the stable
+``-j|--json`` payloads, and the exit codes. The operations layer detects a
+managed ``uv tool install sase`` (*D4*), reads sase's uv receipt as the source
+of truth for the injected set (*D2*), and upgrades the requested plugin(s) with
+``uv tool install <full set> --upgrade-package <name>`` — upgrading only the
+named plugins while leaving sase core and every other plugin pinned (decision
+*D3*'s complement: "update plugins" never silently bumps core). ``-a|--all``
+upgrades every injected plugin in one shot; ``-n|--dry-run`` previews the uv
+argv; ``-j|--json`` emits a stable payload.
 
 The common case resolves the plugin straight from the receipt, so no catalog
 fetch happens unless the plugin is missing — only then is the catalog consulted
@@ -25,12 +28,20 @@ from typing import Any
 
 from rich.console import Console
 
-from sase.plugins.catalog import (
-    PluginCatalog,
-    PluginCatalogError,
-    find_plugin,
-    load_plugin_catalog,
-    suggest_plugins,
+from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
+from sase.plugins.operations import (
+    ClockFn,
+    LoadFn,
+    NoPlugins,
+    NotInstalled,
+    NotUvTool,
+    ProbeFn,
+    RunUvFn,
+    UpdateOutcome,
+    UpdateReady,
+    UpdateUnknown,
+    execute_update,
+    plan_update,
 )
 from sase.plugins.render import (
     render_no_plugins_installed,
@@ -39,26 +50,15 @@ from sase.plugins.render import (
     render_plugin_update_result,
     render_show_not_found,
 )
-from sase.uv_tool.commands import build_upgrade_packages
-from sase.uv_tool.detect import (
-    NotUvToolInstall,
-    UvToolInstall,
-    probe_uv_tool_install,
-)
-from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
-from sase.uv_tool.receipt import Requirement, ToolReceipt, load_receipt
+from sase.uv_tool.detect import probe_uv_tool_install
+from sase.uv_tool.errors import ReceiptError, UvToolError
 from sase.uv_tool.render import render_uv_tool_error
-from sase.uv_tool.runner import ChangeKind, UvChangeSet, run_uv
-from sase.version._utils import normalize_distribution_name
+from sase.uv_tool.runner import ChangeKind, run_uv
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
 UPDATE_PLUGIN_JSON_SCHEMA_VERSION = 1
 
-LoadFn = Callable[..., PluginCatalog]
-ProbeFn = Callable[[], UvToolInstall | NotUvToolInstall]
-RunUvFn = Callable[[list[str]], UvChangeSet]
 VersionFn = Callable[[str], str | None]
-ClockFn = Callable[[], float]
 
 
 def _installed_version(name: str) -> str | None:
@@ -94,65 +94,50 @@ def handle_plugin_update_command(
     if not all_plugins and not query:
         return _usage_error(as_json=as_json, err=err)
 
-    install = probe_fn()
-    if isinstance(install, NotUvToolInstall):
-        return _fail(NotAUvToolInstallError(install), as_json=as_json, err=err)
-
     try:
-        receipt = load_receipt(install.receipt_path)
+        plan = plan_update(
+            query,
+            all_plugins=all_plugins,
+            refresh=refresh,
+            load_fn=load_fn,
+            probe_fn=probe_fn,
+        )
+    except PluginCatalogError as exc:
+        return _fail_catalog(exc, as_json=as_json, err=err)
     except ReceiptError as exc:
         return _fail(exc, as_json=as_json, err=err)
 
-    if all_plugins:
-        targets = tuple(plugin.name for plugin in receipt.deduped_injected_plugins())
-        if not targets:
-            return _no_plugins(as_json=as_json, out=out)
-    else:
-        try:
-            resolved = _resolve_target(
-                receipt, str(query), load_fn=load_fn, refresh=refresh
-            )
-        except PluginCatalogError as exc:
-            return _fail_catalog(exc, as_json=as_json, err=err)
-        if isinstance(resolved, _Unknown):
-            return _not_found(resolved.catalog, str(query), as_json=as_json, err=err)
-        if isinstance(resolved, _NotInstalled):
-            return _not_installed(resolved.name, as_json=as_json, err=err)
-        targets = (resolved.name,)
+    if isinstance(plan, NotUvTool):
+        return _fail(plan.error, as_json=as_json, err=err)
+    if isinstance(plan, NoPlugins):
+        return _no_plugins(as_json=as_json, out=out)
+    if isinstance(plan, UpdateUnknown):
+        return _not_found(plan, as_json=as_json, err=err)
+    if isinstance(plan, NotInstalled):
+        return _not_installed(plan.name, as_json=as_json, err=err)
 
-    argv = build_upgrade_packages(receipt, targets, color="never")
     if dry_run:
-        return _dry_run(
-            argv, targets, all_plugins=all_plugins, as_json=as_json, out=out
-        )
+        return _dry_run(plan, as_json=as_json, out=out)
 
     use_spinner = not as_json and out.is_terminal
-    start = clock()
     try:
         if use_spinner:
             with out.status("Upgrading plugins via uv…", spinner="dots"):
-                change_set = run_fn(argv)
+                outcome = execute_update(plan, run_fn=run_fn, clock=clock)
         else:
-            change_set = run_fn(argv)
+            outcome = execute_update(plan, run_fn=run_fn, clock=clock)
     except UvToolError as exc:
         return _fail(exc, as_json=as_json, err=err)
-    elapsed = max(0.0, clock() - start)
 
     if as_json:
-        print(
-            json.dumps(
-                _result_json(argv, targets, change_set, elapsed, version_fn),
-                indent=2,
-                sort_keys=True,
-            )
-        )
+        print(json.dumps(_result_json(outcome, version_fn), indent=2, sort_keys=True))
         return 0
 
     render_plugin_update_result(
-        change_set=change_set,
-        dist_names=targets,
-        all_plugins=all_plugins,
-        elapsed=elapsed,
+        change_set=outcome.change_set,
+        dist_names=outcome.plan.targets,
+        all_plugins=outcome.plan.all_plugins,
+        elapsed=outcome.elapsed,
         current_version=version_fn,
         console=out,
     )
@@ -160,91 +145,20 @@ def handle_plugin_update_command(
 
 
 # --------------------------------------------------------------------------- #
-# Target resolution
-# --------------------------------------------------------------------------- #
-
-
-class _NotInstalled:
-    """The plugin exists in the catalog but is not injected into sase's env."""
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-
-
-class _Unknown:
-    """The plugin name matched nothing — caller renders ranked suggestions."""
-
-    def __init__(self, catalog: PluginCatalog) -> None:
-        self.catalog = catalog
-
-
-def _resolve_target(
-    receipt: ToolReceipt,
-    query: str,
-    *,
-    load_fn: LoadFn,
-    refresh: bool,
-) -> Requirement | _NotInstalled | _Unknown:
-    """Resolve *query* to an injected plugin, or explain why it is not one.
-
-    Tries the receipt first (no catalog fetch) so an installed plugin — even a
-    community one absent from the catalog — resolves directly. Only on a miss is
-    the catalog loaded, to separate "known but not installed" from "unknown".
-    """
-    injected = _match_injected(receipt, query)
-    if injected is not None:
-        return injected
-
-    catalog = load_fn(refresh=refresh)
-    entry = find_plugin(catalog, query)
-    if entry is not None:
-        return _NotInstalled(entry.name)
-    return _Unknown(catalog)
-
-
-def _match_injected(receipt: ToolReceipt, query: str) -> Requirement | None:
-    for candidate in _name_candidates(query):
-        key = normalize_distribution_name(candidate)
-        if not key:
-            continue
-        for plugin in receipt.deduped_injected_plugins():
-            if plugin.normalized_name == key:
-                return plugin
-    return None
-
-
-def _name_candidates(query: str) -> tuple[str, ...]:
-    base = query.strip()
-    short = base.split("/", 1)[1] if "/" in base else base
-    candidates = [base, short]
-    for value in (base, short):
-        if value and not value.lower().startswith("sase-"):
-            candidates.append(f"sase-{value}")
-    return tuple(candidates)
-
-
-# --------------------------------------------------------------------------- #
 # Rendering / JSON helpers
 # --------------------------------------------------------------------------- #
 
 
-def _dry_run(
-    argv: list[str],
-    targets: tuple[str, ...],
-    *,
-    all_plugins: bool,
-    as_json: bool,
-    out: Console,
-) -> int:
+def _dry_run(plan: UpdateReady, *, as_json: bool, out: Console) -> int:
     if as_json:
         print(
             json.dumps(
                 {
                     "schema_version": UPDATE_PLUGIN_JSON_SCHEMA_VERSION,
                     "dry_run": True,
-                    "all": all_plugins,
-                    "command": list(argv),
-                    "plugins": list(targets),
+                    "all": plan.all_plugins,
+                    "command": list(plan.argv),
+                    "plugins": list(plan.targets),
                 },
                 indent=2,
                 sort_keys=True,
@@ -252,7 +166,10 @@ def _dry_run(
         )
         return 0
     render_plugin_update_dry_run(
-        argv=argv, dist_names=targets, all_plugins=all_plugins, console=out
+        argv=plan.argv,
+        dist_names=plan.targets,
+        all_plugins=plan.all_plugins,
+        console=out,
     )
     return 0
 
@@ -294,29 +211,22 @@ def _not_installed(name: str, *, as_json: bool, err: Console) -> int:
     return 1
 
 
-def _not_found(
-    catalog: PluginCatalog,
-    query: str,
-    *,
-    as_json: bool,
-    err: Console,
-) -> int:
-    suggestions = suggest_plugins(catalog, query)
+def _not_found(plan: UpdateUnknown, *, as_json: bool, err: Console) -> int:
     if as_json:
         print(
             json.dumps(
                 {
                     "schema_version": UPDATE_PLUGIN_JSON_SCHEMA_VERSION,
                     "found": False,
-                    "query": query,
-                    "suggestions": [entry.name for entry in suggestions],
+                    "query": plan.query,
+                    "suggestions": [entry.name for entry in plan.suggestions],
                 },
                 indent=2,
                 sort_keys=True,
             )
         )
         return 1
-    render_show_not_found(query, suggestions, console=err)
+    render_show_not_found(plan.query, plan.suggestions, console=err)
     return 1
 
 
@@ -369,15 +279,10 @@ def _fail_catalog(error: PluginCatalogError, *, as_json: bool, err: Console) -> 
     return 1
 
 
-def _result_json(
-    argv: list[str],
-    targets: tuple[str, ...],
-    change_set: UvChangeSet,
-    elapsed: float,
-    version_fn: VersionFn,
-) -> dict[str, Any]:
+def _result_json(outcome: UpdateOutcome, version_fn: VersionFn) -> dict[str, Any]:
+    change_set = outcome.change_set
     plugins = []
-    for name in targets:
+    for name in outcome.plan.targets:
         change = change_set.get(name)
         if change is None:
             plugins.append(
@@ -401,9 +306,9 @@ def _result_json(
     return {
         "schema_version": UPDATE_PLUGIN_JSON_SCHEMA_VERSION,
         "dry_run": False,
-        "command": list(argv),
+        "command": list(outcome.plan.argv),
         "changed": upgraded > 0,
-        "elapsed_seconds": round(elapsed, 3),
+        "elapsed_seconds": round(outcome.elapsed, 3),
         "counts": {"updated": upgraded, "already_current": len(plugins) - upgraded},
         "plugins": plugins,
     }

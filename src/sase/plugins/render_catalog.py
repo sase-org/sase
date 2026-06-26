@@ -43,12 +43,17 @@ def render_catalog_list(
 ) -> None:
     """Print the ``sase plugin list`` catalog panel to *console*."""
     target = console or Console()
-    target.print(_build_list_panel(catalog, verbose=verbose, now=now))
+    target.print(build_catalog_list_panel(catalog, verbose=verbose, now=now))
 
 
-def _build_list_panel(
-    catalog: PluginCatalog, *, verbose: bool, now: float | None
+def build_catalog_list_panel(
+    catalog: PluginCatalog, *, verbose: bool = False, now: float | None = None
 ) -> Panel:
+    """Console-free renderable for the ``sase plugin list`` catalog panel.
+
+    Returns the same Rich :class:`~rich.panel.Panel` the CLI prints, so a TUI can
+    display it verbatim for guaranteed list parity.
+    """
     now = time.time() if now is None else now
     body: list[RenderableType] = []
 
@@ -229,12 +234,17 @@ def render_catalog_show(
     for warning in catalog.warnings:
         target.print(Text(f"⚠ {warning}", style="yellow"))
     if entry.is_community:
-        target.print(_community_warning_panel(entry))
-    target.print(_detail_panel(entry))
+        target.print(build_community_warning_panel(entry))
+    target.print(build_detail_panel(entry))
     target.print(_show_cache_line(entry, catalog, now=now))
 
 
-def _community_warning_panel(entry: PluginCatalogEntry) -> Panel:
+def build_community_warning_panel(entry: PluginCatalogEntry) -> Panel:
+    """Console-free renderable for a community plugin's prominent warning.
+
+    Public so the TUI detail panel can lead community plugins with the exact
+    same warning ``sase plugin show`` prints.
+    """
     body = Text()
     body.append("This plugin is published by ", style=_COMMUNITY_STYLE)
     body.append(entry.owner or "an unknown owner", style=f"bold {_COMMUNITY_STYLE}")
@@ -253,7 +263,12 @@ def _community_warning_panel(entry: PluginCatalogEntry) -> Panel:
     )
 
 
-def _detail_panel(entry: PluginCatalogEntry) -> Panel:
+def build_detail_panel(entry: PluginCatalogEntry) -> Panel:
+    """Console-free renderable for the ``sase plugin show`` detail panel.
+
+    Public so the TUI detail panel can display the same ``show``-equivalent
+    renderable, giving the TUI and the CLI visual parity for free.
+    """
     border = _BUILTIN_STYLE if entry.is_builtin else _COMMUNITY_STYLE
 
     body: list[RenderableType] = [_kind_line(entry), Text("")]

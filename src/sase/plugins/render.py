@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from sase.plugins.render_catalog import (
+    build_catalog_list_panel,
+    build_community_warning_panel,
+    build_detail_panel,
     render_catalog_list,
     render_catalog_show,
     render_show_not_found,
@@ -18,6 +21,9 @@ from sase.plugins.render_results import (
 )
 
 __all__ = [
+    "build_catalog_list_panel",
+    "build_community_warning_panel",
+    "build_detail_panel",
     "render_catalog_list",
     "render_catalog_show",
     "render_install_already_installed",
