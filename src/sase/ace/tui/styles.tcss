@@ -3199,10 +3199,75 @@ ConfigCenterModal #config-center-switcher {
 }
 
 ConfigCenterModal ConfigPane,
+ConfigCenterModal ProjectsPane,
 ConfigCenterModal PluginsBrowserPane,
 ConfigCenterModal XPromptBrowserPane {
     width: 100%;
     height: 100%;
+}
+
+/* Projects tab: project lifecycle manager (migrated from the standalone modal) */
+ProjectsPane #projects-state-tabs {
+    height: 1;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ProjectsPane #projects-summary {
+    height: auto;
+    color: $text-muted;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+    margin-bottom: 1;
+}
+
+ProjectsPane #projects-filter {
+    height: 3;
+    margin-bottom: 1;
+}
+
+ProjectsPane #projects-box {
+    height: 1fr;
+    min-height: 7;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+ProjectsPane #projects-columns {
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ProjectsPane #projects-list {
+    height: 1fr;
+    border: none;
+    padding: 0;
+    background: $surface;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ProjectsPane #projects-detail-scroll {
+    height: 30%;
+    min-height: 5;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+ProjectsPane #projects-detail {
+    height: auto;
+}
+
+ProjectsPane #projects-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
 }
 
 /* Config tab: schema-driven read-only browser (Phase 4) */

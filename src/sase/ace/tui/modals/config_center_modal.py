@@ -1,10 +1,13 @@
-"""SASE Admin Center modal: a tabbed home for config, plugins, and xprompts.
+"""SASE Admin Center modal: a tabbed home for config, projects, plugins, xprompts.
 
-SASE Admin Center is a full-screen ``ModalScreen`` that hosts three internal
+SASE Admin Center is a full-screen ``ModalScreen`` that hosts four internal
 tabs over a :class:`ContentSwitcher`:
 
 - **Config** (leftmost, default focus on open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
+- **Projects** — the migrated project lifecycle manager
+  (:class:`ProjectsPane`), replacing the standalone ``,p`` modal. Sits
+  immediately to the right of Config.
 - **Plugins** — the read-only plugin catalog browser
   (:class:`PluginsBrowserPane`), mirroring ``sase plugin list``.
 - **XPrompts** — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
@@ -30,18 +33,21 @@ from textual.widgets import ContentSwitcher, Label, Static
 
 from .config_pane import ConfigPane
 from .plugins_browser_pane import PluginsBrowserPane
+from .projects_pane import ProjectsPane
 from .xprompt_browser_pane import XPromptBrowserPane
 
-CenterTab = Literal["config", "plugins", "xprompts"]
+CenterTab = Literal["config", "projects", "plugins", "xprompts"]
 
-_TAB_ORDER: tuple[CenterTab, ...] = ("config", "plugins", "xprompts")
+_TAB_ORDER: tuple[CenterTab, ...] = ("config", "projects", "plugins", "xprompts")
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Config"),
+    ("projects", "Projects"),
     ("plugins", "Plugins"),
     ("xprompts", "XPrompts"),
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
+    "projects": "#FFAF5F",
     "plugins": "#AF87FF",
     "xprompts": "#87D7FF",
 }
@@ -137,6 +143,7 @@ class ConfigCenterModal(ModalScreen[None]):
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
+                yield ProjectsPane(id="projects")
                 yield PluginsBrowserPane(id="plugins")
                 yield XPromptBrowserPane(self._project, id="xprompts")
 

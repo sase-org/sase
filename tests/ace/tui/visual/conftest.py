@@ -60,6 +60,23 @@ def _force_color_for_visual_snapshots(
     monkeypatch.setattr(os, "getpid", lambda: 12345)
 
 
+@pytest.fixture(autouse=True)
+def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the always-mounted Projects pane off the real projects directory.
+
+    The Config Center composes its Projects pane in every screenshot even
+    when that tab is hidden, so the pane constructor would otherwise read the
+    real ``~/.sase/projects`` store and render non-deterministic (or
+    "Load failed") content. Patching the symbol the pane imports keeps the
+    old standalone project-management snapshots untouched (they stub
+    ``project_management_modal.list_project_records`` instead).
+    """
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_a, **_kw: [],
+    )
+
+
 @pytest.fixture
 def ace_png_visual(request: pytest.FixtureRequest) -> AcePngSnapshotFixture:
     """ACE PNG visual snapshot assertion helper."""

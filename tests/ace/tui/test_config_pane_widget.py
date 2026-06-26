@@ -43,6 +43,11 @@ def _patch_loaders(monkeypatch: pytest.MonkeyPatch) -> cp.ConfigPaneView:
         "sase.xprompt.loader.get_all_project_local_prompts",
         lambda: {},
     )
+    # Keep the Projects pane cheap and deterministic.
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_a, **_kw: [],
+    )
     return view
 
 

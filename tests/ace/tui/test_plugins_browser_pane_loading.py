@@ -139,7 +139,7 @@ async def test_plugins_pane_error_state(
         assert "gh not found" in pane._status_message()
 
 
-async def test_config_center_cycles_three_tabs(
+async def test_config_center_cycles_four_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -149,12 +149,15 @@ async def test_config_center_cycles_three_tabs(
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         assert modal._active_tab == "config"
+        # Projects sits directly right of Config.
+        modal.action_next_center_tab()
+        assert modal._active_tab == "projects"
         modal.action_next_center_tab()
         assert modal._active_tab == "plugins"
         modal.action_next_center_tab()
         assert modal._active_tab == "xprompts"
         modal.action_next_center_tab()
         assert modal._active_tab == "config"
-        # Wrapping backwards lands on the new Plugins tab between the two.
+        # Wrapping backwards lands on the rightmost XPrompts tab.
         modal.action_prev_center_tab()
         assert modal._active_tab == "xprompts"

@@ -178,17 +178,36 @@ def summary_text(
     return text
 
 
-def footer_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
+def _action_hints(show_inactive_projects: bool) -> str:
+    """Shared keybinding hint string (no close / tab-switch affordance)."""
     inactive_action = "hide inactive" if show_inactive_projects else "show inactive"
-    base = (
+    return (
         "j/k navigate  / filter  Tab/Shift+Tab state  Enter highlighted  "
         f"Ctrl+X {inactive_action}  m mark  u unmark all  e edit  A aliases  a activate  d deactivate  "
-        "Ctrl+D delete  F force after block  R reload  q close"
+        "Ctrl+D delete  F force after block  R reload"
     )
+
+
+def footer_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
+    base = f"{_action_hints(show_inactive_projects)}  q close"
     mark_count = len(marked_projects)
     if not mark_count:
         return base
     return f"{base}  marked:{mark_count} (a/d/Ctrl+D target marked set)"
+
+
+def hints_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
+    """Single-line hints for the Projects pane.
+
+    Reuses the modal's action hint string and always ends with the
+    tab-switch / close affordance so the Admin Center tab teaches its own
+    navigation now that there is no dedicated ``,p`` shortcut.
+    """
+    base = _action_hints(show_inactive_projects)
+    mark_count = len(marked_projects)
+    if mark_count:
+        base = f"{base}  marked:{mark_count} (a/d/Ctrl+D target marked set)"
+    return f"{base}  [ / ] switch tab   q close"
 
 
 def detail_text(

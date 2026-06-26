@@ -123,7 +123,7 @@ def _render(renderable: object) -> str:
 
 
 def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the sibling Config / XPrompts panes cheap and deterministic."""
+    """Keep the sibling Config / Projects / XPrompts panes cheap & deterministic."""
     result = cp._LoadResult(view=None, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: result)
     monkeypatch.setattr(
@@ -133,6 +133,10 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.xprompt.loader.get_all_project_local_prompts",
         lambda: {},
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.list_project_records",
+        lambda *_a, **_kw: [],
     )
 
 
