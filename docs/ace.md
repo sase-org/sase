@@ -200,22 +200,21 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                              |
-| `,!`       | Run command using current PR context                                                        |
-| `,A`       | Open the Agent Run Log modal for the current PR                                             |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                              |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
-| `,m`       | Review mentors (opens Mentor Review modal)                                                  |
-| `,M`       | Kill running mentors                                                                        |
-| `,p`       | Open Project Management (global; see [Project Management Panel](#project-management-panel)) |
-| `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))                      |
-| `,R`       | Show runners info                                                                           |
-| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                           |
-| `,<space>` | Run agent from current PR (skips project selection)                                         |
-| `,.`       | Open prompt history modal                                                                   |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                    |
+| Key        | Action                                                                  |
+| ---------- | ----------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                          |
+| `,!`       | Run command using current PR context                                    |
+| `,A`       | Open the Agent Run Log modal for the current PR                         |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)          |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home` |
+| `,m`       | Review mentors (opens Mentor Review modal)                              |
+| `,M`       | Kill running mentors                                                    |
+| `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))  |
+| `,R`       | Show runners info                                                       |
+| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))       |
+| `,<space>` | Run agent from current PR (skips project selection)                     |
+| `,.`       | Open prompt history modal                                               |
+| `,>`       | Open prompt history modal with cancelled prompts visible                |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
 project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; PR
@@ -225,7 +224,7 @@ reactivated with `sase project activate <project>`.
 Project launch pickers also support `Ctrl+D` for cleanup of empty project entries. This deletes only the highlighted
 project's active/archive ProjectSpec files, refuses entries whose ProjectSpec files still contain ChangeSpecs, and does
 not delete workspace checkouts or other SASE state. For lifecycle changes, bulk operations, ProjectSpec editing, or
-deleting the whole SASE project directory, use the `,p` Project Management panel.
+deleting the whole SASE project directory, use the **Projects** tab of the SASE Admin Center (press `#`).
 
 The repeat binding is the leader prefix followed by the configured `repeat_last` key. With the defaults both are comma,
 so the sequence is `,,`; if the leader prefix is changed but `repeat_last` is not, the second key remains comma. Repeat
@@ -647,8 +646,8 @@ cached by raw query string so re-renders skip the parse.
 ### Leader Mode (`,` prefix)
 
 Leader mode is available on every tab. In the Agents tab it also exposes layout and notification shortcuts for the
-currently loaded agent list; global entries such as `,I`, `,p`, and `,o` behave the same from other tabs.
-Unread-completed actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
+currently loaded agent list; global entries such as `,I` and `,o` behave the same from other tabs. Unread-completed
+actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
 
 | Key        | Action                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------- |
@@ -661,7 +660,6 @@ Unread-completed actions operate on terminal rows that are loaded in the Agents 
 | `,y`       | Refresh the Agents tab from full artifact history                                            |
 | `,u`       | Mark all loaded unread completed agents as read                                              |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                        |
-| `,p`       | Open Project Management (global; see [Project Management Panel](#project-management-panel))  |
 | `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))                       |
 | `,C`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation            |
@@ -813,13 +811,12 @@ numerical identity.
 
 ### Leader Mode (`,` prefix)
 
-| Key  | Action                                                                                      |
-| ---- | ------------------------------------------------------------------------------------------- |
-| `,,` | Repeat the last leader command                                                              |
-| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                     |
-| `,p` | Open Project Management (global; see [Project Management Panel](#project-management-panel)) |
-| `,o` | Open model overrides (global; see [Model Overrides](#model-overrides))                      |
-| `,R` | Show runners info                                                                           |
+| Key  | Action                                                                  |
+| ---- | ----------------------------------------------------------------------- |
+| `,,` | Repeat the last leader command                                          |
+| `,h` | Run agent from home prompt context; bare prompts default to `#git:home` |
+| `,o` | Open model overrides (global; see [Model Overrides](#model-overrides))  |
+| `,R` | Show runners info                                                       |
 
 ### Bang Mode (`!` prefix)
 
@@ -877,7 +874,7 @@ These work on all tabs:
 | Key                 | Action                                                                            |
 | ------------------- | --------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                          |
-| `#`                 | Open SASE Admin Center (Config, Plugins, and XPrompts tabs)                       |
+| `#`                 | Open SASE Admin Center (Config, Projects, Plugins, and XPrompts tabs)             |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands) |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
 | `,i`                | Open Activity Dashboard modal (global)                                            |
@@ -929,11 +926,12 @@ through the transient prefix mode. Custom modes defined in `sase.yml` are also r
 The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.keymaps.app.open_command_palette` in
 `~/.config/sase/sase.yml`; comma-separated keys in that setting are treated as alternate bindings for the same action.
 
-## Project Management Panel
+## Projects Tab
 
-Press `,p` from any tab to open the **Project Management** panel. It lists non-system projects across `active`,
-`sibling`, and `inactive` lifecycle states, so hidden projects remain reachable even though normal launch and discovery
-views omit them. Rows include workspace path, active claim count, launchability, and lifecycle or workspace warnings.
+Open the SASE Admin Center with `#` and switch to the **Projects** tab with `[` / `]` or the tab strip. It lists
+non-system projects across `active`, `sibling`, and `inactive` lifecycle states, so hidden projects remain reachable
+even though normal launch and discovery views omit them. Rows include workspace path, active claim count, launchability,
+and lifecycle or workspace warnings.
 
 | Key         | Action                                                               |
 | ----------- | -------------------------------------------------------------------- |
@@ -941,6 +939,7 @@ views omit them. Rows include workspace path, active claim count, launchability,
 | `/`         | Filter projects by text                                              |
 | `Tab`       | Cycle lifecycle filter: active, sibling, inactive, all               |
 | `Shift+Tab` | Cycle lifecycle filter backward                                      |
+| `[` / `]`   | Switch Admin Center tabs (e.g. to Config or Plugins)                 |
 | `Enter`     | Activate the highlighted project when it is not active               |
 | `Ctrl+X`    | Include or exclude inactive rows in the active filter                |
 | `m`         | Mark or unmark the highlighted project                               |
@@ -952,7 +951,7 @@ views omit them. Rows include workspace path, active claim count, launchability,
 | `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories |
 | `F`         | Force the last blocked deactivate after confirming live-work checks  |
 | `R`         | Reload project records                                               |
-| `q` / `Esc` | Close the panel                                                      |
+| `q` / `Esc` | Close the SASE Admin Center                                          |
 
 When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set instead of only the highlighted row.
 Successful lifecycle changes clear the affected marks; blocked or failed rows stay marked so you can inspect or retry

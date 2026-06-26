@@ -99,18 +99,19 @@ dependency tracking and executable epics on top of those artifacts.
 `sase project list --state all --json` to inspect inactive and sibling projects, `sase project deactivate <project>` to
 hide a dormant project from default launch views, and `sase project activate <project>` to make a hidden project
 launchable again. Deactivating refuses projects with live `RUNNING` claims or active artifact markers unless `--force`
-is passed. Deprecated `archive` and `close` aliases still set `inactive` for compatibility. ACE's `,p` Project
-Management panel provides the interactive counterpart, including marking multiple projects, editing a ProjectSpec in
-`$EDITOR`, and deleting obsolete SASE project directories after confirmation. There is no CLI delete subcommand; full
-project-directory deletion is only available from ACE's `,p` panel and removes state under `~/.sase/projects/`, not
-workspace checkouts.
+is passed. Deprecated `archive` and `close` aliases still set `inactive` for compatibility. ACE's **Projects** tab (in
+the SASE Admin Center, opened with `#`) provides the interactive counterpart, including marking multiple projects,
+editing a ProjectSpec in `$EDITOR`, and deleting obsolete SASE project directories after confirmation. There is no CLI
+delete subcommand; full project-directory deletion is only available from ACE's Projects tab and removes state under
+`~/.sase/projects/`, not workspace checkouts.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`, `remove PROJECT ALIAS`, and `clear PROJECT` manage
-ProjectSpec aliases. The ACE `,p` Project Management panel also displays aliases, includes them in filtering, and opens
-an alias editor with `A`. Alias refs are accepted in launch-bound VCS workspace tags, but prompt history, agent
-metadata, and artifacts use the canonical project name. Providers may also generate aliases automatically; for example,
-the GitHub provider can create `foo` and then `foo-2` aliases for distinct `owner/foo` repositories while keeping stable
-canonical project records. Use the same `sase project alias` commands to inspect or adjust those generated aliases.
+ProjectSpec aliases. The ACE Projects tab (in the SASE Admin Center, opened with `#`) also displays aliases, includes
+them in filtering, and opens an alias editor with `A`. Alias refs are accepted in launch-bound VCS workspace tags, but
+prompt history, agent metadata, and artifacts use the canonical project name. Providers may also generate aliases
+automatically; for example, the GitHub provider can create `foo` and then `foo-2` aliases for distinct `owner/foo`
+repositories while keeping stable canonical project records. Use the same `sase project alias` commands to inspect or
+adjust those generated aliases.
 
 Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces

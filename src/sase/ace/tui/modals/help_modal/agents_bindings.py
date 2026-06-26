@@ -292,7 +292,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last +/Ctrl+Space selection",
                 ),
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
-                (d(a.open_config_center), "SASE Admin Center / Plugins / XPrompts"),
+                (
+                    d(a.open_config_center),
+                    "SASE Admin Center / Projects / Plugins / XPrompts",
+                ),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Stop axe and quit"),

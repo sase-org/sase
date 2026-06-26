@@ -91,7 +91,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 sase init -c             # check initialization drift without writing files
 sase doctor -v           # readable install, config, project, provider, and state report
 sase version             # inspect the exact SASE packages loaded by this environment
-sase ace                  # open the interactive control surface; press # for Admin Center, ,p for Project Management
+sase ace                  # open the interactive control surface; press # for the Admin Center (Config / Projects / Plugins / XPrompts)
 sase run "<prompt>"       # launch an agent or workflow
 sase agent list          # inspect running agents
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
@@ -118,9 +118,10 @@ SASE keeps durable state outside any one chat session:
   treated as `active`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs, broad mobile helper
   catalogs, and known-project VCS refs such as `#gh:sase` only use active projects. Use `sase project list --state all`,
   `sase project show <project>`, and `sase project activate <project>` when revisiting inactive work. Legacy on-disk
-  `archived` and `closed` ProjectSpecs are read as inactive. In ACE, press `,p` to manage lifecycle state, edit
-  ProjectSpecs, mark projects for bulk lifecycle actions, or delete an obsolete SASE project directory. Deleting from
-  that panel removes `~/.sase/projects/<project>/`, not the workspace checkout.
+  `archived` and `closed` ProjectSpecs are read as inactive. In ACE, press `#` and switch to the **Projects** tab of the
+  SASE Admin Center to manage lifecycle state, edit ProjectSpecs, mark projects for bulk lifecycle actions, or delete an
+  obsolete SASE project directory. Deleting from that tab removes `~/.sase/projects/<project>/`, not the workspace
+  checkout.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed

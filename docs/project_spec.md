@@ -81,8 +81,8 @@ registration. They are parsed only before the first ChangeSpec.
 `PROJECT_STATE` is managed by `sase project`. If you edit this field by hand, keep it before `RUNNING:` or the first
 `NAME:` line and use one of the valid lowercase values.
 
-`PROJECT_ALIASES` is managed by `sase project alias` and ACE's Project Management panel. If you edit it by hand, keep it
-before `RUNNING:` or the first `NAME:` line and use the same comma-separated form SASE writes.
+`PROJECT_ALIASES` is managed by `sase project alias` and ACE's Projects tab (in the SASE Admin Center). If you edit it
+by hand, keep it before `RUNNING:` or the first `NAME:` line and use the same comma-separated form SASE writes.
 
 ### Project Aliases
 
@@ -130,9 +130,9 @@ sase project alias clear PROJECT
 Alias mutation uses the normal ProjectSpec lock and can target active, inactive, or sibling projects. The system-managed
 `home` project cannot be mutated.
 
-ACE exposes aliases in the `,p` Project Management panel. Rows show compact alias information, the detail pane shows the
-full list, the text filter matches aliases, and `A` opens the alias editor for the highlighted project. Alias edits
-replace the selected project's alias set; marked bulk operations remain lifecycle-only.
+ACE exposes aliases in the Projects tab of the SASE Admin Center (press `#`). Rows show compact alias information, the
+detail pane shows the full list, the text filter matches aliases, and `A` opens the alias editor for the highlighted
+project. Alias edits replace the selected project's alias set; marked bulk operations remain lifecycle-only.
 
 ### Project Lifecycle
 
@@ -162,9 +162,9 @@ normal ProjectSpec lock. Deprecated `archive` and `close` aliases still set `ina
 refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed. The system-managed
 `home` project cannot be mutated through this command.
 
-ACE exposes the same lifecycle operations through the `,p` project management panel. The panel loads non-system projects
-across all states, defaults to the active filter, offers text and state filters, supports marks for bulk
-activate/deactivate operations and bulk full-directory deletion, and uses the same blocked-operation checks before
+ACE exposes the same lifecycle operations through the Projects tab of the SASE Admin Center (press `#`). The tab loads
+non-system projects across all states, defaults to the active filter, offers text and state filters, supports marks for
+bulk activate/deactivate operations and bulk full-directory deletion, and uses the same blocked-operation checks before
 deactivating a project. It can also open the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE
 project directory under `~/.sase/projects/` after confirmation, including ProjectSpecs, project-local config, and
 artifacts; it does not remove workspace checkouts. This is broader than `Ctrl+D` in project launch pickers, which only
@@ -179,9 +179,9 @@ Common workflows:
 - Reactivate from the CLI: `sase project activate old-project`
 - Add a short project alias: `sase project alias add bob-cli bob`
 - Inspect project aliases as JSON: `sase project alias list bob-cli --json`
-- Reactivate from ACE: press `,p`, highlight the project, then press `a`
-- Edit aliases from ACE: press `,p`, highlight the project, then press `A`
-- Bulk-deactivate from ACE: press `,p`, mark projects with `m`, then press `d`
+- Reactivate from ACE: press `#`, switch to the Projects tab, highlight the project, then press `a`
+- Edit aliases from ACE: press `#`, switch to the Projects tab, highlight the project, then press `A`
+- Bulk-deactivate from ACE: press `#`, switch to the Projects tab, mark projects with `m`, then press `d`
 
 Maintenance and agent-history scans intentionally keep reading all project directories. This keeps live `RUNNING`
 claims, stale-claim cleanup, dismissed-agent recovery, agent-name collision checks, and historical Agents-tab rows

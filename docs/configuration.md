@@ -1306,10 +1306,10 @@ cannot be mutated through this command. Normal launch and discovery surfaces def
 hidden project. The `sibling` state (a legacy backing state name) is intended for configured linked repository records
 used by `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
 
-ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. That panel also supports marks
-for bulk lifecycle operations, alias editing with `A`, an active-filter inactive-row overlay with `Ctrl+X`, ProjectSpec
-editing through `$EDITOR`, and confirmed deletion of whole SASE project directories under `~/.sase/projects/` without
-deleting workspace checkouts. The temporary model override uses `,o` by default.
+ACE exposes the same lifecycle mutations through the **Projects** tab of the SASE Admin Center (press `#`). That tab
+also supports marks for bulk lifecycle operations, alias editing with `A`, an active-filter inactive-row overlay with
+`Ctrl+X`, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project directories under
+`~/.sase/projects/` without deleting workspace checkouts. The temporary model override uses `,o` by default.
 
 ### `sase revert`
 
