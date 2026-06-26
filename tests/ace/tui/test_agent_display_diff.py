@@ -330,6 +330,50 @@ def test_same_list_falls_back_when_previous_rows_were_not_rendered(
     assert "display_full_rebuild" in _display_costs(app)
 
 
+def _by_status_app(agents: list[Agent], monkeypatch: Any) -> _DisplayDiffApp:
+    """Build a single-panel app rendered under the BY_STATUS bucket tree."""
+    app = _DisplayDiffApp(agents, monkeypatch)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    # Re-render so the widgets carry the BY_STATUS status-bucket tree (and the
+    # per-row patch context the row-patch path reads).
+    app._refresh_panel_widgets(jump_hints=None)
+    return app
+
+
+def test_by_status_badge_only_change_patches_in_place(monkeypatch: Any) -> None:
+    # Regression: a deferred live-hint pencil on a redirected Plan row used to
+    # wait for the next full rebuild because BY_STATUS vetoed every row patch.
+    agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    app = _by_status_app([agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    # Badge-only live-hint flip on the same row keeps it in the Running bucket.
+    agent.live_file_change_hint = True
+    assert app._try_patch_agent_row(agent) is True
+
+    assert app.full_rebuilds == 0
+    costs = _display_costs(app)
+    assert "row_patch" in costs
+    assert "display_full_rebuild" not in costs
+    assert app._agents_refresh_trace_records[-1].fallback_reason is None
+
+
+def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> None:
+    old_agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    app = _by_status_app([old_agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    new_agent = replace(old_agent, status="DONE")
+    app._agents = [new_agent]
+
+    # Running -> Done crosses status buckets, so the in-place patch must refuse
+    # and leave the caller to rebuild the affected panel.
+    assert app._try_patch_agent_row(new_agent) is False
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "unsupported_grouping"
+    )
+
+
 def test_stale_widget_grouping_mode_falls_back_to_full_rebuild(
     monkeypatch: Any,
 ) -> None:

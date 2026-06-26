@@ -135,6 +135,36 @@ def _resolve_agent_diff_source(agent: Agent) -> Agent:
     return max(active_coder_children, key=_agent_launch_time)
 
 
+def resolve_agent_diff_source(agent: Agent) -> Agent:
+    """Return the agent whose workspace provides this row's diff content.
+
+    Public wrapper around :func:`_resolve_agent_diff_source` so the Agents-tab
+    badge and the deferred live-hint scan resolve the diff source through the
+    exact same rule the detail panel uses. Stays cheap: it only inspects
+    in-memory plan/follow-up relationships and statuses (no filesystem, VCS, or
+    diff reads).
+    """
+    return _resolve_agent_diff_source(agent)
+
+
+def diff_badge_uses_live_hint(agent: Agent) -> bool:
+    """Return ``True`` when *agent*'s row badge must come from the live hint.
+
+    A root Plan workflow row redirects its diff to the most recent active coder
+    child (see :func:`_resolve_agent_diff_source`). While that child has not
+    persisted its own ``diff_path`` yet, the plan row's ``diff_path`` /
+    ``diff_has_real_edits`` are bookkeeping-only, so the deferred live hint —
+    which mirrors the detail panel's ``Deltas:`` — must drive the badge.
+
+    Once the child persists a diff (the status-override pass propagates it onto
+    the plan row), that propagated classification is authoritative again and
+    normal badge precedence applies, so this returns ``False``. Non-redirected
+    rows always return ``False``.
+    """
+    source = _resolve_agent_diff_source(agent)
+    return source is not agent and not source.diff_path
+
+
 def _git_index_signature(workspace_dir: str) -> tuple[int, int] | None:
     git_index = os.path.join(workspace_dir, ".git", "index")
     try:

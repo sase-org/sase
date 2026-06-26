@@ -65,6 +65,39 @@ def _agent(
     )
 
 
+def _root_plan(*, raw_suffix: str, diff_path: str | None = None) -> Agent:
+    return Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="plan-feat",
+        project_file="/tmp/test.sase",
+        status="PLAN APPROVED",
+        start_time=datetime(2026, 6, 15, 19, 0, 0),
+        raw_suffix=raw_suffix,
+        role_suffix="-plan",
+        plan_chain_root=True,
+        diff_path=diff_path,
+    )
+
+
+def _coder_child(
+    *,
+    parent_suffix: str,
+    status: str = "PLAN APPROVED",
+    diff_path: str | None = None,
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="plan-feat-code",
+        project_file="/tmp/test.sase",
+        status=status,
+        start_time=datetime(2026, 6, 15, 19, 30, 0),
+        raw_suffix=f"{parent_suffix}-code",
+        parent_timestamp=parent_suffix,
+        role_suffix="-code",
+        diff_path=diff_path,
+    )
+
+
 # --- scheduling / coalescing -------------------------------------------------
 
 
@@ -139,6 +172,50 @@ def test_live_hint_candidates_scope() -> None:
     candidates = app._live_hint_candidates()
 
     assert candidates == [running, starting]
+
+
+def test_live_hint_candidates_includes_redirected_plan_with_own_diff_path() -> None:
+    """A redirected plan row qualifies even with its own bookkeeping diff_path.
+
+    Its resolved active coder child has no persisted diff, so the deferred scan
+    must probe the child's workspace to drive the plan row's badge.
+    """
+    app = _FakeApp()
+    plan = _root_plan(raw_suffix="100", diff_path="/tmp/plan.diff")
+    plan.followup_agents.append(_coder_child(parent_suffix="100"))
+    app._agents = [plan]
+
+    assert app._live_hint_candidates() == [plan]
+
+
+def test_live_hint_candidates_excludes_redirected_plan_with_terminal_child() -> None:
+    app = _FakeApp()
+    plan = _root_plan(raw_suffix="200", diff_path="/tmp/plan.diff")
+    plan.followup_agents.append(_coder_child(parent_suffix="200", status="DONE"))
+    app._agents = [plan]
+
+    # The coder child is terminal, so resolution falls back to the plan row,
+    # whose own (bookkeeping) diff_path now suppresses the live probe.
+    assert app._live_hint_candidates() == []
+
+
+def test_live_hint_candidates_excludes_redirected_plan_when_child_has_diff() -> None:
+    app = _FakeApp()
+    plan = _root_plan(raw_suffix="300", diff_path="/tmp/plan.diff")
+    plan.followup_agents.append(
+        _coder_child(parent_suffix="300", diff_path="/tmp/child.diff")
+    )
+    app._agents = [plan]
+
+    assert app._live_hint_candidates() == []
+
+
+def test_live_hint_candidates_excludes_ordinary_persisted_diff_row() -> None:
+    app = _FakeApp()
+    with_diff = _agent(cl_name="withdiff", raw_suffix="9", diff_path="/tmp/x.diff")
+    app._agents = [with_diff]
+
+    assert app._live_hint_candidates() == []
 
 
 # --- compute (off-thread body) -----------------------------------------------

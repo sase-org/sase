@@ -67,7 +67,11 @@ from ._buckets import (
     date_subgroup_bucket_for,
     status_bucket_for,
 )
-from ._keys import grouping_keys_for_agents, panel_uses_changespec_level
+from ._keys import (
+    grouping_keys_for_agents,
+    panel_uses_changespec_level,
+    status_grouping_signature,
+)
 from ._tree import (
     GroupRow,
     TreeEntry,
@@ -106,4 +110,5 @@ __all__ = [
     "grouping_keys_for_agents",
     "panel_uses_changespec_level",
     "status_bucket_for",
+    "status_grouping_signature",
 ]

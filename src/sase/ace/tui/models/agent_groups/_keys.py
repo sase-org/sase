@@ -89,6 +89,25 @@ def _name_prefix_member_rank(agent: Agent) -> int:
     return 1
 
 
+def status_grouping_signature(agent: Agent) -> tuple[str, str, str, int]:
+    """Return the ``BY_STATUS`` grouping determinants for a single agent.
+
+    Captures exactly the fields that decide which status bucket and
+    name-root / name-prefix subgroup a row renders under: the status bucket,
+    the name root, the name prefix, and the exact-prefix member rank. Used by
+    the in-place row-patch guard to confirm a badge-only change (e.g. a
+    deferred live-hint pencil) leaves the row in the same group before patching
+    its Option in place; any difference means the row moved and the caller must
+    rebuild instead.
+    """
+    return (
+        status_bucket_for(agent),
+        _name_root(agent),
+        _name_prefix(agent),
+        _name_prefix_member_rank(agent),
+    )
+
+
 def _changespec_name_for_grouping(agent: Agent) -> str:
     """Return the real ChangeSpec name for grouping, if any.
 

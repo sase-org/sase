@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from ...models.agent_groups import GroupingMode
+from ...models.agent_groups import GroupingMode, status_grouping_signature
 from ._display_helpers import TabName, panel_widget_id
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._refresh_trace import (
@@ -18,6 +18,21 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_panels import AgentPanelGroup
+
+
+def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
+    """Whether a ``BY_STATUS`` row may be patched in place for *new_agent*.
+
+    Compares the currently-rendered row (*old_agent*) against the incoming
+    *new_agent* under the status-grouping keys. The patch is safe only when the
+    row identity is unchanged (same logical row) and the status bucket plus
+    name-root / name-prefix subgroup are identical — i.e. the change is
+    badge-only and the cached visual position still holds. Any difference means
+    the row would move banners, so the caller must fall back to a rebuild.
+    """
+    if old_agent.identity != new_agent.identity:
+        return False
+    return status_grouping_signature(old_agent) == status_grouping_signature(new_agent)
 
 
 class PanelPatchMixin:
@@ -217,18 +232,25 @@ class PanelPatchMixin:
                 count=1,
             )
             return False
-        widget._agents[local_idx] = agent
 
-        if (
-            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-            is GroupingMode.BY_STATUS
+        if getattr(
+            self, "_grouping_mode", GroupingMode.STANDARD
+        ) is GroupingMode.BY_STATUS and not _status_row_patch_is_safe(
+            widget._agents[local_idx], agent
         ):
+            # Under BY_STATUS a row patch is only safe for a non-structural
+            # change (e.g. a deferred live-hint pencil): the row must stay in
+            # the same status bucket and name-root/name-prefix subgroup so its
+            # cached visual position is still valid. A status-bucket move or
+            # other grouping change requires a panel rebuild to re-bannerize.
             self._record_display_patch_trace(
                 display_cost="row_patch",
                 fallback_reason="unsupported_grouping",
                 count=1,
             )
             return False
+
+        widget._agents[local_idx] = agent
 
         is_selected = (
             agent_idx == self.current_idx

@@ -109,16 +109,29 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
     def _live_hint_candidates(self) -> list[Agent]:
         """Snapshot visible rows that may need a live workspace hint.
 
-        Conservative first-pass scope: visible, non-terminal rows without a
-        persisted ``diff_path``. The off-thread worker resolves the workspace
-        and VCS provider and fails closed for rows whose workspace cannot be
-        resolved, so no further pre-filtering is needed here.
+        Scope is keyed on the *resolved diff source* so it stays consistent
+        with both the detail panel and ``live_agent_file_change_hint``:
+
+        - An ordinary row resolves to itself, so the filter reduces to the
+          historical rule (skip rows with a persisted ``diff_path`` or a
+          terminal status).
+        - A redirected root Plan row resolves to its active coder child, so it
+          is included even when the plan row carries its own bookkeeping-only
+          ``diff_path`` — as long as the child has no persisted ``diff_path``
+          and is not terminal.
+
+        Source resolution is a cheap in-memory walk of plan/follow-up
+        relationships; the actual VCS probe is offloaded to the background
+        worker, which fails closed for rows whose workspace cannot be resolved.
         """
+        from sase.ace.tui.widgets.file_panel._diff import resolve_agent_diff_source
+
         candidates: list[Agent] = []
         for agent in self._agents:
-            if agent.diff_path:
+            source = resolve_agent_diff_source(agent)
+            if source.diff_path:
                 continue
-            if not _status_allows_live_hint(agent.status):
+            if not _status_allows_live_hint(source.status):
                 continue
             candidates.append(agent)
         return candidates

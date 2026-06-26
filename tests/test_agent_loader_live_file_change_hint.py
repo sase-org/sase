@@ -59,6 +59,35 @@ def _running_agent(workspace_dir: str) -> Agent:
     )
 
 
+def _root_plan_agent(*, diff_path: str | None = None) -> Agent:
+    return Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my-feature",
+        project_file="/tmp/test.sase",
+        status="PLAN APPROVED",
+        start_time=datetime(2026, 6, 15, 19, 0, 0),
+        raw_suffix="20260615190000",
+        role_suffix="-plan",
+        plan_chain_root=True,
+        diff_path=diff_path,
+    )
+
+
+def _active_coder_child(workspace_dir: str, *, diff_path: str | None = None) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my-feature-code",
+        project_file="/tmp/test.sase",
+        status="PLAN APPROVED",
+        start_time=datetime(2026, 6, 15, 19, 30, 0),
+        raw_suffix="20260615190000-code",
+        parent_timestamp="20260615190000",
+        role_suffix="-code",
+        workspace_dir=workspace_dir,
+        diff_path=diff_path,
+    )
+
+
 class _DiffTextProvider:
     def __init__(self, diff_text: str) -> None:
         self.diff_text = diff_text
@@ -178,6 +207,95 @@ def test_deferred_helper_returns_none_for_persisted_diff_path() -> None:
 
     with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
         hint = classify_live_file_change_hint(agent)
+
+    assert hint is None
+    mock_get_provider.assert_not_called()
+
+
+# --- redirected root Plan rows -----------------------------------------------
+
+
+def test_redirected_plan_row_uses_active_coder_live_edits(tmp_path: Path) -> None:
+    """A plan row's bookkeeping diff_path must not suppress the child's hint.
+
+    The detail panel sources a redirected root Plan row's diff from its active
+    coder child. The deferred hint must classify the *child* workspace even
+    when the plan row carries its own bookkeeping-only diff_path, so the row
+    badge matches the detail panel's ``Deltas:``.
+    """
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    child_workspace = _setup_workspace(tmp_path)
+    bookkeeping = tmp_path / "plan.diff"
+    _write_git_diff(bookkeeping, "sdd/tales/202606/change.md")
+    root = _root_plan_agent(diff_path=str(bookkeeping))
+    root.followup_agents.append(_active_coder_child(str(child_workspace)))
+    provider = _DiffTextProvider(_git_diff("src/app.py"))
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = classify_live_file_change_hint(root)
+
+    assert hint is True
+    root.live_file_change_hint = hint
+    assert agent_file_change_hint(root) is True
+
+
+def test_redirected_plan_row_false_for_bookkeeping_only_child_edits(
+    tmp_path: Path,
+) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    child_workspace = _setup_workspace(tmp_path)
+    bookkeeping = tmp_path / "plan.diff"
+    _write_git_diff(bookkeeping, "sdd/tales/202606/change.md")
+    root = _root_plan_agent(diff_path=str(bookkeeping))
+    root.followup_agents.append(_active_coder_child(str(child_workspace)))
+    provider = _DiffTextProvider(_git_diff("sdd/tales/202606/notes.md"))
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = classify_live_file_change_hint(root)
+
+    assert hint is False
+    root.live_file_change_hint = hint
+    assert agent_file_change_hint(root) is False
+
+
+def test_redirected_plan_row_skips_live_path_when_child_has_diff_path(
+    tmp_path: Path,
+) -> None:
+    """A child with its own persisted diff stays authoritative — no VCS probe."""
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    child_diff = tmp_path / "child.diff"
+    _write_git_diff(child_diff, "src/app.py")
+    bookkeeping = tmp_path / "plan.diff"
+    _write_git_diff(bookkeeping, "sdd/tales/202606/change.md")
+    root = _root_plan_agent(diff_path=str(bookkeeping))
+    root.followup_agents.append(
+        _active_coder_child("/does/not/matter", diff_path=str(child_diff))
+    )
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        hint = classify_live_file_change_hint(root)
+
+    assert hint is None
+    mock_get_provider.assert_not_called()
+
+
+def test_non_redirected_plan_row_with_diff_path_skips_live_path(
+    tmp_path: Path,
+) -> None:
+    """A plan row with no active coder child is not redirected — diff_path wins."""
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    bookkeeping = tmp_path / "plan.diff"
+    _write_git_diff(bookkeeping, "src/app.py")
+    root = _root_plan_agent(diff_path=str(bookkeeping))
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        hint = classify_live_file_change_hint(root)
 
     assert hint is None
     mock_get_provider.assert_not_called()

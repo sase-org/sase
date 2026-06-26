@@ -13,12 +13,24 @@ def classify_live_file_change_hint(agent: Agent) -> bool | None:
     Agents TUI schedules it as deferred, coalesced background work after the
     first load applies (see ``AgentLiveHintMixin``).
 
+    The probe is suppressed when the *resolved diff source* already has a
+    persisted ``diff_path`` — its classification is authoritative. For an
+    ordinary row the source is the row itself, so this reduces to the historic
+    "row has a diff_path" rule. For a redirected root Plan row the source is
+    its active coder child, so the plan row's own bookkeeping-only ``diff_path``
+    no longer suppresses the probe; the live signal comes from the child's
+    workspace instead (``live_agent_file_change_hint`` resolves it internally).
+
     Fails closed (returns ``None``) on any error so live VCS access can never
     destabilize row rendering.
     """
-    if agent.diff_path:
+    from sase.ace.tui.widgets.file_panel._diff import (
+        live_agent_file_change_hint,
+        resolve_agent_diff_source,
+    )
+
+    if resolve_agent_diff_source(agent).diff_path:
         return None
-    from sase.ace.tui.widgets.file_panel._diff import live_agent_file_change_hint
 
     try:
         return live_agent_file_change_hint(agent)
