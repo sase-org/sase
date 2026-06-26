@@ -1,0 +1,391 @@
+"""Rendering helpers for the Config Center Plugins browser."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from rich.console import Group, RenderableType
+from rich.text import Text
+from textual.widgets import OptionList, Static
+from textual.widgets.option_list import Option
+
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.render import build_community_warning_panel, build_detail_panel
+from sase.plugins.render_common import (
+    _AVAILABLE_GLYPH,
+    _COMMUNITY_STYLE,
+    _INSTALLED_GLYPH,
+    _UPDATE_GLYPH,
+    humanize_age,
+)
+from sase.uv_tool.detect import NotUvToolInstall
+
+from .plugins_browser_constants import (
+    _BUILTIN_GROUP,
+    _COMMUNITY_GROUP,
+    _DETAIL_PLACEHOLDER,
+    _HEADER_PREFIX,
+    _ITEM_PREFIX,
+)
+
+
+class PluginsBrowserRenderingMixin:
+    """Rendering and selection helpers for :class:`PluginsBrowserPane`."""
+
+    if TYPE_CHECKING:
+        _catalog: PluginCatalog | None
+        _detail_debouncer: DetailPanelDebouncer | None
+        _detail_name: str | None
+        _error: str | None
+        _filter_text: str
+        _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
+        _loading: bool
+        _now: float
+        _offline: bool
+        _restore_name: str | None
+        _uv_tool: object | None
+        _verbose: bool
+
+        def _detail_widget(self) -> Static | None: ...
+
+        def _is_item(self, option_list: OptionList, index: int) -> bool: ...
+
+        def _option_list(self) -> OptionList | None: ...
+
+        def _update_static(self, selector: str, content: Text | str) -> None: ...
+
+    def _render_all(self) -> None:
+        self._rebuild_groups()
+        self._update_static("#plugins-summary", self._summary_text())
+        self._update_static("#plugins-hints", self._hints())
+        self._rebuild_options()
+        self._sync_state_visibility()
+        # A fresh load may have changed the highlighted plugin's data (e.g. a
+        # new latest version), so force the detail to repaint immediately.
+        self._render_detail_now(force=True)
+
+    def _rebuild_groups(self) -> None:
+        self._grouped = []
+        catalog = self._catalog
+        if catalog is None:
+            return
+        builtin = [e for e in catalog.builtin_entries if self._matches(e)]
+        community = [e for e in catalog.community_entries if self._matches(e)]
+        if builtin:
+            self._grouped.append((_BUILTIN_GROUP, "bold dim", builtin))
+        if community:
+            self._grouped.append(
+                (_COMMUNITY_GROUP, f"bold {_COMMUNITY_STYLE}", community)
+            )
+
+    def _matches(self, entry: PluginCatalogEntry) -> bool:
+        needle = self._filter_text.strip().casefold()
+        if not needle:
+            return True
+        haystack = "\n".join(
+            part
+            for part in (entry.name, entry.repo, entry.description, *entry.topics)
+            if part
+        ).casefold()
+        return needle in haystack
+
+    def _rebuild_options(self) -> None:
+        option_list = self._option_list()
+        if option_list is None:
+            return
+        preferred = self._restore_name
+        self._restore_name = None
+        option_list.clear_options()
+        for opt in self._create_options():
+            option_list.add_option(opt)
+        if preferred is not None and self._highlight_named(option_list, preferred):
+            return
+        self._skip_to_first_item(option_list)
+
+    def _create_options(self) -> list[Option]:
+        """Build OptionList items: disabled section headers + plugin rows."""
+        options: list[Option] = []
+        for group, style, entries in self._grouped:
+            header = Text(f"── {group} ──", style=style)
+            options.append(Option(header, id=f"{_HEADER_PREFIX}{group}", disabled=True))
+            for entry in entries:
+                options.append(
+                    Option(self._row_text(entry), id=f"{_ITEM_PREFIX}{entry.name}")
+                )
+        return options
+
+    def _row_text(self, entry: PluginCatalogEntry) -> Text:
+        """A single list row: status glyph + name + version + update marker."""
+        text = Text()
+        text.append("  ")
+        if entry.installed.installed:
+            text.append(_INSTALLED_GLYPH, style="green")
+        else:
+            text.append(_AVAILABLE_GLYPH, style="dim")
+        text.append(" ")
+        text.append(entry.name, style="bold")
+        version = self._version_label(entry)
+        if version:
+            text.append("  ")
+            text.append(version, style="dim")
+        if entry.update_available:
+            text.append("  ")
+            text.append(_UPDATE_GLYPH, style="bold cyan")
+        if self._verbose:
+            text.append("  ")
+            text.append(f"★{entry.stars}", style="dim")
+            if entry.updated_at:
+                text.append("  ")
+                text.append(entry.updated_at, style="dim")
+        return text
+
+    @staticmethod
+    def _version_label(entry: PluginCatalogEntry) -> str:
+        info = entry.installed
+        if info.installed:
+            if entry.latest.source == "editable":
+                return "editable"
+            if entry.latest.source == "git":
+                return "git"
+            if entry.update_available and info.version and entry.latest.version:
+                return f"v{info.version} → v{entry.latest.version}"
+            if info.version:
+                return f"v{info.version}"
+            return "installed"
+        if entry.latest.version:
+            return f"latest v{entry.latest.version}"
+        return ""
+
+    def _skip_to_first_item(self, option_list: OptionList) -> None:
+        """Highlight the first non-header option, if any."""
+        for index in range(option_list.option_count):
+            if self._is_item(option_list, index):
+                option_list.highlighted = index
+                return
+
+    def _highlight_named(self, option_list: OptionList, name: str) -> bool:
+        """Highlight the row for *name* if it is present; return success."""
+        target = f"{_ITEM_PREFIX}{name}"
+        for index in range(option_list.option_count):
+            opt = option_list.get_option_at_index(index)
+            if opt.id == target:
+                option_list.highlighted = index
+                return True
+        return False
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        """Repaint the detail panel for the newly highlighted row (debounced).
+
+        The cursor highlight is already instant (the ``OptionList`` paints it
+        itself); only the comparatively expensive detail rebuild is funneled
+        through the debouncer so a held j/k collapses to one final paint. The
+        hints line (which gates ``i install`` on the highlighted row) is cheap,
+        so it refreshes immediately.
+        """
+        self._update_static("#plugins-hints", self._hints())
+        self._schedule_detail()
+
+    def _schedule_detail(self) -> None:
+        debouncer = self._detail_debouncer
+        if debouncer is None:
+            self._render_detail_now()
+            return
+        debouncer.schedule(self._render_detail_now)
+
+    def _render_detail_now(self, *, force: bool = False) -> None:
+        """Paint the detail panel for the currently highlighted plugin.
+
+        Re-reads the live highlight (so the latest selection wins after a
+        debounced burst) and skips redundant work when the same plugin is
+        already shown, unless *force* is set (used after a reload whose data
+        may have changed under an unchanged selection).
+        """
+        entry = self._current_entry()
+        name = entry.name if entry is not None else None
+        if not force and name == self._detail_name:
+            return
+        self._detail_name = name
+        self._update_detail(entry)
+
+    def _update_detail(self, entry: PluginCatalogEntry | None) -> None:
+        detail = self._detail_widget()
+        if detail is None:
+            return
+        if entry is None:
+            detail.update(_DETAIL_PLACEHOLDER)
+            return
+        detail.update(self._detail_renderable(entry))
+
+    @staticmethod
+    def _detail_renderable(entry: PluginCatalogEntry) -> RenderableType:
+        """The ``show``-equivalent detail: community warning (if any) + panel."""
+        parts: list[RenderableType] = []
+        if entry.is_community:
+            parts.append(build_community_warning_panel(entry))
+        parts.append(build_detail_panel(entry))
+        return Group(*parts)
+
+    def _current_entry(self) -> PluginCatalogEntry | None:
+        option_list = self._option_list()
+        if option_list is None or option_list.highlighted is None:
+            return None
+        try:
+            opt = option_list.get_option_at_index(option_list.highlighted)
+        except Exception:
+            return None
+        if not opt.id or str(opt.id).startswith(_HEADER_PREFIX):
+            return None
+        return self._entry_by_name(str(opt.id).removeprefix(_ITEM_PREFIX))
+
+    def _entry_by_name(self, name: str) -> PluginCatalogEntry | None:
+        for _, _, entries in self._grouped:
+            for entry in entries:
+                if entry.name == name:
+                    return entry
+        return None
+
+    def _highlighted_name(self) -> str | None:
+        entry = self._current_entry()
+        return entry.name if entry is not None else None
+
+    def _sync_state_visibility(self) -> None:
+        """Show the list when populated, else the status placeholder.
+
+        A *reload* (refresh / offline toggle) keeps the already-painted rows
+        visible — the header reports "loading…" instead — so the list never
+        flashes away and the focused highlight is preserved. The status
+        placeholder is reserved for the initial load, the error state, and the
+        genuinely empty / no-match cases.
+        """
+        has_rows = any(entries for _, _, entries in self._grouped)
+        try:
+            status = self.query_one(  # type: ignore[attr-defined]
+                "#plugins-status", Static
+            )
+            option_list = self.query_one(  # type: ignore[attr-defined]
+                "#plugins-list", OptionList
+            )
+        except Exception:
+            return
+        status.update(self._status_message())
+        show_status = self._error is not None or not has_rows
+        status.display = show_status
+        option_list.display = not show_status
+
+    def _summary_text(self) -> Text:
+        """Header summary: counts line + offline badge + warning/stale hint."""
+        text = Text(self._summary_line())
+        if self._offline:
+            text.append("   ")
+            text.append("⚠ OFFLINE", style="bold yellow")
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            text.append("\n")
+            text.append("⚠ ", style="yellow")
+            text.append(
+                "Install/update unavailable — sase is not a `uv tool` install.",
+                style="yellow",
+            )
+        hint = self._summary_hint()
+        if hint is not None:
+            text.append("\n")
+            text.append("⚠ ", style="yellow")
+            text.append(hint, style="yellow")
+        return text
+
+    def _summary_line(self) -> str:
+        if self._loading:
+            return "SASE Plugins · loading…"
+        catalog = self._catalog
+        if catalog is None:
+            return "SASE Plugins · unavailable"
+        total = len(catalog.entries)
+        installed = catalog.installed_count
+        updates = catalog.updates_available
+        age = humanize_age(catalog.age_seconds(self._now))
+        return (
+            f"{total} plugins · {installed} installed · "
+            f"{updates} updates available · cached {age}"
+        )
+
+    def _summary_hint(self) -> str | None:
+        """A warning / stale-cache line to surface under the counts, if any."""
+        catalog = self._catalog
+        if self._loading or catalog is None:
+            return None
+        if catalog.warnings:
+            return catalog.warnings[0]
+        if catalog.stale:
+            age = humanize_age(catalog.age_seconds(self._now))
+            return f"cache is stale (last updated {age}) — press r to refresh"
+        return None
+
+    def _status_message(self) -> str:
+        if self._loading:
+            return "Loading plugins…"
+        if self._error is not None:
+            return f"Could not load plugins:\n{self._error}"
+        if self._catalog is None:
+            return "Plugin catalog unavailable."
+        if not self._catalog.entries:
+            return "No SASE plugins found."
+        if not any(entries for _, _, entries in self._grouped):
+            return "No plugins match the current filter."
+        return ""
+
+    def _hints(self) -> str:
+        offline = " (on)" if self._offline else ""
+        verbose = " (on)" if self._verbose else ""
+        parts: list[str] = []
+        if self._can_install_highlighted():
+            parts.append("i install")
+        if self._can_update_highlighted():
+            entry = self._current_entry()
+            emphasize = entry is not None and entry.update_available
+            parts.append("u update ↑" if emphasize else "u update")
+        if self._can_update_all():
+            parts.append("U update-all")
+        parts.extend(
+            [
+                "r refresh",
+                f"o offline{offline}",
+                f"v verbose{verbose}",
+                "/ filter",
+                "[ / ] tab",
+                "esc close",
+            ]
+        )
+        return " · ".join(parts)
+
+    def _can_install_highlighted(self) -> bool:
+        """Whether the highlighted plugin can be installed right now.
+
+        False when sase is not a managed ``uv tool`` install (mutations are
+        impossible) or the highlighted row is absent / already installed.
+        """
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        entry = self._current_entry()
+        return entry is not None and not entry.installed.installed
+
+    def _can_update_highlighted(self) -> bool:
+        """Whether the highlighted plugin can be updated right now.
+
+        True only when sase is a managed ``uv tool`` install and the highlighted
+        row is already installed (an update is *emphasized* in the hint when one
+        is available, but the action is offered for any installed plugin so a
+        forced re-check stays discoverable).
+        """
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        entry = self._current_entry()
+        return entry is not None and entry.installed.installed
+
+    def _can_update_all(self) -> bool:
+        """Whether ``update --all`` is possible: uv-tool install with plugins."""
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        catalog = self._catalog
+        return catalog is not None and catalog.installed_count > 0
