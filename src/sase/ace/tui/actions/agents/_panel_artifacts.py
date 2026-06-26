@@ -421,7 +421,15 @@ class AgentPanelArtifactMixin:
             if result.ok and result.pane_id is not None:
                 self._track_artifact_tmux_pane(result.pane_id)
         else:
-            with self.suspend():  # type: ignore[attr-defined]
+            from ...util.external_tool import suspend_for_external_tool
+
+            with suspend_for_external_tool(
+                self,
+                action="open_artifact",
+                tool_kind="artifact_viewer",
+                path_count=1,
+                status_message="Opening artifact…",
+            ):
                 result = view_agent_artifact(artifact)
             if zoom:
                 self.notify(  # type: ignore[attr-defined]
@@ -460,7 +468,15 @@ class AgentPanelArtifactMixin:
             if result.ok and result.pane_id is not None:
                 self._track_artifact_tmux_pane(result.pane_id)
         else:
-            with self.suspend():  # type: ignore[attr-defined]
+            from ...util.external_tool import suspend_for_external_tool
+
+            with suspend_for_external_tool(
+                self,
+                action="open_artifacts",
+                tool_kind="artifact_viewer",
+                path_count=len(artifacts),
+                status_message=f"Opening {len(artifacts)} artifacts…",
+            ):
                 result = view_agent_artifacts(artifacts)
             if zoom:
                 self.notify(  # type: ignore[attr-defined]

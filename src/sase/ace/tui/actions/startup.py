@@ -58,6 +58,7 @@ class StartupMixin(StateInitMixin):
     _nav_gate: NavigationGate
     _fs_watcher: ArtifactWatcher | None
     _stall_watchdog: Any
+    _stall_watchdog_suspend_signals_wired: bool
     _w_changespec_list: Any
     _w_changespec_detail: Any
     _w_ancestors_children: Any
@@ -226,11 +227,21 @@ class StartupMixin(StateInitMixin):
             from ..activity_log import ActivityEventType
 
             write_tui_pid()
-            from ..util.stall_watchdog import start_event_loop_stall_watchdog
+            from ..util.stall_watchdog import (
+                start_event_loop_stall_watchdog,
+                subscribe_watchdog_to_suspend_signals,
+            )
 
             self._stall_watchdog = start_event_loop_stall_watchdog(
                 asyncio.get_running_loop(),
                 context_provider=self._tui_stall_context,
+            )
+            # Global safety net: pause the watchdog across every intentional
+            # ``suspend()`` terminal handoff so editors/viewers are not logged
+            # as generic event-loop freezes. The external-tool helper falls
+            # back to manual pausing when this hookup is unavailable.
+            self._stall_watchdog_suspend_signals_wired = (
+                subscribe_watchdog_to_suspend_signals(self, self._stall_watchdog)
             )
             self._activity_log.record(ActivityEventType.SESSION_START)
             if read_pinned_idle():

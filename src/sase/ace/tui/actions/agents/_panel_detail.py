@@ -118,8 +118,17 @@ class AgentPanelDetailMixin:
 
     def _open_agent_chat_paths(self, chat_paths: list[str]) -> None:
         """Open one or more chat paths in a single editor invocation."""
+        from ...util.external_tool import suspend_for_external_tool
+
         editor = os.environ.get("EDITOR") or "nvim"
-        with self.suspend():  # type: ignore[attr-defined]
+        with suspend_for_external_tool(
+            self,
+            action="edit_spec",
+            tool_kind="editor",
+            command=editor,
+            path_count=len(chat_paths),
+            status_message="Opening chat in editor…",
+        ):
             subprocess.run([editor, *chat_paths], check=False)
 
     def action_next_agent_file(self) -> None:
@@ -271,6 +280,7 @@ class AgentPanelDetailMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        from ...util.external_tool import suspend_for_external_tool
         from ...widgets import AgentDetail
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
@@ -279,7 +289,14 @@ class AgentPanelDetailMixin:
         if file_path is not None:
             editor = os.environ.get("EDITOR") or "nvim"
             expanded = os.path.expanduser(file_path)
-            with self.suspend():  # type: ignore[attr-defined]
+            with suspend_for_external_tool(
+                self,
+                action="edit_panel",
+                tool_kind="editor",
+                command=editor,
+                path_count=1,
+                status_message="Opening file in editor…",
+            ):
                 subprocess.run([editor, expanded], check=False)
         elif content is not None:
             editor = os.environ.get("EDITOR") or "nvim"
@@ -291,7 +308,14 @@ class AgentPanelDetailMixin:
             try:
                 with os.fdopen(fd, "w") as f:
                     f.write(content)
-                with self.suspend():  # type: ignore[attr-defined]
+                with suspend_for_external_tool(
+                    self,
+                    action="edit_panel",
+                    tool_kind="editor",
+                    command=editor,
+                    path_count=1,
+                    status_message="Opening content in editor…",
+                ):
                     subprocess.run([editor, tmp_path], check=False)
             finally:
                 os.unlink(tmp_path)

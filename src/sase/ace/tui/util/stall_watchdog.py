@@ -46,6 +46,45 @@ def start_event_loop_stall_watchdog(
     return watchdog
 
 
+def subscribe_watchdog_to_suspend_signals(
+    app: Any,
+    watchdog: _EventLoopStallWatchdog | None,
+) -> bool:
+    """Pause the watchdog across Textual ``suspend()`` terminal handoffs.
+
+    The installed Textual runtime publishes ``app_suspend_signal`` before it
+    parks the loop and ``app_resume_signal`` after it restarts. Subscribing
+    with ``immediate=True`` runs the pause/resume callback synchronously during
+    publish; the default posts it back to the app, which is too late because
+    ``suspend()`` blocks the loop immediately after publishing.
+
+    This is the global safety net for every ``app.suspend()`` call site, not
+    just the helper-migrated ones. It is fully guarded so Textual versions
+    without these exact instance signals keep working — in that case the
+    external-tool helper falls back to pausing the watchdog around its own
+    suspend block. Returns whether both signals were wired.
+
+    The resume hook is subscribed first so a mid-wiring failure can never leave
+    a pause subscription without its matching resume (an unbalanced resume on a
+    depth-zero watchdog is a harmless no-op).
+    """
+    if watchdog is None:
+        return False
+    suspend_signal = getattr(app, "app_suspend_signal", None)
+    resume_signal = getattr(app, "app_resume_signal", None)
+    subscribe_suspend = getattr(suspend_signal, "subscribe", None)
+    subscribe_resume = getattr(resume_signal, "subscribe", None)
+    if not callable(subscribe_suspend) or not callable(subscribe_resume):
+        return False
+    try:
+        subscribe_resume(app, lambda _data: watchdog.resume(), immediate=True)
+        subscribe_suspend(app, lambda _data: watchdog.pause(), immediate=True)
+    except Exception:
+        log.debug("stall watchdog suspend-signal wiring skipped", exc_info=True)
+        return False
+    return True
+
+
 class _EventLoopStallWatchdog:
     """Detect event-loop stalls from a daemon thread.
 
@@ -86,6 +125,7 @@ class _EventLoopStallWatchdog:
         self._ping_pending = False
         self._in_stall = False
         self._stall_started_mono: float | None = None
+        self._pause_depth = 0
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
@@ -106,12 +146,50 @@ class _EventLoopStallWatchdog:
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=timeout)
 
+    def pause(self) -> None:
+        """Pause stall detection for an intentional terminal handoff.
+
+        Nested calls are reference-counted; detection only resumes after a
+        matching number of :meth:`resume` calls. Safe to call from the loop
+        thread immediately before ``App.suspend()`` parks the loop — while
+        paused the watchdog keeps the progress clock fresh and never pings the
+        blocked loop, so a deliberate suspend is not read as a stall.
+        """
+        with self._lock:
+            self._pause_depth += 1
+            self._last_progress_mono = time.monotonic()
+
+    def resume(self) -> None:
+        """Resume stall detection after a terminal handoff completes.
+
+        Balances :meth:`pause`. On the final (depth-zero) resume the progress
+        clock and all pending/stall bookkeeping are reset so a completed
+        suspend cannot produce an immediate synthetic stall or recovery on the
+        next poll. Extra/unbalanced resumes are ignored.
+        """
+        with self._lock:
+            if self._pause_depth == 0:
+                return
+            self._pause_depth -= 1
+            if self._pause_depth > 0:
+                return
+            self._last_progress_mono = time.monotonic()
+            self._ping_pending = False
+            self._in_stall = False
+            self._stall_started_mono = None
+
     def _run(self) -> None:
         while not self._stop_event.wait(self._poll_interval_seconds):
             if self._loop.is_closed():
                 return
-            self._schedule_ping()
             now_mono = time.monotonic()
+            with self._lock:
+                paused = self._pause_depth > 0
+                if paused:
+                    self._last_progress_mono = now_mono
+            if paused:
+                continue
+            self._schedule_ping()
             with self._lock:
                 gap = now_mono - self._last_progress_mono
                 in_stall = self._in_stall

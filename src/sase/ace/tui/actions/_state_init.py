@@ -108,6 +108,7 @@ class StateInitMixin:
         self._nav_gate = NavigationGate()
         self._fs_watcher: ArtifactWatcher | None = None
         self._stall_watchdog: Any = None
+        self._stall_watchdog_suspend_signals_wired: bool = False
 
         # Phase 7 event-driven auto-refresh state.  When the inotify
         # watcher is active, ``_on_artifact_change`` flips the dirty

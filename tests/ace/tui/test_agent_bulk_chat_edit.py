@@ -223,3 +223,28 @@ def test_no_marks_still_opens_selected_agent_chat() -> None:
 
     mock_run.assert_called_once_with(["test-editor", "/tmp/selected.md"], check=False)
     assert app.notifications == []
+
+
+def test_edit_records_external_tool_wait_telemetry() -> None:
+    import json
+
+    from sase.logs import tui_external_tools_jsonl_path
+
+    selected = _make_agent(response_path="/tmp/selected.md")
+    app = _FakeEditApp([selected])
+
+    _run_edit(app, editor="test-editor")
+
+    records = [
+        json.loads(line)
+        for line in tui_external_tools_jsonl_path().read_text().splitlines()
+    ]
+    assert len(records) == 1
+    record = records[0]
+    assert record["event"] == "external_tool_wait"
+    assert record["action"] == "edit_spec"
+    assert record["tool_kind"] == "editor"
+    assert record["command"] == "test-editor"
+    assert record["path_count"] == 1
+    assert record["current_tab"] == "agents"
+    assert "elapsed_seconds" in record

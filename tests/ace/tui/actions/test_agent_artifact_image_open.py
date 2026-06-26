@@ -69,6 +69,48 @@ def test_agents_open_artifacts_action_pushes_single_artifact_selection_modal(
     app.notify.assert_not_called()
 
 
+def test_non_tmux_artifact_open_records_external_tool_wait(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import json
+
+    from sase.logs import tui_external_tools_jsonl_path
+
+    image = tmp_path / "visible.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    app = _ImageActionApp(str(image))
+    artifact = SimpleNamespace(path=str(image), kind="image", label="Image")
+    app._selected_agent = SimpleNamespace(status="DONE")
+    app._artifacts = [artifact]
+
+    monkeypatch.setattr("sase.ace.tui.graphics.is_tmux_session", lambda: False)
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.view_agent_artifact",
+        lambda _artifact: ArtifactViewerResult(True),
+    )
+
+    app.action_open_agent_artifacts()
+    _modal, callback = app.pushed[0]
+    assert callback is not None
+    callback(artifact)
+
+    # The intentional viewer suspend is logged as an external-tool wait, not a
+    # generic event-loop stall.
+    records = [
+        json.loads(line)
+        for line in tui_external_tools_jsonl_path().read_text().splitlines()
+    ]
+    assert len(records) == 1
+    record = records[0]
+    assert record["event"] == "external_tool_wait"
+    assert record["action"] == "open_artifact"
+    assert record["tool_kind"] == "artifact_viewer"
+    assert record["path_count"] == 1
+    assert record["current_tab"] == "agents"
+    assert "elapsed_seconds" in record
+
+
 def test_agents_artifact_cache_refetches_after_artifact_state_changes(
     tmp_path: Path,
     monkeypatch,

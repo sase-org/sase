@@ -8,6 +8,7 @@ from sase.ace.tui.logs.sources import log_sources
 from sase.logs import (
     launch_failures_log_path,
     runs_log_path,
+    tui_external_tools_jsonl_path,
     tui_git_ops_jsonl_path,
     tui_launch_timing_jsonl_path,
     tui_log_path,
@@ -30,6 +31,7 @@ class TestRegistryShape:
             "launch_failures",
             "tui",
             "tui_stalls",
+            "tui_external_tools",
             "tui_git_ops",
             "tui_launch_timing",
             "runs",
@@ -40,6 +42,7 @@ class TestRegistryShape:
         assert _source("launch_failures").render == "text"
         assert _source("tui").render == "text"
         assert _source("tui_stalls").render == "jsonl"
+        assert _source("tui_external_tools").render == "jsonl"
         assert _source("tui_git_ops").render == "jsonl"
         assert _source("tui_launch_timing").render == "jsonl"
         assert _source("runs").render == "jsonl"
@@ -50,6 +53,7 @@ class TestRegistryShape:
         assert _source("launch_failures").path == launch_failures_log_path()
         assert _source("tui").path == tui_log_path()
         assert _source("tui_stalls").path == tui_stalls_jsonl_path()
+        assert _source("tui_external_tools").path == tui_external_tools_jsonl_path()
         assert _source("tui_git_ops").path == tui_git_ops_jsonl_path()
         assert _source("tui_launch_timing").path == tui_launch_timing_jsonl_path()
 

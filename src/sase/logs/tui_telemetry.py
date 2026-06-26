@@ -22,10 +22,12 @@ LOGS_DIR: str | None = None
 TUI_STALLS_JSONL: str | None = None
 TUI_GIT_OPS_JSONL: str | None = None
 TUI_LAUNCH_TIMING_JSONL: str | None = None
+TUI_EXTERNAL_TOOLS_JSONL: str | None = None
 
 ENV_STALL_PATH = "SASE_TUI_STALL_PATH"
 ENV_GIT_OPS_PATH = "SASE_TUI_GIT_OPS_PATH"
 ENV_LAUNCH_TIMING_PATH = "SASE_TUI_LAUNCH_TIMING_PATH"
+ENV_EXTERNAL_TOOLS_PATH = "SASE_TUI_EXTERNAL_TOOLS_PATH"
 ENV_MAX_BYTES = "SASE_TUI_TELEMETRY_MAX_BYTES"
 
 DEFAULT_MAX_BYTES = 2_000_000
@@ -62,6 +64,20 @@ def tui_launch_timing_jsonl_path() -> Path:
     )
 
 
+def tui_external_tools_jsonl_path() -> Path:
+    """Canonical path of the intentional external-tool wait JSONL log.
+
+    Records SASE-owned terminal handoffs (editor / artifact-viewer launches
+    under ``App.suspend()``) so they are not conflated with the genuine
+    event-loop stalls in ``tui_stalls.jsonl``.
+    """
+    return Path(
+        TUI_EXTERNAL_TOOLS_JSONL
+        or os.environ.get(ENV_EXTERNAL_TOOLS_PATH)
+        or os.path.join(_logs_dir(), "tui_external_tools.jsonl")
+    )
+
+
 def log_tui_stall(record: dict[str, Any]) -> None:
     """Append one event-loop stall record."""
     _append_jsonl(tui_stalls_jsonl_path(), record)
@@ -75,6 +91,11 @@ def log_tui_git_operation(record: dict[str, Any]) -> None:
 def log_tui_launch_timing(record: dict[str, Any]) -> None:
     """Append one launch timing summary record."""
     _append_jsonl(tui_launch_timing_jsonl_path(), record)
+
+
+def log_tui_external_tool_wait(record: dict[str, Any]) -> None:
+    """Append one intentional external-tool terminal-handoff wait record."""
+    _append_jsonl(tui_external_tools_jsonl_path(), record)
 
 
 def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
