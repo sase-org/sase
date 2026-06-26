@@ -2,6 +2,8 @@
 create_time: 2026-06-26 09:35:15
 status: wip
 prompt: sdd/prompts/202606/plugins_tab.md
+bead_id: sase-59
+tier: epic
 ---
 # Plan: Add a "Plugins" tab to SASE Config (manage plugins from the TUI)
 
