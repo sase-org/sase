@@ -26,13 +26,16 @@ from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
+from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
 from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
 from sase.ace.tui.modals.config_pane import ConfigPane
+from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.config.core import ConfigLayer
 from sase.config.inventory import build_config_inventory, config_field_model
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
+from tests.ace.tui.test_plugins_browser_pane import _NOW as _PLUGINS_NOW, _catalog
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -226,6 +229,32 @@ def _patch_xprompt_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+# --- Plugins fixtures ------------------------------------------------------
+
+
+def _patch_plugins_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    catalog: Any | None = "default",
+    error: str | None = None,
+) -> None:
+    """Stub the Plugins pane's catalog load with a deterministic result."""
+    resolved = _catalog() if catalog == "default" else catalog
+    result = pbp._PluginsLoadResult(catalog=resolved, error=error, now=_PLUGINS_NOW)
+    monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
+
+
+@pytest.fixture(autouse=True)
+def _stub_plugins_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the (now always-mounted) Plugins pane off the network everywhere.
+
+    The pane is composed in every Config Center screenshot even when its tab
+    is hidden, so its worker would otherwise shell out to ``gh``. Tests that
+    snapshot the Plugins tab itself override this with their own catalog.
+    """
+    _patch_plugins_catalog(monkeypatch)
+
+
 # --- Modal helpers ---------------------------------------------------------
 
 
@@ -244,6 +273,19 @@ async def _open_config_modal(page: AcePage) -> tuple[ConfigCenterModal, ConfigPa
     await page.wait_for(lambda _s: bool(modal.query("#config")))
     pane = modal.query_one("#config", ConfigPane)
     await page.wait_for(lambda _s: bool(pane._node_by_path))
+    await wait_for_visual_idle(page)
+    return modal, pane
+
+
+async def _open_plugins_modal(
+    page: AcePage,
+) -> tuple[ConfigCenterModal, PluginsBrowserPane]:
+    modal = ConfigCenterModal(initial_tab="plugins")
+    page.app.push_screen(modal)
+    await page.expect_modal("ConfigCenterModal")
+    await page.wait_for(lambda _s: bool(modal.query("#plugins")))
+    pane = modal.query_one("#plugins", PluginsBrowserPane)
+    await page.wait_for(lambda _s: not pane._loading)
     await wait_for_visual_idle(page)
     return modal, pane
 
@@ -360,6 +402,84 @@ async def test_config_center_xprompts_tab_png_snapshot(
             page,
             "config_center_xprompts_tab_120x40",
             title="ACE SASE Config — XPrompts tab (migrated browser)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+# --- Phase 2: Plugins tab list states -------------------------------------
+
+
+async def test_config_center_plugins_tab_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Populated list: Built-in / Community groups, glyphs, header summary."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        await page.wait_for(lambda _s: bool(pane._grouped))
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_tab_120x40",
+            title="ACE SASE Config — Plugins tab (populated list)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty catalog shows the no-plugins placeholder."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    from sase.plugins.catalog import PluginCatalog
+
+    empty = PluginCatalog(
+        fetched_at=_PLUGINS_NOW, entries=(), from_cache=True, stale=False
+    )
+    _patch_plugins_catalog(monkeypatch, catalog=empty)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await _open_plugins_modal(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_empty_120x40",
+            title="ACE SASE Config — Plugins tab (empty catalog)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_loading_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Suppressing the worker keeps the pane in its initial loading state."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    monkeypatch.setattr(
+        PluginsBrowserPane, "_start_load", lambda self, *, force=False: None
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await _open_modal(page, "plugins")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_loading_120x40",
+            title="ACE SASE Config — Plugins tab (loading)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

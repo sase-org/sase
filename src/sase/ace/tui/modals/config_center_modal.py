@@ -1,13 +1,15 @@
-"""SASE Config modal: a tabbed home for settings editing and xprompts.
+"""SASE Config modal: a tabbed home for settings, plugins, and xprompts.
 
-SASE Config is a full-screen ``ModalScreen`` that hosts two internal
+SASE Config is a full-screen ``ModalScreen`` that hosts three internal
 tabs over a :class:`ContentSwitcher`:
 
 - **Settings** (leftmost, default focus on open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
+- **Plugins** — the read-only plugin catalog browser
+  (:class:`PluginsBrowserPane`), mirroring ``sase plugin list``.
 - **XPrompts** — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
-``#`` opens the modal on the **Settings** tab. ``[`` / ``]`` cycle the two
+``#`` opens the modal on the **Settings** tab. ``[`` / ``]`` cycle the
 tabs with modulo wrapping, mirroring the notification panel's sub-tab
 navigation. The clickable tab strip mirrors the app's :class:`TabBar`.
 """
@@ -23,20 +25,24 @@ from textual.containers import Container
 from textual.events import Click
 from textual.message import Message
 from textual.screen import ModalScreen
+from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Label, Static
 
 from .config_pane import ConfigPane
+from .plugins_browser_pane import PluginsBrowserPane
 from .xprompt_browser_pane import XPromptBrowserPane
 
-CenterTab = Literal["config", "xprompts"]
+CenterTab = Literal["config", "plugins", "xprompts"]
 
-_TAB_ORDER: tuple[CenterTab, ...] = ("config", "xprompts")
+_TAB_ORDER: tuple[CenterTab, ...] = ("config", "plugins", "xprompts")
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Settings"),
+    ("plugins", "Plugins"),
     ("xprompts", "XPrompts"),
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
+    "plugins": "#AF87FF",
     "xprompts": "#87D7FF",
 }
 _TITLE_TEXT = "SASE Config"
@@ -102,7 +108,7 @@ class _ConfigCenterHeaderDivider(Static):
 
 
 class ConfigCenterModal(ModalScreen[None]):
-    """Full-screen modal hosting the Settings and XPrompts tabs."""
+    """Full-screen modal hosting the Settings, Plugins, and XPrompts tabs."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -131,20 +137,16 @@ class ConfigCenterModal(ModalScreen[None]):
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
+                yield PluginsBrowserPane(id="plugins")
                 yield XPromptBrowserPane(self._project, id="xprompts")
 
     def on_mount(self) -> None:
         self._focus_active_pane()
 
-    def _active_pane(self) -> ConfigPane | XPromptBrowserPane | None:
+    def _active_pane(self) -> Widget | None:
         """Return the currently visible pane widget."""
-        if self._active_tab == "config":
-            try:
-                return self.query_one("#config", ConfigPane)
-            except Exception:
-                return None
         try:
-            return self.query_one("#xprompts", XPromptBrowserPane)
+            return self.query_one(f"#{self._active_tab}", Widget)
         except Exception:
             return None
 
