@@ -9,6 +9,7 @@ GitHub or cache details leak through here — only the public catalog facade.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 import time
@@ -23,12 +24,14 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
 )
 from sase.plugins.json_payload import plugin_entry_json
+from sase.plugins.latest import enrich_with_latest
 from sase.plugins.render import render_catalog_list
 
 LoadFn = Callable[..., PluginCatalog]
+EnrichFn = Callable[..., PluginCatalog]
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
-LIST_JSON_SCHEMA_VERSION = 1
+LIST_JSON_SCHEMA_VERSION = 2
 
 
 def handle_plugin_list_command(
@@ -36,19 +39,27 @@ def handle_plugin_list_command(
     *,
     console: Console | None = None,
     load_fn: LoadFn = load_plugin_catalog,
+    enrich_fn: EnrichFn = enrich_with_latest,
     now: float | None = None,
 ) -> int:
     """Run ``sase plugin list``; return the process exit code."""
+    offline = bool(getattr(args, "offline", False))
     refresh = bool(getattr(args, "refresh", False))
     verbose = bool(getattr(args, "verbose", False))
     as_json = bool(getattr(args, "json", False))
     now = time.time() if now is None else now
 
     try:
-        catalog = load_fn(refresh=refresh)
+        catalog = load_fn(refresh=refresh, offline=offline)
     except PluginCatalogError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    catalog = _enrich_catalog(
+        catalog,
+        offline=offline,
+        refresh=refresh,
+        enrich_fn=enrich_fn,
+    )
 
     if as_json:
         print(json.dumps(_build_list_json(catalog, now=now), indent=2, sort_keys=True))
@@ -76,9 +87,24 @@ def _build_list_json(
             "community": len(catalog.community_entries),
             "installed": catalog.installed_count,
             "total": len(catalog.entries),
+            "updates_available": catalog.updates_available,
         },
         "entries": [plugin_entry_json(entry) for entry in catalog.entries],
     }
+
+
+def _enrich_catalog(
+    catalog: PluginCatalog,
+    *,
+    offline: bool,
+    refresh: bool,
+    enrich_fn: EnrichFn,
+) -> PluginCatalog:
+    try:
+        return enrich_fn(catalog, offline=offline, refresh=refresh)
+    except Exception as exc:  # noqa: BLE001 - list stays read-only and best-effort.
+        warning = f"could not check plugin updates ({exc})"
+        return dataclasses.replace(catalog, warnings=(*catalog.warnings, warning))
 
 
 __all__ = ["LIST_JSON_SCHEMA_VERSION", "handle_plugin_list_command"]

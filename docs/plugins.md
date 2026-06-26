@@ -55,41 +55,51 @@ gains or loses a listing purely by gaining or losing the topic, with no code cha
 sase plugin list
 sase plugin list -v          # add stars, last-updated, and the full topic list
 sase plugin list -j          # stable machine-readable JSON
+sase plugin list -o          # use cached catalog/latest-version data only
 
 # Detailed view of a single plugin
 sase plugin show github
 sase plugin show sase-github # short name, repo, or owner/repo all match
 sase plugin show github -j   # stable machine-readable JSON
+sase plugin show github -o   # use caches only; do not check GitHub/PyPI
 
-# Bypass the cache and refetch from GitHub
+# Bypass caches and refetch from GitHub/PyPI
 sase plugin list -r
 sase plugin show github -r
 ```
 
 - `sase plugin` with no subcommand defaults to `sase plugin list`.
 - **`list`** renders two clearly-labeled sections — **built-in** (published under the official `sase-org` org) first,
-  then **community** (third-party, shown with a warning) — and marks which plugins are installed and at what version.
-  Status uses a glyph plus a legend (`●` installed, `○` available) so the output is legible with no color. The footer
-  shows the cache age and the exact `--refresh` command.
-- **`show`** renders a detail panel: description, installed status and contributed entry points, repository, homepage,
-  topics, stars, last update, and license. Community plugins lead with a prominent third-party warning. An unknown
-  `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero.
+  then **community** (third-party, shown with a warning) — and marks installed versions, latest available versions, and
+  updates. Status uses a glyph plus a legend (`●` installed, `○` available, `↑` update available) so the output is
+  legible with no color. An installed index plugin behind PyPI renders as `vOLD → vNEW` with a `↑` and a footer hint to
+  run `sase plugin update --all`.
+- **`show`** renders a detail panel: description, installed status and contributed entry points, latest available
+  version, repository, homepage, topics, stars, last update, and license. Community plugins lead with a prominent
+  third-party warning. An unknown `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero.
 - Built-in vs. community is decided by the owning org: `sase-org` (case-insensitive) is built-in; anything else is
   community. Archived repos are surfaced with an archived marker rather than hidden.
 - Installed status, version, and contributed entry-point groups come from merging the catalog with the live
   [plugin inventory](#how-plugins-are-discovered). Plugins that carry the topic but contribute no Python entry points
   (for example a Neovim-only integration) correctly show as not installed.
+- Latest available versions come from PyPI's package JSON (`info.version`), which matches what `sase plugin update`
+  would actually install. Editable and direct-git installs are labeled as such and are not compared against PyPI, so a
+  local checkout never gets a false update prompt.
 
 ### Catalog fetching and cache
 
-The catalog is fetched once with a single authenticated GitHub CLI search call and then cached, so repeat runs are
-instant and never make a surprise network call:
+The catalog and latest-version probes are cached separately, so repeat runs are instant and bounded:
 
 - The data comes from `gh api --paginate -X GET "search/repositories?q=topic:sase-plugin&per_page=100"`, which returns
   topics, owner, description, stars, license, and timestamps inline — no per-repo follow-up lookups.
 - The cache lives at `~/.sase/plugins/catalog_cache.json` and is written atomically. The first run fetches and writes
   it; later runs read it and only touch the network when `-r|--refresh` is passed. A cache older than the soft staleness
   threshold is still used, but the footer warns more loudly.
+- Latest-version results live at `~/.sase/plugins/latest_cache.json` with a short TTL. Cache misses are fetched from
+  PyPI concurrently with short timeouts; any timeout, parse failure, or package missing from PyPI renders as "latest
+  unknown" and the command still exits successfully.
+- `-o|--offline` makes `list` and `show` use caches only and make zero GitHub or PyPI calls. If the catalog cache is
+  missing, offline mode fails with an actionable message; missing latest-version cache entries render as unknown.
 - If `gh` runs but the call fails (network error, non-zero exit, or an unauthenticated/auth error), SASE falls back to
   the existing cache with a loud "stale cached data" warning, or — when there is no cache — re-raises the error.
 - A missing `gh` (not on `PATH`) is always a hard error, even when a cache exists: SASE never silently serves stale data

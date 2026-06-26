@@ -34,6 +34,7 @@ from sase.plugins.installed import (
     build_installed_index,
     lookup_installed,
 )
+from sase.plugins.latest import LatestInfo, is_newer
 
 #: The canonical GitHub org. Repos owned here are "built-in"; everyone else is
 #: "community" (rendered with a warning). A module constant for now; may later be
@@ -68,6 +69,7 @@ class PluginCatalogEntry:
     license: str
     updated_at: str
     installed: InstalledInfo = field(default_factory=InstalledInfo.not_installed)
+    latest: LatestInfo = field(default_factory=LatestInfo.unknown)
 
     @property
     def kind(self) -> PluginKind:
@@ -80,6 +82,15 @@ class PluginCatalogEntry:
     @property
     def is_community(self) -> bool:
         return self.kind == "community"
+
+    @property
+    def update_available(self) -> bool:
+        """Return whether an installed index plugin is behind the latest version."""
+        return (
+            self.installed.installed
+            and self.latest.source == "index"
+            and is_newer(self.latest.version, self.installed.version)
+        )
 
 
 @dataclass(frozen=True)
@@ -109,10 +120,15 @@ class PluginCatalog:
     def installed_count(self) -> int:
         return sum(1 for entry in self.entries if entry.installed.installed)
 
+    @property
+    def updates_available(self) -> int:
+        return sum(1 for entry in self.entries if entry.update_available)
+
 
 def load_plugin_catalog(
     *,
     refresh: bool = False,
+    offline: bool = False,
     now: float | None = None,
     fetch_fn: FetchFn = fetch_catalog_payload,
     read_cache_fn: ReadCacheFn = read_cache,
@@ -131,7 +147,16 @@ def load_plugin_catalog(
     cached = read_cache_fn()
     warnings: list[str] = []
 
-    if refresh or cached is None:
+    if offline:
+        if cached is None:
+            raise PluginCatalogError(
+                "plugin catalog cache is unavailable in offline mode; "
+                "run `sase plugin list --refresh` when online"
+            )
+        payload = list(cached.entries)
+        fetched_at = cached.fetched_at
+        from_cache = True
+    elif refresh or cached is None:
         payload, fetched_at, from_cache = _fetch_or_fall_back(
             fetch_fn=fetch_fn,
             write_cache_fn=write_cache_fn,

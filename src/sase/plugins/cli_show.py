@@ -12,6 +12,7 @@ cache details leak through here — only the public catalog facade.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 import time
@@ -29,12 +30,14 @@ from sase.plugins.catalog import (
     suggest_plugins,
 )
 from sase.plugins.json_payload import plugin_entry_json
+from sase.plugins.latest import enrich_with_latest
 from sase.plugins.render import render_catalog_show, render_show_not_found
 
 LoadFn = Callable[..., PluginCatalog]
+EnrichFn = Callable[..., PluginCatalog]
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
-SHOW_JSON_SCHEMA_VERSION = 1
+SHOW_JSON_SCHEMA_VERSION = 2
 
 
 def handle_plugin_show_command(
@@ -42,19 +45,27 @@ def handle_plugin_show_command(
     *,
     console: Console | None = None,
     load_fn: LoadFn = load_plugin_catalog,
+    enrich_fn: EnrichFn = enrich_with_latest,
     now: float | None = None,
 ) -> int:
     """Run ``sase plugin show <plugin_name>``; return the process exit code."""
     query = str(getattr(args, "plugin_name", "") or "")
+    offline = bool(getattr(args, "offline", False))
     refresh = bool(getattr(args, "refresh", False))
     as_json = bool(getattr(args, "json", False))
     now = time.time() if now is None else now
 
     try:
-        catalog = load_fn(refresh=refresh)
+        catalog = load_fn(refresh=refresh, offline=offline)
     except PluginCatalogError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    catalog = _enrich_catalog(
+        catalog,
+        offline=offline,
+        refresh=refresh,
+        enrich_fn=enrich_fn,
+    )
 
     entry = find_plugin(catalog, query)
     if entry is None:
@@ -129,6 +140,20 @@ def _base_json(
         "cache_age_seconds": catalog.age_seconds(now),
         "warnings": list(catalog.warnings),
     }
+
+
+def _enrich_catalog(
+    catalog: PluginCatalog,
+    *,
+    offline: bool,
+    refresh: bool,
+    enrich_fn: EnrichFn,
+) -> PluginCatalog:
+    try:
+        return enrich_fn(catalog, offline=offline, refresh=refresh)
+    except Exception as exc:  # noqa: BLE001 - show stays read-only and best-effort.
+        warning = f"could not check plugin updates ({exc})"
+        return dataclasses.replace(catalog, warnings=(*catalog.warnings, warning))
 
 
 __all__ = ["SHOW_JSON_SCHEMA_VERSION", "handle_plugin_show_command"]

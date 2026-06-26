@@ -17,6 +17,7 @@ from sase.plugins.cli_list import (
     handle_plugin_list_command,
 )
 from sase.plugins.installed import InstalledInfo
+from sase.plugins.latest import LatestInfo
 
 # --------------------------------------------------------------------------- #
 # Fixtures / builders
@@ -38,6 +39,7 @@ def _entry(
     updated_at: str = "",
     license: str = "",
     homepage: str = "",
+    latest: LatestInfo | None = None,
 ) -> PluginCatalogEntry:
     repo = repo if repo is not None else f"sase-{name}"
     return PluginCatalogEntry(
@@ -56,6 +58,7 @@ def _entry(
         installed=InstalledInfo(
             installed=installed, version=version, entry_point_groups=groups
         ),
+        latest=latest or LatestInfo.unknown(),
     )
 
 
@@ -87,6 +90,7 @@ def _sample_catalog() -> PluginCatalog:
                 installed=True,
                 version="0.4.1",
                 groups=("sase_vcs", "sase_workspace"),
+                latest=LatestInfo(checked=True, version="0.4.1", source="index"),
                 stars=12,
                 updated_at="2026-06-20",
                 license="MIT",
@@ -96,6 +100,7 @@ def _sample_catalog() -> PluginCatalog:
                 "sase-org",
                 repo="sase-telegram",
                 description="Telegram chat integration",
+                latest=LatestInfo(checked=True, version="0.2.0", source="index"),
             ),
             _entry(
                 "acme-jira",
@@ -109,11 +114,19 @@ def _sample_catalog() -> PluginCatalog:
 
 def _render(catalog: PluginCatalog, *, verbose: bool = False) -> str:
     args = argparse.Namespace(
-        plugin_subcommand="list", json=False, refresh=False, verbose=verbose
+        plugin_subcommand="list",
+        json=False,
+        offline=False,
+        refresh=False,
+        verbose=verbose,
     )
     console = Console(file=io.StringIO(), width=200, no_color=True)
     code = handle_plugin_list_command(
-        args, console=console, load_fn=lambda *, refresh: catalog, now=1000.0
+        args,
+        console=console,
+        load_fn=lambda *, refresh, offline: catalog,
+        enrich_fn=lambda catalog, **_kwargs: catalog,
+        now=1000.0,
     )
     assert code == 0
     return console.file.getvalue()  # type: ignore[attr-defined]
@@ -130,6 +143,7 @@ def test_bare_plugin_defaults_to_list() -> None:
     assert ns.command == "plugin"
     assert ns.plugin_subcommand == "list"
     assert ns.json is False
+    assert ns.offline is False
     assert ns.refresh is False
     assert ns.verbose is False
 
@@ -151,14 +165,15 @@ def test_explicit_list_has_no_delegation_notice() -> None:
 
 
 def test_list_accepts_each_flag() -> None:
-    short = create_parser().parse_args(["plugin", "list", "-j", "-r", "-v"])
+    short = create_parser().parse_args(["plugin", "list", "-j", "-o", "-r", "-v"])
     long = create_parser().parse_args(
-        ["plugin", "list", "--json", "--refresh", "--verbose"]
+        ["plugin", "list", "--json", "--offline", "--refresh", "--verbose"]
     )
 
     for ns in (short, long):
         assert ns.plugin_subcommand == "list"
         assert ns.json is True
+        assert ns.offline is True
         assert ns.refresh is True
         assert ns.verbose is True
 
@@ -181,6 +196,7 @@ def test_json_payload_shape_is_stable() -> None:
         "community": 1,
         "installed": 1,
         "total": 3,
+        "updates_available": 0,
     }
 
     github = next(e for e in payload["entries"] if e["name"] == "github")
@@ -191,6 +207,13 @@ def test_json_payload_shape_is_stable() -> None:
         "version": "0.4.1",
         "entry_point_groups": ["sase_vcs", "sase_workspace"],
     }
+    assert github["latest"] == {
+        "checked": True,
+        "version": "0.4.1",
+        "source": "index",
+        "update_available": False,
+        "error": None,
+    }
 
     jira = next(e for e in payload["entries"] if e["name"] == "acme-jira")
     assert jira["kind"] == "community"
@@ -199,10 +222,17 @@ def test_json_payload_shape_is_stable() -> None:
 
 def test_json_output_path_is_valid_json(capsys: Any) -> None:
     args = argparse.Namespace(
-        plugin_subcommand="list", json=True, refresh=False, verbose=False
+        plugin_subcommand="list",
+        json=True,
+        offline=False,
+        refresh=False,
+        verbose=False,
     )
     code = handle_plugin_list_command(
-        args, load_fn=lambda *, refresh: _sample_catalog(), now=1000.0
+        args,
+        load_fn=lambda *, refresh, offline: _sample_catalog(),
+        enrich_fn=lambda catalog, **_kwargs: catalog,
+        now=1000.0,
     )
 
     assert code == 0
@@ -230,6 +260,7 @@ def test_render_marks_installed_and_available() -> None:
     assert "●" in out  # installed glyph
     assert "○" in out  # available glyph
     assert "v0.4.1" in out
+    assert "latest v0.2.0" in out
     assert "2 built-in" in out
     assert "1 community" in out
     assert "1 installed" in out
@@ -248,11 +279,19 @@ def test_render_stale_cache_warns_loudly() -> None:
         stale=True,
     )
     args = argparse.Namespace(
-        plugin_subcommand="list", json=False, refresh=False, verbose=False
+        plugin_subcommand="list",
+        json=False,
+        offline=False,
+        refresh=False,
+        verbose=False,
     )
     console = Console(file=io.StringIO(), width=200, no_color=True)
     handle_plugin_list_command(
-        args, console=console, load_fn=lambda *, refresh: catalog, now=1000.0
+        args,
+        console=console,
+        load_fn=lambda *, refresh, offline: catalog,
+        enrich_fn=lambda catalog, **_kwargs: catalog,
+        now=1000.0,
     )
     out = console.file.getvalue()  # type: ignore[attr-defined]
 
@@ -294,6 +333,50 @@ def test_render_warnings_surface_at_top() -> None:
     assert "could not refresh" in out
 
 
+def test_render_marks_update_available_with_transition_and_cta() -> None:
+    catalog = _catalog(
+        (
+            _entry(
+                "github",
+                "sase-org",
+                repo="sase-github",
+                installed=True,
+                version="0.4.1",
+                latest=LatestInfo(checked=True, version="0.5.0", source="index"),
+            ),
+        )
+    )
+    out = _render(catalog)
+
+    assert "v0.4.1 → v0.5.0" in out
+    assert "↑" in out
+    assert "1 update available" in out
+    assert "sase plugin update --all" in out
+
+
+def test_render_installed_editable_uses_source_label() -> None:
+    catalog = _catalog(
+        (
+            _entry(
+                "devkit",
+                "sase-org",
+                repo="sase-devkit",
+                installed=True,
+                version="0.1.0",
+                latest=LatestInfo(
+                    checked=True,
+                    source="editable",
+                    error="non-index install",
+                ),
+            ),
+        )
+    )
+    out = _render(catalog)
+
+    assert "editable" in out
+    assert "sase plugin update --all" not in out
+
+
 # --------------------------------------------------------------------------- #
 # refresh threading
 # --------------------------------------------------------------------------- #
@@ -302,14 +385,23 @@ def test_render_warnings_surface_at_top() -> None:
 def test_refresh_flag_is_threaded_to_loader() -> None:
     seen: list[bool] = []
 
-    def _load(*, refresh: bool) -> PluginCatalog:
+    def _load(*, refresh: bool, offline: bool) -> PluginCatalog:
         seen.append(refresh)
         return _sample_catalog()
 
     args = argparse.Namespace(
-        plugin_subcommand="list", json=True, refresh=True, verbose=False
+        plugin_subcommand="list",
+        json=True,
+        offline=False,
+        refresh=True,
+        verbose=False,
     )
-    handle_plugin_list_command(args, load_fn=_load, now=1000.0)
+    handle_plugin_list_command(
+        args,
+        load_fn=_load,
+        enrich_fn=lambda catalog, **_kwargs: catalog,
+        now=1000.0,
+    )
 
     assert seen == [True]
 
@@ -317,14 +409,23 @@ def test_refresh_flag_is_threaded_to_loader() -> None:
 def test_no_refresh_flag_passes_false_to_loader() -> None:
     seen: list[bool] = []
 
-    def _load(*, refresh: bool) -> PluginCatalog:
+    def _load(*, refresh: bool, offline: bool) -> PluginCatalog:
         seen.append(refresh)
         return _sample_catalog()
 
     args = argparse.Namespace(
-        plugin_subcommand="list", json=True, refresh=False, verbose=False
+        plugin_subcommand="list",
+        json=True,
+        offline=False,
+        refresh=False,
+        verbose=False,
     )
-    handle_plugin_list_command(args, load_fn=_load, now=1000.0)
+    handle_plugin_list_command(
+        args,
+        load_fn=_load,
+        enrich_fn=lambda catalog, **_kwargs: catalog,
+        now=1000.0,
+    )
 
     assert seen == [False]
 
@@ -332,13 +433,44 @@ def test_no_refresh_flag_passes_false_to_loader() -> None:
 def test_loader_error_returns_exit_code_one(capsys: Any) -> None:
     from sase.plugins.github_source import GhNotFoundError
 
-    def _load(*, refresh: bool) -> PluginCatalog:
+    def _load(*, refresh: bool, offline: bool) -> PluginCatalog:
         raise GhNotFoundError()
 
     args = argparse.Namespace(
-        plugin_subcommand="list", json=False, refresh=False, verbose=False
+        plugin_subcommand="list",
+        json=False,
+        offline=False,
+        refresh=False,
+        verbose=False,
     )
     code = handle_plugin_list_command(args, load_fn=_load, now=1000.0)
 
     assert code == 1
     assert "gh" in capsys.readouterr().err.lower()
+
+
+def test_offline_flag_is_threaded_to_loader_and_enricher() -> None:
+    seen_load: list[tuple[bool, bool]] = []
+    seen_enrich: list[tuple[bool, bool]] = []
+
+    def _load(*, refresh: bool, offline: bool) -> PluginCatalog:
+        seen_load.append((refresh, offline))
+        return _sample_catalog()
+
+    def _enrich(
+        catalog: PluginCatalog, *, offline: bool, refresh: bool
+    ) -> PluginCatalog:
+        seen_enrich.append((refresh, offline))
+        return catalog
+
+    args = argparse.Namespace(
+        plugin_subcommand="list",
+        json=True,
+        offline=True,
+        refresh=False,
+        verbose=False,
+    )
+    handle_plugin_list_command(args, load_fn=_load, enrich_fn=_enrich, now=1000.0)
+
+    assert seen_load == [(False, True)]
+    assert seen_enrich == [(False, True)]

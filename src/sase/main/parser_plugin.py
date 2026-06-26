@@ -14,10 +14,16 @@ def _add_load_flags(parser: argparse.ArgumentParser) -> None:
         help="Emit machine-readable JSON",
     )
     parser.add_argument(
+        "-o",
+        "--offline",
+        action="store_true",
+        help="Use caches only; never check GitHub or PyPI",
+    )
+    parser.add_argument(
         "-r",
         "--refresh",
         action="store_true",
-        help="Bypass the cache and refetch the catalog from GitHub",
+        help="Bypass caches and refetch the catalog and latest versions",
     )
 
 
@@ -32,9 +38,11 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "`sase-plugin` topic as the canonical registry. The catalog "
             "distinguishes built-in plugins (published under the official "
             "`sase-org` org) from community plugins, and marks which are "
-            "installed in the current environment. It is fetched from GitHub "
-            "once and cached, so commands are instant on repeat runs; pass "
-            "`-r|--refresh` to bypass the cache and refetch.\n"
+            "installed in the current environment. List/show also compare "
+            "installed index plugins against PyPI and mark available updates "
+            "with `↑`. Catalog and latest-version data are cached, so commands "
+            "are instant on repeat runs; pass `-r|--refresh` to bypass caches "
+            "or `-o|--offline` to use caches only.\n"
             "\n"
             "With no subcommand, `sase plugin` defaults to `sase plugin list`."
         ),
@@ -43,9 +51,11 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plugin                    # same as `sase plugin list`\n"
             "  sase plugin list               # catalog of all known plugins\n"
             "  sase plugin list -v            # add stars, last-updated, topics\n"
+            "  sase plugin list -o            # use cached catalog/latest data only\n"
             "  sase plugin list -r            # refetch the catalog from GitHub\n"
             "  sase plugin show github        # detail view of one plugin\n"
             "  sase plugin show github -j     # machine-readable JSON\n"
+            "  sase plugin show github -o     # detail view without network checks\n"
             "  sase plugin install github     # install a plugin into sase's env\n"
             "  sase plugin update github      # upgrade one installed plugin\n"
             "  sase plugin update -a          # upgrade every installed plugin"
@@ -64,15 +74,17 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "List every known SASE plugin in two clearly-labeled sections — "
             "built-in (official `sase-org`) first, then community (third-party) "
-            "— marking which are installed and at what version. The footer "
-            "shows cache age and the exact refresh command."
+            "— marking installed versions, latest available versions, and "
+            "updates with `↑`. The footer shows cache age and the exact refresh "
+            "command. Use `-o|--offline` to render from caches only."
         ),
         epilog=(
             "examples:\n"
             "  sase plugin list\n"
-            "  sase plugin list --verbose\n"
+            "  sase plugin list --json\n"
+            "  sase plugin list --offline\n"
             "  sase plugin list --refresh\n"
-            "  sase plugin list --json"
+            "  sase plugin list --verbose"
         ),
     )
     _add_load_flags(list_parser)
@@ -89,19 +101,22 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Show a detailed view of one SASE plugin: description, installed "
-            "status and entry points, repository, homepage, topics, stars, "
-            "last update, and license. Community plugins lead with a prominent "
-            "third-party warning. <plugin_name> matches the short name "
+            "status and entry points, latest available version, repository, "
+            "homepage, topics, stars, last update, and license. Community "
+            "plugins lead with a prominent third-party warning. <plugin_name> "
+            "matches the short name "
             "(`github`), the repo (`sase-github`), or the full name "
             "(`sase-org/sase-github`); an unknown name prints `did you mean…?` "
-            "suggestions and exits non-zero."
+            "suggestions and exits non-zero. Use `-o|--offline` to render from "
+            "caches only."
         ),
         epilog=(
             "examples:\n"
             "  sase plugin show github\n"
             "  sase plugin show sase-github\n"
-            "  sase plugin show github --refresh\n"
-            "  sase plugin show github --json"
+            "  sase plugin show github --json\n"
+            "  sase plugin show github --offline\n"
+            "  sase plugin show github --refresh"
         ),
     )
     show_parser.add_argument(

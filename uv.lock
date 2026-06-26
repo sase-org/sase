@@ -1435,6 +1435,7 @@ source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
     { name = "jsonschema" },
+    { name = "packaging" },
     { name = "pillow" },
     { name = "plotext" },
     { name = "pluggy" },
@@ -1475,6 +1476,7 @@ requires-dist = [
     { name = "jsonschema" },
     { name = "mkdocs-material", marker = "extra == 'docs'" },
     { name = "mypy", marker = "extra == 'dev'" },
+    { name = "packaging" },
     { name = "pillow" },
     { name = "plotext" },
     { name = "pluggy" },

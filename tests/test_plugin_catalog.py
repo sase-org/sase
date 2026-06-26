@@ -9,6 +9,8 @@ import pytest
 from sase.plugins.cache import CachedCatalog
 from sase.plugins.catalog import (
     PluginCatalog,
+    PluginCatalogEntry,
+    PluginCatalogError,
     SASE_PLUGIN_ORG,
     find_plugin,
     load_plugin_catalog,
@@ -16,6 +18,7 @@ from sase.plugins.catalog import (
 )
 from sase.plugins.github_source import _GhCommandError, GhNotFoundError
 from sase.plugins.installed import InstalledInfo
+from sase.plugins.latest import LatestInfo
 
 
 def _payload(
@@ -108,6 +111,41 @@ def test_cache_hit_does_not_touch_the_network() -> None:
     assert [entry.name for entry in catalog.entries] == ["github"]
 
 
+def test_offline_uses_cache_without_fetching() -> None:
+    cached = CachedCatalog(
+        fetched_at=500.0,
+        query="topic:sase-plugin",
+        entries=(_payload("github", "sase-org"),),
+    )
+
+    def _explode() -> list[dict[str, Any]]:
+        raise AssertionError("offline mode must not fetch")
+
+    catalog = load_plugin_catalog(
+        refresh=True,
+        offline=True,
+        now=1000.0,
+        fetch_fn=_explode,
+        read_cache_fn=lambda: cached,
+        write_cache_fn=_noop_write,
+        installed_index_fn=lambda: {},
+    )
+
+    assert catalog.from_cache is True
+    assert [entry.name for entry in catalog.entries] == ["github"]
+
+
+def test_offline_without_cache_raises() -> None:
+    with pytest.raises(PluginCatalogError, match="offline mode"):
+        load_plugin_catalog(
+            offline=True,
+            fetch_fn=lambda: [_payload("github", "sase-org")],
+            read_cache_fn=lambda: None,
+            write_cache_fn=_noop_write,
+            installed_index_fn=lambda: {},
+        )
+
+
 def test_first_run_without_cache_fetches_and_writes() -> None:
     writes: list[tuple[Any, ...]] = []
 
@@ -164,6 +202,35 @@ def test_merges_installed_info_onto_entries() -> None:
     )
     assert by_name["telegram"].installed.installed is False
     assert catalog.installed_count == 1
+
+
+def test_updates_available_counts_installed_index_updates() -> None:
+    entry = PluginCatalog(
+        fetched_at=1000.0,
+        entries=(
+            PluginCatalogEntry(
+                name="github",
+                repo="sase-github",
+                full_name="sase-org/sase-github",
+                owner="sase-org",
+                description="",
+                url="",
+                homepage="",
+                topics=(),
+                stars=0,
+                archived=False,
+                license="",
+                updated_at="",
+                installed=InstalledInfo(installed=True, version="0.4.1"),
+                latest=LatestInfo(checked=True, version="0.5.0", source="index"),
+            ),
+        ),
+        from_cache=True,
+        stale=False,
+    )
+
+    assert entry.entries[0].update_available is True
+    assert entry.updates_available == 1
 
 
 def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
