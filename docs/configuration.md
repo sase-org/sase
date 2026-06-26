@@ -7,6 +7,8 @@ and CLI flags.
 
 - [Config File Location](#config-file-location)
 - [SASE Config (interactive editor)](#sase-config-interactive-editor)
+  - [Settings tab](#settings-tab)
+  - [Plugins tab](#plugins-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
@@ -51,8 +53,10 @@ agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 
 ## SASE Config (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Config**, a full-screen modal with two tabs (`[` / `]` switch between
-them): a schema-driven **Settings** editor and the **XPrompts** browser.
+Press `#` in the `sase ace` TUI to open **SASE Config**, a full-screen modal with three tabs (`[` / `]` switch between
+them): a schema-driven **Settings** editor, a **Plugins** browser, and the **XPrompts** browser.
+
+### Settings tab
 
 The Settings tab answers four questions for every field — what value is effective, why (its provenance), where an edit
 will go, and whether it validates:
@@ -74,6 +78,36 @@ will go, and whether it validates:
 
 SASE Config never writes without showing the diff and validation first, and never edits a built-in or plugin default
 (those layers are read-only).
+
+### Plugins tab
+
+The Plugins tab brings the full [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience
+into the TUI — browse the catalog, inspect a plugin, install one, and update one or all — staying visually consistent
+with the CLI by reusing the same catalog loader and Rich renderables. It is a master/detail layout: a header summary
+line (`N plugins · M installed · K updates available · cached <age>`), a filter, a grouped list split into **Built-in**
+and **Community** (third-party, shown with a warning) sections, and a detail panel mirroring `sase plugin show`. Status
+glyphs match the CLI exactly: `●` installed, `○` available, `↑` update available.
+
+Every mutation **previews first**: install and update open a confirm-preview modal showing the exact `uv` command and
+resolved plugin set (the confirmation _is_ the dry-run), then run as a tracked background task so a multi-second `uv`
+run never blocks the UI, followed by a success/error toast and an automatic catalog refresh. When `sase` is not a
+managed `uv tool install`, browsing still works but install/update are disabled with the same actionable message the CLI
+gives. The context-sensitive keymaps are:
+
+| Key       | Action                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------- |
+| `j` / `k` | Move the highlight down / up                                                                |
+| `i`       | Install the highlighted plugin (only when not installed); toggle index vs. git in the modal |
+| `u`       | Update the highlighted plugin (only when installed; emphasized when an update is available) |
+| `U`       | Update all installed plugins                                                                |
+| `r`       | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)               |
+| `o`       | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)           |
+| `v`       | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)              |
+| `/`       | Focus the filter input (matches name / description / topics)                                |
+| `[` / `]` | Switch SASE Config tabs                                                                     |
+| `esc`/`q` | Close SASE Config                                                                           |
+
+These keymaps are widget-local and are not configurable through `default_config.yml`.
 
 ## Deep-Merge System
 

@@ -50,6 +50,10 @@ pip install sase-github
 the GitHub `sase-plugin` repository topic as the canonical registry, so the catalog always reflects reality: a repo
 gains or loses a listing purely by gaining or losing the topic, with no code change.
 
+> The same browse / install / update operations are available interactively in the
+> [**Plugins** tab of the `sase ace` SASE Config modal](configuration.md#plugins-tab) (`#`), which reuses this catalog
+> and these renderers for CLI parity.
+
 ```bash
 # Catalog of every known plugin (built-in and community)
 sase plugin list

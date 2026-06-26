@@ -145,7 +145,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     d(a.start_agent_from_changespec),
                     "Repeat last +/Ctrl+Space selection",
                 ),
-                (d(a.open_config_center), "SASE Config / XPrompts"),
+                (d(a.open_config_center), "SASE Config / Plugins / XPrompts"),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.refresh), "Refresh"),

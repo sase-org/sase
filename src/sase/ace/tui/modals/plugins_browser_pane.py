@@ -801,7 +801,6 @@ class PluginsBrowserPane(Vertical):
             parts.append("U update-all")
         parts.extend(
             [
-                "j/k navigate",
                 "r refresh",
                 f"o offline{offline}",
                 f"v verbose{verbose}",

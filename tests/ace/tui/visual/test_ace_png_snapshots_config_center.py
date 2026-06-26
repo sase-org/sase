@@ -38,6 +38,7 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 from tests.ace.tui.test_plugins_browser_pane import (
     _NOW as _PLUGINS_NOW,
     _catalog,
+    _entry,
     _highlight,
     _not_uv_tool,
     _ready_preview,
@@ -477,6 +478,54 @@ async def test_config_center_plugins_community_detail_png_snapshot(
             page,
             "config_center_plugins_community_detail_120x40",
             title="ACE SASE Config — Plugins tab (community warning + detail)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_long_description_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A long plugin description wraps cleanly in the detail panel."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    from sase.plugins.catalog import PluginCatalog
+    from sase.plugins.installed import InstalledInfo
+    from sase.plugins.latest import LatestInfo
+
+    long_description = (
+        "A comprehensive integration that synchronizes issues, pull requests, "
+        "CI status, deployment events, and release notes across multiple forges, "
+        "then mirrors them into SASE ChangeSpecs with configurable field "
+        "mappings, automatic retries, and rate-limit-aware exponential backoff."
+    )
+    megasync = _entry(
+        "megasync",
+        owner="sase-org",
+        description=long_description,
+        installed=InstalledInfo(installed=True, version="1.0.0"),
+        latest=LatestInfo(checked=True, version="1.0.0", source="index"),
+        topics=("sase-plugin", "sync", "integration"),
+    )
+    catalog = PluginCatalog(
+        fetched_at=_PLUGINS_NOW,
+        entries=(megasync,),
+        from_cache=True,
+        stale=False,
+    )
+    _patch_plugins_catalog(monkeypatch, catalog=catalog)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        await page.wait_for(lambda _s: pane._detail_name == "megasync")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_long_description_120x40",
+            title="ACE SASE Config — Plugins tab (long description wraps)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
