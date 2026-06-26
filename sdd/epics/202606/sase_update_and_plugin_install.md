@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-25 21:15:25
-status: wip
+status: done
 bead_id: sase-58
 tier: epic
 prompt: sdd/prompts/202606/sase_update_and_plugin_install.md
