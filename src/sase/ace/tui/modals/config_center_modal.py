@@ -1,13 +1,13 @@
-"""Config Center modal: a tabbed home for config editing and xprompts.
+"""SASE Config modal: a tabbed home for settings editing and xprompts.
 
-The Config Center is a full-screen ``ModalScreen`` that hosts two internal
+SASE Config is a full-screen ``ModalScreen`` that hosts two internal
 tabs over a :class:`ContentSwitcher`:
 
-- **Config** (leftmost, default focus on open) — the schema-driven config
+- **Settings** (leftmost, default focus on open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
 - **XPrompts** — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
-``#`` opens the modal on the **Config** tab. ``[`` / ``]`` cycle the two
+``#`` opens the modal on the **Settings** tab. ``[`` / ``]`` cycle the two
 tabs with modulo wrapping, mirroring the notification panel's sub-tab
 navigation. The clickable tab strip mirrors the app's :class:`TabBar`.
 """
@@ -32,17 +32,18 @@ CenterTab = Literal["config", "xprompts"]
 
 _TAB_ORDER: tuple[CenterTab, ...] = ("config", "xprompts")
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
-    ("config", "Config"),
+    ("config", "Settings"),
     ("xprompts", "XPrompts"),
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
     "xprompts": "#87D7FF",
 }
+_HEADER_DIVIDER_RULE = "─"
 
 
 class _ConfigCenterTabStrip(Static):
-    """Clickable one-line tab strip for the Config Center modal."""
+    """Clickable one-line tab strip for the SASE Config modal."""
 
     class TabClicked(Message):
         """Message emitted when a tab is clicked."""
@@ -54,6 +55,7 @@ class _ConfigCenterTabStrip(Static):
     def __init__(self, active_tab: CenterTab, **kwargs: Any) -> None:
         self._active_tab: CenterTab = active_tab
         self._tab_ranges: dict[CenterTab, tuple[int, int]] = {}
+        self._line_width = 0
         super().__init__(self._build_content(), **kwargs)
 
     def set_active_tab(self, active_tab: CenterTab) -> None:
@@ -72,18 +74,33 @@ class _ConfigCenterTabStrip(Static):
             start = len(text.plain)
             text.append(f" {label} ", style=style)
             self._tab_ranges[tab] = (start, len(text.plain))
+        self._line_width = len(text.plain)
         return text
 
     def on_click(self, event: Click) -> None:
+        content_width = max(0, int(self.size.width))
+        center_pad = max(0, (content_width - self._line_width) // 2)
+        x = event.x - center_pad
         for tab, (start, end) in self._tab_ranges.items():
-            if start <= event.x < end:
+            if start <= x < end:
                 if tab != self._active_tab:
                     self.post_message(self.TabClicked(tab))
                 return
 
 
+class _ConfigCenterHeaderDivider(Static):
+    """Width-aware divider between the SASE Config header and content."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__("", **kwargs)
+
+    def render(self) -> Text:
+        width = max(0, int(self.size.width))
+        return Text(_HEADER_DIVIDER_RULE * width, style="#444444")
+
+
 class ConfigCenterModal(ModalScreen[None]):
-    """Full-screen modal hosting the Config and XPrompts tabs."""
+    """Full-screen modal hosting the Settings and XPrompts tabs."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -106,8 +123,9 @@ class ConfigCenterModal(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="config-center-container"):
-            yield Label("Config Center", id="config-center-title")
+            yield Label("SASE Config", id="config-center-title")
             yield _ConfigCenterTabStrip(self._active_tab, id="config-center-tabs")
+            yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
                 yield XPromptBrowserPane(self._project, id="xprompts")
@@ -150,7 +168,7 @@ class ConfigCenterModal(ModalScreen[None]):
         self._focus_active_pane()
 
     def action_close(self) -> None:
-        """Close the Config Center."""
+        """Close SASE Config."""
         self.dismiss(None)
 
     def action_prev_center_tab(self) -> None:

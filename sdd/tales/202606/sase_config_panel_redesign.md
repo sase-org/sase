@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 09:07:24
-status: wip
+status: done
 prompt: sdd/prompts/202606/sase_config_panel_redesign.md
 ---
 # Plan: Beautify the "SASE Config" panel (Config Center modal)

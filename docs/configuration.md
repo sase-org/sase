@@ -6,7 +6,7 @@ and CLI flags.
 ## Table of Contents
 
 - [Config File Location](#config-file-location)
-- [Config Center (interactive editor)](#config-center-interactive-editor)
+- [SASE Config (interactive editor)](#sase-config-interactive-editor)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
@@ -41,7 +41,7 @@ All sase configuration lives under `~/.config/sase/`. The base config file is:
 ~/.config/sase/sase.yml
 ```
 
-Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. In the Config Center's
+Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. In the SASE Config
 new-overlay prompt, enter a single local overlay name rather than a path: `extra`, `sase_extra`, and `sase_extra.yml`
 all resolve to `~/.config/sase/sase_extra.yml`. SASE trims surrounding whitespace and rejects empty names, `.` / `..`,
 or names containing `/` or `\`, so the create-overlay flow cannot escape the user config directory. A project-local
@@ -49,12 +49,12 @@ or names containing `/` or `\`, so the create-overlay flow cannot escape the use
 project-local config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's
 agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 
-## Config Center (interactive editor)
+## SASE Config (interactive editor)
 
-Press `#` in the `sase ace` TUI to open the **Config Center**, a full-screen modal with two tabs (`[` / `]` switch
-between them): a schema-driven **Config** editor and the **XPrompts** browser.
+Press `#` in the `sase ace` TUI to open **SASE Config**, a full-screen modal with two tabs (`[` / `]` switch between
+them): a schema-driven **Settings** editor and the **XPrompts** browser.
 
-The Config tab answers four questions for every field — what value is effective, why (its provenance), where an edit
+The Settings tab answers four questions for every field — what value is effective, why (its provenance), where an edit
 will go, and whether it validates:
 
 - **Browse / inspect** (read-only): a source rail lists each config layer with loaded/missing/invalid/read-only badges;
@@ -72,8 +72,8 @@ will go, and whether it validates:
 - **Migrate** (`g`, or `e` on the deprecated `sibling_repos` field): folds `sibling_repos` into
   [`linked_repos`](#linked_repos) and removes the deprecated key in one step.
 
-The Config Center never writes without showing the diff and validation first, and never edits a built-in or plugin
-default (those layers are read-only).
+SASE Config never writes without showing the diff and validation first, and never edits a built-in or plugin default
+(those layers are read-only).
 
 ## Deep-Merge System
 

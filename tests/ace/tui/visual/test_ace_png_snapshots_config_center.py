@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the Config Center modal.
+"""ACE TUI PNG visual snapshots for the SASE Config modal.
 
 Covers both internal tabs and the Phase 4 Config-tab states. The Config tab is
 fed a deterministic fixture inventory by patching
@@ -266,7 +266,7 @@ async def test_config_center_config_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_tab_120x40",
-            title="ACE Config Center — Config tab (populated)",
+            title="ACE SASE Config — Settings tab (populated)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -293,7 +293,7 @@ async def test_config_center_config_empty_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_empty_120x40",
-            title="ACE Config Center — Config tab (no fields)",
+            title="ACE SASE Config — Settings tab (no fields)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -314,7 +314,7 @@ async def test_config_center_config_loading_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_loading_120x40",
-            title="ACE Config Center — Config tab (loading)",
+            title="ACE SASE Config — Settings tab (loading)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -339,7 +339,7 @@ async def test_config_center_config_long_value_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_long_value_120x40",
-            title="ACE Config Center — Config tab (long value)",
+            title="ACE SASE Config — Settings tab (long value)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -359,7 +359,7 @@ async def test_config_center_xprompts_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_xprompts_tab_120x40",
-            title="ACE Config Center — XPrompts tab (migrated browser)",
+            title="ACE SASE Config — XPrompts tab (migrated browser)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -398,7 +398,7 @@ async def test_config_center_edit_modal_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_edit_modal_120x40",
-            title="ACE Config Center — edit field (scope + editor)",
+            title="ACE SASE Config — edit field (scope + editor)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -424,6 +424,6 @@ async def test_config_center_edit_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_edit_preview_120x40",
-            title="ACE Config Center — edit preview (diff + validation)",
+            title="ACE SASE Config — edit preview (diff + validation)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
