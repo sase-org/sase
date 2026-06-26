@@ -32,6 +32,19 @@ an automatic cache-first refresh follow. A one-shot ``probe_uv_tool_install``
 managed ``uv tool install sase``; already-installed and not-found outcomes reuse
 the CLI's resolution so the messaging matches.
 
+Phase 5 adds the **update** actions, reusing Phase 4's confirm-preview modal and
+tracked-task pattern. ``u`` updates the highlighted plugin (offered only when it
+is installed; emphasized when an update is available) and ``U`` updates every
+installed plugin at once. Both plan off-thread with
+:func:`sase.plugins.operations.plan_update`, route the terminal outcomes
+(:class:`~sase.plugins.operations.NotUvTool`,
+:class:`~sase.plugins.operations.NoPlugins`,
+:class:`~sase.plugins.operations.NotInstalled`,
+:class:`~sase.plugins.operations.UpdateUnknown`) to CLI-matching toasts, preview
+the exact ``uv`` upgrade argv, then run
+:func:`~sase.plugins.operations.execute_update` inside a tracked background task
+followed by a success/error toast and an automatic cache-first refresh.
+
 The catalog loads cache-first off the event loop (``run_worker(thread=True)``)
 so a slow ``gh`` / network call never blocks the UI; loading, empty, and error
 states are surfaced in place. This pane intentionally reuses the same single
@@ -74,9 +87,17 @@ from sase.plugins.operations import (
     InstallOutcome,
     InstallPlan,
     InstallReady,
+    NoPlugins,
+    NotInstalled,
     NotUvTool,
+    UpdateOutcome,
+    UpdatePlan,
+    UpdateReady,
+    UpdateUnknown,
     execute_install,
+    execute_update,
     plan_install,
+    plan_update,
 )
 from sase.plugins.render import build_community_warning_panel, build_detail_panel
 from sase.plugins.render_common import (
@@ -93,6 +114,7 @@ from sase.uv_tool.detect import (
     probe_uv_tool_install,
 )
 from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
+from sase.uv_tool.runner import ChangeKind
 
 from .plugin_action_confirm_modal import (
     PluginActionConfirmModal,
@@ -224,12 +246,90 @@ def _install_success_message(outcome: InstallOutcome) -> str:
     )
 
 
-def _not_found_message(plan: InstallNotFound) -> str:
+def _missing_plugin_message(
+    query: str, suggestions: tuple[PluginCatalogEntry, ...]
+) -> str:
     """The not-found toast, mirroring the CLI's ranked-suggestions wording."""
-    if plan.suggestions:
-        names = ", ".join(entry.name for entry in plan.suggestions)
-        return f"No plugin named '{plan.query}' in the catalog. Did you mean: {names}?"
-    return f"No plugin named '{plan.query}' in the catalog."
+    if suggestions:
+        names = ", ".join(entry.name for entry in suggestions)
+        return f"No plugin named '{query}' in the catalog. Did you mean: {names}?"
+    return f"No plugin named '{query}' in the catalog."
+
+
+def _not_found_message(plan: InstallNotFound) -> str:
+    """The install not-found toast (shared wording with ``update``)."""
+    return _missing_plugin_message(plan.query, plan.suggestions)
+
+
+@dataclass(frozen=True)
+class _UpdatePreview:
+    """Off-thread result of planning an update for the confirm-preview modal.
+
+    *plan* is the single :class:`UpdatePlan` outcome — a terminal one
+    (:class:`NotUvTool` / :class:`NoPlugins` / :class:`NotInstalled` /
+    :class:`UpdateUnknown`) routed to a CLI-matching toast, or an
+    :class:`UpdateReady` opened in the confirm-preview modal. *error* carries a
+    catalog/receipt failure message instead of a plan. Unlike install, update
+    offers no source toggle, so there is only ever one plan.
+    """
+
+    plan: UpdatePlan | None
+    error: str | None = None
+
+
+def _plan_update_preview(
+    query: str | None, *, all_plugins: bool, offline: bool
+) -> _UpdatePreview:
+    """Plan ``update <query>`` / ``update --all`` for the confirm-preview modal.
+
+    Delegates to :func:`sase.plugins.operations.plan_update` — the single source
+    of truth shared with the CLI — once, cache-first (``refresh=False``). A
+    catalog/receipt failure becomes a toast-able error rather than a plan.
+    """
+    try:
+        plan = plan_update(query, all_plugins=all_plugins, offline=offline)
+    except (PluginCatalogError, ReceiptError) as exc:
+        return _UpdatePreview(plan=None, error=str(exc))
+    return _UpdatePreview(plan=plan)
+
+
+def _update_subject(plan: UpdateReady) -> str:
+    """The human subject of an update: 'every installed plugin' or the names."""
+    if plan.all_plugins:
+        return "every installed plugin"
+    return ", ".join(plan.targets)
+
+
+def _update_summary(plan: UpdateReady) -> str:
+    """The resolved-plugin-set line shown in the confirm-preview modal.
+
+    Mirrors the CLI's ``update --dry-run`` "Upgrades … (sase core stays pinned)".
+    """
+    return f"Upgrades {_update_subject(plan)}  (sase core stays pinned)"
+
+
+def _update_success_message(outcome: UpdateOutcome) -> str:
+    """A concise, CLI-flavored success toast: count upgraded + elapsed."""
+    upgraded = sum(
+        1
+        for name in outcome.plan.targets
+        if (change := outcome.change_set.get(name)) is not None
+        and change.kind is ChangeKind.UPGRADED
+    )
+    if upgraded == 0:
+        return "Plugins already up to date."
+    plural = "plugin" if upgraded == 1 else "plugins"
+    return f"Updated {upgraded} {plural} in {humanize_duration(outcome.elapsed)}"
+
+
+def _not_installed_message(name: str) -> str:
+    """The ``update`` not-installed toast, mirroring the CLI's wording."""
+    return f"{name} is not installed. Run `sase plugin install {name}` to add it first."
+
+
+def _no_plugins_message() -> str:
+    """The ``update --all`` no-plugins toast, mirroring the CLI's wording."""
+    return "No plugins are installed. Run `sase plugin list` to discover plugins."
 
 
 class _PluginsFilterInput(Input):
@@ -274,6 +374,8 @@ class PluginsBrowserPane(Vertical):
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
         ("i", "install", "Install"),
+        ("u", "update", "Update"),
+        ("U", "update_all", "Update all"),
         ("r", "refresh", "Refresh"),
         ("o", "toggle_offline", "Offline"),
         ("v", "toggle_verbose", "Verbose"),
@@ -294,6 +396,8 @@ class PluginsBrowserPane(Vertical):
         self._worker: Worker[Any] | None = None
         #: Worker computing an install plan/preview before the confirm modal.
         self._plan_worker: Worker[Any] | None = None
+        #: Worker computing an update plan/preview before the confirm modal.
+        self._update_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None
@@ -361,6 +465,17 @@ class PluginsBrowserPane(Vertical):
                 self._plan_worker = None
                 self._notify(self._worker_error_text(event.worker), severity="error")
             return
+        if event.worker is self._update_plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._update_plan_worker = None
+                self._on_update_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._update_plan_worker = None
+                self._notify(
+                    self._worker_error_text(event.worker, kind="update"),
+                    severity="error",
+                )
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -383,8 +498,10 @@ class PluginsBrowserPane(Vertical):
             self._render_all()
 
     @staticmethod
-    def _worker_error_text(worker: Worker[Any]) -> str:
-        return str(worker.error) if worker.error else "Could not plan the install."
+    def _worker_error_text(worker: Worker[Any], *, kind: str = "install") -> str:
+        if worker.error:
+            return str(worker.error)
+        return f"Could not plan the {kind}."
 
     # -- rendering --
 
@@ -676,6 +793,12 @@ class PluginsBrowserPane(Vertical):
         parts: list[str] = []
         if self._can_install_highlighted():
             parts.append("i install")
+        if self._can_update_highlighted():
+            entry = self._current_entry()
+            emphasize = entry is not None and entry.update_available
+            parts.append("u update ↑" if emphasize else "u update")
+        if self._can_update_all():
+            parts.append("U update-all")
         parts.extend(
             [
                 "j/k navigate",
@@ -699,6 +822,26 @@ class PluginsBrowserPane(Vertical):
             return False
         entry = self._current_entry()
         return entry is not None and not entry.installed.installed
+
+    def _can_update_highlighted(self) -> bool:
+        """Whether the highlighted plugin can be updated right now.
+
+        True only when sase is a managed ``uv tool`` install and the highlighted
+        row is already installed (an update is *emphasized* in the hint when one
+        is available, but the action is offered for any installed plugin so a
+        forced re-check stays discoverable).
+        """
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        entry = self._current_entry()
+        return entry is not None and entry.installed.installed
+
+    def _can_update_all(self) -> bool:
+        """Whether ``update --all`` is possible: uv-tool install with plugins."""
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        catalog = self._catalog
+        return catalog is not None and catalog.installed_count > 0
 
     # -- navigation --
 
@@ -884,6 +1027,154 @@ class PluginsBrowserPane(Vertical):
         else:
             detail = completion.error or completion.message
             self._notify(f"Install failed: {detail}", severity="error")
+
+    # -- update actions --
+
+    def action_update(self) -> None:
+        """Update the highlighted plugin (``u``) via a confirm-preview modal.
+
+        Offered only for an *installed* plugin. Short-circuits with the CLI's
+        actionable message when sase is not a managed ``uv tool`` install or the
+        highlighted plugin is not installed, then plans the update off-thread and
+        opens the confirm-preview modal; the ``uv`` upgrade runs later, in a
+        tracked background task, only if the user confirms.
+        """
+        if self._loading or self._update_plan_worker is not None:
+            return
+        entry = self._current_entry()
+        if entry is None:
+            return
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            self._notify(str(NotAUvToolInstallError(self._uv_tool)), severity="warning")
+            return
+        if not entry.installed.installed:
+            self._notify(_not_installed_message(entry.name), severity="warning")
+            return
+        self._begin_update_plan(entry.name, all_plugins=False)
+
+    def action_update_all(self) -> None:
+        """Update every installed plugin (``U``) via a confirm-preview modal.
+
+        Short-circuits with the CLI's actionable message when sase is not a
+        managed ``uv tool`` install; the no-plugins case is reported from the
+        plan (the receipt, not the catalog, is the source of truth).
+        """
+        if self._loading or self._update_plan_worker is not None:
+            return
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            self._notify(str(NotAUvToolInstallError(self._uv_tool)), severity="warning")
+            return
+        self._begin_update_plan(None, all_plugins=True)
+
+    def _begin_update_plan(self, query: str | None, *, all_plugins: bool) -> None:
+        offline = self._offline
+
+        def task() -> _UpdatePreview:
+            return _plan_update_preview(query, all_plugins=all_plugins, offline=offline)
+
+        self._update_plan_worker = self.run_worker(
+            task, thread=True, exclusive=True, group="plugin-update-plan"
+        )
+
+    def _on_update_preview(self, preview: _UpdatePreview | None) -> None:
+        """Route a planned update to a toast (terminal) or the confirm modal."""
+        if preview is None:
+            return
+        if preview.error is not None:
+            self._notify(preview.error, severity="error")
+            return
+        plan = preview.plan
+        if isinstance(plan, NotUvTool):
+            self._notify(str(plan.error), severity="warning")
+        elif isinstance(plan, NoPlugins):
+            self._notify(_no_plugins_message())
+        elif isinstance(plan, NotInstalled):
+            self._notify(_not_installed_message(plan.name), severity="warning")
+        elif isinstance(plan, UpdateUnknown):
+            self._notify(
+                _missing_plugin_message(plan.query, plan.suggestions), severity="error"
+            )
+        elif isinstance(plan, UpdateReady):
+            self._open_update_modal(plan)
+
+    def _open_update_modal(self, plan: UpdateReady) -> None:
+        if plan.all_plugins:
+            title = "Update all plugins"
+            intro = (
+                "Confirm to upgrade every installed plugin (sase core stays pinned)."
+            )
+        else:
+            name = plan.targets[0]
+            title = f"Update {name}"
+            intro = f"Confirm to upgrade {name} (sase core stays pinned)."
+        variants = [
+            PluginActionVariant(
+                key="update",
+                label="update",
+                argv=tuple(plan.argv),
+                summary=_update_summary(plan),
+            )
+        ]
+        modal = PluginActionConfirmModal(
+            title=title,
+            intro=intro,
+            variants=variants,
+            panel_title="Confirm update",
+        )
+
+        def _on_confirmed(result: PluginActionConfirmResult | None) -> None:
+            if result is None:
+                return
+            self._submit_update_task(plan)
+
+        self.app.push_screen(modal, _on_confirmed)
+
+    def _submit_update_task(self, plan: UpdateReady) -> None:
+        """Run ``execute_update`` in a tracked background task (never blocks)."""
+
+        def task() -> TrackedTaskResult[UpdateOutcome]:
+            try:
+                outcome = execute_update(plan)
+            except UvToolError as exc:
+                return TrackedTaskResult(
+                    success=False, message=str(exc), error=str(exc)
+                )
+            return TrackedTaskResult(
+                success=True,
+                message=_update_success_message(outcome),
+                payload=outcome,
+            )
+
+        submit = getattr(self.app, "_submit_tracked_task", None)
+        if submit is None:
+            return
+        label = "all plugins" if plan.all_plugins else plan.targets[0]
+        dedup = "plugin-update:all" if plan.all_plugins else f"plugin-update:{label}"
+        submit(
+            "plugin-update",
+            label,
+            "",
+            task,
+            display_name=f"update {label}",
+            dedup_key=dedup,
+            duplicate_message=f"An update is already running for {label}.",
+            on_complete=self._on_update_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+
+    def _on_update_complete(
+        self, completion: TrackedTaskCompletion[UpdateOutcome]
+    ) -> None:
+        """Toast the CLI-matching outcome and refresh the row(s) in place."""
+        if completion.success:
+            self._notify(completion.message)
+            # Re-merge installed state so upgraded rows reflect the new version.
+            if self.is_mounted and not self._loading:
+                self._start_load(force=False)
+        else:
+            detail = completion.error or completion.message
+            self._notify(f"Update failed: {detail}", severity="error")
 
     def _notify(
         self,

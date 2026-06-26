@@ -41,6 +41,7 @@ from tests.ace.tui.test_plugins_browser_pane import (
     _highlight,
     _not_uv_tool,
     _ready_preview,
+    _update_ready,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -644,6 +645,73 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
             page,
             "config_center_plugins_not_uv_tool_120x40",
             title="ACE SASE Config — Plugins tab (install unavailable)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+# --- Phase 5: update preview modals (single + all) ------------------------
+
+
+async def test_config_center_plugins_update_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The single-plugin update confirm-preview modal: exact uv upgrade argv."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+    plan = _update_ready(("github",))
+    monkeypatch.setattr(
+        pbp,
+        "_plan_update_preview",
+        lambda query, *, all_plugins, offline: pbp._UpdatePreview(plan=plan),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        _highlight(pane, "github")  # installed + update available
+        await page.wait_for(lambda _s: pane._highlighted_name() == "github")
+        pane.action_update()
+        await page.expect_modal("PluginActionConfirmModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_update_preview_120x40",
+            title="ACE SASE Config — Plugins update (confirm preview)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_update_all_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The update-all confirm-preview modal: upgrades every installed plugin."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+    plan = _update_ready(("github", "telegram"), all_plugins=True)
+    monkeypatch.setattr(
+        pbp,
+        "_plan_update_preview",
+        lambda query, *, all_plugins, offline: pbp._UpdatePreview(plan=plan),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        pane.action_update_all()
+        await page.expect_modal("PluginActionConfirmModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_update_all_preview_120x40",
+            title="ACE SASE Config — Plugins update-all (confirm preview)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
