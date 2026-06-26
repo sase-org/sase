@@ -4,13 +4,167 @@ IMPORTANT: You should not modify any of these memory files without approval from
 
 ## Tier 1 (short-term) Memory
 
-The following memory files contain core (always loaded) context:
+The following memory contains core (always loaded) context:
 
-- @memory/build_and_run.md
-- @memory/glossary.md
-- @memory/gotchas.md
-- @memory/rust_core_backend_boundary.md
-- @memory/sase.md
+### memory/build_and_run.md (Build & Run Commands)
+
+```bash
+just install       # Install in editable mode with dev deps
+just lint          # ruff check + mypy
+just fmt           # Auto-format code
+just test          # Fast parallel pytest run, includes PNG visual snapshots
+                   # (cairosvg/Pillow auto-installed via _setup-visual)
+just test-cov      # pytest with coverage + 50% gate (used by CI); also runs
+                   # the visual snapshot suite
+```
+
+#### IMPORTANT: You MUST Run `just check` if you Made File Changes
+
+If you made file changes in this repo (the sase repo), make sure to run the `just check` command before terminating /
+replying to the user. See the below subsection for exceptions to this rule.
+
+**IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the sase.md file in this directory) is
+that you need to run `just install` before running other commands like `just check` (since it is possible we haven't
+used this workspace directory in a long time and package dependencies may have changed).
+
+##### Exceptions
+
+There is no point in running the `just check` command if the only file changes you made fall into one of the following
+categories:
+
+- Bead changes (i.e. changes to files in the sdd/beads/ directory).
+- Changes to (or the creation of new) markdown files or images in the sdd/research/ directory.
+
+#### PNG Snapshot Tests
+
+Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in `tests/ace/tui/visual/snapshots/png/`.
+On failures, inspect `.pytest_cache/sase-visual/` for actual/expected/diff/source artifacts, and use
+`--sase-update-visual-snapshots` only to accept intentional visual changes. Local runs use exact pixel equality by
+default, while CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and fontconfig/Fira
+Code to keep rendering deterministic.
+
+### memory/glossary.md (Glossary of Terms Specific to SASE)
+
+**Agent Family**  
+A `<name>` agent family refers to a group of agents that are all named with the same `<name>` prefix separated from the
+rest of its name by a dot. For example, agents named `foo`, `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
+same `foo` agent family.
+
+**ChangeSpec**  
+Represents a single CL/PR. Stored in `.gp` files at `~/.sase/projects/<project>/`. Sections: NAME, DESCRIPTION, PARENT,
+CL/PR, STATUS, COMMITS, HOOKS, COMMENTS, MENTORS. Active specs in `<project>.gp`; terminal ones (Submitted, Archived,
+Reverted) in `<project>-archive.gp`. Status lifecycle: WIP → Draft → Ready → Mailed → Submitted.
+
+**ChangeSpec COMMITS Drawer**  
+A line of the form `| <NAME>: <FILE_PATH>` under a ChangeSpec COMMITS entry.
+
+**Child Agent/Workflow Step Entry**  
+Any agent row entry on the "Agents" tab of the `sase ace` TUI that is a child of some root agent/workflow entry.
+Workflow entries can have python/bash children as well as agent children. Agents root entries can only have (one or
+more) agent child entries. Child entries are not visible by default; the `h` and `l` keymaps are used to hide and reveal
+them, respectively.
+
+**Multi-agent xprompt**  
+An xprompt whose body contains `---` segment separators (outside fenced blocks). Normal user prompts can also use `---`
+to create multi-agent prompts (i.e. prompts that result in the prompt being split in order to launch one agent for each
+part of the prompt).
+
+**Model Directive Completion (`%model:` / `%m:`)**
+
+The ACE prompt input and Neovim xprompt LSP complete inline-typable `%model` values from the live Python LLM registry
+plus reserved/configured model aliases. Short provider aliases such as `fable` are display/filter hints only; accepting
+a model candidate inserts the canonical model value such as `claude-fable-5`.
+
+**Agent-name Completion (`%wait` / `#fork`)**
+
+The ACE prompt input completes agent-name arguments for `%wait` and `#fork` from the agents currently visible across all
+Agents-tab panels. Rows show the status indicator, inserted agent name, VCS workflow badge such as `#gh:sase`, and a
+prompt snippet. `%wait` completion handles comma-separated fragments; `#fork` uses the same visible-agent candidate
+source.
+
+**Root Agent/Workflow Entry**  
+Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.
+
+**VCS Project Completion (`#+`)** A `#+` at the start of a prompt, at its end, or after a space/newline opens a
+completion menu of active projects. Selecting one prepends that project's VCS xprompt workflow tag (e.g. `#gh:sase`),
+removes the `#+query` token, and replaces any existing leading VCS tag. Works in the `sase ace` TUI prompt input and in
+Neovim via the xprompt LSP (`+` trigger character). The expansion is one canonical algorithm mirrored in Python
+(`xprompt/vcs_project_completion.py`) and Rust (`sase-core editor/completion.rs`), kept in parity by a shared
+golden-vector table.
+
+**xprompt**  
+Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md or .yml file) or in
+~/.config/sase/sase.yml (`xprompts` field).
+
+**snippet reference** `#[trigger]` inside an ACE/editor snippet template splices another snippet from the merged snippet
+registry. Positional arguments such as `#[trigger(value)]` or `#[trigger:value]` fill the referenced snippet's `$1`,
+`$2`, ... tabstops.
+
+**xprompt Part**  
+.md file → single `prompt_part` step with the file's content.
+
+**xprompt Workflow**  
+.yml file → multiple steps (`prompt_part`, `python`, `bash`, etc.).
+
+### memory/gotchas.md (Code Conventions and Gotchas)
+
+**Default Keymap Config**  
+When changing keymaps, leader mode keys, or any configuration values, don't forget to update the keymap configuration in
+the `src/sase/default_config.yml` file if necessary.
+
+**Uniform Agent Runtimes**  
+All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabilities: they all support hooks, skills,
+and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
+runtime lacks a capability that others have. Treat all runtimes uniformly.
+
+**Command-Line Short Options**  
+When defining new `sase` command options, make sure that all command-line options have both a long and short option
+defined (ex: `-f|--foobar` not just `--foobar`).
+
+### memory/rust_core_backend_boundary.md (Rust Core Backend Boundary)
+
+Shared backend and domain behavior belongs in the sibling Rust core repo at `../sase-core/crates/sase_core`. Python and
+TUI code in this repo should call through the Rust binding (`sase_core_rs`) or a thin local adapter instead of
+reimplementing core logic here.
+
+Use this litmus test: if a web app, CLI, editor integration, or another frontend would need the behavior to match the
+TUI, treat it as core backend logic.
+
+Presentation-only Textual state, keybindings, layout, widget rendering, and Python glue can stay in this repo. When a
+change crosses the boundary, update the Rust wire/API, bindings, and tests in `../sase-core`, then update the Python
+callers or adapters here.
+
+### memory/sase.md (SASE = Structured Agentic Software Engineering)
+
+#### Ephemeral `sase_<N>` Workspace Directories
+
+SASE runs agents (like you) from ephemeral workspace directories, which are full clones of the sase repo. These
+directories are named `sase_<N>` where `<N>` is some integer. You need to be mindful not to run commands outside of
+these workspace directories, since they have their own isolated virtual environments.
+
+IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace directory) in any plan files that you
+generate using your `/sase_plan` skill. The agent(s) that implement the plan might not run in the same workspace
+directory as you!
+
+#### Linked Repositories
+
+Configured linked repositories for this context:
+
+- `sase-core`: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
+- `sase-github`: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
+- `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
+- `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
+
+When you need to make changes to files in a numbered-workspace linked repository or need to review numbered-workspace
+linked repository code, agents MUST run:
+
+```bash
+sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>
+```
+
+`<workspace_num>` must be the workspace number assigned to the primary repo (check what directory you were started in to
+figure this out). Use the path printed by `sase workspace open` as the only repository path for numbered-workspace
+linked reads/writes.
 
 ## Tier 2 (long-term) Memory
 
