@@ -70,9 +70,47 @@ _TAB_COLORS: dict[CenterTab, str] = {
     "updates": "#AF87FF",
     "xprompts": "#87D7FF",
 }
-_TITLE_TEXT = "SASE Admin Center"
+_TITLE_ICON = "⎈"
+_TITLE_LABEL = "SASE Admin Center"
+_TITLE_TEXT = f"{_TITLE_ICON} {_TITLE_LABEL}"
 _HEADER_DIVIDER_RULE = "─"
-_TITLE_UNDERLINE = _HEADER_DIVIDER_RULE * len(_TITLE_TEXT)
+_TITLE_RULE_CHAR = "━"
+_TITLE_UNDERLINE = _TITLE_RULE_CHAR * len(_TITLE_TEXT)
+# Aurora accent gradient (aqua -> sky -> violet) swept across the Admin Center
+# header title and its rule. Vivid on the dark surface and a deliberate tie-in
+# to the colorful tab palette directly below it. The first stop doubles as the
+# panel border color (see ``ConfigCenterModal > Container`` in styles.tcss).
+_TITLE_GRADIENT: tuple[str, ...] = ("#2BE7C7", "#4FB6FF", "#B98CFF")
+
+
+def _gradient_color(stops: tuple[str, ...], position: float) -> str:
+    """Sample a left-to-right gradient of hex ``stops`` at ``position`` in [0, 1]."""
+    if position <= 0.0:
+        return stops[0]
+    if position >= 1.0:
+        return stops[-1]
+    span = position * (len(stops) - 1)
+    index = int(span)
+    local = span - index
+    start, end = stops[index], stops[index + 1]
+    channels = (
+        round(
+            int(start[i : i + 2], 16)
+            + (int(end[i : i + 2], 16) - int(start[i : i + 2], 16)) * local
+        )
+        for i in (1, 3, 5)
+    )
+    return "#" + "".join(f"{value:02X}" for value in channels)
+
+
+def _gradient_text(content: str, *, bold: bool) -> Text:
+    """Render ``content`` with a per-character sweep of :data:`_TITLE_GRADIENT`."""
+    text = Text()
+    divisor = max(1, len(content) - 1)
+    for index, char in enumerate(content):
+        color = _gradient_color(_TITLE_GRADIENT, index / divisor)
+        text.append(char, style=f"bold {color}" if bold else color)
+    return text
 
 
 class _ConfigCenterTabStrip(Static):
@@ -168,8 +206,13 @@ class ConfigCenterModal(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="config-center-container"):
-            yield Label(_TITLE_TEXT, id="config-center-title")
-            yield Static(_TITLE_UNDERLINE, id="config-center-title-underline")
+            yield Label(
+                _gradient_text(_TITLE_TEXT, bold=True), id="config-center-title"
+            )
+            yield Static(
+                _gradient_text(_TITLE_UNDERLINE, bold=False),
+                id="config-center-title-underline",
+            )
             yield _ConfigCenterTabStrip(self._active_tab, id="config-center-tabs")
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):

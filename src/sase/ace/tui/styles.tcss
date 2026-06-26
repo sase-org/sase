@@ -2999,15 +2999,18 @@ ConfigCenterModal {
 ConfigCenterModal > Container {
     width: 95%;
     height: 90%;
-    border: thick $primary;
+    /* Bright aqua frame (matches the header gradient's first stop in
+       config_center_modal.py) for a vivid, highly visible panel border. */
+    border: thick #2BE7C7;
     background: $surface;
     padding: 1 2;
 }
 
+/* Title + underline colors come from the per-character aurora gradient built
+   in config_center_modal.py; only layout is styled here. */
 ConfigCenterModal #config-center-title {
     width: 100%;
     text-style: bold;
-    color: $primary;
     text-align: center;
     height: 1;
     margin-bottom: 0;
@@ -3015,7 +3018,6 @@ ConfigCenterModal #config-center-title {
 
 ConfigCenterModal #config-center-title-underline {
     width: 100%;
-    color: $primary;
     text-align: center;
     height: 1;
     margin-bottom: 1;
