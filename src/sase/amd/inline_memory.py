@@ -63,7 +63,7 @@ def _iter_headings(body: str) -> list[tuple[int, str]]:
     return headings
 
 
-def extract_memory_title(body: str) -> str | None:
+def _extract_memory_title(body: str) -> str | None:
     """Return the text of the first H1 (``# ``) heading in *body*, fence-aware.
 
     Returns ``None`` when *body* contains no H1 heading outside a fenced block.
@@ -148,7 +148,7 @@ def inline_memory_section(relative_path: str, body: str) -> str:
     shifted down two levels (H2->H4, H3->H5) with code fences copied verbatim.
     The returned block ends with a single trailing newline.
     """
-    title = extract_memory_title(body)
+    title = _extract_memory_title(body)
     header = f"### {relative_path} ({title})" if title else f"### {relative_path}"
     transformed = _shift_body(body)
     if transformed:
@@ -157,7 +157,6 @@ def inline_memory_section(relative_path: str, body: str) -> str:
 
 
 __all__ = [
-    "extract_memory_title",
     "inline_memory_section",
     "validate_short_memory_structure",
 ]

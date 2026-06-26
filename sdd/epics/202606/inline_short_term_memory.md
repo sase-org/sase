@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 15:48:19
-status: wip
+status: done
 bead_id: sase-5b
 tier: epic
 prompt: sdd/prompts/202606/inline_short_term_memory.md
@@ -190,7 +190,7 @@ the command yet.
 
 **Add** a new module (e.g. `src/sase/amd/inline_memory.py`) exposing:
 
-- `extract_memory_title(body: str) -> str | None` — the text of the first H1 (`# `) heading, fence-aware.
+- `_extract_memory_title(body: str) -> str | None` — the text of the first H1 (`# `) heading, fence-aware.
 - `validate_short_memory_structure(body: str) -> str | None` — returns an error message (or `None` if valid) enforcing:
   exactly one H1 as the first heading, headings only at H1/H2/H3, no H4+; `#` inside fenced blocks ignored.
 - `inline_memory_section(relative_path: str, body: str) -> str` — produces the inlined block

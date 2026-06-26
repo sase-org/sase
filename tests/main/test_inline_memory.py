@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sase.amd.inline_memory import (
-    extract_memory_title,
+    _extract_memory_title,
     inline_memory_section,
     validate_short_memory_structure,
 )
@@ -28,18 +28,18 @@ There is no point if only bead files changed.
 
 
 def test_extract_memory_title_returns_first_h1_text() -> None:
-    assert extract_memory_title(BUILD_AND_RUN_BODY) == "Build & Run Commands"
-    assert extract_memory_title("# Title Only\n") == "Title Only"
+    assert _extract_memory_title(BUILD_AND_RUN_BODY) == "Build & Run Commands"
+    assert _extract_memory_title("# Title Only\n") == "Title Only"
 
 
 def test_extract_memory_title_returns_none_without_h1() -> None:
-    assert extract_memory_title("Just prose, no heading.\n") is None
-    assert extract_memory_title("## Starts At H2\n") is None
+    assert _extract_memory_title("Just prose, no heading.\n") is None
+    assert _extract_memory_title("## Starts At H2\n") is None
 
 
 def test_extract_memory_title_ignores_hash_inside_fence() -> None:
     body = "```\n# not a heading\n```\n\n# Real Title\n"
-    assert extract_memory_title(body) == "Real Title"
+    assert _extract_memory_title(body) == "Real Title"
 
 
 def test_validate_passes_for_h1_only() -> None:
