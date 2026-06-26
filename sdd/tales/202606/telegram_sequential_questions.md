@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 19:12:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/telegram_sequential_questions.md
 ---
 # Plan: Sequential, Numbered Multi-Question Delivery over Telegram
