@@ -1,15 +1,15 @@
-"""SASE Config modal: a tabbed home for settings, plugins, and xprompts.
+"""SASE Admin Center modal: a tabbed home for config, plugins, and xprompts.
 
-SASE Config is a full-screen ``ModalScreen`` that hosts three internal
+SASE Admin Center is a full-screen ``ModalScreen`` that hosts three internal
 tabs over a :class:`ContentSwitcher`:
 
-- **Settings** (leftmost, default focus on open) — the schema-driven config
+- **Config** (leftmost, default focus on open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
 - **Plugins** — the read-only plugin catalog browser
   (:class:`PluginsBrowserPane`), mirroring ``sase plugin list``.
 - **XPrompts** — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
-``#`` opens the modal on the **Settings** tab. ``[`` / ``]`` cycle the
+``#`` opens the modal on the **Config** tab. ``[`` / ``]`` cycle the
 tabs with modulo wrapping, mirroring the notification panel's sub-tab
 navigation. The clickable tab strip mirrors the app's :class:`TabBar`.
 """
@@ -36,7 +36,7 @@ CenterTab = Literal["config", "plugins", "xprompts"]
 
 _TAB_ORDER: tuple[CenterTab, ...] = ("config", "plugins", "xprompts")
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
-    ("config", "Settings"),
+    ("config", "Config"),
     ("plugins", "Plugins"),
     ("xprompts", "XPrompts"),
 ]
@@ -45,13 +45,13 @@ _TAB_COLORS: dict[CenterTab, str] = {
     "plugins": "#AF87FF",
     "xprompts": "#87D7FF",
 }
-_TITLE_TEXT = "SASE Config"
+_TITLE_TEXT = "SASE Admin Center"
 _HEADER_DIVIDER_RULE = "─"
 _TITLE_UNDERLINE = _HEADER_DIVIDER_RULE * len(_TITLE_TEXT)
 
 
 class _ConfigCenterTabStrip(Static):
-    """Clickable one-line tab strip for the SASE Config modal."""
+    """Clickable one-line tab strip for the SASE Admin Center modal."""
 
     class TabClicked(Message):
         """Message emitted when a tab is clicked."""
@@ -97,7 +97,7 @@ class _ConfigCenterTabStrip(Static):
 
 
 class _ConfigCenterHeaderDivider(Static):
-    """Width-aware divider between the SASE Config header and content."""
+    """Width-aware divider between the SASE Admin Center header and content."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
@@ -108,7 +108,7 @@ class _ConfigCenterHeaderDivider(Static):
 
 
 class ConfigCenterModal(ModalScreen[None]):
-    """Full-screen modal hosting the Settings, Plugins, and XPrompts tabs."""
+    """Full-screen modal hosting the Config, Plugins, and XPrompts tabs."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -173,7 +173,7 @@ class ConfigCenterModal(ModalScreen[None]):
         self._focus_active_pane()
 
     def action_close(self) -> None:
-        """Close SASE Config."""
+        """Close SASE Admin Center."""
         self.dismiss(None)
 
     def action_prev_center_tab(self) -> None:

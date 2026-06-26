@@ -6,7 +6,7 @@ error states. Phase 3 cases cover the ``show``-equivalent detail panel
 following the highlighted row (including the community warning), the offline
 badge / reload, the verbose row columns, and the refresh reload. The catalog
 backend is patched with a deterministic fixture so no real ``gh`` / network /
-cache is touched. The sibling Settings and XPrompts panes are also stubbed so
+cache is touched. The sibling Config and XPrompts panes are also stubbed so
 opening the modal stays cheap and deterministic.
 """
 
@@ -148,7 +148,7 @@ def _render(renderable: object) -> str:
 
 
 def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the sibling Settings / XPrompts panes cheap and deterministic."""
+    """Keep the sibling Config / XPrompts panes cheap and deterministic."""
     result = cp._LoadResult(view=None, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: result)
     monkeypatch.setattr(

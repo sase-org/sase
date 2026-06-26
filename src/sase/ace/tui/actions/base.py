@@ -503,7 +503,7 @@ class BaseActionsMixin:
         self.push_screen(QueryEditModal(current_canonical), on_dismiss)  # type: ignore[attr-defined]
 
     def action_open_config_center(self) -> None:
-        """Open the SASE Config modal on the Settings tab."""
+        """Open the SASE Admin Center modal on the Config tab."""
         from ..modals import ConfigCenterModal
 
         self.push_screen(ConfigCenterModal())  # type: ignore[attr-defined]

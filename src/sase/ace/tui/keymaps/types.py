@@ -93,7 +93,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("scroll_to_top", "Top", False),
     ("scroll_to_bottom", "Bottom", False),
     ("show_help", "Help", False),
-    ("open_config_center", "SASE Config", False),
+    ("open_config_center", "SASE Admin Center", False),
     ("prev_query", "Prev Query", False),
     ("next_query", "Next Query", False),
     ("start_ancestor_mode", "Ancestor", False),

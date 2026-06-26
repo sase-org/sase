@@ -102,8 +102,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("G", "scroll_to_bottom", "Bottom", show=False),
     # Help
     Binding("question_mark", "show_help", "Help", show=False),
-    # SASE Config (settings editor + xprompt browser)
-    Binding("number_sign", "open_config_center", "SASE Config", show=False),
+    # SASE Admin Center (config editor + xprompt browser)
+    Binding("number_sign", "open_config_center", "SASE Admin Center", show=False),
     # Query history navigation
     Binding("circumflex_accent", "prev_query", "Prev Query", show=False),
     Binding("underscore", "next_query", "Next Query", show=False),

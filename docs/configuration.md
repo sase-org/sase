@@ -6,8 +6,8 @@ and CLI flags.
 ## Table of Contents
 
 - [Config File Location](#config-file-location)
-- [SASE Config (interactive editor)](#sase-config-interactive-editor)
-  - [Settings tab](#settings-tab)
+- [SASE Admin Center (interactive editor)](#sase-admin-center-interactive-editor)
+  - [Config tab](#config-tab)
   - [Plugins tab](#plugins-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
@@ -43,7 +43,7 @@ All sase configuration lives under `~/.config/sase/`. The base config file is:
 ~/.config/sase/sase.yml
 ```
 
-Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. In the SASE Config
+Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of the base file. In the SASE Admin Center
 new-overlay prompt, enter a single local overlay name rather than a path: `extra`, `sase_extra`, and `sase_extra.yml`
 all resolve to `~/.config/sase/sase_extra.yml`. SASE trims surrounding whitespace and rejects empty names, `.` / `..`,
 or names containing `/` or `\`, so the create-overlay flow cannot escape the user config directory. A project-local
@@ -51,14 +51,14 @@ or names containing `/` or `\`, so the create-overlay flow cannot escape the use
 project-local config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's
 agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 
-## SASE Config (interactive editor)
+## SASE Admin Center (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Config**, a full-screen modal with three tabs (`[` / `]` switch between
-them): a schema-driven **Settings** editor, a **Plugins** browser, and the **XPrompts** browser.
+Press `#` in the `sase ace` TUI to open **SASE Admin Center**, a full-screen modal with three tabs (`[` / `]` switch
+between them): a schema-driven **Config** editor, a **Plugins** browser, and the **XPrompts** browser.
 
-### Settings tab
+### Config tab
 
-The Settings tab answers four questions for every field — what value is effective, why (its provenance), where an edit
+The Config tab answers four questions for every field — what value is effective, why (its provenance), where an edit
 will go, and whether it validates:
 
 - **Browse / inspect** (read-only): a source rail lists each config layer with loaded/missing/invalid/read-only badges;
@@ -76,8 +76,8 @@ will go, and whether it validates:
 - **Migrate** (`g`, or `e` on the deprecated `sibling_repos` field): folds `sibling_repos` into
   [`linked_repos`](#linked_repos) and removes the deprecated key in one step.
 
-SASE Config never writes without showing the diff and validation first, and never edits a built-in or plugin default
-(those layers are read-only).
+SASE Admin Center never writes without showing the diff and validation first, and never edits a built-in or plugin
+default (those layers are read-only).
 
 ### Plugins tab
 
@@ -104,8 +104,8 @@ gives. The context-sensitive keymaps are:
 | `o`       | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)           |
 | `v`       | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)              |
 | `/`       | Focus the filter input (matches name / description / topics)                                |
-| `[` / `]` | Switch SASE Config tabs                                                                     |
-| `esc`/`q` | Close SASE Config                                                                           |
+| `[` / `]` | Switch SASE Admin Center tabs                                                               |
+| `esc`/`q` | Close SASE Admin Center                                                                     |
 
 These keymaps are widget-local and are not configurable through `default_config.yml`.
 

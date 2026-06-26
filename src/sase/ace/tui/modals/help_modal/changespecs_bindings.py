@@ -286,7 +286,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.toggle_hide_submitted), "Show/hide submitted PRs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
-                (d(a.open_config_center), "SASE Config / Plugins / XPrompts"),
+                (d(a.open_config_center), "SASE Admin Center / Plugins / XPrompts"),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Stop axe and quit"),

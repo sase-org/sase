@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the SASE Config modal.
+"""ACE TUI PNG visual snapshots for the SASE Admin Center modal.
 
 Covers both internal tabs and the Phase 4 Config-tab states. The Config tab is
 fed a deterministic fixture inventory by patching
@@ -329,7 +329,7 @@ async def test_config_center_config_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_tab_120x40",
-            title="ACE SASE Config — Settings tab (populated)",
+            title="ACE SASE Admin Center — Config tab (populated)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -356,7 +356,7 @@ async def test_config_center_config_empty_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_empty_120x40",
-            title="ACE SASE Config — Settings tab (no fields)",
+            title="ACE SASE Admin Center — Config tab (no fields)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -377,7 +377,7 @@ async def test_config_center_config_loading_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_loading_120x40",
-            title="ACE SASE Config — Settings tab (loading)",
+            title="ACE SASE Admin Center — Config tab (loading)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -402,7 +402,7 @@ async def test_config_center_config_long_value_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_config_long_value_120x40",
-            title="ACE SASE Config — Settings tab (long value)",
+            title="ACE SASE Admin Center — Config tab (long value)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -422,7 +422,7 @@ async def test_config_center_xprompts_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_xprompts_tab_120x40",
-            title="ACE SASE Config — XPrompts tab (migrated browser)",
+            title="ACE SASE Admin Center — XPrompts tab (migrated browser)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -449,7 +449,7 @@ async def test_config_center_plugins_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_tab_120x40",
-            title="ACE SASE Config — Plugins tab (list + built-in detail)",
+            title="ACE SASE Admin Center — Plugins tab (list + built-in detail)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -477,7 +477,7 @@ async def test_config_center_plugins_community_detail_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_community_detail_120x40",
-            title="ACE SASE Config — Plugins tab (community warning + detail)",
+            title="ACE SASE Admin Center — Plugins tab (community warning + detail)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -525,7 +525,7 @@ async def test_config_center_plugins_long_description_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_long_description_120x40",
-            title="ACE SASE Config — Plugins tab (long description wraps)",
+            title="ACE SASE Admin Center — Plugins tab (long description wraps)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -551,7 +551,7 @@ async def test_config_center_plugins_offline_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_offline_120x40",
-            title="ACE SASE Config — Plugins tab (offline badge)",
+            title="ACE SASE Admin Center — Plugins tab (offline badge)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -582,7 +582,7 @@ async def test_config_center_plugins_verbose_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_verbose_120x40",
-            title="ACE SASE Config — Plugins tab (verbose rows)",
+            title="ACE SASE Admin Center — Plugins tab (verbose rows)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -609,7 +609,7 @@ async def test_config_center_plugins_empty_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_empty_120x40",
-            title="ACE SASE Config — Plugins tab (empty catalog)",
+            title="ACE SASE Admin Center — Plugins tab (empty catalog)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -633,7 +633,7 @@ async def test_config_center_plugins_loading_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_loading_120x40",
-            title="ACE SASE Config — Plugins tab (loading)",
+            title="ACE SASE Admin Center — Plugins tab (loading)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -666,7 +666,7 @@ async def test_config_center_plugins_install_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_install_preview_120x40",
-            title="ACE SASE Config — Plugins install (confirm preview)",
+            title="ACE SASE Admin Center — Plugins install (confirm preview)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -693,7 +693,7 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_not_uv_tool_120x40",
-            title="ACE SASE Config — Plugins tab (install unavailable)",
+            title="ACE SASE Admin Center — Plugins tab (install unavailable)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -729,7 +729,7 @@ async def test_config_center_plugins_update_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_update_preview_120x40",
-            title="ACE SASE Config — Plugins update (confirm preview)",
+            title="ACE SASE Admin Center — Plugins update (confirm preview)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -760,7 +760,7 @@ async def test_config_center_plugins_update_all_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_plugins_update_all_preview_120x40",
-            title="ACE SASE Config — Plugins update-all (confirm preview)",
+            title="ACE SASE Admin Center — Plugins update-all (confirm preview)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -799,7 +799,7 @@ async def test_config_center_edit_modal_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_edit_modal_120x40",
-            title="ACE SASE Config — edit field (scope + editor)",
+            title="ACE SASE Admin Center — edit field (scope + editor)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -825,6 +825,6 @@ async def test_config_center_edit_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_edit_preview_120x40",
-            title="ACE SASE Config — edit preview (diff + validation)",
+            title="ACE SASE Admin Center — edit preview (diff + validation)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

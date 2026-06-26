@@ -285,10 +285,19 @@ _APP_COMMAND_META: tuple[
     ("show_help", "Show help", "Display", _ALL_TABS, ("?",)),
     (
         "open_config_center",
-        "Open SASE Config",
+        "Open SASE Admin Center",
         "Display",
         _ALL_TABS,
-        ("#", "settings", "config", "configuration", "xprompts", "browse xprompts"),
+        (
+            "#",
+            "admin",
+            "admin center",
+            "settings",
+            "config",
+            "configuration",
+            "xprompts",
+            "browse xprompts",
+        ),
     ),
     (
         "dismiss_toasts",
