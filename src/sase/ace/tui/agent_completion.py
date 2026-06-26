@@ -79,6 +79,31 @@ def agent_prompt_name(agent: Agent) -> str | None:
     return agent.agent_name
 
 
+def _collect_known_agent_names(agents: Iterable[Agent]) -> frozenset[str]:
+    """Return all exact agent names that can be referenced from prompts."""
+    names: set[str] = set()
+    for agent in agents:
+        for name in (agent_prompt_name(agent), agent.agent_name):
+            if name and name.strip():
+                names.add(name)
+    return frozenset(names)
+
+
+def known_agent_names_for_app(app: object | None) -> frozenset[str] | None:
+    """Return known prompt-referenceable agent names for the current TUI app."""
+    if app is None:
+        return None
+
+    for attr_name in ("_agents_with_children", "_agents"):
+        try:
+            agents = getattr(app, attr_name, None)
+        except Exception:
+            continue
+        if agents:
+            return _collect_known_agent_names(agents)
+    return None
+
+
 def build_agent_completion_candidates(
     visible_agents: Iterable[Agent],
     *,

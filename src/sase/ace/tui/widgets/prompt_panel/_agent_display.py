@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rich.console import Group
 
+from ...agent_completion import known_agent_names_for_app
 from ...models.agent import Agent
 from ...util.trace import tui_trace
 from ._agent_display_attempts import (
@@ -51,7 +52,16 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             self._cancel_agent_bead_display_worker_for_selection_change(agent)
             self._cancel_agent_linked_delta_worker_for_selection_change(agent)
             self._cancel_agent_detail_header_worker_for_selection_change(agent)
-            header_text, error_tb_syntax = build_header_text(agent, cheap=True)
+            known_agent_names = (
+                known_agent_names_for_app(getattr(self, "app", None))
+                if agent.waiting_for
+                else None
+            )
+            header_text, error_tb_syntax = build_header_text(
+                agent,
+                cheap=True,
+                known_agent_names=known_agent_names,
+            )
             if error_tb_syntax is not None:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
             else:

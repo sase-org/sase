@@ -19,6 +19,11 @@ from ._helpers import (
 
 
 _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
+# Fira Code, the pinned visual snapshot font, does not include U+26A0 WARNING
+# SIGN. Use a supported single-cell triangle so the marker never renders as tofu.
+_UNKNOWN_WAIT_AGENT_ICON = "\u25b2"
+_UNKNOWN_WAIT_AGENT_ICON_STYLE = "bold #FFAF5F"
+_WAITING_VALUE_STYLE = "#FF87D7"
 
 
 def _append_major_section_divider(text: Text) -> None:
@@ -57,6 +62,7 @@ def build_header_text(
     cheap: bool = False,
     hint_state: HeaderHintState | None = None,
     summary: DetailHeaderSummary | None = None,
+    known_agent_names: frozenset[str] | None = None,
 ) -> tuple[Text, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -74,6 +80,9 @@ def build_header_text(
         summary: Optional precomputed/cached header enrichments. Expensive
             sections are rendered only from this object; the header builder
             does not do artifact listing, diff discovery, or bead lookup.
+        known_agent_names: Exact set of currently known agent names. When
+            provided, waited-for names outside this set get a passive warning
+            marker.
 
     Returns:
         Tuple of (header_text, error_traceback_syntax).
@@ -212,15 +221,29 @@ def build_header_text(
         )
 
         header_text.append("Waiting for: ", style="bold #87D7FF")
-        parts: list[str] = []
+        appended_dependency_names = False
         if agent.waiting_for:
-            parts.append(", ".join(agent.waiting_for))
+            for index, name in enumerate(agent.waiting_for):
+                if index:
+                    header_text.append(", ", style=_WAITING_VALUE_STYLE)
+                header_text.append(name, style=_WAITING_VALUE_STYLE)
+                if known_agent_names is not None and name not in known_agent_names:
+                    header_text.append(" ")
+                    header_text.append(
+                        _UNKNOWN_WAIT_AGENT_ICON,
+                        style=_UNKNOWN_WAIT_AGENT_ICON_STYLE,
+                    )
+            appended_dependency_names = True
+        time_part: str | None = None
         if agent.wait_until:
             target_label = format_wait_until(agent.wait_until)
-            parts.append(f"until {target_label}")
+            time_part = f"until {target_label}"
         elif agent.wait_duration:
-            parts.append(format_compact_duration(agent.wait_duration))
-        header_text.append(" + ".join(parts), style="#FF87D7")
+            time_part = format_compact_duration(agent.wait_duration)
+        if time_part:
+            if appended_dependency_names:
+                header_text.append(" + ", style=_WAITING_VALUE_STYLE)
+            header_text.append(time_part, style=_WAITING_VALUE_STYLE)
         # Show live countdown for absolute-time waits
         if agent.wait_until:
             target, reference = wait_until_target_and_reference(agent.wait_until)

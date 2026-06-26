@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 17:40:45
-status: wip
+status: done
 prompt: sdd/prompts/202606/unknown_wait_agent_warning.md
 ---
 # Plan: Warning marker for unknown agents in the "Waiting for:" field

@@ -267,6 +267,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ("⚡E", "Auto-approve as epic"),
                 ("◌", "Hidden by default"),
                 ("↳", "Retry chain attempt"),
+                ("▲", "Unknown waited-for agent"),
             ],
         ),
     ]

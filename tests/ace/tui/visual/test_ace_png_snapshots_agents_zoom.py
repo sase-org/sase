@@ -99,6 +99,35 @@ def _zoom_agent(tmp_path: Path, *, include_xprompts: bool = False) -> Agent:
     )
 
 
+def _waiting_unknown_agents() -> list[Agent]:
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-wait-unknown",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 5, 9, 10, 30, 0),
+            raw_suffix="20260509-103000-wait",
+            agent_name="waiter",
+            waiting_for=["coder", "ghost_deploy"],
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-known-coder",
+            project_file="/workspace/sase/visual_project.sase",
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 20, 0),
+            stop_time=datetime(2026, 5, 9, 10, 28, 0),
+            raw_suffix="20260509-102000-coder",
+            agent_name="coder",
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+    ]
+
+
 def _context_memory_reads() -> list[MemoryReadEvent]:
     return [
         MemoryReadEvent(
@@ -255,5 +284,38 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
             page,
             "agents_metadata_zoom_modal_120x40",
             title="ACE agents metadata zoom modal",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_waiting_unknown_agents(),
+    )
+
+    async with AcePage(query='"wait-unknown"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 2)
+        await wait_for_visual_idle(page)
+        await page.press("p")
+        await page.press("z")
+        await page.expect_modal("ZoomPanelModal")
+        await page.pause()
+        await page.pause()
+
+        assert_page_svg_contains(page, "Waiting for:")
+        assert_page_svg_contains(page, "coder")
+        assert_page_svg_contains(page, "ghost_deploy")
+        assert_page_svg_contains(page, "▲")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_waiting_unknown_zoom_modal_120x40",
+            title="ACE agents waiting unknown zoom modal",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
