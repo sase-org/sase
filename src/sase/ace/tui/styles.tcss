@@ -3452,6 +3452,41 @@ PluginsBrowserPane #plugins-hints {
     margin-top: 1;
 }
 
+/* Plugins install/update confirm-preview modal (Phase 4, reused Phase 5) */
+PluginActionConfirmModal {
+    align: center middle;
+}
+
+PluginActionConfirmModal > Container {
+    width: 76;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+PluginActionConfirmModal #plugin-action-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+PluginActionConfirmModal #plugin-action-preview {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+PluginActionConfirmModal #plugin-action-buttons {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+PluginActionConfirmModal Button {
+    margin: 0 1;
+}
+
 /* XPrompts tab (migrated XPrompt Browser body) */
 XPromptBrowserPane #browser-title {
     text-style: bold;

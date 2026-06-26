@@ -35,7 +35,13 @@ from sase.config.core import ConfigLayer
 from sase.config.inventory import build_config_inventory, config_field_model
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
-from tests.ace.tui.test_plugins_browser_pane import _NOW as _PLUGINS_NOW, _catalog
+from tests.ace.tui.test_plugins_browser_pane import (
+    _NOW as _PLUGINS_NOW,
+    _catalog,
+    _highlight,
+    _not_uv_tool,
+    _ready_preview,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -578,6 +584,66 @@ async def test_config_center_plugins_loading_png_snapshot(
             page,
             "config_center_plugins_loading_120x40",
             title="ACE SASE Config — Plugins tab (loading)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+# --- Phase 4: install preview modal + not-uv-tool state --------------------
+
+
+async def test_config_center_plugins_install_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The install confirm-preview modal: exact uv argv + source toggle."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+    monkeypatch.setattr(
+        pbp, "_plan_install_preview", lambda name, *, offline: _ready_preview(name)
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        _highlight(pane, "nvim")  # a not-installed plugin
+        await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
+        pane.action_install()
+        await page.expect_modal("PluginActionConfirmModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_install_preview_120x40",
+            title="ACE SASE Config — Plugins install (confirm preview)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_not_uv_tool_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-uv-tool install surfaces the unavailable banner; no ``i install``."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    result = pbp._PluginsLoadResult(
+        catalog=_catalog(), error=None, now=_PLUGINS_NOW, uv_tool=_not_uv_tool()
+    )
+    monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_not_uv_tool_120x40",
+            title="ACE SASE Config — Plugins tab (install unavailable)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

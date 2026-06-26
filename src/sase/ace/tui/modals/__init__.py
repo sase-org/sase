@@ -111,6 +111,11 @@ from .agent_run_log_modal import AgentRunLogModal
 from .log_modal import LogModal
 from .input_collection_modal import InputCollectionModal
 from .config_center_modal import ConfigCenterModal
+from .plugin_action_confirm_modal import (
+    PluginActionConfirmModal,
+    PluginActionConfirmResult,
+    PluginActionVariant,
+)
 from .plugins_browser_pane import PluginsBrowserPane
 from .xprompt_item_modal import XPromptItemModal
 from .xprompt_config_modal import XPromptConfigEntry, XPromptConfigEntryModal
@@ -226,6 +231,9 @@ __all__ = [
     "UserQuestionResult",
     "InputCollectionModal",
     "ConfigCenterModal",
+    "PluginActionConfirmModal",
+    "PluginActionConfirmResult",
+    "PluginActionVariant",
     "PluginsBrowserPane",
     "XPromptItemModal",
     "XPromptConfigEntry",

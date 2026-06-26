@@ -20,11 +20,24 @@ panel and the read-side affordances:
   the list rows; the detail panel always shows the full metadata);
 - live header summary counts plus a warnings / stale-cache hint.
 
+Phase 4 adds the **install** action (``i``, offered only for a not-installed
+plugin). It plans the install off-thread with
+:func:`sase.plugins.operations.plan_install` (index *and* git source), opens the
+reusable :class:`~sase.ace.tui.modals.plugin_action_confirm_modal.PluginActionConfirmModal`
+showing the exact ``uv`` argv (the confirmation *is* the dry-run), then runs
+:func:`~sase.plugins.operations.execute_install` inside a tracked background
+task so a multi-second ``uv`` run never blocks the UI; a success/error toast and
+an automatic cache-first refresh follow. A one-shot ``probe_uv_tool_install``
+(carried with each load) disables the action and explains why when sase is not a
+managed ``uv tool install sase``; already-installed and not-found outcomes reuse
+the CLI's resolution so the messaging matches.
+
 The catalog loads cache-first off the event loop (``run_worker(thread=True)``)
 so a slow ``gh`` / network call never blocks the UI; loading, empty, and error
 states are surfaced in place. This pane intentionally reuses the same single
 source of truth as the CLI (:func:`sase.plugins.catalog.load_plugin_catalog`,
-:func:`sase.plugins.latest.enrich_with_latest`, and the promoted renderables)
+:func:`sase.plugins.latest.enrich_with_latest`, the
+:mod:`sase.plugins.operations` plan/execute layer, and the promoted renderables)
 so the TUI and the CLI never drift.
 """
 
@@ -32,7 +45,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from rich.console import Group, RenderableType
 from rich.text import Text
@@ -43,6 +56,10 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
+from sase.ace.tui.actions.task_actions import (
+    TrackedTaskCompletion,
+    TrackedTaskResult,
+)
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plugins.catalog import (
     PluginCatalog,
@@ -51,6 +68,16 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
 )
 from sase.plugins.latest import enrich_with_latest
+from sase.plugins.operations import (
+    AlreadyInstalled,
+    InstallNotFound,
+    InstallOutcome,
+    InstallPlan,
+    InstallReady,
+    NotUvTool,
+    execute_install,
+    plan_install,
+)
 from sase.plugins.render import build_community_warning_panel, build_detail_panel
 from sase.plugins.render_common import (
     _AVAILABLE_GLYPH,
@@ -58,6 +85,19 @@ from sase.plugins.render_common import (
     _INSTALLED_GLYPH,
     _UPDATE_GLYPH,
     humanize_age,
+    humanize_duration,
+)
+from sase.uv_tool.detect import (
+    NotUvToolInstall,
+    UvToolInstall,
+    probe_uv_tool_install,
+)
+from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
+
+from .plugin_action_confirm_modal import (
+    PluginActionConfirmModal,
+    PluginActionConfirmResult,
+    PluginActionVariant,
 )
 
 #: Right-panel placeholder shown until a plugin row is highlighted.
@@ -72,11 +112,27 @@ _ITEM_PREFIX = "plugin__"
 
 @dataclass(frozen=True)
 class _PluginsLoadResult:
-    """Outcome of a (possibly cache-first) plugin catalog load."""
+    """Outcome of a (possibly cache-first) plugin catalog load.
+
+    *uv_tool* is the one-shot ``probe_uv_tool_install`` result carried alongside
+    the catalog so the pane learns, off-thread, whether install/update mutations
+    are even possible (a managed ``uv tool install sase``). ``None`` means the
+    probe was not run (e.g. a stubbed loader in tests); the pane keeps whatever
+    it already detected.
+    """
 
     catalog: PluginCatalog | None
     error: str | None
     now: float
+    uv_tool: UvToolInstall | NotUvToolInstall | None = None
+
+
+def _probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
+    """Best-effort uv-tool probe; never raises (mutations gate on it only)."""
+    try:
+        return probe_uv_tool_install()
+    except Exception:  # noqa: BLE001 - a probe failure must not break browsing.
+        return None
 
 
 def _load_plugins_catalog(
@@ -90,18 +146,90 @@ def _load_plugins_catalog(
     Mirrors ``sase plugin list``: cache-first by default, then a best-effort
     latest-version enrichment so the update markers/counts match the CLI. A
     hard catalog failure (e.g. a missing ``gh``) becomes the pane's error
-    state; an enrichment failure degrades to the un-enriched catalog.
+    state; an enrichment failure degrades to the un-enriched catalog. The
+    uv-tool probe runs here too so the mutation-availability check stays off the
+    event loop.
     """
     load_now = time.time() if now is None else now
+    uv_tool = _probe_uv_tool()
     try:
         catalog = load_plugin_catalog(refresh=refresh, offline=offline, now=load_now)
     except PluginCatalogError as exc:
-        return _PluginsLoadResult(catalog=None, error=str(exc), now=load_now)
+        return _PluginsLoadResult(
+            catalog=None, error=str(exc), now=load_now, uv_tool=uv_tool
+        )
     try:
         catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
     except Exception:  # noqa: BLE001 - list stays read-only; markers degrade only.
         pass
-    return _PluginsLoadResult(catalog=catalog, error=None, now=load_now)
+    return _PluginsLoadResult(
+        catalog=catalog, error=None, now=load_now, uv_tool=uv_tool
+    )
+
+
+@dataclass(frozen=True)
+class _InstallPreview:
+    """Off-thread result of planning an install for the confirm-preview modal.
+
+    *index_plan* is the primary plan (install from the index, ``git=False``):
+    either a terminal outcome (:class:`NotUvTool` / :class:`InstallNotFound` /
+    :class:`AlreadyInstalled`) or an :class:`InstallReady`. *git_plan* is the
+    optional git-source variant (present only when the index plan is ready and
+    the git plan also resolves), so the modal's toggle stays pure presentation.
+    *error* carries a catalog/receipt failure message instead of a plan.
+    """
+
+    index_plan: InstallPlan | None
+    git_plan: InstallReady | None = None
+    error: str | None = None
+
+
+def _plan_install_preview(name: str, *, offline: bool) -> _InstallPreview:
+    """Plan ``install <name>`` (index, then git) for the confirm-preview modal.
+
+    Delegates to :func:`sase.plugins.operations.plan_install` — the single
+    source of truth shared with the CLI — once per source. Cache-first
+    (``refresh=False``); the optional git variant is only resolved when the
+    index plan is ready, so a terminal outcome short-circuits the second load.
+    """
+    try:
+        index_plan = plan_install(name, git=False, offline=offline)
+    except (PluginCatalogError, ReceiptError) as exc:
+        return _InstallPreview(index_plan=None, error=str(exc))
+
+    git_plan: InstallReady | None = None
+    if isinstance(index_plan, InstallReady):
+        try:
+            candidate = plan_install(name, git=True, offline=offline)
+        except (PluginCatalogError, ReceiptError):
+            candidate = None
+        if isinstance(candidate, InstallReady):
+            git_plan = candidate
+    return _InstallPreview(index_plan=index_plan, git_plan=git_plan)
+
+
+def _install_summary(plan: InstallReady) -> str:
+    """The resolved-plugin-set line shown in the confirm-preview modal."""
+    return f"Installs {plan.spec.display_name}  (from {plan.spec.source})"
+
+
+def _install_success_message(outcome: InstallOutcome) -> str:
+    """A concise, CLI-flavored success toast: name + new version + elapsed."""
+    spec = outcome.plan.spec
+    change = outcome.change_set.get(spec.requirement.name)
+    version = change.new_version if change is not None else None
+    suffix = f" v{version}" if version else ""
+    return (
+        f"Installed {spec.display_name}{suffix} in {humanize_duration(outcome.elapsed)}"
+    )
+
+
+def _not_found_message(plan: InstallNotFound) -> str:
+    """The not-found toast, mirroring the CLI's ranked-suggestions wording."""
+    if plan.suggestions:
+        names = ", ".join(entry.name for entry in plan.suggestions)
+        return f"No plugin named '{plan.query}' in the catalog. Did you mean: {names}?"
+    return f"No plugin named '{plan.query}' in the catalog."
 
 
 class _PluginsFilterInput(Input):
@@ -145,6 +273,7 @@ class PluginsBrowserPane(Vertical):
     BINDINGS = [
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
+        ("i", "install", "Install"),
         ("r", "refresh", "Refresh"),
         ("o", "toggle_offline", "Offline"),
         ("v", "toggle_verbose", "Verbose"),
@@ -163,6 +292,11 @@ class PluginsBrowserPane(Vertical):
         self._verbose = False
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
         self._worker: Worker[Any] | None = None
+        #: Worker computing an install plan/preview before the confirm modal.
+        self._plan_worker: Worker[Any] | None = None
+        #: One-shot uv-tool detection: gates whether mutations are possible.
+        #: ``None`` until the first real load probes it.
+        self._uv_tool: UvToolInstall | NotUvToolInstall | None = None
         #: Debounces the (cheap-but-not-free) detail rebuild so a held j/k
         #: paints exactly one final detail; created on mount once an app exists.
         self._detail_debouncer: DetailPanelDebouncer | None = None
@@ -219,6 +353,14 @@ class PluginsBrowserPane(Vertical):
         self._worker = self.run_worker(task, thread=True, exclusive=True)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._plan_worker = None
+                self._on_install_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._plan_worker = None
+                self._notify(self._worker_error_text(event.worker), severity="error")
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -227,6 +369,11 @@ class PluginsBrowserPane(Vertical):
             self._catalog = getattr(result, "catalog", None)
             self._error = getattr(result, "error", None)
             self._now = getattr(result, "now", self._now)
+            # Keep a previously-detected probe result if a stubbed loader (or a
+            # failed probe) returns None — "detect once" per the epic.
+            probed = getattr(result, "uv_tool", None)
+            if probed is not None:
+                self._uv_tool = probed
             self._render_all()
         elif event.state == WorkerState.ERROR:
             self._loading = False
@@ -234,6 +381,10 @@ class PluginsBrowserPane(Vertical):
                 str(event.worker.error) if event.worker.error else "load failed"
             )
             self._render_all()
+
+    @staticmethod
+    def _worker_error_text(worker: Worker[Any]) -> str:
+        return str(worker.error) if worker.error else "Could not plan the install."
 
     # -- rendering --
 
@@ -365,8 +516,11 @@ class PluginsBrowserPane(Vertical):
 
         The cursor highlight is already instant (the ``OptionList`` paints it
         itself); only the comparatively expensive detail rebuild is funneled
-        through the debouncer so a held j/k collapses to one final paint.
+        through the debouncer so a held j/k collapses to one final paint. The
+        hints line (which gates ``i install`` on the highlighted row) is cheap,
+        so it refreshes immediately.
         """
+        self._update_static("#plugins-hints", self._hints())
         self._schedule_detail()
 
     def _schedule_detail(self) -> None:
@@ -462,6 +616,13 @@ class PluginsBrowserPane(Vertical):
         if self._offline:
             text.append("   ")
             text.append("⚠ OFFLINE", style="bold yellow")
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            text.append("\n")
+            text.append("⚠ ", style="yellow")
+            text.append(
+                "Install/update unavailable — sase is not a `uv tool` install.",
+                style="yellow",
+            )
         hint = self._summary_hint()
         if hint is not None:
             text.append("\n")
@@ -512,10 +673,32 @@ class PluginsBrowserPane(Vertical):
     def _hints(self) -> str:
         offline = " (on)" if self._offline else ""
         verbose = " (on)" if self._verbose else ""
-        return (
-            f"j/k navigate · r refresh · o offline{offline} · "
-            f"v verbose{verbose} · / filter · [ / ] tab · esc close"
+        parts: list[str] = []
+        if self._can_install_highlighted():
+            parts.append("i install")
+        parts.extend(
+            [
+                "j/k navigate",
+                "r refresh",
+                f"o offline{offline}",
+                f"v verbose{verbose}",
+                "/ filter",
+                "[ / ] tab",
+                "esc close",
+            ]
         )
+        return " · ".join(parts)
+
+    def _can_install_highlighted(self) -> bool:
+        """Whether the highlighted plugin can be installed right now.
+
+        False when sase is not a managed ``uv tool`` install (mutations are
+        impossible) or the highlighted row is absent / already installed.
+        """
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        entry = self._current_entry()
+        return entry is not None and not entry.installed.installed
 
     # -- navigation --
 
@@ -568,6 +751,151 @@ class PluginsBrowserPane(Vertical):
         self._rebuild_options()
         self._update_static("#plugins-hints", self._hints())
         self._render_detail_now(force=True)
+
+    # -- install action --
+
+    def action_install(self) -> None:
+        """Install the highlighted plugin (``i``) via a confirm-preview modal.
+
+        Offered only for a *not-installed* plugin. Short-circuits with the CLI's
+        actionable message when sase is not a managed ``uv tool`` install, then
+        plans the install off-thread (so a cache read never blocks the UI) and
+        opens the confirm-preview modal; the actual ``uv`` run happens later, in
+        a tracked background task, only if the user confirms.
+        """
+        if self._loading or self._plan_worker is not None:
+            return
+        entry = self._current_entry()
+        if entry is None:
+            return
+        if entry.installed.installed:
+            self._notify(f"{entry.name} is already installed.")
+            return
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            self._notify(str(NotAUvToolInstallError(self._uv_tool)), severity="warning")
+            return
+        self._begin_install_plan(entry.name)
+
+    def _begin_install_plan(self, name: str) -> None:
+        offline = self._offline
+
+        def task() -> _InstallPreview:
+            return _plan_install_preview(name, offline=offline)
+
+        self._plan_worker = self.run_worker(
+            task, thread=True, exclusive=True, group="plugin-plan"
+        )
+
+    def _on_install_preview(self, preview: _InstallPreview | None) -> None:
+        """Route a planned install to a toast (terminal) or the confirm modal."""
+        if preview is None:
+            return
+        if preview.error is not None:
+            self._notify(preview.error, severity="error")
+            return
+        plan = preview.index_plan
+        if isinstance(plan, NotUvTool):
+            self._notify(str(plan.error), severity="warning")
+        elif isinstance(plan, InstallNotFound):
+            self._notify(_not_found_message(plan), severity="error")
+        elif isinstance(plan, AlreadyInstalled):
+            self._notify(f"{plan.spec.display_name} is already installed.")
+        elif isinstance(plan, InstallReady):
+            self._open_install_modal(plan, preview.git_plan)
+
+    def _open_install_modal(
+        self, index_plan: InstallReady, git_plan: InstallReady | None
+    ) -> None:
+        plans: dict[str, InstallReady] = {"index": index_plan}
+        variants = [
+            PluginActionVariant(
+                key="index",
+                label="from index",
+                argv=tuple(index_plan.argv),
+                summary=_install_summary(index_plan),
+            )
+        ]
+        if git_plan is not None:
+            plans["git"] = git_plan
+            variants.append(
+                PluginActionVariant(
+                    key="git",
+                    label="from git",
+                    argv=tuple(git_plan.argv),
+                    summary=_install_summary(git_plan),
+                )
+            )
+        name = index_plan.spec.display_name
+        modal = PluginActionConfirmModal(
+            title=f"Install {name}",
+            intro=f"Confirm to install {name} into sase's uv tool environment.",
+            variants=variants,
+            panel_title="Confirm install",
+        )
+
+        def _on_confirmed(result: PluginActionConfirmResult | None) -> None:
+            if result is None:
+                return
+            self._submit_install_task(name, plans.get(result.variant_key, index_plan))
+
+        self.app.push_screen(modal, _on_confirmed)
+
+    def _submit_install_task(self, name: str, plan: InstallReady) -> None:
+        """Run ``execute_install`` in a tracked background task (never blocks)."""
+
+        def task() -> TrackedTaskResult[InstallOutcome]:
+            try:
+                outcome = execute_install(plan)
+            except UvToolError as exc:
+                return TrackedTaskResult(
+                    success=False, message=str(exc), error=str(exc)
+                )
+            return TrackedTaskResult(
+                success=True,
+                message=_install_success_message(outcome),
+                payload=outcome,
+            )
+
+        submit = getattr(self.app, "_submit_tracked_task", None)
+        if submit is None:
+            return
+        submit(
+            "plugin-install",
+            name,
+            "",
+            task,
+            display_name=f"install {name}",
+            dedup_key=f"plugin-install:{name}",
+            duplicate_message=f"An install is already running for {name}.",
+            on_complete=self._on_install_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+
+    def _on_install_complete(
+        self, completion: TrackedTaskCompletion[InstallOutcome]
+    ) -> None:
+        """Toast the CLI-matching outcome and refresh the row in place."""
+        if completion.success:
+            self._notify(completion.message)
+            # Re-merge installed state so the freshly-installed row flips to ●.
+            if self.is_mounted and not self._loading:
+                self._start_load(force=False)
+        else:
+            detail = completion.error or completion.message
+            self._notify(f"Install failed: {detail}", severity="error")
+
+    def _notify(
+        self,
+        message: str,
+        *,
+        severity: Literal["information", "warning", "error"] = "information",
+    ) -> None:
+        """Toast *message*, tolerating an already-unmounted pane/app."""
+        try:
+            self.app.notify(message, severity=severity)
+        except Exception:
+            pass
 
     # -- input events --
 
