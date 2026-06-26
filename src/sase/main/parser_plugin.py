@@ -57,6 +57,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plugin show github -j     # machine-readable JSON\n"
             "  sase plugin show github -o     # detail view without network checks\n"
             "  sase plugin install github     # install a plugin into sase's env\n"
+            "  sase plugin uninstall github   # remove one installed plugin\n"
             "  sase plugin update github      # upgrade one installed plugin\n"
             "  sase plugin update -a          # upgrade every installed plugin"
         ),
@@ -64,7 +65,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
     plugin_sub = plugin_parser.add_subparsers(
         dest="plugin_subcommand",
         help="Plugin subcommands",
-        metavar="{install,list,show,update}",
+        metavar="{install,list,show,uninstall,update}",
     )
 
     list_parser = plugin_sub.add_parser(
@@ -182,6 +183,61 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show the planned uv command and plugin set without running it",
     )
     install_parser.add_argument(
+        "-r",
+        "--refresh",
+        action="store_true",
+        help="Bypass the cache and refetch the catalog from GitHub",
+    )
+
+    uninstall_parser = plugin_sub.add_parser(
+        "uninstall",
+        help="Remove one installed plugin from the same environment as sase",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Uninstall a SASE plugin from the *same* uv tool environment as sase, "
+            "so its entry points are no longer discovered the next time sase runs. "
+            "The <plugin> name is resolved straight from sase's uv receipt "
+            "(`github` -> `sase-github`, repo and `owner/repo` full names also "
+            "work), so an installed plugin — even a community one absent from the "
+            "catalog — resolves without a network fetch.\n"
+            "\n"
+            "Like `sase plugin install`, this only works when sase was installed "
+            "via `uv tool install sase`. It reconstructs uv's `--with` set from "
+            "sase's receipt with the target omitted, so sase core and every other "
+            "plugin are preserved; editable/dev installs are kept too. When run "
+            "from a pip/pipx install or a dev checkout's virtualenv, it fails fast "
+            "with an actionable message instead of touching your environment. "
+            "Uninstalling a plugin that is not installed is a no-op success.\n"
+            "\n"
+            "Use `-n|--dry-run` to preview the exact uv command and resulting "
+            "plugin set without changing anything."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plugin uninstall github        # resolve via the receipt\n"
+            "  sase plugin uninstall sase-github   # repo name also works\n"
+            "  sase plugin uninstall github -n     # preview without removing\n"
+            "  sase plugin uninstall github -j     # stable machine-readable JSON"
+        ),
+    )
+    uninstall_parser.add_argument(
+        "plugin",
+        metavar="<plugin>",
+        help="Plugin to uninstall (catalog name, repo, or owner/repo full name)",
+    )
+    uninstall_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+    uninstall_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show the planned uv command and plugin set without running it",
+    )
+    uninstall_parser.add_argument(
         "-r",
         "--refresh",
         action="store_true",

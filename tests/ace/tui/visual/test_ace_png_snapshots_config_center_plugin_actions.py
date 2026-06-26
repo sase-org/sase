@@ -11,6 +11,7 @@ from tests.ace.tui.test_plugins_browser_pane import (
     _highlight,
     _not_uv_tool,
     _ready_preview,
+    _uninstall_ready,
     _update_ready,
 )
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
@@ -122,6 +123,39 @@ async def test_config_center_plugins_update_preview_png_snapshot(
             page,
             "config_center_plugins_update_preview_120x40",
             title="ACE SASE Admin Center — Plugins update (confirm preview)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_config_center_plugins_uninstall_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The uninstall confirm-preview modal: exact uv re-install (minus target)."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+    plan = _uninstall_ready("github")
+    monkeypatch.setattr(
+        pbp,
+        "_plan_uninstall_preview",
+        lambda query, *, offline: pbp._UninstallPreview(plan=plan),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        _highlight(pane, "github")  # installed
+        await page.wait_for(lambda _s: pane._highlighted_name() == "github")
+        pane.action_uninstall()
+        await page.expect_modal("PluginActionConfirmModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_uninstall_preview_120x40",
+            title="ACE SASE Admin Center — Plugins uninstall (confirm preview)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

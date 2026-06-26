@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.uv_tool.commands import (
     build_install,
+    build_uninstall,
     build_upgrade_all,
     build_upgrade_packages,
 )
@@ -85,6 +86,56 @@ def test_build_install_with_added_requirement_object() -> None:
         parse_receipt(_PYPI_RECEIPT), add=Requirement(name="sase-amd", specifier=">=1")
     )
     assert argv[-2:] == ["--with", "sase-amd>=1"]
+
+
+def test_build_uninstall_removes_one_plugin() -> None:
+    # Removing one plugin re-injects the full set minus the target; primary and
+    # the remaining plugin are preserved.
+    argv = build_uninstall(parse_receipt(_PYPI_RECEIPT), remove="sase-edge")
+    assert argv == ["uv", "tool", "install", "sase"]
+
+
+def test_build_uninstall_preserves_other_plugins() -> None:
+    argv = build_uninstall(parse_receipt(_DEV_RECEIPT), remove="sase-telegram")
+    assert argv == [
+        "uv",
+        "tool",
+        "install",
+        "--editable",
+        "/home/u/sase",
+        "--with-editable",
+        "/home/u/sase-github",
+    ]
+
+
+def test_build_uninstall_removes_all_dev_duplicate_entries() -> None:
+    # The dev receipt lists sase-github twice (editable + bare index); uninstall
+    # must drop *both* raw rows, not just the first deduped entry.
+    argv = build_uninstall(parse_receipt(_DEV_RECEIPT), remove="sase-github")
+    assert "/home/u/sase-github" not in argv
+    assert "sase-github" not in argv
+    assert argv == [
+        "uv",
+        "tool",
+        "install",
+        "--editable",
+        "/home/u/sase",
+        "--with",
+        "sase-telegram",
+    ]
+
+
+def test_build_uninstall_normalizes_target_name() -> None:
+    # A differently-cased / underscored target still matches the receipt entry.
+    argv = build_uninstall(parse_receipt(_PYPI_RECEIPT), remove="SASE_EDGE")
+    assert argv == ["uv", "tool", "install", "sase"]
+
+
+def test_build_uninstall_with_color() -> None:
+    argv = build_uninstall(
+        parse_receipt(_PYPI_RECEIPT), remove="sase-edge", color="never"
+    )
+    assert argv[3:5] == ["--color", "never"]
 
 
 def test_build_upgrade_packages_appends_upgrade_flags() -> None:

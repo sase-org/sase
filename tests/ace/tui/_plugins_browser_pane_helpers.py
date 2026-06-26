@@ -17,7 +17,12 @@ from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
-from sase.plugins.operations import InstallReady, ResolvedSpec, UpdateReady
+from sase.plugins.operations import (
+    InstallReady,
+    ResolvedSpec,
+    UninstallReady,
+    UpdateReady,
+)
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason
 from sase.uv_tool.receipt import Requirement
 
@@ -230,3 +235,18 @@ def _update_ready(
     for name in dist:
         argv += ["--upgrade-package", name]
     return UpdateReady(argv=argv, targets=dist, all_plugins=all_plugins)
+
+
+def _uninstall_ready(
+    name: str, *, remaining: tuple[str, ...] = ("telegram",)
+) -> UninstallReady:
+    """A deterministic :class:`UninstallReady` removing *name*.
+
+    The argv re-injects the primary plus *remaining* plugins (the target omitted),
+    mirroring the receipt-reconstructed CLI command.
+    """
+    requirement = Requirement.from_spec(f"sase-{name}")
+    argv = ["uv", "tool", "install", "sase"]
+    for other in remaining:
+        argv += ["--with", f"sase-{other}"]
+    return UninstallReady(requirement=requirement, display_name=name, argv=argv)

@@ -24,9 +24,12 @@ from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.operations import (
     InstallOutcome,
     InstallReady,
+    UninstallOutcome,
+    UninstallReady,
     UpdateOutcome,
     UpdateReady,
     execute_install,
+    execute_uninstall,
     execute_update,
 )
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
@@ -54,6 +57,14 @@ from .plugins_browser_loading import (
     probe_uv_tool,
 )
 from .plugins_browser_rendering import PluginsBrowserRenderingMixin
+from .plugins_browser_uninstall import (
+    PluginUninstallActionsMixin,
+    UninstallPreview,
+    already_absent_message,
+    plan_uninstall_preview,
+    uninstall_success_message,
+    uninstall_summary,
+)
 from .plugins_browser_update import (
     PluginUpdateActionsMixin,
     UpdatePreview,
@@ -82,10 +93,16 @@ _plan_update_preview = plan_update_preview
 _update_subject = update_subject
 _update_success_message = update_success_message
 _update_summary = update_summary
+_UninstallPreview = UninstallPreview
+_already_absent_message = already_absent_message
+_plan_uninstall_preview = plan_uninstall_preview
+_uninstall_success_message = uninstall_success_message
+_uninstall_summary = uninstall_summary
 
 
 class PluginsBrowserPane(
     PluginInstallActionsMixin,
+    PluginUninstallActionsMixin,
     PluginUpdateActionsMixin,
     PluginsBrowserRenderingMixin,
     Vertical,
@@ -98,6 +115,7 @@ class PluginsBrowserPane(
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
         ("i", "install", "Install"),
+        ("x", "uninstall", "Uninstall"),
         ("u", "update", "Update"),
         ("U", "update_all", "Update all"),
         ("r", "refresh", "Refresh"),
@@ -122,6 +140,8 @@ class PluginsBrowserPane(
         self._plan_worker: Worker[Any] | None = None
         #: Worker computing an update plan/preview before the confirm modal.
         self._update_plan_worker: Worker[Any] | None = None
+        #: Worker computing an uninstall plan/preview before the confirm modal.
+        self._uninstall_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None
@@ -196,6 +216,17 @@ class PluginsBrowserPane(
                     severity="error",
                 )
             return
+        if event.worker is self._uninstall_plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._uninstall_plan_worker = None
+                self._on_uninstall_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._uninstall_plan_worker = None
+                self._notify(
+                    self._worker_error_text(event.worker, kind="uninstall"),
+                    severity="error",
+                )
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -238,6 +269,15 @@ class PluginsBrowserPane(
     @staticmethod
     def _execute_update(plan: UpdateReady) -> UpdateOutcome:
         return execute_update(plan)
+
+    def _make_uninstall_preview(
+        self, query: str, *, offline: bool
+    ) -> _UninstallPreview:
+        return _plan_uninstall_preview(query, offline=offline)
+
+    @staticmethod
+    def _execute_uninstall(plan: UninstallReady) -> UninstallOutcome:
+        return execute_uninstall(plan)
 
     def action_next_option(self) -> None:
         """Move to the next non-header option."""

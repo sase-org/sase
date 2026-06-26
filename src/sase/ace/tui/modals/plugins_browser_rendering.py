@@ -285,7 +285,7 @@ class PluginsBrowserRenderingMixin:
             text.append("\n")
             text.append("⚠ ", style="yellow")
             text.append(
-                "Install/update unavailable — sase is not a `uv tool` install.",
+                "Plugin changes unavailable — sase is not a `uv tool` install.",
                 style="yellow",
             )
         hint = self._summary_hint()
@@ -347,6 +347,8 @@ class PluginsBrowserRenderingMixin:
             parts.append("u update ↑" if emphasize else "u update")
         if self._can_update_all():
             parts.append("U update-all")
+        if self._can_uninstall_highlighted():
+            parts.append("x uninstall")
         parts.extend(
             [
                 "r refresh",
@@ -389,3 +391,15 @@ class PluginsBrowserRenderingMixin:
             return False
         catalog = self._catalog
         return catalog is not None and catalog.installed_count > 0
+
+    def _can_uninstall_highlighted(self) -> bool:
+        """Whether the highlighted plugin can be uninstalled right now.
+
+        True only when sase is a managed ``uv tool`` install and the highlighted
+        row is already installed (mirrors update's installed-only gate; an
+        already-absent plugin has nothing to remove).
+        """
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        entry = self._current_entry()
+        return entry is not None and entry.installed.installed

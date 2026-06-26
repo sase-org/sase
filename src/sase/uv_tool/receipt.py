@@ -174,10 +174,23 @@ class ToolReceipt:
         return any(plugin.normalized_name == key for plugin in self.plugins)
 
     def reconstruct(
-        self, *, add: Requirement | str | None = None
+        self,
+        *,
+        add: Requirement | str | None = None,
+        remove: str | None = None,
     ) -> ReconstructedRequirements:
-        """Rebuild the full injected set, deduped, optionally adding *add*."""
+        """Rebuild the full injected set, deduped, optionally adding/removing one.
+
+        *add* appends a new requirement to the set before dedupe. *remove* drops
+        **every** raw receipt entry whose normalized distribution name matches
+        (so a dev receipt's editable + bare-index duplicates of one plugin both
+        disappear), again before dedupe. The two are independent; uninstall uses
+        only *remove*.
+        """
         reqs = list(self.plugins)
+        if remove is not None:
+            key = normalize_distribution_name(remove)
+            reqs = [req for req in reqs if req.normalized_name != key]
         added: Requirement | None = None
         if add is not None:
             added = add if isinstance(add, Requirement) else Requirement.from_spec(add)
@@ -193,6 +206,15 @@ class ToolReceipt:
     def with_added(self, spec: Requirement | str) -> ReconstructedRequirements:
         """Reconstructed set that additionally includes *spec*."""
         return self.reconstruct(add=spec)
+
+    def with_removed(self, name: str) -> ReconstructedRequirements:
+        """Reconstructed set with every entry for *name* removed.
+
+        Removing a plugin changes set *membership*: all raw receipt rows for the
+        normalized name are dropped, then the remainder is deduped and re-injected
+        by :func:`sase.uv_tool.commands.build_uninstall`.
+        """
+        return self.reconstruct(remove=name)
 
     def with_upgraded(self, name: str) -> ReconstructedRequirements:
         """Reconstructed set for upgrading *name*.

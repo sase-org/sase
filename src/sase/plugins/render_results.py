@@ -160,6 +160,70 @@ def render_plugin_update_dry_run(
     )
 
 
+def render_plugin_uninstall_result(
+    *,
+    change_set: UvChangeSet,
+    dist_name: str,
+    short_name: str,
+    elapsed: float | None = None,
+    console: Console | None = None,
+) -> None:
+    """Print the ``sase plugin uninstall`` success panel."""
+    target = console or Console()
+    change = change_set.get(dist_name) or _removed(dist_name)
+    body: list[RenderableType] = [_result_table((change,))]
+    body.append(Text(""))
+    body.append(_uninstall_summary_line(short_name, elapsed))
+    body.append(Text("Restart running sase agents to unload the plugin.", style="dim"))
+    target.print(Panel(Group(*body), title="Plugin Uninstalled", border_style="cyan"))
+
+
+def render_plugin_uninstall_dry_run(
+    *,
+    argv: list[str],
+    short_name: str,
+    console: Console | None = None,
+) -> None:
+    """Print the ``sase plugin uninstall --dry-run`` preview."""
+    target = console or Console()
+    body: list[RenderableType] = []
+    command = Text()
+    command.append("Would run  ", style="dim")
+    command.append(" ".join(argv), style="cyan")
+    body.append(command)
+    body.append(Text(""))
+
+    plan = Text()
+    plan.append("Removes  ", style="dim")
+    plan.append(short_name, style="bold")
+    plan.append("  (other plugins stay installed)", style="dim")
+    body.append(plan)
+
+    body.append(Text(""))
+    note = Text()
+    note.append("Dry run — nothing was changed. Re-run as ", style="dim")
+    note.append(f"sase plugin uninstall {short_name}", style="cyan")
+    note.append(" to remove it.", style="dim")
+    body.append(note)
+    target.print(
+        Panel(Group(*body), title="Plugin Uninstall (dry run)", border_style="cyan")
+    )
+
+
+def render_plugin_uninstall_not_installed(
+    *,
+    short_name: str,
+    console: Console | None = None,
+) -> None:
+    """Print the idempotent "already absent" panel for ``uninstall`` (exit 0)."""
+    target = console or Console()
+    body = Text()
+    body.append(f"{_UNCHANGED_GLYPH} ", style="dim")
+    body.append(short_name, style="bold")
+    body.append(" is not installed — nothing to uninstall.", style="dim")
+    target.print(Panel(body, title="Plugin Uninstall", border_style="cyan"))
+
+
 def render_plugin_not_installed(
     *,
     short_name: str,
@@ -253,6 +317,15 @@ def _install_summary_line(
     return line
 
 
+def _uninstall_summary_line(short_name: str, elapsed: float | None) -> Text:
+    line = Text()
+    line.append("Uninstalled ", style="green")
+    line.append(short_name, style="bold green")
+    if elapsed is not None:
+        line.append(f" in {humanize_duration(elapsed)}", style="green")
+    return line
+
+
 def _plugin_update_summary_line(
     changes: tuple[UvPackageChange, ...], elapsed: float | None
 ) -> Text:
@@ -291,6 +364,10 @@ def _other_changes(
 
 def _added(dist_name: str) -> UvPackageChange:
     return UvPackageChange(name=dist_name, kind=ChangeKind.ADDED)
+
+
+def _removed(dist_name: str) -> UvPackageChange:
+    return UvPackageChange(name=dist_name, kind=ChangeKind.REMOVED)
 
 
 def _unchanged(name: str, version: str | None) -> UvPackageChange:

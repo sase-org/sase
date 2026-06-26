@@ -17,5 +17,6 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _ready_preview,
     _render,
     _spy_notify,
+    _uninstall_ready,
     _update_ready,
 )

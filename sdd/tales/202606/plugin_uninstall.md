@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 15:48:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/plugin_uninstall.md
 ---
 # Plan: `sase plugin uninstall <plugin>`

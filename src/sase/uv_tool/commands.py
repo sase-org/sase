@@ -46,6 +46,28 @@ def build_install(
     return argv
 
 
+def build_uninstall(
+    receipt: ToolReceipt,
+    *,
+    remove: str,
+    color: ColorChoice | None = None,
+) -> list[str]:
+    """``uv tool install`` re-injecting the full ``--with`` set minus *remove*.
+
+    The inverse of :func:`build_install`: because ``uv tool install --with``
+    *replaces* the injected set rather than removing one entry, dropping a plugin
+    means re-running install with the **whole** reconstructed set sans the target
+    (every raw receipt row for its normalized name is removed). Editable/dev
+    installs, git/url specs, receipt order, and dedupe behavior are all preserved.
+    """
+    recon = receipt.reconstruct(remove=remove)
+    argv = ["uv", "tool", "install", *_color_args(color)]
+    argv += recon.primary.primary_args()
+    for plugin in recon.plugins:
+        argv += plugin.with_args()
+    return argv
+
+
 def build_upgrade_packages(
     receipt: ToolReceipt,
     names: Iterable[str],
@@ -70,6 +92,7 @@ def _color_args(color: ColorChoice | None) -> list[str]:
 __all__ = [
     "ColorChoice",
     "build_install",
+    "build_uninstall",
     "build_upgrade_all",
     "build_upgrade_packages",
 ]
