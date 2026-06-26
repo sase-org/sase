@@ -11,7 +11,7 @@ completion notification is sent. Notification plugins can then deliver those fil
 re-scanning the workspace.
 
 ACE is SASE's terminal UI. It has two image surfaces: lightweight in-panel previews for notification and file-panel
-attachments, and the separate `A` artifact viewer for opening completed agent artifacts.
+attachments, and the separate `a` artifact viewer for opening completed agent artifacts.
 
 ACE can also surface image files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
 image itself was not part of the agent's git diff. For current successful runs, those prompt-referenced images are
@@ -137,7 +137,7 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 
 ## ACE Artifact Viewer
 
-The Agents tab exposes completed agent artifacts through the `A` key. When artifacts exist, ACE opens the artifact panel
+The Agents tab exposes completed agent artifacts through the `a` key. When artifacts exist, ACE opens the artifact panel
 for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, prompt-referenced images, and
 explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use the same list. The
 panel is shown even for a single artifact so users can confirm the artifact label, kind, and path before opening it.
@@ -153,7 +153,7 @@ When multiple artifacts are opened together, the terminal viewer adds `n`/`p` na
 to page navigation.
 
 When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane and the Agents list collapses
-while the pane is live. Press `l` from the Agents tab to focus the tracked artifact pane, or press `A` again to close
+while the pane is live. Press `l` from the Agents tab to focus the tracked artifact pane, or press `a` again to close
 it. Row-changing navigation is guarded while the pane is open so the TUI does not drift to a different agent than the
 viewer. Outside tmux, ACE suspends and opens the viewer in the current terminal pane. The viewer chooses its mode from
 the artifact kind and file extension: supported images are displayed directly, PDFs are converted to PNG pages, and
@@ -190,6 +190,6 @@ ACE checks only terminal color depth from the environment. When `COLORTERM=truec
 marker in `TERM` is present, previews use 24-bit color; otherwise they use 256-color approximations. Missing files,
 unsupported extensions, decode errors, missing Pillow, and images above the renderer guardrails show a concise text
 fallback with the file path, byte size when available, and the relevant editor or artifact action. Use `e` in
-notifications, `E` on the Agents tab, or the `A` artifact viewer whenever full-fidelity viewing is needed.
+notifications, `E` on the Agents tab, or the `a` artifact viewer whenever full-fidelity viewing is needed.
 
 Source: `src/sase/ace/tui/graphics/`

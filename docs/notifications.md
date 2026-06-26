@@ -119,7 +119,7 @@ note explaining the limit. The final PDF and image lists are also written to `do
 `image_paths` for agent metadata consumers. Explicit artifact paths are read from the explicit-artifact association
 index at notification time, deduplicated against the standard attachments, and ignored if the index is unavailable.
 
-In ACE, completion artifacts are opened from the Agents tab with `A`. The artifact panel supports marking multiple files
+In ACE, completion artifacts are opened from the Agents tab with `a`. The artifact panel supports marking multiple files
 and opening the full artifact sequence, so notification attachments, generated PDFs/images, plan files, and explicit
 artifacts use one selection workflow. ACE may also include image files referenced by saved prompt artifacts in that
 picker. Those prompt-referenced images are persisted or synthesized as ACE artifact-list entries, but they are not

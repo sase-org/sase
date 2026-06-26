@@ -78,7 +78,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 | Key             | Action                                                      |
 | --------------- | ----------------------------------------------------------- |
-| `a`             | Accept proposal (`!` = spec only, `@` = mark ready to mail) |
+| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail) |
 | `b`             | Rebase PR onto parent                                       |
 | `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                       |
 | `d`             | Show diff                                                   |
@@ -292,9 +292,9 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | Key                 | Action                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `R`                 | Revive a previously dismissed agent                                                                           |
-| `A`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
+| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
 | `+`                 | Run custom agent                                                                                              |
-| `a`                 | Open auto-approve menu / answer HITL                                                                          |
+| `A`                 | Open auto-approve menu / answer HITL                                                                          |
 | `f`                 | Fork agent (by name if running, by chat file if completed)                                                    |
 | `n`                 | Name agent                                                                                                    |
 | `r`                 | Edit prompt and relaunch agent (retry without killing)                                                        |
@@ -393,7 +393,7 @@ visible and are automatically grouped under the `@review` tag, matching the beha
 
 ### Agent Artifacts
 
-Press `A` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
+Press `a` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
 include chat transcripts, plan files, generated Markdown PDFs, generated images, prompt-referenced images from saved
 prompt artifacts, and explicit files saved with `sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always
 opens the panel, even for a single artifact, so the label, kind, and path are visible before launching the terminal
@@ -418,7 +418,7 @@ Artifact panel controls:
 
 When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. The Agents
 list collapses while the tracked pane is live, row-changing navigation shows a warning instead of moving to a different
-agent, `l` focuses the tracked pane, and `A` closes it. If the pane was already closed, `A` opens the artifact panel
+agent, `l` focuses the tracked pane, and `a` closes it. If the pane was already closed, `a` opens the artifact panel
 normally. Outside tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image,
 Markdown, and PDF artifacts: images are displayed directly with `kitten icat`; Markdown is first rendered to PDF; PDFs
 are converted to PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for PDF/Markdown paging, and
@@ -1499,7 +1499,7 @@ launching a coder. `-m/--model` picks the follow-up agent's model, while `-p/--p
 the `approve` and `tale` paths. CLI rejection also attempts the durable planner cleanup used by no-feedback TUI
 rejection.
 
-For active Agents-tab rows, `a` opens the **Auto-Approve menu**, a single-key modal that configures how the agent's
+For active Agents-tab rows, `A` opens the **Auto-Approve menu**, a single-key modal that configures how the agent's
 _next_ submitted plan is auto-approved. The agent's current state is marked with `▸`; pressing `p` (Plan — approve the
 plan as-is), `t` (Tale — approve and commit as a tale), `e` (Epic — approve and commit as an epic), or `d` (Disable —
 turn off auto-approval) applies the change immediately, while `esc`/`q` cancels. The selected state shows on the agent

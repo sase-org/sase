@@ -66,7 +66,7 @@ def test_keybinding_footer_mail_visible_ready_status() -> None:
 
 
 def test_keybinding_footer_accept_visible_with_proposals() -> None:
-    """Test 'a' (accept) binding is visible when proposed entries exist."""
+    """Test 'A' (accept) binding is visible when proposed entries exist."""
     footer = KeybindingFooter()
     commits = [CommitEntry(number=1, note="Test", proposal_letter="a")]
     changespec = _make_changespec(status="Ready", commits=commits)
@@ -74,11 +74,11 @@ def test_keybinding_footer_accept_visible_with_proposals() -> None:
     bindings = footer._compute_available_bindings(changespec)
     binding_keys = [b[0] for b in bindings]
 
-    assert "a" in binding_keys
+    assert "A" in binding_keys
 
 
 def test_keybinding_footer_accept_hidden_without_proposals() -> None:
-    """Test 'a' (accept) binding is hidden when no proposed entries."""
+    """Test 'A' (accept) binding is hidden when no proposed entries."""
     footer = KeybindingFooter()
     commits = [CommitEntry(number=1, note="Test")]
     changespec = _make_changespec(status="Ready", commits=commits)
@@ -86,7 +86,7 @@ def test_keybinding_footer_accept_hidden_without_proposals() -> None:
     bindings = footer._compute_available_bindings(changespec)
     binding_keys = [b[0] for b in bindings]
 
-    assert "a" not in binding_keys
+    assert "A" not in binding_keys
 
 
 # --- Format Bindings Tests ---

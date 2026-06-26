@@ -186,7 +186,7 @@ def test_keybinding_footer_attempt_view_only_when_history_present() -> None:
 
 
 def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
-    """A advertises artifacts while D keeps attempt-history fallback separate."""
+    """a advertises artifacts while D keeps attempt-history fallback separate."""
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
     agent.attempt_history = [
@@ -206,7 +206,7 @@ def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
 
     bindings = footer._compute_agent_bindings(agent, has_agent_artifacts=True)
 
-    assert ("A", "artifacts") in bindings
+    assert ("a", "artifacts") in bindings
     assert ("D", "attempt view") in bindings
 
 

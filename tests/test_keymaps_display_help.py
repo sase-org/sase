@@ -132,8 +132,8 @@ def test_help_modal_lists_global_restore_prompt_stash() -> None:
         assert ("@", "Restore stashed prompt") in pairs
 
 
-def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
-    """Guard ``A`` as the Agents-tab artifact binding."""
+def test_help_modal_labels_lowercase_a_as_agent_artifacts() -> None:
+    """Guard ``a`` as the Agents-tab artifact binding and ``A`` as accept."""
     reg = load_keymap_registry({})
     cls_sections = cls_bindings(reg)
     agents_sections = agents_bindings(reg)
@@ -149,7 +149,8 @@ def test_help_modal_labels_capital_a_as_agent_artifacts() -> None:
         for _section, bindings in agents_sections
         for key, label in bindings
     }
-    assert ("A", "Artifacts pane (or marked set)") in agent_pairs
+    assert ("a", "Artifacts pane (or marked set)") in agent_pairs
+    assert ("A", "Open auto-approve menu / answer HITL") in agent_pairs
     assert (",j", "Jump to next unread done agent") in agent_pairs
     assert ("U", "Toggle unread marker") in agent_pairs
     for sections in (cls_sections, axe_sections):

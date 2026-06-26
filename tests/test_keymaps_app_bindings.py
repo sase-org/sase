@@ -80,11 +80,16 @@ def test_capital_x_binds_agent_cleanup_panel() -> None:
     assert by_action["open_agent_cleanup_panel"].key == "X"
 
 
-def test_capital_a_binds_agent_artifacts_and_v_binds_run_log() -> None:
-    """Capital A opens agent artifacts; V is the direct run-log key."""
+def test_lowercase_a_binds_agent_artifacts_and_capital_a_accepts() -> None:
+    """Lowercase ``a`` opens agent artifacts; capital ``A`` accepts/auto-approves.
+
+    Guards the swapped Agents-tab defaults: ``a`` opens artifacts and ``A``
+    drives accept_proposal (PR proposal acceptance + Agents-tab auto-approve/HITL).
+    """
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
-    assert by_action["open_agent_artifacts"].key == "A"
+    assert by_action["open_agent_artifacts"].key == "a"
+    assert by_action["accept_proposal"].key == "A"
     assert by_action["show_agent_run_log"].key == "V"
     assert by_action["toggle_attempt_view"].key == "D"
     assert by_action["toggle_agent_unread"].key == "U"
