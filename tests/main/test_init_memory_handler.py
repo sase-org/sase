@@ -3,58 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-import shutil
-import subprocess
 
 import pytest
 
 from sase.amd.constants import PROVIDER_SHIM_FILES
 from tests.main.init_memory_handler_helpers import (
+    SASE_MEMORY_HEADER,
     patch_standard_paths,
-    plan_memory,
     run_handler,
-    run_memory,
+    single_line,
     write,
 )
-
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _prettier_command() -> list[str]:
-    prettier = shutil.which("prettier")
-    if prettier is not None:
-        return [prettier]
-    local_prettier = _REPO_ROOT / "node_modules" / ".bin" / "prettier"
-    if local_prettier.exists():
-        return [str(local_prettier)]
-    pytest.skip("prettier not installed")
-
-
-def _single_line(text: str) -> str:
-    return " ".join(text.split())
-
-
-_SASE_MEMORY_HEADER = "# SASE = Structured Agentic Software Engineering"
-
-
-def short_note(body: str) -> str:
-    return "---\ntype: short\nparent: AGENTS.md\n---\n" + body
-
-
-def long_note(
-    body: str,
-    *,
-    description: str | None = "Long description.",
-    extra_frontmatter: str = "",
-) -> str:
-    lines = ["---", "type: long", "parent: AGENTS.md"]
-    if description is not None:
-        lines.append(f"description: {description}")
-    if extra_frontmatter:
-        lines.extend(extra_frontmatter.strip().splitlines())
-    lines.extend(["---", body])
-    return "\n".join(lines)
 
 
 def test_init_memory_uses_local_linked_repos_for_project_and_global_for_home(
@@ -108,8 +67,8 @@ sibling_repos:
     assert "`github`: Global GitHub plugin." in home_memory
     assert "`core`: Local Rust core." not in home_memory
     assert "/global/github" not in home_memory
-    assert _SASE_MEMORY_HEADER in project_memory
-    assert _SASE_MEMORY_HEADER in home_memory
+    assert SASE_MEMORY_HEADER in project_memory
+    assert SASE_MEMORY_HEADER in home_memory
 
     linked_trigger = (
         "When you need to make changes to files in a numbered-workspace linked "
@@ -117,7 +76,7 @@ sibling_repos:
         "agents MUST run:"
     )
     for memory in (project_memory, home_memory):
-        assert linked_trigger in _single_line(memory)
+        assert linked_trigger in single_line(memory)
         assert "linked reads/writes" in memory
         assert "When a linked repository needs changes, agents MUST run:" not in memory
         assert "linked edits" not in memory
@@ -178,18 +137,18 @@ linked_repos:
     assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "sase.md").read_text()
-    single_line = _single_line(project_memory)
+    project_memory_line = single_line(project_memory)
     assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
     )
     assert (
         "- `dotfiles`: User dotfiles source. This repo is defined in the "
         "`$STATIC_ONE/` directory."
-    ) in single_line
+    ) in project_memory_line
     assert (
         "- `notes`: Static notes checkout. This repo is defined in the "
         "`../static-two/` directory."
-    ) in single_line
+    ) in project_memory_line
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         not in project_memory
@@ -229,20 +188,20 @@ linked_repos:
     assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "sase.md").read_text()
-    single_line = _single_line(project_memory)
+    project_memory_line = single_line(project_memory)
     assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
     )
     assert (
         "- `dotfiles`: Static dotfiles source. This repo is defined in the "
         "`../dotfiles/` directory."
-    ) in single_line
+    ) in project_memory_line
     assert "numbered-workspace linked repository" in project_memory
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         in project_memory
     )
-    assert "numbered-workspace linked reads/writes" in single_line
+    assert "numbered-workspace linked reads/writes" in project_memory_line
 
 
 def test_init_memory_static_relative_paths_use_configured_display_path(
@@ -294,7 +253,7 @@ linked_repos:
     assert (
         "- `shared`: Static shared checkout. This repo is defined in the "
         "`../shared/` directory."
-    ) in _single_line(project_memory)
+    ) in single_line(project_memory)
     assert str((tmp_path / "primary" / "shared").resolve(strict=False)) not in (
         project_memory
     )
@@ -325,7 +284,7 @@ def test_init_memory_project_memory_includes_workspace_section(
 
     project_memory = (project_root / "memory" / "sase.md").read_text()
     home_memory = (home_root / "memory" / "sase.md").read_text()
-    assert _SASE_MEMORY_HEADER in project_memory
+    assert SASE_MEMORY_HEADER in project_memory
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
@@ -339,7 +298,7 @@ def test_init_memory_project_memory_includes_workspace_section(
     )
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
-    assert _SASE_MEMORY_HEADER in home_memory
+    assert SASE_MEMORY_HEADER in home_memory
 
     plan_warning = (
         "IMPORTANT: Do NOT mention your workspace directory (or any sibling "
@@ -347,7 +306,7 @@ def test_init_memory_project_memory_includes_workspace_section(
         "`/sase_plan` skill. The agent(s) that implement the plan might not run "
         "in the same workspace directory as you!"
     )
-    assert plan_warning in _single_line(project_memory)
+    assert plan_warning in single_line(project_memory)
     assert "/sase_plan" not in home_memory
 
 
@@ -418,344 +377,3 @@ linked_repos:
     assert "cannot generate project memory" in err
     assert "field 'description'" in err
     assert not (project_root / "memory").exists()
-
-
-def test_init_memory_overwrites_provider_shims(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(project_root / "AGENTS.md", "@memory/sase.md\n")
-    write(project_root / "CLAUDE.md", "old instructions\n")
-
-    assert run_handler() == 0
-
-    # Every provider file is overwritten with a byte-for-byte copy of AGENTS.md.
-    agents = (project_root / "AGENTS.md").read_text()
-    for filename in PROVIDER_SHIM_FILES:
-        assert (project_root / filename).read_text() == agents
-
-
-def test_init_memory_allows_transitive_memory_references(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(
-        project_root / "AGENTS.md",
-        "@memory/sase.md\n\nmemory/index.md\n",
-    )
-    write(
-        project_root / "memory" / "index.md",
-        long_note("# Index\n\n@memory/detail.md\n", description="Index."),
-    )
-    write(
-        project_root / "memory" / "detail.md",
-        long_note("# Detail\n", description="Detail."),
-    )
-
-    assert run_handler() == 0
-
-
-def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
-    write(project_root / "memory" / "extra.md", short_note("# Extra\n"))
-    write(
-        project_root / "memory" / "described.md",
-        long_note(
-            "# Described\n",
-            description="Existing description.",
-            extra_frontmatter="keywords:\n  - existing",
-        ),
-    )
-    write(
-        project_root / "memory" / "curated.md",
-        long_note(
-            "# Curated\n\nFallback body should not be used.\n",
-            description=None,
-        ),
-    )
-    write(
-        project_root / "AGENTS.md",
-        "# Previous\n\n"
-        "**`memory/curated.md`**  \n"
-        "Curated description survives. _Read when touching curated memory._\n",
-    )
-
-    assert run_handler() == 0
-
-    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert agents.startswith("# Managed Instructions\n")
-    assert "## Tier 1 (short-term) Memory" in agents
-    # Short memory is inlined (no ``@memory/...`` imports) under H3 headers.
-    assert "### memory/extra.md (Extra)" in agents
-    assert (
-        "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
-    )
-    assert "@memory/extra.md" not in agents
-    assert "@memory/sase.md" not in agents
-    assert "## Tier 2 (dynamic) Memory" not in agents
-    assert "## Dynamic Memory Files" not in agents
-    assert "### DYNAMIC MEMORY" not in agents
-    assert "## Tier 2 (long-term) Memory" in agents
-    assert "## Tier 3 (long-term) Memory" not in agents
-    assert "#### Long-Term Memory Files" not in agents
-    assert "**`memory/curated.md`**  \nCurated description survives." in agents
-    assert "**`memory/described.md`**  \nExisting description." in agents
-    assert ("sase-" + "amd:") not in agents
-
-    curated = (project_root / "memory" / "curated.md").read_text(encoding="utf-8")
-    assert curated.startswith(
-        "---\n"
-        "type: long\n"
-        "parent: AGENTS.md\n"
-        "description: Curated description survives.\n"
-        "---\n"
-    )
-    described = (project_root / "memory" / "described.md").read_text(encoding="utf-8")
-    assert "description: Existing description." in described
-    assert "keywords:" in described
-    assert "  - existing" in described
-
-    # The inlined managed AGENTS.md must stay prettier-stable.
-    agents_path = project_root / "AGENTS.md"
-    assert agents_path.read_bytes().endswith(b"\n")
-    result = subprocess.run(
-        [
-            *_prettier_command(),
-            "--check",
-            "--prose-wrap=always",
-            "--print-width=120",
-            str(agents_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, (
-        f"prettier --check failed:\nstdout={result.stdout}\nstderr={result.stderr}"
-    )
-
-
-def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempotent(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
-    write(
-        project_root / "memory" / "described.md",
-        long_note("# Described\n", description="A long note."),
-    )
-
-    assert run_handler() == 0
-
-    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert (
-        "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
-    )
-    assert "@memory/sase.md" not in agents
-
-    # ``memory/sase.md`` is regenerated every run, and its *fresh* body is the one
-    # inlined into ``AGENTS.md``; a follow-up plan must therefore be a no-op.
-    plan = plan_memory()
-    assert plan.blockers == ()
-    assert plan.actions == ()
-
-
-def test_init_memory_rejects_short_memory_with_deep_heading(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
-    # A short note with an H4 heading cannot be inlined and must block init.
-    write(project_root / "memory" / "bad.md", short_note("# Bad\n\n#### Too Deep\n"))
-
-    assert run_handler() == 1
-    err = capsys.readouterr().err
-    assert "memory/bad.md" in err
-    assert "deeper than H3" in err
-
-
-def test_init_memory_rejects_unreferenced_memory_files(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(project_root / "AGENTS.md", "@memory/sase.md\n")
-    # Parented under a memory note that does not exist, so the managed
-    # instructions onboarding fallback (which only references short notes and
-    # top-level ``parent: AGENTS.md`` long notes) cannot make it reachable.
-    write(
-        project_root / "memory" / "orphan.md",
-        "---\ntype: long\nparent: memory/ghost.md\ndescription: Orphan.\n---\n"
-        "# Orphan\n",
-    )
-
-    assert run_handler() == 1
-    err = capsys.readouterr().err
-    assert "unreferenced memory files" in err
-    assert "memory/orphan.md" in err
-
-
-def test_init_memory_plan_empty_after_prettier_formats_generated_files(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-    write(
-        project_root / "sase.yml",
-        """
-linked_repos:
-  - name: core
-    path: ../sase-core
-    description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
-""",
-    )
-
-    assert run_memory() == 0
-
-    generated = [
-        project_root / "memory" / "sase.md",
-        project_root / "memory" / "README.md",
-        home_root / "memory" / "sase.md",
-        home_root / "memory" / "README.md",
-    ]
-    before = {path: path.read_text(encoding="utf-8") for path in generated}
-    result = subprocess.run(
-        [
-            *_prettier_command(),
-            "--write",
-            "--prose-wrap=always",
-            "--print-width=120",
-            *[str(path) for path in generated],
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, (
-        f"prettier --write failed:\nstdout={result.stdout}\nstderr={result.stderr}"
-    )
-    assert {path: path.read_text(encoding="utf-8") for path in generated} == before
-
-    plan = plan_memory()
-    assert plan.actions == ()
-    assert plan.blockers == ()
-
-
-def test_init_memory_generated_markdown_passes_prettier_check(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    project_root = tmp_path / "project"
-    home_root = tmp_path / "home"
-    config_dir = tmp_path / "config"
-    project_root.mkdir()
-    home_root.mkdir()
-    patch_standard_paths(
-        monkeypatch,
-        project_root=project_root,
-        home_root=home_root,
-        config_dir=config_dir,
-    )
-
-    assert run_memory() == 0
-
-    generated = [
-        project_root / "memory" / "sase.md",
-        project_root / "memory" / "README.md",
-    ]
-    assert all(path.read_bytes().endswith(b"\n") for path in generated)
-    result = subprocess.run(
-        [
-            *_prettier_command(),
-            "--check",
-            "--prose-wrap=always",
-            "--print-width=120",
-            *[str(path) for path in generated],
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, (
-        f"prettier --check failed:\nstdout={result.stdout}\nstderr={result.stderr}"
-    )

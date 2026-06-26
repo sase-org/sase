@@ -4,12 +4,50 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import shutil
 
 import pytest
 
 from sase.main import init_memory_handler
 from sase.main.init_memory_handler import handle_init_memory_command, plan_init_memory
 from sase.main.init_plan import InitPlan
+
+
+SASE_MEMORY_HEADER = "# SASE = Structured Agentic Software Engineering"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def prettier_command() -> list[str]:
+    prettier = shutil.which("prettier")
+    if prettier is not None:
+        return [prettier]
+    local_prettier = _REPO_ROOT / "node_modules" / ".bin" / "prettier"
+    if local_prettier.exists():
+        return [str(local_prettier)]
+    pytest.skip("prettier not installed")
+
+
+def single_line(text: str) -> str:
+    return " ".join(text.split())
+
+
+def short_note(body: str) -> str:
+    return "---\ntype: short\nparent: AGENTS.md\n---\n" + body
+
+
+def long_note(
+    body: str,
+    *,
+    description: str | None = "Long description.",
+    extra_frontmatter: str = "",
+) -> str:
+    lines = ["---", "type: long", "parent: AGENTS.md"]
+    if description is not None:
+        lines.append(f"description: {description}")
+    if extra_frontmatter:
+        lines.extend(extra_frontmatter.strip().splitlines())
+    lines.extend(["---", body])
+    return "\n".join(lines)
 
 
 def write(path: Path, content: str) -> None:
