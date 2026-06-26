@@ -148,6 +148,21 @@ def test_is_newer_uses_pep_440_and_degrades_on_invalid_versions() -> None:
     assert is_newer("not a version", "1.0.0") is False
 
 
+def test_is_newer_degrades_when_packaging_is_absent(
+    monkeypatch: Any,
+) -> None:
+    real_import = __import__
+
+    def _no_packaging(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "packaging.version" or name.startswith("packaging"):
+            raise ModuleNotFoundError("No module named 'packaging'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", _no_packaging)
+
+    assert is_newer("1.10.0", "1.9.0") is False
+
+
 def test_enrich_cache_hit_avoids_fetch() -> None:
     catalog = _catalog(_entry("github", installed=True, version="0.4.0"))
 

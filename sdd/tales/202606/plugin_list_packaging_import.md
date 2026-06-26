@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 08:46:56
-status: wip
+status: done
 prompt: sdd/prompts/202606/plugin_list_packaging_import.md
 ---
 # Plan: Fix `sase plugin list` crash when `packaging` is absent

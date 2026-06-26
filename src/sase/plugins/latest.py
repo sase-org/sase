@@ -11,8 +11,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from packaging.version import InvalidVersion, Version
-
 from sase.plugins.latest_cache import (
     CachedLatest,
     is_fresh,
@@ -90,8 +88,18 @@ installed_source = _installed_source
 
 
 def is_newer(latest: str | None, installed: str | None) -> bool:
-    """Return whether *latest* is newer than *installed* using PEP 440 rules."""
+    """Return whether *latest* is newer than *installed* using PEP 440 rules.
+
+    ``packaging`` is imported lazily so that a stale editable tool environment
+    that predates the dependency can still import this module and run the
+    read-only catalog commands. When ``packaging`` is unavailable we degrade to
+    ``False`` rather than claiming an update without a valid PEP 440 comparison.
+    """
     if not latest or not installed:
+        return False
+    try:
+        from packaging.version import InvalidVersion, Version
+    except ImportError:
         return False
     try:
         return Version(latest) > Version(installed)
