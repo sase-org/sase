@@ -189,13 +189,13 @@ def _management_state_and_memory_counts(
 def _provider_shims(
     directory: Path,
     *,
-    home_equivalent_roots: tuple[Path, ...] = (),
+    agents_content: str,
     chezmoi_home_roots: tuple[Path, ...] = (),
 ) -> tuple[_ProviderShimStatus, ...]:
     statuses: list[_ProviderShimStatus] = []
     for spec in provider_shim_specs(
         directory,
-        home_equivalent_roots=home_equivalent_roots,
+        agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
     ):
         state, _error = provider_status_for_spec(spec)
@@ -231,7 +231,6 @@ def _entry_for_agents(
     scope: AmdScope,
     project_root: Path,
     home_root: Path,
-    home_equivalent_roots: tuple[Path, ...] = (),
     chezmoi_home_roots: tuple[Path, ...] = (),
 ) -> _AmdDocumentEntry:
     text = _read_text(path)
@@ -250,7 +249,7 @@ def _entry_for_agents(
         long_memory_refs=long_count,
         provider_shims=_provider_shims(
             path.parent,
-            home_equivalent_roots=home_equivalent_roots,
+            agents_content=text or "",
             chezmoi_home_roots=chezmoi_home_roots,
         ),
     )
@@ -280,7 +279,6 @@ def _build_amd_inventory(
         if include_chezmoi is not None
         else (use_chezmoi or source_root.exists())
     )
-    home_equivalent_roots = (live_home_root, source_root)
     chezmoi_home_roots = (source_root,)
 
     entries: list[_AmdDocumentEntry] = []
@@ -300,7 +298,6 @@ def _build_amd_inventory(
                 scope=scope,
                 project_root=project_root,
                 home_root=live_home_root,
-                home_equivalent_roots=home_equivalent_roots,
                 chezmoi_home_roots=chezmoi_home_roots,
             )
         )
@@ -316,7 +313,6 @@ def _build_amd_inventory(
                     scope="home",
                     project_root=project_root,
                     home_root=live_home_root,
-                    home_equivalent_roots=home_equivalent_roots,
                     chezmoi_home_roots=chezmoi_home_roots,
                 )
             )
@@ -332,7 +328,6 @@ def _build_amd_inventory(
                     scope="chezmoi",
                     project_root=project_root,
                     home_root=live_home_root,
-                    home_equivalent_roots=home_equivalent_roots,
                     chezmoi_home_roots=chezmoi_home_roots,
                 )
             )

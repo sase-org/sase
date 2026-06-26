@@ -9,7 +9,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.amd.constants import (
-    CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
     HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
@@ -80,13 +79,13 @@ sibling_repos:
         "- `chezmoi`: Chezmoi-managed dotfiles and global SASE configuration source. "
         "This repo is defined in the `~/.local/share/chezmoi/` directory."
     ) in _single_line(chezmoi_memory)
+    # Chezmoi writes static copies of ``AGENTS.md`` (no ``.tmpl``).
+    agents = (chezmoi_home / "AGENTS.md").read_text()
     for filename in PROVIDER_SHIM_FILES:
-        assert (
-            chezmoi_home / f"{filename}.tmpl"
-        ).read_text() == CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
-        assert not (chezmoi_home / filename).exists()
+        assert (chezmoi_home / filename).read_text() == agents
+        assert not (chezmoi_home / f"{filename}.tmpl").exists()
     assert chezmoi_home / "memory" / "sase.md" in deployed
-    assert chezmoi_home / "CLAUDE.md.tmpl" in deployed
+    assert chezmoi_home / "CLAUDE.md" in deployed
 
 
 def test_init_memory_chezmoi_migrates_plain_provider_shim_source(
@@ -118,11 +117,11 @@ def test_init_memory_chezmoi_migrates_plain_provider_shim_source(
 
     assert run_handler() == 0
 
-    assert (
-        chezmoi_home / "CLAUDE.md.tmpl"
-    ).read_text() == CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
-    assert not (chezmoi_home / "CLAUDE.md").exists()
-    assert chezmoi_home / "CLAUDE.md.tmpl" in deployed
+    # The legacy plain ``@~/AGENTS.md`` shim migrates to a static full copy at
+    # the preferred ``CLAUDE.md`` path; no ``.tmpl`` source is written.
+    agents = (chezmoi_home / "AGENTS.md").read_text()
+    assert (chezmoi_home / "CLAUDE.md").read_text() == agents
+    assert not (chezmoi_home / "CLAUDE.md.tmpl").exists()
     assert chezmoi_home / "CLAUDE.md" in deployed
 
 
@@ -153,5 +152,5 @@ def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
 
     deploy_mock.assert_not_called()
     assert chezmoi_home / "memory" / "sase.md" in deferred.paths
-    assert chezmoi_home / "CLAUDE.md.tmpl" in deferred.paths
+    assert chezmoi_home / "CLAUDE.md" in deferred.paths
     assert deferred.apply_force is True

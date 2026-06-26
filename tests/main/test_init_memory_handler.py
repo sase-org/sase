@@ -8,10 +8,7 @@ import subprocess
 
 import pytest
 
-from sase.amd.constants import (
-    PROVIDER_SHIM_CONTENT,
-    PROVIDER_SHIM_FILES,
-)
+from sase.amd.constants import PROVIDER_SHIM_FILES
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -58,10 +55,6 @@ def long_note(
         lines.extend(extra_frontmatter.strip().splitlines())
     lines.extend(["---", body])
     return "\n".join(lines)
-
-
-def home_provider_shim_content(root: Path) -> str:
-    return f"@{root.resolve(strict=False).as_posix()}/AGENTS.md\n"
 
 
 def test_init_memory_uses_local_linked_repos_for_project_and_global_for_home(
@@ -129,10 +122,7 @@ sibling_repos:
         assert "When a linked repository needs changes, agents MUST run:" not in memory
         assert "linked edits" not in memory
 
-    for root, shim_content in (
-        (project_root, PROVIDER_SHIM_CONTENT),
-        (home_root, home_provider_shim_content(home_root)),
-    ):
+    for root in (project_root, home_root):
         assert not (root / "memory" / "long").exists()
         assert (root / "memory" / "README.md").is_file()
         readme = (root / "memory" / "README.md").read_text()
@@ -146,8 +136,9 @@ sibling_repos:
             in agents
         )
         assert "@memory/sase.md" not in agents
+        # Provider files are byte-for-byte copies of ``AGENTS.md``.
         for filename in PROVIDER_SHIM_FILES:
-            assert (root / filename).read_text() == shim_content
+            assert (root / filename).read_text() == agents
 
 
 def test_init_memory_static_linked_repos_use_paths_without_workspace_open(
@@ -449,9 +440,10 @@ def test_init_memory_overwrites_provider_shims(
 
     assert run_handler() == 0
 
-    assert (project_root / "CLAUDE.md").read_text() == PROVIDER_SHIM_CONTENT
-    for filename in ("GEMINI.md", "QWEN.md", "OPENCODE.md"):
-        assert (project_root / filename).read_text() == PROVIDER_SHIM_CONTENT
+    # Every provider file is overwritten with a byte-for-byte copy of AGENTS.md.
+    agents = (project_root / "AGENTS.md").read_text()
+    for filename in PROVIDER_SHIM_FILES:
+        assert (project_root / filename).read_text() == agents
 
 
 def test_init_memory_allows_transitive_memory_references(

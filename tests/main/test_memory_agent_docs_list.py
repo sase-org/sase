@@ -8,7 +8,6 @@ from pathlib import Path
 from rich.console import Console
 
 from sase.amd.constants import (
-    CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
     HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
@@ -31,20 +30,6 @@ def write_shims(
 ) -> None:
     for filename in filenames:
         write(root / filename, content)
-
-
-def write_shim_templates(
-    root: Path,
-    filenames: tuple[str, ...] = PROVIDER_SHIM_FILES,
-    *,
-    content: str = CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
-) -> None:
-    for filename in filenames:
-        write(root / f"{filename}.tmpl", content)
-
-
-def home_provider_shim_content(root: Path) -> str:
-    return f"@{root.resolve(strict=False).as_posix()}/AGENTS.md\n"
 
 
 def legacy_marker(name: str) -> str:
@@ -103,8 +88,9 @@ def test_build_inventory_scans_project_agents_from_vcs_root_and_prunes(
     nested = project / "src" / "pkg"
     nested.mkdir(parents=True)
     (project / ".git").mkdir()
-    write(project / "AGENTS.md", managed_agents("Root Instructions"))
-    write_shims(project)
+    root_agents = managed_agents("Root Instructions")
+    write(project / "AGENTS.md", root_agents)
+    write_shims(project, content=root_agents)
     write(
         project / "tools" / "AGENTS.md",
         "# Tools Instructions\n\n@memory/tools.md\n",
@@ -187,7 +173,9 @@ def test_build_inventory_uses_home_specific_provider_shim_status(
     (project / ".git").mkdir(parents=True)
     write(project / "AGENTS.md", "# Project Instructions\n")
     write(home / "AGENTS.md", "# Home Instructions\n")
-    write(home / "CLAUDE.md", home_provider_shim_content(home))
+    # A full copy of ``AGENTS.md`` is the canonical exact shim; a legacy
+    # ``@AGENTS.md`` import is still recognized as a (migratable) shim.
+    write(home / "CLAUDE.md", "# Home Instructions\n")
     write(home / "GEMINI.md", PROVIDER_SHIM_CONTENT)
 
     inventory = _build_amd_inventory(
@@ -216,7 +204,9 @@ def test_build_inventory_uses_chezmoi_home_provider_shim_status(
     (project / ".git").mkdir(parents=True)
     write(project / "AGENTS.md", "# Project Instructions\n")
     write(chezmoi / "AGENTS.md", "# Chezmoi Instructions\n")
-    write_shim_templates(chezmoi)
+    # Chezmoi home now writes static provider copies (no ``.tmpl``); a full copy
+    # of ``AGENTS.md`` is the canonical exact shim.
+    write_shims(chezmoi, content="# Chezmoi Instructions\n")
 
     inventory = _build_amd_inventory(
         root=project,
@@ -389,13 +379,12 @@ def test_render_agent_docs_inventory_outputs_compact_rich_table(
 ) -> None:
     project = tmp_path / "repo"
     (project / ".git").mkdir(parents=True)
-    write(project / "AGENTS.md", managed_agents("Root Instructions"))
-    write_shims(project)
-    write(
-        project / "tools" / "AGENTS.md",
-        "# Tools Instructions\n\n@memory/tools.md\n",
-    )
-    write_shims(project / "tools", ("CLAUDE.md", "GEMINI.md"))
+    root_agents = managed_agents("Root Instructions")
+    write(project / "AGENTS.md", root_agents)
+    write_shims(project, content=root_agents)
+    tools_agents = "# Tools Instructions\n\n@memory/tools.md\n"
+    write(project / "tools" / "AGENTS.md", tools_agents)
+    write_shims(project / "tools", ("CLAUDE.md", "GEMINI.md"), content=tools_agents)
     inventory = _build_amd_inventory(
         root=project,
         home_root=tmp_path / "home",

@@ -384,13 +384,36 @@ def _validation_overlay_for_expected_files(
     return overlay
 
 
+def _final_agents_content(
+    root: Path, expected_files: Iterable[MemoryExpectedFile]
+) -> str:
+    """Return the root's final ``AGENTS.md`` content for provider copies.
+
+    Provider files are byte-for-byte copies of ``AGENTS.md``. The final content
+    is the managed render (or rendered minimal template) whenever ``AGENTS.md``
+    is (re)written, and the existing on-disk content when the minimal template is
+    ``create_if_missing`` and the file already exists (so we never copy a stale
+    render over an untouched user file).
+    """
+    agents_path = root / "AGENTS.md"
+    for expected in expected_files:
+        if expected.path != agents_path:
+            continue
+        if expected.write_policy == "create_if_missing" and expected.path.exists():
+            try:
+                return expected.path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                return expected.content
+        return expected.content
+    return ""
+
+
 def plan_memory_root(
     root: Path,
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
     enable_amd: bool = False,
-    home_equivalent_roots: Iterable[Path] = (),
     chezmoi_home_roots: Iterable[Path] = (),
 ) -> MemoryRootPlan:
     generated_sase_body = _generated_sase_memory_body(
@@ -410,7 +433,7 @@ def plan_memory_root(
     )
     shim_plan = provider_shim_plan(
         root,
-        home_equivalent_roots=home_equivalent_roots,
+        agents_content=_final_agents_content(root, expected_files),
         chezmoi_home_roots=chezmoi_home_roots,
     )
     overlay = _validation_overlay_for_expected_files(root, expected_files)
@@ -431,7 +454,6 @@ def initialize_memory_root(
     *,
     project_name: str | None = None,
     enable_amd: bool = False,
-    home_equivalent_roots: Iterable[Path] = (),
     chezmoi_home_roots: Iterable[Path] = (),
 ) -> MemoryRootResult:
     generated_sase_body = _generated_sase_memory_body(
@@ -451,7 +473,7 @@ def initialize_memory_root(
     )
     shim_plan = provider_shim_plan(
         root,
-        home_equivalent_roots=home_equivalent_roots,
+        agents_content=_final_agents_content(root, expected_files),
         chezmoi_home_roots=chezmoi_home_roots,
     )
     written = _apply_expected_memory_files(expected_files)

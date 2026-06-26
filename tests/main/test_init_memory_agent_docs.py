@@ -14,11 +14,7 @@ from pathlib import Path
 import pytest
 
 import sase.config.core as config_core
-from sase.amd.constants import (
-    CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
-    PROVIDER_SHIM_CONTENT,
-    PROVIDER_SHIM_FILES,
-)
+from sase.amd.constants import PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
@@ -40,10 +36,6 @@ def _assert_minimal_inlined_agents(agents: str) -> None:
 
 def short_note(body: str) -> str:
     return "---\ntype: short\nparent: AGENTS.md\n---\n" + body
-
-
-def home_provider_shim_content(root: Path) -> str:
-    return f"@{root.resolve(strict=False).as_posix()}/AGENTS.md\n"
 
 
 def test_init_memory_manages_live_home_from_user_overlay(
@@ -74,10 +66,9 @@ def test_init_memory_manages_live_home_from_user_overlay(
         "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
     )
     assert "- @memory/sase.md" not in agents
+    # Provider files are byte-for-byte copies of ``AGENTS.md``.
     for filename in PROVIDER_SHIM_FILES:
-        assert (home_root / filename).read_text(encoding="utf-8") == (
-            home_provider_shim_content(home_root)
-        )
+        assert (home_root / filename).read_text(encoding="utf-8") == agents
 
 
 def test_init_memory_manages_chezmoi_home_from_source_overlay(
@@ -121,11 +112,11 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
         "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
     )
     assert "- @memory/sase.md" not in agents
+    # Chezmoi writes a static copy of ``AGENTS.md`` (no ``.tmpl``) because the
+    # inlined content carries no template variables.
     for filename in PROVIDER_SHIM_FILES:
-        assert (chezmoi_home / f"{filename}.tmpl").read_text(encoding="utf-8") == (
-            CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
-        )
-        assert not (chezmoi_home / filename).exists()
+        assert (chezmoi_home / filename).read_text(encoding="utf-8") == agents
+        assert not (chezmoi_home / f"{filename}.tmpl").exists()
     assert chezmoi_home / "AGENTS.md" in deployed
 
 
@@ -154,9 +145,7 @@ def test_init_memory_does_not_migrate_single_custom_provider_file(
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     _assert_minimal_inlined_agents(agents)
     assert "Keep this." not in agents
-    assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == (
-        PROVIDER_SHIM_CONTENT
-    )
+    assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == agents
 
 
 def test_init_memory_overwrites_multiple_custom_provider_files(
@@ -182,12 +171,7 @@ def test_init_memory_overwrites_multiple_custom_provider_files(
     # AGENTS.md.
     assert run_handler() == 0
 
-    _assert_minimal_inlined_agents(
-        (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    )
-    assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == (
-        PROVIDER_SHIM_CONTENT
-    )
-    assert (project_root / "GEMINI.md").read_text(encoding="utf-8") == (
-        PROVIDER_SHIM_CONTENT
-    )
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    _assert_minimal_inlined_agents(agents)
+    assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == agents
+    assert (project_root / "GEMINI.md").read_text(encoding="utf-8") == agents

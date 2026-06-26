@@ -259,21 +259,18 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
 
 
 def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]:
-    home_equivalent_roots = (inputs.home_root,)
     chezmoi_home_roots = (inputs.home_root,) if inputs.use_chezmoi else ()
     project_plan = _plan_memory_root(
         inputs.project_root,
         inputs.project_entries,
         project_name=inputs.project_name,
         enable_amd=True,
-        home_equivalent_roots=home_equivalent_roots,
         chezmoi_home_roots=chezmoi_home_roots,
     )
     home_plan = _plan_memory_root(
         inputs.home_root,
         inputs.home_entries,
         enable_amd=True,
-        home_equivalent_roots=home_equivalent_roots,
         chezmoi_home_roots=chezmoi_home_roots,
     )
     return (project_plan, home_plan)
@@ -388,14 +385,12 @@ def run_init_memory(args: argparse.Namespace) -> int:
         inputs.project_entries,
         project_name=inputs.project_name,
         enable_amd=True,
-        home_equivalent_roots=(inputs.home_root,),
         chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
     )
     home_result = _initialize_memory_root(
         inputs.home_root,
         inputs.home_entries,
         enable_amd=True,
-        home_equivalent_roots=(inputs.home_root,),
         chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
     )
     results = (project_result, home_result)

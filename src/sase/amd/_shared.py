@@ -14,13 +14,15 @@ from sase.config import core as config_core
 from sase.main.init_plan import InitAction
 
 from .constants import (
-    AGENTS_FILENAME,
     CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
     HOME_PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
 
+# Legacy ``@``-import provider shim texts. Provider files are now full copies of
+# ``AGENTS.md``; these strings are retained only so existing legacy shims are
+# recognized and migrated to full copies (or deleted) by ``provider_shim_plan``.
 _PROVIDER_SHIM_TEXTS = frozenset(
     {
         PROVIDER_SHIM_CONTENT.strip(),
@@ -127,46 +129,39 @@ def _is_chezmoi_home_root(
     return False
 
 
-def _is_home_equivalent_root(
-    root: Path,
-    *,
-    home_equivalent_roots: Iterable[Path] = (),
-) -> bool:
-    root_resolved = _resolved(root)
-    for candidate in (Path.home(), config_core.CHEZMOI_HOME, *home_equivalent_roots):
-        if root_resolved == _resolved(candidate):
-            return True
-    return False
-
-
-def _absolute_home_provider_shim_content(root: Path) -> str:
-    return f"@{_resolved(root).as_posix()}/{AGENTS_FILENAME}\n"
-
-
 def provider_shim_specs(
     root: Path,
     *,
-    home_equivalent_roots: Iterable[Path] = (),
+    agents_content: str,
     chezmoi_home_roots: Iterable[Path] = (),
 ) -> tuple[_ProviderShimSpec, ...]:
+    """Return provider instruction specs that copy the root's ``AGENTS.md``.
+
+    Each provider file (``CLAUDE.md`` etc.) is a byte-for-byte copy of
+    *agents_content*, the root's final ``AGENTS.md`` content. Because the
+    inlined ``AGENTS.md`` carries no template variables, chezmoi home roots use
+    a **static** preferred file (``CLAUDE.md``, not ``CLAUDE.md.tmpl``) and list
+    the old ``.tmpl`` source as a legacy path to migrate away from. Legacy
+    ``@AGENTS.md``-style shims are still recognized (see
+    ``_is_provider_shim_text``) so existing files migrate cleanly.
+    """
     if _is_chezmoi_home_root(root, chezmoi_home_roots=chezmoi_home_roots):
         return tuple(
             _ProviderShimSpec(
                 filename=filename,
-                path=root / f"{filename}.tmpl",
-                content=CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT,
-                legacy_paths=(root / filename,),
+                path=root / filename,
+                content=agents_content,
+                legacy_paths=(root / f"{filename}.tmpl",),
             )
             for filename in PROVIDER_SHIM_FILES
         )
 
-    if _is_home_equivalent_root(root, home_equivalent_roots=home_equivalent_roots):
-        content = _absolute_home_provider_shim_content(root)
-    else:
-        content = PROVIDER_SHIM_CONTENT
-
     return tuple(
-        _ProviderShimSpec(filename=filename, path=root / filename, content=content)
+        _ProviderShimSpec(
+            filename=filename,
+            path=root / filename,
+            content=agents_content,
+        )
         for filename in PROVIDER_SHIM_FILES
     )
 
@@ -318,7 +313,7 @@ def _shim_plan_conflict(
 def provider_shim_plan(
     root: Path,
     *,
-    home_equivalent_roots: Iterable[Path] = (),
+    agents_content: str,
     chezmoi_home_roots: Iterable[Path] = (),
     migrated_paths: Iterable[Path] = (),
 ) -> ProviderShimPlan:
@@ -329,7 +324,7 @@ def provider_shim_plan(
 
     for spec in provider_shim_specs(
         root,
-        home_equivalent_roots=home_equivalent_roots,
+        agents_content=agents_content,
         chezmoi_home_roots=chezmoi_home_roots,
     ):
         conflict = _shim_plan_conflict(spec, migrated_paths=migrated_resolved)
