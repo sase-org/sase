@@ -88,13 +88,16 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 ## Common commands
 
 ```bash
+sase init -c             # check initialization drift without writing files
 sase doctor -v           # readable install, config, project, provider, and state report
 sase version             # inspect the exact SASE packages loaded by this environment
-sase ace                  # open the interactive control surface; press ,p for project lifecycle management
+sase ace                  # open the interactive control surface; press # for Admin Center, ,p for projects
 sase run "<prompt>"       # launch an agent or workflow
 sase agent list          # inspect running agents
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
+sase plugin list         # browse built-in/community plugins and update indicators
+sase update -n           # preview a uv tool upgrade of sase plus installed plugins
 sase workspace list       # inspect numbered workspaces for the current project
 ```
 

@@ -653,7 +653,7 @@ Unread-completed actions operate on terminal rows that are loaded in the tab; `,
 | ---------- | --------------------------------------------------------------------------------------------- |
 | `,,`       | Repeat the last leader command                                                                |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
-| `,I`       | Toggle manual idle (shows IDLE indicator; any keypress re-activates)                          |
+| `,I`       | Toggle pinned idle (sticky IDLE indicator; press `,I` again to clear)                         |
 | `,g`       | Toggle between tag-split panels and one merged agent panel                                    |
 | `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read               |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state  |
@@ -876,12 +876,12 @@ These work on all tabs:
 | Key                 | Action                                                                            |
 | ------------------- | --------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                          |
-| `#`                 | Open XPrompt Browser (see [XPrompt Browser](#xprompt-browser) below)              |
+| `#`                 | Open SASE Admin Center (Config, Plugins, and XPrompts tabs)                       |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands) |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
 | `,i`                | Open Activity Dashboard modal                                                     |
 | `i`                 | Show notifications inbox                                                          |
-| `I`                 | Pin idle mode (IDLE stays until `I` is pressed again; keypresses don't clear it)  |
+| `I`                 | Toggle manual idle mode (any keypress re-activates)                               |
 | `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix          |
 | `Ctrl+L`            | Dismiss all currently-visible toast notifications                                 |
 | `@`                 | Open the stashed-prompt restore picker                                            |
@@ -939,10 +939,13 @@ views omit them. Rows include workspace path, active claim count, launchability,
 | `j` / `k`   | Move selection                                                       |
 | `/`         | Filter projects by text                                              |
 | `Tab`       | Cycle lifecycle filter: active, sibling, inactive, all               |
+| `Shift+Tab` | Cycle lifecycle filter backward                                      |
 | `Enter`     | Activate the highlighted project when it is not active               |
+| `Ctrl+X`    | Show or hide inactive rows while the active filter is selected       |
 | `m`         | Mark or unmark the highlighted project                               |
 | `u`         | Clear all project marks                                              |
 | `e`         | Open the highlighted ProjectSpec in `$EDITOR`                        |
+| `A`         | Open the alias editor for the highlighted project                    |
 | `a`         | Activate highlighted project, or all marked projects                 |
 | `d`         | Deactivate highlighted project, or all marked projects               |
 | `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories |
@@ -1056,8 +1059,9 @@ Agent completion and failure toasts include the `%name`-set agent name with an `
 
 ## XPrompt Browser
 
-Press `#` on any tab to open the XPrompt Browser modal. It displays all discovered xprompts in a two-panel layout: a
-filterable list on the left and a syntax-highlighted preview on the right.
+Press `#` on any tab to open **SASE Admin Center**, then switch to the **XPrompts** tab with `[` / `]` or the tab strip.
+The XPrompts tab displays all discovered xprompts in a two-panel layout: a filterable list on the left and a
+syntax-highlighted preview on the right.
 
 Xprompts are grouped by source (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`, Home `~/xprompts/`,
 project-specific, config `sase.yml`, plugins, built-in). Workflow xprompts (multi-step YAML) are marked with a gear
@@ -1105,11 +1109,10 @@ Press `Ctrl+O` to start the guided creation flow:
 
 ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
 than the configured threshold (`ace.inactive_seconds`, default: 600 seconds). The badge is also shown when the user
-presses `,I` (leader chord) to manually mark themselves as inactive. Any keypress re-activates the user and hides the
-badge.
+presses `I` to manually mark themselves as inactive. Any keypress re-activates the user and hides the badge.
 
-Pressing `I` (capital) activates **pinned idle** mode, shown as a red **■ IDLE** badge. Pinned idle stays active
-regardless of keypresses — only pressing `I` again clears it. This is useful when you want to remain marked as idle
+Pressing `,I` (leader chord) activates **pinned idle** mode, shown as a red **■ IDLE** badge. Pinned idle stays active
+regardless of keypresses — only pressing `,I` again clears it. This is useful when you want to remain marked as idle
 while still interacting with the TUI. Pinned idle state is persisted to `~/.sase/tui_pinned_idle` and automatically
 restored when the TUI restarts, so the user remains marked as idle across sessions.
 

@@ -207,8 +207,8 @@ ace:
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 
-The IDLE indicator can also be triggered manually via the leader-mode `,I` keybinding. External tools can query idle
-status via `sase.ace.tui_activity.is_idle()`.
+The IDLE indicator can also be triggered manually with the app-level `I` keybinding; leader-mode `,I` toggles pinned
+idle, which regular keypresses do not clear. External tools can query idle status via `sase.ace.tui_activity.is_idle()`.
 
 #### `ace.keymaps`
 
@@ -1306,9 +1306,9 @@ hidden project. The `sibling` state (a legacy backing state name) is intended fo
 used by `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
 
 ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. That panel also supports marks
-for bulk lifecycle operations, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project
-directories under `~/.sase/projects/` without deleting workspace checkouts. The temporary model override uses `,o` by
-default.
+for bulk lifecycle operations, alias editing with `A`, inactive-row visibility with `Ctrl+X`, ProjectSpec editing
+through `$EDITOR`, and confirmed deletion of whole SASE project directories under `~/.sase/projects/` without deleting
+workspace checkouts. The temporary model override uses `,o` by default.
 
 ### `sase revert`
 
@@ -1398,7 +1398,7 @@ planner (which owns agent-document initialization) only generates managed projec
 the current project's own `./sase.yml` sets `amd_h1_title`, or when SASE memory would otherwise be unreachable from a
 minimal `AGENTS.md`.
 
-Advanced deploy controls stay on explicit subcommands such as `sase init memory --no-commit` and
+Advanced deploy controls stay on explicit subcommands such as `sase memory init --no-commit` and
 `sase skill init --no-push`.
 
 | Flag          | Values | Default | Description                                                                          |
