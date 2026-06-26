@@ -140,7 +140,12 @@ sibling_repos:
         assert "`sase memory init`" in readme
         assert "Non-README Markdown files live directly under `memory/`" in readme
         assert "`type: long` notes are detailed reference material" in readme
-        assert "@memory/sase.md" in (root / "AGENTS.md").read_text()
+        agents = (root / "AGENTS.md").read_text()
+        assert (
+            "### memory/sase.md (SASE = Structured Agentic Software Engineering)"
+            in agents
+        )
+        assert "@memory/sase.md" not in agents
         for filename in PROVIDER_SHIM_FILES:
             assert (root / filename).read_text() == shim_content
 
@@ -524,8 +529,13 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Instructions\n")
     assert "## Tier 1 (short-term) Memory" in agents
-    assert "- @memory/extra.md" in agents
-    assert "- @memory/sase.md" in agents
+    # Short memory is inlined (no ``@memory/...`` imports) under H3 headers.
+    assert "### memory/extra.md (Extra)" in agents
+    assert (
+        "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
+    )
+    assert "@memory/extra.md" not in agents
+    assert "@memory/sase.md" not in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
@@ -548,6 +558,87 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "description: Existing description." in described
     assert "keywords:" in described
     assert "  - existing" in described
+
+    # The inlined managed AGENTS.md must stay prettier-stable.
+    agents_path = project_root / "AGENTS.md"
+    assert agents_path.read_bytes().endswith(b"\n")
+    result = subprocess.run(
+        [
+            *_prettier_command(),
+            "--check",
+            "--prose-wrap=always",
+            "--print-width=120",
+            str(agents_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"prettier --check failed:\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
+def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(
+        project_root / "memory" / "described.md",
+        long_note("# Described\n", description="A long note."),
+    )
+
+    assert run_handler() == 0
+
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert (
+        "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
+    )
+    assert "@memory/sase.md" not in agents
+
+    # ``memory/sase.md`` is regenerated every run, and its *fresh* body is the one
+    # inlined into ``AGENTS.md``; a follow-up plan must therefore be a no-op.
+    plan = plan_memory()
+    assert plan.blockers == ()
+    assert plan.actions == ()
+
+
+def test_init_memory_rejects_short_memory_with_deep_heading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    # A short note with an H4 heading cannot be inlined and must block init.
+    write(project_root / "memory" / "bad.md", short_note("# Bad\n\n#### Too Deep\n"))
+
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "memory/bad.md" in err
+    assert "deeper than H3" in err
 
 
 def test_init_memory_rejects_unreferenced_memory_files(

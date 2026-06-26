@@ -33,6 +33,9 @@ LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
 
 _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
 _MEMORY_PATH_RE = re.compile(r"(?<![\w./-])(memory/[^\s,;:()[\]{}\"'`/]+?\.md)")
+_INLINED_SHORT_MEMORY_RE = re.compile(
+    r"^###[ \t]+(memory/[A-Za-z0-9_.-]+\.md)\b", re.MULTILINE
+)
 _TRAILING_TOKEN_PUNCTUATION = ".,;:!?)"
 _STATUS_SORT_ORDER: dict[MemoryEntryStatus, int] = {
     "loaded": 0,
@@ -369,6 +372,44 @@ def _memory_note_for_init(
     return parse_memory_note_text(text, relative_path)
 
 
+def _is_short_memory_note(
+    root: Path,
+    path: Path,
+    *,
+    overlay: Mapping[Path, str],
+) -> bool:
+    """Return whether the memory file at *path* is a ``type: short`` note."""
+    note = _memory_note_for_init(root, path, overlay=overlay)
+    return note is not None and note.type == "short"
+
+
+def _inlined_short_memory_files(
+    root: Path,
+    source: Path,
+    *,
+    overlay: Mapping[Path, str],
+) -> tuple[Path, ...]:
+    """Return short notes inlined as ``### memory/<file>.md`` sections in *source*.
+
+    ``sase memory init`` inlines each short note's body under such a header, so a
+    note reached this way has its bytes loaded as part of *source* (an
+    ``AGENTS.md``) even though there is no ``@`` import.
+    """
+    text = _read_text(source, overlay)
+    if text is None:
+        return ()
+    targets: list[Path] = []
+    for match in _INLINED_SHORT_MEMORY_RE.finditer(text):
+        resolved = _resolve_reference(root, source, match.group(1), overlay=overlay)
+        if (
+            resolved is not None
+            and resolved.exists
+            and _is_short_memory_note(root, resolved.target, overlay=overlay)
+        ):
+            targets.append(resolved.target)
+    return tuple(targets)
+
+
 def _children_by_parent_for_init(
     root: Path,
     memory_files: set[Path],
@@ -431,6 +472,7 @@ def build_memory_inventory(
         path for root_files in memory_files_by_root.values() for path in root_files
     }
     loaded_memory_files: set[Path] = set()
+    inlined_short_memory_files: set[Path] = set()
     loaded_instruction_files: set[Path] = set()
     references_by_target: dict[Path, list[MemoryReference]] = {}
 
@@ -446,6 +488,11 @@ def build_memory_inventory(
         for instruction_root in _loaded_instruction_roots(context_root.root):
             loaded_instruction_files.add(instruction_root)
             queue.append((context_root, instruction_root))
+            for target in _inlined_short_memory_files(
+                context_root.root, instruction_root, overlay={}
+            ):
+                if target in memory_files_by_root[context_root.root]:
+                    inlined_short_memory_files.add(target)
 
     visited: set[tuple[Path, Path]] = set()
     while queue:
@@ -501,6 +548,11 @@ def build_memory_inventory(
             if stats is not None:
                 loaded_line_count += stats.line_count
                 loaded_token_count += stats.approx_token_count
+        elif path in inlined_short_memory_files:
+            # Inlined short notes are loaded as part of their ``AGENTS.md``; their
+            # bytes are already counted via that loaded instruction file, so they
+            # contribute their status but not their stats.
+            status = "loaded"
         elif not exists:
             status = "missing"
         elif references:
@@ -556,7 +608,15 @@ def _reachable_memory_files_for_init(
         memory_files,
         overlay=overlay_files,
     )
-    reachable: set[Path] = set()
+    # Short notes are always inlined into ``AGENTS.md`` rather than ``@``-imported,
+    # so they are inherently reachable; treat them as such explicitly instead of
+    # relying on the inlined ``### memory/<file>.md`` header matching the
+    # plain-path reference regex.
+    reachable: set[Path] = {
+        path
+        for path in memory_files
+        if _is_short_memory_note(root_resolved, path, overlay=overlay_files)
+    }
     visited: set[Path] = {agents_path}
     queue: deque[Path] = deque(
         resolved.target

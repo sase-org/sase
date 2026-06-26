@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import cast
 
 from sase.amd.init import AmdMemorySyncPlan, plan_amd_memory_sync
+from sase.amd.inline_memory import inline_memory_section
 from sase.amd._shared import (
     ProviderShimPlan,
     apply_planned_delete,
@@ -122,18 +123,14 @@ def _generated_sase_memory_relative_path() -> Path:
     return Path("memory") / "sase.md"
 
 
-def _render_generated_sase_memory(
+def _generated_sase_memory_body(
     entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
 ) -> str:
-    body = format_generated_memory_markdown(
+    """Return the prettier-stable ``memory/sase.md`` body (no frontmatter)."""
+    return format_generated_memory_markdown(
         _render_sase_memory(entries, project_name=project_name)
-    )
-    return apply_memory_frontmatter(
-        body,
-        note_type="short",
-        parent=AGENTS_PARENT,
     )
 
 
@@ -154,8 +151,13 @@ def _render_memory_readme() -> str:
     )
 
 
-def _minimal_agents_content() -> str:
-    return f"# Agent Instructions\n\n@{_generated_sase_memory_relative_path().as_posix()}\n"
+def _minimal_agents_content(generated_sase_body: str) -> str:
+    """Return a self-contained minimal ``AGENTS.md`` with ``sase.md`` inlined."""
+    section = inline_memory_section(
+        _generated_sase_memory_relative_path().as_posix(),
+        generated_sase_body,
+    )
+    return f"# Agent Instructions\n\n{section}"
 
 
 def _render_expected_memory_files(
@@ -164,13 +166,19 @@ def _render_expected_memory_files(
     *,
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
+    generated_sase_body: str | None = None,
 ) -> tuple[MemoryExpectedFile, ...]:
+    if generated_sase_body is None:
+        generated_sase_body = _generated_sase_memory_body(
+            linked_entries, project_name=project_name
+        )
     expected: list[MemoryExpectedFile] = [
         MemoryExpectedFile(
             path=root / _generated_sase_memory_relative_path(),
-            content=_render_generated_sase_memory(
-                linked_entries,
-                project_name=project_name,
+            content=apply_memory_frontmatter(
+                generated_sase_body,
+                note_type="short",
+                parent=AGENTS_PARENT,
             ),
             detail="generated SASE memory",
         ),
@@ -202,7 +210,7 @@ def _render_expected_memory_files(
         expected.append(
             MemoryExpectedFile(
                 path=root / "AGENTS.md",
-                content=_minimal_agents_content(),
+                content=_minimal_agents_content(generated_sase_body),
                 detail="agent instruction file",
                 write_policy="create_if_missing",
             )
@@ -210,14 +218,28 @@ def _render_expected_memory_files(
     return tuple(expected)
 
 
-def _amd_sync_plan(root: Path, *, enable_amd: bool) -> AmdMemorySyncPlan | None:
+def _generated_short_notes(generated_sase_body: str) -> dict[str, str]:
+    """Return the freshly generated short-note bodies keyed by relative path."""
+    return {_generated_sase_memory_relative_path().as_posix(): generated_sase_body}
+
+
+def _amd_sync_plan(
+    root: Path,
+    *,
+    enable_amd: bool,
+    generated_short_notes: dict[str, str],
+) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return None
     # The onboarding fallback (derive a managed title when memory exists but
     # none is configured) is scoped to project roots inside
     # ``resolve_amd_h1_title`` via its home-root check, so home/chezmoi roots
     # only get a managed AGENTS.md when a title is explicitly configured.
-    return plan_amd_memory_sync(root, onboarding=True)
+    return plan_amd_memory_sync(
+        root,
+        onboarding=True,
+        generated_short_notes=generated_short_notes,
+    )
 
 
 def _compare_expected_memory_files(
@@ -371,12 +393,20 @@ def plan_memory_root(
     home_equivalent_roots: Iterable[Path] = (),
     chezmoi_home_roots: Iterable[Path] = (),
 ) -> MemoryRootPlan:
-    amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
+    generated_sase_body = _generated_sase_memory_body(
+        linked_entries, project_name=project_name
+    )
+    amd_sync = _amd_sync_plan(
+        root,
+        enable_amd=enable_amd,
+        generated_short_notes=_generated_short_notes(generated_sase_body),
+    )
     expected_files = _render_expected_memory_files(
         root,
         linked_entries,
         project_name=project_name,
         amd_sync=amd_sync,
+        generated_sase_body=generated_sase_body,
     )
     shim_plan = provider_shim_plan(
         root,
@@ -404,12 +434,20 @@ def initialize_memory_root(
     home_equivalent_roots: Iterable[Path] = (),
     chezmoi_home_roots: Iterable[Path] = (),
 ) -> MemoryRootResult:
-    amd_sync = _amd_sync_plan(root, enable_amd=enable_amd)
+    generated_sase_body = _generated_sase_memory_body(
+        linked_entries, project_name=project_name
+    )
+    amd_sync = _amd_sync_plan(
+        root,
+        enable_amd=enable_amd,
+        generated_short_notes=_generated_short_notes(generated_sase_body),
+    )
     expected_files = _render_expected_memory_files(
         root,
         linked_entries,
         project_name=project_name,
         amd_sync=amd_sync,
+        generated_sase_body=generated_sase_body,
     )
     shim_plan = provider_shim_plan(
         root,

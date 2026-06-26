@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 import re
@@ -14,6 +15,7 @@ from ._shared import (
     read_text,
 )
 from .constants import AGENTS_FILENAME
+from .inline_memory import inline_memory_section, validate_short_memory_structure
 from sase.memory.notes import (
     AGENTS_PARENT,
     apply_memory_frontmatter,
@@ -142,13 +144,37 @@ def _long_memory_description_updates(
     return tuple(updates)
 
 
-def _short_memory_references(root: Path) -> tuple[str, ...]:
-    generated_path = Path("memory/sase.md")
-    refs = {generated_path}
-    refs.update(
-        note.path for note in discover_memory_notes(root) if note.type == "short"
-    )
-    return tuple(f"@{path.as_posix()}" for path in sorted(refs))
+def _short_memory_bodies(
+    root: Path,
+    generated_short_notes: Mapping[str, str],
+) -> dict[str, str]:
+    """Return short-note bodies to inline, keyed by root-relative path.
+
+    Bodies discovered on disk are overlaid with the freshly generated bodies in
+    *generated_short_notes* (for example ``memory/sase.md``) so a single
+    ``sase memory init`` pass inlines the just-written note content rather than a
+    stale on-disk copy. The result is sorted by path so the rendered ``AGENTS.md``
+    section order is deterministic.
+    """
+    bodies: dict[str, str] = {
+        note.relative_path: note.body
+        for note in discover_memory_notes(root)
+        if note.type == "short"
+    }
+    bodies.update(generated_short_notes)
+    return dict(sorted(bodies.items()))
+
+
+def _short_memory_structure_blockers(
+    short_memory_bodies: Mapping[str, str],
+) -> tuple[str, ...]:
+    """Return blockers for short notes that cannot be inlined safely."""
+    blockers: list[str] = []
+    for relative_path, body in short_memory_bodies.items():
+        error = validate_short_memory_structure(body)
+        if error is not None:
+            blockers.append(f"{relative_path}: {error}")
+    return tuple(blockers)
 
 
 def _render_managed_agents(
@@ -156,6 +182,7 @@ def _render_managed_agents(
     title: str,
     *,
     long_memory_descriptions: dict[str, str] | None = None,
+    short_memory_bodies: Mapping[str, str] | None = None,
 ) -> str:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
@@ -180,10 +207,14 @@ def _render_managed_agents(
         "",
         "## Tier 1 (short-term) Memory",
         "",
-        "The following memory files contain core (always loaded) context:",
+        "The following memory contains core (always loaded) context:",
         "",
     ]
-    lines.extend(f"- {ref}" for ref in _short_memory_references(root))
+    bodies = short_memory_bodies or {}
+    for index, (relative_path, body) in enumerate(bodies.items()):
+        if index:
+            lines.append("")
+        lines.extend(inline_memory_section(relative_path, body).splitlines())
     lines.append("")
     lines.extend(
         [
@@ -215,9 +246,17 @@ def _render_managed_agents(
 
 
 def plan_amd_memory_sync(
-    root: Path | None = None, *, onboarding: bool = False
+    root: Path | None = None,
+    *,
+    onboarding: bool = False,
+    generated_short_notes: Mapping[str, str] | None = None,
 ) -> AmdMemorySyncPlan:
-    """Plan AMD-managed memory block synchronization for ``sase memory init``."""
+    """Plan AMD-managed memory block synchronization for ``sase memory init``.
+
+    *generated_short_notes* maps a root-relative short-note path to its freshly
+    generated body so the rendered ``AGENTS.md`` inlines current content (e.g.
+    ``memory/sase.md``) in a single pass instead of a stale on-disk copy.
+    """
     root = root or Path.cwd()
     title, title_error = resolve_amd_h1_title(root, onboarding=onboarding)
     if title_error is not None:
@@ -234,12 +273,23 @@ def plan_amd_memory_sync(
             description_updates=(),
         )
 
+    short_memory_bodies = _short_memory_bodies(root, generated_short_notes or {})
+    structure_blockers = _short_memory_structure_blockers(short_memory_bodies)
+    if structure_blockers:
+        return AmdMemorySyncPlan(
+            title=title,
+            agents_content=None,
+            description_updates=(),
+            blockers=structure_blockers,
+        )
+
     descriptions = _long_memory_descriptions(root)
     updates = _long_memory_description_updates(root, descriptions)
     agents_content = _render_managed_agents(
         root,
         title,
         long_memory_descriptions=descriptions,
+        short_memory_bodies=short_memory_bodies,
     )
     return AmdMemorySyncPlan(
         title=title,

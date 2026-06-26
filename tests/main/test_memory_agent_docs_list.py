@@ -282,6 +282,55 @@ def test_build_inventory_treats_markered_current_structure_as_managed(
     assert entry.long_memory_refs == 1
 
 
+def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> None:
+    project = tmp_path / "repo"
+    (project / ".git").mkdir(parents=True)
+    write(
+        project / "AGENTS.md",
+        "\n".join(
+            [
+                "# Managed Instructions",
+                "",
+                "## Tier 1 (short-term) Memory",
+                "",
+                "The following memory contains core (always loaded) context:",
+                "",
+                "### memory/extra.md (Extra)",
+                "",
+                "#### A Section",
+                "",
+                "body",
+                "",
+                "### memory/sase.md (SASE = Structured Agentic Software Engineering)",
+                "",
+                "#### Workspace",
+                "",
+                "more body",
+                "",
+                "## Tier 2 (long-term) Memory",
+                "",
+                "**`memory/generated_skills.md`**  ",
+                "Skill pipeline notes.",
+                "",
+            ]
+        ),
+    )
+
+    inventory = _build_amd_inventory(
+        root=project,
+        home_root=tmp_path / "home",
+        chezmoi_root=tmp_path / "chezmoi",
+        include_chezmoi=False,
+    )
+
+    entry = entry_by_path("AGENTS.md", inventory.entries)
+    assert entry.management == "managed"
+    # The two ``### memory/<file>.md`` headers count; the inlined ``####`` body
+    # headings must not be miscounted as short memory.
+    assert entry.short_memory_refs == 2
+    assert entry.long_memory_refs == 1
+
+
 def test_build_inventory_reports_partial_visible_amd_structure(tmp_path: Path) -> None:
     project = tmp_path / "repo"
     (project / ".git").mkdir(parents=True)

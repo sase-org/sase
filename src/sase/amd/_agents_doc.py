@@ -19,6 +19,12 @@ _LONG_SECTION_HEADINGS = frozenset(
 _H2_RE = re.compile(r"^##\s+")
 _LEGACY_AMD_COMMENT_RE = re.compile(r"^\s*<!--\s*sase-" r"amd:[^>]+-->\s*$")
 _SHORT_MEMORY_BULLET_RE = re.compile(r"^- @(?P<path>memory/[A-Za-z0-9_.-]+\.md)$")
+# Inlined short notes render as ``### memory/<file>.md (Title)`` headers; the
+# legacy ``- @memory/<file>.md`` bullet form is still recognized for documents
+# generated before short-term memory was inlined.
+_SHORT_MEMORY_HEADER_RE = re.compile(
+    r"^### (?P<path>memory/[A-Za-z0-9_.-]+\.md)(?: \(.*\))?$"
+)
 _LONG_MEMORY_ENTRY_RE = re.compile(
     r"^\*\*`(?P<path>memory/[A-Za-z0-9_.-]+\.md)`\*\*(?P<description>.*?)$"
 )
@@ -82,7 +88,10 @@ def _short_memory_paths(
             continue
         if raw_line[: len(raw_line) - len(raw_line.lstrip())]:
             continue
-        match = _SHORT_MEMORY_BULLET_RE.match(_normalized_line(raw_line))
+        normalized = _normalized_line(raw_line)
+        match = _SHORT_MEMORY_BULLET_RE.match(
+            normalized
+        ) or _SHORT_MEMORY_HEADER_RE.match(normalized)
         if match is not None:
             paths.append(match.group("path"))
     return tuple(paths)

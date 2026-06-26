@@ -26,7 +26,16 @@ from tests.main.init_memory_handler_helpers import (
     write,
 )
 
-_MINIMAL_AGENTS = "# Agent Instructions\n\n@memory/sase.md\n"
+
+def _assert_minimal_inlined_agents(agents: str) -> None:
+    """Assert *agents* is a self-contained minimal AGENTS.md (sase.md inlined)."""
+    assert agents.startswith(
+        "# Agent Instructions\n\n"
+        "### memory/sase.md (SASE = Structured Agentic Software Engineering)\n"
+    )
+    assert "@memory/sase.md" not in agents
+    assert "@AGENTS.md" not in agents
+    assert agents.endswith("\n")
 
 
 def short_note(body: str) -> str:
@@ -61,7 +70,10 @@ def test_init_memory_manages_live_home_from_user_overlay(
     agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Athena Home\n")
     assert "## Tier 1 (short-term) Memory" in agents
-    assert "- @memory/sase.md" in agents
+    assert (
+        "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
+    )
+    assert "- @memory/sase.md" not in agents
     for filename in PROVIDER_SHIM_FILES:
         assert (home_root / filename).read_text(encoding="utf-8") == (
             home_provider_shim_content(home_root)
@@ -105,7 +117,10 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
 
     agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Source Title\n")
-    assert "- @memory/sase.md" in agents
+    assert (
+        "### memory/sase.md (SASE = Structured Agentic Software Engineering)" in agents
+    )
+    assert "- @memory/sase.md" not in agents
     for filename in PROVIDER_SHIM_FILES:
         assert (chezmoi_home / f"{filename}.tmpl").read_text(encoding="utf-8") == (
             CHEZMOI_PROVIDER_SHIM_TEMPLATE_CONTENT
@@ -137,7 +152,7 @@ def test_init_memory_does_not_migrate_single_custom_provider_file(
     # custom provider file is overwritten with a shim instead of being copied
     # into AGENTS.md.
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert agents == _MINIMAL_AGENTS
+    _assert_minimal_inlined_agents(agents)
     assert "Keep this." not in agents
     assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == (
         PROVIDER_SHIM_CONTENT
@@ -167,7 +182,9 @@ def test_init_memory_overwrites_multiple_custom_provider_files(
     # AGENTS.md.
     assert run_handler() == 0
 
-    assert (project_root / "AGENTS.md").read_text(encoding="utf-8") == _MINIMAL_AGENTS
+    _assert_minimal_inlined_agents(
+        (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    )
     assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == (
         PROVIDER_SHIM_CONTENT
     )

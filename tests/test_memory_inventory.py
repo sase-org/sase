@@ -200,6 +200,34 @@ def test_init_reachability_still_traverses_plain_memory_references(
     assert unreferenced_memory_files_for_init(tmp_path) == ()
 
 
+def test_init_reachability_treats_short_notes_as_inlined(tmp_path: Path) -> None:
+    # Short notes are inlined into AGENTS.md rather than ``@``-imported, so they
+    # are reachable even when AGENTS.md does not reference them at all.
+    _write(tmp_path / "AGENTS.md", "# Title\n\n## Tier 1 (short-term) Memory\n")
+    _write(
+        tmp_path / "memory" / "note.md",
+        "---\ntype: short\nparent: AGENTS.md\n---\n# Note\n",
+    )
+
+    assert unreferenced_memory_files_for_init(tmp_path) == ()
+
+
+def test_inlined_short_note_is_loaded_in_inventory(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "AGENTS.md",
+        "# Title\n\n## Tier 1 (short-term) Memory\n\n"
+        "### memory/note.md (Note)\n\nInlined body.\n",
+    )
+    _write(
+        tmp_path / "memory" / "note.md",
+        "---\ntype: short\nparent: AGENTS.md\n---\n# Note\n\nInlined body.\n",
+    )
+
+    inventory = build_memory_inventory(tmp_path)
+
+    assert inventory.entry_for("memory/note.md").status == "loaded"
+
+
 def test_init_reachability_follows_long_note_parent_metadata(
     tmp_path: Path,
 ) -> None:
