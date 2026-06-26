@@ -3166,6 +3166,15 @@ ConfigCenterModal #config-center-title {
     color: $primary;
     text-align: center;
     height: 1;
+    margin-bottom: 0;
+}
+
+ConfigCenterModal #config-center-title-underline {
+    width: 100%;
+    color: $primary;
+    text-align: center;
+    height: 1;
+    margin-bottom: 1;
 }
 
 ConfigCenterModal #config-center-tabs {

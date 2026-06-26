@@ -39,7 +39,9 @@ _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
     "xprompts": "#87D7FF",
 }
+_TITLE_TEXT = "SASE Config"
 _HEADER_DIVIDER_RULE = "─"
+_TITLE_UNDERLINE = _HEADER_DIVIDER_RULE * len(_TITLE_TEXT)
 
 
 class _ConfigCenterTabStrip(Static):
@@ -123,7 +125,8 @@ class ConfigCenterModal(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="config-center-container"):
-            yield Label("SASE Config", id="config-center-title")
+            yield Label(_TITLE_TEXT, id="config-center-title")
+            yield Static(_TITLE_UNDERLINE, id="config-center-title-underline")
             yield _ConfigCenterTabStrip(self._active_tab, id="config-center-tabs")
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
