@@ -29,6 +29,19 @@ requirements = [
 ]
 """
 
+# A dev receipt: editable entries plus bare index dups of two plugins, exactly
+# what `uv tool install sase` records for an editable dev checkout.
+_DEV_RECEIPT = """
+[tool]
+requirements = [
+    { name = "sase", editable = "/home/u/sase" },
+    { name = "sase-github", editable = "/home/u/sase-github" },
+    { name = "sase-telegram", editable = "/home/u/sase-telegram" },
+    { name = "sase-github" },
+    { name = "sase-telegram" },
+]
+"""
+
 _UPGRADE_OUTPUT = """\
 Resolved 3 packages in 120ms
  - sase==0.5.0
@@ -38,16 +51,16 @@ Resolved 3 packages in 120ms
 """
 
 
-def _install(tmp_path: Path) -> UvToolInstall:
+def _install(tmp_path: Path, receipt: str = _RECEIPT) -> UvToolInstall:
     sase_dir = tmp_path / "sase"
     sase_dir.mkdir(parents=True, exist_ok=True)
-    receipt = sase_dir / "uv-receipt.toml"
-    receipt.write_text(_RECEIPT, encoding="utf-8")
+    receipt_path = sase_dir / "uv-receipt.toml"
+    receipt_path.write_text(receipt, encoding="utf-8")
     return UvToolInstall(
         uv_path="/usr/bin/uv",
         tool_dir=tmp_path,
         sase_dir=sase_dir,
-        receipt_path=receipt,
+        receipt_path=receipt_path,
     )
 
 
@@ -302,6 +315,44 @@ def test_dry_run_json(tmp_path: Path, capsys: Any) -> None:
         "role": "primary",
         "current_version": "0.6.1",
     }
+
+
+def test_dry_run_json_dedupes_duplicate_dev_receipt_plugins(
+    tmp_path: Path, capsys: Any
+) -> None:
+    code = handle_update_command(
+        _args(json=True, dry_run=True),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        version_fn=_versions,
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    # One planned package per distribution, no duplicated sase-github/telegram.
+    assert [p["name"] for p in payload["packages"]] == [
+        "sase",
+        "sase-github",
+        "sase-telegram",
+    ]
+
+
+def test_upgrade_json_counts_exclude_receipt_duplicates(
+    tmp_path: Path, capsys: Any
+) -> None:
+    code = handle_update_command(
+        _args(json=True),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        run_fn=lambda _argv: parse_uv_output("Nothing to upgrade\n"),
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    names = [p["name"] for p in payload["packages"]]
+    assert names == ["sase", "sase-github", "sase-telegram"]
+    # Counts reflect unique distributions, not the raw duplicated receipt rows.
+    assert payload["counts"] == {"updated": 0, "already_current": 3, "removed": 0}
 
 
 # --------------------------------------------------------------------------- #

@@ -70,6 +70,19 @@ requirements = [
 ]
 """
 
+# A dev receipt: editable entries plus bare index dups of two plugins, exactly
+# what `uv tool install sase` records for an editable dev checkout.
+_DEV_RECEIPT = """
+[tool]
+requirements = [
+    { name = "sase", editable = "/home/u/sase" },
+    { name = "sase-github", editable = "/home/u/sase-github" },
+    { name = "sase-telegram", editable = "/home/u/sase-telegram" },
+    { name = "sase-github" },
+    { name = "sase-telegram" },
+]
+"""
+
 
 def _install(tmp_path: Path, receipt: str = _RECEIPT) -> UvToolInstall:
     sase_dir = tmp_path / "sase"
@@ -319,6 +332,45 @@ def test_update_all_upgrades_every_injected_plugin(tmp_path: Path) -> None:
     text = _text(out)
     assert "0.3.2 → 0.4.0" in text
     assert "already current" in text
+
+
+def test_update_all_dedupes_duplicate_dev_receipt_plugins(tmp_path: Path) -> None:
+    seen: dict[str, list[str]] = {}
+
+    def _run(argv: list[str]) -> UvChangeSet:
+        seen["argv"] = argv
+        return parse_uv_output(_UPGRADE_OUTPUT)
+
+    out = _console()
+    code = handle_plugin_update_command(
+        _args(all_=True),
+        console=out,
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        run_fn=_run,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+    assert code == 0
+    argv = seen["argv"]
+    # One --upgrade-package per unique plugin, not one per raw receipt row.
+    assert argv.count("--upgrade-package") == 2
+    assert argv.count("sase-github") == 1
+    assert argv.count("sase-telegram") == 1
+
+
+def test_update_all_dry_run_json_dedupes_dev_receipt(
+    tmp_path: Path, capsys: Any
+) -> None:
+    code = handle_plugin_update_command(
+        _args(all_=True, dry_run=True, json=True),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+    )
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["plugins"] == ["sase-github", "sase-telegram"]
+    assert payload["command"].count("--upgrade-package") == 2
 
 
 def test_update_all_with_no_plugins_is_clean(tmp_path: Path) -> None:

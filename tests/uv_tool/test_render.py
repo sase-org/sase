@@ -27,6 +27,20 @@ requirements = [
 ]
 """
 
+# A dev receipt: editable entries plus bare index dups of two plugins, exactly
+# what `uv tool install sase` records for an editable dev checkout.
+_DEV_RECEIPT = """
+[tool]
+requirements = [
+    { name = "sase", editable = "/home/u/sase" },
+    { name = "sase-core-rs", editable = "/home/u/sase-core/py" },
+    { name = "sase-github", editable = "/home/u/sase-github" },
+    { name = "sase-telegram", editable = "/home/u/sase-telegram" },
+    { name = "sase-github" },
+    { name = "sase-telegram" },
+]
+"""
+
 # sase + sase-github upgraded; sase-telegram untouched (no line).
 _UPGRADE_OUTPUT = """\
 Resolved 3 packages in 120ms
@@ -71,6 +85,31 @@ def test_summarize_merges_receipt_and_change_set() -> None:
     assert summary.primary_updated is True
     assert [o.name for o in summary.updated_plugins] == ["sase-github"]
     assert [o.name for o in summary.already_current] == ["sase-telegram"]
+
+
+def test_summarize_dedupes_duplicate_dev_receipt_plugins() -> None:
+    summary = summarize_update(
+        parse_uv_output("Nothing to upgrade\n"),
+        parse_receipt(_DEV_RECEIPT),
+        current_version=_versions(
+            {
+                "sase": "0.6.1",
+                "sase-core-rs": "0.6.1",
+                "sase-github": "0.4.0",
+                "sase-telegram": "0.1.0",
+            }
+        ),
+    )
+
+    # One outcome per distribution: no duplicated sase-github / sase-telegram.
+    assert [o.name for o in summary.outcomes] == [
+        "sase",
+        "sase-core-rs",
+        "sase-github",
+        "sase-telegram",
+    ]
+    assert len(summary.already_current) == 4
+    assert all(o.kind is ChangeKind.UNCHANGED for o in summary.outcomes)
 
 
 def test_summarize_orders_primary_then_plugins_then_dependencies() -> None:

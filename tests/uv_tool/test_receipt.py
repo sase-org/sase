@@ -58,6 +58,26 @@ def test_parse_dev_receipt_identifies_primary_and_injected() -> None:
     ]
 
 
+def test_deduped_injected_plugins_collapses_raw_duplicates() -> None:
+    receipt = parse_receipt(_DEV_RECEIPT)
+    # The raw set still preserves the duplicate entries uv wrote...
+    assert [p.name for p in receipt.injected_plugins()] == [
+        "sase-core-rs",
+        "sase-github",
+        "sase-telegram",
+        "sase-github",
+        "sase-telegram",
+    ]
+    # ...while the deduped view collapses them in receipt order (first wins).
+    deduped = receipt.deduped_injected_plugins()
+    assert [p.name for p in deduped] == [
+        "sase-core-rs",
+        "sase-github",
+        "sase-telegram",
+    ]
+    assert all(p.editable is not None for p in deduped)
+
+
 def test_parse_pypi_receipt_fields() -> None:
     receipt = parse_receipt(_PYPI_RECEIPT)
     by_name = {p.name: p for p in receipt.injected_plugins()}

@@ -104,7 +104,7 @@ def handle_plugin_update_command(
         return _fail(exc, as_json=as_json, err=err)
 
     if all_plugins:
-        targets = tuple(plugin.name for plugin in receipt.injected_plugins())
+        targets = tuple(plugin.name for plugin in receipt.deduped_injected_plugins())
         if not targets:
             return _no_plugins(as_json=as_json, out=out)
     else:
@@ -207,7 +207,7 @@ def _match_injected(receipt: ToolReceipt, query: str) -> Requirement | None:
         key = normalize_distribution_name(candidate)
         if not key:
             continue
-        for plugin in receipt.injected_plugins():
+        for plugin in receipt.deduped_injected_plugins():
             if plugin.normalized_name == key:
                 return plugin
     return None

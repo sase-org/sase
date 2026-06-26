@@ -137,7 +137,7 @@ def summarize_update(
             _outcome_for(receipt.primary.name, "primary", change_set, current_version)
         )
         consumed.add(normalize_distribution_name(receipt.primary.name))
-        for plugin in receipt.injected_plugins():
+        for plugin in receipt.deduped_injected_plugins():
             outcomes.append(
                 _outcome_for(plugin.name, "plugin", change_set, current_version)
             )

@@ -184,7 +184,7 @@ def _planned_packages(
             role="plugin",
             current_version=version_fn(plugin.name),
         )
-        for plugin in receipt.injected_plugins()
+        for plugin in receipt.deduped_injected_plugins()
     ]
     return tuple(packages)
 

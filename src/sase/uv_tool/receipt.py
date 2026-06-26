@@ -150,8 +150,23 @@ class ToolReceipt:
     requirements: tuple[Requirement, ...] = field(default_factory=tuple)
 
     def injected_plugins(self) -> tuple[Requirement, ...]:
-        """Every requirement that is not the primary package (order preserved)."""
+        """Every requirement that is not the primary package (order preserved).
+
+        This is the *raw* injected set: a dev/editable receipt can list the same
+        plugin twice (an editable entry plus a bare index entry), and both are
+        preserved here. User-facing inventory and bulk-target surfaces should use
+        :meth:`deduped_injected_plugins` instead so duplicates collapse.
+        """
         return self.plugins
+
+    def deduped_injected_plugins(self) -> tuple[Requirement, ...]:
+        """Injected plugins in receipt order, deduped by normalized name.
+
+        Reuses :meth:`reconstruct`'s normalized-name dedupe (first occurrence
+        wins), so display and target-selection surfaces report one row per
+        installed distribution even when the receipt records duplicates.
+        """
+        return self.reconstruct().plugins
 
     def is_injected(self, name: str) -> bool:
         """Whether *name* (any case/normalization) is an injected plugin."""

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 07:45:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/update_dedup_plugin_rows.md
 ---
 # Plan: Deduplicate Plugin Rows in `sase update`
