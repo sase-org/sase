@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._prompt_bar_mount import has_edit_directive
+from ._prompt_bar_mount import strip_editor_review_markers
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -46,10 +46,10 @@ class PromptBarRequestsMixin:
             cursor_col=event.cursor_col,
         )
         if prompt:
-            has_edit, cleaned = has_edit_directive(prompt)
+            marked, cleaned = strip_editor_review_markers(prompt)
             if stacked_bar is not None:
-                stacked_bar.update_active_pane(cleaned if has_edit else prompt)
-            elif has_edit:
+                stacked_bar.update_active_pane(cleaned if marked else prompt)
+            elif marked:
                 self._load_editor_markdown_into_bar(cleaned)  # type: ignore[attr-defined]
             else:
                 self._finish_agent_launch(prompt)  # type: ignore[attr-defined]
@@ -86,11 +86,11 @@ class PromptBarRequestsMixin:
         prompt = self._open_editor_for_agent_prompt(markdown)  # type: ignore[attr-defined]
 
         if prompt:
-            # Strip a ``%edit`` directive for parity with the other editor-return
+            # Strip ` @` review markers for parity with the other editor-return
             # paths, then reload the whole bar from the edited markdown. The
             # all-stack editor never launches — it only re-stacks the bar.
-            has_edit, cleaned = has_edit_directive(prompt)
-            bar.load_stack_from_xprompt_markdown(cleaned if has_edit else prompt)
+            marked, cleaned = strip_editor_review_markers(prompt)
+            bar.load_stack_from_xprompt_markdown(cleaned if marked else prompt)
         else:
             # Empty editor return is a no-op edit: keep the bar mounted and
             # refocus the active pane, matching the stacked ``^G`` behavior.
@@ -177,8 +177,8 @@ class PromptBarRequestsMixin:
                 prompt_for_editor = _build_prompt(result.prompt_text)
                 edited_prompt = self._open_editor_for_agent_prompt(prompt_for_editor)  # type: ignore[attr-defined]
                 if edited_prompt:
-                    has_edit, cleaned = has_edit_directive(edited_prompt)
-                    if has_edit:
+                    marked, cleaned = strip_editor_review_markers(edited_prompt)
+                    if marked:
                         self._load_editor_markdown_into_bar(cleaned)  # type: ignore[attr-defined]
                     else:
                         self._finish_agent_launch(edited_prompt)  # type: ignore[attr-defined]

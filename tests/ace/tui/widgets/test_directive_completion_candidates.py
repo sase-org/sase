@@ -125,12 +125,20 @@ def test_directive_completion_matches_aliases_to_canonical_insertions() -> None:
 
 
 def test_directive_completion_returns_multi_match_without_false_shared_prefix() -> None:
-    candidates, shared = build_directive_completion_candidates("%e")
+    candidates, shared = build_directive_completion_candidates("%a")
 
     assert [candidate.insertion for candidate in candidates] == [
-        "%edit",
-        "%effort",
+        "%alt",
+        "%auto",
     ]
+    assert shared == ""
+
+
+def test_e_prefix_completes_only_effort() -> None:
+    """``%edit`` was removed, so a leading ``%e`` narrows straight to ``%effort``."""
+    candidates, shared = build_directive_completion_candidates("%e")
+
+    assert [candidate.insertion for candidate in candidates] == ["%effort"]
     assert shared == ""
 
 

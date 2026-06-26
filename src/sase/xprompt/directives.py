@@ -44,6 +44,7 @@ from ._directive_time import (
 from ._directive_types import (
     AUTO_MODES,
     AUTO_MODES_ORDERED,
+    _DEPRECATED_DIRECTIVE_MESSAGES,
     _DEPRECATED_DIRECTIVES,
     _DIRECTIVE_ALIASES,
     _DIRECTIVE_PATTERN,
@@ -315,10 +316,7 @@ def extract_prompt_directives(
         name = match.group(1)
         name = _DIRECTIVE_ALIASES.get(name, name)  # resolve alias
         if name in _DEPRECATED_DIRECTIVES:
-            raise DirectiveError(
-                "The '%time' directive has been removed; use #t:<time> "
-                "or %wait(time=<time>) instead."
-            )
+            raise DirectiveError(_DEPRECATED_DIRECTIVE_MESSAGES[name])
         if name not in _KNOWN_DIRECTIVES:
             continue
 
@@ -623,7 +621,6 @@ def extract_prompt_directives(
     # set one auto-approval mode: plan by default, or tale/epic via argument.
     directives = PromptDirectives(
         auto_mode=auto_mode,
-        edit="edit" in expanded_args,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
         reasoning_effort=reasoning_effort,

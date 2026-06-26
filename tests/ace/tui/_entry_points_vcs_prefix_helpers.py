@@ -11,11 +11,11 @@ from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
 from sase.ace.tui.modals import SelectionItem
 
-# A ``%edit`` editor buffer with leading xprompt frontmatter and a real
-# multi-agent ``---`` separator: ``%edit`` requests review (not launch), and the
-# cleaned remainder must reload through editor-file (xprompt markdown) semantics.
-_EDIT_MULTI_AGENT_MARKDOWN = (
-    "%edit\n"
+# An editor buffer with leading xprompt frontmatter, a real multi-agent ``---``
+# separator, and a trailing ` @` review marker: the marker requests review (not
+# launch), and the cleaned remainder must reload through editor-file (xprompt
+# markdown) semantics.
+_MARKED_MULTI_AGENT_MARKDOWN = (
     "---\n"
     "description: Review auth and API separately\n"
     "xprompts:\n"
@@ -23,7 +23,7 @@ _EDIT_MULTI_AGENT_MARKDOWN = (
     "---\n"
     "Review auth.\n"
     "---\n"
-    "Review API."
+    "Review API. @"
 )
 _CLEANED_MULTI_AGENT_MARKDOWN = (
     "---\n"

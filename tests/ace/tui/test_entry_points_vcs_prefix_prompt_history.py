@@ -12,7 +12,7 @@ from sase.history.prompt_store import PromptEntry
 from ._entry_points_vcs_prefix_helpers import (
     _App,
     _CLEANED_MULTI_AGENT_MARKDOWN,
-    _EDIT_MULTI_AGENT_MARKDOWN,
+    _MARKED_MULTI_AGENT_MARKDOWN,
 )
 
 
@@ -81,14 +81,15 @@ def test_prompt_history_edit_first_notifies_when_no_non_cancelled_entry(
     assert app._prompt_context is None
 
 
-def test_prompt_history_edit_first_edit_directive_reloads_instead_of_launching(
+def test_prompt_history_edit_first_review_marker_reloads_instead_of_launching(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Edit-first ``%edit`` reloads the bar for review instead of launching.
+    """Edit-first ` @` review marker reloads the bar instead of launching.
 
-    The prompt-history-last-selection edit path honors ``%edit`` like the other
-    editor returns: the cleaned multi-agent markdown is mounted for review with
-    the selection's context and editor-file semantics, and no agent launches.
+    The prompt-history-last-selection edit path honors the ` @` review marker
+    like the other editor returns: the cleaned multi-agent markdown is mounted
+    for review with the selection's context and editor-file semantics, and no
+    agent launches.
     """
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(
@@ -109,12 +110,12 @@ def test_prompt_history_edit_first_edit_directive_reloads_instead_of_launching(
         ],
     )
 
-    class _AppEditDirective(_App):
+    class _AppReviewMarker(_App):
         def _open_editor_for_agent_prompt(self, prompt: str) -> str:
             self.editor_prompts.append(prompt)
-            return _EDIT_MULTI_AGENT_MARKDOWN
+            return _MARKED_MULTI_AGENT_MARKDOWN
 
-    app = _AppEditDirective()
+    app = _AppReviewMarker()
     app._last_custom_agent_selection = SelectionItem(
         display_name="Target",
         item_type="cl",

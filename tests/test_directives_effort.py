@@ -110,11 +110,10 @@ def test_no_effort_directive_defaults_none() -> None:
 
 
 def test_effort_directive_no_e_alias() -> None:
-    """``%e`` aliases %edit, never %effort."""
-    _, directives = extract_prompt_directives("%e:something\nReview")
-    # %e -> %edit (a flag); the colon arg is ignored as a flag directive.
-    assert directives.edit is True
-    assert directives.reasoning_effort is None
+    """``%e`` is not an %effort alias; it resolves to the removed %edit directive."""
+    # %e -> %edit (removed) raises a migration hint rather than setting effort.
+    with pytest.raises(DirectiveError, match=r"%edit.*has been removed.* @"):
+        extract_prompt_directives("%e:something\nReview")
 
 
 def test_effort_directive_unknown_level_raises() -> None:

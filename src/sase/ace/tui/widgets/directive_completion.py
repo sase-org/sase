@@ -49,7 +49,6 @@ class DirectiveArgCompletionMetadata:
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "alt": "(variants)",
     "auto": ":plan|tale|epic",
-    "edit": "flag",
     "effort": ":level",
     "hide": "flag",
     "model": ":model or (models)",
@@ -63,7 +62,6 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
 _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "alt": "split a prompt into variants; shorthand %{A | B}",
     "auto": "auto-approve the submitted plan as plan (default), tale, or epic",
-    "edit": "return editor text to the prompt bar before launch",
     "effort": "set the reasoning-effort level for this prompt",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose one or more provider/model targets",

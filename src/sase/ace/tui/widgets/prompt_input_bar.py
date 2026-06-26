@@ -119,9 +119,9 @@ class PromptInputBar(
         elif initial_xprompt_markdown is not None:
             # Editor-file semantics: lift leading xprompt frontmatter into the
             # shared stack frontmatter and split real ``---`` body separators
-            # into one pane per agent segment. Used when a ``%edit`` editor
-            # return remounts the bar for review (frontmatter auto-shows on
-            # mount). Distinct from ``initial_value`` history-load semantics,
+            # into one pane per agent segment. Used when a ` @`-review-marker
+            # editor return remounts the bar for review (frontmatter auto-shows
+            # on mount). Distinct from ``initial_value`` history-load semantics,
             # which keep a single frontmatter prompt as one verbatim pane.
             self._stack = PromptStackState.from_text(initial_xprompt_markdown)
         else:

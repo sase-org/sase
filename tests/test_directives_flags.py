@@ -93,12 +93,10 @@ def test_removed_auto_approval_directives_are_unknown(token: str) -> None:
     assert directives.auto_mode is None
 
 
-def test_e_alias_still_means_edit_not_epic() -> None:
-    """%e remains the edit alias; %epic has no short alias."""
-    cleaned, directives = extract_prompt_directives("%e\nDo the work")
-    assert cleaned == "Do the work"
-    assert directives.edit is True
-    assert directives.auto_mode is None
+def test_e_alias_raises_removed_edit_migration_error() -> None:
+    """%e still resolves to the removed %edit directive and raises a hint."""
+    with pytest.raises(DirectiveError, match=r"%edit.*has been removed.* @"):
+        extract_prompt_directives("%e\nDo the work")
 
 
 # --- %hide directive tests ---
@@ -151,35 +149,23 @@ def test_hide_duplicate_raises() -> None:
         extract_prompt_directives(prompt)
 
 
-# --- %edit directive tests ---
+# --- removed %edit directive (now the editor ` @` review marker) ---
 
 
-def test_edit_bare() -> None:
-    """%edit (bare) sets edit=True."""
-    prompt = "%edit\nDo the work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do the work"
-    assert directives.edit is True
+def test_edit_directive_removed_raises_migration_hint() -> None:
+    """%edit raises a migration hint pointing at the editor ` @` review marker."""
+    with pytest.raises(DirectiveError, match=r"%edit.*has been removed.* @"):
+        extract_prompt_directives("%edit\nDo the work")
 
 
-def test_edit_alias() -> None:
-    """%e (alias) sets edit=True."""
-    prompt = "%e\nDo the work"
-    cleaned, directives = extract_prompt_directives(prompt)
-    assert cleaned == "Do the work"
-    assert directives.edit is True
+def test_edit_alias_removed_raises_migration_hint() -> None:
+    """%e resolves to the removed %edit directive and raises the same hint."""
+    with pytest.raises(DirectiveError, match=r"%edit.*has been removed.* @"):
+        extract_prompt_directives("%e\nDo the work")
 
 
 def test_edit_inside_fenced_block_ignored() -> None:
-    """%edit inside triple backticks is not extracted."""
+    """%edit inside triple backticks is protected and never reaches the parser."""
     prompt = "```\n%edit\n```"
-    cleaned, directives = extract_prompt_directives(prompt)
+    cleaned, _ = extract_prompt_directives(prompt)
     assert cleaned == prompt
-    assert directives.edit is False
-
-
-def test_edit_duplicate_raises() -> None:
-    """Duplicate %edit raises DirectiveError."""
-    prompt = "%edit\n%edit\nDo the work"
-    with pytest.raises(DirectiveError, match="Duplicate directive '%edit'"):
-        extract_prompt_directives(prompt)

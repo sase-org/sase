@@ -3,29 +3,52 @@
 from __future__ import annotations
 
 import os
-import re
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 
 from ._types import PromptContext
 
+_EDITOR_REVIEW_MARKER = " @"
 
-def has_edit_directive(prompt: str) -> tuple[bool, str]:
-    """Quick check for ``%edit`` / ``%e`` directive, returning cleaned prompt.
 
-    If the directive is present, runs full directive extraction to get the
-    properly cleaned prompt text.  Returns ``(True, cleaned_prompt)`` when
-    found, ``(False, original_prompt)`` otherwise.
+def strip_editor_review_markers(prompt: str) -> tuple[bool, str]:
+    """Strip trailing `` @`` editor-review markers from returned editor text.
+
+    Scans every line of *prompt*; a line matches when the text before its line
+    terminator ends with the exact two-character suffix `` @`` (space then
+    ``@``). Strips exactly those two characters from each matching line,
+    preserving all other characters, every non-matching line, line order, and
+    newline style (including the final newline).
+
+    Returns ``(True, cleaned_text)`` when at least one line matched, otherwise
+    ``(False, prompt)`` unchanged.
+
+    This is an editor-return syntax, not a runtime directive: typing `` @`` in
+    the prompt bar and submitting it is unaffected. The strip runs before
+    xprompt-markdown loading so a marked separator such as ``--- @`` becomes a
+    real ``---`` separator before stack parsing.
     """
-    if "%" not in prompt:
+    if _EDITOR_REVIEW_MARKER not in prompt:
         return False, prompt
-    if not re.search(r"(?:^|\s)%(?:edit|e)(?:[:+(]|\s|$)", prompt, re.MULTILINE):
-        return False, prompt
-    from sase.xprompt.directives import extract_prompt_directives
 
-    cleaned, directives = extract_prompt_directives(prompt)
-    return directives.edit, cleaned
+    matched = False
+    cleaned_lines: list[str] = []
+    for line in prompt.splitlines(keepends=True):
+        if line.endswith("\r\n"):
+            content, terminator = line[:-2], "\r\n"
+        elif line.endswith(("\n", "\r")):
+            content, terminator = line[:-1], line[-1]
+        else:
+            content, terminator = line, ""
+        if content.endswith(_EDITOR_REVIEW_MARKER):
+            content = content[: -len(_EDITOR_REVIEW_MARKER)]
+            matched = True
+        cleaned_lines.append(content + terminator)
+
+    if not matched:
+        return False, prompt
+    return True, "".join(cleaned_lines)
 
 
 class PromptBarMountMixin:
@@ -290,13 +313,13 @@ class PromptBarMountMixin:
         )
 
     def _load_editor_markdown_into_bar(self, markdown: str) -> None:
-        """Reload the mounted prompt bar from cleaned ``%edit`` editor markdown.
+        """Reload the mounted prompt bar from cleaned editor markdown.
 
         Uses editor-file (xprompt markdown) semantics via
         :meth:`PromptInputBar.load_stack_from_xprompt_markdown`: leading xprompt
         frontmatter is lifted into the frontmatter panel and real ``---`` body
         separators split into one prompt pane per agent segment.  Used only for
-        ``%edit`` editor returns and whole-stack editor returns — never for
+        ` @`-marker editor returns and whole-stack editor returns — never for
         ordinary history loads, which keep their verbatim single-pane contract.
         """
         from ...widgets import PromptInputBar
@@ -327,7 +350,7 @@ class PromptBarMountMixin:
             as_xprompt_markdown: When True, seed the bar with editor-file
                 semantics (lift leading frontmatter, split ``---`` into panes)
                 rather than verbatim history-load semantics.  Used by the
-                ``%edit`` editor-return remount path.
+                ` @`-marker editor-return remount path.
         """
         from ...widgets import PromptInputBar
 
@@ -373,12 +396,13 @@ class PromptBarMountMixin:
 
         prompt = self._open_editor_for_agent_prompt(initial_text)  # type: ignore[attr-defined]
         if prompt:
-            has_edit, cleaned = has_edit_directive(prompt)
-            if has_edit:
-                # ``%edit`` requests review instead of launch: remount the bar
-                # with the caller's display/history context (not the generic
-                # home labels) and editor-file semantics so a multi-agent
-                # markdown buffer re-stacks into panes with its frontmatter.
+            marked, cleaned = strip_editor_review_markers(prompt)
+            if marked:
+                # A ` @` review marker requests review instead of launch:
+                # remount the bar with the caller's display/history context (not
+                # the generic home labels) and editor-file semantics so a
+                # multi-agent markdown buffer re-stacks into panes with its
+                # frontmatter.
                 self._show_prompt_input_bar_for_home(
                     initial_text=cleaned,
                     display_name=display_name,

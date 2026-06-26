@@ -974,7 +974,6 @@ the prompt before further processing.
 | `%wait`   | `%w`  | Wait for another agent/workflow and/or a time floor              |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display               |
 | `%auto`   | `%a`  | Auto-approve the submitted plan as plan (default), tale, or epic |
-| `%edit`   | `%e`  | Return editor text to the prompt bar for review                  |
 | `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                |
 | `%group`  | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)      |
 | `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand) |
@@ -1022,8 +1021,6 @@ Directives use the same argument syntax as xprompt references:
 %auto:plan                   # Explicit normal-plan auto-approval
 %auto:tale                   # Plan first, then auto-approve & commit as a tale
 %auto:epic                   # Plan first, then auto-approve & commit as an epic
-%edit                        # Return editor text to prompt bar
-%e                           # Same, using alias
 %group:review                # Assign the tag "review" to this agent
 %g:review                    # Same, using alias
 ```
@@ -1099,8 +1096,8 @@ Multi-value directives (`%wait`, `%model`, `%alt`) accept comma-separated argume
 several lines: `%wait:agent_a,agent_b` is equivalent to two separate `%wait:` directives. Backtick-quoted values (e.g.
 `` %wait:`a,b` ``) are treated as a single literal and not split on commas.
 
-The `%edit` and `%hide` directives are boolean flags — they take no arguments and are simply present or absent. The
-`%auto` directive defaults to plan mode when bare and accepts `:plan`, `:tale`, or `:epic`.
+The `%hide` directive is a boolean flag — it takes no arguments and is simply present or absent. The `%auto` directive
+defaults to plan mode when bare and accepts `:plan`, `:tale`, or `:epic`.
 
 ### Example
 
@@ -1116,8 +1113,8 @@ will wait for the "planner" agent to complete successfully before running.
 
 ### Effort Directive
 
-The `%effort` directive sets the reasoning-effort level the agent's LLM provider should run at. There is no `%e` alias —
-`%e` already means `%edit`, so `%effort` is the only spelling.
+The `%effort` directive sets the reasoning-effort level the agent's LLM provider should run at. There is no `%e` alias;
+`%effort` is the only `%e…` directive, so typing `%e` narrows straight to it.
 
 ```
 %effort:xhigh
@@ -1200,25 +1197,28 @@ as the TUI Tale action:
 Tidy up the logging module.
 ```
 
-### Edit Directive
+### Editor Review Marker (` @`)
 
-The `%edit` directive causes the editor text to be loaded into the ACE prompt input bar instead of being submitted
-directly. This lets you compose a prompt in `$EDITOR` (via `Ctrl+G`) and then review or tweak it in the prompt bar
-before launching an agent:
+The old `%edit` directive has been removed. To compose a prompt in `$EDITOR` (via `Ctrl+G`) and then review or tweak it
+in the ACE prompt bar instead of launching immediately, end any line of the editor buffer with the exact suffix ` @` (a
+space followed by `@`):
 
 ```
-%edit
-Refactor the parser module to use dataclasses.
+Refactor the parser module to use dataclasses. @
 ```
 
-When the editor closes, the `%edit` directive is stripped and the remaining text appears in the prompt input bar for
-further editing. The agent is not launched until you press Enter in the prompt bar.
+This is an editor-return syntax, not a runtime directive — it is only recognized in text handed back from the external
+editor. Typing ` @` directly in the prompt bar and submitting has no special behavior, and the marker carries no meaning
+in CLI, mobile, or workflow execution. Submitting a leftover `%edit` / `%e` from an old buffer raises a `DirectiveError`
+pointing here rather than silently launching.
 
-The returned text is loaded with editor-file semantics: if it contains real multi-agent `---` segment separators
-(outside fenced blocks and outside leading YAML frontmatter), it is returned to the ACE prompt stack as one editable
-prompt pane per agent segment, and any leading xprompt frontmatter is lifted into the prompt properties panel above the
-top pane. A buffer with no separators still returns to the bar for review; if it has leading frontmatter, that
-frontmatter is lifted into the properties panel rather than left as literal pane text.
+When at least one line ends with ` @`, the marker is stripped from every matching line and the cleaned text is loaded
+back into the prompt input bar; the agent is not launched until you press Enter there. The returned text loads with
+editor-file semantics: real multi-agent `---` segment separators (outside fenced blocks and leading YAML frontmatter)
+split the ACE prompt stack into one editable pane per agent segment, and any leading xprompt frontmatter is lifted into
+the prompt properties panel above the top pane. Because the strip runs before this parsing, a marked separator line such
+as `--- @` becomes a real `---` separator. See [Prompt Stacks](ace.md#prompt-stacks) in the ACE docs for the full review
+flow.
 
 ### Plan Approval and Coder Follow-up {#plan-directive}
 
@@ -1555,13 +1555,13 @@ In the `sase ace` prompt input, ad hoc prompt frontmatter has a structured **Fro
 with the same field set an xprompt `.md` file supports (`name`, `description`, `tags`, `input`, `xprompts`, `skill`,
 `snippet`). Open or focus it with the prompt NORMAL-mode `g=` keymap; while the panel owns focus, `g=` runs the panel's
 deactivate/apply path. The panel also auto-shows when ACE has lifted leading frontmatter into the stack, such as a
-multi-agent prompt load or an editor-file return from `%edit` / whole-stack `Ctrl+G`. A single prompt recalled from
-history with leading frontmatter but no segment separator stays one verbatim pane instead of auto-opening the panel.
-Typing `---` in the prompt body is passive during live editing: at the very start it stays literal text, and after
-content it does not split the active pane. Add a top-level property with `a` (a picker sourced from the same core schema
-that backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a live-validated
-raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the multi-agent launch
-path is unchanged.
+multi-agent prompt load or an editor-file return from a ` @` review marker / whole-stack `Ctrl+G`. A single prompt
+recalled from history with leading frontmatter but no segment separator stays one verbatim pane instead of auto-opening
+the panel. Typing `---` in the prompt body is passive during live editing: at the very start it stays literal text, and
+after content it does not split the active pane. Add a top-level property with `a` (a picker sourced from the same core
+schema that backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a
+live-validated raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the
+multi-agent launch path is unchanged.
 
 The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`): navigate into them with `j`/`k`,
 then `A`/`e`/`d` (or `enter`) add, edit, and delete individual items through small typed sub-form modals. The input

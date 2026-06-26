@@ -1704,20 +1704,27 @@ and VISUAL or V-LINE uses magenta.
 ### Prompt Stacks
 
 Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading multi-agent prompt text from
-history, a whole-bar editor session, or an editor buffer that returned through `%edit` splits top-level `---` segment
-separators into panes labeled `agent 1`, `agent 2`, and so on; the border title shows `Prompt · N agents`. Restoring
-stashed prompts and using marked-agent `,x` can also open a stack, but those paths load one pane per selected draft or
-agent instead of re-parsing each pane's text. Panes are ordered top-to-bottom for whole-stack submission. The bottom
-pane is active by default so you can keep drafting the newest segment; it is not a priority marker, and pressing `Enter`
-immediately opens the submit chooser.
+history, a whole-bar editor session, or an editor buffer that returned with a ` @` review marker splits top-level `---`
+segment separators into panes labeled `agent 1`, `agent 2`, and so on; the border title shows `Prompt · N agents`.
+Restoring stashed prompts and using marked-agent `,x` can also open a stack, but those paths load one pane per selected
+draft or agent instead of re-parsing each pane's text. Panes are ordered top-to-bottom for whole-stack submission. The
+bottom pane is active by default so you can keep drafting the newest segment; it is not a priority marker, and pressing
+`Enter` immediately opens the submit chooser.
 
 Inactive panes stay compact, and the active pane takes the available height. A `---` line typed while INSERT mode is
 active stays literal prompt text; use `Ctrl+G -` while drafting, or `g-` from prompt NORMAL mode, to add a new bottom
 pane. `Ctrl+G g` and `Ctrl+G Ctrl+G` open the whole stack in `$EDITOR` when the bar already has multiple panes (a
-single-pane bar opens just the current prompt). Returning from a whole-bar editor session or from `%edit` reloads
-xprompt-style Markdown and parses `---` separators into fresh panes. History loads parse only real multi-agent prompts;
-a single history item with leading YAML frontmatter stays one verbatim pane instead of auto-opening the Frontmatter
-Panel.
+single-pane bar opens just the current prompt). Returning from a whole-bar editor session, or from a single-pane editor
+buffer with a ` @` review marker, reloads xprompt-style Markdown and parses `---` separators into fresh panes. History
+loads parse only real multi-agent prompts; a single history item with leading YAML frontmatter stays one verbatim pane
+instead of auto-opening the Frontmatter Panel.
+
+A single-pane editor session normally launches the moment you close `$EDITOR`. To review it in the prompt bar first, end
+any line of the buffer with the exact suffix ` @` (a space followed by `@`). On return, that marker is stripped from
+every matching line and the cleaned text reloads with editor-file semantics: leading xprompt frontmatter is lifted into
+the Frontmatter Panel and real `---` separators split into one pane per agent, so a marked multi-agent buffer comes back
+as a reviewable stack instead of launching. The marker is editor-return-only — typing ` @` in the prompt bar and
+submitting carries no special meaning. (This replaces the removed `%edit` directive.)
 
 In prompt INSERT mode, pressing `Ctrl+G` opens the same context-aware hint row as prompt NORMAL mode's `g` prefix, plus
 the editor continuation. Press `Esc` while the prefix is pending to cancel it and stay in INSERT mode.

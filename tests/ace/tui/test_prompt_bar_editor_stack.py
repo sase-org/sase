@@ -1,8 +1,8 @@
 """Tests for the prompt-bar editor-return handlers.
 
 The prompt editor key: on a single-pane bar it posts
-:class:`EditorRequested` (legacy behavior: ``%edit`` reloads the whole bar,
-otherwise the edited text launches); on a multi-pane stack it posts
+:class:`EditorRequested` (legacy behavior: a ` @` review marker reloads the
+whole bar, otherwise the edited text launches); on a multi-pane stack it posts
 :class:`AllEditorRequested`, opening the whole stack as xprompt markdown and
 reloading the edited result without launching.
 
@@ -141,13 +141,13 @@ def test_stacked_editor_return_updates_active_pane_without_launching() -> None:
     assert harness._prompt_context is not None
 
 
-def test_stacked_editor_return_strips_edit_directive_into_pane() -> None:
+def test_stacked_editor_return_strips_review_marker_into_pane() -> None:
     bar = _FakeBar(stacked=True)
-    harness = _EditorHarness(bar=bar, editor_result="%edit\nsecond EDITED")
+    harness = _EditorHarness(bar=bar, editor_result="second EDITED @")
 
     harness.on_prompt_input_bar_editor_requested(_event())
 
-    # The ``%edit`` directive is stripped; the cleaned text lands in the pane.
+    # The ` @` review marker is stripped; the cleaned text lands in the pane.
     assert bar.updated_panes == ["second EDITED"]
     assert harness.finished == []
     assert harness.unmount_calls == 0
@@ -180,9 +180,9 @@ def test_single_pane_editor_return_launches_as_before() -> None:
     assert harness.unmount_calls == 0
 
 
-def test_single_pane_editor_edit_directive_reloads_whole_bar() -> None:
+def test_single_pane_editor_review_marker_reloads_whole_bar() -> None:
     bar = _FakeBar(stacked=False)
-    harness = _EditorHarness(bar=bar, editor_result="%edit\nkeep editing")
+    harness = _EditorHarness(bar=bar, editor_result="keep editing @")
 
     harness.on_prompt_input_bar_editor_requested(_event())
 
@@ -191,14 +191,14 @@ def test_single_pane_editor_edit_directive_reloads_whole_bar() -> None:
     assert bar.updated_panes == []
 
 
-def test_single_pane_editor_edit_directive_reloads_multi_agent_markdown() -> None:
-    # ``%edit`` on a single-pane bar returning multi-agent markdown with leading
-    # xprompt frontmatter reloads through the editor-markdown (xprompt) path —
-    # the cleaned buffer keeps its frontmatter + ``---`` separators verbatim so
-    # the bar lifts the frontmatter and splits into panes — and never launches.
+def test_single_pane_editor_review_marker_reloads_multi_agent_markdown() -> None:
+    # A ` @` review marker on a single-pane bar returning multi-agent markdown
+    # with leading xprompt frontmatter reloads through the editor-markdown
+    # (xprompt) path — the cleaned buffer keeps its frontmatter + ``---``
+    # separators so the bar lifts the frontmatter and splits into panes — and
+    # never launches. The marker on the last body line drives the whole reload.
     bar = _FakeBar(stacked=False)
     editor_result = (
-        "%edit\n"
         "---\n"
         "description: Review auth and API separately\n"
         "xprompts:\n"
@@ -206,7 +206,7 @@ def test_single_pane_editor_edit_directive_reloads_multi_agent_markdown() -> Non
         "---\n"
         "Review auth.\n"
         "---\n"
-        "Review API."
+        "Review API. @"
     )
     harness = _EditorHarness(bar=bar, editor_result=editor_result)
 
@@ -268,13 +268,13 @@ def test_all_editor_nonempty_return_reloads_without_launching() -> None:
     assert harness._prompt_context is not None
 
 
-def test_all_editor_strips_edit_directive_on_reload() -> None:
+def test_all_editor_strips_review_marker_on_reload() -> None:
     bar = _FakeBar(stacked=True)
-    harness = _EditorHarness(bar=bar, editor_result="%edit\nuno\n---\ndos")
+    harness = _EditorHarness(bar=bar, editor_result="uno\n---\ndos @")
 
     harness.on_prompt_input_bar_all_editor_requested(_all_event())
 
-    # The ``%edit`` directive is stripped before the markdown is re-stacked.
+    # The ` @` review marker is stripped before the markdown is re-stacked.
     assert bar.loaded_markdown == ["uno\n---\ndos"]
     assert harness.finished == []
 

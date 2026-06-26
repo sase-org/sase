@@ -78,7 +78,7 @@ async def test_multi_candidate_directive_completion_accepts_ctrl_l() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta.load_text("%e")
+        ta.load_text("%a")
         ta.cursor_location = (0, 2)
         with patch.object(
             type(ta),
@@ -403,23 +403,23 @@ async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() ->
         ta = app.query_one(PromptTextArea)
 
         await pilot.press("%")
-        await pilot.press("e")
+        await pilot.press("a")
         assert [c.insertion for c in ta._file_completion_candidates] == [
-            "%edit",
-            "%effort",
+            "%alt",
+            "%auto",
         ]
 
-        await pilot.press("d")
-        assert ta.text == "%ed"
-        assert [c.insertion for c in ta._file_completion_candidates] == ["%edit"]
+        await pilot.press("u")
+        assert ta.text == "%au"
+        assert [c.insertion for c in ta._file_completion_candidates] == ["%auto"]
 
         await pilot.press("backspace")
-        assert ta.text == "%e"
+        assert ta.text == "%a"
         assert [c.insertion for c in ta._file_completion_candidates] == [
-            "%edit",
-            "%effort",
+            "%alt",
+            "%auto",
         ]
 
         await pilot.press("space")
-        assert ta.text == "%e "
+        assert ta.text == "%a "
         assert ta._file_completion_active is False
