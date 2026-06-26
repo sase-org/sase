@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 10:28:20
-status: wip
+status: done
 prompt: sdd/prompts/202606/revive_custom_search_initial_page.md
 ---
 # Plan: Show Custom Revival Search First Page Automatically

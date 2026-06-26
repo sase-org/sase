@@ -198,9 +198,26 @@ class DismissedAgentSelectModal(
         except Exception:
             self._filtered = list(enumerate(self.agents))
 
+        if self.is_mounted:
+            self._apply_agents_to_widgets(preserve_identity)
+        else:
+            # set_agents() can run before mount completes (the initial page load is
+            # awaited inside on_mount(), where is_mounted is still False). Defer the
+            # widget refresh so the loaded page is not stranded in model state.
+            self.call_after_refresh(self._apply_agents_to_widgets, preserve_identity)
+
+    def _apply_agents_to_widgets(
+        self,
+        highlight_identity: tuple[object, str, str | None] | None = None,
+    ) -> None:
+        """Render current modal model state into the mounted widgets.
+
+        Idempotent and driven entirely by current model state, so the deferred
+        initial-page refresh and later Ctrl+K load-more share one apply path.
+        """
         if not self.is_mounted:
             return
-        self._rebuild_options(highlight_identity=preserve_identity)
+        self._rebuild_options(highlight_identity=highlight_identity)
         self._update_preview_for_current_highlight()
         self._update_hints()
 

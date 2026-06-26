@@ -149,6 +149,37 @@ async def test_ctrl_k_loads_more_without_clearing_filter_or_marks() -> None:
     assert "^k" not in modal._hints_text()
 
 
+@pytest.mark.asyncio
+async def test_initial_page_renders_loaded_rows_without_typing() -> None:
+    loaded = make_agent(cl_name="alpha", raw_suffix="20260512120000")
+    pages = [([loaded], [loaded], True)]
+
+    def page_loader() -> tuple[list[object], list[object], bool]:
+        return pages.pop(0)  # type: ignore[return-value]
+
+    modal = DismissedAgentSelectModal(
+        [],
+        loading_archive=True,
+        page_loader=page_loader,  # type: ignore[arg-type]
+        page_size=250,
+    )
+    app = _ModalHost(modal)
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+
+        option_list = modal.query_one("#dismissed-agent-list", OptionList)
+
+        assert modal.agents == [loaded]
+        assert option_list.option_count == 1
+        option = option_list.get_option_at_index(0)
+        assert option.id == "0"
+        assert not option.disabled
+        assert "Loading dismissed archive" not in option.prompt.plain
+        assert "archive loading" not in modal._hints_text()
+
+
 def test_stopped_status_uses_canonical_style_and_glyph() -> None:
     agent = make_agent(status=STOPPED_STATUS)
 
