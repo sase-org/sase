@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from sase.ace.tui.actions.task_actions import (
+    TrackedTaskCompletion,
+    TrackedTaskResult,
+)
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import (
     SaveTargetFormat,
@@ -246,7 +250,6 @@ class PromptBarSaveXpromptMixin:
         """If the file is in a git repo and has changes, offer to commit/push."""
         from ...modals import ConfirmActionModal
         from ...modals.xprompt_browser_helpers import get_git_root, has_git_changes
-        from sase.config import get_use_chezmoi
 
         git_root = get_git_root(file_path)
         if git_root is None or not has_git_changes(git_root, file_path):
@@ -254,76 +257,20 @@ class PromptBarSaveXpromptMixin:
 
         rel_path = os.path.relpath(file_path, git_root)
         verb = "Add" if is_new else "Update"
+        subject = f"chore: {verb} xprompt {xprompt_name}"
+        from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
-        def _run_chezmoi_apply() -> None:
-            if not get_use_chezmoi():
-                return
-            result = subprocess.run(
-                ["chezmoi", "apply"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                self.notify("Applied chezmoi changes")  # type: ignore[attr-defined]
-            else:
-                self.notify(  # type: ignore[attr-defined]
-                    f"chezmoi apply failed: {result.stderr.strip()}",
-                    severity="error",
-                )
+        message = apply_auto_commit_type_tag(subject, "xprompt")
 
         def _on_commit_push_answer(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            subprocess.run(
-                ["git", "-C", git_root, "add", "--", file_path],
-                capture_output=True,
-                check=False,
+            self._submit_xprompt_commit_task(
+                git_root=git_root,
+                file_path=file_path,
+                rel_path=rel_path,
+                message=message,
             )
-            subject = f"chore: {verb} xprompt {xprompt_name}"
-            from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
-
-            message = apply_auto_commit_type_tag(subject, "xprompt")
-            result = subprocess.run(
-                ["git", "-C", git_root, "commit", "-m", message],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode != 0:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Commit failed: {result.stderr.strip()}",
-                    severity="error",
-                )
-                return
-            self.notify(f"Committed: {subject}")  # type: ignore[attr-defined]
-
-            pull_result = subprocess.run(
-                ["git", "-C", git_root, "pull", "--rebase"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if pull_result.returncode != 0:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Pull failed: {pull_result.stderr.strip()}",
-                    severity="error",
-                )
-                return
-            push_result = subprocess.run(
-                ["git", "-C", git_root, "push"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if push_result.returncode == 0:
-                self.notify("Pushed to remote")  # type: ignore[attr-defined]
-                _run_chezmoi_apply()
-            else:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Push failed: {push_result.stderr.strip()}",
-                    severity="error",
-                )
 
         self.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
@@ -331,6 +278,58 @@ class PromptBarSaveXpromptMixin:
                 f"Commit and push changes to '{rel_path}'?",
             ),
             _on_commit_push_answer,
+        )
+
+    def _submit_xprompt_commit_task(
+        self,
+        *,
+        git_root: str,
+        file_path: str,
+        rel_path: str,
+        message: str,
+    ) -> None:
+        """Run the git commit/push flow through the tracked task queue."""
+
+        def _task() -> TrackedTaskResult[None]:
+            success, result_message = _run_git_commit_push_sync(
+                git_root=git_root,
+                file_path=file_path,
+                commit_message=message,
+            )
+            return TrackedTaskResult(
+                success=success,
+                message=result_message,
+                error=None if success else result_message,
+            )
+
+        def _on_complete(completion: TrackedTaskCompletion[None]) -> None:
+            if completion.success:
+                self.notify(completion.message)  # type: ignore[attr-defined]
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    completion.message,
+                    severity="error",
+                )
+
+        submit = getattr(self, "_submit_tracked_task", None)
+        if submit is None:
+            self.notify(  # type: ignore[attr-defined]
+                "Could not commit xprompt: background task queue unavailable.",
+                severity="error",
+            )
+            return
+
+        submit(
+            "xprompt-commit",
+            rel_path,
+            git_root,
+            _task,
+            display_name=f"commit xprompt {rel_path}",
+            dedup_key=f"xprompt-commit:{git_root}:{rel_path}",
+            duplicate_message=f"An xprompt commit is already running for {rel_path}.",
+            on_complete=_on_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
         )
 
     def _spawn_xprompt_save_task(self, coro: Coroutine[object, object, None]) -> None:
@@ -435,6 +434,72 @@ def _name_exists_at_location(
     if location.location_type == "directory":
         return name.replace("/", "_") in existing_names
     return name in existing_names
+
+
+def _run_git_commit_push_sync(
+    *,
+    git_root: str,
+    file_path: str,
+    commit_message: str,
+) -> tuple[bool, str]:
+    """Synchronously stage, commit, pull, push, and optionally apply chezmoi."""
+    add_result = subprocess.run(
+        ["git", "-C", git_root, "add", "--", file_path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if add_result.returncode != 0:
+        return False, f"Git add failed: {_process_error_text(add_result)}"
+
+    commit_result = subprocess.run(
+        ["git", "-C", git_root, "commit", "-m", commit_message],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if commit_result.returncode != 0:
+        return False, f"Commit failed: {_process_error_text(commit_result)}"
+
+    pull_result = subprocess.run(
+        ["git", "-C", git_root, "pull", "--rebase"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if pull_result.returncode != 0:
+        return False, f"Pull failed: {_process_error_text(pull_result)}"
+
+    push_result = subprocess.run(
+        ["git", "-C", git_root, "push"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if push_result.returncode != 0:
+        return False, f"Push failed: {_process_error_text(push_result)}"
+
+    from sase.config import get_use_chezmoi
+
+    if not get_use_chezmoi():
+        return True, "Committed and pushed to remote"
+
+    try:
+        chezmoi_result = subprocess.run(
+            ["chezmoi", "apply"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, "chezmoi not found on PATH"
+    if chezmoi_result.returncode != 0:
+        return False, f"chezmoi apply failed: {_process_error_text(chezmoi_result)}"
+    return True, "Committed and pushed to remote; applied chezmoi changes"
+
+
+def _process_error_text(result: subprocess.CompletedProcess[str]) -> str:
+    return (result.stderr or result.stdout or "command failed").strip()
 
 
 def _short_display_path(path: str) -> str:
