@@ -53,8 +53,9 @@ agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 
 ## SASE Admin Center (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Admin Center**, a full-screen modal with three tabs (`[` / `]` switch
-between them): a schema-driven **Config** editor, a **Plugins** browser, and the **XPrompts** browser.
+Press `#` in the `sase ace` TUI to open **SASE Admin Center** on the **Config** tab. It is a full-screen modal with
+three tabs (`[` / `]` switch between them): a schema-driven **Config** editor, a **Plugins** browser, and the
+**XPrompts** browser.
 
 ### Config tab
 
@@ -207,8 +208,8 @@ ace:
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 
-The IDLE indicator can also be triggered manually with the app-level `I` keybinding; leader-mode `,I` toggles pinned
-idle, which regular keypresses do not clear. External tools can query idle status via `sase.ace.tui_activity.is_idle()`.
+The app-level `I` keybinding marks temporary idle until the next keypress. Leader-mode `,I` toggles pinned idle, which
+regular keypresses do not clear. External tools can query idle status via `sase.ace.tui_activity.is_idle()`.
 
 #### `ace.keymaps`
 
@@ -1306,9 +1307,9 @@ hidden project. The `sibling` state (a legacy backing state name) is intended fo
 used by `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
 
 ACE exposes the same lifecycle mutations through the Project Management panel at `,p`. That panel also supports marks
-for bulk lifecycle operations, alias editing with `A`, inactive-row visibility with `Ctrl+X`, ProjectSpec editing
-through `$EDITOR`, and confirmed deletion of whole SASE project directories under `~/.sase/projects/` without deleting
-workspace checkouts. The temporary model override uses `,o` by default.
+for bulk lifecycle operations, alias editing with `A`, an active-filter inactive-row overlay with `Ctrl+X`, ProjectSpec
+editing through `$EDITOR`, and confirmed deletion of whole SASE project directories under `~/.sase/projects/` without
+deleting workspace checkouts. The temporary model override uses `,o` by default.
 
 ### `sase revert`
 

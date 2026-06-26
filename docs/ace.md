@@ -200,22 +200,22 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                                |
-| `,!`       | Run command using current PR context                                                          |
-| `,A`       | Open the Agent Run Log modal for the current PR                                               |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                                |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
-| `,m`       | Review mentors (opens Mentor Review modal)                                                    |
-| `,M`       | Kill running mentors                                                                          |
-| `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
-| `,o`       | Open model overrides (see [Model Overrides](#model-overrides))                                |
-| `,R`       | Show runners info                                                                             |
-| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                             |
-| `,<space>` | Run agent from current PR (skips project selection)                                           |
-| `,.`       | Open prompt history modal                                                                     |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                      |
+| Key        | Action                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                              |
+| `,!`       | Run command using current PR context                                                        |
+| `,A`       | Open the Agent Run Log modal for the current PR                                             |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                              |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
+| `,m`       | Review mentors (opens Mentor Review modal)                                                  |
+| `,M`       | Kill running mentors                                                                        |
+| `,p`       | Open Project Management (global; see [Project Management Panel](#project-management-panel)) |
+| `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))                      |
+| `,R`       | Show runners info                                                                           |
+| `,t`       | Open task queue modal (see [Task Queue Modal](#task-queue-modal))                           |
+| `,<space>` | Run agent from current PR (skips project selection)                                         |
+| `,.`       | Open prompt history modal                                                                   |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                    |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
 project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; PR
@@ -646,29 +646,30 @@ cached by raw query string so re-renders skip the parse.
 
 ### Leader Mode (`,` prefix)
 
-On the Agents tab, leader mode exposes layout and notification shortcuts for the currently loaded agent list.
-Unread-completed actions operate on terminal rows that are loaded in the tab; `,j` only targets visible rows.
+Leader mode is available on every tab. In the Agents tab it also exposes layout and notification shortcuts for the
+currently loaded agent list; global entries such as `,I`, `,p`, and `,o` behave the same from other tabs.
+Unread-completed actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
 
-| Key        | Action                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                                |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                       |
-| `,I`       | Toggle pinned idle (sticky IDLE indicator; press `,I` again to clear)                         |
-| `,g`       | Toggle between tag-split panels and one merged agent panel                                    |
-| `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read               |
-| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state  |
-| `,y`       | Refresh the Agents tab from full artifact history                                             |
-| `,u`       | Mark all loaded unread completed agents as read                                               |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                         |
-| `,p`       | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
-| `,o`       | Open model overrides (see [Model Overrides](#model-overrides))                                |
-| `,C`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication      |
-| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation             |
-| `,r`       | Revert focused or marked agent commits, including recorded suffix-strategy linked repos       |
-| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                      |
-| `,<space>` | Run agent from current agent's PR (skips selection)                                           |
-| `,.`       | Open prompt history modal                                                                     |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                      |
+| Key        | Action                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                               |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                      |
+| `,I`       | Toggle pinned idle (global; sticky IDLE indicator; press `,I` again to clear)                |
+| `,g`       | Toggle between tag-split panels and one merged agent panel                                   |
+| `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read              |
+| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state |
+| `,y`       | Refresh the Agents tab from full artifact history                                            |
+| `,u`       | Mark all loaded unread completed agents as read                                              |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                        |
+| `,p`       | Open Project Management (global; see [Project Management Panel](#project-management-panel))  |
+| `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))                       |
+| `,C`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
+| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation            |
+| `,r`       | Revert focused or marked agent commits, including recorded suffix-strategy linked repos      |
+| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                     |
+| `,<space>` | Run agent from current agent's PR (skips selection)                                          |
+| `,.`       | Open prompt history modal                                                                    |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                     |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused
@@ -812,13 +813,13 @@ numerical identity.
 
 ### Leader Mode (`,` prefix)
 
-| Key  | Action                                                                                        |
-| ---- | --------------------------------------------------------------------------------------------- |
-| `,,` | Repeat the last leader command                                                                |
-| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                       |
-| `,p` | Open project lifecycle management (see [Project Management Panel](#project-management-panel)) |
-| `,o` | Open model overrides (see [Model Overrides](#model-overrides))                                |
-| `,R` | Show runners info                                                                             |
+| Key  | Action                                                                                      |
+| ---- | ------------------------------------------------------------------------------------------- |
+| `,,` | Repeat the last leader command                                                              |
+| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                     |
+| `,p` | Open Project Management (global; see [Project Management Panel](#project-management-panel)) |
+| `,o` | Open model overrides (global; see [Model Overrides](#model-overrides))                      |
+| `,R` | Show runners info                                                                           |
 
 ### Bang Mode (`!` prefix)
 
@@ -879,9 +880,9 @@ These work on all tabs:
 | `#`                 | Open SASE Admin Center (Config, Plugins, and XPrompts tabs)                       |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands) |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
-| `,i`                | Open Activity Dashboard modal                                                     |
+| `,i`                | Open Activity Dashboard modal (global)                                            |
 | `i`                 | Show notifications inbox                                                          |
-| `I`                 | Toggle manual idle mode (any keypress re-activates)                               |
+| `I`                 | Mark temporary idle; the next keypress re-activates                               |
 | `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix          |
 | `Ctrl+L`            | Dismiss all currently-visible toast notifications                                 |
 | `@`                 | Open the stashed-prompt restore picker                                            |
@@ -941,7 +942,7 @@ views omit them. Rows include workspace path, active claim count, launchability,
 | `Tab`       | Cycle lifecycle filter: active, sibling, inactive, all               |
 | `Shift+Tab` | Cycle lifecycle filter backward                                      |
 | `Enter`     | Activate the highlighted project when it is not active               |
-| `Ctrl+X`    | Show or hide inactive rows while the active filter is selected       |
+| `Ctrl+X`    | Include or exclude inactive rows in the active filter                |
 | `m`         | Mark or unmark the highlighted project                               |
 | `u`         | Clear all project marks                                              |
 | `e`         | Open the highlighted ProjectSpec in `$EDITOR`                        |
@@ -956,6 +957,9 @@ views omit them. Rows include workspace path, active claim count, launchability,
 When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set instead of only the highlighted row.
 Successful lifecycle changes clear the affected marks; blocked or failed rows stay marked so you can inspect or retry
 them. Marks survive filtering and are pruned on reload when their project records disappear.
+
+The `active` filter normally shows only active projects. `Ctrl+X` is a temporary overlay for that filter: it lets you
+include inactive rows there without switching to the dedicated `inactive` or `all` filters.
 
 Deactivating uses the same locked mutation path as `sase project deactivate`. If a project still has `RUNNING` claims or
 live artifact markers, ACE shows the blocked reason and lets you retry with `F` when the force action is intentional.
@@ -1075,15 +1079,17 @@ typed by the user.
 
 ### Keybindings
 
-| Key      | Action                                |
-| -------- | ------------------------------------- |
-| `Ctrl+N` | Navigate to next xprompt              |
-| `Ctrl+P` | Navigate to previous xprompt          |
-| `Ctrl+D` | Scroll preview panel down             |
-| `Ctrl+U` | Scroll preview panel up / clear input |
-| `Enter`  | Edit highlighted xprompt in `$EDITOR` |
-| `Ctrl+O` | Add a new xprompt                     |
-| `Esc`    | Close browser                         |
+| Key       | Action                                |
+| --------- | ------------------------------------- |
+| `j` / `↓` | Navigate to next xprompt              |
+| `k` / `↑` | Navigate to previous xprompt          |
+| `Ctrl+N`  | Navigate to next xprompt              |
+| `Ctrl+P`  | Navigate to previous xprompt          |
+| `Ctrl+D`  | Scroll preview panel down             |
+| `Ctrl+U`  | Scroll preview panel up / clear input |
+| `Enter`   | Edit highlighted xprompt in `$EDITOR` |
+| `Ctrl+O`  | Add a new xprompt                     |
+| `Esc`     | Close SASE Admin Center               |
 
 Type in the filter input to narrow the list in real time.
 
@@ -1109,7 +1115,8 @@ Press `Ctrl+O` to start the guided creation flow:
 
 ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
 than the configured threshold (`ace.inactive_seconds`, default: 600 seconds). The badge is also shown when the user
-presses `I` to manually mark themselves as inactive. Any keypress re-activates the user and hides the badge.
+presses `I` to manually mark themselves as inactive. The next keypress, including another `I`, re-activates the user and
+hides the badge.
 
 Pressing `,I` (leader chord) activates **pinned idle** mode, shown as a red **■ IDLE** badge. Pinned idle stays active
 regardless of keypresses — only pressing `,I` again clears it. This is useful when you want to remain marked as idle

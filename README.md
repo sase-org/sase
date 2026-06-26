@@ -91,7 +91,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 sase init -c             # check initialization drift without writing files
 sase doctor -v           # readable install, config, project, provider, and state report
 sase version             # inspect the exact SASE packages loaded by this environment
-sase ace                  # open the interactive control surface; press # for Admin Center, ,p for projects
+sase ace                  # open the interactive control surface; press # for Admin Center, ,p for Project Management
 sase run "<prompt>"       # launch an agent or workflow
 sase agent list          # inspect running agents
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
