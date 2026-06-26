@@ -37,10 +37,10 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 or expand multi-prompt input into sequential background launches. ACE uses the same launch machinery when users start
 agents from the TUI.
 
-Command groups with an exact `list` child default to that list view when invoked bare, including `sase amd`,
-`sase bead`, `sase chat`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,
+Command groups with an exact `list` child default to that list view when invoked bare, including `sase bead`,
+`sase chat`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,
 `sase prompt`, `sase sdd`, `sase skill`, `sase telemetry`, `sase workspace`, and `sase xprompt`. Nested groups such as
-`sase agent tag`, `sase axe chop`, and `sase axe lumberjack` follow the same rule.
+`sase agent tag`, `sase axe chop`, `sase axe lumberjack`, and `sase memory agent-docs` follow the same rule.
 
 The bare form is only the default view. When you need flags that belong to the list command, keep the `list` subcommand
 explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase workspace list --json`.
@@ -53,11 +53,9 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase changespec migrate-extension`          | Rename legacy `.gp` ProjectSpec files to the canonical `.sase` extension.                    | [ProjectSpec](project_spec.md)                         |
 | `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                                       | [Query language](query_language.md)                    |
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.                                | [ChangeSpecs](change_spec.md)                          |
-| `sase init`                                  | Check and initialize AMD, memory, SDD, and skills from one coordinator.                      | [Initialization](init.md)                              |
-| `sase amd` / `sase amd list`                 | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.           | [Initialization](init.md#agent-markdown-documents)     |
-| `sase amd init`                              | Create or refresh `AGENTS.md` files and provider shims for the selected AMD root or roots.   | [Initialization](init.md#agent-markdown-documents)     |
-| `sase init amd`                              | Alias for `sase amd init`.                                                                   | [Initialization](init.md#agent-markdown-documents)     |
+| `sase init`                                  | Check and initialize memory, SDD, and skills from one coordinator.                           | [Initialization](init.md)                              |
 | `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.                                | [Memory](memory.md#inspect-context)                    |
+| `sase memory agent-docs list`                | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.           | [Initialization](init.md#agent-documents)              |
 | `sase memory read`                           | Agent-side read of one long-term memory file with an attributable audit event.               | [Memory](memory.md#audited-reads)                      |
 | `sase memory write`                          | Agent-side proposal for human-reviewed long-term memory; `--notify` can add an inbox item.   | [Memory](memory.md#propose-memory)                     |
 | `sase memory review`                         | Human listing, inspection, approval, editing, or rejection of pending memory proposals.      | [Memory](memory.md#review-proposals)                   |

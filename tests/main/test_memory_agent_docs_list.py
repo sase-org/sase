@@ -1,4 +1,4 @@
-"""Tests for ``sase amd list`` inventory and rendering."""
+"""Tests for ``sase memory agent-docs list`` inventory and rendering."""
 
 from __future__ import annotations
 
@@ -335,7 +335,7 @@ def test_build_inventory_uses_broad_memory_counts_for_custom_documents(
     assert entry.long_memory_refs == 1
 
 
-def test_render_amd_inventory_outputs_compact_rich_table(
+def test_render_agent_docs_inventory_outputs_compact_rich_table(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "repo"
@@ -360,7 +360,7 @@ def test_render_amd_inventory_outputs_compact_rich_table(
     _render_amd_inventory(inventory, console=console)
 
     output = stream.getvalue()
-    assert "AMD Inventory" in output
+    assert "Agent Documents" in output
     assert "Agent Markdown Documents" in output
     assert "AGENTS.md" in output
     assert "tools/AGENTS.md" in output

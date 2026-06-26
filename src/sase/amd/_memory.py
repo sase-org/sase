@@ -151,7 +151,7 @@ def _short_memory_references(root: Path) -> tuple[str, ...]:
     return tuple(f"@{path.as_posix()}" for path in sorted(refs))
 
 
-def render_managed_agents(
+def _render_managed_agents(
     root: Path,
     title: str,
     *,
@@ -236,7 +236,7 @@ def plan_amd_memory_sync(
 
     descriptions = _long_memory_descriptions(root)
     updates = _long_memory_description_updates(root, descriptions)
-    agents_content = render_managed_agents(
+    agents_content = _render_managed_agents(
         root,
         title,
         long_memory_descriptions=descriptions,

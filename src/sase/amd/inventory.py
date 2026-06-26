@@ -1,4 +1,4 @@
-"""Inventory and rendering for ``sase amd list``."""
+"""Inventory and rendering for ``sase memory agent-docs list``."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ class _AmdDocumentEntry:
 
 @dataclass(frozen=True)
 class _AmdInventory:
-    """All ``AGENTS.md`` files visible to ``sase amd list``."""
+    """All ``AGENTS.md`` files visible to ``sase memory agent-docs list``."""
 
     project_root: Path
     home_root: Path
@@ -401,7 +401,7 @@ def _summary_panel(inventory: _AmdInventory) -> Panel:
         summary.add_row("Chezmoi source", str(inventory.chezmoi_root))
     summary.add_row("Use chezmoi", "yes" if inventory.use_chezmoi else "no")
     summary.add_row("AGENTS.md files", str(len(inventory.entries)))
-    return Panel(summary, title="AMD Inventory", border_style="cyan")
+    return Panel(summary, title="Agent Documents", border_style="cyan")
 
 
 def _documents_panel(inventory: _AmdInventory) -> Panel:

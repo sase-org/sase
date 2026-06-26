@@ -1,4 +1,4 @@
-"""Configuration and root discovery for ``sase amd init``."""
+"""Configuration and root discovery for ``sase memory init`` agent documents."""
 
 from __future__ import annotations
 
@@ -43,28 +43,6 @@ def _load_project_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
 
 def _same_resolved_path(left: Path, right: Path) -> bool:
     return left.resolve(strict=False) == right.resolve(strict=False)
-
-
-def _dedupe_roots_by_resolved_path(roots: tuple[Path, ...]) -> tuple[Path, ...]:
-    selected: list[Path] = []
-    seen: set[Path] = set()
-    for root in roots:
-        resolved = root.resolve(strict=False)
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        selected.append(root)
-    return tuple(selected)
-
-
-def amd_init_roots(cwd: Path) -> tuple[Path, ...]:
-    if not config_core.get_use_chezmoi():
-        return (cwd,)
-
-    chezmoi_home = config_core.CHEZMOI_HOME
-    if _same_resolved_path(cwd, Path.home()):
-        return _dedupe_roots_by_resolved_path((chezmoi_home,))
-    return _dedupe_roots_by_resolved_path((cwd, chezmoi_home))
 
 
 def _user_config_dir_for_home_amd_root(root: Path) -> Path | None:

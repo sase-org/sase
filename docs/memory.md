@@ -4,18 +4,18 @@ SASE memory is durable context that survives individual agent chats. Notes live 
 `memory/`; each non-README note declares its tier in YAML frontmatter:
 
 - **Short-term memory** uses `type: short`. It is instruction context, loaded only when `AGENTS.md` reaches it through
-  `@memory/...` references. `sase memory init` creates that wiring for generated defaults and synchronizes AMD-managed
-  `AGENTS.md` memory blocks when the project opts in with `amd_h1_title`.
+  `@memory/...` references. `sase memory init` creates that wiring for generated defaults and synchronizes the managed
+  `AGENTS.md` memory blocks when the root opts in with `amd_h1_title`.
 - **Long-term memory** uses `type: long`. It is reference context, requires `description` frontmatter, and can set
   `parent: memory/<note>.md` to appear under another long note's `## Children` section.
 - **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and
   human review decisions.
 
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
-[`sase amd list`](init.md#agent-markdown-documents) to inspect `AGENTS.md` and provider shim status. Day to day, the
-usual order is: inspect loaded context with `sase memory list`, have agents use `sase memory read` for audited long-term
-reads, have agents use `sase memory write` only to create proposals, then have a human approve or reject those proposals
-with `sase memory review`.
+[`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and provider shim status. Day to day,
+the usual order is: inspect loaded context with `sase memory list`, have agents use `sase memory read` for audited
+long-term reads, have agents use `sase memory write` only to create proposals, then have a human approve or reject those
+proposals with `sase memory review`.
 
 ## Inspect Context
 

@@ -2,7 +2,6 @@
 
 import argparse
 
-from sase.main.parser_amd import add_amd_init_arguments
 from sase.main.parser_sdd import add_sdd_path_arg
 
 
@@ -53,12 +52,11 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize SASE-managed resources",
         description=(
             "Check and initialize SASE-managed resources. With no subcommand, "
-            "runs the onboarding coordinator for AMD, memory, SDD, and skills."
+            "runs the onboarding coordinator for memory, SDD, and skills."
         ),
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
-            "use `sase init amd --no-commit`, `sase init memory --no-commit`, "
-            "or `sase skill init --no-push`."
+            "use `sase init memory --no-commit` or `sase skill init --no-push`."
         ),
     )
     init_parser.add_argument(
@@ -79,23 +77,13 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         required=False,
     )
 
-    amd_parser = init_subparsers.add_parser(
-        "amd",
-        help="Alias for `sase amd init`",
-        description=(
-            "Compatibility alias for `sase amd init`, which creates or "
-            "refreshes AGENTS.md and provider instruction shims."
-        ),
-    )
-    add_amd_init_arguments(amd_parser, suppress_check_default=True)
-
     memory_parser = init_subparsers.add_parser(
         "memory",
         help="Alias for `sase memory init`",
         description=(
             "Compatibility alias for `sase memory init`, which creates or "
-            "refreshes SASE memory files and keeps AGENTS.md memory references "
-            "reachable."
+            "refreshes SASE memory files, managed AGENTS.md, and provider "
+            "instruction shims."
         ),
     )
     memory_parser.add_argument(

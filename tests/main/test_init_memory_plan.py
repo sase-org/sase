@@ -441,10 +441,10 @@ def test_run_init_memory_returns_int_and_wrapper_raises_system_exit(
     assert run_handler() == 0
 
 
-def test_init_memory_registry_includes_memory_before_sdd() -> None:
+def test_init_memory_registry_starts_with_memory() -> None:
     specs = {spec.name: spec for spec in iter_init_command_specs()}
     names = tuple(spec.name for spec in iter_init_command_specs())
 
-    assert names[:3] == ("amd", "memory", "sdd")
+    assert names == ("memory", "sdd", "skills")
     assert specs["memory"].plan is plan_init_memory
     assert specs["memory"].run is init_memory_handler.run_init_memory

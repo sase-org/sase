@@ -213,9 +213,10 @@ def _render_expected_memory_files(
 def _amd_sync_plan(root: Path, *, enable_amd: bool) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return None
-    # ``enable_amd`` is only set for the project root, so the onboarding
-    # fallback (derive a managed title when memory exists but none is
-    # configured) is scoped to the project and never the home root.
+    # The onboarding fallback (derive a managed title when memory exists but
+    # none is configured) is scoped to project roots inside
+    # ``resolve_amd_h1_title`` via its home-root check, so home/chezmoi roots
+    # only get a managed AGENTS.md when a title is explicitly configured.
     return plan_amd_memory_sync(root, onboarding=True)
 
 

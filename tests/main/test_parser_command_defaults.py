@@ -38,7 +38,6 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
     expected_groups = {
         "sase agent",
         "sase agent tag",
-        "sase amd",
         "sase axe chop",
         "sase axe lumberjack",
         "sase bead",
@@ -46,6 +45,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase file",
         "sase file-history",
         "sase memory",
+        "sase memory agent-docs",
         "sase notify",
         "sase prompt",
         "sase sdd",

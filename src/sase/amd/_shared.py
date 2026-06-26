@@ -11,7 +11,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.config import core as config_core
-from sase.main.init_plan import InitAction, InitPlan
+from sase.main.init_plan import InitAction
 
 from .constants import (
     AGENTS_FILENAME,
@@ -21,7 +21,6 @@ from .constants import (
     PROVIDER_SHIM_FILES,
 )
 
-COMMAND_LABEL = "init amd"
 _PROVIDER_SHIM_TEXTS = frozenset(
     {
         PROVIDER_SHIM_CONTENT.strip(),
@@ -33,25 +32,18 @@ _ABSOLUTE_AGENTS_IMPORT_RE = re.compile(r"^@/.+/AGENTS\.md$")
 
 
 @dataclass(frozen=True)
-class PlannedWrite:
+class _PlannedWrite:
     path: Path
     content: str
     action: InitAction
 
 
 @dataclass(frozen=True)
-class PlannedDelete:
+class _PlannedDelete:
     path: Path
     action: InitAction
     expected_content: str | None = None
     allow_custom: bool = False
-
-
-@dataclass(frozen=True)
-class AmdInitPlan:
-    plan: InitPlan
-    writes: tuple[PlannedWrite, ...]
-    deletes: tuple[PlannedDelete, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -66,8 +58,8 @@ class _ProviderShimSpec:
 
 @dataclass(frozen=True)
 class ProviderShimPlan:
-    writes: tuple[PlannedWrite, ...]
-    deletes: tuple[PlannedDelete, ...]
+    writes: tuple[_PlannedWrite, ...]
+    deletes: tuple[_PlannedDelete, ...]
     blockers: tuple[str, ...] = ()
 
     @property
@@ -220,41 +212,6 @@ def _provider_path_status(
     )
 
 
-def provider_statuses(
-    root: Path,
-    *,
-    home_equivalent_roots: Iterable[Path] = (),
-    chezmoi_home_roots: Iterable[Path] = (),
-) -> tuple[dict[Path, str], tuple[str, ...]]:
-    statuses: dict[Path, str] = {}
-    errors: list[str] = []
-    for spec in provider_shim_specs(
-        root,
-        home_equivalent_roots=home_equivalent_roots,
-        chezmoi_home_roots=chezmoi_home_roots,
-    ):
-        state, error = _provider_path_status(
-            spec.path,
-            expected_content=spec.content,
-            preferred=True,
-        )
-        statuses[spec.path] = state
-        if error is not None:
-            errors.append(error)
-        for legacy_path in spec.legacy_paths:
-            if not legacy_path.exists():
-                continue
-            state, error = _provider_path_status(
-                legacy_path,
-                expected_content=spec.content,
-                preferred=False,
-            )
-            statuses[legacy_path] = state
-            if error is not None:
-                errors.append(error)
-    return statuses, tuple(errors)
-
-
 def provider_status_for_spec(spec: _ProviderShimSpec) -> tuple[str, str | None]:
     preferred_state, preferred_error = _provider_path_status(
         spec.path,
@@ -283,11 +240,11 @@ def _action_for_write(path: Path, content: str, *, detail: str) -> InitAction | 
     return InitAction(path=path, operation="overwrite", detail=detail)
 
 
-def planned_write(path: Path, content: str, *, detail: str) -> PlannedWrite | None:
+def _planned_write(path: Path, content: str, *, detail: str) -> _PlannedWrite | None:
     action = _action_for_write(path, content, detail=detail)
     if action is None:
         return None
-    return PlannedWrite(path=path, content=content, action=action)
+    return _PlannedWrite(path=path, content=content, action=action)
 
 
 def _planned_delete(
@@ -296,10 +253,10 @@ def _planned_delete(
     detail: str,
     expected_content: str | None = None,
     allow_custom: bool = False,
-) -> PlannedDelete | None:
+) -> _PlannedDelete | None:
     if not path.exists():
         return None
-    return PlannedDelete(
+    return _PlannedDelete(
         path=path,
         action=InitAction(path=path, operation="delete", detail=detail),
         expected_content=expected_content,
@@ -307,7 +264,7 @@ def _planned_delete(
     )
 
 
-def apply_planned_delete(delete: PlannedDelete) -> tuple[bool, str | None]:
+def apply_planned_delete(delete: _PlannedDelete) -> tuple[bool, str | None]:
     if not delete.path.exists():
         return False, None
     current, error = read_text(delete.path)
@@ -365,8 +322,8 @@ def provider_shim_plan(
     chezmoi_home_roots: Iterable[Path] = (),
     migrated_paths: Iterable[Path] = (),
 ) -> ProviderShimPlan:
-    writes: list[PlannedWrite] = []
-    deletes: list[PlannedDelete] = []
+    writes: list[_PlannedWrite] = []
+    deletes: list[_PlannedDelete] = []
     blockers: list[str] = []
     migrated_resolved = {_resolved(path) for path in migrated_paths}
 
@@ -379,7 +336,7 @@ def provider_shim_plan(
         if conflict is not None:
             blockers.append(conflict)
 
-        write = planned_write(
+        write = _planned_write(
             spec.path,
             spec.content,
             detail="provider instruction shim",

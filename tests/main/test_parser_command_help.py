@@ -59,9 +59,17 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     )
     memory_log_help = flat_help(parser_for(("sase", "memory", "log")).format_help())
     init_alias_help = flat_help(parser_for(("sase", "init", "memory")).format_help())
+    agent_docs_help = flat_help(
+        parser_for(("sase", "memory", "agent-docs")).format_help()
+    )
+    agent_docs_list_help = flat_help(
+        parser_for(("sase", "memory", "agent-docs", "list")).format_help()
+    )
 
     assert "`sase memory list`" in memory_help
-    assert "{init,list,log,read,review,write}" in memory_help
+    assert "{agent-docs,init,list,log,read,review,write}" in memory_help
+    assert "`sase memory agent-docs list`" in agent_docs_help
+    assert "provider instruction shim status" in agent_docs_list_help
     assert "sase memory read generated_skills.md --reason" in memory_help
     assert "sase memory write --title" in memory_help
     assert "sase memory review --list" in memory_help

@@ -143,24 +143,24 @@ Source: `src/sase/config/core.py`
 
 ### amd_h1_title
 
-Opts a root into a generated AMD-managed `AGENTS.md` by providing the Markdown H1 title for that file.
+Opts a root into a generated managed `AGENTS.md` by providing the Markdown H1 title for that file.
 
 ```yaml
 amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions" # default: null
 ```
 
-| Field          | Type           | Default | Description                                                                 |
-| -------------- | -------------- | ------- | --------------------------------------------------------------------------- |
-| `amd_h1_title` | string \| null | `null`  | H1 title used by the AMD `AGENTS.md` generator when enabled for that scope. |
+| Field          | Type           | Default | Description                                                                             |
+| -------------- | -------------- | ------- | --------------------------------------------------------------------------------------- |
+| `amd_h1_title` | string \| null | `null`  | H1 title used by the `sase memory init` `AGENTS.md` generator when enabled for a scope. |
 
-For ordinary project roots, this field is intentionally local to the root being initialized. The AMD generator reads
+For ordinary project roots, this field is intentionally local to the root being initialized. `sase memory init` reads
 only that root's `./sase.yml` value, so a global `~/.config/sase/sase.yml` value does not opt every repository on the
 machine into generated `AGENTS.md` files.
 
-Home roots are the exception. When `sase amd init` targets the live home root, user config from
-`~/.config/sase/sase.yml` and `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. When it targets the
-chezmoi home source root, source-side config under `dot_config/sase/` is used instead. With `use_chezmoi: true`, AMD
-initializes the chezmoi home source root rather than writing a live-home `AGENTS.md`.
+Home roots are the exception. For the live home root, user config from `~/.config/sase/sase.yml` and
+`~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. For the chezmoi home source root, source-side config
+under `dot_config/sase/` is used instead. With `use_chezmoi: true`, `sase memory init` initializes the chezmoi home
+source root rather than writing a live-home `AGENTS.md`.
 
 Source: `src/sase/default_config.yml`, `config/sase.schema.json`
 
@@ -798,12 +798,11 @@ Enables chezmoi-aware home-file writes. When set to `true`, SASE writes generate
 home-directory xprompt paths through the chezmoi source tree under `~/.local/share/chezmoi/home/` instead of writing the
 live home files directly. For example, `~/.xprompts/` is remapped to `~/.local/share/chezmoi/home/dot_xprompts/`.
 
-This affects initialization workflow as well as xprompt editing. `sase amd init` targets the chezmoi home source root
-when it needs to initialize home-level `AGENTS.md`; `sase memory init` writes home memory there and may run the
-configured chezmoi deploy path; `sase skill init` writes provider skill files there before optional commit, push, and
-apply steps.
+This affects initialization workflow as well as xprompt editing. `sase memory init` targets the chezmoi home source root
+when it needs to initialize home-level `AGENTS.md`, writes home memory there, and may run the configured chezmoi deploy
+path; `sase skill init` writes provider skill files there before optional commit, push, and apply steps.
 
-Home-level AMD provider shims in the chezmoi source are managed as `*.md.tmpl` files containing
+Home-level provider instruction shims in the chezmoi source are managed as `*.md.tmpl` files containing
 `@{{ .chezmoi.homeDir }}/AGENTS.md`, so deployed provider files render to absolute home imports on each machine.
 
 ```yaml
@@ -1392,30 +1391,29 @@ skill completion clients should filter to entries where `is_skill` is `true`.
 
 ### `sase init`
 
-Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for AMD, memory,
-SDD, and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
-Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. The AMD
-planner only generates managed project `AGENTS.md` from bare `sase init` when the current project's own `./sase.yml`
-sets `amd_h1_title`.
+Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for memory, SDD,
+and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
+Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. The memory
+planner (which owns agent-document initialization) only generates managed project `AGENTS.md` from bare `sase init` when
+the current project's own `./sase.yml` sets `amd_h1_title`, or when SASE memory would otherwise be unreachable from a
+minimal `AGENTS.md`.
 
-Advanced deploy controls stay on explicit subcommands such as `sase init amd --check`, `sase init memory --no-commit`,
-and `sase skill init --no-push`.
+Advanced deploy controls stay on explicit subcommands such as `sase init memory --no-commit` and
+`sase skill init --no-push`.
 
 | Flag          | Values | Default | Description                                                                          |
 | ------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
 | `-c, --check` | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
-| `-y, --yes`   | flag   | -       | Run every needed initializer in AMD, memory, SDD, skills order without prompting.    |
+| `-y, --yes`   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
 
-### `sase amd`
+### `sase memory agent-docs`
 
-With no subcommand, `sase amd` defaults to `sase amd list`.
+With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs list`.
 
-| Form            | Flags         | Description                                                                                        |
-| --------------- | ------------- | -------------------------------------------------------------------------------------------------- |
-| `sase amd`      | -             | Show the same read-only agent-markdown inventory as `sase amd list`.                               |
-| `sase amd list` | -             | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.                           |
-| `sase amd init` | `-c, --check` | Create or refresh `AGENTS.md` files and shims for the selected AMD root or roots, or report drift. |
-| `sase init amd` | `-c, --check` | Compatibility alias for `sase amd init`.                                                           |
+| Form                          | Flags | Description                                                                        |
+| ----------------------------- | ----- | ---------------------------------------------------------------------------------- |
+| `sase memory agent-docs`      | -     | Show the same read-only agent-document inventory as `sase memory agent-docs list`. |
+| `sase memory agent-docs list` | -     | Inspect project, home, and chezmoi `AGENTS.md` files and provider shims.           |
 
 ### `sase memory`
 
@@ -1446,15 +1444,17 @@ sase memory log --id <read-id>
 
 ### `sase memory init`
 
-Creates or refreshes project and home memory roots and keeps `AGENTS.md` memory references reachable. It creates a
-minimal `AGENTS.md` when absent for repositories that are not opted into AMD-managed instructions, and it still repairs
-provider instruction shims for compatibility. Direct home shims use absolute `@/path/to/home/AGENTS.md` imports; when
-`use_chezmoi` is enabled, home shim sources are written as `*.md.tmpl` files. When the project-local `./sase.yml` sets
-`amd_h1_title`, memory init synchronizes that project's AMD-managed short/long memory blocks and inserts missing
-long-memory `description` frontmatter. By default it also tries to commit, rebase-pull, and push generated project-side
-files. `sase init memory` is a compatibility alias for this command. Generated linked-repository memory lists direct
-paths for `workspace.strategy: none` linked repos and only includes `sase workspace open` guidance when a configured
-linked repo uses numbered workspace resolution.
+Creates or refreshes project and home memory roots and keeps `AGENTS.md` memory references reachable. It owns
+agent-document initialization: it writes a managed `AGENTS.md` for any root opted in via `amd_h1_title`, creates a
+minimal `AGENTS.md` when absent for roots that are not opted in, and repairs provider instruction shims. Direct home
+shims use absolute `@/path/to/home/AGENTS.md` imports; when `use_chezmoi` is enabled, home shim sources are written as
+`*.md.tmpl` files. When a root's `./sase.yml` (or, for home/chezmoi roots, user config) sets `amd_h1_title`, memory init
+synchronizes that root's managed short/long memory blocks and inserts missing long-memory `description` frontmatter.
+There is no legacy single-custom-provider-file migration: custom provider files next to a missing `AGENTS.md` are
+overwritten with shims rather than copied into `AGENTS.md`. By default it also tries to commit, rebase-pull, and push
+generated project-side files. `sase init memory` is a compatibility alias for this command. Generated linked-repository
+memory lists direct paths for `workspace.strategy: none` linked repos and only includes `sase workspace open` guidance
+when a configured linked repo uses numbered workspace resolution.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

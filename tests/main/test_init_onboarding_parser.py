@@ -79,7 +79,7 @@ def test_init_help_lists_existing_subcommands(
 
     assert exc.value.code == 0
     out = capsys.readouterr().out
-    assert "amd" in out
+    assert "amd" not in out
     assert "memory" in out
     assert "sdd" in out
     assert "skills" in out
@@ -87,9 +87,8 @@ def test_init_help_lists_existing_subcommands(
     assert "Advanced deploy controls live on explicit subcommands" in out
 
 
-def test_registry_order_is_amd_memory_sdd_skills() -> None:
+def test_registry_order_is_memory_sdd_skills() -> None:
     assert tuple(spec.name for spec in iter_init_command_specs()) == (
-        "amd",
         "memory",
         "sdd",
         "skills",

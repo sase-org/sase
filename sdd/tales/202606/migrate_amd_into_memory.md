@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-26 12:38:21
-status: wip
+status: done
 prompt: sdd/prompts/202606/migrate_amd_into_memory.md
 ---
 # Plan: Migrate `sase amd` Into `sase memory`

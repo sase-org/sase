@@ -34,13 +34,37 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         required=False,
     )
 
+    agent_docs_parser = memory_subparsers.add_parser(
+        "agent-docs",
+        help="Inspect AGENTS.md files and provider instruction shims",
+        description=(
+            "Inspect agent instruction documents. With no subcommand, defaults "
+            "to `sase memory agent-docs list`."
+        ),
+    )
+    agent_docs_subparsers = agent_docs_parser.add_subparsers(
+        dest="agent_docs_subcommand",
+        help="Agent-document subcommands",
+        required=False,
+    )
+    agent_docs_subparsers.add_parser(
+        "list",
+        help="Show AGENTS.md files, provider shims, and memory reference status",
+        description=(
+            "Show discovered AGENTS.md files across the project, its "
+            "subdirectories, home, and chezmoi source, including each H1 title, "
+            "managed/custom state, memory reference counts, and provider "
+            "instruction shim status. This command never writes files."
+        ),
+    )
+
     init_parser = memory_subparsers.add_parser(
         "init",
-        help="Create or refresh memory files and provider instruction shims",
+        help="Create or refresh memory files, AGENTS.md, and provider shims",
         description=(
-            "Create or refresh SASE memory files and provider instruction "
-            "shims. `sase init memory` is a compatibility alias for this "
-            "command."
+            "Create or refresh SASE memory files, managed AGENTS.md, and "
+            "provider instruction shims. `sase init memory` is a compatibility "
+            "alias for this command."
         ),
     )
     init_parser.add_argument(

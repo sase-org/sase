@@ -33,7 +33,6 @@ def test_noop_plans_print_initialized_message(
 ) -> None:
     calls: list[str] = []
     specs = (
-        _spec("amd", _plan("amd"), calls),
         _spec("memory", _plan("memory"), calls),
         _spec("sdd", _plan("sdd"), calls),
         _spec("skills", _plan("skills"), calls),
@@ -50,7 +49,7 @@ def test_noop_plans_print_initialized_message(
     assert calls == []
     out = capsys.readouterr().out
     assert "SASE is initialized. No init subcommands need to run." in out
-    assert "Checked: amd, memory, sdd, skills." in out
+    assert "Checked: memory, sdd, skills." in out
 
 
 def test_interactive_prompt_runs_only_confirmed_plan(
@@ -476,9 +475,7 @@ def test_bare_init_yes_repairs_unreferenced_long_memory(
         "# CLI Rules\n",
     )
 
-    specs = tuple(
-        spec for spec in iter_init_command_specs() if spec.name in {"amd", "memory"}
-    )
+    specs = tuple(spec for spec in iter_init_command_specs() if spec.name == "memory")
     args = argparse.Namespace(
         command="init",
         init_subcommand=None,
