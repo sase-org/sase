@@ -1,8 +1,9 @@
 # Prompt History
 
 Prompts you launch with `sase run` or from [ACE](ace.md) are recorded in prompt history when they are useful to replay.
-Normal launch writes skip trivial one-token inputs (for example `y` or `ok`), while recovery paths can still preserve a
-short submitted prompt when a launch fails. Current installs write monthly JSON shards under
+Normal launch writes skip prompts shorter than five words (terse scraps like `y`, `ok`, or `fix the bug` are not worth
+replaying), while recovery paths — and a few launch surfaces that opt in with `allow_short` — can still preserve a short
+submitted prompt when a launch fails. Current installs write monthly JSON shards under
 `~/.sase/prompt_history/YYMM.json`, with unparseable last-used timestamps grouped into `unknown.json`. If an old
 `~/.sase/prompt_history.json` file is found before a shard directory exists, it is migrated on first read or write and
 kept as a `legacy-imported-<timestamp>.json.bak` backup inside the shard directory. The `sase prompt` command group is
@@ -235,8 +236,9 @@ With no `--name`, `save` derives a deterministic slug from the prompt preview. I
 file unless you pass `--force`.
 
 For drafts that have not been submitted to prompt history yet, ACE's prompt bar can save directly to xprompt storage:
-use `gx` in prompt NORMAL mode or `Ctrl+G x` in INSERT mode, then choose an existing xprompt to overwrite or create a
-new one. If the prompt bar contains a stack, ACE saves the non-empty panes as one `---`-separated xprompt body.
+use `gx` in prompt NORMAL mode or `Ctrl+G x` in INSERT mode, then choose an existing xprompt to overwrite, create a new
+one, or **Create a new snippet** (which asks which config file should hold the new `ace.snippets` entry). If the prompt
+bar contains a stack, ACE saves the non-empty panes as one `---`-separated xprompt body.
 
 ### Export a prompt to SDD
 
@@ -257,7 +259,8 @@ Existing destination files are never silently overwritten — pass `--force` to 
 
 `doctor` is a read-only diagnostic that never echoes full prompt text. It reports the shard directory path, aggregate
 store size, shard count, and parseability; entry and cancelled counts; invalid or duplicate entries; oversized prompts;
-very short prompts saved through recovery paths; and whether `fzf` and a clipboard command are available:
+prompts shorter than the five-word recording minimum that were saved through recovery paths; and whether `fzf` and a
+clipboard command are available:
 
 ```bash
 sase prompt doctor          # pretty report

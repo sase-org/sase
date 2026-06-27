@@ -3,19 +3,20 @@
 SASE memory is durable context that survives individual agent chats. Notes live as Markdown files directly under
 `memory/`; each non-README note declares its tier in YAML frontmatter:
 
-- **Short-term memory** uses `type: short`. It is instruction context, loaded only when `AGENTS.md` reaches it through
-  `@memory/...` references. `sase memory init` creates that wiring for generated defaults and synchronizes the managed
-  `AGENTS.md` memory blocks when the root opts in with `amd_h1_title`.
+- **Short-term memory** uses `type: short`. It is always-loaded instruction context: `sase memory init` inlines each
+  short-term note's body verbatim into the `## Tier 1 (short-term) Memory` block of the managed `AGENTS.md` (one
+  `### Title (<file>)` section per note, e.g. `### Build & Run Commands (build_and_run)`) when the root opts in with
+  `amd_h1_title`.
 - **Long-term memory** uses `type: long`. It is reference context, requires `description` frontmatter, and can set
   `parent: memory/<note>.md` to appear under another long note's `## Children` section.
 - **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and
   human review decisions.
 
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
-[`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and provider shim status. Day to day,
-the usual order is: inspect loaded context with `sase memory list`, have agents use `sase memory read` for audited
-long-term reads, have agents use `sase memory write` only to create proposals, then have a human approve or reject those
-proposals with `sase memory review`.
+[`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and provider instruction file status.
+Day to day, the usual order is: inspect loaded context with `sase memory list`, have agents use `sase memory read` for
+audited long-term reads, have agents use `sase memory write` only to create proposals, then have a human approve or
+reject those proposals with `sase memory review`.
 
 ## Inspect Context
 
@@ -28,9 +29,9 @@ sase memory list
 
 The dashboard separates:
 
-- `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context. Provider shims
-  normally point at `AGENTS.md`; they are reported as instruction roots but are not separate traversal roots for this
-  dashboard.
+- `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context. Provider
+  instruction files (`CLAUDE.md`, `GEMINI.md`, …) are full copies of `AGENTS.md`; they are reported as instruction roots
+  but are not separate traversal roots for this dashboard.
 - `referenced` files mentioned by plain `memory/...` text or by audited `sase memory read` instructions, but not loaded.
 - `available` files present under project or home `memory/` but unreachable from the current launch context.
 - `missing` referenced files that do not exist.

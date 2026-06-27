@@ -8,7 +8,7 @@ and CLI flags.
 - [Config File Location](#config-file-location)
 - [SASE Admin Center (interactive editor)](#sase-admin-center-interactive-editor)
   - [Config tab](#config-tab)
-  - [Plugins tab](#plugins-tab)
+  - [Updates tab](#updates-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
@@ -54,8 +54,8 @@ agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 ## SASE Admin Center (interactive editor)
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center** on the **Config** tab. It is a full-screen modal with six
-tabs (`[` / `]` switch between them): a schema-driven **Config** editor, **Tasks**, **Logs**, **Projects**, **Plugins**,
-and the **XPrompts** browser.
+tabs (`[` / `]` cycle between them, or press number keys `1`–`6` to jump straight to one): a schema-driven **Config**
+editor, **Logs**, **Projects**, **Tasks**, **Updates**, and the **XPrompts** browser.
 
 ### Config tab
 
@@ -65,7 +65,9 @@ will go, and whether it validates:
 - **Browse / inspect** (read-only): a source rail lists each config layer with loaded/missing/invalid/read-only badges;
   the field tree is generated from the schema (`/` filters, `:` jumps to a dotted path, `m` shows only modified fields,
   `r` refreshes); the detail pane shows the type, default, effective value, and the full provenance stack with the
-  winning layer marked.
+  winning layer marked. Structured values (object maps and arrays of objects, such as `ace.lumberjack` or
+  [`linked_repos`](#linked_repos)) render as a multi-line, syntax-highlighted YAML block instead of a one-line JSON
+  blob, while scalars and short flat lists keep their compact inline form.
 - **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a toggle for booleans, an option cycle
   for enums, validated inputs for numbers and strings, a line editor for string lists, and a raw-YAML escape hatch for
   complex shapes. Pick the write **scope** (`ctrl+t` cycles user base / overlays / a selected local file; `ctrl+n`
@@ -80,14 +82,23 @@ will go, and whether it validates:
 SASE Admin Center never writes without showing the diff and validation first, and never edits a built-in or plugin
 default (those layers are read-only).
 
-### Plugins tab
+### Updates tab
 
-The Plugins tab brings the full [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience
-into the TUI — browse the catalog, inspect a plugin, install one, and update one or all — staying visually consistent
-with the CLI by reusing the same catalog loader and Rich renderables. It is a master/detail layout: a header summary
-line (`N plugins · M installed · K updates available · cached <age>`), a filter, a grouped list split into **Built-in**
-and **Community** (third-party, shown with a warning) sections, and a detail panel mirroring `sase plugin show`. Status
-glyphs match the CLI exactly: `●` installed, `○` available, `↑` update available.
+The Updates tab keeps SASE itself and its plugins current without leaving the TUI. It leads with a **SASE Core** panel
+showing the installed and latest versions of the `sase` and `sase-core` packages (with an `↑` marker when a newer
+version is available and an `S` action that runs `sase update` for core plus all installed plugins), then brings the
+full [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience into the TUI — browse the
+catalog, inspect a plugin, install, update, or uninstall one — staying visually consistent with the CLI by reusing the
+same catalog loader and Rich renderables. It is a master/detail layout: a header summary line
+(`N plugins · M installed · K updates available · cached <age>`), a filter, a grouped list split into **Built-in** and
+**Community** (third-party, shown with a warning) sections, and a detail panel mirroring `sase plugin show`. Status
+glyphs match the CLI exactly: `●` installed, `○` available, `↑` update available. Editable / dev installs (both the core
+packages and plugins) carry a lowercase `dev` source marker and are compared against their git upstream instead of PyPI,
+so a local checkout can surface an `↑ dev update available` hint that points at `sase update` rather than
+`sase plugin update`. Update actions (`u` / `U` / `S`) on those editable rows route through the
+[dev-update](plugins.md#dev-editable-installs) planner — git fast-forward plus in-place reconcile — instead of the `uv`
+path, and after a successful changed editable update the modal restarts ACE and the axe daemon so the new code is picked
+up immediately.
 
 Every mutation **previews first**: install and update open a confirm-preview modal showing the exact `uv` command and
 resolved plugin set (the confirmation _is_ the dry-run), then run as a tracked background task so a multi-second `uv`
@@ -99,13 +110,15 @@ gives. The context-sensitive keymaps are:
 | --------- | ------------------------------------------------------------------------------------------- |
 | `j` / `k` | Move the highlight down / up                                                                |
 | `i`       | Install the highlighted plugin (only when not installed); toggle index vs. git in the modal |
+| `x`       | Uninstall the highlighted plugin (only when installed)                                      |
 | `u`       | Update the highlighted plugin (only when installed; emphasized when an update is available) |
 | `U`       | Update all installed plugins                                                                |
+| `S`       | Run `sase update` for SASE core plus all installed plugins                                  |
 | `r`       | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)               |
 | `o`       | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)           |
 | `v`       | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)              |
 | `/`       | Focus the filter input (matches name / description / topics)                                |
-| `[` / `]` | Switch SASE Admin Center tabs                                                               |
+| `[` / `]` | Switch SASE Admin Center tabs (number keys `1`–`6` jump directly)                           |
 | `esc`/`q` | Close SASE Admin Center                                                                     |
 
 These keymaps are widget-local and are not configurable through `default_config.yml`.
@@ -497,8 +510,8 @@ vcs_provider:
   default_hooks: # optional list overriding built-in default hooks
     - "!$my_presubmit"
     - "$my_lint"
-  pr_tags: # optional key-value tags appended to PR commit messages
-    Bug: "b/12345"
+  pr_tags: # optional key-value tags appended to PR commit messages (keys are rendered SASE_-prefixed, e.g. SASE_BUG)
+    BUG: "b/12345"
   use_project_pr_prefix: false # prepend [<project>] to PR titles (default: false)
 ```
 
@@ -804,8 +817,11 @@ This affects initialization workflow as well as xprompt editing. `sase memory in
 when it needs to initialize home-level `AGENTS.md`, writes home memory there, and may run the configured chezmoi deploy
 path; `sase skill init` writes provider skill files there before optional commit, push, and apply steps.
 
-Home-level provider instruction shims in the chezmoi source are managed as `*.md.tmpl` files containing
-`@{{ .chezmoi.homeDir }}/AGENTS.md`, so deployed provider files render to absolute home imports on each machine.
+Home-level provider instruction files (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) in the chezmoi source are
+written as static `.md` files that are byte-for-byte copies of the root's generated `AGENTS.md`. Because the inlined
+`AGENTS.md` carries no template variables, the chezmoi source uses a static preferred file rather than a `*.md.tmpl`
+import; legacy `*.md.tmpl` shims that imported `@{{ .chezmoi.homeDir }}/AGENTS.md` are still recognized and migrated to
+full copies.
 
 ```yaml
 use_chezmoi: true # default: false
@@ -1446,17 +1462,19 @@ sase memory log --id <read-id>
 
 ### `sase memory init`
 
-Creates or refreshes project and home memory roots and keeps `AGENTS.md` memory references reachable. It owns
+Creates or refreshes project and home memory roots and regenerates each root's managed `AGENTS.md`. It owns
 agent-document initialization: it writes a managed `AGENTS.md` for any root opted in via `amd_h1_title`, creates a
-minimal `AGENTS.md` when absent for roots that are not opted in, and repairs provider instruction shims. Direct home
-shims use absolute `@/path/to/home/AGENTS.md` imports; when `use_chezmoi` is enabled, home shim sources are written as
-`*.md.tmpl` files. When a root's `./sase.yml` (or, for home/chezmoi roots, user config) sets `amd_h1_title`, memory init
-synchronizes that root's managed short/long memory blocks and inserts missing long-memory `description` frontmatter.
-There is no legacy single-custom-provider-file migration: custom provider files next to a missing `AGENTS.md` are
-overwritten with shims rather than copied into `AGENTS.md`. By default it also tries to commit, rebase-pull, and push
-generated project-side files. `sase init memory` is a compatibility alias for this command. Generated linked-repository
-memory lists direct paths for `workspace.strategy: none` linked repos and only includes `sase workspace open` guidance
-when a configured linked repo uses numbered workspace resolution.
+minimal `AGENTS.md` when absent for roots that are not opted in, and overwrites each provider instruction file
+(`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a byte-for-byte copy of that root's `AGENTS.md` (legacy
+`@AGENTS.md` / `*.md.tmpl` import shims are recognized and migrated to full copies). When a root's `./sase.yml` (or, for
+home/chezmoi roots, user config) sets `amd_h1_title`, memory init synchronizes that root's managed memory: short-term
+notes are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes are rendered as a description-driven
+reference list, and missing long-memory `description` frontmatter is inserted. There is no legacy
+single-custom-provider-file migration: custom provider files next to a missing `AGENTS.md` are overwritten with shims
+rather than copied into `AGENTS.md`. By default it also tries to commit, rebase-pull, and push generated project-side
+files. `sase init memory` is a compatibility alias for this command. Generated linked-repository memory lists direct
+paths for `workspace.strategy: none` linked repos and only includes `sase workspace open` guidance when a configured
+linked repo uses numbered workspace resolution.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

@@ -11,12 +11,12 @@ sase init --yes    # run every needed initializer in order
 ```
 
 The coordinator plans in registry order: memory, SDD, then skills. Memory initialization owns agent-document
-initialization (managed `AGENTS.md` and provider instruction shims). Planning is read-only. In non-interactive shells,
-bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
+initialization (managed `AGENTS.md` and its provider instruction copies). Planning is read-only. In non-interactive
+shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
 unattended apply run. Apply runs can write project files, deploy home files through chezmoi when configured, and use
 each initializer's normal commit/push behavior. Bare `sase init` only lets memory init generate managed project
 `AGENTS.md` content when the current project's own `./sase.yml` sets `amd_h1_title`; otherwise it writes a minimal
-`AGENTS.md` and still repairs provider shims.
+`AGENTS.md` and still repairs the provider instruction files.
 
 Explicit subcommands are still available when you need narrower control:
 
@@ -59,7 +59,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase memory`                         | Alias for `sase memory list`.                                                               |
 | `sase memory list`                    | Inspect loaded, referenced, available, and missing memory files for the current root.       |
 | `sase memory agent-docs`              | Alias for `sase memory agent-docs list`.                                                    |
-| `sase memory agent-docs list`         | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider shims.             |
+| `sase memory agent-docs list`         | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files. |
 | `sase memory read <path>`             | Agent-side read of one long-term memory file with an attributable audit event.              |
 | `sase memory write`                   | Create an attributable long-term memory proposal for human review.                          |
 | `sase memory review`                  | List, inspect, approve, edit, or reject pending memory proposals.                           |
@@ -67,7 +67,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                             |
 | `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                              |
 | `sase memory log --id <read-id>`      | Show one full audited read event by id or unambiguous id prefix.                            |
-| `sase memory init`                    | Create or refresh project/home memory roots, managed `AGENTS.md`, and provider shims.       |
+| `sase memory init`                    | Create or refresh project/home memory roots, managed `AGENTS.md`, and provider copies.      |
 | `sase memory init --check`            | Report memory initialization drift without writing files.                                   |
 | `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                          |
 | `sase init memory`                    | Compatibility alias for `sase memory init`.                                                 |
@@ -90,7 +90,7 @@ only SDD generated files.
 ## Agent Documents
 
 `sase memory agent-docs list` is the read-only inventory for agent instruction documents: root `AGENTS.md` plus provider
-instruction shims such as `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`.
+instruction files such as `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md` (each a full copy of `AGENTS.md`).
 
 ```bash
 sase memory agent-docs list
@@ -98,33 +98,34 @@ sase memory agent-docs list
 
 With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs list`. The inventory shows project,
 subdirectory, home, and chezmoi-source `AGENTS.md` files, their H1 titles, whether they look managed, short/long memory
-reference counts, and nearby provider shim status. It never writes files; `sase memory init` is the command that creates
-or refreshes these documents.
+reference counts, and nearby provider instruction file status. It never writes files; `sase memory init` is the command
+that creates or refreshes these documents.
 
 ## Memory Initialization
 
 `sase memory init` initializes both project-local and home-level memory surfaces, and owns agent-document initialization
-(managed `AGENTS.md` and provider instruction shims):
+(managed `AGENTS.md` and its provider instruction copies):
 
 - Project memory under `./memory/`, including `memory/README.md` and flat note files with `type`/`parent` frontmatter.
 - Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
 - A managed `AGENTS.md` for any root whose configured `amd_h1_title` opts it in, or a minimal `AGENTS.md` when one does
   not already exist and the root is not opted in.
-- Provider shims `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`; project roots contain `@AGENTS.md`, while
-  direct live-home roots contain absolute `@/path/to/home/AGENTS.md` imports. Chezmoi home source roots use `*.md.tmpl`
-  provider shim sources containing `@{{ .chezmoi.homeDir }}/AGENTS.md`.
+- Provider instruction files `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`; each is a byte-for-byte copy of
+  that root's final `AGENTS.md`. Chezmoi home source roots use static `.md` files (not `*.md.tmpl` imports), since the
+  inlined `AGENTS.md` carries no template variables. Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import shims and
+  `*.md.tmpl` sources are still recognized and migrated to full copies.
 
 Managed `AGENTS.md` generation applies to both the project root and the home/chezmoi root. When a root's local
-`./sase.yml` sets `amd_h1_title`, `sase memory init` writes a managed `AGENTS.md` for that root, synchronizes its
-short/long memory blocks, adds missing canonical frontmatter to memory files, and renders the long-memory list from
-`description` values before reachability validation runs. The live home root and chezmoi home source root take their
-title from user config (`~/.config/sase/sase.yml`, `~/.config/sase/sase_*.yml`, or the source-side `dot_config/sase/`
-equivalents) instead of `./sase.yml`. Bare `sase init` can additionally derive a fallback project title when SASE memory
-would otherwise be unreachable from a minimal `AGENTS.md`.
+`./sase.yml` sets `amd_h1_title`, `sase memory init` writes a managed `AGENTS.md` for that root, inlines each short-term
+note's body verbatim into the Tier 1 (short-term) memory block, renders the Tier 2 (long-term) list from `description`
+values, and adds missing canonical frontmatter to memory files before reachability validation runs. The live home root
+and chezmoi home source root take their title from user config (`~/.config/sase/sase.yml`, `~/.config/sase/sase_*.yml`,
+or the source-side `dot_config/sase/` equivalents) instead of `./sase.yml`. Bare `sase init` can additionally derive a
+fallback project title when SASE memory would otherwise be unreachable from a minimal `AGENTS.md`.
 
 There is no legacy single-custom-provider-file migration. When `AGENTS.md` is missing and custom provider files exist,
-`sase memory init` writes a minimal `AGENTS.md` and overwrites those provider files with shims rather than copying their
-content into `AGENTS.md`.
+`sase memory init` writes a minimal `AGENTS.md` and overwrites those provider files with full copies of it rather than
+copying their content into `AGENTS.md`.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.

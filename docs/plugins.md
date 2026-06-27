@@ -50,9 +50,9 @@ pip install sase-github
 the GitHub `sase-plugin` repository topic as the canonical registry, so the catalog always reflects reality: a repo
 gains or loses a listing purely by gaining or losing the topic, with no code change.
 
-> The same browse / install / update operations are available interactively in the
-> [**Plugins** tab of the `sase ace` SASE Admin Center modal](configuration.md#plugins-tab) (`#`), which reuses this
-> catalog and these renderers for CLI parity.
+> The same browse / install / update / uninstall operations are available interactively in the
+> [**Updates** tab of the `sase ace` SASE Admin Center modal](configuration.md#updates-tab) (`#`), which reuses this
+> catalog and these renderers for CLI parity and adds a SASE Core panel for `sase update`.
 
 ```bash
 # Catalog of every known plugin (built-in and community)
@@ -87,8 +87,10 @@ sase plugin show github -r
   [plugin inventory](#how-plugins-are-discovered). Plugins that carry the topic but contribute no Python entry points
   (for example a Neovim-only integration) correctly show as not installed.
 - Latest available versions come from PyPI's package JSON (`info.version`), which matches what `sase plugin update`
-  would actually install. Editable and direct-git installs are labeled as such and are not compared against PyPI, so a
-  local checkout never gets a false update prompt.
+  would actually install. Editable / dev installs are labeled with a lowercase `dev` source marker and are compared
+  against their git upstream instead of PyPI, so a local checkout can surface an `↑ dev update available` hint that
+  recommends `sase update` (not `sase plugin update`). Direct-git installs are labeled as such and are not compared, so
+  they never get a false update prompt.
 
 ### Catalog fetching and cache
 
@@ -142,9 +144,11 @@ sase doctor -C axe.chops
 
 ## Updating sase and plugins (`sase update`)
 
-`sase update` upgrades `sase` **and every installed sase plugin together**, in one atomic operation, by delegating to
-`uv tool upgrade sase`. uv re-resolves sase core and all injected plugins in a single shot, so they always move forward
-as a coherent set rather than drifting out of sync.
+`sase update` upgrades `sase` **and every installed sase plugin together**, in one atomic operation. Registry (PyPI)
+components are upgraded by delegating to `uv tool upgrade sase`, which re-resolves sase core and all injected plugins in
+a single shot so they always move forward as a coherent set rather than drifting out of sync. Editable / dev components
+of the same uv tool environment are detected from the receipt and upgraded in place from git instead (see
+[Dev / editable installs](#dev-editable-installs) below).
 
 ```bash
 sase update            # upgrade sase + all plugins
@@ -179,6 +183,26 @@ Restart running sase agents to pick up the new version.
 - The authoritative record of what is in sase's environment is uv's own `uv-receipt.toml`, not anything sase stores.
   `sase update` moves the whole environment forward at once; to install or upgrade individual plugins, use
   [`sase plugin install` / `sase plugin update`](#installing-and-updating-plugins-sase-plugin-install-sase-plugin-update).
+
+### Dev / editable installs
+
+When sase or a plugin is present in the uv tool environment as an **editable / dev install** (for example
+`uv tool install -e` against a local git checkout), `uv tool upgrade` cannot move it forward. `sase update` detects
+those editable requirements from the receipt and upgrades each one in place from git instead:
+
+- The run computes a mode of `managed` (only registry packages), `dev` (only editable checkouts), or `mixed` (both), and
+  handles each part with the matching backend.
+- For every editable checkout it runs `git fetch`, then a preflight: a checkout is **actionable** only when it is clean
+  and strictly behind its upstream. Checkouts that are dirty, diverged, detached, ahead, or have no upstream are skipped
+  with a printed reason instead of being touched.
+- Actionable checkouts are advanced with `git merge --ff-only`, then reconciled into the environment — `uv tool install`
+  for Python packages and `just rust-install-uv-tool` for the Rust core (`sase-core-rs`).
+- After any changed update (managed or dev), `sase update` restarts the axe daemon so the new code is picked up by
+  background work.
+
+A normal `uv tool install sase` user is unaffected by this path, while a contributor running editable installs gets the
+same one-command update. `-n|--dry-run` previews the planned git/uv commands for both modes, and the `-j|--json` payload
+(schema version `2`) reports per-root dev outcomes alongside the managed package outcomes.
 
 ## Installing and updating plugins (`sase plugin install` / `sase plugin update`)
 
@@ -220,6 +244,28 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
 - **`-n|--dry-run`** prints the exact `uv` command (and, for install, the resulting plugin set) and exits `0` without
   changing anything. **`-j|--json`** emits a stable, sorted payload with `schema_version`, the resolved `command`, and
   per-package outcomes; **`-r|--refresh`** refetches the catalog before resolving a name.
+
+### Removing a plugin (`sase plugin uninstall`)
+
+`sase plugin uninstall <plugin>` removes one installed plugin from the **same** uv tool environment as `sase`, so its
+entry points are no longer discovered the next time `sase` runs. It reconstructs uv's `--with` set from the receipt with
+the target omitted, so sase core and every other plugin (including editable/dev installs) are preserved.
+
+```bash
+sase plugin uninstall github        # resolve the target straight from the receipt
+sase plugin uninstall sase-github   # repo name also works
+sase plugin uninstall github -n     # dry run: preview the uv command, change nothing
+sase plugin uninstall github -j     # stable machine-readable JSON
+```
+
+- **Receipt-first resolution.** Unlike `install`, the target is resolved straight from sase's `uv-receipt.toml`, so an
+  installed community plugin that is absent from the catalog still resolves with no network call. (Pass `-r|--refresh`
+  to refetch the catalog when you want catalog-based name resolution.) There is no `-g|--git` flag.
+- **No-op success.** Uninstalling a plugin that is **not** installed is a no-op that still exits `0` — explicitly unlike
+  `update`, which points a not-installed target at `sase plugin install`. An unknown name still prints ranked
+  `did you mean…?` suggestions and exits non-zero.
+- **Install method is required**, exactly as for `sase update` and the other `sase plugin` mutations: it only works when
+  sase was installed with `uv tool install sase`, and otherwise fails fast with an actionable message.
 
 ## How Plugins Are Discovered
 

@@ -870,28 +870,36 @@ status shorthands, property filters, and searchable fields.
 
 These work on all tabs:
 
-| Key                 | Action                                                                            |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                          |
-| `#`                 | Open SASE Admin Center (Config, Tasks, Logs, Projects, Plugins, XPrompts)         |
-| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands) |
-| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                        |
-| `,i`                | Open Activity Dashboard modal (global)                                            |
-| `i`                 | Show notifications inbox                                                          |
-| `I`                 | Mark temporary idle; the next keypress re-activates                               |
-| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix          |
-| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                 |
-| `@`                 | Open the stashed-prompt restore picker                                            |
-| `Q`                 | Stop axe daemon and quit                                                          |
-| `y`                 | Refresh current tab                                                               |
-| `q`                 | Quit                                                                              |
-| `?`                 | Show help modal                                                                   |
+| Key                 | Action                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                                         |
+| `#`                 | Open SASE Admin Center (Config, Logs, Projects, Tasks, Updates, XPrompts; `1`–`6` jump to a tab) |
+| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                |
+| `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                       |
+| `,i`                | Open Activity Dashboard modal (global)                                                           |
+| `i`                 | Show notifications inbox                                                                         |
+| `I`                 | Mark temporary idle; the next keypress re-activates                                              |
+| `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                         |
+| `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                |
+| `@`                 | Open the stashed-prompt restore picker                                                           |
+| `Q`                 | Open the quit / restart menu                                                                     |
+| `y`                 | Refresh current tab                                                                              |
+| `q`                 | Quit                                                                                             |
+| `?`                 | Show help modal                                                                                  |
 
-### Quit Confirmation
+### Quit / Restart Menu
 
-When quitting (`q` or `Q`) while background tasks are still running (task queue workers or background command slots), a
-confirmation dialog appears showing the count of active tasks and asking whether to kill them and quit. Declining the
-dialog cancels the quit and returns to the TUI.
+Pressing `Q` opens the **quit / restart menu**. The running background-task count (task workers or background command
+slots) is shown inline as a warning when work is still in flight, and the menu offers three actions:
+
+- `1` / `s` — quit ACE and stop the axe daemon
+- `2` / `r` — restart the TUI, leaving axe running
+- `3` / `a` — restart the TUI and restart axe
+
+Press `esc` to cancel and return to the TUI.
+
+A plain `q` quits ACE directly. When background tasks are still running, `q` first shows a confirmation dialog listing
+the active tasks and asks whether to kill them and quit; declining returns to the TUI.
 
 ## Command Palette
 
@@ -927,30 +935,30 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.key
 
 ## Projects Tab
 
-Open the SASE Admin Center with `#` and switch to the **Projects** tab with `[` / `]` or the tab strip. It lists
+Open the SASE Admin Center with `#` and switch to the **Projects** tab with `3`, `[` / `]`, or the tab strip. It lists
 non-system projects across `active`, `sibling`, and `inactive` lifecycle states, so hidden projects remain reachable
 even though normal launch and discovery views omit them. Rows include workspace path, active claim count, launchability,
 and lifecycle or workspace warnings.
 
-| Key         | Action                                                               |
-| ----------- | -------------------------------------------------------------------- |
-| `j` / `k`   | Move selection                                                       |
-| `/`         | Filter projects by text                                              |
-| `Tab`       | Cycle lifecycle filter: active, sibling, inactive, all               |
-| `Shift+Tab` | Cycle lifecycle filter backward                                      |
-| `[` / `]`   | Switch Admin Center tabs (e.g. to Config or Plugins)                 |
-| `Enter`     | Activate the highlighted project when it is not active               |
-| `Ctrl+X`    | Include or exclude inactive rows in the active filter                |
-| `m`         | Mark or unmark the highlighted project                               |
-| `u`         | Clear all project marks                                              |
-| `e`         | Open the highlighted ProjectSpec in `$EDITOR`                        |
-| `A`         | Open the alias editor for the highlighted project                    |
-| `a`         | Activate highlighted project, or all marked projects                 |
-| `d`         | Deactivate highlighted project, or all marked projects               |
-| `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories |
-| `F`         | Force the last blocked deactivate after confirming live-work checks  |
-| `R`         | Reload project records                                               |
-| `q` / `Esc` | Close the SASE Admin Center                                          |
+| Key         | Action                                                                      |
+| ----------- | --------------------------------------------------------------------------- |
+| `j` / `k`   | Move selection                                                              |
+| `/`         | Filter projects by text                                                     |
+| `Tab`       | Cycle lifecycle filter: active, sibling, inactive, all                      |
+| `Shift+Tab` | Cycle lifecycle filter backward                                             |
+| `[` / `]`   | Switch Admin Center tabs (e.g. to Config or Updates); `1`–`6` jump directly |
+| `Enter`     | Activate the highlighted project when it is not active                      |
+| `Ctrl+X`    | Include or exclude inactive rows in the active filter                       |
+| `m`         | Mark or unmark the highlighted project                                      |
+| `u`         | Clear all project marks                                                     |
+| `e`         | Open the highlighted ProjectSpec in `$EDITOR`                               |
+| `A`         | Open the alias editor for the highlighted project                           |
+| `a`         | Activate highlighted project, or all marked projects                        |
+| `d`         | Deactivate highlighted project, or all marked projects                      |
+| `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories        |
+| `F`         | Force the last blocked deactivate after confirming live-work checks         |
+| `R`         | Reload project records                                                      |
+| `q` / `Esc` | Close the SASE Admin Center                                                 |
 
 When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set instead of only the highlighted row.
 Successful lifecycle changes clear the affected marks; blocked or failed rows stay marked so you can inspect or retry
@@ -1077,17 +1085,18 @@ typed by the user.
 
 ### Keybindings
 
-| Key       | Action                                |
-| --------- | ------------------------------------- |
-| `j` / `↓` | Navigate to next xprompt              |
-| `k` / `↑` | Navigate to previous xprompt          |
-| `Ctrl+N`  | Navigate to next xprompt              |
-| `Ctrl+P`  | Navigate to previous xprompt          |
-| `Ctrl+D`  | Scroll preview panel down             |
-| `Ctrl+U`  | Scroll preview panel up / clear input |
-| `Enter`   | Edit highlighted xprompt in `$EDITOR` |
-| `Ctrl+O`  | Add a new xprompt                     |
-| `Esc`     | Close SASE Admin Center               |
+| Key       | Action                                                |
+| --------- | ----------------------------------------------------- |
+| `j` / `↓` | Navigate to next xprompt                              |
+| `k` / `↑` | Navigate to previous xprompt                          |
+| `Ctrl+N`  | Navigate to next xprompt                              |
+| `Ctrl+P`  | Navigate to previous xprompt                          |
+| `Ctrl+D`  | Scroll preview panel down                             |
+| `Ctrl+U`  | Scroll preview panel up / clear input                 |
+| `Enter`   | Edit highlighted xprompt in `$EDITOR`                 |
+| `Ctrl+O`  | Add a new xprompt                                     |
+| `Ctrl+I`  | Load the highlighted xprompt into the home prompt bar |
+| `Esc`     | Close SASE Admin Center                               |
 
 Type in the filter input to narrow the list in real time.
 
@@ -1401,6 +1410,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
+- **Waiting dependencies**: For an agent gated by `%wait`, the detail view shows a `Waiting for:` line that lists each
+  dependency name with a per-name status badge reflecting that dependency's live status. A `%wait` target that does not
+  match a currently known agent is flagged with an unknown-agent indicator, so typos and stale references are obvious.
 - **OUTPUT VARIABLES**: Small string values written by the agent with `sase var set KEY=VALUE`. Keys are sorted for
   stable display, multi-line values are indented, and the section is omitted when the agent has not published variables.
   These values are stored in `agent_meta.json`, so they are visible metadata rather than secret storage.
@@ -1415,6 +1427,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 - **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with additional `meta_*` keys are grouped
   under a dedicated header. The special routing keys `meta_project`, `meta_changespec`, and `meta_workspace` are still
   promoted into the normal header fields; other metadata keys are title-cased and shown in this section.
+- **PROMPT**: For agents launched from a multi-agent (`---`-separated) prompt, the final, planner, and question
+  transcripts include a `PROMPT:` row linking the saved original launch prompt (stored under
+  `~/.sase/.../multi_prompts/`), so the exact text that fanned out into every segment stays recoverable.
 
 When the file or tools panel is empty, the `g`/`G` keys automatically fall back to scrolling the metadata panel.
 
@@ -1670,34 +1685,36 @@ The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.m
 
 ### INSERT Mode (Default)
 
-| Key            | Action                                                                                        |
-| -------------- | --------------------------------------------------------------------------------------------- |
-| `Enter`        | Submit; in a prompt stack, open the submit chooser                                            |
-| `Ctrl+S`       | Stash the active pane; from an empty prompt, open the stashed-prompt picker                   |
-| `Ctrl+G Enter` | Submit only the selected pane                                                                 |
-| `Ctrl+C`       | Cancel the prompt; in a prompt stack, cancel only the selected pane                           |
-| `Ctrl+J`       | Insert a newline                                                                              |
-| `Ctrl+A`       | Move to start of line (jumps to previous line start if already at col 0)                      |
-| `Ctrl+E`       | Move to end of line (jumps to next line end if already at end)                                |
-| `Ctrl+G`       | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                  |
-| `Ctrl+G Enter` | Submit only the selected pane                                                                 |
-| `Ctrl+G j/k`   | Focus the next / previous pane and leave the target pane in INSERT mode                       |
-| `Ctrl+G J/K`   | Move the active pane down / up and leave it in INSERT mode                                    |
-| `Ctrl+G -`     | Add an empty bottom pane                                                                      |
-| `Ctrl+G =`     | Show/focus the xprompt frontmatter panel                                                      |
-| `Ctrl+G s`     | Bundle every non-empty pane into one stash row                                                |
-| `Ctrl+G S`     | Overwrite a pinned stashed prompt with the current stack                                      |
-| `Ctrl+G x`     | Save the current stack as a reusable xprompt                                                  |
-| `Ctrl+G p`     | Open the stashed-prompt picker                                                                |
-| `Ctrl+Y`       | Open the workflow YAML editor                                                                 |
-| `Ctrl+K`       | Open prompt history from a single-line prompt, pre-filtered by that text                      |
-| `Ctrl+P`       | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping         |
-| `Ctrl+N`       | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping         |
-| `Ctrl+T`       | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
-| `Ctrl+R`       | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
-| `Tab`          | Snippet expansion (see below)                                                                 |
-| `#@`           | Open XPrompt snippet picker (type `#` then `@`)                                               |
-| `Escape`       | Switch to vim NORMAL mode                                                                     |
+| Key             | Action                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `Enter`         | Submit; in a prompt stack, open the submit chooser                                            |
+| `Ctrl+S`        | Stash the active pane; from an empty prompt, open the stashed-prompt picker                   |
+| `Ctrl+G Enter`  | Submit only the selected pane                                                                 |
+| `Ctrl+C`        | Cancel the prompt; in a prompt stack, cancel only the selected pane                           |
+| `Ctrl+J`        | Insert a newline                                                                              |
+| `Ctrl+A`        | Move to start of line (jumps to previous line start if already at col 0)                      |
+| `Ctrl+E`        | Move to end of line (jumps to next line end if already at end)                                |
+| `Ctrl+G`        | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                  |
+| `Ctrl+G Enter`  | Submit only the selected pane                                                                 |
+| `Ctrl+G j/k`    | Focus the next / previous pane and leave the target pane in INSERT mode                       |
+| `Ctrl+G J/K`    | Move the active pane down / up and leave it in INSERT mode                                    |
+| `Ctrl+G -`      | Add an empty bottom pane                                                                      |
+| `Ctrl+G =`      | Show/focus the xprompt frontmatter panel                                                      |
+| `Ctrl+G s`      | Bundle every non-empty pane into one stash row                                                |
+| `Ctrl+G S`      | Overwrite a pinned stashed prompt with the current stack                                      |
+| `Ctrl+G x`      | Save the current stack as a reusable xprompt or snippet                                       |
+| `Ctrl+G X`      | Convert the active pane into a frontmatter-local xprompt                                      |
+| `Ctrl+G Ctrl+C` | Cancel every pane in the prompt stack at once                                                 |
+| `Ctrl+G p`      | Open the stashed-prompt picker                                                                |
+| `Ctrl+Y`        | Open the workflow YAML editor                                                                 |
+| `Ctrl+K`        | Open prompt history from a single-line prompt, pre-filtered by that text                      |
+| `Ctrl+P`        | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping         |
+| `Ctrl+N`        | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping         |
+| `Ctrl+T`        | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
+| `Ctrl+R`        | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
+| `Tab`           | Snippet expansion (see below)                                                                 |
+| `#@`            | Open XPrompt snippet picker (type `#` then `@`)                                               |
+| `Escape`        | Switch to vim NORMAL mode                                                                     |
 
 In prompt INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single quotes, double quotes, and
 backticks. Typing the matching closer over an auto-inserted closer moves the cursor across it instead of duplicating it,
@@ -1752,7 +1769,8 @@ In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local 
 | `g=`        | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                              |
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                         |
-| `gx`        | Save the current stack as a reusable xprompt, leaving the bar open                                     |
+| `gx`        | Save the current stack as a reusable xprompt or snippet, leaving the bar open                          |
+| `gX`        | Convert the active pane into a frontmatter-local xprompt, leaving the bar open                         |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
@@ -1768,9 +1786,11 @@ plus the shared prompt frontmatter; when other panes remain the bar stays open, 
 bar closes without also recording the draft as cancelled history. If the active pane is empty, `Ctrl+S` opens the
 stashed-prompt picker instead. `gs` captures all non-empty panes in their current order as one bundled stash row and
 dismisses the bar. `gS` opens an update flow for an existing pinned stash and overwrites the chosen row with the current
-non-empty panes. `gx` opens a save-as-xprompt flow: choose an existing xprompt target to overwrite or create a new
-Markdown/config xprompt, then ACE writes the current stack body (joining multiple panes with `---`) and offers to commit
-the changed file when applicable.
+non-empty panes. `gx` opens a save-as-xprompt flow: choose an existing xprompt target to overwrite, create a new
+Markdown/config xprompt, or **Create a new snippet** (which then prompts for the config file that should hold the new
+`ace.snippets` entry); ACE writes the current stack body (joining multiple panes with `---`) and offers to commit the
+changed file when applicable. `gX` instead converts the active pane into a frontmatter-local `_xprompt` and rewrites the
+pane to invoke it.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from the main ACE
 tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a
@@ -2069,9 +2089,9 @@ not already been created.
 
 ## Tasks Tab
 
-Open the SASE Admin Center with `#`, then press `]` once to switch to **Tasks**. You can also run the keyless **Open
-tasks panel** command from the command palette. The tab shows background tasks (hook runs, mentor executions, agent
-launches, plugin operations, etc.) with live output for running tasks and completed output for finished ones.
+Open the SASE Admin Center with `#`, then press `4` (or `]` until you reach **Tasks**). You can also run the keyless
+**Open tasks panel** command from the command palette. The tab shows background tasks (hook runs, mentor executions,
+agent launches, plugin operations, etc.) with live output for running tasks and completed output for finished ones.
 
 ### Layout
 
@@ -2101,6 +2121,18 @@ output every second while the Tasks tab is visible.
 | `g` / `G`           | Jump output pane to top/bottom  |
 | `[` / `]`           | Switch Admin Center tabs        |
 | `q` / `Esc`         | Close SASE Admin Center         |
+
+## Updates Tab
+
+Open the SASE Admin Center with `#`, then press `5` (or `]` until you reach **Updates**). The Updates tab keeps SASE
+itself and its installed plugins current without leaving the TUI: a **SASE Core** panel shows the installed and latest
+versions of the `sase` and `sase-core` packages, and below it the full plugin catalog lets you browse, inspect, install,
+update, or uninstall a plugin. Press `S` to run `sase update` for core plus all installed plugins, `i` to install, `x`
+to uninstall, `u` / `U` to update one or all, and `r` to refresh the catalog and latest versions. Editable / dev
+installs are labeled with a lowercase `dev` source marker and compared against their git upstream rather than PyPI, so a
+local checkout can surface an `↑ dev update available` hint. Every mutation previews the exact `uv` command first and
+then runs as a tracked background task. See the [Updates tab reference](configuration.md#updates-tab) for the full
+keymap and behavior, and [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
 
 ## Snippets
 
@@ -2136,6 +2168,10 @@ XPrompt-derived snippets compose normal xprompt references before they enter the
 snippets and `ace.snippets` are merged, any snippet can splice another snippet by trigger with `#[trigger]`.
 `#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's `$1`, `$2`, ... tabstops before splicing. The
 final template is renumbered so tabstops from the caller and referenced snippets do not collide.
+
+You can also create a snippet on the fly from the prompt save (`gx`) menu: it always offers a **Create a new snippet**
+option that asks which config file should store the new `ace.snippets` entry. Snippet rows in the save and insertion
+surfaces are grouped by source and sorted alphabetically by trigger for stable display.
 
 Editors using `sase lsp` can receive the same registry as LSP snippet completions after bare trigger words when the
 client advertises `completionItem.snippetSupport`. The server uses the editor helper operation

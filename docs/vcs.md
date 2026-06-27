@@ -476,7 +476,7 @@ The `stash_and_clean()` operation preserves local work before switching or clean
 
 vcs_provider:
   provider: auto # "git", "hg", or "auto" (default: "auto")
-  pr_tags: {} # optional TAG=value lines appended to PR commit messages
+  pr_tags: {} # optional key-value tags appended to PR commit messages (rendered SASE_-prefixed, e.g. SASE_BUG=value)
   use_project_pr_prefix: false # prepend [<project>] to PR titles / CL descriptions
 ```
 

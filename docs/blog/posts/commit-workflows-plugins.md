@@ -59,7 +59,7 @@ the agent can see them in a follow-up prompt when they are dirty, but leaving th
 generated skill normally runs a wrapper such as `sase_git_commit`, which records skill invocation evidence and then
 delegates to `sase commit`. A narrow SDD closeout, where the only enforced diff is one tracked SDD markdown file whose
 leading front matter changes from `status: wip` to `status: done`, is committed directly by the finalizer with a
-`TYPE=sdd` tag.
+`SASE_TYPE=sdd` tag.
 
 That finalizer is runtime-uniform because it lives in the LLM provider orchestration layer, not in a provider-native
 hook. Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, and plugin providers all follow the same control flow: changes
