@@ -76,7 +76,7 @@ class TestInitBareGitProjectEndToEnd:
 
         assert (clone / "sdd" / "README.md").is_file()
         commit_message = _git(clone, "log", "-1", "--format=%B").stdout.strip()
-        assert commit_message == "Initialize SDD\n\nTYPE=init"
+        assert commit_message == "Initialize SDD\n\nSASE_TYPE=init"
         committed_paths = _git(
             clone,
             "show",

@@ -13,6 +13,18 @@ def test_tags_at_end() -> None:
     assert strip_pr_tags(desc) == "Fix the login bug"
 
 
+def test_prefixed_tags_at_end() -> None:
+    desc = (
+        "Fix the login bug\n\nSASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT\nSASE_MARKDOWN=true"
+    )
+    assert strip_pr_tags(desc) == "Fix the login bug"
+
+
+def test_mixed_legacy_and_prefixed_tags_at_end() -> None:
+    desc = "Fix the login bug\n\nMARKDOWN=true\nSASE_AGENT=agent-a\nSASE_MACHINE=host"
+    assert strip_pr_tags(desc) == "Fix the login bug"
+
+
 def test_tags_with_trailing_blank_lines() -> None:
     desc = "Fix the login bug\n\nR=startblock\nWANT_LGTM=all\n\n"
     assert strip_pr_tags(desc) == "Fix the login bug"

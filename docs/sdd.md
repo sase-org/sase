@@ -266,7 +266,7 @@ Plan-like beads carry a `tier` value:
 For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. Each phase of the epic gets its
 own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. Legend files
 carry `legend_bead_id`, `tier: legend`, and `epic_count`; linked epics also include `legend_bead_id`. For smaller plans,
-commit messages include a `PLAN=<path>` tag pointing back to the plan file.
+commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file.
 
 Linked epics are created as ordinary plan beads with a legend parent:
 

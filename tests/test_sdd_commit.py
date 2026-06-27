@@ -37,7 +37,7 @@ def test_commit_sdd_files() -> None:
             check=True,
         )
         assert "Test commit" in log.stdout
-        assert "TYPE=sdd" in log.stdout
+        assert "SASE_TYPE=sdd" in log.stdout
 
 
 def test_commit_sdd_files_stages_only_targeted_paths() -> None:
@@ -154,7 +154,7 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
         assert len(captured_msg_content) == 1
         assert (
             captured_msg_content[0]
-            == "chore: Add SDD prompt and plan for my_plan\n\nTYPE=sdd"
+            == "chore: Add SDD prompt and plan for my_plan\n\nSASE_TYPE=sdd"
         )
 
 

@@ -365,7 +365,7 @@ def test_yes_runs_one_deferred_chezmoi_deploy_after_selected_runs(
         "chezmoi",
     ]
     commit = next(cmd for cmd in commands if "commit" in cmd and "-m" in cmd)
-    assert commit[commit.index("-m") + 1] == "chore: run sase init\n\nTYPE=init"
+    assert commit[commit.index("-m") + 1] == "chore: run sase init\n\nSASE_TYPE=init"
     apply = commands[-1]
     assert apply == ["chezmoi", "apply", "--force"]
 

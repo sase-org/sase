@@ -212,10 +212,14 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     if plan_ref is None:
         plan_ref = os.path.basename(plan_path)
 
-    # Append PLAN= to commit message (only for version-controlled projects)
+    # Append SASE_PLAN= to commit message (only for version-controlled projects)
     if version_controlled:
+        from sase.workflows.commit.runtime_tags import update_trailing_commit_tags
+
         message = payload.get("message", "")
-        payload["message"] = f"{message}\n\nPLAN={plan_ref}"
+        payload["message"] = update_trailing_commit_tags(
+            message, {"PLAN": plan_ref}, remove_keys={"PLAN"}
+        )
 
     # Mark plan as done
     subprocess.run(

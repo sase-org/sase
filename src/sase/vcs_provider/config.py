@@ -91,11 +91,15 @@ def extract_pr_tags(description: str) -> dict[str, str]:
 
     This is the read counterpart of :func:`strip_pr_tags`.  It scans the
     trailing contiguous run of lines matching ``^[A-Z][A-Z0-9_]*=`` (skipping
-    blank lines within the block) and returns them as a dict.
+    blank lines within the block) and returns them as a dict. Keys are returned
+    in canonical (unprefixed) form so legacy ``TEAM=`` and new ``SASE_TEAM=``
+    parent-PR tags inherit identically without double-prefixing on child PRs.
 
     Returns:
-        A dict mapping tag names to values (empty if no tags found).
+        A dict mapping canonical tag names to values (empty if no tags found).
     """
+    from sase.workflows.commit.runtime_tags import canonicalize_commit_tag_key
+
     lines = description.split("\n")
 
     # Skip trailing blank lines
@@ -109,7 +113,7 @@ def extract_pr_tags(description: str) -> dict[str, str]:
         stripped = lines[idx].strip()
         if _TAG_PATTERN.match(stripped):
             key, _, value = stripped.partition("=")
-            tags[key] = value
+            tags[canonicalize_commit_tag_key(key)] = value
         elif stripped == "":
             continue
         else:

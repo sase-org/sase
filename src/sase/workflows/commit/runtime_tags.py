@@ -11,7 +11,33 @@ from pathlib import Path
 
 RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE"})
 
+#: Prefix rendered onto every SASE-authored commit footer tag key. New commit
+#: messages write ``SASE_<KEY>=<value>`` while readers still accept the legacy
+#: unprefixed spelling (see :func:`canonicalize_commit_tag_key`).
+COMMIT_TAG_PREFIX = "SASE_"
+
 _TAG_LINE_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
+
+
+def canonicalize_commit_tag_key(key: str) -> str:
+    """Return *key* without the :data:`COMMIT_TAG_PREFIX`.
+
+    Canonical (unprefixed) keys are the internal form used by helper inputs,
+    parsing results, and runtime-owned key comparisons, so callers can keep
+    passing ``{"TYPE": ...}`` regardless of how the footer is rendered.
+    """
+    if key.startswith(COMMIT_TAG_PREFIX):
+        return key[len(COMMIT_TAG_PREFIX) :]
+    return key
+
+
+def _render_commit_tag_key(key: str) -> str:
+    """Return the rendered footer spelling (``SASE_<KEY>``) of *key*.
+
+    Idempotent: an already-prefixed ``SASE_TYPE`` renders as ``SASE_TYPE``
+    rather than ``SASE_SASE_TYPE``.
+    """
+    return f"{COMMIT_TAG_PREFIX}{canonicalize_commit_tag_key(key)}"
 
 
 def _resolve_runtime_commit_tags() -> dict[str, str]:
@@ -107,11 +133,13 @@ def parse_trailing_commit_tags(message: str) -> dict[str, str]:
     """Return the trailing ``KEY=VALUE`` tag block of *message* as a dict.
 
     Only the contiguous block of ``KEY=VALUE`` lines at the very end of the
-    message is parsed. Later duplicate keys win, matching how the block is
-    rendered by :func:`update_trailing_commit_tags`.
+    message is parsed. Keys are returned in canonical (unprefixed) form so both
+    legacy ``AGENT=`` and new ``SASE_AGENT=`` lines read as ``AGENT``. Later
+    duplicate keys win, matching how the block is rendered by
+    :func:`update_trailing_commit_tags`.
     """
     tags = _split_trailing_tag_block(message)[1]
-    return dict(tags)
+    return {canonicalize_commit_tag_key(key): value for key, value in tags}
 
 
 def update_trailing_commit_tags(
@@ -122,36 +150,49 @@ def update_trailing_commit_tags(
 ) -> str:
     """Update the trailing ``KEY=VALUE`` tag block in *message*.
 
-    Existing non-owned tags are preserved in their original order. Keys in
-    ``remove_keys`` or ``updates`` are removed from the existing block first,
-    then sanitized non-empty update values are appended.
+    Input keys (both ``updates`` and ``remove_keys``) are treated as canonical
+    and compared without the :data:`COMMIT_TAG_PREFIX`, so an owned key removes
+    both its legacy (``TYPE=``) and prefixed (``SASE_TYPE=``) spelling from the
+    existing block. Existing non-owned tags are preserved in their original
+    order, then sanitized non-empty update values are appended. Every final
+    footer key is rendered with the ``SASE_`` prefix.
     """
     body, existing_tags = _split_trailing_tag_block(message)
     sanitized_updates = {
-        key: value
+        canonicalize_commit_tag_key(key): value
         for key, raw_value in updates.items()
         if (value := _sanitize_tag_value(raw_value))
     }
-    owned_keys = set(remove_keys) | set(updates)
+    owned_keys = {canonicalize_commit_tag_key(key) for key in (*remove_keys, *updates)}
 
     merged_tags: list[tuple[str, str]] = [
-        (key, value) for key, value in existing_tags if key not in owned_keys
+        (canonical, value)
+        for key, value in existing_tags
+        if (canonical := canonicalize_commit_tag_key(key)) not in owned_keys
     ]
     merged_tags.extend(sanitized_updates.items())
 
     if not merged_tags:
         return body
 
-    tag_block = "\n".join(f"{key}={value}" for key, value in merged_tags)
+    tag_block = "\n".join(
+        f"{_render_commit_tag_key(key)}={value}" for key, value in merged_tags
+    )
     if body:
         return f"{body}\n\n{tag_block}"
     return tag_block
 
 
 def filter_runtime_owned_tags(tags: Mapping[str, str]) -> dict[str, str]:
-    """Remove runtime-owned tag keys from inherited/configured PR tag maps."""
+    """Remove runtime-owned tag keys from inherited/configured PR tag maps.
+
+    Keys are compared in canonical form so ``AGENT``/``MACHINE`` and their
+    ``SASE_AGENT``/``SASE_MACHINE`` spellings are all filtered out.
+    """
     return {
-        key: value for key, value in tags.items() if key not in RUNTIME_COMMIT_TAG_KEYS
+        key: value
+        for key, value in tags.items()
+        if canonicalize_commit_tag_key(key) not in RUNTIME_COMMIT_TAG_KEYS
     }
 
 

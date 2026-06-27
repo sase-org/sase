@@ -48,7 +48,13 @@ def _add_bare_origin(repo: Path, remote: Path) -> None:
 
 
 def _msg(subject: str, agent: str) -> str:
+    """Build a commit message with legacy (unprefixed) footer tags."""
     return f"{subject}\n\nAGENT={agent}\nTYPE=sdd"
+
+
+def _msg_prefixed(subject: str, agent: str) -> str:
+    """Build a commit message with new ``SASE_``-prefixed footer tags."""
+    return f"{subject}\n\nSASE_AGENT={agent}\nSASE_TYPE=sdd"
 
 
 def _repo(repo: Path, label: str = "primary", *, primary: bool = False) -> RevertRepo:

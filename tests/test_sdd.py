@@ -92,7 +92,7 @@ def test_ensure_bare_git_sdd_initialized_commits_only_generated_paths(
     ).stdout.splitlines()
     assert status == ["?? notes.txt"]
     commit_message = _git(repo, "log", "-1", "--format=%B").stdout.strip()
-    assert commit_message == "Initialize SDD\n\nTYPE=init"
+    assert commit_message == "Initialize SDD\n\nSASE_TYPE=init"
     committed_paths = _git(
         repo,
         "show",

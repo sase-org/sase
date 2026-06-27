@@ -375,7 +375,7 @@ class TestHandleSasePlan:
         assert "_plan_path" in payload
         dest = repo_dir / "sdd" / "tales" / "202603" / "my_plan.md"
         assert dest.exists()
-        assert "PLAN=sdd/tales/202603/my_plan.md" in payload["message"]
+        assert "SASE_PLAN=sdd/tales/202603/my_plan.md" in payload["message"]
 
     def test_vc_true_in_repo_absolute_plan_uses_repo_relative_tag(
         self, tmp_path: Path
@@ -396,7 +396,7 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert payload["_plan_path"] == str(plan_file)
-        assert "PLAN=sdd/tales/202605/my_plan.md" in payload["message"]
+        assert "SASE_PLAN=sdd/tales/202605/my_plan.md" in payload["message"]
         assert str(repo_dir) not in payload["message"]
 
     def test_vc_false_does_not_copy_plan(self, tmp_path: Path) -> None:

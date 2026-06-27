@@ -502,13 +502,13 @@ vcs_provider:
   use_project_pr_prefix: false # prepend [<project>] to PR titles (default: false)
 ```
 
-| Field                                | Type              | Default  | Description                                                                                             |
-| ------------------------------------ | ----------------- | -------- | ------------------------------------------------------------------------------------------------------- |
-| `vcs_provider.provider`              | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection.                                     |
-| `vcs_provider.workspace_root`        | string            | -        | Legacy VCS helper workspace root. New numbered-checkout layout is configured by `workspace.root` below. |
-| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults.                                     |
-| `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `TAG=VALUE` lines to PR commit messages.                                     |
-| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / CL descriptions (see below).                                      |
+| Field                                | Type              | Default  | Description                                                                                                   |
+| ------------------------------------ | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `vcs_provider.provider`              | string            | `"auto"` | VCS provider: `"git"`, `"hg"`, or `"auto"` for directory detection.                                           |
+| `vcs_provider.workspace_root`        | string            | -        | Legacy VCS helper workspace root. New numbered-checkout layout is configured by `workspace.root` below.       |
+| `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults.                                           |
+| `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `SASE_TAG=VALUE` lines to PR commit messages (keys are rendered `SASE_`-prefixed). |
+| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / CL descriptions (see below).                                            |
 
 When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (for example,
 Mercurial-specific hooks from a provider plugin). The core `sase` package has no built-in default hooks.
@@ -1098,7 +1098,7 @@ a provider prefix; use `opencode models` to list models in your configured envir
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
 | `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
-| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `BUG=<id>` into PR tags and ChangeSpec.                                                           |
+| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and ChangeSpec.                                                      |
 | `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase commit` automatically tags the commit message.                                                              |
 | `SASE_DISABLE_COMMIT_STOP_HOOK`   | Disable commit finalization for this process.                                                                                                             |
 | `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                  |

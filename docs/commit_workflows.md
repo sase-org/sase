@@ -50,7 +50,7 @@ There are two special cases before the normal enforced-work follow-up path:
 
 - If the only enforced dirty file is a tracked markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or
   `sdd/myths/`, and the only file diff is one leading-front-matter line changing from `status: wip` to `status: done`,
-  SASE creates a direct closeout commit with the message `chore: Mark SDD plan done` and a `TYPE=sdd` runtime tag.
+  SASE creates a direct closeout commit with the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag.
 - Linked repos configured with `workspace.strategy: none` are static singletons. Dirty static linked repos are included
   in the follow-up prompt as advisory work: the agent is told to commit them only if it made those changes in this
   session, and leaving them dirty does not fail the finalizer. A run with only advisory static linked-repo changes can
@@ -123,7 +123,7 @@ Bead association   (inject SASE_BEAD_ID into message when set)
     |
 Bead lifecycle     (close bead, sync beads)                               [skip for proposals]
     |
-Plan handling      (append PLAN= to message, mark plan done)              [skip for proposals]
+Plan handling      (append SASE_PLAN= to message, mark plan done)         [skip for proposals]
     |
 Precommit command  (e.g. `just fix`)
     |
@@ -133,7 +133,7 @@ Detect parent CL   (auto-set PARENT from current branch's ChangeSpec)     [PR on
     |
 PR metadata        (append PR tags and project prefix)                    [PR only]
     |
-Runtime tags       (append/update AGENT= and MACHINE= provenance)         [commit/PR only]
+Runtime tags       (append/update SASE_AGENT=, SASE_MACHINE= provenance)  [commit/PR only]
     |
 PR body            (build body with final tags and agent footer)          [PR only]
     |
@@ -192,11 +192,18 @@ first line of the dispatched commit or PR message. Conflict resumes reuse the be
 checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and `create_pull_request`,
-`CommitWorkflow` appends or updates trailing `AGENT=<sase agent name>` and `MACHINE=<host name>` lines in the commit
-message. `AGENT` comes from `SASE_AGENT_NAME`, falling back to `SASE_ARTIFACTS_DIR/agent_meta.json` when available; it
-is omitted for manual non-agent commits with no agent name. `MACHINE` comes from the local hostname. Runtime-owned
-`AGENT` and `MACHINE` values replace inherited or configured PR tags with the same keys. `create_proposal` does not get
-runtime commit tags because it saves a diff instead of creating a VCS commit.
+`CommitWorkflow` appends or updates trailing `SASE_AGENT=<sase agent name>` and `SASE_MACHINE=<host name>` lines in the
+commit message. `AGENT` comes from `SASE_AGENT_NAME`, falling back to `SASE_ARTIFACTS_DIR/agent_meta.json` when
+available; it is omitted for manual non-agent commits with no agent name. `MACHINE` comes from the local hostname.
+Runtime-owned `AGENT` and `MACHINE` values replace inherited or configured PR tags with the same keys. `create_proposal`
+does not get runtime commit tags because it saves a diff instead of creating a VCS commit.
+
+**Footer tag prefix:** All SASE-authored commit footer tags (`TYPE`, `AGENT`, `MACHINE`, `PLAN`, `BUG`, and any
+configured or inherited PR tag keys) are written with a `SASE_` prefix — for example `SASE_TYPE=sdd` and
+`SASE_AGENT=<name>`. Readers (agent-commit/revert discovery, parent-PR tag inheritance, ChangeSpec description
+stripping) still accept the historical unprefixed spelling, so commit history is not rewritten and old commits remain
+readable. Because this changes the exact footer keys visible to external PR tooling, any external consumer that reads
+these tag names must be updated to accept the `SASE_`-prefixed keys (or both spellings).
 
 Internal fields added by `CommitWorkflow`:
 
@@ -298,7 +305,7 @@ input:
 as the PARENT of the new PR ChangeSpec. This creates a chain of related changes without manual bookkeeping.
 
 **BUG propagation:** When `SASE_BUG_ID` is set in the environment and non-zero, the value is propagated to two places:
-the BUG field of the created ChangeSpec (as `http://b/<bug_id>`), and a `BUG=<bug_id>` line prepended to the PR tag
+the BUG field of the created ChangeSpec (as `http://b/<bug_id>`), and a `SASE_BUG=<bug_id>` line prepended to the PR tag
 block (taking precedence over any static `BUG` key in `vcs_provider.pr_tags` config).
 
 **Project prefix:** When `vcs_provider.use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to the PR
@@ -307,14 +314,17 @@ appear in the ChangeSpec DESCRIPTION or git commit message, and is automatically
 back.
 
 **PR tag inheritance:** When creating a child PR (one whose PARENT is an existing ChangeSpec), PR tags from the parent
-PR's body are automatically inherited. The merge order is: parent PR tags (lowest priority) -> config `pr_tags` -> `BUG`
-tag (highest priority), followed by runtime-owned `AGENT` and `MACHINE` tags. Inherited or configured `AGENT` and
+PR's body are automatically inherited. Parent tags are read in either spelling — legacy `TAG=` or new `SASE_TAG=` — so
+inheritance works across the migration. The merge order is: parent PR tags (lowest priority) -> config `pr_tags` ->
+`BUG` tag (highest priority), followed by runtime-owned `AGENT` and `MACHINE` tags. Inherited or configured `AGENT` and
 `MACHINE` values are ignored so child PRs do not retain stale parent runtime provenance.
 
-**PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as `TAG=VALUE` lines to the commit
-message before building the PR body. This supports provider-specific metadata (e.g., Google CL tags) without manual
-entry. `AGENT` and `MACHINE` are reserved for runtime provenance and are owned by the commit workflow rather than static
-config. See [configuration.md](configuration.md#vcs_provider) for the config format.
+**PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as `SASE_TAG=VALUE` lines to the
+commit message before building the PR body. This supports provider-specific metadata (e.g., Google CL tags) without
+manual entry. `AGENT` and `MACHINE` are reserved for runtime provenance and are owned by the commit workflow rather than
+static config. Note that the rendered keys carry the `SASE_` prefix (e.g. a configured `MARKDOWN` tag is written as
+`SASE_MARKDOWN=`), so external tooling that consumes these tags must accept the prefixed names. See
+[configuration.md](configuration.md#vcs_provider) for the config format.
 
 **PR tag stripping:** When PR tags are present in the commit description (trailing lines matching `^[A-Z][A-Z0-9_]*=`),
 they are automatically stripped before writing the DESCRIPTION field of the created ChangeSpec. This prevents
@@ -395,7 +405,7 @@ instructions automatically, so agents know to hand control back to the user rath
 | `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)          |
 | `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD` |
 | `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts           |
-| `SASE_AGENT_NAME`                   | Agent name used for `AGENT=` runtime commit provenance           |
+| `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance      |
 | `SASE_BEAD_ID`                      | Bead ID to automatically associate with the commit               |
 | `SASE_PLAN`                         | Plan file path for staging and status update                     |
 | `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                     |

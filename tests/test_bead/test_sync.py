@@ -166,7 +166,7 @@ def test_commit_bead_work_launch_commits_bead_state(tmp_path):
         check=True,
     )
     assert message.stdout.strip() == (
-        "chore: mark bead work launched for sase-1\n\nTYPE=bead_work"
+        "chore: mark bead work launched for sase-1\n\nSASE_TYPE=bead_work"
     )
     files = subprocess.run(
         ["git", "show", "--name-only", "--format=", "HEAD"],

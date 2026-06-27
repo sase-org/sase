@@ -287,7 +287,7 @@ class TestAppendPrTags:
             wf.run()
 
         sent_payload = provider.create_pull_request.call_args[0][0]
-        assert sent_payload["message"] == "Add feature\n\nMACHINE=test-host"
+        assert sent_payload["message"] == "Add feature\n\nSASE_MACHINE=test-host"
 
     @patch(_FETCH_PARENT_TARGET, return_value={})
     def test_existing_tag_block_is_updated_without_duplicate(
@@ -303,7 +303,7 @@ class TestAppendPrTags:
             append_pr_tags(payload, None)
 
         assert payload["message"] == (
-            "Add feature\n\nPLAN=sdd/tales/plan.md\nMARKDOWN=true"
+            "Add feature\n\nSASE_PLAN=sdd/tales/plan.md\nSASE_MARKDOWN=true"
         )
 
 
@@ -333,6 +333,14 @@ class TestExtractPrTags:
         body = "Description\n\nFOO=a=b=c"
         assert extract_pr_tags(body) == {"FOO": "a=b=c"}
 
+    def test_prefixed_tags_canonicalized(self) -> None:
+        body = "Description\n\nSASE_TEAM=infra\nSASE_OWNER=alice"
+        assert extract_pr_tags(body) == {"TEAM": "infra", "OWNER": "alice"}
+
+    def test_mixed_legacy_and_prefixed_tags(self) -> None:
+        body = "Description\n\nTEAM=infra\nSASE_OWNER=alice"
+        assert extract_pr_tags(body) == {"TEAM": "infra", "OWNER": "alice"}
+
 
 class TestInheritParentPrTags:
     """Integration tests for parent PR tag inheritance."""
@@ -357,8 +365,9 @@ class TestInheritParentPrTags:
             wf.run()
 
         sent = provider.create_pull_request.call_args[0][0]
-        assert "TEAM=infra" in sent["message"]
-        assert "OWNER=alice" in sent["message"]
+        # Legacy parent tags are rendered with the SASE_ prefix on the child PR.
+        assert "SASE_TEAM=infra" in sent["message"]
+        assert "SASE_OWNER=alice" in sent["message"]
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     @patch(_PROVIDER_TARGET)
@@ -432,4 +441,4 @@ class TestInheritParentPrTags:
             wf.run()
 
         sent = provider.create_pull_request.call_args[0][0]
-        assert sent["message"] == "Add feature\n\nMACHINE=test-host"
+        assert sent["message"] == "Add feature\n\nSASE_MACHINE=test-host"

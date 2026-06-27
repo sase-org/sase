@@ -24,7 +24,7 @@ the state of five concurrent workstreams -- sase replaces that manual overhead w
   `sdd/research/` corpus keeps exploratory notes with that same repository-local history. For larger efforts, epic files
   carry a bead ID in their frontmatter that links them to an epic-tier bead, and each phase of the epic gets its own
   bead whose ID appears in the corresponding commit messages -- creating a traceable chain from epic to phase to commit.
-  For smaller tales, commit messages include a `PLAN=<path>` tag pointing back to the plan file. The result is
+  For smaller tales, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The result is
   spec-driven development where the full history of intent, decomposition, and execution is preserved and queryable, not
   trapped in a single agent session's context window.
 - **ACE instead of tmux** -- A single TUI provides unified navigation, filtering, and management across all active

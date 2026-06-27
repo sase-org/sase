@@ -375,7 +375,7 @@ class TestInitBareGitProject:
                 ]
                 assert commit_calls
                 message = commit_calls[0][commit_calls[0].index("-m") + 1]
-                assert message == "Initial commit\n\nTYPE=init"
+                assert message == "Initial commit\n\nSASE_TYPE=init"
                 mock_set_bare.assert_called_once()
                 mock_set_ws.assert_called_once()
 

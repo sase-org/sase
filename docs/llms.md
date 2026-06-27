@@ -144,8 +144,8 @@ resolved `workspace_dir`. If it finds dirty enforced work, it sends the same pro
 lists the dirty files and instructs the agent to use the appropriate commit skill, such as `/sase_git_commit`. Dirty
 static linked repos (`workspace.strategy: none`) are included in that prompt only as advisory work and do not fail the
 run if they remain dirty. A narrow generated SDD plan closeout, where the only enforced change is one markdown file's
-frontmatter `status: wip` becoming `status: done`, is committed directly with a `TYPE=sdd` commit instead of consuming a
-provider follow-up pass.
+frontmatter `status: wip` becoming `status: done`, is committed directly with a `SASE_TYPE=sdd` commit instead of
+consuming a provider follow-up pass.
 
 The finalizer skips when the call is outside a SASE agent session, when `commit.finalizer.enabled` is false, or when
 `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set. When an artifacts directory is available, each follow-up pass writes

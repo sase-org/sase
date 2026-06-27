@@ -80,8 +80,9 @@ A comprehensive description of what the CL does and why.
   - What will be tested (if applicable)
 
 **PR tag stripping:** When a ChangeSpec is created from a PR workflow or its description is synced after a reword, any
-trailing `KEY=VALUE` metadata lines (matching `^[A-Z][A-Z0-9_]*=`) are automatically stripped. This prevents
-provider-specific tags like `AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT` or `MARKDOWN=true` from polluting the description. See
+trailing `KEY=VALUE` metadata lines (matching `^[A-Z][A-Z0-9_]*=`) are automatically stripped. The pattern matches both
+the legacy unprefixed spelling and the new `SASE_`-prefixed footer tags (e.g. `SASE_AUTOSUBMIT_BEHAVIOR=SYNC_SUBMIT`,
+`SASE_MARKDOWN=true`), so neither pollutes the description. See
 [commit_workflows.md](commit_workflows.md#pull-request-pr) for details.
 
 **Example**:
@@ -158,8 +159,8 @@ PR: https://github.com/org/repo/pull/42   # PR variant
 ### BUG
 
 An optional bug reference linking the CL to an issue tracker. SASE stores this as plain text. PR workflows that receive
-`SASE_BUG_ID` or `sase commit --bug-id` write it as `http://b/<id>` in the ChangeSpec and add `BUG=<id>` to provider tag
-metadata.
+`SASE_BUG_ID` or `sase commit --bug-id` write it as `http://b/<id>` in the ChangeSpec and add `SASE_BUG=<id>` to
+provider tag metadata.
 
 **Example**:
 

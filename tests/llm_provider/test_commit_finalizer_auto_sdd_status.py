@@ -118,7 +118,7 @@ def test_done_status_only_sdd_plan_change_is_auto_committed(
     assert _run_git(repo, "status", "--short") == ""
     commit_message = _run_git(repo, "log", "-1", "--pretty=%B")
     assert "chore: Mark SDD plan done" in commit_message
-    assert "TYPE=sdd" in commit_message
+    assert "SASE_TYPE=sdd" in commit_message
     result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
         encoding="utf-8"
     )

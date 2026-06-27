@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.ace.revert_agent import _discover_agent_commits, preview_agent_revert
-from tests.ace._revert_agent_helpers import _commit, _init_repo, _msg
+from tests.ace._revert_agent_helpers import (
+    _commit,
+    _init_repo,
+    _msg,
+    _msg_prefixed,
+)
 
 
 def test_discover_exact_tag_matching(tmp_path: Path) -> None:
@@ -20,6 +25,20 @@ def test_discover_exact_tag_matching(tmp_path: Path) -> None:
     subjects = [c.subject for c in commits]
     # Newest-first, exact AGENT=foo only (bar excluded).
     assert subjects == ["foo two", "foo one"]
+    assert all(c.agent_tag == "foo" for c in commits)
+
+
+def test_discover_matches_legacy_and_prefixed_tags(tmp_path: Path) -> None:
+    """Discovery finds both legacy ``AGENT=`` and new ``SASE_AGENT=`` commits."""
+    repo = tmp_path / "ws"
+    _init_repo(repo)
+    _commit(repo, _msg("legacy", "foo"), {"a.txt": "a1\n"})
+    _commit(repo, _msg_prefixed("prefixed", "foo"), {"b.txt": "b1\n"})
+
+    commits = _discover_agent_commits(str(repo), "foo")
+
+    subjects = [c.subject for c in commits]
+    assert subjects == ["prefixed", "legacy"]
     assert all(c.agent_tag == "foo" for c in commits)
 
 

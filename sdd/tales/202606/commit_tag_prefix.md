@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 08:55:20
-status: wip
+status: done
 prompt: sdd/prompts/202606/commit_tag_prefix.md
 ---
 # Plan: Prefix SASE Commit Footer Tags
