@@ -1,5 +1,7 @@
 ---
 create_time: 2026-06-27 14:37:56
+bead_id: sase-5c
+tier: epic
 status: wip
 prompt: sdd/prompts/202606/dev_version_support.md
 ---
