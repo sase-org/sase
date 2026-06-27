@@ -24,9 +24,9 @@ _UNKNOWN_SHARD_KEY = "unknown"
 # Display settings for fzf
 _PROMPT_PREVIEW_LENGTH = 60
 
-# Skip prompts shorter than this. Tiny scraps like `fix bug` are too terse to
+# Skip prompts shorter than this. Sub-five-word scraps are usually too terse to
 # be useful to re-run from history and mostly clutter the store.
-_MIN_PROMPT_WORDS = 3
+_MIN_PROMPT_WORDS = 5
 
 
 @dataclass

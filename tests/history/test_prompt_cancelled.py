@@ -31,10 +31,10 @@ def test_add_cancelled_prompt(tmp_path: Path) -> None:
             "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
         ),
     ):
-        add_or_update_prompt("draft saved prompt", cancelled=True)
+        add_or_update_prompt("draft saved prompt right now", cancelled=True)
         result = load_prompt_history()
         assert len(result) == 1
-        assert result[0].text == "draft saved prompt"
+        assert result[0].text == "draft saved prompt right now"
         assert result[0].cancelled is True
 
 
@@ -43,7 +43,7 @@ def test_cancelled_prompt_not_downgraded(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file):
         entry = PromptEntry(
-            text="test prompt now",
+            text="test prompt runs right now",
             timestamp="251231_100000",
             last_used="251231_100000",
             cancelled=False,
@@ -53,7 +53,7 @@ def test_cancelled_prompt_not_downgraded(tmp_path: Path) -> None:
         with patch(
             "sase.history.prompt_store.generate_timestamp", return_value="251231_200000"
         ):
-            add_or_update_prompt("test prompt now", cancelled=True)
+            add_or_update_prompt("test prompt runs right now", cancelled=True)
 
         result = load_prompt_history()
         assert len(result) == 1
@@ -148,7 +148,7 @@ def test_cancelled_prompt_upgraded_on_launch(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file):
         entry = PromptEntry(
-            text="draft saved prompt",
+            text="draft saved prompt right now",
             timestamp="251231_100000",
             last_used="251231_100000",
             cancelled=True,
@@ -158,7 +158,7 @@ def test_cancelled_prompt_upgraded_on_launch(tmp_path: Path) -> None:
         with patch(
             "sase.history.prompt_store.generate_timestamp", return_value="251231_200000"
         ):
-            add_or_update_prompt("draft saved prompt")
+            add_or_update_prompt("draft saved prompt right now")
 
         result = load_prompt_history()
         assert len(result) == 1

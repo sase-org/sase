@@ -158,10 +158,10 @@ def test_save_text_as_cancelled_returns_recorded_text() -> None:
             return_value=[],
         ),
     ):
-        stored = harness._save_text_as_cancelled("  fix the bug  ")
+        stored = harness._save_text_as_cancelled("  fix the auth bug today  ")
 
-    assert stored == "fix the bug"
-    add_or_update.assert_called_once_with("fix the bug", cancelled=True)
+    assert stored == "fix the auth bug today"
+    add_or_update.assert_called_once_with("fix the auth bug today", cancelled=True)
 
 
 def test_save_text_as_cancelled_returns_empty_for_unrecordable_text() -> None:
@@ -192,13 +192,13 @@ def test_save_bar_text_as_cancelled_propagates_recorded_text() -> None:
             return_value=[],
         ),
     ):
-        stored = harness._save_bar_text_as_cancelled(_Bar("fix the bug"))
+        stored = harness._save_bar_text_as_cancelled(_Bar("fix the auth bug today"))
 
-    assert stored == "fix the bug"
+    assert stored == "fix the auth bug today"
 
 
 def test_unmount_prompt_bar_propagates_recorded_text() -> None:
-    bar = _Bar("fix the bug")
+    bar = _Bar("fix the auth bug today")
     harness = _RealSaveHarness(bar)
 
     with (
@@ -210,5 +210,5 @@ def test_unmount_prompt_bar_propagates_recorded_text() -> None:
     ):
         stored = harness._unmount_prompt_bar()
 
-    assert stored == "fix the bug"
+    assert stored == "fix the auth bug today"
     assert harness.detached == [bar]

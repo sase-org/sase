@@ -133,17 +133,19 @@ def test_per_pane_cancel_saves_only_that_pane_and_keeps_bar() -> None:
     harness = _SubmitHarness()
 
     harness.on_prompt_input_bar_cancelled(
-        PromptInputBar.Cancelled("cancelled pane text", "prompt", keep_bar=True)
+        PromptInputBar.Cancelled(
+            "cancelled pane text right now", "prompt", keep_bar=True
+        )
     )
 
-    assert harness.saved_cancelled == ["cancelled pane text"]
+    assert harness.saved_cancelled == ["cancelled pane text right now"]
     assert harness.saved_record_segments == [True]
     assert harness.unmount_calls == 0
     assert harness.unmount_without_save_calls == 0
     assert harness._prompt_context is not None
     assert harness.notifications == [
         (
-            '"cancelled pane text"',
+            '"cancelled pane text right now"',
             None,
             "Prompt pane cancelled — saved to history",
         )
@@ -167,20 +169,22 @@ def test_all_pane_cancel_saves_single_joined_entry_and_detaches_once() -> None:
 
     harness.on_prompt_input_bar_cancelled(
         PromptInputBar.Cancelled(
-            "first\n---\nsecond",
+            "first pane cancelled now\n---\nsecond pane cancelled now",
             "prompt",
             record_segments=False,
         )
     )
 
-    assert harness.saved_cancelled == ["first\n---\nsecond"]
+    assert harness.saved_cancelled == [
+        "first pane cancelled now\n---\nsecond pane cancelled now"
+    ]
     assert harness.saved_record_segments == [False]
     assert harness.unmount_calls == 0
     assert harness.unmount_without_save_calls == 1
     assert harness._prompt_context is None
     assert harness.notifications == [
         (
-            '"first --- second"',
+            '"first pane cancelled now --- second pane cancelled now"',
             None,
             "Prompt input cancelled — saved to history",
         )
