@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 14:42:04
-status: wip
+status: done
 prompt: sdd/prompts/202606/auto_approve_pending_plan.md
 ---
 # Fix: `%auto` set via the `A` keymap does not auto-approve an already-pending plan

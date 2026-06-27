@@ -75,24 +75,32 @@ def add_create_time_frontmatter(
     return f"---\n{fields}\n---\n{content}"
 
 
-def _mark_auto_approved_plan_handled(plan_file: str, agent_name: str | None) -> None:
-    """Best-effort: mark stale PlanApproval actions for this plan handled.
+def _mark_auto_approved_plan_handled(
+    plan_file: str, agent_name: str | None, *, action: str | None = None
+) -> None:
+    """Best-effort: mark PlanApproval actions for this plan handled.
 
     Matches on the exact plan file plus the running agent's identity so only
-    keyboards tied to this agent/plan are dismissed. Never raises.
+    notifications and keyboards tied to this agent/plan are dismissed. Never
+    raises.
     """
     try:
         from sase.notifications.pending_actions import (
             mark_plan_approval_auto_handled,
         )
 
-        mark_plan_approval_auto_handled(
+        handled_ids = mark_plan_approval_auto_handled(
             plan_file=plan_file,
             agent_timestamp=os.environ.get("SASE_AGENT_TIMESTAMP"),
             agent_root_timestamp=os.environ.get("SASE_AGENT_ROOT_TIMESTAMP"),
             agent_name=agent_name,
             source="auto_approve",
+            action=action,
         )
+        from sase.notifications import mark_dismissed
+
+        for notification_id in handled_ids:
+            mark_dismissed(notification_id)
     except Exception:
         pass
 
@@ -159,10 +167,10 @@ def handle_plan_approval(
         if not plan_file:
             return None
         # Auto-approval resolves the plan outside the notification + Telegram
-        # callback path. Any inline keyboard a transport already sent for this
-        # plan must be cleared, so record handled-state in the shared store;
-        # the Telegram inbound chop performs the actual API cleanup.
-        _mark_auto_approved_plan_handled(plan_file, agent_name)
+        # callback path. Any notification or inline keyboard already sent for
+        # this plan must be cleared, so record handled-state and dismiss the
+        # matching notification if it exists.
+        _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
         return PlanApprovalResult(action=auto_action, plan_file=plan_file)
 
     if not plan_file:
@@ -285,5 +293,12 @@ def handle_plan_approval(
                 return None
             except (json.JSONDecodeError, OSError):
                 pass
+
+        auto_action = get_auto_plan_approval_action()
+        if auto_action is not None:
+            if request_path.exists():
+                request_path.unlink()
+            _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
+            return PlanApprovalResult(action=auto_action, plan_file=plan_file)
 
         time.sleep(_POLL_INTERVAL)

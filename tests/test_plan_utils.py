@@ -20,6 +20,12 @@ from sase.main.plan_approve_handler import (
 from tests.conftest import redirect_sase_home
 
 
+def _only_plan_approval_response_dir(sase_home: Path, session_id: str) -> Path:
+    matches = list((sase_home / "plan_approval").glob(f"*/{session_id}"))
+    assert len(matches) == 1
+    return matches[0]
+
+
 def test_save_plan_to_sase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that save_plan_to_sase copies to ~/.sase/plans/ with dedup counter."""
     src_file = tmp_path / "source_plan.md"
@@ -121,6 +127,101 @@ def test_handle_plan_approval_auto_tale_skips_notification() -> None:
     notify.assert_not_called()
 
 
+@pytest.mark.parametrize("auto_action", ["approve", "tale", "epic"])
+def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
+    auto_action: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pending plan unblocks when auto-approve is enabled after notification."""
+    from sase.notifications import load_notifications, pending_actions
+
+    plan_file = str(tmp_path / "plan.md")
+    Path(plan_file).write_text("# Plan")
+    session_id = f"waiting-auto-{auto_action}"
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "root-1")
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            side_effect=[None, None, auto_action],
+        ) as get_auto_action,
+        patch("sase.llm_provider._plan_utils.time.sleep") as sleep,
+        patch("sase.main.plan_approve_handler.send_desktop_notification"),
+        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
+        patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
+    ):
+        result = handle_plan_approval(
+            plan_file,
+            session_id,
+            agent_name="planner.agent",
+        )
+
+    assert result == PlanApprovalResult(action=auto_action, plan_file=plan_file)
+    assert get_auto_action.call_count == 3
+    sleep.assert_called_once()
+
+    response_dir = _only_plan_approval_response_dir(sase_home, session_id)
+    assert not (response_dir / "plan_response.json").exists()
+    assert not (response_dir / "plan_request.json").exists()
+
+    store = pending_actions.read_pending_action_store()
+    [entry] = store["actions"].values()
+    assert entry["state"] == "already_handled"
+    assert entry["handled_source"] == "auto_approve"
+    assert entry["handled_action"] == auto_action
+
+    notifications = load_notifications(include_dismissed=True)
+    assert len(notifications) == 1
+    assert notifications[0].dismissed is True
+    assert load_notifications() == []
+
+
+def test_handle_plan_approval_killed_check_wins_over_waiting_auto_approve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A kill during the wait returns None without consuming a later auto action."""
+    from sase.notifications import load_notifications, pending_actions
+
+    plan_file = str(tmp_path / "plan.md")
+    Path(plan_file).write_text("# Plan")
+    session_id = "waiting-auto-killed"
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "root-1")
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            side_effect=[None, "approve"],
+        ) as get_auto_action,
+        patch("sase.llm_provider._plan_utils.time.sleep") as sleep,
+        patch("sase.main.plan_approve_handler.send_desktop_notification"),
+        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
+        patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
+    ):
+        result = handle_plan_approval(
+            plan_file,
+            session_id,
+            killed_check=lambda: True,
+            agent_name="planner.agent",
+        )
+
+    assert result is None
+    assert get_auto_action.call_count == 1
+    sleep.assert_not_called()
+
+    response_dir = _only_plan_approval_response_dir(sase_home, session_id)
+    assert (response_dir / "plan_request.json").exists()
+    assert not (response_dir / "plan_response.json").exists()
+
+    store = pending_actions.read_pending_action_store()
+    [entry] = store["actions"].values()
+    assert entry["state"] == "available"
+
+    notifications = load_notifications(include_dismissed=True)
+    assert len(notifications) == 1
+    assert notifications[0].dismissed is False
+
+
 def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -162,6 +263,7 @@ def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
     assert result == PlanApprovalResult(action="approve", plan_file=plan_file)
     store = pending_actions.read_pending_action_store()
     assert store["actions"]["abcdef01"]["state"] == "already_handled"
+    assert store["actions"]["abcdef01"]["handled_action"] == "approve"
 
 
 def test_auto_plan_action_reads_epic_from_agent_meta(
