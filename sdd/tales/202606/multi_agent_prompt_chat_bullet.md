@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 16:00:21
-status: wip
+status: done
 prompt: sdd/prompts/202606/multi_agent_prompt_chat_bullet.md
 ---
 # Plan: Add a "multi-agent prompt file" bullet to agent chat transcripts

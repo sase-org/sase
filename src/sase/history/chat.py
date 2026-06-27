@@ -19,6 +19,7 @@ from sase.core.paths import (
 )
 from sase.core.time import generate_timestamp, get_timezone
 from sase.core.shell import run_shell_command
+from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_METADATA_LABEL
 
 
 # Matches current #fork / #fork_by_chat refs plus legacy #resume /
@@ -296,14 +297,20 @@ def _format_transcript_metadata_blocks(
     metadata_model: str | None,
     metadata_llm_provider: str | None,
     metadata_agent: str | None,
+    metadata_multi_agent_prompt: str | None,
 ) -> str:
     rows = [f"- **TIMESTAMP:** {display_timestamp}"]
     model = _format_metadata_model(metadata_llm_provider, metadata_model)
     agent = _clean_metadata_field(metadata_agent)
+    multi_agent_prompt = _clean_metadata_field(metadata_multi_agent_prompt)
     if model:
         rows.append(f"- **MODEL:** {model}")
     if agent:
         rows.append(f"- **AGENT:** {agent}")
+    if multi_agent_prompt:
+        rows.append(
+            f"- **{MULTI_AGENT_PROMPT_METADATA_LABEL}:** `{multi_agent_prompt}`"
+        )
     return "\n".join(rows)
 
 
@@ -320,6 +327,7 @@ def save_chat_history(
     metadata_model: str | None = None,
     metadata_llm_provider: str | None = None,
     metadata_agent: str | None = None,
+    metadata_multi_agent_prompt: str | None = None,
 ) -> str:
     """Save a chat history to a file.
 
@@ -336,6 +344,8 @@ def save_chat_history(
         metadata_model: Optional model name to render in the transcript header.
         metadata_llm_provider: Optional LLM provider to render with the model.
         metadata_agent: Optional SASE agent name to render in the transcript header.
+        metadata_multi_agent_prompt: Optional path to the full multi-agent
+            prompt file to render in the transcript header.
 
     Returns:
         The full path to the saved chat history file
@@ -363,6 +373,7 @@ def save_chat_history(
         metadata_model=metadata_model,
         metadata_llm_provider=metadata_llm_provider,
         metadata_agent=metadata_agent,
+        metadata_multi_agent_prompt=metadata_multi_agent_prompt,
     )
     content_parts.append(f"\n\n{metadata_blocks}\n")
 

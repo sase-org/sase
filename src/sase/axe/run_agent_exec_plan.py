@@ -158,6 +158,7 @@ def handle_plan_marker(
         metadata_agent=planner_agent,
         metadata_model=ctx.agent_model,
         metadata_llm_provider=ctx.agent_llm_provider,
+        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
     )
     state.saved_chat_paths.append((_planner_suffix, _planner_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _planner_chat)

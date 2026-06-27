@@ -26,6 +26,7 @@ def test_finalize_loop_passes_transcript_metadata_to_chat_history(
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     ctx.agent_model = "sonnet"
     ctx.agent_llm_provider = "claude"
+    ctx.multi_agent_prompt_file = "~/.sase/multi_prompts/202606/main.md"
     state = LoopState(
         current_prompt="prompt",
         current_role_suffix="",
@@ -61,6 +62,9 @@ def test_finalize_loop_passes_transcript_metadata_to_chat_history(
     assert captured["metadata_agent"] == "agent"
     assert captured["metadata_model"] == "sonnet"
     assert captured["metadata_llm_provider"] == "claude"
+    assert captured["metadata_multi_agent_prompt"] == (
+        "~/.sase/multi_prompts/202606/main.md"
+    )
 
 
 def test_finalize_loop_prefers_latest_agent_meta_for_transcript_metadata(

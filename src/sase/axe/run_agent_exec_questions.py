@@ -147,6 +147,7 @@ def handle_questions_marker(
         extra_sections=_q_extra,
         branch_or_workspace=ctx.cl_name,
         metadata_agent=_q_agent,
+        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
     )
     state.saved_chat_paths.append((_q_suffix, _q_chat))
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)

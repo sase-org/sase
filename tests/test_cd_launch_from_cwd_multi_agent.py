@@ -88,6 +88,7 @@ def test_launch_agents_from_cwd_xprompt_expanded_multi_model_fans_out(
     expand.assert_called_once_with("#stub_m Do work")
     launch_multi.assert_called_once()
     assert launch_multi.call_args.kwargs["segments"] == ["#stub_m Do work"]
+    assert "multi_agent_prompt_text" not in launch_multi.call_args.kwargs
     fanout_plan = launch_multi.call_args.kwargs["preplanned_fanout_plans"][0]
     assert [slot.prompt for slot in fanout_plan.slots] == [
         "%name:ag.cld_opus\n%model:opus\nDo work",
@@ -167,6 +168,7 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_promp
 
     assert result == launched
     assert launch_multi.call_args.kwargs["segments"] == ["Plan phase", "Build phase"]
+    assert launch_multi.call_args.kwargs["multi_agent_prompt_text"] == "#!swarm"
     entries = prompt_store.load_prompt_history()
     assert [entry.text for entry in entries] == ["#!swarm"]
     assert all("Plan phase" not in entry.text for entry in entries)

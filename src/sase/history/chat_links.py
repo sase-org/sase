@@ -7,9 +7,14 @@ intermediate steps.
 
 import re
 
+from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_METADATA_LABEL
+
+_BULLET_METADATA_LABEL_RE = (
+    rf"(?:MODEL|AGENT|{re.escape(MULTI_AGENT_PROMPT_METADATA_LABEL)})"
+)
 _BULLET_METADATA_LIST_RE = re.compile(
     r"^- \*\*TIMESTAMP:\*\*[^\n]*\n"
-    r"(?:- \*\*(?:MODEL|AGENT):\*\*[^\n]*\n)*\n?",
+    rf"(?:- \*\*{_BULLET_METADATA_LABEL_RE}:\*\*[^\n]*\n)*\n?",
     re.MULTILINE,
 )
 _BLOCK_METADATA_RE = re.compile(

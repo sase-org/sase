@@ -93,6 +93,30 @@ class TestRunStartedAtRecording:
 
         assert len(seen_run_started_at) == 1
 
+    def test_runner_populates_multi_agent_prompt_file_from_env(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
+
+        artifacts_dir = str(tmp_path / "artifacts")
+        patches = base_patches(artifacts_dir)
+        seen: list[str | None] = []
+
+        def run_loop(ctx: Any, _prompt: str) -> Any:
+            seen.append(ctx.multi_agent_prompt_file)
+            return exec_result(artifacts_dir)
+
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+
+        run_main(
+            patches,
+            tmp_path,
+            env={MULTI_AGENT_PROMPT_FILE_ENV: ("~/.sase/multi_prompts/202606/main.md")},
+        )
+
+        assert seen == ["~/.sase/multi_prompts/202606/main.md"]
+
     def test_error_before_execution_does_not_record_run_started_at(
         self, tmp_path: Path
     ) -> None:

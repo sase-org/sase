@@ -140,6 +140,7 @@ def _spawn_with_captured_env(
     workspace: Path,
     *,
     deferred_workspace: bool = False,
+    extra_env: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Drive ``spawn_agent_subprocess`` and return the env passed to the child."""
     patch_cd_git_metadata(monkeypatch)
@@ -187,6 +188,7 @@ def _spawn_with_captured_env(
             is_home_mode=False,
             vcs_ref=("git", "home"),
             deferred_workspace=deferred_workspace,
+            extra_env=extra_env,
         )
     return captured_env
 
@@ -258,6 +260,43 @@ def test_spawn_agent_subprocess_readds_prepared_deferred_workspace_env(
 
     assert captured_env["SASE_AGENT_DEFERRED_WORKSPACE"] == "1"
     assert captured_env["SASE_AGENT_VCS_WORKFLOW_TYPE"] == "git"
+
+
+def test_spawn_agent_subprocess_strips_stale_multi_agent_prompt_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Normal child launches must not inherit parent multi-agent prompt context."""
+    from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
+
+    workspace = tmp_path / "child-workspace"
+    workspace.mkdir()
+    monkeypatch.setenv(MULTI_AGENT_PROMPT_FILE_ENV, "~/.sase/multi_prompts/old.md")
+
+    captured_env = _spawn_with_captured_env(monkeypatch, tmp_path, workspace)
+
+    assert MULTI_AGENT_PROMPT_FILE_ENV not in captured_env
+
+
+def test_spawn_agent_subprocess_readds_launch_multi_agent_prompt_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A fresh launch-supplied multi-agent prompt path wins after scrubbing."""
+    from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
+
+    workspace = tmp_path / "child-workspace"
+    workspace.mkdir()
+    monkeypatch.setenv(MULTI_AGENT_PROMPT_FILE_ENV, "~/.sase/multi_prompts/old.md")
+
+    captured_env = _spawn_with_captured_env(
+        monkeypatch,
+        tmp_path,
+        workspace,
+        extra_env={MULTI_AGENT_PROMPT_FILE_ENV: "~/.sase/multi_prompts/new.md"},
+    )
+
+    assert captured_env[MULTI_AGENT_PROMPT_FILE_ENV] == "~/.sase/multi_prompts/new.md"
 
 
 def test_spawn_agent_subprocess_exports_linked_repo_env_without_prompt_note(

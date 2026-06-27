@@ -64,6 +64,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
+from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
@@ -471,6 +472,7 @@ def main() -> None:
                     agent_hidden=agent_hidden,
                     agent_meta=agent_meta,
                     local_xprompts=info.local_xprompts,
+                    multi_agent_prompt_file=os.environ.get(MULTI_AGENT_PROMPT_FILE_ENV),
                     wait_chats=wait_chats,
                     output_variable_namespaces=output_variable_namespaces,
                 )

@@ -1,12 +1,14 @@
 """Tests for multi-prompt launch env propagation."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from tests._multi_prompt_launcher_launch_helpers import spawn_result_with_planned_name
 from sase.agent.output_variable_context import SASE_AGENT_VAR_UPSTREAMS_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -188,6 +190,52 @@ def test_launch_multi_prompt_passes_extra_env_to_each_child(
     assert call1_env["SASE_CHOP_NAME"] == "split"
     assert call0_env["SASE_AGENT_PLANNED_NAME"] == "0"
     assert call1_env["SASE_AGENT_PLANNED_NAME"] == "1"
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.agent.names.get_reserved_agent_names", return_value=set())
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_injects_shared_multi_agent_prompt_file(
+    mock_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_active_names: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Opt-in multi-agent launches write one prompt file shared by all children."""
+    mock_spawn.return_value = MagicMock(pid=1)
+    mock_wait.return_value = "alpha"
+    submitted = "---\nmodel: test\n---\nseg1\n---\nseg2"
+
+    launch_multi_prompt_agents(
+        segments=["seg1", "seg2"],
+        local_xprompts={},
+        cl_name="test",
+        project_file="/test.sase",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+        multi_agent_prompt_text=submitted,
+    )
+
+    prompt_paths = {
+        call.kwargs["extra_env"][MULTI_AGENT_PROMPT_FILE_ENV]
+        for call in mock_spawn.call_args_list
+    }
+    assert prompt_paths == {
+        "~/.sase/multi_prompts/202605/test-multiprompt-260501_120000.md"
+    }
+    prompt_path = Path(os.path.expanduser(next(iter(prompt_paths))))
+    assert prompt_path.read_text(encoding="utf-8") == submitted
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

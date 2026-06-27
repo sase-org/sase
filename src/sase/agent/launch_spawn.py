@@ -44,6 +44,13 @@ def _remove_inherited_agent_var_context_env(env: dict[str, str]) -> None:
     env.pop(SASE_AGENT_VAR_UPSTREAMS_ENV, None)
 
 
+def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
+    """Drop stale multi-agent prompt file context inherited from a parent agent."""
+    from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
+
+    env.pop(MULTI_AGENT_PROMPT_FILE_ENV, None)
+
+
 def _remove_inherited_linked_repo_env(env: dict[str, str]) -> None:
     """Drop stale linked-repo mappings inherited from parent agents."""
     from sase.linked_repos import scrub_linked_repo_env
@@ -228,6 +235,7 @@ def spawn_agent_subprocess(
         _remove_inherited_workspace_preallocation_env(subprocess_env)
         _remove_inherited_deferred_workspace_env(subprocess_env)
         _remove_inherited_agent_var_context_env(subprocess_env)
+        _remove_inherited_multi_agent_prompt_env(subprocess_env)
         _remove_inherited_linked_repo_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
         from sase.linked_repos import apply_linked_repo_env

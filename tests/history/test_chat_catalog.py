@@ -163,6 +163,35 @@ def test_list_populates_snippets_and_header_fields(
     assert info.response_snippet == "Implemented the foo."
 
 
+def test_list_tolerates_multi_agent_prompt_metadata_bullet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = _setup_fake_home(monkeypatch, tmp_path)
+    chat_dir = home / "chats" / "202606"
+    chat_dir.mkdir(parents=True, exist_ok=True)
+    path = chat_dir / "branch-ace_run-alpha-260627_161500.md"
+    path.write_text(
+        (
+            "# Chat History - ace-run (alpha)\n\n"
+            "- **TIMESTAMP:** 2026-06-27 16:15:00 EDT\n"
+            "- **MODEL:** codex/gpt-5\n"
+            "- **AGENT:** alpha\n"
+            "- **PROMPT:** `~/.sase/multi_prompts/202606/main.md`\n\n"
+            "## Prompt\n\nDo work\n\n"
+            "## Response\n\nDone\n"
+        ),
+        encoding="utf-8",
+    )
+
+    [info] = list_chat_transcripts()
+
+    assert info.workflow == "ace-run"
+    assert info.agent == "alpha"
+    assert info.timestamp == "260627_161500"
+    assert info.prompt_snippet == "Do work"
+    assert info.response_snippet == "Done"
+
+
 def test_list_tolerates_malformed_transcript(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

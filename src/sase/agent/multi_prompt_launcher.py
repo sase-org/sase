@@ -41,6 +41,10 @@ from sase.agent.output_variable_context import (
 )
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire
+from sase.history.multi_agent_prompt import (
+    MULTI_AGENT_PROMPT_FILE_ENV,
+    save_multi_agent_prompt_file,
+)
 from sase.xprompt.models import XPrompt
 
 __all__ = [
@@ -125,6 +129,7 @@ def launch_multi_prompt_agents(
     allow_reserved_family_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
     default_bare_segments_to_home: bool = False,
+    multi_agent_prompt_text: str | None = None,
 ) -> list[AgentLaunchResult]:
     """Launch each segment as a separate agent.
 
@@ -163,6 +168,7 @@ def launch_multi_prompt_agents(
             preplanned_fanout_plans=preplanned_fanout_plans,
             allow_reserved_family_separator_names=allow_reserved_family_separator_names,
             default_bare_segments_to_home=default_bare_segments_to_home,
+            multi_agent_prompt_text=multi_agent_prompt_text,
             timestamp_allocator=timestamp_allocator,
             results=results,
         )
@@ -189,6 +195,7 @@ def _spawn_segments_into(
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None,
     allow_reserved_family_separator_names: bool,
     default_bare_segments_to_home: bool,
+    multi_agent_prompt_text: str | None,
     timestamp_allocator: LaunchTimestampBatchAllocator,
     results: list[AgentLaunchResult],
 ) -> None:
@@ -241,6 +248,7 @@ def _spawn_segments_into(
     name_allocator = _PlannedNameAllocator()
     previous_agent_name: str | None = None
     upstreams: list[dict[str, Any]] = []
+    multi_agent_prompt_file: str | None = None
     for i, segment in enumerate(segments):
         segment = canonicalize_project_aliases_in_prompt(segment)
         segment_template_group = (
@@ -312,6 +320,17 @@ def _spawn_segments_into(
             else plan_fake_fanout("multi_prompt", [segment])
         )
         plan = _assign_missing_slot_timestamps(plan, timestamp_allocator)
+        if (
+            multi_agent_prompt_text is not None
+            and multi_agent_prompt_file is None
+            and plan.slots
+        ):
+            assert plan.slots[0].timestamp is not None
+            multi_agent_prompt_file = save_multi_agent_prompt_file(
+                multi_agent_prompt_text,
+                cl_name=cl_name,
+                timestamp=plan.slots[0].timestamp,
+            )
 
         slot_contexts: dict[int, LaunchExecutionContext] = {}
         slot_artifacts_dirs: dict[int, Path] = {}
@@ -429,6 +448,8 @@ def _spawn_segments_into(
                     slot_env[_PLANNED_AGENT_NAME_ENV] = env_name_to_inject
                 if slot.name_generated:
                     slot_env[_GENERATED_AGENT_NAME_ENV] = "1"
+                if multi_agent_prompt_file is not None:
+                    slot_env[MULTI_AGENT_PROMPT_FILE_ENV] = multi_agent_prompt_file
                 slot_planned_env[j] = slot_env
 
             with timer.stage(

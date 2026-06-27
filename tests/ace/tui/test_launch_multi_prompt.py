@@ -81,6 +81,27 @@ def test_multi_prompt_launch_context_is_immutable_snapshot() -> None:
     assert captured["display_name"] == "cl"
 
 
+def test_multi_prompt_launch_forwards_submitted_prompt_text() -> None:
+    app = _MultiPromptApp()
+    multi = _FakeMultiPrompt(["one", "two"])
+    submitted = "one\n---\ntwo"
+    captured: dict[str, str] = {}
+
+    def _capture(**kwargs: Any) -> list[Any]:
+        captured["multi_agent_prompt_text"] = kwargs.get("multi_agent_prompt_text", "")
+        return []
+
+    with patch("sase.agent.multi_prompt.MultiPrompt", _FakeMultiPrompt, create=True):
+        with patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            side_effect=_capture,
+        ):
+            app._launch_multi_prompt_agents(multi, _ctx(), None, submitted)
+            app._run_submitted_launch_tasks()
+
+    assert captured["multi_agent_prompt_text"] == submitted
+
+
 def test_multi_prompt_launch_failure_records_failed_history() -> None:
     app = _MultiPromptApp()
     multi = _FakeMultiPrompt(["first prompt", "second prompt"])

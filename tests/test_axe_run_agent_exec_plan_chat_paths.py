@@ -33,6 +33,7 @@ class TestFeedbackRoundChatPath:
         agent_name: str | None = "test_agent",
     ) -> dict:
         ctx = make_ctx(tmp_path)
+        ctx.multi_agent_prompt_file = "~/.sase/multi_prompts/202606/main.md"
         if agent_name != "test_agent":
             ctx = dataclasses.replace(ctx, agent_name=agent_name)
         state = make_state(tmp_path)
@@ -73,6 +74,9 @@ class TestFeedbackRoundChatPath:
         assert captured["metadata_agent"] == "test_agent--plan"
         assert captured["metadata_model"] is None
         assert captured["metadata_llm_provider"] == "anthropic"
+        assert captured["metadata_multi_agent_prompt"] == (
+            "~/.sase/multi_prompts/202606/main.md"
+        )
 
     def test_handle_plan_marker_round2_uses_round_suffix_in_agent_name(
         self, tmp_path
@@ -103,6 +107,7 @@ class TestFeedbackRoundChatPath:
     ) -> None:
         """First-agent questions relabel the root logical child to '--0'."""
         ctx = make_ctx(tmp_path)
+        ctx.multi_agent_prompt_file = "~/.sase/multi_prompts/202606/main.md"
         state = make_state(tmp_path)
         state.current_role_suffix = ".2"
 
@@ -126,5 +131,8 @@ class TestFeedbackRoundChatPath:
 
         assert captured["agent"] == "test_agent--0"
         assert captured["metadata_agent"] == "test_agent--0"
+        assert captured["metadata_multi_agent_prompt"] == (
+            "~/.sase/multi_prompts/202606/main.md"
+        )
         assert "metadata_model" not in captured
         assert "metadata_llm_provider" not in captured

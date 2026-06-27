@@ -387,6 +387,7 @@ def finalize_loop(
         metadata_agent=done_agent_name,
         metadata_model=metadata_model,
         metadata_llm_provider=metadata_llm_provider,
+        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
     )
     print(f"\nChat history saved to: {saved_path}")
 

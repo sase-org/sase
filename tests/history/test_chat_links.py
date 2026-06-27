@@ -42,6 +42,7 @@ class TestAppendLinksToChat:
             - **TIMESTAMP:** 2026-03-27 15:22:07 UTC
             - **MODEL:** claude/claude-sonnet
             - **AGENT:** alpha
+            - **PROMPT:** `~/.sase/multi_prompts/202603/main.md`
 
             ## Prompt
 
@@ -63,9 +64,10 @@ class TestAppendLinksToChat:
         # Links section should appear after all metadata and before the prompt.
         agent_pos = content.index("- **AGENT:**")
         assert content.index("- **MODEL:**") < agent_pos
+        multi_prompt_pos = content.index("- **PROMPT:**")
         links_pos = content.index("## Linked Chats")
         prompt_pos = content.index("## Prompt")
-        assert agent_pos < links_pos < prompt_pos
+        assert agent_pos < multi_prompt_pos < links_pos < prompt_pos
 
     def test_inserts_after_historical_metadata_blocks(self, tmp_path: object) -> None:
         chat_file = os.path.join(str(tmp_path), "chat.md")

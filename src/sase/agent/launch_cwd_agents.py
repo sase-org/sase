@@ -206,6 +206,7 @@ def launch_agents_from_cwd_impl(
                     expanded_segment_extra_env,
                 ),
                 default_bare_segments_to_home=True,
+                multi_agent_prompt_text=submitted_query,
             )
         except Exception:
             record_failed_launch_prompt(submitted_query)

@@ -38,6 +38,7 @@ def test_save_chat_history_basic(
     assert "# Chat History - run" in content
     assert "- **MODEL:**" not in content
     assert "- **AGENT:**" not in content
+    assert "- **PROMPT:**" not in content
 
 
 def test_save_chat_history_with_transcript_metadata(
@@ -59,6 +60,7 @@ def test_save_chat_history_with_transcript_metadata(
             metadata_model="claude-sonnet",
             metadata_llm_provider="claude",
             metadata_agent="alpha",
+            metadata_multi_agent_prompt="~/.sase/multi_prompts/202606/p.md",
         )
 
     content = Path(os.path.expanduser(result)).read_text(encoding="utf-8")
@@ -66,12 +68,14 @@ def test_save_chat_history_with_transcript_metadata(
     assert "**Timestamp** " not in content
     assert "\n\n- **TIMESTAMP:** " in content
     assert "- **MODEL:** claude/claude-sonnet\n" in content
-    assert "- **AGENT:** alpha\n\n" in content
+    assert "- **AGENT:** alpha\n" in content
+    assert "- **PROMPT:** `~/.sase/multi_prompts/202606/p.md`\n\n" in content
     assert "\n\n- **MODEL:**" not in content
     assert "\n\n- **AGENT:**" not in content
     assert content.index("- **TIMESTAMP:**") < content.index("- **MODEL:**")
     assert content.index("- **MODEL:**") < content.index("- **AGENT:**")
-    assert content.index("- **AGENT:**") < content.index("## Prompt")
+    assert content.index("- **AGENT:**") < content.index("- **PROMPT:**")
+    assert content.index("- **PROMPT:**") < content.index("## Prompt")
 
 
 def test_save_chat_history_filename_agent_can_differ_from_metadata_agent(
