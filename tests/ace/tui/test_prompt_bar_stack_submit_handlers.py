@@ -133,17 +133,17 @@ def test_per_pane_cancel_saves_only_that_pane_and_keeps_bar() -> None:
     harness = _SubmitHarness()
 
     harness.on_prompt_input_bar_cancelled(
-        PromptInputBar.Cancelled("cancelled pane", "prompt", keep_bar=True)
+        PromptInputBar.Cancelled("cancelled pane text", "prompt", keep_bar=True)
     )
 
-    assert harness.saved_cancelled == ["cancelled pane"]
+    assert harness.saved_cancelled == ["cancelled pane text"]
     assert harness.saved_record_segments == [True]
     assert harness.unmount_calls == 0
     assert harness.unmount_without_save_calls == 0
     assert harness._prompt_context is not None
     assert harness.notifications == [
         (
-            '"cancelled pane"',
+            '"cancelled pane text"',
             None,
             "Prompt pane cancelled — saved to history",
         )

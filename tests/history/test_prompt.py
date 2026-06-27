@@ -29,10 +29,10 @@ def test_add_new_prompt(tmp_path: Path) -> None:
             "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
         ),
     ):
-        add_or_update_prompt("test prompt")
+        add_or_update_prompt("test prompt now")
         result = load_prompt_history()
         assert len(result) == 1
-        assert result[0].text == "test prompt"
+        assert result[0].text == "test prompt now"
         assert result[0].timestamp == "251231_143052"
         assert result[0].last_used == "251231_143052"
         assert result[0].branch_or_workspace == ""
@@ -49,7 +49,7 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
     test_file = tmp_path / "prompt_history.json"
     with patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file):
         initial_entry = PromptEntry(
-            text="test prompt",
+            text="test prompt now",
             timestamp="251231_100000",
             last_used="251231_100000",
         )
@@ -58,11 +58,11 @@ def test_add_duplicate_updates_timestamp(tmp_path: Path) -> None:
         with patch(
             "sase.history.prompt_store.generate_timestamp", return_value="251231_200000"
         ):
-            add_or_update_prompt("test prompt")
+            add_or_update_prompt("test prompt now")
 
         result = load_prompt_history()
         assert len(result) == 1
-        assert result[0].text == "test prompt"
+        assert result[0].text == "test prompt now"
         assert result[0].timestamp == "251231_100000"
         assert result[0].last_used == "251231_200000"
 
@@ -230,7 +230,7 @@ def test_add_prompt_does_not_overwrite_after_transient_decode_failure(
                 side_effect=json.JSONDecodeError("transient", "", 0),
             ),
         ):
-            add_or_update_prompt("new prompt")
+            add_or_update_prompt("new history prompt")
 
         result = load_prompt_history()
         assert [entry.text for entry in result] == ["initial prompt"]

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 13:40:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_history_three_word_minimum.md
 ---
 # Plan: Raise prompt-history minimum from 2 to 3 words

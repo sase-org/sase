@@ -24,9 +24,9 @@ _UNKNOWN_SHARD_KEY = "unknown"
 # Display settings for fzf
 _PROMPT_PREVIEW_LENGTH = 60
 
-# Skip prompts shorter than this - bare xprompt triggers like `#gh:sase` are
-# single-token and not meaningful to re-run from history.
-_MIN_PROMPT_WORDS = 2
+# Skip prompts shorter than this. Tiny scraps like `fix bug` are too terse to
+# be useful to re-run from history and mostly clutter the store.
+_MIN_PROMPT_WORDS = 3
 
 
 @dataclass

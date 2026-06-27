@@ -378,7 +378,10 @@ def test_doctor_flags_oversized_and_short_and_legacy(history_file: Path) -> None
     report = compute_prompt_doctor()
 
     assert [item.id for item in report.oversized] == [_prompt_id(big)]
-    assert [item.id for item in report.short_recovery] == [_prompt_id("#gh:foo")]
+    assert [item.id for item in report.short_recovery] == [
+        _prompt_id("#gh:foo"),
+        _prompt_id(big),
+    ]
     assert report.legacy_field_entries == 1
     # Never echoes full oversized text.
     assert "x" * 11000 not in report.oversized[0].preview

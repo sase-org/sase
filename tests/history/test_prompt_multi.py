@@ -51,14 +51,14 @@ def test_multi_prompt_saves_combined_and_segments_in_one_mutation(
             wraps=prompt_store.save_shard,
         ) as save_history,
     ):
-        add_or_update_prompt("Fix the auth bug\n---\nAdd tests")
+        add_or_update_prompt("Fix the auth bug\n---\nAdd more tests")
 
         assert load_for_write.call_count == 1
         assert save_history.call_count == 1
         assert {entry.text for entry in load_prompt_history()} == {
-            "Fix the auth bug\n---\nAdd tests",
+            "Fix the auth bug\n---\nAdd more tests",
             "Fix the auth bug",
-            "Add tests",
+            "Add more tests",
         }
 
 
@@ -76,7 +76,7 @@ def test_multi_prompt_segment_dedup(tmp_path: Path) -> None:
         with patch(
             "sase.history.prompt_store.generate_timestamp", return_value="251231_200000"
         ):
-            add_or_update_prompt("Fix the auth bug\n---\nAdd tests")
+            add_or_update_prompt("Fix the auth bug\n---\nAdd more tests")
 
         result = load_prompt_history()
         assert len(result) == 3
@@ -94,7 +94,7 @@ def test_cancelled_multi_prompt_saves_cancelled_segments(tmp_path: Path) -> None
             "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
         ),
     ):
-        add_or_update_prompt("Draft fix\n---\nDraft tests", cancelled=True)
+        add_or_update_prompt("Draft auth fix\n---\nDraft test plan", cancelled=True)
         result = load_prompt_history()
         assert len(result) == 3
         for entry in result:
@@ -106,7 +106,7 @@ def test_cancelled_multi_prompt_can_save_only_combined_entry(
 ) -> None:
     """Test that cancel-all can preserve a joined prompt as one history entry."""
     test_file = tmp_path / "prompt_history.json"
-    prompt = "Draft fix\n---\nDraft tests"
+    prompt = "Draft auth fix\n---\nDraft test plan"
     with (
         patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
         patch(

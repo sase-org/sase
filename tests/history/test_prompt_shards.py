@@ -72,12 +72,12 @@ def test_write_touches_only_current_month_shard(tmp_path: Path) -> None:
             "sase.history.prompt_store.generate_timestamp",
             return_value="260601_120000",
         ):
-            add_or_update_prompt("new prompt")
+            add_or_update_prompt("new shard prompt")
 
         assert old_shard.read_bytes() == before_bytes
         assert old_shard.stat().st_mtime_ns == before_mtime
         current = json.loads((history_dir / "2606.json").read_text(encoding="utf-8"))
-        assert [entry["text"] for entry in current["prompts"]] == ["new prompt"]
+        assert [entry["text"] for entry in current["prompts"]] == ["new shard prompt"]
 
 
 def test_cross_month_reuse_appends_current_copy_and_dedups_newest(
@@ -91,20 +91,20 @@ def test_cross_month_reuse_appends_current_copy_and_dedups_newest(
             tmp_path / "prompt_history.json",
         ),
     ):
-        save_prompt_history([_entry("shared prompt", "260501_000000")])
+        save_prompt_history([_entry("shared prompt text", "260501_000000")])
 
         with patch(
             "sase.history.prompt_store.generate_timestamp",
             return_value="260601_120000",
         ):
-            add_or_update_prompt("shared prompt")
+            add_or_update_prompt("shared prompt text")
 
         assert len(json.loads((history_dir / "2605.json").read_text())["prompts"]) == 1
         assert len(json.loads((history_dir / "2606.json").read_text())["prompts"]) == 1
         entries = load_prompt_history()
         assert [
             (entry.text, entry.timestamp, entry.last_used) for entry in entries
-        ] == [("shared prompt", "260501_000000", "260601_120000")]
+        ] == [("shared prompt text", "260501_000000", "260601_120000")]
 
 
 def test_cross_month_normal_cancel_newest_wins_but_preserves_prompt(
@@ -118,15 +118,15 @@ def test_cross_month_normal_cancel_newest_wins_but_preserves_prompt(
             tmp_path / "prompt_history.json",
         ),
     ):
-        save_prompt_history([_entry("shared prompt", "260501_000000")])
+        save_prompt_history([_entry("shared prompt text", "260501_000000")])
         with patch(
             "sase.history.prompt_store.generate_timestamp",
             return_value="260601_120000",
         ):
-            add_or_update_prompt("shared prompt", cancelled=True)
+            add_or_update_prompt("shared prompt text", cancelled=True)
 
         (entry,) = load_prompt_history()
-        assert entry.text == "shared prompt"
+        assert entry.text == "shared prompt text"
         assert entry.cancelled is True
 
 

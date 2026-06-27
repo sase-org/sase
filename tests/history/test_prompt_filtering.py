@@ -13,8 +13,9 @@ from sase.history.prompt_store import (
 
 
 def test_is_recordable_prompt_matches_word_threshold() -> None:
-    assert is_recordable_prompt("fix bug") is True
-    assert is_recordable_prompt("   fix   bug   ") is True
+    assert is_recordable_prompt("fix bug") is False
+    assert is_recordable_prompt("   fix   bug   ") is False
+    assert is_recordable_prompt("fix the bug") is True
     assert is_recordable_prompt("") is False
     assert is_recordable_prompt("   \n\t  ") is False
     assert is_recordable_prompt("#gh:sase") is False
@@ -51,8 +52,8 @@ def test_whitespace_only_prompt_not_written(tmp_path: Path) -> None:
         assert load_prompt_history() == []
 
 
-def test_two_word_prompt_is_written(tmp_path: Path) -> None:
-    """Test that a 2-word prompt is written normally (boundary case)."""
+def test_two_word_prompt_not_written(tmp_path: Path) -> None:
+    """Test that a 2-word prompt is dropped."""
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
@@ -61,9 +62,22 @@ def test_two_word_prompt_is_written(tmp_path: Path) -> None:
         ),
     ):
         add_or_update_prompt("fix bug")
+        assert load_prompt_history() == []
+
+
+def test_three_word_prompt_is_written(tmp_path: Path) -> None:
+    """Test that a 3-word prompt is written normally (boundary case)."""
+    test_file = tmp_path / "prompt_history.json"
+    with (
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
+    ):
+        add_or_update_prompt("fix the bug")
         result = load_prompt_history()
         assert len(result) == 1
-        assert result[0].text == "fix bug"
+        assert result[0].text == "fix the bug"
 
 
 def test_single_word_cancelled_prompt_not_written(tmp_path: Path) -> None:
