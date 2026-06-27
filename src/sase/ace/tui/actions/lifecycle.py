@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import time
 from typing import TYPE_CHECKING, Literal
 
@@ -206,54 +207,84 @@ class LifecycleMixin:
 
     def _do_quit(self) -> None:
         """Run the quit cleanup sequence and exit."""
-        self._save_current_selection()
-        self._stop_tui_stall_watchdog()
-        # Stop the inotify watcher before exit so its worker thread releases
-        # the fd cleanly and Textual's call_from_thread doesn't fire after
-        # the event loop is gone.
-        stop_watcher = getattr(self, "_stop_artifact_watcher", None)
-        if stop_watcher is not None:
-            stop_watcher()
-        cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
-        if cancel_discovery is not None:
-            cancel_discovery()
-        cancel_content_search = getattr(
-            self, "_cancel_pending_content_search_refresh", None
-        )
-        if cancel_content_search is not None:
-            cancel_content_search()
-        from sase.ace.tui.models._loaders._json_cache import (
-            shutdown_loader_executor,
-        )
 
-        shutdown_loader_executor()
-        restore_artifact_decoration = getattr(
-            self, "_restore_artifact_tmux_decoration", None
-        )
-        if restore_artifact_decoration is not None:
-            restore_artifact_decoration(notify_warnings=False)
-        restore_artifact_signal = getattr(
-            self, "_restore_artifact_viewer_close_signal_handler", None
-        )
-        if restore_artifact_signal is not None:
-            restore_artifact_signal()
-        from sase.ace.tui_activity import (
-            remove_idle_state,
-            remove_last_keypress,
-            remove_tui_pid,
-            write_activity_timestamp,
-        )
+        def cleanup(step: Callable[[], None]) -> None:
+            try:
+                step()
+            except Exception:
+                pass
 
-        if self._pinned_idle:
-            # Pinned idle persists across restarts — leave idle state files
-            # intact so external consumers still see the user as idle.
-            remove_tui_pid()
-        else:
-            write_activity_timestamp(time.time())
-            remove_idle_state()
-            remove_last_keypress()
-            remove_tui_pid()
-        self.exit()  # type: ignore[attr-defined]
+        def stop_artifact_watcher() -> None:
+            # Stop the inotify watcher before exit so its worker thread releases
+            # the fd cleanly and Textual's call_from_thread doesn't fire after
+            # the event loop is gone.
+            stop_watcher = getattr(self, "_stop_artifact_watcher", None)
+            if stop_watcher is not None:
+                stop_watcher()
+
+        def cancel_artifact_discovery() -> None:
+            cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
+            if cancel_discovery is not None:
+                cancel_discovery()
+
+        def cancel_content_search_refresh() -> None:
+            cancel_content_search = getattr(
+                self, "_cancel_pending_content_search_refresh", None
+            )
+            if cancel_content_search is not None:
+                cancel_content_search()
+
+        def shutdown_loader_executor() -> None:
+            from sase.ace.tui.models._loaders._json_cache import (
+                shutdown_loader_executor as shutdown,
+            )
+
+            shutdown()
+
+        def restore_artifact_tmux_decoration() -> None:
+            restore_artifact_decoration = getattr(
+                self, "_restore_artifact_tmux_decoration", None
+            )
+            if restore_artifact_decoration is not None:
+                restore_artifact_decoration(notify_warnings=False)
+
+        def restore_artifact_viewer_signal_handler() -> None:
+            restore_artifact_signal = getattr(
+                self, "_restore_artifact_viewer_close_signal_handler", None
+            )
+            if restore_artifact_signal is not None:
+                restore_artifact_signal()
+
+        def write_quit_activity_state() -> None:
+            from sase.ace.tui_activity import (
+                remove_idle_state,
+                remove_last_keypress,
+                remove_tui_pid,
+                write_activity_timestamp,
+            )
+
+            if self._pinned_idle:
+                # Pinned idle persists across restarts — leave idle state files
+                # intact so external consumers still see the user as idle.
+                remove_tui_pid()
+            else:
+                write_activity_timestamp(time.time())
+                remove_idle_state()
+                remove_last_keypress()
+                remove_tui_pid()
+
+        try:
+            cleanup(self._save_current_selection)
+            cleanup(self._stop_tui_stall_watchdog)
+            cleanup(stop_artifact_watcher)
+            cleanup(cancel_artifact_discovery)
+            cleanup(cancel_content_search_refresh)
+            cleanup(shutdown_loader_executor)
+            cleanup(restore_artifact_tmux_decoration)
+            cleanup(restore_artifact_viewer_signal_handler)
+            cleanup(write_quit_activity_state)
+        finally:
+            self.exit()  # type: ignore[attr-defined]
 
     def _stop_tui_stall_watchdog(self) -> None:
         """Stop the event-loop stall watchdog if it was started."""

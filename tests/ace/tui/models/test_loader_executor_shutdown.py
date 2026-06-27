@@ -80,6 +80,30 @@ def test_lifecycle_do_quit_shuts_down_loader_executor(monkeypatch) -> None:
     assert calls.index("loader") < calls.index("exit")
 
 
+def test_lifecycle_do_quit_exits_after_cleanup_failure(monkeypatch) -> None:
+    calls: list[str] = []
+    app = _lifecycle_app(calls)
+    _patch_activity_writes(monkeypatch, calls)
+    monkeypatch.setattr(
+        _json_cache,
+        "shutdown_loader_executor",
+        lambda: calls.append("loader"),
+    )
+
+    def fail_selection_save() -> None:
+        calls.append("selection")
+        raise RuntimeError("selection save failed")
+
+    app._save_current_selection = fail_selection_save  # type: ignore[method-assign]
+
+    app._do_quit()
+
+    assert calls[0] == "selection"
+    assert "watcher" in calls
+    assert "loader" in calls
+    assert calls[-1] == "exit"
+
+
 def test_lifecycle_on_unmount_shuts_down_loader_executor(monkeypatch) -> None:
     calls: list[str] = []
     app = _lifecycle_app(calls)

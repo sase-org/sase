@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any, Literal
 
 from textual.worker import Worker, WorkerState
@@ -20,7 +21,7 @@ from sase.axe.state import (
 from ..bgcmd import BackgroundCommandInfo, clear_slot_output
 from .axe_bgcmd import AxeBgCmdMixin
 from .axe_chop_run import AxeChopRunMixin
-from .axe_display import AxeDisplayMixin, get_axe_process_module
+from .axe_display import AxeDisplayMixin
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
@@ -174,21 +175,29 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
 
     def action_stop_axe_and_quit(self) -> None:
         """Stop the axe daemon and quit the application."""
-        if self.axe_running:
-            # Send SIGTERM directly without waiting — the daemon is detached
-            # and handles its own graceful shutdown.
-            import os
-            import signal
+        self.run_worker(self._stop_axe_and_quit())  # type: ignore[attr-defined]
 
-            proc = get_axe_process_module()
-            pid = proc.get_axe_pid()
-            if pid is not None:
-                try:
-                    os.kill(pid, signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
-                    pass
-        self._kill_all_running_tasks()  # type: ignore[attr-defined]
-        self._do_quit()  # type: ignore[attr-defined]
+    async def _stop_axe_and_quit(self) -> None:
+        """Stop axe with the robust daemon stop path, then quit."""
+        stop_watchdog = getattr(self, "_stop_tui_stall_watchdog", None)
+        if callable(stop_watchdog):
+            stop_watchdog()
+
+        try:
+            self._kill_all_running_tasks()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        try:
+            await asyncio.to_thread(
+                _stop_axe_daemon_result,
+                timeout=5.0,
+                kill_timeout=2.0,
+            )
+        except Exception:
+            pass
+        finally:
+            self._do_quit()  # type: ignore[attr-defined]
 
     def action_clear_axe_output(self) -> None:
         """Clear the output log for the current view."""
