@@ -243,7 +243,7 @@ def _persist_plan_approved_metadata(
     notification: PlanApprovalActionContext,
     response_json: dict[str, Any],
 ) -> str | None:
-    action = _persisted_plan_action(response_json)
+    action = persisted_plan_action(response_json)
     if action is None:
         return None
 
@@ -266,6 +266,11 @@ def _persist_plan_approved_metadata(
     except OSError:
         pass
     return action
+
+
+def persisted_plan_action(response_json: dict[str, Any]) -> str | None:
+    """Return the canonical persisted action for a plan response."""
+    return _persisted_plan_action(response_json)
 
 
 def _persisted_plan_action(response_json: dict[str, Any]) -> str | None:

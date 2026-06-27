@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 16:01:17
-status: wip
+status: done
 prompt: sdd/prompts/202606/epic_approved_status_reconstruction.md
 ---
 # Plan: Reconstruct EPIC/LEGEND/COMMIT Approved-Handoff Statuses After TUI Restart

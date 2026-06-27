@@ -3,7 +3,10 @@
 from datetime import datetime
 
 from sase.agent.status_buckets import (
+    EPIC_APPROVED_STATUS,
+    LEGEND_APPROVED_STATUS,
     PLAN_APPROVED_STATUS,
+    PLAN_COMMITTED_STATUS,
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
@@ -16,7 +19,7 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
 )
 
-from ._agent_status_roles import agent_family_role, is_coder_agent
+from ._agent_status_roles import agent_family_role
 from .agent import Agent, AgentType
 
 
@@ -122,11 +125,20 @@ def done_handoff_status(parent: Agent, child: Agent) -> str:
 
 
 def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | None:
-    """Return the visible status for an active approved-plan code handoff."""
+    """Return the visible status for an active approved-plan handoff."""
     if child.parent_workflow or child.status != "RUNNING":
         return None
-    if not is_coder_agent(child):
+
+    role = agent_family_role(child)
+    if role == "epic":
+        return EPIC_APPROVED_STATUS
+    if role == "legend":
+        return LEGEND_APPROVED_STATUS
+    if role == "commit":
+        return PLAN_COMMITTED_STATUS
+    if role != "code":
         return None
+
     if (
         parent.plan_action == "tale"
         or child.plan_action == "tale"

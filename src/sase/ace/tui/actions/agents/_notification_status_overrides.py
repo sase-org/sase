@@ -100,7 +100,11 @@ class AgentNotificationStatusMixin:
         import json
         from pathlib import Path
 
+        from sase.ace.tui.models._loaders._meta_enrichment_common import (
+            plan_enrichment_status,
+        )
         from sase.notifications import mark_dismissed
+        from sase.plan_approval_actions import persisted_plan_action
 
         from ._notification_actions import (
             find_agent_for_notification,
@@ -127,23 +131,17 @@ class AgentNotificationStatusMixin:
 
             agent = find_agent_for_notification(self, notification)
             if agent is not None:
-                action = response.get("action")
-                if action == "approve":
-                    is_tale = (
-                        response.get("commit_plan") is True
-                        and response.get("run_coder", True) is True
+                plan_action = persisted_plan_action(response)
+                if plan_action is not None:
+                    status = plan_enrichment_status(
+                        plan_approved=True,
+                        plan_action=plan_action,
+                        plan_submitted=False,
+                        auto_approved=False,
                     )
-                    status = "TALE APPROVED" if is_tale else "PLAN APPROVED"
-                    self._agent_status_overrides[agent.identity] = status  # type: ignore[attr-defined]
-                    persist_plan_approved(
-                        agent, action="tale" if is_tale else "approve"
-                    )
-                elif action == "epic":
-                    self._agent_status_overrides[agent.identity] = "EPIC APPROVED"  # type: ignore[attr-defined]
-                    persist_plan_approved(agent, action="epic")
-                elif action == "legend":
-                    self._agent_status_overrides[agent.identity] = "LEGEND APPROVED"  # type: ignore[attr-defined]
-                    persist_plan_approved(agent, action="legend")
+                    if status is not None:
+                        self._agent_status_overrides[agent.identity] = status  # type: ignore[attr-defined]
+                    persist_plan_approved(agent, action=plan_action)
                 else:
                     self._agent_status_overrides[agent.identity] = "RUNNING"  # type: ignore[attr-defined]
                 refresh_notification_agent_or_request(self, agent=agent)

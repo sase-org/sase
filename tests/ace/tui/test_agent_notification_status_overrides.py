@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 from sase.ace.tui.actions.agents._notification_navigation import (
     find_agent_for_notification,
+)
+from sase.ace.tui.actions.agents._notification_status_overrides import (
+    AgentNotificationStatusMixin,
 )
 from sase.ace.tui.actions.agents._notifications import AgentNotificationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -29,6 +36,20 @@ class _NotificationApp(AgentNotificationMixin):
         self.refilter_calls += 1
 
 
+class _ExternalPlanResponseApp(AgentNotificationStatusMixin):
+    def __init__(self, agents: list[Agent]) -> None:
+        self._agents = agents
+        self._agents_with_children = agents
+        self.refilter_calls = 0
+        self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
+        self._agent_pre_question_status: dict[
+            tuple[AgentType, str, str | None], str | None
+        ] = {}
+
+    def _refilter_agents(self) -> None:
+        self.refilter_calls += 1
+
+
 def _notification(
     *,
     action: str = "PlanApproval",
@@ -36,12 +57,13 @@ def _notification(
     agent_name: str | None = None,
     agent_timestamp: str = "20260512094333",
     agent_root_timestamp: str = "20260512090000",
+    response_dir: str = "/tmp/response",
 ) -> Notification:
     action_data = {
         "agent_cl_name": cl_name,
         "agent_timestamp": agent_timestamp,
         "agent_root_timestamp": agent_root_timestamp,
-        "response_dir": "/tmp/response",
+        "response_dir": response_dir,
         "session_id": "session",
     }
     if agent_name:
@@ -180,3 +202,84 @@ def test_user_question_root_timestamp_sets_parent_question_override() -> None:
     assert app._agent_status_overrides[parent.identity] == "QUESTION"
     assert app._agent_pre_question_status[parent.identity] == "RUNNING"
     assert app.refilter_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_status", "expected_action"),
+    [
+        (
+            {"action": "approve", "commit_plan": False, "run_coder": True},
+            "PLAN APPROVED",
+            "approve",
+        ),
+        (
+            {"action": "approve", "commit_plan": True, "run_coder": True},
+            "TALE APPROVED",
+            "tale",
+        ),
+        (
+            {"action": "epic", "commit_plan": True, "run_coder": True},
+            "EPIC APPROVED",
+            "epic",
+        ),
+        (
+            {"action": "legend", "commit_plan": True, "run_coder": True},
+            "LEGEND APPROVED",
+            "legend",
+        ),
+        (
+            {"action": "approve", "commit_plan": True, "run_coder": False},
+            "PLAN COMMITTED",
+            "commit",
+        ),
+    ],
+)
+def test_external_plan_response_uses_canonical_action_status_and_persistence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response: dict[str, object],
+    expected_status: str,
+    expected_action: str,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    response_dir = tmp_path / "response"
+    response_dir.mkdir()
+    (response_dir / "plan_response.json").write_text(
+        json.dumps(response), encoding="utf-8"
+    )
+    dismissed: list[str] = []
+    monkeypatch.setattr(
+        "sase.notifications.mark_dismissed",
+        lambda notification_id: dismissed.append(notification_id),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_plan_persistence."
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda artifacts_dir: None,
+    )
+
+    agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="oo",
+        project_file="/tmp/test.sase",
+        status="PLAN",
+        start_time=datetime(2026, 5, 12, 9, 0, 0),
+        raw_suffix="20260512090000",
+        role_suffix=".plan",
+        artifacts_dir=str(artifacts_dir),
+    )
+    app = _ExternalPlanResponseApp([agent])
+
+    handled = app._auto_dismiss_external_plan_response(
+        _notification(response_dir=str(response_dir))
+    )
+
+    assert handled is True
+    assert dismissed == ["n1"]
+    assert app._agent_status_overrides[agent.identity] == expected_status
+    assert app.refilter_calls == 1
+    assert json.loads((artifacts_dir / "agent_meta.json").read_text()) == {
+        "plan_approved": True,
+        "plan_action": expected_action,
+    }
