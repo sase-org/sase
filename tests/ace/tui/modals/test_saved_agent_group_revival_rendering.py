@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
 from sase.ace.tui.models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from sase.ace.tui.modals.saved_agent_group_revival_rendering import (
     _saved_group_time_label,
     _status_style,
+    _title_with_top_level_count,
     build_saved_group_preview,
     format_saved_group_row,
 )
@@ -26,7 +29,8 @@ def test_preview_rendering_includes_stable_time_and_status_text() -> None:
         _group("group-00"),
     ).plain
 
-    assert "3 agents from backend" in text
+    assert "2 agents from backend" in text
+    assert "Agents       3 (2 top-level)" in text
     assert "done:2" in text
     assert "failed:1" in text
     assert "worker-one" in text
@@ -81,7 +85,8 @@ def test_preview_rendering_shows_only_roots_with_prompt_preview() -> None:
     )
     text = build_saved_group_preview(summary, group).plain
 
-    assert "2 agents" in text
+    assert "1 agent from backend" in text
+    assert "Agents       2" in text
     assert "(1 top-level)" in text
     assert "root-worker" in text
     assert "prompt: Restore only the root worker." in text
@@ -96,7 +101,7 @@ def test_named_preview_uses_name_with_generated_summary_context() -> None:
     ).plain
 
     assert "Backend batch" in text
-    assert "3 agents from backend" in text
+    assert "2 agents from backend" in text
 
 
 def test_row_rendering_includes_compact_saved_time() -> None:
@@ -106,10 +111,10 @@ def test_row_rendering_includes_compact_saved_time() -> None:
     ).plain
 
     assert "1h" in text
-    assert "×3" in text
+    assert "×2" in text
     assert "x1 ✓2" in text
     assert "05-27 12:00" not in text
-    assert text.startswith("    1h  ×3")
+    assert text.startswith("    1h  ×2")
 
 
 def test_named_row_uses_name_with_generated_summary_context() -> None:
@@ -120,6 +125,27 @@ def test_named_row_uses_name_with_generated_summary_context() -> None:
 
     assert "Backend batch" in text
     assert "3 agents from backend" not in text
+
+
+@pytest.mark.parametrize(
+    ("title", "top_level_count", "expected"),
+    (
+        ("39 agents from @sase", 6, "6 agents from @sase"),
+        ("2 agents in backend", 1, "1 agent in backend"),
+        ("1 agent from sase", 2, "2 agents from sase"),
+        ("8 agents across 3 PRs", 4, "4 agents across 3 PRs"),
+        ("7 agents", 0, "0 agents"),
+        ("6 agents from @sase", 6, "6 agents from @sase"),
+        ("custom batch", 6, "custom batch"),
+        ("agents from backend", 6, "agents from backend"),
+    ),
+)
+def test_title_with_top_level_count_updates_generated_title_prefix(
+    title: str,
+    top_level_count: int,
+    expected: str,
+) -> None:
+    assert _title_with_top_level_count(title, top_level_count) == expected
 
 
 def test_saved_group_time_label_is_deterministic_with_supplied_now() -> None:

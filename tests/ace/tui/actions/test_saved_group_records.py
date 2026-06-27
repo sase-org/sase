@@ -91,6 +91,122 @@ def test_saved_group_prompt_preview_missing_or_failing_is_none() -> None:
     assert [ref.prompt_preview for ref in group.agent_refs] == [None, None]
 
 
+def test_saved_group_title_uses_top_level_count_for_single_tag() -> None:
+    group = build_saved_agent_group(
+        [
+            _make_agent(tag="backend", raw_suffix="20240101120000"),
+            _make_agent(
+                tag="backend",
+                raw_suffix="20240101120001",
+                parent_timestamp="20240101120000",
+            ),
+        ],
+        resolve_bundle_paths=False,
+    )
+
+    assert group.agent_count == 2
+    assert group.top_level_agent_count == 1
+    assert group.title == "1 agent from @backend"
+
+
+def test_saved_group_title_uses_top_level_count_for_single_pr() -> None:
+    group = build_saved_agent_group(
+        [
+            _make_agent(cl_name="backend", raw_suffix="20240101120000"),
+            _make_agent(
+                cl_name="backend",
+                raw_suffix="20240101120001",
+                parent_timestamp="20240101120000",
+            ),
+            _make_agent(cl_name="backend", raw_suffix="20240101120002"),
+        ],
+        resolve_bundle_paths=False,
+    )
+
+    assert group.agent_count == 3
+    assert group.top_level_agent_count == 2
+    assert group.title == "2 agents in backend"
+
+
+def test_saved_group_title_uses_top_level_count_for_single_project() -> None:
+    group = build_saved_agent_group(
+        [
+            _make_agent(
+                cl_name="unknown",
+                project_file="/tmp/projects/sase/sase.gp",
+                raw_suffix="20240101120000",
+            ),
+            _make_agent(
+                cl_name="unknown",
+                project_file="/tmp/projects/sase/sase.gp",
+                raw_suffix="20240101120001",
+                parent_timestamp="20240101120000",
+            ),
+            _make_agent(
+                cl_name="unknown",
+                project_file="/tmp/projects/sase/sase.gp",
+                raw_suffix="20240101120002",
+            ),
+        ],
+        resolve_bundle_paths=False,
+    )
+
+    assert group.agent_count == 3
+    assert group.top_level_agent_count == 2
+    assert group.title == "2 agents from sase"
+
+
+def test_saved_group_title_uses_top_level_count_across_prs() -> None:
+    group = build_saved_agent_group(
+        [
+            _make_agent(
+                cl_name="backend",
+                project_file="/tmp/projects/backend/backend.sase",
+                raw_suffix="20240101120000",
+            ),
+            _make_agent(
+                cl_name="frontend",
+                project_file="/tmp/projects/frontend/frontend.sase",
+                raw_suffix="20240101120001",
+            ),
+            _make_agent(
+                cl_name="backend",
+                project_file="/tmp/projects/backend/backend.sase",
+                raw_suffix="20240101120002",
+                parent_timestamp="20240101120000",
+            ),
+        ],
+        resolve_bundle_paths=False,
+    )
+
+    assert group.agent_count == 3
+    assert group.top_level_agent_count == 2
+    assert group.title == "2 agents across 2 PRs"
+
+
+def test_saved_group_title_uses_top_level_count_for_bare_title() -> None:
+    group = build_saved_agent_group(
+        [
+            _make_agent(
+                cl_name="unknown",
+                project_file="",
+                raw_suffix="20240101120000",
+            ),
+            _make_agent(
+                cl_name="unknown",
+                project_file="",
+                raw_suffix="20240101120001",
+                parent_timestamp="20240101120000",
+            ),
+        ],
+        resolve_bundle_paths=False,
+    )
+
+    assert group.agent_count == 2
+    assert group.top_level_agent_count == 1
+    assert group.title == "1 agent"
+
+
 def test_resolve_bundle_paths_default_uses_helper() -> None:
     """Default (True) preserves disk resolution for off-UI-thread callers."""
     agent = _make_agent(raw_suffix="20240101120000")

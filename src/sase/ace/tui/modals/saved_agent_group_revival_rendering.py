@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
 from rich.cells import cell_len
@@ -26,6 +27,7 @@ _ROW_AGE_WIDTH = 4
 _ROW_AGENT_COUNT_WIDTH = 4
 _STATUS_BADGE_WIDTH = 7
 _STATUS_BADGE_PRIORITY = ("FAILED", "RUNNING", "DONE")
+_TITLE_AGENT_COUNT_RE = re.compile(r"^\d+\s+agents?(?=$|\s)")
 _STATUS_GLYPHS: dict[str, str] = {
     "FAILED": "x",
     "RUNNING": "●",
@@ -85,7 +87,7 @@ def format_saved_group_row(
     text.append("* " if summary.revived_at else "  ", style="dim")
     text.append(_row_age_label(summary.created_at, now=now), style="dim")
     text.append("  ")
-    agent_count = f"×{summary.agent_count}"
+    agent_count = f"×{summary.top_level_agent_count}"
     text.append(f"{agent_count:<{_ROW_AGENT_COUNT_WIDTH}}", style="#87D7FF")
     _append_compact_status_badge(text, summary.status_counts)
     text.append(" ")
@@ -114,7 +116,13 @@ def build_saved_group_preview(
     preview.append(_saved_group_display_title(summary), style="bold #87D7FF")
     preview.append("\n")
     if summary.name and summary.name != summary.title:
-        preview.append(summary.title, style="dim")
+        preview.append(
+            _title_with_top_level_count(
+                summary.title,
+                summary.top_level_agent_count,
+            ),
+            style="dim",
+        )
         preview.append("\n")
     preview.append(_saved_group_time_label(summary.created_at), style="dim")
     preview.append("\n\n")
@@ -200,7 +208,21 @@ def build_empty_groups_preview() -> Text:
 
 
 def _saved_group_display_title(summary: SavedAgentGroupSummaryWire) -> str:
-    return summary.name or summary.title
+    if summary.name:
+        return summary.name
+    return _title_with_top_level_count(
+        summary.title,
+        summary.top_level_agent_count,
+    )
+
+
+def _title_with_top_level_count(title: str, top_level_agent_count: int) -> str:
+    count_label = "agent" if top_level_agent_count == 1 else "agents"
+    return _TITLE_AGENT_COUNT_RE.sub(
+        f"{top_level_agent_count} {count_label}",
+        title,
+        count=1,
+    )
 
 
 def _append_ref_line(

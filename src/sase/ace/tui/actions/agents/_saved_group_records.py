@@ -62,7 +62,7 @@ def build_saved_agent_group(
         group_id=_saved_group_id(agents, source=source, created_at=now),
         created_at=created_at_wire,
         source=source,
-        title=_saved_group_title(agents),
+        title=_saved_group_title(agents, top_level_count=top_level_count),
         name=_normalize_saved_group_name(group_name),
         agent_count=len(agents),
         top_level_agent_count=top_level_count,
@@ -123,8 +123,8 @@ def _agent_project_name(agent: Agent) -> str | None:
     return stem or None
 
 
-def _saved_group_title(agents: list[Agent]) -> str:
-    count = len(agents)
+def _saved_group_title(agents: list[Agent], *, top_level_count: int) -> str:
+    count = top_level_count
     tags = sorted({a.tag for a in agents if a.tag})
     cl_names = sorted(
         {a.cl_name for a in agents if a.cl_name and a.cl_name != "unknown"}
