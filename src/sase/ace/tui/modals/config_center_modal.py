@@ -19,7 +19,8 @@ alphabetical tabs over a :class:`ContentSwitcher`:
 ``#`` opens the modal on the last Admin Center tab used in the current app
 session (Config on a fresh session). ``1``-``6`` jump directly to the matching
 tab, and ``[`` / ``]`` cycle the tabs with modulo wrapping. The clickable tab
-strip mirrors the app's :class:`TabBar`.
+strip mirrors the app's :class:`TabBar`. A centered caption below the tab strip
+describes the active tab using that tab's accent color.
 """
 
 from __future__ import annotations
@@ -64,11 +65,19 @@ _TAB_LABELS: list[tuple[CenterTab, str]] = [
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
-    "tasks": "#5FD75F",
     "logs": "#FFD700",
     "projects": "#FFAF5F",
+    "tasks": "#5FD75F",
     "updates": "#AF87FF",
     "xprompts": "#87D7FF",
+}
+_TAB_DESCRIPTIONS: dict[CenterTab, str] = {
+    "config": "Edit layered SASE settings with live preview",
+    "logs": "Browse SASE logs and launch failures",
+    "projects": "Manage project lifecycle states and claims",
+    "tasks": "Monitor background tasks and live output",
+    "updates": "Update SASE core and installed plugins",
+    "xprompts": "Browse and preview xprompt definitions",
 }
 _TITLE_ICON = "⎈"
 _TITLE_LABEL = "SASE Admin Center"
@@ -111,6 +120,11 @@ def _gradient_text(content: str, *, bold: bool) -> Text:
         color = _gradient_color(_TITLE_GRADIENT, index / divisor)
         text.append(char, style=f"bold {color}" if bold else color)
     return text
+
+
+def _tab_description_text(tab: CenterTab) -> Text:
+    """Render the Admin Center caption for ``tab`` in its accent color."""
+    return Text(f"› {_TAB_DESCRIPTIONS[tab]}", style=_TAB_COLORS[tab])
 
 
 class _ConfigCenterTabStrip(Static):
@@ -214,6 +228,10 @@ class ConfigCenterModal(ModalScreen[None]):
                 id="config-center-title-underline",
             )
             yield _ConfigCenterTabStrip(self._active_tab, id="config-center-tabs")
+            yield Static(
+                _tab_description_text(self._active_tab),
+                id="config-center-tab-description",
+            )
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
@@ -276,6 +294,11 @@ class ConfigCenterModal(ModalScreen[None]):
         try:
             strip = self.query_one("#config-center-tabs", _ConfigCenterTabStrip)
             strip.set_active_tab(tab)
+        except Exception:
+            pass
+        try:
+            description = self.query_one("#config-center-tab-description", Static)
+            description.update(_tab_description_text(tab))
         except Exception:
             pass
         self._focus_active_pane()

@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import ContentSwitcher
+from rich.text import Text
+from textual.widgets import ContentSwitcher, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import (
     _ConfigCenterTabStrip,
+    _TAB_COLORS,
+    _TAB_DESCRIPTIONS,
     _TAB_LABELS,
+    _TAB_ORDER,
     ConfigCenterModal,
 )
 
@@ -41,6 +45,12 @@ def test_numbered_tab_strip_plain_text_and_click_ranges() -> None:
         assert plain[start:end].strip() == f"{index} {label}"
 
 
+def test_tab_descriptions_cover_tabs_and_use_accent_colors() -> None:
+    assert tuple(tab for tab, _label in _TAB_LABELS) == _TAB_ORDER
+    assert tuple(_TAB_DESCRIPTIONS) == _TAB_ORDER
+    assert tuple(_TAB_COLORS) == _TAB_ORDER
+
+
 async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -57,24 +67,47 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         modal = ConfigCenterModal(initial_tab="config")
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(
+            lambda _s: bool(modal.query("#config-center-tab-description"))
+        )
+        description = modal.query_one("#config-center-tab-description", Static)
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Edit layered SASE settings with live preview"
+        assert str(content.style) == _TAB_COLORS["config"]
 
         await page.press("3")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "projects"
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Manage project lifecycle states and claims"
+        assert str(content.style) == _TAB_COLORS["projects"]
 
         await page.press("4")
         await page.wait_for(lambda _s: modal._active_tab == "tasks")
         assert switcher.current == "tasks"
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Monitor background tasks and live output"
+        assert str(content.style) == _TAB_COLORS["tasks"]
 
         await page.press("5")
         await page.wait_for(lambda _s: modal._active_tab == "updates")
         assert switcher.current == "updates"
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Update SASE core and installed plugins"
+        assert str(content.style) == _TAB_COLORS["updates"]
 
         await page.press("7")
         await page.pause()
         assert modal._active_tab == "updates"
         assert switcher.current == "updates"
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Update SASE core and installed plugins"
         assert calls == []
 
 
