@@ -151,6 +151,86 @@ def test_unsorted_section_appends_without_reordering(tmp_path: Path) -> None:
     )
 
 
+def test_sorted_prefix_names_insert_between(tmp_path: Path) -> None:
+    # ``foo`` then ``foo1`` is sorted by snippet name even though the old
+    # ``name:`` sort key treated it as unsorted (``"foo1:"`` < ``"foo:"``).
+    initial = "ace:\n  snippets:\n    foo: |\n      F$0\n    foo1: |\n      F1$0\n"
+
+    text = _insert(tmp_path, initial, "foo0", "F0$0")
+
+    assert text == (
+        "ace:\n"
+        "  snippets:\n"
+        "    foo: |\n"
+        "      F$0\n"
+        "    foo0: |\n"
+        "      F0$0\n"
+        "    foo1: |\n"
+        "      F1$0\n"
+    )
+    assert list(_snippets(text)) == ["foo", "foo0", "foo1"]
+
+
+def test_sorted_mapping_inserts_before_first_entry(tmp_path: Path) -> None:
+    initial = "ace:\n  snippets:\n    bravo: |\n      B$0\n\n    delta: |\n      D$0\n"
+
+    text = _insert(tmp_path, initial, "alpha", "A$0")
+
+    assert text == (
+        "ace:\n"
+        "  snippets:\n"
+        "    alpha: |\n"
+        "      A$0\n"
+        "\n"
+        "    bravo: |\n"
+        "      B$0\n"
+        "\n"
+        "    delta: |\n"
+        "      D$0\n"
+    )
+
+
+def test_sorted_mapping_appends_after_last_entry(tmp_path: Path) -> None:
+    initial = "ace:\n  snippets:\n    bravo: |\n      B$0\n\n    delta: |\n      D$0\n"
+
+    text = _insert(tmp_path, initial, "echo", "E$0")
+
+    assert text == (
+        "ace:\n"
+        "  snippets:\n"
+        "    bravo: |\n"
+        "      B$0\n"
+        "\n"
+        "    delta: |\n"
+        "      D$0\n"
+        "\n"
+        "    echo: |\n"
+        "      E$0\n"
+    )
+
+
+def test_section_sorted_by_old_key_but_not_by_name_appends(
+    tmp_path: Path,
+) -> None:
+    # ``foo1`` then ``foo`` is sorted under the retired ``name:`` key but not by
+    # snippet name, so the section is treated as unsorted and the new entry is
+    # appended without reordering.
+    initial = "ace:\n  snippets:\n    foo1: |\n      F1$0\n    foo: |\n      F$0\n"
+
+    text = _insert(tmp_path, initial, "foo0", "F0$0")
+
+    assert text == (
+        "ace:\n"
+        "  snippets:\n"
+        "    foo1: |\n"
+        "      F1$0\n"
+        "    foo: |\n"
+        "      F$0\n"
+        "    foo0: |\n"
+        "      F0$0\n"
+    )
+
+
 def test_preserves_unrelated_comments_blank_lines_and_ordering(
     tmp_path: Path,
 ) -> None:

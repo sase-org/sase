@@ -143,12 +143,18 @@ def _parse_entry_blocks(
     return blocks
 
 
-def _entry_sort_key(name: str) -> str:
-    return f"{name}:"
+def _snippet_sort_key(name: str) -> str:
+    """Sort key for a snippet entry: the trigger name itself.
+
+    Unlike the xprompt writer (which tie-breaks on a trailing ``:``), snippet
+    triggers are validated as ``[A-Za-z0-9_]+`` and are expected to sort by the
+    plain trigger name, so ``foo`` sorts before ``foo1``.
+    """
+    return name
 
 
-def _is_sorted_by_entry_key(blocks: list[_EntryBlock]) -> bool:
-    keys = [_entry_sort_key(block.name) for block in blocks]
+def _is_sorted_by_snippet_name(blocks: list[_EntryBlock]) -> bool:
+    keys = [_snippet_sort_key(block.name) for block in blocks]
     return keys == sorted(keys)
 
 
@@ -178,12 +184,12 @@ def _insert_index_for_new_entry(
     blocks: list[_EntryBlock],
 ) -> int | None:
     """Return the block index to insert before, or None to append."""
-    if not _is_sorted_by_entry_key(blocks):
+    if not _is_sorted_by_snippet_name(blocks):
         return None
 
-    new_key = _entry_sort_key(name)
+    new_key = _snippet_sort_key(name)
     for i, block in enumerate(blocks):
-        if _entry_sort_key(block.name) > new_key:
+        if _snippet_sort_key(block.name) > new_key:
             return i
     return None
 

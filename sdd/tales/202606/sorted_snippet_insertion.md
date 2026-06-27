@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 08:41:33
-status: wip
+status: done
 prompt: sdd/prompts/202606/sorted_snippet_insertion.md
 ---
 # Preserve Sorted Snippet Insertions
