@@ -14,6 +14,10 @@ from .models import UNSET, XPrompt, XPromptValidationError
 # Lazy-initialized Jinja2 environment
 _jinja_env: Environment | None = None
 
+# Top-level names reserved by the renderer, even when a runtime value cannot be
+# resolved in the current process context.
+RESERVED_GLOBAL_NAMES: frozenset[str] = frozenset({"root"})
+
 
 def is_jinja2_template(content: str) -> bool:
     """Detect if content uses Jinja2 syntax.
@@ -53,6 +57,9 @@ def get_global_template_vars() -> dict[str, Any]:
     Currently provides:
         root: Absolute path to the primary (#1) workspace directory for the
               current project, or omitted if the project can't be resolved.
+
+    Returned keys must be a subset of :data:`RESERVED_GLOBAL_NAMES`; static
+    linting and completion use that set directly instead of runtime values.
     """
     from sase.bead.workspace import resolve_primary_workspace
 

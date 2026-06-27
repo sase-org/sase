@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Literal
 
 from jinja2 import TemplateSyntaxError, meta
 
 from ._disabled_regions import disabled_region_ranges
 from ._fenced_blocks import fenced_block_ranges
-from ._jinja import get_global_template_vars, get_jinja_env
+from ._jinja import RESERVED_GLOBAL_NAMES, get_jinja_env
 
 JinjaSpanKind = Literal[
     "delimiter",
@@ -243,10 +242,9 @@ def unknown_variables(text: str, known: set[str]) -> list[str]:
     return sorted(meta.find_undeclared_variables(ast) - set(known))
 
 
-@lru_cache(maxsize=1)
 def known_toplevel_context() -> set[str]:
-    """Return names actually available to top-level prompt rendering."""
-    return set(get_global_template_vars())
+    """Return reserved names accepted by top-level prompt tooling."""
+    return set(RESERVED_GLOBAL_NAMES)
 
 
 def jinja_filter_names() -> tuple[str, ...]:

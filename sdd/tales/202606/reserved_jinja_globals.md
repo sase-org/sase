@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 09:59:52
-status: wip
+status: done
 prompt: sdd/prompts/202606/reserved_jinja_globals.md
 ---
 # Plan: Make reserved Jinja globals (`root`) statically known for lint/inference

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.xprompt import jinja_inspect
+from sase.xprompt._jinja import get_global_template_vars
 
 
 def test_tokenize_skips_fenced_blocks() -> None:
@@ -49,6 +50,16 @@ def test_unknown_variables_respects_set_and_loop_targets() -> None:
     unknown = jinja_inspect.unknown_variables(text, {"root", "items"})
 
     assert unknown == ["missing"]
+
+
+def test_reserved_globals_are_known_when_runtime_value_is_unresolved(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+
+    assert get_global_template_vars() == {}
+    assert "root" in jinja_inspect.known_toplevel_context()
+    assert jinja_inspect.inspect_template("Path is {{ root }}").unknown_variables == ()
 
 
 def test_inspect_template_ignores_disabled_regions_for_validation() -> None:

@@ -79,6 +79,12 @@ def test_infer_known_globals_are_not_inputs() -> None:
     assert infer_local_xprompt_inputs("Path is {{ root }}") == []
 
 
+def test_infer_known_globals_without_runtime_value(monkeypatch) -> None:
+    monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
+
+    assert infer_local_xprompt_inputs("Path is {{ root }}") == []
+
+
 def test_infer_invalid_jinja_returns_none() -> None:
     assert infer_local_xprompt_inputs("Broken {{ unclosed ") is None
 
