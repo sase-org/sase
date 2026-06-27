@@ -1,4 +1,4 @@
-"""Log-source registry — the backend↔UI contract for the Logs tab.
+"""Log-source registry — the backend↔UI contract for Operations / Logs.
 
 A single source of truth for *what logs exist* and *how to read them*,
 decoupled from *how the panel renders them*. The canonical paths come from
@@ -39,7 +39,7 @@ _JSONL_VALUE_LIMIT = 120
 
 @dataclass(frozen=True)
 class LogSource:
-    """A single readable log file surfaced by the Logs tab."""
+    """A single readable log file surfaced by Operations / Logs."""
 
     id: str
     title: str

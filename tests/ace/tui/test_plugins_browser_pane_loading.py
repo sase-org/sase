@@ -176,7 +176,7 @@ async def test_plugins_pane_error_state(
         assert "gh not found" in pane._status_message()
 
 
-async def test_config_center_cycles_six_tabs(
+async def test_config_center_cycles_five_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -188,11 +188,9 @@ async def test_config_center_cycles_six_tabs(
         assert modal._active_tab == "config"
         # Tabs cycle alphabetically by their visible labels.
         modal.action_next_center_tab()
-        assert modal._active_tab == "logs"
+        assert modal._active_tab == "operations"
         modal.action_next_center_tab()
         assert modal._active_tab == "projects"
-        modal.action_next_center_tab()
-        assert modal._active_tab == "tasks"
         modal.action_next_center_tab()
         assert modal._active_tab == "updates"
         modal.action_next_center_tab()

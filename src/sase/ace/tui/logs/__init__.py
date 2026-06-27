@@ -1,4 +1,4 @@
-"""Log-source registry for the Admin Center Logs tab."""
+"""Log-source registry for Admin Center Operations / Logs."""
 
 from .sources import LOG_SOURCES, LogSource, log_sources
 

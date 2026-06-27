@@ -1,4 +1,4 @@
-"""Tests for the Admin Center Logs tab."""
+"""Tests for the Admin Center Operations / Logs sub-tab."""
 
 from __future__ import annotations
 
@@ -80,7 +80,10 @@ async def _wait_for_logs_loaded(pilot: object, pane: LogsPane) -> None:
 
 
 async def _open_logs_pane(pilot: object) -> tuple[ConfigCenterModal, LogsPane]:
-    modal = ConfigCenterModal(initial_tab="logs")
+    modal = ConfigCenterModal(
+        initial_tab="operations",
+        initial_operations_subtab="logs",
+    )
     pilot.app.push_screen(modal)  # type: ignore[attr-defined]
     await pilot.pause()  # type: ignore[attr-defined]
     pane = modal.query_one("#logs", LogsPane)
@@ -170,7 +173,8 @@ async def test_logs_tab_opens_with_launch_failures_selected(log_dir: Path) -> No
         modal, pane = await _open_logs_pane(pilot)
 
         assert isinstance(pilot.app.screen, ConfigCenterModal)
-        assert modal._active_tab == "logs"
+        assert modal._active_tab == "operations"
+        assert pilot.app._operations_subtab == "logs"
         option_list = pane.query_one("#log-source-list", OptionList)
         assert option_list.highlighted == 0  # launch_failures is the default
 
@@ -213,8 +217,9 @@ async def test_brackets_switch_admin_center_tabs_not_log_sources(
 
         await pilot.press("right_square_bracket")
         await pilot.pause()
-        assert modal._active_tab == "logs"
-        assert switcher.current == "logs"
+        assert modal._active_tab == "operations"
+        assert switcher.current == "operations"
+        assert pilot.app._operations_subtab == "logs"
 
 
 async def test_logs_tab_refresh_and_scroll_and_dismiss(log_dir: Path) -> None:

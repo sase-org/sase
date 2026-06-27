@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 08:51:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/operations_tab.md
 ---
 # Plan: Merge Admin Center "Tasks" + "Logs" into a single "Operations" tab

@@ -49,14 +49,14 @@ def test_leader_mode_drops_project_management_key() -> None:
 
 
 def test_leader_mode_drops_log_panel_key() -> None:
-    """The ``,L`` log panel leader key was retired in the Logs-tab cutover."""
+    """The ``,L`` log panel leader key was retired in the Operations cutover."""
     reg = load_keymap_registry({})
     assert "log_panel" not in reg.leader_mode.keys
     assert "log_panel" not in LeaderModeKeymaps().keys
 
 
 def test_leader_mode_drops_task_queue_key() -> None:
-    """The ``,t`` task queue leader key was retired in the Tasks-tab cutover."""
+    """The ``,t`` task queue leader key was retired in the Operations cutover."""
     reg = load_keymap_registry({})
     assert "task_queue" not in reg.leader_mode.keys
     assert "task_queue" not in LeaderModeKeymaps().keys

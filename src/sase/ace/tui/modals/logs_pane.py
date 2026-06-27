@@ -19,7 +19,7 @@ from textual.worker import Worker, WorkerState
 from sase.core.paths import sase_home
 
 from ..logs import LogSource, log_sources
-from .base import CopyModeForwardingMixin
+from .base import CopyModeForwardingMixin, subtab_host
 
 # Palette shared with the other log-style modals (HelpModal / AgentRunLogModal).
 _CYAN = "#87D7FF"
@@ -266,7 +266,7 @@ class _LogSourceList(OptionList):
 
 
 class LogsPane(CopyModeForwardingMixin, Vertical):
-    """Two-panel Logs tab: source list (left) + colorized tail (right)."""
+    """Two-panel log browser: source list (left) + colorized tail (right)."""
 
     can_focus = False
 
@@ -314,7 +314,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
             self._start_load(selected_index=0, reset_scroll=True)
 
     def focus_default(self) -> None:
-        """Focus the source list (browse-first) when the Logs tab activates."""
+        """Focus the source list (browse-first) when the log browser activates."""
         option_list = self._option_list()
         if option_list is not None:
             option_list.focus()
@@ -420,6 +420,14 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         return max(0, min(option_list.highlighted, max(0, len(self._sources) - 1)))
 
     def _is_active_tab(self) -> bool:
+        host = subtab_host(self)
+        if host is not None:
+            is_subtab_active = getattr(host, "is_subtab_active", None)
+            if callable(is_subtab_active):
+                try:
+                    return bool(is_subtab_active(self))
+                except Exception:
+                    return False
         try:
             return getattr(self.screen, "_active_tab", None) == self.id
         except Exception:
@@ -497,7 +505,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
     def _hints(self) -> str:
         return (
             "j/k: move   ctrl+d/u: scroll   g/G: top/bottom   "
-            "r: refresh   [ / ]: tab   Esc: close"
+            "r: refresh   Tab: Tasks/Logs   [ / ]: tab   Esc: close"
         )
 
 

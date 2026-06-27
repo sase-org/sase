@@ -63,10 +63,10 @@ async def test_admin_center_reaches_projects_tab_from_config(
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "config"
 
-        # ``]`` from Config lands on Logs, then Projects.
+        # ``]`` from Config lands on Operations, then Projects.
         await page.press("]")
-        await page.wait_for(lambda _s: modal._active_tab == "logs")
-        assert switcher.current == "logs"
+        await page.wait_for(lambda _s: modal._active_tab == "operations")
+        assert switcher.current == "operations"
 
         await page.press("]")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
@@ -94,10 +94,10 @@ async def test_admin_center_leaves_projects_tab_with_left_bracket(
         assert switcher.current == "projects"
 
         # With the list focused, the host modal's own ``[`` binding leaves
-        # Projects for Logs (directly to its left).
+        # Projects for Operations (directly to its left).
         await page.press("[")
-        await page.wait_for(lambda _s: modal._active_tab == "logs")
-        assert switcher.current == "logs"
+        await page.wait_for(lambda _s: modal._active_tab == "operations")
+        assert switcher.current == "operations"
 
 
 async def _focus_projects_filter(page: AcePage) -> None:
@@ -123,11 +123,11 @@ async def test_projects_filter_forwards_bracket_to_switch_tabs(
         await _focus_projects_filter(page)
 
         # ``]`` is swallowed by the focused Input as text unless forwarded;
-        # the filter forwards it to the host's next-tab action (-> Tasks).
+        # the filter forwards it to the host's next-tab action (-> Updates).
         await page.press("]")
-        await page.wait_for(lambda _s: modal._active_tab == "tasks")
+        await page.wait_for(lambda _s: modal._active_tab == "updates")
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
-        assert switcher.current == "tasks"
+        assert switcher.current == "updates"
 
 
 async def test_projects_filter_forwards_tab_to_cycle_state(

@@ -297,7 +297,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (
                     d(a.open_config_center),
-                    "Admin Center: 1-6 jumps to tab",
+                    "Admin Center: 1-5 jumps to tab",
                 ),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),

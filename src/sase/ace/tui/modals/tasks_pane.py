@@ -20,6 +20,7 @@ from sase.ace.hints import build_editor_args
 
 from ..actions.clipboard import copy_to_system_clipboard
 from ..task_queue import TaskInfo, TaskQueue
+from .base import subtab_host
 
 
 _STATUS_DISPLAY: dict[str, tuple[str, str]] = {
@@ -175,6 +176,14 @@ class TasksPane(Vertical):
         return callback if callable(callback) else None
 
     def _is_active_tab(self) -> bool:
+        host = subtab_host(self)
+        if host is not None:
+            is_subtab_active = getattr(host, "is_subtab_active", None)
+            if callable(is_subtab_active):
+                try:
+                    return bool(is_subtab_active(self))
+                except Exception:
+                    return False
         try:
             return getattr(self.screen, "_active_tab", None) == self.id
         except Exception:
@@ -518,8 +527,8 @@ class TasksPane(Vertical):
 
     def _hints(self) -> str:
         return (
-            "j/k: move   d/D: dismiss   K: kill   e: edit   y: copy   "
-            "ctrl+d/u, g/G: scroll   [ / ]: tab   Esc: close"
+            "j/k move   d/D dismiss   K kill   e/y edit/copy   ^d/^u,g/G scroll   "
+            "Tab Tasks/Logs   [ ] tabs   Esc close"
         )
 
     def _force_scroll_output_to(

@@ -235,7 +235,7 @@ def _is_failure_chop_outcome(outcome: ChopRunOutcome) -> bool:
 
 
 def _log_chop_failure_outcome(outcome: ChopRunOutcome) -> None:
-    """Durably record non-exception chop failure outcomes for the Logs tab."""
+    """Durably record non-exception chop failure outcomes for Operations / Logs."""
     from sase.logs import log_launch_failure
 
     exc = outcome.error

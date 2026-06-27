@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the Admin Center Tasks tab."""
+"""ACE TUI PNG visual snapshot coverage for Operations / Tasks."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ async def test_config_center_tasks_tab_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "config_center_tasks_tab_120x40",
-            title="ACE SASE Admin Center - Tasks tab",
+            "config_center_operations_tasks_120x40",
+            title="ACE SASE Admin Center - Operations / Tasks",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

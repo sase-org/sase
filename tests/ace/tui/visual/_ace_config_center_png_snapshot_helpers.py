@@ -285,7 +285,7 @@ def _seed_logs_tab_files() -> None:
                 "    RuntimeError: provider exited before writing metadata",
                 "",
                 "  prompt preview:",
-                "    Build the Logs tab visual snapshot and verify it is readable.",
+                "    Build the Operations / Logs visual snapshot and verify it is readable.",
             ]
         )
         + "\n",
@@ -462,7 +462,10 @@ async def _open_projects_modal(
 
 
 async def _open_logs_modal(page: AcePage) -> tuple[ConfigCenterModal, LogsPane]:
-    modal = ConfigCenterModal(initial_tab="logs")
+    modal = ConfigCenterModal(
+        initial_tab="operations",
+        initial_operations_subtab="logs",
+    )
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#logs")))
@@ -473,7 +476,10 @@ async def _open_logs_modal(page: AcePage) -> tuple[ConfigCenterModal, LogsPane]:
 
 
 async def _open_tasks_modal(page: AcePage) -> tuple[ConfigCenterModal, TasksPane]:
-    modal = ConfigCenterModal(initial_tab="tasks")
+    modal = ConfigCenterModal(
+        initial_tab="operations",
+        initial_operations_subtab="tasks",
+    )
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#tasks")))
