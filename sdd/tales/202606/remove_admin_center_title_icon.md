@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 07:47:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_admin_center_title_icon.md
 ---
 # Plan: Remove the SASE Admin Center title icon

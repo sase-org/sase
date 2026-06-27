@@ -13,6 +13,9 @@ from sase.ace.tui.modals.config_center_modal import (
     _TAB_DESCRIPTIONS,
     _TAB_LABELS,
     _TAB_ORDER,
+    _TITLE_LABEL,
+    _TITLE_TEXT,
+    _TITLE_UNDERLINE,
     ConfigCenterModal,
 )
 
@@ -49,6 +52,13 @@ def test_tab_descriptions_cover_tabs_and_use_accent_colors() -> None:
     assert tuple(tab for tab, _label in _TAB_LABELS) == _TAB_ORDER
     assert tuple(_TAB_DESCRIPTIONS) == _TAB_ORDER
     assert tuple(_TAB_COLORS) == _TAB_ORDER
+
+
+def test_title_has_no_leading_icon_and_underline_matches() -> None:
+    assert _TITLE_TEXT == "SASE Admin Center"
+    assert _TITLE_TEXT == _TITLE_LABEL
+    assert not _TITLE_TEXT.startswith("⎈")
+    assert len(_TITLE_UNDERLINE) == len(_TITLE_TEXT)
 
 
 async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(

@@ -79,9 +79,8 @@ _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "updates": "Update SASE core and installed plugins",
     "xprompts": "Browse and preview xprompt definitions",
 }
-_TITLE_ICON = "⎈"
 _TITLE_LABEL = "SASE Admin Center"
-_TITLE_TEXT = f"{_TITLE_ICON} {_TITLE_LABEL}"
+_TITLE_TEXT = _TITLE_LABEL
 _HEADER_DIVIDER_RULE = "─"
 _TITLE_RULE_CHAR = "━"
 _TITLE_UNDERLINE = _TITLE_RULE_CHAR * len(_TITLE_TEXT)
