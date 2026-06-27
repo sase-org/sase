@@ -3,11 +3,47 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.version._models import GitProbe, GitProbeResult, GitVersionMetadata
 
 _GIT_TIMEOUT_SECONDS = 1.0
+_GIT_MUTATE_TIMEOUT_SECONDS = 120.0
+
+SubprocessRun = Callable[..., subprocess.CompletedProcess[str]]
+GitTextRun = Callable[..., str]
+
+
+@dataclass(frozen=True)
+class GitUpstreamStatus:
+    """HEAD-vs-upstream state for one checkout."""
+
+    root: str
+    upstream: str | None
+    remote: str | None
+    remote_branch: str | None
+    detached: bool
+    dirty: bool
+    ahead: int | None
+    behind: int | None
+
+    @property
+    def has_upstream(self) -> bool:
+        return self.upstream is not None
+
+    @property
+    def diverged(self) -> bool:
+        return bool(self.ahead and self.behind)
+
+    @property
+    def strictly_behind(self) -> bool:
+        return self.ahead == 0 and self.behind is not None and self.behind > 0
+
+    @property
+    def up_to_date(self) -> bool:
+        return self.ahead == 0 and self.behind == 0
 
 
 def probe_git_metadata(source_root: Path) -> GitProbeResult:
@@ -16,12 +52,17 @@ def probe_git_metadata(source_root: Path) -> GitProbeResult:
     Git failures are represented as warnings so inventory collection remains
     useful in non-git, wheel, or broken-git environments.
     """
+    return probe_git_metadata_at_ref(source_root, "HEAD")
+
+
+def probe_git_metadata_at_ref(source_root: Path, ref: str = "HEAD") -> GitProbeResult:
+    """Probe git version metadata for ``source_root`` at an arbitrary ref."""
     try:
         git_root_text = run_git(source_root, "rev-parse", "--show-toplevel")
         git_root = Path(git_root_text)
-        commit = run_git(git_root, "rev-parse", "HEAD")
-        short_commit = run_git(git_root, "rev-parse", "--short=9", "HEAD")
-        dirty = bool(run_git(git_root, "status", "--porcelain"))
+        commit = run_git(git_root, "rev-parse", ref)
+        short_commit = run_git(git_root, "rev-parse", "--short=9", ref)
+        dirty = ref == "HEAD" and bool(run_git(git_root, "status", "--porcelain"))
     except FileNotFoundError:
         return GitProbeResult(None, "git is not available on PATH")
     except OSError as exc:
@@ -44,14 +85,14 @@ def probe_git_metadata(source_root: Path) -> GitProbeResult:
             "--match",
             "v[0-9]*",
             "--abbrev=0",
-            "HEAD",
+            ref,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         tag = None
 
     if tag:
         try:
-            distance = int(run_git(git_root, "rev-list", "--count", f"{tag}..HEAD"))
+            distance = int(run_git(git_root, "rev-list", "--count", f"{tag}..{ref}"))
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
             distance = None
 
@@ -64,6 +105,93 @@ def probe_git_metadata(source_root: Path) -> GitProbeResult:
             distance=distance,
             dirty=dirty,
         )
+    )
+
+
+def classify_git_upstream(source_root: Path) -> GitUpstreamStatus:
+    """Resolve upstream state and HEAD ancestry for ``source_root``."""
+    git_root_text = run_git(source_root, "rev-parse", "--show-toplevel")
+    git_root = Path(git_root_text)
+    dirty = bool(run_git(git_root, "status", "--porcelain"))
+
+    try:
+        branch = run_git(git_root, "symbolic-ref", "--quiet", "--short", "HEAD")
+    except subprocess.CalledProcessError:
+        return GitUpstreamStatus(
+            root=str(git_root),
+            upstream=None,
+            remote=None,
+            remote_branch=None,
+            detached=True,
+            dirty=dirty,
+            ahead=None,
+            behind=None,
+        )
+
+    try:
+        upstream = run_git(
+            git_root,
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        )
+    except subprocess.CalledProcessError:
+        return GitUpstreamStatus(
+            root=str(git_root),
+            upstream=None,
+            remote=None,
+            remote_branch=None,
+            detached=False,
+            dirty=dirty,
+            ahead=None,
+            behind=None,
+        )
+
+    remote = _optional_git(git_root, "config", "--get", f"branch.{branch}.remote")
+    remote_ref = _optional_git(git_root, "config", "--get", f"branch.{branch}.merge")
+    remote_branch = _remote_branch_from_ref(remote_ref) or _branch_from_upstream(
+        upstream, remote
+    )
+    ahead, behind = _ahead_behind(git_root, upstream)
+
+    return GitUpstreamStatus(
+        root=str(git_root),
+        upstream=upstream,
+        remote=remote,
+        remote_branch=remote_branch,
+        detached=False,
+        dirty=dirty,
+        ahead=ahead,
+        behind=behind,
+    )
+
+
+def fetch_git_upstream(
+    status: GitUpstreamStatus, *, run_git_fn: GitTextRun | None = None
+) -> None:
+    """Fetch the resolved upstream for ``status``."""
+    runner = run_git if run_git_fn is None else run_git_fn
+    root = Path(status.root)
+    args = ["fetch", "--quiet"]
+    if status.remote and status.remote_branch:
+        args.extend([status.remote, status.remote_branch])
+    elif status.remote:
+        args.append(status.remote)
+    runner(root, *args, timeout=_GIT_MUTATE_TIMEOUT_SECONDS)
+
+
+def merge_git_ff_only(
+    root: Path, upstream: str, *, run_git_fn: GitTextRun | None = None
+) -> None:
+    """Fast-forward ``root`` to ``upstream``."""
+    runner = run_git if run_git_fn is None else run_git_fn
+    runner(
+        root,
+        "merge",
+        "--ff-only",
+        upstream,
+        timeout=_GIT_MUTATE_TIMEOUT_SECONDS,
     )
 
 
@@ -105,12 +233,59 @@ def git_probe_cache_key(source_root: Path) -> Path:
         return source_root.expanduser().absolute()
 
 
-def run_git(root: Path, *args: str) -> str:
-    completed = subprocess.run(
+def run_git(
+    root: Path,
+    *args: str,
+    run_fn: SubprocessRun | None = None,
+    timeout: float = _GIT_TIMEOUT_SECONDS,
+) -> str:
+    runner = subprocess.run if run_fn is None else run_fn
+    completed = runner(
         ["git", "-C", str(root), *args],
         check=True,
         capture_output=True,
         text=True,
-        timeout=_GIT_TIMEOUT_SECONDS,
+        timeout=timeout,
     )
     return completed.stdout.strip()
+
+
+def _optional_git(root: Path, *args: str) -> str | None:
+    try:
+        value = run_git(root, *args)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None
+    return value or None
+
+
+def _ahead_behind(root: Path, upstream: str) -> tuple[int | None, int | None]:
+    try:
+        text = run_git(
+            root, "rev-list", "--left-right", "--count", f"HEAD...{upstream}"
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None, None
+    parts = text.split()
+    if len(parts) != 2:
+        return None, None
+    try:
+        ahead = int(parts[0])
+        behind = int(parts[1])
+    except ValueError:
+        return None, None
+    return ahead, behind
+
+
+def _remote_branch_from_ref(remote_ref: str | None) -> str | None:
+    prefix = "refs/heads/"
+    if remote_ref and remote_ref.startswith(prefix):
+        return remote_ref[len(prefix) :]
+    return remote_ref
+
+
+def _branch_from_upstream(upstream: str, remote: str | None) -> str | None:
+    if remote and upstream.startswith(f"{remote}/"):
+        return upstream[len(remote) + 1 :]
+    if "/" in upstream:
+        return upstream.split("/", 1)[1]
+    return None

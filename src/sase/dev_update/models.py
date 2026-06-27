@@ -1,0 +1,161 @@
+"""Data models for editable-install dev updates."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, Protocol
+
+from sase.version._models import VersionPackageRecord
+
+DevLatestState = Literal[
+    "current",
+    "update_available",
+    "dirty",
+    "diverged",
+    "detached",
+    "no_upstream",
+    "offline",
+    "fetch_failed",
+    "unavailable",
+]
+
+DevPackagePlanStatus = Literal["actionable", "skipped"]
+DevUpdateOutcomeStatus = Literal["updated", "skipped", "failed"]
+DevReconcileStepKind = Literal["uv_tool_install", "rust_install_uv_tool"]
+
+
+@dataclass(frozen=True)
+class DevLatest:
+    """Latest-dev information for one editable package."""
+
+    record: VersionPackageRecord
+    state: DevLatestState
+    reason: str
+    current_version: str
+    latest_version: str | None
+    update_available: bool
+    git_root: str | None = None
+    upstream: str | None = None
+    ahead: int | None = None
+    behind: int | None = None
+    fetch_error: str | None = None
+
+
+@dataclass(frozen=True)
+class DevUpdatePackagePlan:
+    """Per-package plan entry."""
+
+    record: VersionPackageRecord
+    status: DevPackagePlanStatus
+    reason: str
+    current_version: str
+    latest_version: str | None
+    git_root: str | None = None
+    upstream: str | None = None
+    remote: str | None = None
+    remote_branch: str | None = None
+    ahead: int | None = None
+    behind: int | None = None
+
+
+@dataclass(frozen=True)
+class DevUpdateRootPlan:
+    """Deduped git-root plan shared by one or more packages."""
+
+    git_root: str
+    status: DevPackagePlanStatus
+    reason: str
+    upstream: str | None
+    remote: str | None
+    remote_branch: str | None
+    packages: tuple[str, ...]
+    ahead: int | None = None
+    behind: int | None = None
+
+
+@dataclass(frozen=True)
+class DevReconcileStep:
+    """A post-fast-forward environment reconciliation command."""
+
+    kind: DevReconcileStepKind
+    label: str
+    command: tuple[str, ...]
+    cwd: str | None = None
+    reason: str | None = None
+
+    @property
+    def available(self) -> bool:
+        return bool(self.command)
+
+
+@dataclass(frozen=True)
+class DevUpdatePlan:
+    """Complete editable-install update plan."""
+
+    packages: tuple[DevUpdatePackagePlan, ...]
+    roots: tuple[DevUpdateRootPlan, ...]
+    reconcile_steps: tuple[DevReconcileStep, ...]
+
+    @property
+    def actionable(self) -> tuple[DevUpdatePackagePlan, ...]:
+        return tuple(pkg for pkg in self.packages if pkg.status == "actionable")
+
+    @property
+    def skipped(self) -> tuple[DevUpdatePackagePlan, ...]:
+        return tuple(pkg for pkg in self.packages if pkg.status == "skipped")
+
+    @property
+    def actionable_roots(self) -> tuple[DevUpdateRootPlan, ...]:
+        return tuple(root for root in self.roots if root.status == "actionable")
+
+
+@dataclass(frozen=True)
+class DevCommandResult:
+    """Result returned by an injected dev-update subprocess runner."""
+
+    returncode: int
+    stdout: str = ""
+    stderr: str = ""
+
+
+class DevCommandRunner(Protocol):
+    """Subprocess runner used by ``execute_dev_update``."""
+
+    def __call__(
+        self, argv: Sequence[str], *, cwd: Path | None = None
+    ) -> DevCommandResult: ...
+
+
+@dataclass(frozen=True)
+class DevUpdateOutcome:
+    """Per-package execution outcome."""
+
+    record: VersionPackageRecord
+    status: DevUpdateOutcomeStatus
+    reason: str
+    old_version: str | None
+    new_version: str | None
+    git_root: str | None = None
+
+
+@dataclass(frozen=True)
+class DevExecutedCommand:
+    """A command attempted during update execution."""
+
+    label: str
+    command: tuple[str, ...]
+    cwd: str | None
+    returncode: int
+    stdout: str = ""
+    stderr: str = ""
+
+
+@dataclass(frozen=True)
+class DevUpdateResult:
+    """Complete editable-install update result."""
+
+    changed: bool
+    outcomes: tuple[DevUpdateOutcome, ...]
+    commands: tuple[DevExecutedCommand, ...] = ()
