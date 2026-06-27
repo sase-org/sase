@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 
 from ._types import PromptContext
+
+if TYPE_CHECKING:
+    from sase.xprompt.models import InputArg
 
 _EDITOR_REVIEW_MARKER = " @"
 
@@ -337,6 +341,7 @@ class PromptBarMountMixin:
         history_sort_key: str = "home",
         *,
         as_xprompt_markdown: bool = False,
+        frontmatter_inputs: list[InputArg] | None = None,
     ) -> None:
         """Show prompt input bar for home directory mode.
 
@@ -351,6 +356,10 @@ class PromptBarMountMixin:
                 semantics (lift leading frontmatter, split ``---`` into panes)
                 rather than verbatim history-load semantics.  Used by the
                 ` @`-marker editor-return remount path.
+            frontmatter_inputs: Declared xprompt inputs to stage into the bar's
+                prompt frontmatter before mount, so the frontmatter panel
+                auto-shows on mount.  Used by the Admin Center XPrompts tab
+                ``Ctrl+I`` load (parity with the Select XPrompt ``Ctrl+I`` path).
         """
         from ...widgets import PromptInputBar
 
@@ -371,7 +380,47 @@ class PromptBarMountMixin:
             )
         else:
             bar = PromptInputBar(initial_value=initial_text, id="prompt-input-bar")
+        # Stage declared inputs into the stack's frontmatter pre-mount: the
+        # panel refresh is a no-op until the bar mounts, and ``on_mount`` then
+        # auto-shows the frontmatter panel from the seeded stack.
+        if frontmatter_inputs:
+            bar.merge_frontmatter_inputs(frontmatter_inputs)
         self.mount(bar)  # type: ignore[attr-defined]
+
+    def load_xprompt_into_home_prompt_bar(
+        self,
+        expanded_text: str,
+        *,
+        display_name: str,
+        inputs: list[InputArg] | None = None,
+    ) -> None:
+        """Close the Admin Center and load an inline-expanded xprompt into a bar.
+
+        Drives the Admin Center XPrompts tab ``Ctrl+I`` load: the selected row
+        was already rendered via :func:`expand_inline_xprompt`, so this pops the
+        Admin Center modal and opens a fresh home-mode prompt bar carrying the
+        rendered *expanded_text* for editing/submission.  Declared *inputs* are
+        staged into prompt frontmatter (parity with the Select XPrompt
+        ``Ctrl+I`` path), which needs no project/ChangeSpec selection.
+
+        Mounting is deferred until after the modal pops so the new bar's
+        on-mount focus lands on the revealed main screen rather than fighting
+        the closing modal.
+        """
+        from textual.screen import ModalScreen
+
+        if isinstance(self.screen, ModalScreen):  # type: ignore[attr-defined]
+            self.pop_screen()  # type: ignore[attr-defined]
+
+        def _mount() -> None:
+            self._show_prompt_input_bar_for_home(
+                initial_text=expanded_text,
+                display_name=display_name,
+                history_sort_key="home",
+                frontmatter_inputs=inputs,
+            )
+
+        self.call_after_refresh(_mount)  # type: ignore[attr-defined]
 
     def _select_and_open_editor_for_home(
         self,

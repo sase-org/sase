@@ -7,6 +7,7 @@ from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.modals.xprompt_browser_helpers import (
     append_input_args,
     classify_source,
+    is_yaml_backed_source,
 )
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -53,6 +54,35 @@ def test_append_input_args_keeps_required_and_optional_modal_styles() -> None:
         (26, 34, "dim #D7AF87"),
         (34, 36, "dim #888888"),
     ]
+
+
+def test_is_yaml_backed_source_treats_md_paths_as_loadable() -> None:
+    # Standalone ``.md`` prompt-part files (the only inline-loadable rows).
+    assert is_yaml_backed_source("/home/u/.xprompts/note.md") is False
+    assert is_yaml_backed_source("plugin:demo/helper.md") is False
+    # ``None`` is a programmatic built-in with no file: treated as non-YAML.
+    assert is_yaml_backed_source(None) is False
+
+
+def test_is_yaml_backed_source_flags_yaml_paths() -> None:
+    assert is_yaml_backed_source("/home/u/xprompts/flow.yml") is True
+    assert is_yaml_backed_source("/home/u/xprompts/flow.yaml") is True
+    # Case-insensitive on the extension.
+    assert is_yaml_backed_source("/home/u/xprompts/FLOW.YAML") is True
+    # A plugin can ship a ``.yml`` workflow too.
+    assert is_yaml_backed_source("plugin:demo/flow.yml") is True
+
+
+def test_is_yaml_backed_source_flags_config_source_identifiers() -> None:
+    assert is_yaml_backed_source("config") is True
+    assert is_yaml_backed_source("local_config") is True
+    assert is_yaml_backed_source("default_config") is True
+
+
+def test_is_yaml_backed_source_flags_config_and_plugin_prefixes() -> None:
+    assert is_yaml_backed_source("config_overlay:sase_extra.yml") is True
+    assert is_yaml_backed_source("project_local_config:sase") is True
+    assert is_yaml_backed_source("plugin_config:sase_github") is True
 
 
 def test_browser_filters_and_previews_descriptions() -> None:

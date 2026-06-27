@@ -110,6 +110,40 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     return "Other", source_path.replace(home, "~"), True
 
 
+# Source-path identifiers (used by the xprompt loader) that name a YAML
+# config/workflow file rather than a standalone ``.md`` prompt-part file.
+_YAML_CONFIG_SOURCE_IDS = frozenset({"config", "local_config", "default_config"})
+_YAML_CONFIG_SOURCE_PREFIXES = (
+    "config_overlay:",
+    "project_local_config:",
+    "plugin_config:",
+)
+
+
+def is_yaml_backed_source(source_path: str | None) -> bool:
+    """Return True when *source_path* is backed by a YAML config/workflow file.
+
+    Covers both regular ``.yml`` / ``.yaml`` filesystem paths (workflow files
+    and any plugin ``.yml`` entry) and the loader's config source identifiers
+    that resolve to YAML: the user/local sase.yml (``config`` / ``local_config``),
+    config overlays (``config_overlay:``), per-project sase.yml
+    (``project_local_config:``), the bundled default config (``default_config``),
+    and a plugin's bundled default config (``plugin_config:``).
+
+    Uses only the cheap source-path identifier -- no disk access or file
+    resolution -- so it is safe to call on every navigation / key event. A
+    ``None`` source (a programmatic built-in with no file) is treated as
+    non-YAML.
+    """
+    if source_path is None:
+        return False
+    if source_path in _YAML_CONFIG_SOURCE_IDS:
+        return True
+    if source_path.startswith(_YAML_CONFIG_SOURCE_PREFIXES):
+        return True
+    return source_path.lower().endswith((".yml", ".yaml"))
+
+
 def resolve_source_to_file_path(source_path: str | None) -> str | None:
     """Resolve a source path identifier to an actual filesystem path.
 

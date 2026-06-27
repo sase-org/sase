@@ -28,7 +28,12 @@ from sase.xprompt.reference_display import (
 from sase.xprompt.workflow_models import Workflow
 
 from .xprompt_browser_actions import XPromptBrowserActionsMixin
-from .xprompt_browser_helpers import BrowserItem, append_input_args, classify_source
+from .xprompt_browser_helpers import (
+    BrowserItem,
+    append_input_args,
+    classify_source,
+    is_yaml_backed_source,
+)
 
 
 class _BrowserFilterInput(Input):
@@ -49,16 +54,23 @@ class _BrowserFilterInput(Input):
         ("ctrl+p", "forward('prev_option')", "Prev"),
         ("enter", "forward('edit_xprompt')", "Edit"),
         ("ctrl+o", "forward('add_xprompt')", "Add"),
+        ("ctrl+i", "forward('load_xprompt')", "Load"),
     ]
 
     def on_key(self, event: events.Key) -> None:
-        """Forward ``[`` / ``]`` to the host modal before they become text.
+        """Forward ``[`` / ``]`` and a loadable ``tab`` before they become text.
 
         Printable keys are consumed by :class:`Input` as text, so a normal
         binding for ``[`` / ``]`` would never fire while the filter input
         has focus. Intercepting them here (and calling ``prevent_default``)
         lets the Config Center tab strip respond to the same keys the
         notification panel uses.
+
+        Terminals also deliver ``Ctrl+I`` as the bare Tab byte, which Textual's
+        focus cycling would otherwise claim before the declared ``ctrl+i``
+        binding fires. A ``tab`` is routed to the XPrompts load action -- but
+        only when the highlighted row is loadable, leaving YAML-backed rows to
+        Textual's normal focus cycling so the keymap stays inactive for them.
         """
         if event.key in ("left_square_bracket", "right_square_bracket"):
             host = self.screen
@@ -71,6 +83,12 @@ class _BrowserFilterInput(Input):
                     prev_tab()
                 else:
                     next_tab()
+        elif event.key == "tab":
+            pane = self._pane()
+            if pane is not None and pane.highlighted_row_is_loadable():
+                event.stop()
+                event.prevent_default()
+                pane.action_load_xprompt()
 
     def _pane(self) -> XPromptBrowserPane | None:
         """Return the owning :class:`XPromptBrowserPane`, if any."""
@@ -118,6 +136,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         ("ctrl+n", "next_option", "Next"),
         ("ctrl+p", "prev_option", "Previous"),
         ("ctrl+o", "add_xprompt", "Add"),
+        ("ctrl+i", "load_xprompt", "Load"),
         ("ctrl+d", "scroll_preview_down", "Scroll Down"),
         ("ctrl+u", "scroll_preview_up", "Scroll Up"),
         ("enter", "edit_xprompt", "Edit"),
@@ -269,11 +288,31 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
                     yield Static("", id="browser-preview")
                 yield Static("", id="browser-meta")
         yield Static(
-            "^n/^p: navigate  enter: edit  ^o: add new  ^d/^u: scroll  "
-            "[ / ]: switch tab  Esc: close",
+            self._hint_text(loadable=False),
             id="browser-hints",
             markup=False,
         )
+
+    def _hint_text(self, *, loadable: bool) -> str:
+        """Return the hint line, showing ``^i: load`` only for loadable rows.
+
+        ``^i`` inline-loads the highlighted xprompt into the prompt bar and is
+        inactive for YAML-backed rows (workflows and config-backed entries), so
+        the hint surfaces it only when the current selection is eligible.
+        """
+        load_hint = "^i: load  " if loadable else ""
+        return (
+            f"^n/^p: navigate  enter: edit  {load_hint}^o: add new  "
+            "^d/^u: scroll  [ / ]: switch tab  Esc: close"
+        )
+
+    def _set_hints(self, *, loadable: bool) -> None:
+        """Sync the hint line to whether the current row is loadable."""
+        try:
+            hints = self.query_one("#browser-hints", Static)
+        except Exception:
+            return
+        hints.update(self._hint_text(loadable=loadable))
 
     def _create_options(self) -> list[Option]:
         """Create OptionList items with group headers as disabled options."""
@@ -409,6 +448,55 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
             pass
         return None
 
+    def _highlighted_loadable_item(self) -> BrowserItem | None:
+        """Return the highlighted item only when it is inline-loadable.
+
+        Loadable means a non-YAML row: a standalone ``.md`` prompt-part xprompt.
+        YAML-backed rows (workflow ``.yml`` files and config-backed entries) are
+        ineligible for the ``Ctrl+I`` load keymap and yield ``None``.
+        """
+        item = self._get_highlighted_item()
+        if item is None or is_yaml_backed_source(item.source_path):
+            return None
+        return item
+
+    def highlighted_row_is_loadable(self) -> bool:
+        """Return True when the highlighted row can be inline-loaded (``Ctrl+I``)."""
+        return self._highlighted_loadable_item() is not None
+
+    def action_load_xprompt(self) -> None:
+        """Inline-load the highlighted xprompt into the prompt bar (``Ctrl+I``).
+
+        Mirrors the Select XPrompt ``Ctrl+I`` expansion: the highlighted row's
+        body is rendered through :func:`expand_inline_xprompt`, the Admin Center
+        closes, and the rendered body is loaded into a home-mode prompt input
+        bar for editing/submission. YAML-backed rows are ineligible, so the
+        keymap is a no-op for them (parity with the conditional hint text). On
+        an expansion error the notification surfaces and the Admin Center stays
+        open, matching the selector's failure semantics.
+        """
+        item = self._highlighted_loadable_item()
+        if item is None:
+            return
+
+        from sase.ace.tui.widgets.xprompt_inline_expansion import (
+            expand_inline_xprompt,
+        )
+
+        result = expand_inline_xprompt(item.name, item.workflow, project=self._project)
+        if result.error is not None:
+            self.notify(result.error, severity="error")
+            return
+
+        loader = getattr(self.app, "load_xprompt_into_home_prompt_bar", None)
+        if not callable(loader):
+            return
+        loader(
+            result.expanded_text or "",
+            display_name=f"#{item.name}",
+            inputs=result.inputs,
+        )
+
     def _reload_xprompts(self) -> None:
         """Reload all xprompts and rebuild the list."""
         try:
@@ -457,6 +545,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
 
     def _update_preview(self, item: BrowserItem) -> None:
         """Update the preview panel for an item."""
+        self._set_hints(loadable=not is_yaml_backed_source(item.source_path))
         try:
             preview = self.query_one("#browser-preview", Static)
             meta = self.query_one("#browser-meta", Static)
@@ -561,6 +650,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
 
     def _clear_preview(self) -> None:
         """Clear the preview panel."""
+        self._set_hints(loadable=False)
         try:
             preview = self.query_one("#browser-preview", Static)
             meta = self.query_one("#browser-meta", Static)
