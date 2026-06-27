@@ -33,10 +33,11 @@ def test_numbered_tab_strip_plain_text_and_click_ranges() -> None:
 
     expected_cells = [
         "1 Config",
-        "2 Operations",
+        "2 Logs",
         "3 Projects",
-        "4 Updates",
-        "5 XPrompts",
+        "4 Tasks",
+        "5 Updates",
+        "6 XPrompts",
     ]
     assert [plain.index(cell) for cell in expected_cells] == sorted(
         plain.index(cell) for cell in expected_cells
@@ -85,18 +86,9 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert content.plain == "› Edit layered SASE settings with live preview"
         assert str(content.style) == _TAB_COLORS["config"]
 
-        switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
-
-        await page.press("2")
-        await page.wait_for(lambda _s: modal._active_tab == "operations")
-        assert switcher.current == "operations"
-        content = description.content
-        assert isinstance(content, Text)
-        assert content.plain == "› Monitor background tasks and browse SASE logs"
-        assert str(content.style) == _TAB_COLORS["operations"]
-
         await page.press("3")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
+        switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "projects"
         content = description.content
         assert isinstance(content, Text)
@@ -104,6 +96,14 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert str(content.style) == _TAB_COLORS["projects"]
 
         await page.press("4")
+        await page.wait_for(lambda _s: modal._active_tab == "tasks")
+        assert switcher.current == "tasks"
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Monitor background tasks and live output"
+        assert str(content.style) == _TAB_COLORS["tasks"]
+
+        await page.press("5")
         await page.wait_for(lambda _s: modal._active_tab == "updates")
         assert switcher.current == "updates"
         content = description.content
@@ -111,7 +111,7 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert content.plain == "› Update SASE core and installed plugins"
         assert str(content.style) == _TAB_COLORS["updates"]
 
-        await page.press("6")
+        await page.press("7")
         await page.pause()
         assert modal._active_tab == "updates"
         assert switcher.current == "updates"
@@ -134,7 +134,7 @@ async def test_hash_digit_composition_opens_numbered_tab(
         assert isinstance(modal, ConfigCenterModal)
 
         await page.press("5")
-        await page.wait_for(lambda _s: modal._active_tab == "xprompts")
+        await page.wait_for(lambda _s: modal._active_tab == "updates")
 
 
 async def test_admin_center_remembers_active_tab_across_escape_and_q(
@@ -149,9 +149,9 @@ async def test_admin_center_remembers_active_tab_across_escape_and_q(
         first = page.app.screen
         assert isinstance(first, ConfigCenterModal)
 
-        await page.press("2")
-        await page.wait_for(lambda _s: first._active_tab == "operations")
-        assert page.app._admin_center_tab == "operations"
+        await page.press("4")
+        await page.wait_for(lambda _s: first._active_tab == "tasks")
+        assert page.app._admin_center_tab == "tasks"
 
         await page.press("escape")
         await page.expect_no_modal()
@@ -160,7 +160,7 @@ async def test_admin_center_remembers_active_tab_across_escape_and_q(
         await page.expect_modal("ConfigCenterModal")
         second = page.app.screen
         assert isinstance(second, ConfigCenterModal)
-        assert second._active_tab == "operations"
+        assert second._active_tab == "tasks"
 
         await page.press("3")
         await page.wait_for(lambda _s: second._active_tab == "projects")
@@ -187,9 +187,8 @@ async def test_fast_path_open_updates_plain_hash_memory(
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
-        assert modal._active_tab == "operations"
-        await page.wait_for(lambda _s: page.app._admin_center_tab == "operations")
-        await page.wait_for(lambda _s: page.app._operations_subtab == "logs")
+        assert modal._active_tab == "logs"
+        await page.wait_for(lambda _s: page.app._admin_center_tab == "logs")
 
         await page.press("escape")
         await page.expect_no_modal()
@@ -198,4 +197,4 @@ async def test_fast_path_open_updates_plain_hash_memory(
         await page.expect_modal("ConfigCenterModal")
         reopened = page.app.screen
         assert isinstance(reopened, ConfigCenterModal)
-        assert reopened._active_tab == "operations"
+        assert reopened._active_tab == "logs"

@@ -1,4 +1,4 @@
-"""Tests for the Admin Center Operations cutover."""
+"""Tests for the Admin Center Logs-tab cutover."""
 
 from __future__ import annotations
 
@@ -56,8 +56,9 @@ def test_stale_task_queue_override_is_filtered_out() -> None:
 def test_admin_center_tabs_are_alphabetical_by_label() -> None:
     assert _TAB_ORDER == (
         "config",
-        "operations",
+        "logs",
         "projects",
+        "tasks",
         "updates",
         "xprompts",
     )
@@ -69,7 +70,7 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
     )
 
 
-def test_keyless_logs_command_opens_operations_logs() -> None:
+def test_keyless_logs_command_opens_logs_tab() -> None:
     catalog = build_command_catalog(load_keymap_registry({}))
     assert not any(c.id == "leader.log_panel" for c in catalog)
     spec = next(c for c in catalog if c.id == "logs")
@@ -83,7 +84,7 @@ def test_keyless_logs_command_opens_operations_logs() -> None:
     assert "launch failures" in spec.aliases
 
 
-def test_keyless_tasks_command_opens_operations_tasks() -> None:
+def test_keyless_tasks_command_opens_tasks_tab() -> None:
     catalog = build_command_catalog(load_keymap_registry({}))
     assert not any(c.id == "leader.task_queue" for c in catalog)
     spec = next(c for c in catalog if c.id == "tasks")
@@ -97,7 +98,7 @@ def test_keyless_tasks_command_opens_operations_tasks() -> None:
     assert "task queue" in spec.aliases
 
 
-def test_open_log_panel_action_pushes_admin_center_on_operations_logs() -> None:
+def test_open_log_panel_action_pushes_admin_center_on_logs() -> None:
     app = _ActionApp()
 
     app.action_open_log_panel()
@@ -105,11 +106,10 @@ def test_open_log_panel_action_pushes_admin_center_on_operations_logs() -> None:
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "operations"
-    assert modal._initial_operations_subtab == "logs"
+    assert modal._active_tab == "logs"
 
 
-def test_open_tasks_panel_action_pushes_admin_center_on_operations_tasks() -> None:
+def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
     app = _ActionApp()
 
     app.action_open_tasks_panel()
@@ -117,8 +117,7 @@ def test_open_tasks_panel_action_pushes_admin_center_on_operations_tasks() -> No
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._active_tab == "operations"
-    assert modal._initial_operations_subtab == "tasks"
+    assert modal._active_tab == "tasks"
 
 
 def test_open_config_center_action_uses_remembered_admin_center_tab() -> None:

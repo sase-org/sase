@@ -116,7 +116,6 @@ from .mentor_review_modal import MentorReviewModal
 from .add_xprompt_modal import AddXPromptModal
 from .agent_run_log_modal import AgentRunLogModal
 from .logs_pane import LogsPane
-from .operations_pane import OperationsPane
 from .tasks_pane import TasksPane
 from .input_collection_modal import InputCollectionModal
 from .config_center_modal import ConfigCenterModal
@@ -174,7 +173,6 @@ __all__ = [
     "AgentCleanupTagResult",
     "AgentRunLogModal",
     "LogsPane",
-    "OperationsPane",
     "TasksPane",
     "AgentTagModal",
     "AgentTagModalResult",

@@ -4,16 +4,6 @@ from textual import events
 from textual.widgets import Input, OptionList
 
 
-def subtab_host(widget: object) -> object | None:
-    """Return the nearest ancestor that exposes sub-tab activity checks."""
-    node = getattr(widget, "parent", None)
-    while node is not None:
-        if callable(getattr(node, "is_subtab_active", None)):
-            return node
-        node = getattr(node, "parent", None)
-    return None
-
-
 class CopyModeForwardingMixin:
     """Mixin that forwards copy-mode keys (%) to the app.
 

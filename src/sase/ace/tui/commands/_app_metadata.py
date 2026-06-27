@@ -260,7 +260,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
             "settings",
             "config",
             "configuration",
-            "operations",
             "tasks",
             "task queue",
             "logs",

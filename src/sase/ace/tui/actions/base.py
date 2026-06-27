@@ -126,26 +126,16 @@ class BaseActionsMixin:
         self.push_screen(ConfigCenterModal(initial_tab="projects"))  # type: ignore[attr-defined]
 
     def action_open_log_panel(self) -> None:
-        """Open the SASE Admin Center on the Operations / Logs sub-tab."""
+        """Open the SASE Admin Center on the Logs tab."""
         from ..modals import ConfigCenterModal
 
-        self.push_screen(  # type: ignore[attr-defined]
-            ConfigCenterModal(
-                initial_tab="operations",
-                initial_operations_subtab="logs",
-            )
-        )
+        self.push_screen(ConfigCenterModal(initial_tab="logs"))  # type: ignore[attr-defined]
 
     def action_open_tasks_panel(self) -> None:
-        """Open the SASE Admin Center on the Operations / Tasks sub-tab."""
+        """Open the SASE Admin Center on the Tasks tab."""
         from ..modals import ConfigCenterModal
 
-        self.push_screen(  # type: ignore[attr-defined]
-            ConfigCenterModal(
-                initial_tab="operations",
-                initial_operations_subtab="tasks",
-            )
-        )
+        self.push_screen(ConfigCenterModal(initial_tab="tasks"))  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""

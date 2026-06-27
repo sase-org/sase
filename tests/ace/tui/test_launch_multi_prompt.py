@@ -98,6 +98,6 @@ def test_multi_prompt_launch_failure_records_failed_history() -> None:
 
     record_failed.assert_called_once_with(submitted)
     assert outcome.message == (
-        "Multi-prompt launch failed - see Operations / Logs in SASE Admin Center (#)"
+        "Multi-prompt launch failed - see Logs in SASE Admin Center (#)"
     )
     assert outcome.severity == "error"

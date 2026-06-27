@@ -144,7 +144,7 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
 
     assert app.notification_refresh_count == 1
     assert (
-        "Prompt fan-out launch failed - see Operations / Logs in SASE Admin Center (#)",
+        "Prompt fan-out launch failed - see Logs in SASE Admin Center (#)",
         "error",
     ) in app.notifications
 

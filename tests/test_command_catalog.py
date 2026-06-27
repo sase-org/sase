@@ -345,7 +345,7 @@ def test_projects_command_is_keyless_and_global() -> None:
 def test_logs_command_is_keyless_and_global() -> None:
     catalog = build_command_catalog(_registry())
     # The ``,L`` leader command was retired; the panel is now a keyless,
-    # searchable command that opens Admin Center Operations / Logs.
+    # searchable command that opens the Admin Center on the Logs tab.
     assert not any(c.id == "leader.log_panel" for c in catalog)
     spec = next(c for c in catalog if c.id == "logs")
 
@@ -361,7 +361,7 @@ def test_logs_command_is_keyless_and_global() -> None:
 def test_tasks_command_is_keyless_and_global() -> None:
     catalog = build_command_catalog(_registry())
     # The ``,t`` leader command was retired; the panel is now a keyless,
-    # searchable command that opens Admin Center Operations / Tasks.
+    # searchable command that opens the Admin Center on the Tasks tab.
     assert not any(c.id == "leader.task_queue" for c in catalog)
     spec = next(c for c in catalog if c.id == "tasks")
 

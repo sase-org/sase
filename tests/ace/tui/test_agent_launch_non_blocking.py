@@ -286,7 +286,7 @@ def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> 
     record_failed.assert_called_once_with("%name:!foo\nDo work")
     assert app.launched == []
     assert outcome.message == (
-        "Agent name reuse failed - see Operations / Logs in SASE Admin Center (#)"
+        "Agent name reuse failed - see Logs in SASE Admin Center (#)"
     )
     assert outcome.severity == "error"
     assert outcome.success is False
@@ -294,8 +294,5 @@ def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> 
     _complete_launch_task(app, outcome)
     assert app.notifications == [
         ("Launching agent for test...", None),
-        (
-            "Agent name reuse failed - see Operations / Logs in SASE Admin Center (#)",
-            "error",
-        ),
+        ("Agent name reuse failed - see Logs in SASE Admin Center (#)", "error"),
     ]

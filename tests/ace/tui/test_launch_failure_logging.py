@@ -85,7 +85,7 @@ def test_partial_fanout_failure_uses_log_hint_and_persists_record() -> None:
 
     assert outcome.message == (
         "Prompt fan-out launch failed; spawned agents terminated "
-        "- see Operations / Logs in SASE Admin Center (#)"
+        "- see Logs in SASE Admin Center (#)"
     )
     assert outcome.severity == "error"
     record = _assert_persisted("fanout")
@@ -127,7 +127,7 @@ def test_partial_multi_prompt_failure_uses_log_hint_and_persists_record() -> Non
 
     assert outcome.message == (
         "Partial multi-prompt launch failed; spawned agents terminated "
-        "- see Operations / Logs in SASE Admin Center (#)"
+        "- see Logs in SASE Admin Center (#)"
     )
     assert outcome.severity == "error"
     record = _assert_persisted("multi_prompt")
@@ -161,9 +161,7 @@ def test_repeat_name_collision_persists_record() -> None:
         patch("sase.history.prompt.record_failed_launch_prompt"),
     ):
         outcome = app._run_repeat_launch("%r:3 do it", _ctx(), None, False)
-    assert (
-        outcome.message == "dup name - see Operations / Logs in SASE Admin Center (#)"
-    )
+    assert outcome.message == "dup name - see Logs in SASE Admin Center (#)"
     assert outcome.severity == "error"
     record = _assert_persisted("repeat")
     assert record["name_collision"] is True
@@ -325,7 +323,7 @@ def test_chop_failure_persists_record() -> None:
     assert record["lumberjack"] == "lumber"
     assert app.notifications[-1] == (
         "Failed to launch chop 'my-chop': chop boom "
-        "- see Operations / Logs in SASE Admin Center (#)",
+        "- see Logs in SASE Admin Center (#)",
         "error",
     )
 
@@ -364,7 +362,7 @@ def test_payloadless_launch_task_failure_persists_record() -> None:
     )
 
     assert app.notifications == [
-        ("Launch failed - see Operations / Logs in SASE Admin Center (#)", "error")
+        ("Launch failed - see Logs in SASE Admin Center (#)", "error")
     ]
     record = _assert_persisted("single")
     assert record["display_name"] == "launch cl"
@@ -417,7 +415,7 @@ def test_chop_agent_failed_outcome_persists_record() -> None:
         asyncio.run(app._launch_chop_run_async("lumber", "my-chop"))
 
     assert app.notifications[-1] == (
-        "Agent chop 'my-chop' failed to launch - see Operations / Logs in SASE Admin Center (#)",
+        "Agent chop 'my-chop' failed to launch - see Logs in SASE Admin Center (#)",
         "error",
     )
     record = _assert_persisted("chop")

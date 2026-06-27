@@ -1,22 +1,23 @@
-"""SASE Admin Center modal: a tabbed home for config, operations, projects, updates, xprompts.
+"""SASE Admin Center modal: a tabbed home for config, logs, projects, tasks, updates, xprompts.
 
-SASE Admin Center is a full-screen ``ModalScreen`` that hosts five internal
+SASE Admin Center is a full-screen ``ModalScreen`` that hosts six internal
 alphabetical tabs over a :class:`ContentSwitcher`:
 
 - **Config** (tab 1, default focus on first open) — the schema-driven config
   editor skeleton (:class:`ConfigPane`); filled in by later phases.
-- **Operations** (tab 2) — operational surfaces with nested Tasks and Logs
-  sub-tabs (:class:`OperationsPane`), replacing standalone ``,t`` / ``,L``
-  modals.
+- **Logs** (tab 2) — the canonical SASE log browser (:class:`LogsPane`), replacing
+  the standalone ``,L`` modal.
 - **Projects** (tab 3) — the migrated project lifecycle manager
   (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
-- **Updates** (tab 4) — SASE core + plugin updates
+- **Tasks** (tab 4) — the canonical background-task monitor (:class:`TasksPane`),
+  replacing the standalone ``,t`` modal.
+- **Updates** (tab 5) — SASE core + plugin updates
   (:class:`PluginsBrowserPane`), mirroring ``sase update`` and
   ``sase plugin list``.
-- **XPrompts** (tab 5) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
+- **XPrompts** (tab 6) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
 ``#`` opens the modal on the last Admin Center tab used in the current app
-session (Config on a fresh session). ``1``-``5`` jump directly to the matching
+session (Config on a fresh session). ``1``-``6`` jump directly to the matching
 tab, and ``[`` / ``]`` cycle the tabs with modulo wrapping. The clickable tab
 strip mirrors the app's :class:`TabBar`. A centered caption below the tab strip
 describes the active tab using that tab's accent color.
@@ -38,38 +39,43 @@ from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Label, Static
 
 from .config_pane import ConfigPane
-from .operations_pane import OperationsPane, OperationsSubTab
+from .logs_pane import LogsPane
 from .plugins_browser_pane import PluginsBrowserPane
 from .projects_pane import ProjectsPane
+from .tasks_pane import TasksPane
 from .xprompt_browser_pane import XPromptBrowserPane
 
-CenterTab = Literal["config", "operations", "projects", "updates", "xprompts"]
+CenterTab = Literal["config", "logs", "projects", "tasks", "updates", "xprompts"]
 
 _TAB_ORDER: tuple[CenterTab, ...] = (
     "config",
-    "operations",
+    "logs",
     "projects",
+    "tasks",
     "updates",
     "xprompts",
 )
 _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("config", "Config"),
-    ("operations", "Operations"),
+    ("logs", "Logs"),
     ("projects", "Projects"),
+    ("tasks", "Tasks"),
     ("updates", "Updates"),
     ("xprompts", "XPrompts"),
 ]
 _TAB_COLORS: dict[CenterTab, str] = {
     "config": "#00D7AF",
-    "operations": "#5FD75F",
+    "logs": "#FFD700",
     "projects": "#FFAF5F",
+    "tasks": "#5FD75F",
     "updates": "#AF87FF",
     "xprompts": "#87D7FF",
 }
 _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "config": "Edit layered SASE settings with live preview",
-    "operations": "Monitor background tasks and browse SASE logs",
+    "logs": "Browse SASE logs and launch failures",
     "projects": "Manage project lifecycle states and claims",
+    "tasks": "Monitor background tasks and live output",
     "updates": "Update SASE core and installed plugins",
     "xprompts": "Browse and preview xprompt definitions",
 }
@@ -211,14 +217,12 @@ class ConfigCenterModal(ModalScreen[None]):
         project: str | None = None,
         *,
         initial_tab: CenterTab = "config",
-        initial_operations_subtab: OperationsSubTab | None = None,
     ) -> None:
         super().__init__()
         self._project = project
         self._active_tab: CenterTab = (
             initial_tab if initial_tab in _TAB_ORDER else "config"
         )
-        self._initial_operations_subtab = initial_operations_subtab
 
     def compose(self) -> ComposeResult:
         with Container(id="config-center-container"):
@@ -237,11 +241,9 @@ class ConfigCenterModal(ModalScreen[None]):
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
                 yield ConfigPane(id="config")
-                yield OperationsPane(
-                    initial_subtab=self._initial_operations_subtab,
-                    id="operations",
-                )
+                yield LogsPane(id="logs")
                 yield ProjectsPane(id="projects")
+                yield TasksPane(id="tasks")
                 yield PluginsBrowserPane(id="updates")
                 yield XPromptBrowserPane(self._project, id="xprompts")
 

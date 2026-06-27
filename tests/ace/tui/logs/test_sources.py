@@ -1,4 +1,4 @@
-"""Tests for the Operations / Logs source registry."""
+"""Tests for the Logs tab source registry (sase.ace.tui.logs.sources)."""
 
 from __future__ import annotations
 

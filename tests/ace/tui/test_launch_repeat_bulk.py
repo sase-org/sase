@@ -99,10 +99,7 @@ def test_repeat_launch_failure_records_failed_history() -> None:
         outcome = app._run_repeat_launch("repeat prompt %r:3", ctx, None, False)
 
     record_failed.assert_called_once_with("repeat prompt %r:3")
-    assert (
-        outcome.message
-        == "Repeat launch failed - see Operations / Logs in SASE Admin Center (#)"
-    )
+    assert outcome.message == "Repeat launch failed - see Logs in SASE Admin Center (#)"
     assert outcome.severity == "error"
 
 

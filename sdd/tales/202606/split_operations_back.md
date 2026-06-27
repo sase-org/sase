@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 10:45:25
-status: wip
+status: done
 prompt: sdd/prompts/202606/split_operations_back.md
 ---
 # Plan: Split Admin Center Operations Back Into Tasks and Logs Tabs

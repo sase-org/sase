@@ -105,11 +105,11 @@ def _iter_projects_command() -> Iterator[CommandSpec]:
 
 
 def _iter_logs_command() -> Iterator[CommandSpec]:
-    """Yield the keyless Operations / Logs command.
+    """Yield the keyless Logs-tab command.
 
     The standalone ``,L`` log panel was retired and re-homed as the Admin
-    Center's Operations / Logs sub-tab. This command preserves a fast,
-    searchable path to that panel without keeping the old leader key alive.
+    Center's Logs tab. This command preserves a fast, searchable path to that
+    panel without keeping the old leader key alive.
     """
     yield CommandSpec(
         id="logs",
@@ -130,12 +130,11 @@ def _iter_logs_command() -> Iterator[CommandSpec]:
 
 
 def _iter_tasks_command() -> Iterator[CommandSpec]:
-    """Yield the keyless Operations / Tasks command.
+    """Yield the keyless Tasks-tab command.
 
     The standalone ``,t`` task-queue modal was retired and re-homed as the
-    Admin Center's Operations / Tasks sub-tab. This command preserves a fast,
-    searchable path to that live task monitor without keeping the old leader
-    key alive.
+    Admin Center's Tasks tab. This command preserves a fast, searchable path
+    to that live task monitor without keeping the old leader key alive.
     """
     yield CommandSpec(
         id="tasks",

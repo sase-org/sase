@@ -1,4 +1,4 @@
-"""Tests for the Admin Center Operations / Tasks sub-tab."""
+"""Tests for the Admin Center Tasks tab."""
 
 from __future__ import annotations
 
@@ -122,10 +122,7 @@ def _queue(*tasks: TaskInfo) -> TaskQueue:
 async def _open_tasks_pane(
     pilot: Any,
 ) -> tuple[ConfigCenterModal, TasksPane]:
-    modal = ConfigCenterModal(
-        initial_tab="operations",
-        initial_operations_subtab="tasks",
-    )
+    modal = ConfigCenterModal(initial_tab="tasks")
     pilot.app.push_screen(modal)
     await pilot.pause()
     pane = modal.query_one("#tasks", TasksPane)
