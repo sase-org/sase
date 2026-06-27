@@ -56,8 +56,9 @@ def managed_agents(
             "The following memory files contain core context.",
             "",
             *short_markers[:1],
-            "- @memory/extra.md",
-            "- @memory/sase.md",
+            "### Extra (extra)",
+            "",
+            "### SASE = Structured Agentic Software Engineering (sase)",
             *short_markers[1:],
             "",
             "## Tier 2 (long-term) Memory",
@@ -285,13 +286,13 @@ def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> 
                 "",
                 "The following memories contains core (always loaded) context:",
                 "",
-                "### memory/extra.md (Extra)",
+                "### Extra (draft) (extra)",
                 "",
                 "#### A Section",
                 "",
                 "body",
                 "",
-                "### memory/sase.md (SASE = Structured Agentic Software Engineering)",
+                "### SASE = Structured Agentic Software Engineering (sase)",
                 "",
                 "#### Workspace",
                 "",
@@ -315,7 +316,7 @@ def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> 
 
     entry = entry_by_path("AGENTS.md", inventory.entries)
     assert entry.management == "managed"
-    # The two ``### memory/<file>.md`` headers count; the inlined ``####`` body
+    # The two ``### Title (file)`` headers count; the inlined ``####`` body
     # headings must not be miscounted as short memory.
     assert entry.short_memory_refs == 2
     assert entry.long_memory_refs == 1

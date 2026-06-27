@@ -2,7 +2,7 @@
 
 These functions are dependency-free building blocks consumed by ``sase memory
 init`` (wired up in a later phase). They translate a memory note's Markdown body
-into the inlined ``### memory/<file>.md (Title)`` section shape used inside the
+into the inlined ``### Title (file)`` section shape used inside the
 ``## Tier 1 (short-term) Memory`` block, and validate that a short note's
 heading structure can be inlined safely.
 
@@ -16,6 +16,7 @@ the non-fence-aware ``sase.history.chat._increment_markdown_headings``.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 _FENCE_MARKERS = ("```", "~~~")
 _HEADING_RE = re.compile(r"^(#+)(?:[ \t]|$)")
@@ -144,12 +145,14 @@ def inline_memory_section(relative_path: str, body: str) -> str:
     """Render *body* as an inlined Tier 1 memory section for *relative_path*.
 
     The note's H1 title is consumed into the section header
-    ``### {relative_path} ({title})``; the remaining body has every heading
-    shifted down two levels (H2->H4, H3->H5) with code fences copied verbatim.
-    The returned block ends with a single trailing newline.
+    ``### {title} ({basename})``; the remaining body has every heading shifted
+    down two levels (H2->H4, H3->H5) with code fences copied verbatim. If the
+    body has no title, the header falls back to ``### {basename}``. The returned
+    block ends with a single trailing newline.
     """
     title = _extract_memory_title(body)
-    header = f"### {relative_path} ({title})" if title else f"### {relative_path}"
+    basename = Path(relative_path).stem
+    header = f"### {title} ({basename})" if title else f"### {basename}"
     transformed = _shift_body(body)
     if transformed:
         return header + "\n\n" + "\n".join(transformed) + "\n"

@@ -6,7 +6,7 @@ IMPORTANT: You should not modify any of these memory files without approval from
 
 The following memories contains core (always loaded) context:
 
-### memory/build_and_run.md (Build & Run Commands)
+### Build & Run Commands (build_and_run)
 
 ```bash
 just install       # Install in editable mode with dev deps
@@ -43,7 +43,7 @@ On failures, inspect `.pytest_cache/sase-visual/` for actual/expected/diff/sourc
 default, while CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and fontconfig/Fira
 Code to keep rendering deterministic.
 
-### memory/glossary.md (Glossary of Terms Specific to SASE)
+### Glossary of Terms Specific to SASE (glossary)
 
 **Agent Family**  
 A `<name>` agent family refers to a group of agents that are all named with the same `<name>` prefix separated from the
@@ -106,7 +106,7 @@ registry. Positional arguments such as `#[trigger(value)]` or `#[trigger:value]`
 **xprompt Workflow**  
 .yml file → multiple steps (`prompt_part`, `python`, `bash`, etc.).
 
-### memory/gotchas.md (Code Conventions and Gotchas)
+### Code Conventions and Gotchas (gotchas)
 
 **Default Keymap Config**  
 When changing keymaps, leader mode keys, or any configuration values, don't forget to update the keymap configuration in
@@ -121,7 +121,7 @@ runtime lacks a capability that others have. Treat all runtimes uniformly.
 When defining new `sase` command options, make sure that all command-line options have both a long and short option
 defined (ex: `-f|--foobar` not just `--foobar`).
 
-### memory/rust_core_backend_boundary.md (Rust Core Backend Boundary)
+### Rust Core Backend Boundary (rust_core_backend_boundary)
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at `../sase-core/crates/sase_core`. Python and
 TUI code in this repo should call through the Rust binding (`sase_core_rs`) or a thin local adapter instead of
@@ -134,7 +134,7 @@ Presentation-only Textual state, keybindings, layout, widget rendering, and Pyth
 change crosses the boundary, update the Rust wire/API, bindings, and tests in `../sase-core`, then update the Python
 callers or adapters here.
 
-### memory/sase.md (SASE = Structured Agentic Software Engineering)
+### SASE = Structured Agentic Software Engineering (sase)
 
 #### Ephemeral `sase_<N>` Workspace Directories
 

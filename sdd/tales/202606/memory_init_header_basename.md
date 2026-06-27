@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 16:23:26
-status: wip
+status: done
 prompt: sdd/prompts/202606/memory_init_header_basename.md
 ---
 # Plan: Include memory file basename in generated H3 headers

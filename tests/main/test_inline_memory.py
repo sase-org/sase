@@ -89,20 +89,25 @@ def test_validate_fails_for_h4_or_deeper() -> None:
 
 def test_inline_shifts_headings_down_two_levels() -> None:
     body = "# Title\n\n## Section\n\n### Subsection\n"
-    expected = "### memory/x.md (Title)\n\n#### Section\n\n##### Subsection\n"
+    expected = "### Title (x)\n\n#### Section\n\n##### Subsection\n"
     assert inline_memory_section("memory/x.md", body) == expected
 
 
 def test_inline_strips_h1_and_emits_header() -> None:
     body = "# Just A Title\n"
-    assert (
-        inline_memory_section("memory/x.md", body) == "### memory/x.md (Just A Title)\n"
+    assert inline_memory_section("memory/x.md", body) == "### Just A Title (x)\n"
+
+
+def test_inline_keeps_title_parentheses_before_basename() -> None:
+    body = "# Foo (bar)\n"
+    assert inline_memory_section("memory/build_and_run.md", body) == (
+        "### Foo (bar) (build_and_run)\n"
     )
 
 
 def test_inline_copies_code_fences_verbatim() -> None:
     expected = (
-        "### memory/build_and_run.md (Build & Run Commands)\n"
+        "### Build & Run Commands (build_and_run)\n"
         "\n"
         "```bash\n"
         "just install       # Install in editable mode with dev deps\n"
@@ -128,13 +133,9 @@ def test_inline_keeps_fenced_hash_lines_untouched() -> None:
     section = inline_memory_section("memory/x.md", body)
     assert "# shell comment" in section
     assert "## shell comment" not in section
-    assert section == (
-        "### memory/x.md (Title)\n\n```sh\n# shell comment\necho hi\n```\n"
-    )
+    assert section == "### Title (x)\n\n```sh\n# shell comment\necho hi\n```\n"
 
 
 def test_inline_without_title_omits_parenthetical() -> None:
     body = "no heading here\n"
-    assert inline_memory_section("memory/x.md", body) == (
-        "### memory/x.md\n\nno heading here\n"
-    )
+    assert inline_memory_section("memory/x.md", body) == "### x\n\nno heading here\n"

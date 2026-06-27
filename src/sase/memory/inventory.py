@@ -34,7 +34,8 @@ LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
 _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
 _MEMORY_PATH_RE = re.compile(r"(?<![\w./-])(memory/[^\s,;:()[\]{}\"'`/]+?\.md)")
 _INLINED_SHORT_MEMORY_RE = re.compile(
-    r"^###[ \t]+(memory/[A-Za-z0-9_.-]+\.md)\b", re.MULTILINE
+    r"^###[ \t]+(?:.*[ \t])?\(([A-Za-z0-9_.-]+)\)[ \t]*$",
+    re.MULTILINE,
 )
 _TRAILING_TOKEN_PUNCTUATION = ".,;:!?)"
 _STATUS_SORT_ORDER: dict[MemoryEntryStatus, int] = {
@@ -389,7 +390,7 @@ def _inlined_short_memory_files(
     *,
     overlay: Mapping[Path, str],
 ) -> tuple[Path, ...]:
-    """Return short notes inlined as ``### memory/<file>.md`` sections in *source*.
+    """Return short notes inlined as ``### Title (file)`` sections in *source*.
 
     ``sase memory init`` inlines each short note's body under such a header, so a
     note reached this way has its bytes loaded as part of *source* (an
@@ -400,7 +401,8 @@ def _inlined_short_memory_files(
         return ()
     targets: list[Path] = []
     for match in _INLINED_SHORT_MEMORY_RE.finditer(text):
-        resolved = _resolve_reference(root, source, match.group(1), overlay=overlay)
+        token = f"memory/{match.group(1)}.md"
+        resolved = _resolve_reference(root, source, token, overlay=overlay)
         if (
             resolved is not None
             and resolved.exists
@@ -610,8 +612,7 @@ def _reachable_memory_files_for_init(
     )
     # Short notes are always inlined into ``AGENTS.md`` rather than ``@``-imported,
     # so they are inherently reachable; treat them as such explicitly instead of
-    # relying on the inlined ``### memory/<file>.md`` header matching the
-    # plain-path reference regex.
+    # relying on generated headers to look like memory path references.
     reachable: set[Path] = {
         path
         for path in memory_files
