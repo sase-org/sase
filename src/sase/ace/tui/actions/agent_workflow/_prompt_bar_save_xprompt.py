@@ -28,7 +28,7 @@ from ._prompt_bar_save_xprompt_targets import (
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals import XPromptLocation, XPromptSaveTarget
-    from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
+    from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
         StashedPromptPane,
     )
 

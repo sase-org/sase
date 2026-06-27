@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from textual.message import Message
 
-from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
+from sase.ace.tui.widgets._prompt_input_bar_stack_models import StashedPromptPane
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar

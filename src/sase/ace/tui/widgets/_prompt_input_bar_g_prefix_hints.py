@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
+from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
     PromptGPrefixHintEntry,
 )
 

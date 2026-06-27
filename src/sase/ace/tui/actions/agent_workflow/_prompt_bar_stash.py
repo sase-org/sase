@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
     from sase.ace.tui.modals import StashRestoreResult
     from sase.ace.tui.widgets import PromptInputBar
-    from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
+    from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
         StashedPromptPane,
     )
     from sase.core.prompt_stash_wire import (
