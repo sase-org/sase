@@ -9,7 +9,8 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
 )
-from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
+from sase.dev_update.models import DevUpdatePlan
+from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     NoPlugins,
     NotInstalled,
@@ -30,7 +31,16 @@ from .plugin_action_confirm_modal import (
     PluginActionConfirmResult,
     PluginActionVariant,
 )
+from .plugins_browser_dev_update import (
+    DevUpdatePreview,
+    catalog_all_installed_plugins_are_editable,
+    dev_update_blocking_reason,
+    dev_update_preview_details,
+    dev_update_preview_summary,
+    entry_uses_dev_update,
+)
 from .plugins_browser_install import missing_plugin_message
+from .plugins_browser_sase_update import managed_update_changed
 
 if TYPE_CHECKING:
     from textual.worker import Worker
@@ -113,6 +123,7 @@ class PluginUpdateActionsMixin:
     if TYPE_CHECKING:
         _loading: bool
         _offline: bool
+        _catalog: PluginCatalog | None
         _update_plan_worker: Worker[Any] | None
         _uv_tool: object | None
         app: Any
@@ -125,6 +136,26 @@ class PluginUpdateActionsMixin:
         def _make_update_preview(
             self, query: str | None, *, all_plugins: bool, offline: bool
         ) -> UpdatePreview: ...
+
+        def _make_plugin_dev_update_preview(
+            self,
+            query: str | None,
+            *,
+            all_plugins: bool,
+            receipt: object | None,
+        ) -> DevUpdatePreview: ...
+
+        def _submit_dev_update_task(
+            self,
+            plan: DevUpdatePlan,
+            *,
+            subject: str,
+            display_name: str,
+            dedup_key: str,
+            duplicate_message: str,
+        ) -> None: ...
+
+        def _restart_after_update(self, message: str) -> None: ...
 
         def _notify(
             self,
@@ -155,6 +186,9 @@ class PluginUpdateActionsMixin:
         if not entry.installed.installed:
             self._notify(not_installed_message(entry.name), severity="warning")
             return
+        if entry_uses_dev_update(entry):
+            self._begin_plugin_dev_update_plan(entry.name, all_plugins=False)
+            return
         self._begin_update_plan(entry.name, all_plugins=False)
 
     def action_update_all(self) -> None:
@@ -168,6 +202,9 @@ class PluginUpdateActionsMixin:
             return
         if isinstance(self._uv_tool, NotUvToolInstall):
             self._notify(str(NotAUvToolInstallError(self._uv_tool)), severity="warning")
+            return
+        if catalog_all_installed_plugins_are_editable(self._catalog):
+            self._begin_plugin_dev_update_plan(None, all_plugins=True)
             return
         self._begin_update_plan(None, all_plugins=True)
 
@@ -183,7 +220,25 @@ class PluginUpdateActionsMixin:
             task, thread=True, exclusive=True, group="plugin-update-plan"
         )
 
-    def _on_update_preview(self, preview: UpdatePreview | None) -> None:
+    def _begin_plugin_dev_update_plan(
+        self, query: str | None, *, all_plugins: bool
+    ) -> None:
+        receipt = _load_dev_receipt(self._uv_tool)
+
+        def task() -> DevUpdatePreview:
+            return self._make_plugin_dev_update_preview(
+                query,
+                all_plugins=all_plugins,
+                receipt=receipt,
+            )
+
+        self._update_plan_worker = self.run_worker(  # type: ignore[attr-defined]
+            task, thread=True, exclusive=True, group="plugin-update-plan"
+        )
+
+    def _on_update_preview(
+        self, preview: UpdatePreview | DevUpdatePreview | None
+    ) -> None:
         """Route a planned update to a toast (terminal) or the confirm modal."""
         if preview is None:
             return
@@ -203,6 +258,58 @@ class PluginUpdateActionsMixin:
             )
         elif isinstance(plan, UpdateReady):
             self._open_update_modal(plan)
+        elif isinstance(preview, DevUpdatePreview):
+            self._on_dev_update_preview(preview)
+
+    def _on_dev_update_preview(self, preview: DevUpdatePreview) -> None:
+        """Route a dev-update preview to a toast or confirm modal."""
+        if preview.error is not None:
+            self._notify(preview.error, severity="error")
+            return
+        if preview.plan is None:
+            self._notify("No editable plugin update is available.")
+            return
+        blocker = dev_update_blocking_reason(preview.plan)
+        if blocker is not None:
+            self._notify(blocker, severity="warning")
+            return
+        self._open_dev_update_modal(preview.plan, subject=preview.subject)
+
+    def _open_dev_update_modal(self, plan: DevUpdatePlan, *, subject: str) -> None:
+        title = (
+            "Update editable plugins"
+            if len(plan.actionable) > 1
+            else f"Update {subject}"
+        )
+        modal = PluginActionConfirmModal(
+            title=title,
+            intro="Confirm to fetch, fast-forward, and reconcile editable checkout(s).",
+            variants=[
+                PluginActionVariant(
+                    key="dev-update",
+                    label="dev update",
+                    argv=("sase", "update"),
+                    summary=dev_update_preview_summary(plan, subject=subject),
+                    details=dev_update_preview_details(plan),
+                )
+            ],
+            panel_title="Confirm dev update",
+            icon="↑",
+        )
+
+        def _on_confirmed(result: PluginActionConfirmResult | None) -> None:
+            if result is None:
+                return
+            label = "editable plugins" if len(plan.actionable) > 1 else subject
+            self._submit_dev_update_task(
+                plan,
+                subject=subject,
+                display_name=f"update {label}",
+                dedup_key=f"plugin-dev-update:{label}",
+                duplicate_message=f"An update is already running for {label}.",
+            )
+
+        self.app.push_screen(modal, _on_confirmed)
 
     def _open_update_modal(self, plan: UpdateReady) -> None:
         if plan.all_plugins:
@@ -276,6 +383,11 @@ class PluginUpdateActionsMixin:
     ) -> None:
         """Toast the CLI-matching outcome and refresh the row(s) in place."""
         if completion.success:
+            if completion.payload is not None and managed_update_changed(
+                completion.payload
+            ):
+                self._restart_after_update(completion.message)
+                return
             self._notify(completion.message)
             # Re-merge installed state so upgraded rows reflect the new version.
             if self.is_mounted and not self._loading:
@@ -292,3 +404,9 @@ _update_summary = update_summary
 _update_success_message = update_success_message
 _not_installed_message = not_installed_message
 _no_plugins_message = no_plugins_message
+
+
+def _load_dev_receipt(install: object | None) -> object | None:
+    from .plugins_browser_sase_update import load_receipt_for_summary
+
+    return load_receipt_for_summary(install)

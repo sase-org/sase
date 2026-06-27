@@ -48,7 +48,6 @@ class PluginsBrowserRenderingMixin:
         _now: float
         _offline: bool
         _restore_name: str | None
-        _sase_update_restart_hint: bool
         _uv_tool: object | None
         _verbose: bool
 
@@ -151,7 +150,7 @@ class PluginsBrowserRenderingMixin:
         info = entry.installed
         if info.installed:
             if entry.latest.source == "editable":
-                return "editable"
+                return PluginsBrowserRenderingMixin._dev_version_label(entry)
             if entry.latest.source == "git":
                 return "git"
             if entry.update_available and info.version and entry.latest.version:
@@ -162,6 +161,18 @@ class PluginsBrowserRenderingMixin:
         if entry.latest.version:
             return f"latest v{entry.latest.version}"
         return ""
+
+    @staticmethod
+    def _dev_version_label(entry: PluginCatalogEntry) -> str:
+        latest = entry.latest
+        current = latest.current_version or entry.installed.version
+        current_label = f"v{current}" if current else "editable"
+        if entry.update_available and latest.version:
+            return f"{current_label} → v{latest.version}  dev"
+        state = PluginsBrowserRenderingMixin._dev_state_label(latest.state)
+        if state:
+            return f"{current_label}  dev · {state}"
+        return f"{current_label}  dev"
 
     def _skip_to_first_item(self, option_list: OptionList) -> None:
         """Highlight the first non-header option, if any."""
@@ -252,13 +263,6 @@ class PluginsBrowserRenderingMixin:
             cta.append("  run `sase update`", style="cyan")
             cta.append("  ·  upgrades sase core + all plugins", style="dim")
             body.append(cta)
-        if self._sase_update_restart_hint:
-            body.append(
-                Text(
-                    "Restart running sase agents to pick up the new version.",
-                    style="dim",
-                )
-            )
         return Panel(Group(*body), title="SASE Core", border_style="#AF87FF")
 
     def _core_versions_table(self) -> Table:

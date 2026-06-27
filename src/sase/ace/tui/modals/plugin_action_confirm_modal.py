@@ -44,6 +44,7 @@ class PluginActionVariant:
     label: str
     argv: tuple[str, ...]
     summary: str
+    details: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -129,6 +130,14 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
 
         parts.append(Text(""))
         parts.append(Text(variant.summary, style="bold"))
+
+        if variant.details:
+            parts.append(Text(""))
+            for detail in variant.details:
+                line = Text()
+                line.append("- ", style="dim")
+                line.append(detail, style="dim")
+                parts.append(line)
 
         if len(self._variants) > 1:
             parts.append(Text(""))

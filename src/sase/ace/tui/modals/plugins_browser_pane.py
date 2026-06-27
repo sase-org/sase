@@ -34,6 +34,7 @@ from sase.plugins.operations import (
     execute_update,
 )
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
+from sase.uv_tool.receipt import ToolReceipt
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
@@ -43,6 +44,12 @@ from .plugins_browser_constants import (
     _DETAIL_PLACEHOLDER,
     _HEADER_PREFIX,
     _ITEM_PREFIX,
+)
+from .plugins_browser_dev_update import (
+    DevUpdatePreview,
+    execute_tui_dev_update,
+    make_plugin_dev_update_preview,
+    make_sase_dev_update_preview,
 )
 from .plugins_browser_input import PluginsFilterInput
 from .plugins_browser_install import (
@@ -97,6 +104,10 @@ _PluginsLoadResult = PluginsLoadResult
 _load_plugins_catalog = load_plugins_catalog_for_pane
 _collect_installed_core_versions = collect_installed_core_versions
 _probe_uv_tool = probe_uv_tool
+_DevUpdatePreview = DevUpdatePreview
+_execute_tui_dev_update = execute_tui_dev_update
+_make_plugin_dev_update_preview = make_plugin_dev_update_preview
+_make_sase_dev_update_preview = make_sase_dev_update_preview
 _UpdatePreview = UpdatePreview
 _no_plugins_message = no_plugins_message
 _not_installed_message = not_installed_message
@@ -160,6 +171,8 @@ class PluginsBrowserPane(
         self._update_plan_worker: Worker[Any] | None = None
         #: Worker computing an uninstall plan/preview before the confirm modal.
         self._uninstall_plan_worker: Worker[Any] | None = None
+        #: Worker computing an editable-install dev update plan/preview for S.
+        self._sase_update_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None
@@ -170,8 +183,6 @@ class PluginsBrowserPane(
         self._detail_name: str | None = None
         #: Plugin to re-highlight after the next reload (selection preservation).
         self._restore_name: str | None = None
-        #: Show the restart advice after a successful update changed packages.
-        self._sase_update_restart_hint = False
 
     def compose(self) -> ComposeResult:
         yield Static(self._core_versions_panel(), id="sase-core-versions")
@@ -249,6 +260,17 @@ class PluginsBrowserPane(
                     severity="error",
                 )
             return
+        if event.worker is self._sase_update_plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._sase_update_plan_worker = None
+                self._on_sase_update_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._sase_update_plan_worker = None
+                self._notify(
+                    self._worker_error_text(event.worker, kind="sase update"),
+                    severity="error",
+                )
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -295,6 +317,23 @@ class PluginsBrowserPane(
     def _execute_update(plan: UpdateReady) -> UpdateOutcome:
         return execute_update(plan)
 
+    @staticmethod
+    def _make_plugin_dev_update_preview(
+        query: str | None,
+        *,
+        all_plugins: bool,
+        receipt: object | None,
+    ) -> _DevUpdatePreview:
+        return _make_plugin_dev_update_preview(
+            query,
+            all_plugins=all_plugins,
+            receipt=receipt if isinstance(receipt, ToolReceipt) else None,
+        )
+
+    @staticmethod
+    def _execute_dev_update(plan: Any) -> Any:
+        return _execute_tui_dev_update(plan)
+
     def _make_uninstall_preview(
         self, query: str, *, offline: bool
     ) -> _UninstallPreview:
@@ -307,6 +346,12 @@ class PluginsBrowserPane(
     @staticmethod
     def _run_sase_update_summary(install: object | None) -> tuple[UpdateSummary, float]:
         return run_sase_update_summary(install)
+
+    @staticmethod
+    def _make_sase_update_preview(receipt: object | None) -> _DevUpdatePreview:
+        return _make_sase_dev_update_preview(
+            receipt if isinstance(receipt, ToolReceipt) else None
+        )
 
     def action_next_option(self) -> None:
         """Move to the next non-header option."""

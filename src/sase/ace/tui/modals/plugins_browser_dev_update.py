@@ -1,0 +1,278 @@
+"""Editable-checkout dev-update helpers for the Updates tab."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from sase.dev_update.execute import execute_dev_update, run_dev_update_command
+from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
+from sase.dev_update.plan import plan_dev_update
+from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.render_common import humanize_duration
+from sase.uv_tool.receipt import ToolReceipt
+from sase.version._models import VersionPackageRecord
+from sase.version._utils import normalize_distribution_name
+from sase.version.inventory import collect_runtime_version_inventory
+
+
+@dataclass(frozen=True)
+class DevUpdatePreview:
+    """Off-thread dev-update planning result for a confirm-preview modal."""
+
+    plan: DevUpdatePlan | None
+    subject: str
+    error: str | None = None
+
+
+def make_sase_dev_update_preview(receipt: ToolReceipt | None) -> DevUpdatePreview:
+    """Plan a full ``sase update`` for editable host/core/plugin packages.
+
+    A ``None`` plan means no editable runtime packages are installed, so callers
+    should fall back to the managed ``uv tool upgrade sase`` path.
+    """
+    records = _runtime_records()
+    editable = tuple(
+        record
+        for record in records
+        if record.install_type == "editable"
+        and record.role in {"host", "core", "plugin"}
+    )
+    if not editable:
+        return DevUpdatePreview(plan=None, subject="sase")
+    return _plan(editable, records=records, receipt=receipt, subject="sase")
+
+
+def make_plugin_dev_update_preview(
+    query: str | None,
+    *,
+    all_plugins: bool,
+    receipt: ToolReceipt | None,
+) -> DevUpdatePreview:
+    """Plan a dev update for one editable plugin or all editable plugins."""
+    records = _runtime_records()
+    plugin_records = tuple(
+        record
+        for record in records
+        if record.role == "plugin" and record.install_type == "editable"
+    )
+    if all_plugins:
+        if not plugin_records:
+            return DevUpdatePreview(
+                plan=None,
+                subject="editable plugins",
+                error="No editable plugins are installed.",
+            )
+        return _plan(
+            plugin_records,
+            records=records,
+            receipt=receipt,
+            subject="editable plugins",
+        )
+
+    if not query:
+        return DevUpdatePreview(
+            plan=None,
+            subject="editable plugin",
+            error="No editable plugin selected.",
+        )
+    target = _find_plugin_record(plugin_records, query)
+    if target is None:
+        return DevUpdatePreview(
+            plan=None,
+            subject=query,
+            error=f"{query} is not an editable plugin in the runtime inventory.",
+        )
+    return _plan((target,), records=records, receipt=receipt, subject=query)
+
+
+def execute_tui_dev_update(plan: DevUpdatePlan) -> DevUpdateResult:
+    """Execute a dev-update plan with the default subprocess runner."""
+    return execute_dev_update(plan, run=run_dev_update_command)
+
+
+def entry_uses_dev_update(entry: PluginCatalogEntry) -> bool:
+    """Whether a catalog entry should use the editable dev-update path."""
+    return entry.installed.installed and (
+        entry.latest.source == "editable" or entry.latest.install_type == "editable"
+    )
+
+
+def catalog_all_installed_plugins_are_editable(catalog: PluginCatalog | None) -> bool:
+    """Whether ``U`` should use dev-update for every installed plugin."""
+    if catalog is None or catalog.installed_count == 0:
+        return False
+    installed = tuple(entry for entry in catalog.entries if entry.installed.installed)
+    return bool(installed) and all(entry_uses_dev_update(entry) for entry in installed)
+
+
+def dev_update_blocking_reason(plan: DevUpdatePlan) -> str | None:
+    """Return the reason a plan must not be executed, if any."""
+    if not plan.actionable_roots:
+        return _dev_update_skipped_message(plan)
+    for step in plan.reconcile_steps:
+        if not step.available:
+            return step.reason or f"{step.label} unavailable"
+    return None
+
+
+def _dev_update_skipped_message(plan: DevUpdatePlan) -> str:
+    """Compact skipped-package explanation for a non-actionable plan."""
+    skipped = plan.skipped
+    if not skipped:
+        return "No editable checkout updates are available."
+    if len(skipped) == 1:
+        package = skipped[0]
+        return f"{package.record.name}: {package.reason}"
+    first = skipped[0]
+    return f"{len(skipped)} editable checkouts skipped; {first.record.name}: {first.reason}"
+
+
+def dev_update_preview_summary(plan: DevUpdatePlan, *, subject: str) -> str:
+    """Summary line for the dev-update confirm-preview modal."""
+    root_count = len(plan.actionable_roots)
+    package_count = len(plan.actionable)
+    step_count = len(plan.reconcile_steps)
+    parts = [
+        f"Updates {package_count} editable {_plural(package_count, 'package')}",
+        f"across {root_count} {_plural(root_count, 'checkout')}",
+    ]
+    if step_count:
+        parts.append(f"then runs {step_count} reconcile {_plural(step_count, 'step')}")
+    if plan.skipped:
+        parts.append(f"skips {len(plan.skipped)} unsafe/current")
+    return f"{subject}: " + "; ".join(parts)
+
+
+def dev_update_preview_details(plan: DevUpdatePlan) -> tuple[str, ...]:
+    """Short operation lines for the dev-update confirm-preview modal."""
+    lines: list[str] = []
+    for root in plan.actionable_roots:
+        ref = root.upstream or "upstream"
+        lines.append(f"fetch + fast-forward {ref} in {_short_root(root.git_root)}")
+    for step in plan.reconcile_steps:
+        if step.available:
+            lines.append(f"{step.label}: {' '.join(step.command)}")
+        else:
+            lines.append(f"{step.label}: unavailable ({step.reason or 'no command'})")
+    for package in plan.skipped[:4]:
+        lines.append(f"skip {package.record.name}: {package.reason}")
+    if len(plan.skipped) > 4:
+        lines.append(f"skip {len(plan.skipped) - 4} more editable checkouts")
+    return tuple(lines)
+
+
+def dev_update_success_message(
+    result: DevUpdateResult, *, subject: str, elapsed: float
+) -> str:
+    """Concise toast for a successful dev update."""
+    if not result.changed:
+        return "Editable checkouts already up to date."
+    updated = tuple(
+        outcome for outcome in result.outcomes if outcome.status == "updated"
+    )
+    count = len(updated)
+    if count <= 1:
+        return f"Updated {subject} dev checkout in {humanize_duration(elapsed)}"
+    return (
+        f"Updated {count} editable {_plural(count, 'checkout')} "
+        f"in {humanize_duration(elapsed)}"
+    )
+
+
+def dev_update_failure_message(result: DevUpdateResult) -> str:
+    """Return the primary failure reason from a dev-update execution result."""
+    for outcome in result.outcomes:
+        if outcome.status == "failed":
+            return outcome.reason
+    return "dev update failed"
+
+
+def dev_update_failed(result: DevUpdateResult) -> bool:
+    """Whether execution has any failed package outcome."""
+    return any(outcome.status == "failed" for outcome in result.outcomes)
+
+
+def _runtime_records() -> tuple[VersionPackageRecord, ...]:
+    return collect_runtime_version_inventory(include_plugins=True).packages
+
+
+def _plan(
+    targets: tuple[VersionPackageRecord, ...],
+    *,
+    records: tuple[VersionPackageRecord, ...],
+    receipt: ToolReceipt | None,
+    subject: str,
+) -> DevUpdatePreview:
+    host = _host_record(records)
+    if host is None:
+        return DevUpdatePreview(
+            plan=None,
+            subject=subject,
+            error="Runtime inventory is missing the host `sase` package.",
+        )
+    try:
+        plan = plan_dev_update(targets, host_record=host, receipt=receipt)
+    except Exception as exc:  # noqa: BLE001 - update planning should toast clearly.
+        return DevUpdatePreview(plan=None, subject=subject, error=str(exc))
+    return DevUpdatePreview(plan=plan, subject=subject)
+
+
+def _host_record(
+    records: tuple[VersionPackageRecord, ...],
+) -> VersionPackageRecord | None:
+    for record in records:
+        if record.role == "host" or normalize_distribution_name(record.name) == "sase":
+            return record
+    return None
+
+
+def _find_plugin_record(
+    records: tuple[VersionPackageRecord, ...], query: str
+) -> VersionPackageRecord | None:
+    key = normalize_distribution_name(query)
+    for record in records:
+        if key in _record_keys(record):
+            return record
+    return None
+
+
+def _record_keys(record: VersionPackageRecord) -> set[str]:
+    keys = {normalize_distribution_name(record.name)}
+    if record.name.startswith("sase-"):
+        keys.add(normalize_distribution_name(record.name.removeprefix("sase-")))
+    for signal in record.plugin_signals:
+        keys.add(normalize_distribution_name(signal))
+        if signal.startswith("sase-"):
+            keys.add(normalize_distribution_name(signal.removeprefix("sase-")))
+    keys.discard("")
+    return keys
+
+
+def _short_root(root: str) -> str:
+    name = Path(root).name
+    return name or root
+
+
+def _plural(count: int, singular: str) -> str:
+    if count == 1:
+        return singular
+    if singular.endswith("y"):
+        return f"{singular[:-1]}ies"
+    return f"{singular}s"
+
+
+__all__ = [
+    "DevUpdatePreview",
+    "catalog_all_installed_plugins_are_editable",
+    "dev_update_blocking_reason",
+    "dev_update_failed",
+    "dev_update_failure_message",
+    "dev_update_preview_details",
+    "dev_update_preview_summary",
+    "dev_update_success_message",
+    "entry_uses_dev_update",
+    "execute_tui_dev_update",
+    "make_plugin_dev_update_preview",
+    "make_sase_dev_update_preview",
+]

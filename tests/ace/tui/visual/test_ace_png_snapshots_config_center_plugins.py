@@ -85,6 +85,52 @@ async def test_config_center_updates_core_update_available_png_snapshot(
         )
 
 
+async def test_config_center_plugins_dev_update_available_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Editable installs show current/latest dev versions and update state."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    github = _entry(
+        "github",
+        owner="sase-org",
+        description="GitHub VCS and workspace provider.",
+        installed=InstalledInfo(installed=True, version="0.5.0+12.gabc123def"),
+        latest=LatestInfo(
+            checked=True,
+            version="0.5.0+14.gdef456abc",
+            source="editable",
+            install_type="editable",
+            current_version="0.5.0+12.gabc123def",
+            update_available=True,
+            state="update_available",
+            reason="behind upstream by 2 commit(s)",
+        ),
+    )
+    catalog = PluginCatalog(
+        fetched_at=_PLUGINS_NOW,
+        entries=(github,),
+        from_cache=True,
+        stale=False,
+    )
+    _patch_plugins_catalog(monkeypatch, catalog=catalog)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_dev_update_available_120x40",
+            title="ACE SASE Admin Center — Updates tab (dev update available)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
 async def test_config_center_plugins_community_detail_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
