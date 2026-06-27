@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -118,6 +119,27 @@ def test_adapter_rejects_mismatched_env_length() -> None:
             expected_names=set(),
             project_name="proj",
         )
+
+
+def test_bead_work_ref_canonicalizes_owner_repo_known_project(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.agent.launch_cwd_bead_work import _canonicalize_bead_work_ref
+
+    workspace = tmp_path / "projects" / "github" / "sase-org" / "sase"
+    workspace.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda: {"sase": str(workspace)},
+    )
+
+    assert _canonicalize_bead_work_ref("sase-org/sase") == "sase"
 
 
 def test_routing_uses_adapter_when_launch_context_present(

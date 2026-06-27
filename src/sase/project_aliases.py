@@ -18,7 +18,7 @@ from sase.core.project_lifecycle_wire import (
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 
 _KNOWN_VCS_WORKFLOW_NAMES = frozenset({"gh", "git", "hg", "jj", "p4"})
-_REF_CHARS = r"[A-Za-z0-9_.~-]+"
+_REF_CHARS = r"[A-Za-z0-9_./~-]+"
 _REF_BOUNDARY = r"(?=$|[\s)\]},.!?;:\"'])"
 _ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
 
@@ -368,8 +368,6 @@ def resolve_project_alias_ref(
     projects_root: Path | str | None = None,
 ) -> str:
     """Return the canonical project name for an exact alias ref."""
-    if "/" in ref:
-        return ref
     return load_project_alias_map(projects_root).get(ref, ref)
 
 

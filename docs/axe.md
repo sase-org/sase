@@ -113,6 +113,7 @@ High-frequency hook lifecycle management:
 | `comment_zombie_checks` | Mark old comment threads as ZOMBIE            |
 | `suffix_transforms`     | Strip stale suffixes, update mail-readiness   |
 | `orphan_cleanup`        | Release workspace claims for dead processes   |
+| `stale_running_cleanup` | Release workspace claims from dead processes  |
 
 ### waits (10-second interval)
 
@@ -131,10 +132,10 @@ the same dependency name appears.
 
 Lower-frequency status checks:
 
-| Chop                    | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `cl_submitted_checks`   | Start CL submission status checks            |
-| `stale_running_cleanup` | Release workspace claims from dead processes |
+| Chop                    | Description                         |
+| ----------------------- | ----------------------------------- |
+| `cl_submitted_checks`   | Start CL submission status checks   |
+| `stale_running_cleanup` | Backstop dead-process claim cleanup |
 
 ### comments (1-minute interval)
 

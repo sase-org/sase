@@ -197,6 +197,18 @@ def test_resolve_project_alias_ref_uses_exact_alias(
     assert resolve_project_alias_ref("bob-tools") == "bob-tools"
 
 
+def test_resolve_project_alias_ref_accepts_exact_owner_repo_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"sase-org/sase": "sase"},
+    )
+
+    assert resolve_project_alias_ref("sase-org/sase") == "sase"
+    assert resolve_project_alias_ref("other-org/sase") == "other-org/sase"
+
+
 def test_canonicalize_project_aliases_in_prompt_rewrites_vcs_refs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -213,6 +225,19 @@ def test_canonicalize_project_aliases_in_prompt_rewrites_vcs_refs(
         "#git(docs-cli)\n"
         "#gh!!:bob-cli\n"
         "#git??:docs-cli"
+    )
+
+
+def test_canonicalize_project_aliases_in_prompt_rewrites_owner_repo_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"sase-org/sase": "sase"},
+    )
+
+    assert canonicalize_project_aliases_in_prompt("#gh:sase-org/sase fix") == (
+        "#gh:sase fix"
     )
 
 

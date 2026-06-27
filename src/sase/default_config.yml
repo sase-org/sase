@@ -243,6 +243,8 @@ axe:
           description: "Strip stale suffixes from older proposals and update mail-readiness markers"
         - name: orphan_cleanup
           description: "Release workspace claims orphaned by reverted CLs with dead PIDs"
+        - name: stale_running_cleanup
+          description: "Release workspace claims held by dead processes"
     waits:
       interval: 10
       chops:
@@ -254,7 +256,7 @@ axe:
         - name: cl_submitted_checks
           description: "Start background is_cl_submitted checks for leaf CLs with a submitted parent"
         - name: stale_running_cleanup
-          description: "Release workspace claims held by dead processes"
+          description: "Backstop release of workspace claims held by dead processes"
     comments:
       interval: 60
       chops:

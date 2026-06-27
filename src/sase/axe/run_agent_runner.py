@@ -81,6 +81,26 @@ def _is_user_kill_exit(exc: SystemExit) -> bool:
     return was_killed() or _system_exit_code(exc) == 128 + signal.SIGTERM
 
 
+def _install_workspace_release_sigterm_handler(
+    *,
+    project_file: str,
+    workspace_num: int,
+    workflow_name: str,
+    cl_name: str,
+    is_home_mode: bool,
+) -> None:
+    """Release this runner's workspace claim promptly on SIGTERM."""
+
+    def _release_workspace_claim() -> None:
+        if is_home_mode:
+            return
+        from sase.running_field import release_workspace
+
+        release_workspace(project_file, workspace_num, workflow_name, cl_name)
+
+    install_sigterm_handler("agent", on_signal=_release_workspace_claim)
+
+
 def _auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None:
     """Persist auto-dismiss identities for a completed background run."""
     try:
@@ -186,6 +206,13 @@ def main() -> None:
     # prompt history is saved by the TUI before launch.
     is_home_mode_arg = sys.argv[12]
     is_home_mode = parse_runner_bool_arg(is_home_mode_arg)
+    _install_workspace_release_sigterm_handler(
+        project_file=project_file,
+        workspace_num=workspace_num,
+        workflow_name=workflow_name,
+        cl_name=cl_name,
+        is_home_mode=is_home_mode,
+    )
 
     # Read prompt from temp file
     try:

@@ -23,7 +23,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.core.paths import sase_projects_dir
-from sase.running_field import get_claimed_workspaces
+from sase.running_field import WorkspaceClaim, get_claimed_workspaces, release_workspace
 
 from ....agent_tags import REVIEW_AGENT_TAG
 from ....hooks.processes import is_process_running
@@ -56,6 +56,25 @@ def _is_review_agent_workflow_claim(workflow: str | None) -> bool:
             "mentor(",
         )
     )
+
+
+def _release_stale_running_claim(project_file: str, claim: WorkspaceClaim) -> None:
+    """Best-effort release for a dead RUNNING-field claim."""
+    if bool(getattr(claim, "pinned", False)):
+        return
+    try:
+        release_workspace(
+            project_file,
+            claim.workspace_num,
+            claim.workflow,
+            claim.cl_name,
+        )
+    except Exception:
+        pass
+
+
+def _claim_pid_is_live(pid: int | None) -> bool:
+    return pid is not None and is_process_running(pid)
 
 
 def get_all_project_files() -> list[str]:
@@ -107,6 +126,10 @@ def load_agents_from_running_field(
     for project_file in project_files:
         claims = get_claimed_workspaces(project_file)
         for claim in claims:
+            if not _claim_pid_is_live(claim.pid):
+                _release_stale_running_claim(project_file, claim)
+                continue
+
             # Skip hook processes - they're not agents
             # Hook processes have workflow like "axe(hooks)-1" or "axe(hooks)-1a"
             if claim.workflow and claim.workflow.startswith("axe(hooks)"):

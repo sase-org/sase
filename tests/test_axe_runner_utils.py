@@ -316,6 +316,26 @@ def test_sigterm_handler_sets_killed() -> None:
     reset_killed()
 
 
+def test_sigterm_handler_runs_cleanup_callback() -> None:
+    """SIGTERM handlers can run best-effort cleanup before exiting."""
+    reset_killed()
+    cleanup = MagicMock()
+
+    with patch("sase.axe.runner_utils.signal.signal") as mock_signal:
+        install_sigterm_handler("test", on_signal=cleanup)
+        captured_handler = mock_signal.call_args[0][1]
+
+    with (
+        patch("sase.axe.runner_utils.sys.exit"),
+        patch("sase.axe.runner_utils.time.time", return_value=123.456),
+    ):
+        captured_handler(signal.SIGTERM, None)
+
+    cleanup.assert_called_once_with()
+    assert was_killed() is True
+    reset_killed()
+
+
 def test_reset_killed_clears_timestamp() -> None:
     """reset_killed clears both the boolean kill flag and timestamp."""
     _killed_state["killed"] = True

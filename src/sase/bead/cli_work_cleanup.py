@@ -7,8 +7,35 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from sase.agent.launch_types import AgentLaunchResult
     from sase.bead.model import Status
     from sase.bead.project import BeadProject
+
+
+def _rollback_launched_agents(
+    *,
+    launched_results: list[AgentLaunchResult] | None,
+    launched_pids: list[int] | None,
+) -> None:
+    if launched_results:
+        from sase.agent.partial_launch import rollback_partial_launch_results
+
+        rollback_partial_launch_results(launched_results)
+        return
+
+    if not launched_pids:
+        return
+
+    import signal
+
+    for pid in launched_pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError) as exc:
+            print(
+                f"Warning: failed to terminate partially-launched pid {pid}: {exc}",
+                file=sys.stderr,
+            )
 
 
 def rollback_work_launch(
@@ -18,19 +45,13 @@ def rollback_work_launch(
     *,
     unmark_ready: bool,
     launched_pids: list[int] | None = None,
+    launched_results: list[AgentLaunchResult] | None = None,
 ) -> None:
     """Best-effort: terminate already-spawned agents and revert pre-claims."""
-    if launched_pids:
-        import signal
-
-        for pid in launched_pids:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError, OSError) as exc:
-                print(
-                    f"Warning: failed to terminate partially-launched pid {pid}: {exc}",
-                    file=sys.stderr,
-                )
+    _rollback_launched_agents(
+        launched_results=launched_results,
+        launched_pids=launched_pids,
+    )
 
     target = "pre-claims and is_ready_to_work flag" if unmark_ready else "pre-claims"
     print(
@@ -151,19 +172,13 @@ def rollback_legend_work_launch(
     *,
     unmark_ready: bool,
     launched_pids: list[int] | None = None,
+    launched_results: list[AgentLaunchResult] | None = None,
 ) -> None:
     """Best-effort: terminate already-spawned agents and revert legend readiness."""
-    if launched_pids:
-        import signal
-
-        for pid in launched_pids:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError, OSError) as exc:
-                print(
-                    f"Warning: failed to terminate partially-launched pid {pid}: {exc}",
-                    file=sys.stderr,
-                )
+    _rollback_launched_agents(
+        launched_results=launched_results,
+        launched_pids=launched_pids,
+    )
 
     if not unmark_ready:
         return

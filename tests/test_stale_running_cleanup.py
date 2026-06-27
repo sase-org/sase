@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from sase.ace.scheduler.stale_running_cleanup import (
     _get_all_project_files,
@@ -114,6 +114,54 @@ def test_get_all_project_files_finds_project_spec_files() -> None:
             # Should only find proj1.sase
             assert len(result) == 1
             assert "proj1.sase" in result[0]
+
+
+def test_cleanup_releases_each_dead_claim_by_identity() -> None:
+    """Shared dead PIDs release every matching claim without touching live ones."""
+    project_file = "/home/user/.sase/projects/myproject/myproject.sase"
+    claims = [
+        WorkspaceClaim(
+            workspace_num=10,
+            workflow="ace(run)-260101_120000",
+            cl_name="feature_a",
+            pid=11111,
+        ),
+        WorkspaceClaim(
+            workspace_num=11,
+            workflow="ace(run)-260101_120001",
+            cl_name="feature_b",
+            pid=11111,
+        ),
+        WorkspaceClaim(
+            workspace_num=12,
+            workflow="ace(run)-260101_120002",
+            cl_name="feature_c",
+            pid=22222,
+        ),
+    ]
+
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=claims,
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            side_effect=lambda pid: pid == 22222,
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        released = cleanup_stale_running_entries()
+
+    assert released == 2
+    assert release.call_args_list == [
+        call(project_file, 10, "ace(run)-260101_120000", "feature_a"),
+        call(project_file, 11, "ace(run)-260101_120001", "feature_b"),
+    ]
 
 
 def test_cleanup_skips_pinned_entries() -> None:

@@ -30,7 +30,10 @@ def killed_at() -> float | None:
 
 
 def install_sigterm_handler(
-    description: str = "process", *, soft: bool = False
+    description: str = "process",
+    *,
+    soft: bool = False,
+    on_signal: Callable[[], None] | None = None,
 ) -> None:
     """Install a SIGTERM handler that sets killed flag and exits gracefully.
 
@@ -42,12 +45,18 @@ def install_sigterm_handler(
         soft: When True, set the killed flag but don't call sys.exit().
             This allows the caller to detect the kill and handle it
             (e.g., check for marker files before deciding what to do).
+        on_signal: Optional best-effort cleanup callback to run before exit.
     """
 
     def _handler(_signum: int, _frame: object) -> None:
         _killed_state["killed"] = True
         _killed_state["killed_at"] = time.time()
         print(f"\nReceived SIGTERM - {description} was killed", file=sys.stderr)
+        if on_signal is not None:
+            try:
+                on_signal()
+            except Exception:
+                logger.exception("SIGTERM cleanup callback failed")
         if not soft:
             sys.exit(128 + signal.SIGTERM)
 

@@ -230,13 +230,15 @@ def _handle_epic_bead_work(
             "For broader diagnostics, run `sase doctor -v`.",
             file=sys.stderr,
         )
-        launched_pids = [r.pid for r in getattr(e, "results", [])]
+        launched_results = list(getattr(e, "results", []))
+        launched_pids = [r.pid for r in launched_results]
         rollback_work_launch(
             proj,
             epic_id,
             claimed,
             unmark_ready=marked_ready_this_run,
             launched_pids=launched_pids,
+            launched_results=launched_results,
         )
         sys.exit(1)
 
@@ -350,12 +352,14 @@ def _handle_legend_bead_work(
             "For broader diagnostics, run `sase doctor -v`.",
             file=sys.stderr,
         )
-        launched_pids = [r.pid for r in getattr(e, "results", [])]
+        launched_results = list(getattr(e, "results", []))
+        launched_pids = [r.pid for r in launched_results]
         rollback_legend_work_launch(
             proj,
             legend_id,
             unmark_ready=marked_ready_this_run,
             launched_pids=launched_pids,
+            launched_results=launched_results,
         )
         sys.exit(1)
 

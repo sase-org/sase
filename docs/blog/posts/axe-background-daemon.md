@@ -47,6 +47,7 @@ Every five seconds, the `hooks` lumberjack runs a small fleet of high-frequency 
 - `comment_zombie_checks` — mark old comment threads as ZOMBIE.
 - `suffix_transforms` — strip stale suffixes, update mail-readiness.
 - `orphan_cleanup` — release workspace claims for dead processes.
+- `stale_running_cleanup` — release dead-process RUNNING claims promptly.
 
 That list is the bulk of "what AXE is doing on your behalf" while you read code. None of it would be hard to write into
 a single agent — but you would have to write it into _every_ agent, and you would have to keep paying for the polling.
@@ -71,8 +72,7 @@ For multi-agent workflows, every child agent for that root must also be `complet
 
 The `comments` lumberjack (1-minute interval) polls for new review comments and kicks off critique agents — the
 back-half of the mentor follow-up loop. The `checks` lumberjack (5-minute interval) runs `cl_submitted_checks` to notice
-when a CL has been submitted upstream, and a second pass of `stale_running_cleanup` to release workspace claims from
-dead processes.
+when a CL has been submitted upstream, plus a slower backstop pass of `stale_running_cleanup`.
 
 The `housekeeping` lumberjack (1-hour interval) runs the `error_digest` chop. It summarizes recent errors into
 `~/.sase/axe/error_digests/digest_<timestamp>.txt` and posts a notification with a `ViewErrorReport` action that opens

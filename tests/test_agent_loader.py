@@ -31,13 +31,19 @@ def test_load_agents_from_running_field_starts_without_run_timestamp() -> None:
         workspace_num=1,
         workflow="crs",
         cl_name="my_feature",
-        pid=None,
+        pid=1234,
         artifacts_timestamp="20260512123456",
     )
 
-    with patch(
-        "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
-        return_value=[claim],
+    with (
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
     ):
         agents = load_agents_from_running_field(
             ["/tmp/.sase/projects/myproj/myproj.sase"],
@@ -47,6 +53,76 @@ def test_load_agents_from_running_field_starts_without_run_timestamp() -> None:
 
     assert len(agents) == 1
     assert agents[0].status == "STARTING"
+
+
+def test_load_agents_from_running_field_releases_dead_claim() -> None:
+    """Dead RUNNING-field claims do not render as stuck STARTING agents."""
+    claim = SimpleNamespace(
+        workspace_num=11,
+        workflow="ace(run)-260512_123456",
+        cl_name="my_feature",
+        pid=1234,
+        artifacts_timestamp="20260512123456",
+        pinned=False,
+    )
+    project_file = "/tmp/.sase/projects/myproj/myproj.sase"
+
+    with (
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.release_workspace",
+        ) as release,
+    ):
+        agents = load_agents_from_running_field(
+            [project_file],
+            bug_by_cl_name={},
+            cl_by_cl_name={},
+        )
+
+    assert agents == []
+    release.assert_called_once_with(project_file, 11, claim.workflow, "my_feature")
+
+
+def test_load_agents_from_running_field_keeps_live_deferred_claim() -> None:
+    """Deferred #0 claims are visible while their runner PID is alive."""
+    claim = SimpleNamespace(
+        workspace_num=0,
+        workflow="ace(run)-260512_123456",
+        cl_name="my_feature",
+        pid=1234,
+        artifacts_timestamp="20260512123456",
+        pinned=False,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.release_workspace",
+        ) as release,
+    ):
+        agents = load_agents_from_running_field(
+            ["/tmp/.sase/projects/myproj/myproj.sase"],
+            bug_by_cl_name={},
+            cl_by_cl_name={},
+        )
+
+    assert len(agents) == 1
+    assert agents[0].workspace_num == 0
+    release.assert_not_called()
 
 
 def test_load_running_home_snapshot_starts_without_run_timestamp() -> None:
@@ -173,6 +249,8 @@ def test_load_all_agents_with_running_claims() -> None:
     mock_claim.workspace_num = 1
     mock_claim.workflow = "crs"
     mock_claim.cl_name = "my_feature"
+    mock_claim.pid = 12345
+    mock_claim.artifacts_timestamp = None
 
     with (
         patch(
@@ -183,6 +261,11 @@ def test_load_all_agents_with_running_claims() -> None:
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
@@ -233,6 +316,11 @@ def test_load_all_agents_filters_hook_processes() -> None:
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
@@ -267,7 +355,7 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
     mock_claim.workspace_num = 100
     mock_claim.workflow = "axe(fix-hook)-251230_151429"
     mock_claim.cl_name = "my_feature"
-    mock_claim.pid = None  # No PID to skip process check
+    mock_claim.pid = 12345
     mock_claim.artifacts_timestamp = "20251230151429"
 
     with (
@@ -279,6 +367,11 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
@@ -316,7 +409,7 @@ def test_load_all_agents_tags_axe_summarize_hook_as_review() -> None:
     mock_claim.workspace_num = 100
     mock_claim.workflow = "axe(summarize-hook)-251230_151429"
     mock_claim.cl_name = "my_feature"
-    mock_claim.pid = None
+    mock_claim.pid = 12345
     mock_claim.artifacts_timestamp = "20251230151429"
 
     with (
@@ -328,6 +421,11 @@ def test_load_all_agents_tags_axe_summarize_hook_as_review() -> None:
             "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
             return_value=[mock_claim],
         ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
         patch("sase.ace.tui.models.agent_loader.find_all_changespecs", return_value=[]),
         patch(
             "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",

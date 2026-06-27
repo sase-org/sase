@@ -9,6 +9,23 @@ from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
 
 
+def _canonicalize_bead_work_ref(ref: str) -> str:
+    """Return the canonical project name for a bead-work launch ref."""
+    from sase.project_aliases import resolve_project_alias_ref
+
+    alias_ref = resolve_project_alias_ref(ref)
+    if alias_ref != ref:
+        return alias_ref
+
+    try:
+        from sase.xprompt._parsing import resolve_known_project_ref
+        from sase.xprompt.loader import get_known_project_workspaces
+
+        return resolve_known_project_ref(ref, get_known_project_workspaces()) or ref
+    except Exception:
+        return ref
+
+
 def launch_planned_bead_work_agents(
     *,
     segments: Sequence[str],
@@ -111,8 +128,9 @@ def launch_planned_bead_work_agents(
         if match is not None:
             ref_value = match.group(1) or match.group(2)
             if ref_value:
-                cl_name = ref_value
-                vcs_ref = (wf_name, ref_value)
+                canonical_ref = _canonicalize_bead_work_ref(ref_value)
+                cl_name = canonical_ref
+                vcs_ref = (wf_name, canonical_ref)
                 break
 
     try:
