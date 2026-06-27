@@ -34,7 +34,7 @@ class BrowserFilterInput(Input):
     ]
 
     def on_key(self, event: events.Key) -> None:
-        """Forward ``[`` / ``]`` and a loadable ``tab`` before they become text.
+        """Forward bracket, numeric tab, and loadable ``tab`` keys before text.
 
         Printable keys are consumed by :class:`Input` as text, so a normal
         binding for ``[`` / ``]`` would never fire while the filter input has
@@ -42,11 +42,21 @@ class BrowserFilterInput(Input):
         Config Center tab strip respond to the same keys the notification panel
         uses.
 
+        While the filter is empty, digit keys are likewise reserved for the
+        Admin Center's numbered tab keymaps: ``1``-``5`` jump to a tab and the
+        out-of-range ``6``-``9``/``0`` are swallowed no-ops via the same modal
+        action. Once the filter holds text, digits fall through to normal
+        :class:`Input` editing so values such as ``bug2`` or ``2026`` can be
+        typed.
+
         Terminals also deliver ``Ctrl+I`` as the bare Tab byte, which Textual's
         focus cycling would otherwise claim before the declared ``ctrl+i``
-        binding fires. A ``tab`` is routed to the XPrompts load action -- but
-        only when the highlighted row is loadable, leaving YAML-backed rows to
-        Textual's normal focus cycling so the keymap stays inactive for them.
+        binding fires. While the filter is empty, a ``tab`` is routed to the
+        XPrompts load action -- but only when the highlighted row is loadable,
+        leaving YAML-backed rows to Textual's normal focus cycling so the keymap
+        stays inactive for them. Once the filter holds text, ``tab`` is left to
+        Textual's focus traversal so focus can leave the filter and re-arm the
+        modal-level numeric tab keymaps.
         """
         if event.key in ("left_square_bracket", "right_square_bracket"):
             host = self.screen
@@ -59,7 +69,14 @@ class BrowserFilterInput(Input):
                     prev_tab()
                 else:
                     next_tab()
-        elif event.key == "tab":
+        elif len(event.key) == 1 and event.key.isdigit() and not self.value:
+            host = self.screen
+            focus_tab = getattr(host, "action_focus_center_tab", None)
+            if callable(focus_tab):
+                event.stop()
+                event.prevent_default()
+                focus_tab(int(event.key))
+        elif event.key == "tab" and not self.value:
             pane = self._pane()
             if pane is not None and pane.highlighted_row_is_loadable():
                 event.stop()

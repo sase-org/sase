@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 09:48:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/xprompt_filter_digit_reservation.md
 ---
 # Plan: Reserve Numeric Tab Keys in the XPrompts Filter

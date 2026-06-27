@@ -18,6 +18,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.xprompt.models import InputArg, InputType
@@ -176,3 +177,89 @@ async def test_tab_does_not_load_on_yaml_backed_row(
 
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")
+
+
+async def test_empty_filter_reserves_numeric_tab_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Activating XPrompts via its numbered tab key focuses an empty filter; a
+    # following digit must jump tabs rather than be typed into the filter.
+    prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
+    async with AcePage() as page:
+        _patch_panes(monkeypatch, prompts)
+        modal = ConfigCenterModal(initial_tab="config")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+
+        await page.press("5")
+        await page.wait_for(lambda _s: modal._active_tab == "xprompts")
+        pane = modal.query_one("#xprompts", XPromptBrowserPane)
+        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+
+        await page.press("1")
+        await page.wait_for(lambda _s: modal._active_tab == "config")
+        assert filter_input.value == ""
+
+
+async def test_empty_filter_swallows_reserved_numeric_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Out-of-range digits route through the modal's reserved no-op action, so
+    # the active tab and the empty filter are both left untouched.
+    prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
+    async with AcePage() as page:
+        modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
+        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+
+        for digit in ("6", "9", "0"):
+            await page.press(digit)
+            await page.pause()
+
+        assert modal._active_tab == "xprompts"
+        assert filter_input.value == ""
+
+
+async def test_digits_allowed_after_filter_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Once the filter holds text, digits fall through to normal Input editing.
+    prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
+    async with AcePage() as page:
+        modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
+        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+
+        await page.press("n")
+        await page.press("1")
+        await page.wait_for(lambda _s: filter_input.value == "n1")
+        assert modal._active_tab == "xprompts"
+
+
+async def test_tab_escapes_filter_after_typed_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # With typed filter text, ``tab`` no longer inline-loads even a loadable
+    # row -- it moves focus out so the numeric tab keymaps re-arm.
+    prompts = {"note": _md_xprompt("note", "Tab body.", source_path="n.md")}
+    async with AcePage() as page:
+        modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
+        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+        assert pane.highlighted_row_is_loadable() is True
+
+        await page.press("n")
+        await page.wait_for(lambda _s: filter_input.value == "n")
+
+        await page.press("tab")
+        await page.pause()
+
+        # No prompt bar loads, the modal stays open, and focus leaves the filter.
+        assert not page.app.query("#prompt-input-bar")
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: not filter_input.has_focus)
+
+        # With focus off the filter, the numeric tab key switches to Config.
+        await page.press("1")
+        await page.wait_for(lambda _s: modal._active_tab == "config")
