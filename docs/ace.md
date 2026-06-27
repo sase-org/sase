@@ -889,14 +889,14 @@ These work on all tabs:
 
 ### Quit / Restart Menu
 
-Pressing `Q` opens the **quit / restart menu**. The running background-task count (task workers or background command
-slots) is shown inline as a warning when work is still in flight, and the menu offers three actions:
+Pressing `Q` opens the **quit / restart menu**. When background tasks are still running, the menu warns inline with the
+count that leaving will stop (`N background tasks will be stopped`), and it offers three actions:
 
 - `1` / `s` — quit ACE and stop the axe daemon
 - `2` / `r` — restart the TUI, leaving axe running
 - `3` / `a` — restart the TUI and restart axe
 
-Press `esc` to cancel and return to the TUI.
+Press `esc` (or `q`) to cancel and return to the TUI.
 
 A plain `q` quits ACE directly. When background tasks are still running, `q` first shows a confirmation dialog listing
 the active tasks and asks whether to kill them and quit; declining returns to the TUI.
@@ -2170,8 +2170,9 @@ snippets and `ace.snippets` are merged, any snippet can splice another snippet b
 final template is renumbered so tabstops from the caller and referenced snippets do not collide.
 
 You can also create a snippet on the fly from the prompt save (`gx`) menu: it always offers a **Create a new snippet**
-option that asks which config file should store the new `ace.snippets` entry. Snippet rows in the save and insertion
-surfaces are grouped by source and sorted alphabetically by trigger for stable display.
+option that asks which config file should store the new `ace.snippets` entry. In that save menu, snippet rows are
+grouped by source and sorted alphabetically by trigger; snippet completions elsewhere are listed in trigger order, too,
+for stable display.
 
 Editors using `sase lsp` can receive the same registry as LSP snippet completions after bare trigger words when the
 client advertises `completionItem.snippetSupport`. The server uses the editor helper operation

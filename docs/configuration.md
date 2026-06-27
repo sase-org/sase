@@ -53,9 +53,10 @@ agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
 
 ## SASE Admin Center (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Admin Center** on the **Config** tab. It is a full-screen modal with six
-tabs (`[` / `]` cycle between them, or press number keys `1`–`6` to jump straight to one): a schema-driven **Config**
-editor, **Logs**, **Projects**, **Tasks**, **Updates**, and the **XPrompts** browser.
+Press `#` in the `sase ace` TUI to open **SASE Admin Center**. It reopens on whichever tab you used last in the current
+session, landing on **Config** the first time you open it. It is a full-screen modal with six tabs (`[` / `]` cycle
+between them, or press number keys `1`–`6` to jump straight to one): a schema-driven **Config** editor, **Logs**,
+**Projects**, **Tasks**, **Updates**, and the **XPrompts** browser.
 
 ### Config tab
 
