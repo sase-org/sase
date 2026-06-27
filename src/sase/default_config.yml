@@ -501,6 +501,8 @@ xprompts:
     This is a large piece of work that should be split into phases. I'll let you decide how many phases to create, but
     keep in mind that each phase will be completed by a distinct agent instance (i.e. a distinct `claude` / `agy` /
     `codex` / `qwen` / `opencode` command). #plan
+  if_not_plan: |
+    If not, use your /sase_plan skill to plan the appropriate changes.
   legend: |
     This is a very large piece of work that should be split into multiple epics. I'll let you decide how many epics to
     create, but keep in mind that each epic will be later split into multiple phases that will each be completed by a
