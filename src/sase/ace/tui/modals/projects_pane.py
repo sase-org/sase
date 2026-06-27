@@ -64,7 +64,7 @@ class _ProjectsFilterInput(FilterInput):
     working while the filter is focused:
 
     - ``[`` / ``]`` switch Admin Center tabs (forwarded to the host modal),
-      mirroring :class:`_BrowserFilterInput` in ``xprompt_browser_pane``;
+      mirroring :class:`BrowserFilterInput` in ``xprompt_browser_filter_input``;
     - ``tab`` / ``shift+tab`` cycle the state filter (forwarded to the owning
       pane), preserving the modal's screen-level priority behavior.
     """

@@ -1,127 +1,48 @@
 """Reusable XPrompt browser pane for the Config Center modal.
 
-This widget hosts the body of the former ``XPromptBrowserModal`` (filter
-input, grouped list, preview, and metadata) so it can live inside the
-**XPrompts** tab of the :class:`ConfigCenterModal` content switcher. All
-behavior of the old browser is preserved; the only structural change is
-that the surrounding ``ModalScreen`` chrome (centering container, escape
-handling, tab navigation) now belongs to the host modal.
+This widget hosts the body of the former ``XPromptBrowserModal`` (filter input,
+grouped list, preview, and metadata) so it can live inside the **XPrompts** tab
+of the :class:`ConfigCenterModal` content switcher. All behavior of the old
+browser is preserved; the only structural change is that the surrounding
+``ModalScreen`` chrome (centering container, escape handling, tab navigation)
+now belongs to the host modal.
 """
 
 from __future__ import annotations
 
 from rich.syntax import Syntax
-from rich.text import Text
-from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.xprompt import get_all_prompts
-from sase.xprompt.models import UNSET, InputArg
-from sase.xprompt.reference_display import (
-    workflow_kind_value,
-    workflow_reference_insertion,
-    workflow_reference_prefix,
-)
 from sase.xprompt.workflow_models import Workflow
 
 from .xprompt_browser_actions import XPromptBrowserActionsMixin
+from .xprompt_browser_catalog import (
+    flatten_grouped_items,
+    group_browser_items,
+    item_matches_filter,
+    load_browser_items,
+)
+from .xprompt_browser_filter_input import BrowserFilterInput
 from .xprompt_browser_helpers import (
     BrowserItem,
-    append_input_args,
     classify_source,
     is_yaml_backed_source,
 )
-
-
-class _BrowserFilterInput(Input):
-    """Custom input for the XPrompt browser with navigation key bindings.
-
-    Since the filter input always has focus while the XPrompts tab is
-    active, Ctrl-key combinations are used for navigation and actions to
-    avoid conflicts with text input. The ``[`` / ``]`` keys are forwarded
-    to the host Config Center so tab switching works even while typing.
-    """
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-        ("ctrl+d", "scroll_preview_down", "Scroll Down"),
-        ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
-        ("ctrl+n", "forward('next_option')", "Next"),
-        ("ctrl+p", "forward('prev_option')", "Prev"),
-        ("enter", "forward('edit_xprompt')", "Edit"),
-        ("ctrl+o", "forward('add_xprompt')", "Add"),
-        ("ctrl+i", "forward('load_xprompt')", "Load"),
-    ]
-
-    def on_key(self, event: events.Key) -> None:
-        """Forward ``[`` / ``]`` and a loadable ``tab`` before they become text.
-
-        Printable keys are consumed by :class:`Input` as text, so a normal
-        binding for ``[`` / ``]`` would never fire while the filter input
-        has focus. Intercepting them here (and calling ``prevent_default``)
-        lets the Config Center tab strip respond to the same keys the
-        notification panel uses.
-
-        Terminals also deliver ``Ctrl+I`` as the bare Tab byte, which Textual's
-        focus cycling would otherwise claim before the declared ``ctrl+i``
-        binding fires. A ``tab`` is routed to the XPrompts load action -- but
-        only when the highlighted row is loadable, leaving YAML-backed rows to
-        Textual's normal focus cycling so the keymap stays inactive for them.
-        """
-        if event.key in ("left_square_bracket", "right_square_bracket"):
-            host = self.screen
-            prev_tab = getattr(host, "action_prev_center_tab", None)
-            next_tab = getattr(host, "action_next_center_tab", None)
-            if callable(prev_tab) and callable(next_tab):
-                event.stop()
-                event.prevent_default()
-                if event.key == "left_square_bracket":
-                    prev_tab()
-                else:
-                    next_tab()
-        elif event.key == "tab":
-            pane = self._pane()
-            if pane is not None and pane.highlighted_row_is_loadable():
-                event.stop()
-                event.prevent_default()
-                pane.action_load_xprompt()
-
-    def _pane(self) -> XPromptBrowserPane | None:
-        """Return the owning :class:`XPromptBrowserPane`, if any."""
-        node: object | None = self.parent
-        while node is not None:
-            if isinstance(node, XPromptBrowserPane):
-                return node
-            node = getattr(node, "parent", None)
-        return None
-
-    def action_forward(self, action_name: str) -> None:
-        """Forward an action to the owning pane."""
-        pane = self._pane()
-        if pane is not None:
-            getattr(pane, f"action_{action_name}")()
-
-    def action_scroll_preview_down(self) -> None:
-        """Scroll the preview panel down."""
-        pane = self._pane()
-        if pane is not None:
-            pane.scroll_preview_down()
-
-    def action_scroll_preview_up_or_clear(self) -> None:
-        """Scroll preview up, or clear input if already at top."""
-        pane = self._pane()
-        if pane is None:
-            return
-        scroll = pane.query_one("#browser-preview-scroll", VerticalScroll)
-        if scroll.scroll_y > 0:
-            pane.scroll_preview_up()
-        elif self.cursor_position > 0:
-            self.value = self.value[self.cursor_position :]
-            self.cursor_position = 0
+from .xprompt_browser_options import (
+    browser_hint_text,
+    create_browser_options,
+    create_item_label,
+)
+from .xprompt_browser_preview import (
+    create_meta_text,
+    create_preview_content,
+    create_simple_preview,
+    create_workflow_preview,
+)
 
 
 class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
@@ -150,161 +71,45 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         self._load_xprompts()
 
     def _load_xprompts(self) -> None:
-        """Load all xprompts and organize into groups."""
-        prompts = get_all_prompts(project=self._project)
-
-        # Also load project-local xprompts from ALL known projects'
-        # sase.yml files.  These are not loaded by get_all_prompts()
-        # because the TUI disables _include_local_config.
-        from sase.xprompt.loader import get_all_project_local_prompts
-
-        project_local = get_all_project_local_prompts()
-        # Merge; existing prompts take precedence on collision
-        prompts = {**project_local, **prompts}
-
-        items: list[BrowserItem] = []
-
-        for name, workflow in prompts.items():
-            source_path = workflow.source_path
-            category, display_path, is_editable = classify_source(source_path)
-            item_type = "xprompt" if workflow.is_simple_xprompt() else "workflow"
-            kind = workflow_kind_value(workflow)
-            items.append(
-                BrowserItem(
-                    name=name,
-                    workflow=workflow,
-                    source_category=category,
-                    source_path=source_path,
-                    display_path=display_path,
-                    is_editable=is_editable,
-                    item_type=item_type,
-                    kind=kind,
-                    insertion=workflow_reference_insertion(name, workflow),
-                )
-            )
-
-        self._all_items = items
+        """Load all xprompts and organize them into groups."""
+        self._all_items = load_browser_items(
+            self._project,
+            prompt_loader=get_all_prompts,
+            source_classifier=classify_source,
+        )
         self._rebuild_groups()
 
     def _rebuild_groups(self, filter_text: str = "") -> None:
         """Rebuild grouped items, optionally filtered."""
-        filter_lower = filter_text.lower()
-
-        filtered = (
-            [
-                item
-                for item in self._all_items
-                if self._item_matches_filter(item, filter_lower)
-            ]
-            if filter_lower
-            else list(self._all_items)
-        )
-
-        # Group by category
-        groups: dict[str, list[BrowserItem]] = {}
-        for item in filtered:
-            groups.setdefault(item.source_category, []).append(item)
-
-        for items_list in groups.values():
-            items_list.sort(key=lambda x: x.name)
-
-        # Order groups: known categories first, then dynamic ones
-        known_order = [
-            "CWD .xprompts/",
-            "CWD xprompts/",
-            "Home ~/.xprompts/",
-            "Home ~/xprompts/",
-        ]
-
-        ordered: list[tuple[str, list[BrowserItem]]] = []
-        seen: set[str] = set()
-
-        for cat in known_order:
-            if cat in groups:
-                ordered.append((cat, groups[cat]))
-                seen.add(cat)
-
-        # Project categories
-        for cat in sorted(groups.keys()):
-            if cat.startswith("Project (") and cat not in seen:
-                ordered.append((cat, groups[cat]))
-                seen.add(cat)
-
-        if "User sase.yml" in groups and "User sase.yml" not in seen:
-            ordered.append(("User sase.yml", groups["User sase.yml"]))
-            seen.add("User sase.yml")
-
-        # Plugin categories
-        for cat in sorted(groups.keys()):
-            if cat.startswith("Plugin (") and cat not in seen:
-                ordered.append((cat, groups[cat]))
-                seen.add(cat)
-
-        if "Built-in" in groups and "Built-in" not in seen:
-            ordered.append(("Built-in", groups["Built-in"]))
-            seen.add("Built-in")
-
-        # Any remaining
-        for cat in sorted(groups.keys()):
-            if cat not in seen:
-                ordered.append((cat, groups[cat]))
-
-        self._grouped = ordered
+        self._grouped = group_browser_items(self._all_items, filter_text)
 
     def _item_matches_filter(self, item: BrowserItem, filter_lower: str) -> bool:
-        parts = [item.name, item.workflow.description or ""]
-        parts.extend(
-            inp.description or ""
-            for inp in item.workflow.inputs
-            if not inp.is_step_input
-        )
-        return filter_lower in "\n".join(part for part in parts if part).casefold()
+        """Return True when an item matches the filter."""
+        return item_matches_filter(item, filter_lower)
 
     def _get_flat_items(self) -> list[BrowserItem]:
-        """Get flat list of items from grouped data (for index lookups)."""
-        result: list[BrowserItem] = []
-        for _, items in self._grouped:
-            result.extend(items)
-        return result
+        """Get flat list of items from grouped data for index lookups."""
+        return flatten_grouped_items(self._grouped)
 
     def compose(self) -> ComposeResult:
         total = len(self._all_items)
-        yield Label(
-            f"XPrompt Browser [{total} xprompts]",
-            id="browser-title",
-        )
-        yield _BrowserFilterInput(
+        yield Label(f"XPrompt Browser [{total} xprompts]", id="browser-title")
+        yield BrowserFilterInput(
             placeholder="Type to filter...",
             id="browser-filter-input",
         )
         with Horizontal(id="browser-panels"):
             with Vertical(id="browser-list-panel"):
-                yield OptionList(
-                    *self._create_options(),
-                    id="browser-list",
-                )
+                yield OptionList(*self._create_options(), id="browser-list")
             with Vertical(id="browser-preview-panel"):
                 with VerticalScroll(id="browser-preview-scroll"):
                     yield Static("", id="browser-preview")
                 yield Static("", id="browser-meta")
-        yield Static(
-            self._hint_text(loadable=False),
-            id="browser-hints",
-            markup=False,
-        )
+        yield Static(self._hint_text(loadable=False), id="browser-hints", markup=False)
 
     def _hint_text(self, *, loadable: bool) -> str:
-        """Return the hint line, showing ``^i: load`` only for loadable rows.
-
-        ``^i`` inline-loads the highlighted xprompt into the prompt bar and is
-        inactive for YAML-backed rows (workflows and config-backed entries), so
-        the hint surfaces it only when the current selection is eligible.
-        """
-        load_hint = "^i: load  " if loadable else ""
-        return (
-            f"^n/^p: navigate  enter: edit  {load_hint}^o: add new  "
-            "^d/^u: scroll  [ / ]: switch tab  Esc: close"
-        )
+        """Return the hint line for the current loadability state."""
+        return browser_hint_text(loadable=loadable)
 
     def _set_hints(self, *, loadable: bool) -> None:
         """Sync the hint line to whether the current row is loadable."""
@@ -316,37 +121,11 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
 
     def _create_options(self) -> list[Option]:
         """Create OptionList items with group headers as disabled options."""
-        options: list[Option] = []
-        for category, items in self._grouped:
-            header_text = Text(f"── {category} ──", style="bold dim")
-            options.append(
-                Option(header_text, id=f"__header__{category}", disabled=True)
-            )
-            for item in items:
-                options.append(
-                    Option(
-                        self._create_item_label(item),
-                        id=f"item__{item.name}",
-                    )
-                )
-        return options
+        return create_browser_options(self._grouped)
 
-    def _create_item_label(self, item: BrowserItem) -> Text:
+    def _create_item_label(self, item: BrowserItem) -> object:
         """Create styled label for an xprompt item."""
-        text = Text()
-        prefix = workflow_reference_prefix(item.workflow)
-        if item.kind == "standalone_workflow":
-            text.append("  ▶ ", style="bold #FFD700")
-            text.append(prefix, style="bold #87D7FF")
-        elif item.kind == "embeddable_workflow":
-            text.append("  ⚙ ", style="bold #FFD700")  # Gold gear for workflows
-            text.append(prefix, style="bold #87D7FF")
-        else:
-            text.append(f"  {prefix}", style="bold #87D7FF")
-        text.append(item.name)
-        # Append input arg signatures
-        append_input_args(text, item.workflow.inputs)
-        return text
+        return create_item_label(item)
 
     def on_mount(self) -> None:
         flat_items = self._get_flat_items()
@@ -356,9 +135,9 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
             self._skip_to_first_item(option_list)
 
     def focus_default(self) -> None:
-        """Focus the filter input (called when the XPrompts tab activates)."""
+        """Focus the filter input when the XPrompts tab activates."""
         try:
-            self.query_one("#browser-filter-input", _BrowserFilterInput).focus()
+            self.query_one("#browser-filter-input", BrowserFilterInput).focus()
         except Exception:
             pass
 
@@ -461,7 +240,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         return item
 
     def highlighted_row_is_loadable(self) -> bool:
-        """Return True when the highlighted row can be inline-loaded (``Ctrl+I``)."""
+        """Return True when the highlighted row can be inline-loaded."""
         return self._highlighted_loadable_item() is not None
 
     def action_load_xprompt(self) -> None:
@@ -500,7 +279,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
     def _reload_xprompts(self) -> None:
         """Reload all xprompts and rebuild the list."""
         try:
-            filter_input = self.query_one("#browser-filter-input", _BrowserFilterInput)
+            filter_input = self.query_one("#browser-filter-input", BrowserFilterInput)
             filter_text = filter_input.value
         except Exception:
             filter_text = ""
@@ -552,101 +331,22 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         except Exception:
             return
 
-        workflow = item.workflow
-        if workflow.is_simple_xprompt():
-            content = self._create_simple_preview(workflow)
-        else:
-            content = self._create_workflow_preview(workflow)
-
-        syntax = Syntax(content, "markdown", theme="monokai", word_wrap=True)
-        preview.update(syntax)
-
-        # Metadata block
-        meta_text = Text()
-        meta_text.append("── Source Info ──\n", style="bold dim")
-        meta_text.append("Source: ", style="bold")
-        meta_text.append(f"{item.display_path}\n")
-        meta_text.append("Type: ", style="bold")
-        meta_text.append(item.kind.replace("_", " "))
-        if item.item_type == "workflow":
-            meta_text.append(f" ({len(workflow.steps)} steps)")
-        else:
-            meta_text.append(" (simple)")
-        meta_text.append("\n")
-        meta_text.append("Insertion: ", style="bold")
-        meta_text.append(f"{item.insertion}\n")
-
-        if workflow.description:
-            meta_text.append("Description: ", style="bold")
-            meta_text.append(workflow.description)
-            meta_text.append("\n")
-
-        if workflow.inputs:
-            input_strs = [
-                _input_meta_line(inp)
-                for inp in workflow.inputs
-                if not inp.is_step_input
-            ]
-            if input_strs:
-                meta_text.append("Inputs:\n", style="bold")
-                for input_str in input_strs:
-                    meta_text.append(f"  {input_str}\n")
-
-        meta_text.append("Editable: ", style="bold")
-        meta_text.append(
-            "yes" if item.is_editable else "no",
-            style="green" if item.is_editable else "red",
+        syntax = Syntax(
+            create_preview_content(item.workflow),
+            "markdown",
+            theme="monokai",
+            word_wrap=True,
         )
-
-        meta.update(meta_text)
+        preview.update(syntax)
+        meta.update(create_meta_text(item))
 
     def _create_simple_preview(self, workflow: Workflow) -> str:
         """Create a preview for a simple xprompt."""
-        content = workflow.get_prompt_part_content()
-        inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
-        has_input_descriptions = any(inp.description for inp in inputs)
-        if not workflow.description and not has_input_descriptions:
-            return content
-
-        lines: list[str] = [f"# XPrompt: {workflow.name}", ""]
-        if workflow.description:
-            lines.extend([workflow.description, ""])
-        if inputs:
-            lines.append("## Inputs")
-            lines.extend(_input_preview_lines(inputs))
-            lines.append("")
-        lines.extend(["## Content", content])
-        return "\n".join(lines)
+        return create_simple_preview(workflow)
 
     def _create_workflow_preview(self, workflow: Workflow) -> str:
         """Create a preview string for a workflow."""
-        lines: list[str] = [f"# Workflow: {workflow.name}", ""]
-        if workflow.description:
-            lines.extend([workflow.description, ""])
-        inputs = [inp for inp in workflow.inputs if not inp.is_step_input]
-        if inputs:
-            lines.append("## Inputs")
-            lines.extend(_input_preview_lines(inputs))
-            lines.append("")
-        lines.append("## Steps")
-        for i, step in enumerate(workflow.steps, 1):
-            if step.agent:
-                step_type = "agent"
-                step_label = step.agent.split("\n")[0][:50]
-            elif step.bash:
-                step_type = "bash"
-                step_label = step.bash
-            elif step.python:
-                step_type = "python"
-                step_label = step.python
-            elif step.prompt_part:
-                step_type = "prompt_part"
-                step_label = step.prompt_part.split("\n")[0][:50]
-            else:
-                step_type = "unknown"
-                step_label = "?"
-            lines.append(f"{i}. [{step_type}] {step.name}: {step_label}")
-        return "\n".join(lines)
+        return create_workflow_preview(workflow)
 
     def _clear_preview(self) -> None:
         """Clear the preview panel."""
@@ -680,24 +380,8 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         self.scroll_preview_up()
 
 
-def _input_preview_lines(inputs: list[InputArg]) -> list[str]:
-    lines: list[str] = []
-    for inp in inputs:
-        description_str = f" - {inp.description}" if inp.description else ""
-        lines.append(
-            f"- **{inp.name}**: {inp.type.value}{_default_suffix(inp)}{description_str}"
-        )
-    return lines
-
-
-def _input_meta_line(inp: InputArg) -> str:
-    description_str = f": {inp.description}" if inp.description else ""
-    return f"{inp.name} ({inp.type.value}{_default_suffix(inp)}){description_str}"
-
-
-def _default_suffix(inp: InputArg) -> str:
-    if inp.default is UNSET:
-        return ""
-    if inp.default is None:
-        return " (default: null)"
-    return f" (default: {inp.default})"
+__all__ = [
+    "XPromptBrowserPane",
+    "classify_source",
+    "get_all_prompts",
+]
