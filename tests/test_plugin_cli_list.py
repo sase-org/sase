@@ -183,6 +183,10 @@ def test_list_accepts_each_flag() -> None:
 # --------------------------------------------------------------------------- #
 
 
+def test_list_json_schema_version_is_pinned_to_dev_schema() -> None:
+    assert LIST_JSON_SCHEMA_VERSION == 3
+
+
 def test_json_payload_shape_is_stable() -> None:
     payload = _build_list_json(_sample_catalog(), now=1000.0 + 7200)
 
@@ -222,6 +226,47 @@ def test_json_payload_shape_is_stable() -> None:
     jira = next(e for e in payload["entries"] if e["name"] == "acme-jira")
     assert jira["kind"] == "community"
     assert jira["installed"]["installed"] is False
+
+
+def test_json_payload_includes_editable_dev_update_fields() -> None:
+    catalog = _catalog(
+        (
+            _entry(
+                "github",
+                "sase-org",
+                repo="sase-github",
+                installed=True,
+                version="0.4.1+1.gaaaaaaaaa",
+                latest=LatestInfo(
+                    checked=True,
+                    version="0.4.1+2.gbbbbbbbbb",
+                    source="editable",
+                    install_type="editable",
+                    current_version="0.4.1+1.gaaaaaaaaa",
+                    update_available=True,
+                    state="update_available",
+                    reason="behind upstream by 1 commit(s)",
+                ),
+            ),
+        )
+    )
+
+    payload = _build_list_json(catalog, now=1000.0)
+
+    assert payload["schema_version"] == 3
+    assert payload["counts"]["updates_available"] == 1
+    entry = payload["entries"][0]
+    assert entry["install_type"] == "editable"
+    assert entry["current_version"] == "0.4.1+1.gaaaaaaaaa"
+    assert entry["latest"] == {
+        "checked": True,
+        "version": "0.4.1+2.gbbbbbbbbb",
+        "source": "editable",
+        "update_available": True,
+        "state": "update_available",
+        "reason": "behind upstream by 1 commit(s)",
+        "error": None,
+    }
 
 
 def test_json_output_path_is_valid_json(capsys: Any) -> None:

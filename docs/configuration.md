@@ -98,13 +98,16 @@ so a local checkout can surface an `↑ dev update available` hint that points a
 `sase plugin update`. Update actions (`u` / `U` / `S`) on those editable rows route through the
 [dev-update](plugins.md#dev-editable-installs) planner — git fast-forward plus in-place reconcile — instead of the `uv`
 path, and after a successful changed editable update the modal restarts ACE and the axe daemon so the new code is picked
-up immediately.
+up immediately. Blocked editable checkout states are shown as dim reasons instead of update arrows, such as
+`dev · local changes`, `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`, or `dev · offline`.
 
-Every mutation **previews first**: install and update open a confirm-preview modal showing the exact `uv` command and
-resolved plugin set (the confirmation _is_ the dry-run), then run as a tracked background task so a multi-second `uv`
-run never blocks the UI, followed by a success/error toast and an automatic catalog refresh. When `sase` is not a
-managed `uv tool install`, browsing still works but install/update are disabled with the same actionable message the CLI
-gives. The context-sensitive keymaps are:
+Every mutation **previews first**: install and managed update actions open a confirm-preview modal showing the exact
+`uv` command and resolved package set; editable-checkout dev updates preview the git fetch/fast-forward and reconcile
+steps. The confirmation _is_ the dry-run. Mutations run as tracked background tasks so a multi-second `uv`, git, or Rust
+rebuild never blocks the UI. A successful update that changed code automatically restarts ACE and axe through the same
+restart path as the `Q` restart action; no-op and failed updates leave the current UI running and refresh the catalog
+when appropriate. When `sase` is not a managed `uv tool install`, browsing still works but install/update are disabled
+with the same actionable message the CLI gives. The context-sensitive keymaps are:
 
 | Key       | Action                                                                                      |
 | --------- | ------------------------------------------------------------------------------------------- |

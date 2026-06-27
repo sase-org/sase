@@ -77,7 +77,8 @@ sase plugin show github -r
   then **community** (third-party, shown with a warning) — and marks installed versions, latest available versions, and
   updates. Status uses a glyph plus a legend (`●` installed, `○` available, `↑` update available) so the output is
   legible with no color. An installed index plugin behind PyPI renders as `vOLD → vNEW` with a `↑` and a footer hint to
-  run `sase plugin update --all`.
+  run `sase plugin update --all`. An editable checkout renders its current dev version and, when its upstream tracking
+  branch is ahead, `current → latest` with a dim `dev` tag.
 - **`show`** renders a detail panel: description, installed status and contributed entry points, latest available
   version, repository, homepage, topics, stars, last update, and license. Community plugins lead with a prominent
   third-party warning. An unknown `<plugin_name>` prints ranked `did you mean…?` suggestions and exits non-zero.
@@ -86,11 +87,18 @@ sase plugin show github -r
 - Installed status, version, and contributed entry-point groups come from merging the catalog with the live
   [plugin inventory](#how-plugins-are-discovered). Plugins that carry the topic but contribute no Python entry points
   (for example a Neovim-only integration) correctly show as not installed.
-- Latest available versions come from PyPI's package JSON (`info.version`), which matches what `sase plugin update`
-  would actually install. Editable / dev installs are labeled with a lowercase `dev` source marker and are compared
-  against their git upstream instead of PyPI, so a local checkout can surface an `↑ dev update available` hint that
-  recommends `sase update` (not `sase plugin update`). Direct-git installs are labeled as such and are not compared, so
-  they never get a false update prompt.
+- Latest available versions for index installs come from PyPI's package JSON (`info.version`), which matches what
+  `sase plugin update` would actually install. Editable checkouts derive their latest dev version from the upstream
+  tracking ref after a best-effort fetch, carry a lowercase `dev` source marker, and base update availability on git
+  ancestry rather than PEP 440 string comparison. A local checkout can surface an `↑ dev update available` hint that
+  recommends `sase update` rather than `sase plugin update`. Direct-git installs are labeled as `git` and are not
+  compared against PyPI, so an immutable VCS install never gets a false update prompt.
+- Blocked editable checkout states are shown as a dim reason instead of an update arrow: `dev · local changes`,
+  `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`, `dev · offline`, or an unavailable/fetch-failed reason.
+  Fix the checkout manually, then rerun `sase plugin list` or refresh the Admin Center Updates tab.
+- `sase plugin list -j` emits `schema_version: 3`. Each entry includes `install_type`, `current_version`, and a `latest`
+  object with `version`, `update_available`, `state`, and `reason` so automation can distinguish index updates from
+  editable-checkout dev states without parsing table text.
 
 ### Catalog fetching and cache
 
@@ -101,11 +109,14 @@ The catalog and latest-version probes are cached separately, so repeat runs are 
 - The cache lives at `~/.sase/plugins/catalog_cache.json` and is written atomically. The first run fetches and writes
   it; later runs read it and only touch the network when `-r|--refresh` is passed. A cache older than the soft staleness
   threshold is still used, but the footer warns more loudly.
-- Latest-version results live at `~/.sase/plugins/latest_cache.json` with a short TTL. Cache misses are fetched from
-  PyPI concurrently with short timeouts; any timeout, parse failure, or package missing from PyPI renders as "latest
-  unknown" and the command still exits successfully.
+- Index latest-version results live at `~/.sase/plugins/latest_cache.json` with a short TTL. Cache misses are fetched
+  from PyPI concurrently with short timeouts; any timeout, parse failure, or package missing from PyPI renders as
+  "latest unknown" and the command still exits successfully. Editable checkout probes are not written to this PyPI
+  cache.
 - `-o|--offline` makes `list` and `show` use caches only and make zero GitHub or PyPI calls. If the catalog cache is
   missing, offline mode fails with an actionable message; missing latest-version cache entries render as unknown.
+  Editable checkouts do not fetch in offline mode; they use already-known git metadata when available or render
+  `dev · offline`.
 - If `gh` runs but the call fails (network error, non-zero exit, or an unauthenticated/auth error), SASE falls back to
   the existing cache with a loud "stale cached data" warning, or — when there is no cache — re-raises the error.
 - A missing `gh` (not on `PATH`) is always a hard error, even when a cache exists: SASE never silently serves stale data
@@ -144,15 +155,15 @@ sase doctor -C axe.chops
 
 ## Updating sase and plugins (`sase update`)
 
-`sase update` upgrades `sase` **and every installed sase plugin together**, in one atomic operation. Registry (PyPI)
-components are upgraded by delegating to `uv tool upgrade sase`, which re-resolves sase core and all injected plugins in
-a single shot so they always move forward as a coherent set rather than drifting out of sync. Editable / dev components
-of the same uv tool environment are detected from the receipt and upgraded in place from git instead (see
-[Dev / editable installs](#dev-editable-installs) below).
+`sase update` updates `sase` **and every installed sase plugin together** from the canonical uv-tool environment. For a
+managed install it delegates to `uv tool upgrade sase`, re-resolving SASE core and injected plugins in one shot so they
+move forward as a coherent set. Receipt-owned editable / dev components of the same uv tool environment are detected
+from the receipt, updated from git, and reconciled so Python entry points, dependencies, and compiled Rust artifacts
+match the checked-out source (see [Dev / editable installs](#dev-editable-installs) below).
 
 ```bash
-sase update            # upgrade sase + all plugins
-sase update -n         # dry run: preview the uv command and package set, change nothing
+sase update            # update sase + all plugins
+sase update -n         # dry run: preview the uv or dev-update plan, change nothing
 sase update -q         # quiet: print only a one-line summary
 sase update -j         # stable machine-readable JSON
 ```
@@ -165,7 +176,7 @@ Typical output highlights what changed, marks what was already current, and remi
 · sase-telegram  0.1.0   (already current)
 
 Updated sase + 1 plugin in 4.2s · 1 already current
-Restart running sase agents to pick up the new version.
+Axe restarted (pid 12345) to load the updated code.
 ```
 
 - **Install method is required.** `sase update` only works when sase was installed with `uv tool install sase` (the
@@ -173,12 +184,27 @@ Restart running sase agents to pick up the new version.
   with an actionable message** and a non-zero exit code instead of touching the environment. The check is strict: `uv`
   must be on `PATH`, the running interpreter's `sys.prefix` must resolve to `<uv tool dir>/sase`, and that directory
   must contain a `uv-receipt.toml`.
-- **`-n|--dry-run`** prints the exact `uv` command that would run plus the current package set (sase core and each
-  injected plugin, with versions) and exits `0` without changing anything. uv itself has no dry-run, so sase resolves
-  and prints the plan.
-- **`-j|--json`** emits a stable, sorted payload with `schema_version`, the resolved `command`, per-package outcomes
-  (`kind` of `upgraded`/`added`/`removed`/`unchanged` with `old_version`/`new_version`), and `counts`. The dry-run JSON
-  reports `dry_run: true`, the planned `command`, and each package's `current_version`.
+- **Managed installs** use `uv tool upgrade sase`, re-resolving sase core and all injected plugins in a single shot so
+  they move forward as a coherent set rather than drifting out of sync.
+- **Editable checkouts** update only when they are clean and strictly behind their upstream tracking branch. SASE
+  fetches the upstream, fast-forwards the checkout, reconstructs the uv-tool install from the receipt for editable
+  Python packages, and rebuilds `sase-core-rs` into the uv-tool venv when the Rust core checkout changed. Multiple
+  packages in one git root are deduped.
+- **Blocked editable states are non-destructive.** Dirty, diverged, detached-HEAD, no-upstream, offline, and
+  fetch-failed checkouts are skipped with a reason. Commit or stash local changes, resolve divergence manually, check
+  out a branch with an upstream, or rerun online; `sase update` never rebases, merges non-fast-forward, stashes, or
+  discards local work.
+- **Mixed installs** update editable packages through the dev path and managed packages through uv in one run, with one
+  combined result.
+- **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts axe when it is running so the
+  daemon loads the new code. In the Admin Center Updates tab, SASE restarts ACE and axe through the same restart path as
+  the `Q` restart action. No-op and failed updates do not restart anything.
+- **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would run and exits `0` without
+  changing anything. uv itself has no dry-run, so sase resolves and prints the managed plan itself.
+- **`-j|--json`** emits `schema_version: 2` with a stable, sorted payload. Managed outcomes are reported under
+  `managed`; editable-checkout plans/results are reported under `dev`; `mode` is `managed`, `dev`, or `mixed`; `restart`
+  reports whether axe was restarted, skipped, or failed. The dry-run JSON reports `dry_run: true`, the planned command
+  or dev plan, and each package's current version.
 - A no-op run (nothing to upgrade) renders a clean "Already up to date" state and still exits `0`.
 - The authoritative record of what is in sase's environment is uv's own `uv-receipt.toml`, not anything sase stores.
   `sase update` moves the whole environment forward at once; to install or upgrade individual plugins, use
