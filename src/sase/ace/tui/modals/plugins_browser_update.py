@@ -227,6 +227,7 @@ class PluginUpdateActionsMixin:
             intro=intro,
             variants=variants,
             panel_title="Confirm update",
+            icon="↑",
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

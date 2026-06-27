@@ -388,6 +388,7 @@ class TasksPane(Vertical):
             return
 
         from .confirm_action_modal import ConfirmActionModal
+        from .confirm_dialog import ConfirmKind
 
         def _on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
@@ -409,6 +410,9 @@ class TasksPane(Vertical):
             ConfirmActionModal(
                 title="Kill Task",
                 message=f"Kill running task: {task.label}?",
+                kind=ConfirmKind.DANGER,
+                confirm_label="Kill",
+                cancel_label="Cancel",
             ),
             _on_confirm,
         )

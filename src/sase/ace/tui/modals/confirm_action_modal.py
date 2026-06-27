@@ -1,42 +1,35 @@
 """Generic yes/no confirmation modal for the ace TUI."""
 
-from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
-from textual.screen import ModalScreen
-from textual.widgets import Button, Label
+from __future__ import annotations
+
+from .confirm_dialog import ConfirmDefault, ConfirmDialog, ConfirmKind
 
 
-class ConfirmActionModal(ModalScreen[bool]):
+class ConfirmActionModal(ConfirmDialog):
     """Generic modal for confirming an action with yes/no."""
 
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("q", "cancel", "Cancel"),
-        ("y", "confirm", "Yes"),
-        ("n", "cancel", "No"),
-    ]
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        *,
+        subject: str | None = None,
+        kind: ConfirmKind = ConfirmKind.NEUTRAL,
+        icon: str | None = None,
+        confirm_label: str = "Yes",
+        cancel_label: str = "No",
+        default: ConfirmDefault | None = None,
+    ) -> None:
+        super().__init__(
+            title,
+            message,
+            subject=subject,
+            kind=kind,
+            icon=icon,
+            confirm_label=confirm_label,
+            cancel_label=cancel_label,
+            default=default or ("cancel" if kind is ConfirmKind.DANGER else "confirm"),
+        )
 
-    def __init__(self, title: str, message: str) -> None:
-        super().__init__()
-        self._title = title
-        self._message = message
 
-    def compose(self) -> ComposeResult:
-        with Container():
-            yield Label(self._title, id="modal-title")
-            yield Label(self._message, id="confirm-message")
-            with Horizontal():
-                yield Button("Yes (y)", id="confirm-btn", variant="error")
-                yield Button("No (n)", id="cancel-btn", variant="primary")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "confirm-btn":
-            self.dismiss(True)
-        else:
-            self.dismiss(False)
-
-    def action_cancel(self) -> None:
-        self.dismiss(False)
-
-    def action_confirm(self) -> None:
-        self.dismiss(True)
+__all__ = ["ConfirmActionModal"]

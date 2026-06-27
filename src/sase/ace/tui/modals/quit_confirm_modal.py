@@ -10,7 +10,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Static
+from textual.widgets import Button, Static
 
 from ..task_queue import TaskInfo
 
@@ -88,11 +88,17 @@ class QuitConfirmModal(ModalScreen[bool]):
 
     def __init__(self, tasks: list[TaskInfo]) -> None:
         super().__init__()
+        self.add_class("confirm-dialog")
         self._tasks = list(tasks)
 
     def compose(self) -> ComposeResult:
-        with Container(id="quit-confirm-container"):
-            yield Label("Quit SASE?", id="quit-confirm-title")
+        dialog = Container(
+            id="quit-confirm-container",
+            classes="confirm-dialog-panel confirm-dialog--danger",
+        )
+        dialog.border_title = self._build_border_title()
+        dialog.border_subtitle = "y quit & kill all · n/esc keep running · j/k scroll"
+        with dialog:
             yield Static(self._summary_text(), id="quit-confirm-summary")
             with VerticalScroll(id="quit-confirm-tasks"):
                 for task in self._tasks:
@@ -111,10 +117,6 @@ class QuitConfirmModal(ModalScreen[bool]):
                     id="cancel-btn",
                     variant="primary",
                 )
-            yield Static(
-                "y quit & kill all · n/esc keep running · j/k scroll",
-                id="quit-confirm-hints",
-            )
 
     def on_mount(self) -> None:
         """Default focus to the safe action."""
@@ -141,6 +143,12 @@ class QuitConfirmModal(ModalScreen[bool]):
     def _scroll_tasks(self, rows: int) -> None:
         scroll = self.query_one("#quit-confirm-tasks", VerticalScroll)
         scroll.scroll_relative(y=rows, animate=False)
+
+    def _build_border_title(self) -> Text:
+        title = Text()
+        title.append("!", style="bold red")
+        title.append("  Quit SASE?", style="bold")
+        return title
 
     def _summary_text(self) -> Text:
         count = len(self._tasks)

@@ -25,7 +25,9 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Static
+from textual.widgets import Button, Static
+
+from .confirm_dialog import ButtonVariant, ConfirmKind
 
 
 @dataclass(frozen=True)
@@ -69,23 +71,35 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         intro: str,
         variants: Sequence[PluginActionVariant],
         panel_title: str = "Confirm",
+        kind: ConfirmKind = ConfirmKind.NEUTRAL,
+        icon: str | None = None,
     ) -> None:
         super().__init__()
         if not variants:
             raise ValueError("PluginActionConfirmModal requires at least one variant")
+        self.add_class("confirm-dialog")
         self._title = title
         self._intro = intro
         self._variants = tuple(variants)
         self._panel_title = panel_title
+        self._kind = kind
+        self._icon = icon
         self._index = 0
 
     def compose(self) -> ComposeResult:
-        with Container():
-            yield Label(self._title, id="plugin-action-title")
+        dialog = Container(
+            id="plugin-action-container",
+            classes=f"confirm-dialog-panel confirm-dialog--{self._kind.value}",
+        )
+        dialog.border_title = self._build_border_title()
+        dialog.border_subtitle = self._build_border_subtitle()
+        with dialog:
             yield Static(self._preview_renderable(), id="plugin-action-preview")
             with Horizontal(id="plugin-action-buttons"):
                 yield Button(
-                    "Confirm (y)", id="plugin-action-confirm", variant="success"
+                    "Confirm (y)",
+                    id="plugin-action-confirm",
+                    variant=self._confirm_button_variant(),
                 )
                 if len(self._variants) > 1:
                     yield Button(
@@ -93,7 +107,11 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
                         id="plugin-action-toggle",
                         variant="primary",
                     )
-                yield Button("Cancel (n)", id="plugin-action-cancel", variant="error")
+                yield Button(
+                    "Cancel (n)",
+                    id="plugin-action-cancel",
+                    variant=self._cancel_button_variant(),
+                )
 
     # -- rendering --
 
@@ -116,7 +134,11 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             parts.append(Text(""))
             parts.append(self._source_line())
 
-        return Panel(Group(*parts), title=self._panel_title, border_style="cyan")
+        return Panel(
+            Group(*parts),
+            title=self._panel_title,
+            border_style=self._accent_style(),
+        )
 
     def _source_line(self) -> Text:
         line = Text()
@@ -125,13 +147,43 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             if index > 0:
                 line.append("  /  ", style="dim")
             active = index == self._index
-            line.append(variant.label, style="bold cyan" if active else "dim")
+            line.append(
+                variant.label,
+                style=f"bold {self._accent_style()}" if active else "dim",
+            )
         line.append("   (g to switch)", style="dim")
         return line
 
     def _toggle_label(self) -> str:
         nxt = self._variants[(self._index + 1) % len(self._variants)]
         return f"Source: {nxt.label} (g)"
+
+    def _build_border_title(self) -> Text:
+        title = Text()
+        title.append(self._icon or self._default_icon(), style=self._title_icon_style())
+        title.append("  ")
+        title.append(self._title, style="bold")
+        return title
+
+    def _build_border_subtitle(self) -> str:
+        if len(self._variants) > 1:
+            return "y confirm · n/esc cancel · g source"
+        return "y confirm · n/esc cancel"
+
+    def _default_icon(self) -> str:
+        return "!" if self._kind is ConfirmKind.DANGER else "?"
+
+    def _title_icon_style(self) -> str:
+        return "bold red" if self._kind is ConfirmKind.DANGER else "bold cyan"
+
+    def _accent_style(self) -> str:
+        return "red" if self._kind is ConfirmKind.DANGER else "cyan"
+
+    def _confirm_button_variant(self) -> ButtonVariant:
+        return "error" if self._kind is ConfirmKind.DANGER else "primary"
+
+    def _cancel_button_variant(self) -> ButtonVariant:
+        return "primary" if self._kind is ConfirmKind.DANGER else "default"
 
     # -- actions --
 

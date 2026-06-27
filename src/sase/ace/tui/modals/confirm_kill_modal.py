@@ -1,20 +1,12 @@
 """Confirm kill / dismiss-all modals for the ace TUI."""
 
-from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
-from textual.screen import ModalScreen
-from textual.widgets import Button, Label
+from __future__ import annotations
+
+from .confirm_dialog import ConfirmDialog, ConfirmKind
 
 
-class ConfirmDismissAllModal(ModalScreen[bool]):
+class ConfirmDismissAllModal(ConfirmDialog):
     """Modal for confirming bulk dismissal of all completed agents."""
-
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("q", "cancel", "Cancel"),
-        ("y", "confirm", "Yes"),
-        ("n", "cancel", "No"),
-    ]
 
     def __init__(self, agent_description: str) -> None:
         """Initialize the confirm dismiss-all modal.
@@ -22,133 +14,68 @@ class ConfirmDismissAllModal(ModalScreen[bool]):
         Args:
             agent_description: Description of the agents to dismiss.
         """
-        super().__init__()
         self.agent_description = agent_description
-
-    def compose(self) -> ComposeResult:
-        """Compose the modal layout."""
-        with Container():
-            yield Label("Confirm Dismiss All", id="modal-title")
-            yield Label(
-                f"Are you sure you want to dismiss these agents?\n\n{self.agent_description}",
-                id="confirm-message",
-            )
-            with Horizontal():
-                yield Button("Yes (y)", id="confirm-btn", variant="error")
-                yield Button("No (n)", id="cancel-btn", variant="primary")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button press."""
-        if event.button.id == "confirm-btn":
-            self.dismiss(True)
-        else:
-            self.dismiss(False)
-
-    def action_cancel(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(False)
-
-    def action_confirm(self) -> None:
-        """Confirm the action."""
-        self.dismiss(True)
+        super().__init__(
+            "Dismiss Completed Agents",
+            "Dismiss these completed agents?",
+            subject=agent_description,
+            kind=ConfirmKind.DANGER,
+            confirm_label="Dismiss all",
+            cancel_label="Keep",
+            default="cancel",
+        )
 
 
-class ConfirmKillModal(ModalScreen[bool]):
+class ConfirmKillModal(ConfirmDialog):
     """Modal for confirming agent termination."""
-
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("q", "cancel", "Cancel"),
-        ("y", "confirm", "Yes"),
-        ("n", "cancel", "No"),
-    ]
 
     def __init__(self, agent_description: str) -> None:
         """Initialize the confirm kill modal.
 
         Args:
-            agent_description: Description of the agent to kill
+            agent_description: Description of the agent to kill.
         """
-        super().__init__()
         self.agent_description = agent_description
-
-    def compose(self) -> ComposeResult:
-        """Compose the modal layout."""
-        with Container():
-            yield Label("Confirm Kill Agent", id="modal-title")
-            yield Label(
-                f"Are you sure you want to kill this agent?\n\n{self.agent_description}",
-                id="confirm-message",
-            )
-            with Horizontal():
-                yield Button("Yes (y)", id="confirm-btn", variant="error")
-                yield Button("No (n)", id="cancel-btn", variant="primary")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button press."""
-        if event.button.id == "confirm-btn":
-            self.dismiss(True)
-        else:
-            self.dismiss(False)
-
-    def action_cancel(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(False)
-
-    def action_confirm(self) -> None:
-        """Confirm the action."""
-        self.dismiss(True)
+        super().__init__(
+            "Kill Agent",
+            "Kill this agent? Running work will stop immediately.",
+            subject=agent_description,
+            kind=ConfirmKind.DANGER,
+            confirm_label="Kill",
+            cancel_label="Keep running",
+            default="cancel",
+        )
 
 
-class ConfirmKillAllModal(ModalScreen[bool]):
-    """Modal for confirming kill & dismiss of all agents (double-confirmation).
-
-    First ``y`` press transitions the modal to a "FINAL CONFIRMATION" state
-    with a red border and updated message.  Second ``y`` performs the action.
-    """
-
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("q", "cancel", "Cancel"),
-        ("y", "confirm", "Yes"),
-        ("n", "cancel", "No"),
-    ]
+class ConfirmKillAllModal(ConfirmDialog):
+    """Modal for confirming kill & dismiss of all agents (double-confirmation)."""
 
     def __init__(self, agent_description: str) -> None:
-        super().__init__()
         self.agent_description = agent_description
         self._confirmed_once = False
-
-    def compose(self) -> ComposeResult:
-        with Container(id="kill-all-container"):
-            yield Label("Confirm Kill & Dismiss All", id="modal-title")
-            yield Label(
-                f"Are you sure you want to kill & dismiss these agents?\n\n{self.agent_description}",
-                id="confirm-message",
-            )
-            with Horizontal():
-                yield Button("Yes (y)", id="confirm-btn", variant="error")
-                yield Button("No (n)", id="cancel-btn", variant="primary")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "confirm-btn":
-            self.action_confirm()
-        else:
-            self.dismiss(False)
-
-    def action_cancel(self) -> None:
-        self.dismiss(False)
+        super().__init__(
+            "Kill & Dismiss All",
+            "Kill running agents and dismiss completed agents?",
+            subject=agent_description,
+            kind=ConfirmKind.DANGER,
+            confirm_label="Continue",
+            cancel_label="Cancel",
+            default="cancel",
+        )
 
     def action_confirm(self) -> None:
         if not self._confirmed_once:
             self._confirmed_once = True
-            container = self.query_one("#kill-all-container", Container)
-            container.add_class("confirmed-once")
-            self.query_one("#modal-title", Label).update("\u26a0 FINAL CONFIRMATION")
-            self.query_one("#confirm-message", Label).update(
-                "This will KILL running agents and dismiss completed agents.\n\n"
+            self._set_kind(ConfirmKind.DANGER)
+            self._set_title("FINAL CONFIRMATION")
+            self._set_message(
+                "This will kill running agents and dismiss completed agents.\n\n"
                 "This action is irreversible. Press y again to confirm."
             )
-            self.query_one("#confirm-btn", Button).label = "Confirm (y)"
+            self._set_subject(None)
+            self._set_confirm_label("Confirm")
         else:
             self.dismiss(True)
+
+
+__all__ = ["ConfirmDismissAllModal", "ConfirmKillAllModal", "ConfirmKillModal"]

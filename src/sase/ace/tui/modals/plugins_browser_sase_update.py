@@ -148,6 +148,7 @@ class SaseUpdateActionsMixin:
                 )
             ],
             panel_title="Confirm SASE update",
+            icon="↑",
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

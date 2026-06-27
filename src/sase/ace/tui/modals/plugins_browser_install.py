@@ -210,6 +210,7 @@ class PluginInstallActionsMixin:
             intro=f"Confirm to install {name} into sase's uv tool environment.",
             variants=variants,
             panel_title="Confirm install",
+            icon="↓",
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

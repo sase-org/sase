@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 09:01:27
-status: wip
+status: done
 prompt: sdd/prompts/202606/confirm_dialog_redesign.md
 ---
 # Plan: Unified, Beautiful Confirmation Dialogs for the `sase ace` TUI

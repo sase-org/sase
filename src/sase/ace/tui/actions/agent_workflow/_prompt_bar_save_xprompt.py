@@ -116,7 +116,7 @@ class PromptBarSaveXpromptMixin:
         frontmatter: PromptFrontmatter,
         body: str,
     ) -> None:
-        from ...modals import ConfirmActionModal
+        from ...modals import ConfirmActionModal, ConfirmKind
 
         display_path = target.display_path or target.path
 
@@ -136,7 +136,11 @@ class PromptBarSaveXpromptMixin:
         self.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
                 "Overwrite XPrompt",
-                f"Overwrite xprompt '{target.name}' at {display_path}?",
+                f"Overwrite xprompt '{target.name}'?",
+                subject=display_path,
+                kind=ConfirmKind.DANGER,
+                confirm_label="Overwrite",
+                cancel_label="Cancel",
             ),
             _on_confirm,
         )
@@ -324,7 +328,7 @@ class PromptBarSaveXpromptMixin:
         body: str,
         name: str,
     ) -> None:
-        from ...modals import ConfirmActionModal
+        from ...modals import ConfirmActionModal, ConfirmKind
 
         def _on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
@@ -342,7 +346,11 @@ class PromptBarSaveXpromptMixin:
         self.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
                 "Overwrite Existing XPrompt",
-                f"'{name}' already exists at this location. Overwrite it?",
+                f"'{name}' already exists at this location.",
+                subject=target.display_path or target.path,
+                kind=ConfirmKind.DANGER,
+                confirm_label="Overwrite",
+                cancel_label="Cancel",
             ),
             _on_confirm,
         )
@@ -409,7 +417,12 @@ class PromptBarSaveXpromptMixin:
         self.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
                 "Commit & Push",
-                f"Commit and push changes to '{rel_path}'?",
+                "Commit and push your saved changes?",
+                subject=rel_path,
+                icon="↑",
+                confirm_label="Commit & push",
+                cancel_label="Skip",
+                default="confirm",
             ),
             _on_commit_push_answer,
         )

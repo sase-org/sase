@@ -27,6 +27,7 @@ from .command_input_modal import CommandInputModal
 from .command_palette_modal import CommandPaletteModal
 from .confirm_action_modal import ConfirmActionModal
 from .confirm_delete_modal import ConfirmDeleteModal
+from .confirm_dialog import ConfirmDialog, ConfirmKind
 from .confirm_kill_modal import (
     ConfirmDismissAllModal,
     ConfirmKillAllModal,
@@ -183,7 +184,9 @@ __all__ = [
     "CommandPaletteModal",
     "CustomModelInputModal",
     "ConfirmDeleteModal",
+    "ConfirmDialog",
     "ConfirmDismissAllModal",
+    "ConfirmKind",
     "ConfirmKillAllModal",
     "ConfirmKillModal",
     "ConfirmRerunModal",

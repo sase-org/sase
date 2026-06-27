@@ -266,7 +266,12 @@ class XPromptBrowserActionsMixin:
         self.app.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
                 "Commit & Push",
-                f"Commit and push changes to '{rel_path}'?",
+                "Commit and push your xprompt changes?",
+                subject=rel_path,
+                icon="↑",
+                confirm_label="Commit & push",
+                cancel_label="Skip",
+                default="confirm",
             ),
             _on_commit_push_answer,
         )

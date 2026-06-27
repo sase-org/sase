@@ -27,6 +27,7 @@ from sase.core.agent_group_archive_wire import (
 
 from .base import OptionListNavigationMixin
 from .confirm_action_modal import ConfirmActionModal
+from .confirm_dialog import ConfirmKind
 from .saved_agent_group_revival_rendering import (
     apply_jump_hint_prefix,
     build_empty_groups_preview,
@@ -176,6 +177,9 @@ class SavedAgentGroupRevivalModal(
                     "with custom revival search.\n\n"
                     "This action cannot be undone."
                 ),
+                kind=ConfirmKind.DANGER,
+                confirm_label="Delete",
+                cancel_label="Cancel",
             ),
             _on_confirm,
         )

@@ -17,6 +17,7 @@ from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.main.project_handler import ProjectLifecycleBlockedError
 
 from .confirm_action_modal import ConfirmActionModal
+from .confirm_dialog import ConfirmKind
 from .project_alias_editor_modal import ProjectAliasEditorModal
 from .project_management_rendering import (
     bulk_delete_message,
@@ -151,6 +152,8 @@ class ProjectManagementActionsMixin:
                     ConfirmActionModal(
                         title="Clear Project Aliases",
                         message=(f"Clear all aliases for '{record.project_name}'?"),
+                        confirm_label="Clear",
+                        cancel_label="Cancel",
                     ),
                     _on_clear_confirm,
                 )
@@ -185,6 +188,9 @@ class ProjectManagementActionsMixin:
                 ConfirmActionModal(
                     title="Delete Marked Project Directories",
                     message=self._bulk_delete_message(records),
+                    kind=ConfirmKind.DANGER,
+                    confirm_label="Delete",
+                    cancel_label="Cancel",
                 ),
                 _on_bulk_delete_confirm,
             )
@@ -218,6 +224,9 @@ class ProjectManagementActionsMixin:
                     "and other SASE state. It cannot be undone.\n\n"
                     "The workspace checkout is not deleted."
                 ),
+                kind=ConfirmKind.DANGER,
+                confirm_label="Delete",
+                cancel_label="Cancel",
             ),
             _on_single_delete_confirm,
         )
@@ -258,6 +267,9 @@ class ProjectManagementActionsMixin:
             ConfirmActionModal(
                 title="Force Project State Change",
                 message=self._force_state_change_message(projects, state),
+                kind=ConfirmKind.DANGER,
+                confirm_label="Force",
+                cancel_label="Cancel",
             ),
             _on_confirm,
         )

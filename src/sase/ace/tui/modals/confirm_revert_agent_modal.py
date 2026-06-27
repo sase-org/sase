@@ -73,15 +73,18 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
 
     def __init__(self, preview: RevertPreview | BulkRevertPreview) -> None:
         super().__init__()
+        self.add_class("confirm-dialog")
         self._preview = preview
         self._is_bulk = isinstance(preview, BulkRevertPreview)
 
     def compose(self) -> ComposeResult:
-        with Container(id="revert-confirm-container"):
-            yield Label(
-                f"{_REVERT_GLYPH}  Revert Agent Commits",
-                id="revert-confirm-title",
-            )
+        dialog = Container(
+            id="revert-confirm-container",
+            classes="confirm-dialog-panel confirm-dialog--danger",
+        )
+        dialog.border_title = self._build_border_title()
+        dialog.border_subtitle = "y revert · n/esc cancel · j/k scroll"
+        with dialog:
             yield Label(self._subtitle(), id="revert-confirm-subtitle")
             yield Static(self._summary_text(), id="revert-confirm-summary")
             with VerticalScroll(id="revert-confirm-repos"):
@@ -105,10 +108,12 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
             with Horizontal(id="revert-confirm-buttons"):
                 yield Button("Revert (y)", id="confirm-btn", variant="error")
                 yield Button("Cancel (n)", id="cancel-btn", variant="primary")
-            yield Static(
-                "y revert · n/esc cancel · j/k scroll",
-                id="revert-confirm-hints",
-            )
+
+    def _build_border_title(self) -> Text:
+        title = Text()
+        title.append(_REVERT_GLYPH, style="bold red")
+        title.append("  Revert Agent Commits", style="bold")
+        return title
 
     def _compose_repo_cards(self) -> ComposeResult:
         revertable = self._preview.revertable_repos

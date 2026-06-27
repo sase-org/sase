@@ -23,6 +23,7 @@ from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.detect import NotUvToolInstall
 from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
 
+from .confirm_dialog import ConfirmKind
 from .plugin_action_confirm_modal import (
     PluginActionConfirmModal,
     PluginActionConfirmResult,
@@ -180,6 +181,7 @@ class PluginUninstallActionsMixin:
             intro=f"Confirm to remove {name} from sase's uv tool environment.",
             variants=variants,
             panel_title="Confirm uninstall",
+            kind=ConfirmKind.DANGER,
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

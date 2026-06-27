@@ -145,11 +145,11 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, ConfirmKillModal, ConfirmDismissAllModal, ConfirmKillAllModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
     align: center middle;
 }
 
-StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container, ConfirmKillModal > Container, ConfirmDismissAllModal > Container, ConfirmKillAllModal > Container {
+StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container {
     width: 60;
     height: auto;
     max-height: 80%;
@@ -158,8 +158,65 @@ StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Conta
     padding: 1 2;
 }
 
-ConfirmKillAllModal .confirmed-once {
-    border: thick $error;
+.confirm-dialog {
+    align: center middle;
+}
+
+.confirm-dialog-panel {
+    width: 64;
+    max-width: 92%;
+    height: auto;
+    max-height: 80%;
+    border: round $primary;
+    background: $surface;
+    padding: 1 2;
+    border-subtitle-align: center;
+}
+
+.confirm-dialog-panel.confirm-dialog--neutral {
+    border: round $primary;
+}
+
+.confirm-dialog-panel.confirm-dialog--danger {
+    border: round $error;
+}
+
+.confirm-dialog-message {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    margin: 1 0 0 0;
+}
+
+.confirm-dialog-subject {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    text-style: bold;
+    margin-top: 1;
+}
+
+.confirm-dialog--neutral .confirm-dialog-subject {
+    color: $primary;
+}
+
+.confirm-dialog--danger .confirm-dialog-subject {
+    color: $error;
+}
+
+.confirm-dialog-subject.is-empty {
+    display: none;
+}
+
+.confirm-dialog-buttons {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+.confirm-dialog-panel Button {
+    margin: 0 1;
+    min-width: 14;
 }
 
 AgentCleanupModal > #agent-cleanup-container {
@@ -312,16 +369,10 @@ QuitConfirmModal > #quit-confirm-container {
     max-width: 95%;
     height: auto;
     max-height: 88%;
-    border: thick $primary;
+    border: round $error;
     background: $surface;
     padding: 1 2;
-}
-
-QuitConfirmModal #quit-confirm-title {
-    text-align: center;
-    text-style: bold;
-    height: auto;
-    margin-bottom: 1;
+    border-subtitle-align: center;
 }
 
 QuitConfirmModal #quit-confirm-summary {
@@ -354,13 +405,6 @@ QuitConfirmModal Button {
     min-width: 20;
 }
 
-QuitConfirmModal #quit-confirm-hints {
-    height: 1;
-    color: $text-muted;
-    text-align: center;
-    margin-top: 1;
-}
-
 /* Revert agent commits confirmation */
 ConfirmRevertAgentModal {
     align: center middle;
@@ -371,15 +415,10 @@ ConfirmRevertAgentModal > #revert-confirm-container {
     max-width: 95%;
     height: auto;
     max-height: 88%;
-    border: thick $primary;
+    border: round $error;
     background: $surface;
     padding: 1 2;
-}
-
-ConfirmRevertAgentModal #revert-confirm-title {
-    text-align: center;
-    text-style: bold;
-    height: auto;
+    border-subtitle-align: center;
 }
 
 ConfirmRevertAgentModal #revert-confirm-subtitle {
@@ -426,13 +465,6 @@ ConfirmRevertAgentModal #revert-confirm-buttons {
 ConfirmRevertAgentModal Button {
     margin: 0 1;
     min-width: 18;
-}
-
-ConfirmRevertAgentModal #revert-confirm-hints {
-    height: 1;
-    color: $text-muted;
-    text-align: center;
-    margin-top: 1;
 }
 
 /* Workflow HITL Modal styling */
@@ -1045,24 +1077,6 @@ MentorProfileSelectModal {
     margin-top: 1;
     border-top: solid $secondary;
     padding-top: 1;
-}
-
-/* Confirm Kill / Dismiss All Modal styling */
-ConfirmKillModal #confirm-message,
-ConfirmDismissAllModal #confirm-message {
-    margin: 1 0;
-}
-
-ConfirmKillModal Horizontal,
-ConfirmDismissAllModal Horizontal {
-    align: center middle;
-    height: auto;
-    margin-top: 1;
-}
-
-ConfirmKillModal Button,
-ConfirmDismissAllModal Button {
-    margin: 0 1;
 }
 
 StatusModal OptionList {
@@ -3524,22 +3538,14 @@ PluginsBrowserPane #plugins-hints {
 }
 
 /* Plugins install/update confirm-preview modal (Phase 4, reused Phase 5) */
-PluginActionConfirmModal {
-    align: center middle;
-}
-
-PluginActionConfirmModal > Container {
+PluginActionConfirmModal > #plugin-action-container {
     width: 76;
+    max-width: 95%;
     height: auto;
     max-height: 80%;
-    border: thick $primary;
     background: $surface;
     padding: 1 2;
-}
-
-PluginActionConfirmModal #plugin-action-title {
-    text-style: bold;
-    margin-bottom: 1;
+    border-subtitle-align: center;
 }
 
 PluginActionConfirmModal #plugin-action-preview {
