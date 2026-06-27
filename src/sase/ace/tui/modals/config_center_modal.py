@@ -78,11 +78,18 @@ _TITLE_TEXT = _TITLE_LABEL
 _HEADER_DIVIDER_RULE = "─"
 _TITLE_RULE_CHAR = "━"
 _TITLE_UNDERLINE = _TITLE_RULE_CHAR * len(_TITLE_TEXT)
-# Aurora accent gradient (aqua -> sky -> violet) swept across the Admin Center
-# header title and its rule. Vivid on the dark surface and a deliberate tie-in
-# to the colorful tab palette directly below it. The first stop doubles as the
-# panel border color (see ``ConfigCenterModal > Container`` in styles.tcss).
-_TITLE_GRADIENT: tuple[str, ...] = ("#2BE7C7", "#4FB6FF", "#B98CFF")
+# Aurora accent gradient (aqua -> cyan -> sky -> indigo -> violet) swept
+# across the Admin Center header title and its rule. Vivid on the dark surface
+# and a deliberate tie-in to the colorful tab palette directly below it. The
+# first stop doubles as the panel border color (see ``ConfigCenterModal >
+# Container`` in styles.tcss).
+_TITLE_GRADIENT: tuple[str, ...] = (
+    "#2BE7C7",
+    "#36CFEC",
+    "#4FB6FF",
+    "#7E8BFF",
+    "#B98CFF",
+)
 
 
 def _gradient_color(stops: tuple[str, ...], position: float) -> str:
