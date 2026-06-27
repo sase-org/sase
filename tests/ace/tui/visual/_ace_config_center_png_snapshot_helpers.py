@@ -53,7 +53,7 @@ _LONG_QUERY = (
 )
 
 
-def _config_schema() -> dict[str, Any]:
+def _config_schema(*, object_value: bool = False) -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
@@ -91,6 +91,33 @@ def _config_schema() -> dict[str, Any]:
                     },
                 },
             },
+            **(
+                {
+                    "ace": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "description": "ACE TUI settings.",
+                        "properties": {
+                            "lumberjack": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "object",
+                                    "additionalProperties": True,
+                                },
+                                "default": {
+                                    "checks": {
+                                        "description": "Run checks.",
+                                        "interval": "300s",
+                                    }
+                                },
+                                "description": "Named background lumberjack jobs.",
+                            },
+                        },
+                    }
+                }
+                if object_value
+                else {}
+            ),
             "linked_repos": {
                 "type": "array",
                 "items": {
@@ -112,7 +139,9 @@ def _config_schema() -> dict[str, Any]:
     }
 
 
-def _config_layers(*, long_value: bool = False) -> list[ConfigLayer]:
+def _config_layers(
+    *, long_value: bool = False, object_value: bool = False
+) -> list[ConfigLayer]:
     user_axe: dict[str, Any] = {"max_hook_runners": 5}
     if long_value:
         user_axe["query"] = _LONG_QUERY
@@ -130,6 +159,20 @@ def _config_layers(*, long_value: bool = False) -> list[ConfigLayer]:
                     "query": "",
                     "chop_script_dirs": ["builtin"],
                 },
+                **(
+                    {
+                        "ace": {
+                            "lumberjack": {
+                                "checks": {
+                                    "description": "Run checks.",
+                                    "interval": "300s",
+                                },
+                            },
+                        }
+                    }
+                    if object_value
+                    else {}
+                ),
                 "linked_repos": [{"name": "core"}],
             },
         ),
@@ -141,6 +184,20 @@ def _config_layers(*, long_value: bool = False) -> list[ConfigLayer]:
             data={
                 "timezone": "US/Pacific",
                 "axe": user_axe,
+                **(
+                    {
+                        "ace": {
+                            "lumberjack": {
+                                "recent_audit": {
+                                    "description": "Audit saves.",
+                                    "interval": "900s",
+                                },
+                            },
+                        }
+                    }
+                    if object_value
+                    else {}
+                ),
                 "sibling_repos": [{"name": "legacy"}],
             },
         ),

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import io
 from pathlib import Path
 from typing import Any
 
+from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.config import ConfigField, ConfigSource
@@ -19,6 +21,14 @@ from .config_pane_view import (
     _MUTED,
 )
 
+_VALUE_BLOCK_WIDTH_THRESHOLD = 38
+_VALUE_BLOCK_YAML_WIDTH = 4096
+_VALUE_BLOCK_SYNTAX_THEME = "ansi_dark"
+_VALUE_BLOCK_HIGHLIGHT_MAX_BYTES = 16_000
+_VALUE_BLOCK_HIGHLIGHT_MAX_LINES = 400
+_VALUE_BLOCK_RENDER_MAX_BYTES = 64_000
+_VALUE_BLOCK_RENDER_MAX_LINES = 1_000
+
 
 def format_value(value: Any) -> str:
     """Render a config value for display (compact JSON for non-strings)."""
@@ -28,6 +38,107 @@ def format_value(value: Any) -> str:
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
     except (TypeError, ValueError):
         return repr(value)
+
+
+def is_structured_value(value: Any) -> bool:
+    """Return True when *value* should render as an indented YAML block."""
+    if isinstance(value, dict):
+        return bool(value)
+    if isinstance(value, list):
+        if not value:
+            return False
+        if any(isinstance(item, (dict, list)) for item in value):
+            return True
+        return len(format_value(value)) > _VALUE_BLOCK_WIDTH_THRESHOLD
+    return False
+
+
+def sort_mapping_keys(value: Any) -> Any:
+    """Recursively sort mapping keys for deterministic block rendering."""
+    if isinstance(value, dict):
+        return {
+            key: sort_mapping_keys(value[key])
+            for key in sorted(value, key=lambda item: str(item))
+        }
+    if isinstance(value, (list, tuple)):
+        return [sort_mapping_keys(item) for item in value]
+    return value
+
+
+def format_value_block(value: Any) -> str:
+    """Render *value* as sorted block YAML, falling back to compact display."""
+    try:
+        from ruamel.yaml import YAML
+
+        handler = YAML()
+        handler.default_flow_style = False
+        handler.width = _VALUE_BLOCK_YAML_WIDTH
+        buffer = io.StringIO()
+        handler.dump(sort_mapping_keys(value), buffer)
+        return buffer.getvalue().rstrip() or format_value(value)
+    except Exception:
+        return format_value(value)
+
+
+def truncate_value_block(code: str) -> tuple[str, int]:
+    """Bound pathological config values before appending them to the UI text."""
+    lines = code.splitlines()
+    if not lines:
+        return code, 0
+    shown: list[str] = []
+    used_bytes = 0
+    for index, line in enumerate(lines):
+        line_bytes = len(line.encode("utf-8", errors="replace")) + 1
+        if (
+            len(shown) >= _VALUE_BLOCK_RENDER_MAX_LINES
+            or used_bytes + line_bytes > _VALUE_BLOCK_RENDER_MAX_BYTES
+        ):
+            return "\n".join(shown), len(lines) - index
+        shown.append(line)
+        used_bytes += line_bytes
+    return code, 0
+
+
+def highlight_value_block(code: str) -> Text:
+    """Return YAML-highlighted Rich text unless the block exceeds cheap caps."""
+    byte_size = len(code.encode("utf-8", errors="replace"))
+    line_count = code.count("\n") + 1 if code else 0
+    if (
+        byte_size > _VALUE_BLOCK_HIGHLIGHT_MAX_BYTES
+        or line_count > _VALUE_BLOCK_HIGHLIGHT_MAX_LINES
+    ):
+        return Text(code, no_wrap=False)
+    try:
+        syntax = Syntax(
+            code,
+            "yaml",
+            theme=_VALUE_BLOCK_SYNTAX_THEME,
+            background_color="default",
+            word_wrap=False,
+        )
+        highlighted = syntax.highlight(code)
+        clean = Text(highlighted.plain, no_wrap=False)
+        for span in highlighted.spans:
+            if str(span.style) != "on default":
+                clean.stylize(span.style, span.start, span.end)
+        return clean
+    except Exception:
+        return Text(code, no_wrap=False)
+
+
+def append_value_block(text: Text, value: Any, *, indent: str) -> None:
+    """Append an indented, capped YAML value block to *text*."""
+    code, omitted_lines = truncate_value_block(format_value_block(value))
+    block = highlight_value_block(code)
+    for line in block.split("\n"):
+        text.append(indent)
+        text.append_text(line)
+        text.append("\n")
+    if omitted_lines:
+        text.append(
+            f"{indent}... {omitted_lines} more line(s)\n",
+            style=f"dim italic {_MUTED}",
+        )
 
 
 def kind_badge(kind: str) -> Text:
@@ -219,17 +330,40 @@ def render_leaf_detail(view: ConfigPaneView, field: ConfigField, text: Text) -> 
         text.append(f"\n{field.description}\n", style=_MUTED)
 
     state = view.state_by_path.get(field.path)
-    text.append("\ndefault:   ", style=_MUTED)
-    if field.has_default:
-        text.append(format_value(field.default))
+    default_is_block = field.has_default and is_structured_value(field.default)
+    effective_is_block = (
+        state is not None
+        and state.has_effective
+        and is_structured_value(state.effective_value)
+    )
+    if default_is_block:
+        text.append("\ndefault\n", style=_MUTED)
+        append_value_block(text, field.default, indent="  ")
     else:
-        text.append("(none)", style=f"italic {_MUTED}")
-    text.append("\neffective: ", style=_MUTED)
-    if state is not None and state.has_effective:
-        text.append(format_value(state.effective_value), style="bold")
+        text.append("\ndefault:   ", style=_MUTED)
+        if field.has_default:
+            text.append(format_value(field.default))
+        else:
+            text.append("(none)", style=f"italic {_MUTED}")
+        text.append("\n")
+
+    if effective_is_block:
+        assert state is not None
+        text.append("effective", style=_MUTED)
+        winning = view.winning_layer(field.path)
+        if winning is not None:
+            kind = view.kind_by_layer.get(winning, "other")
+            text.append("  ")
+            text.append_text(kind_badge(kind))
+        text.append("\n")
+        append_value_block(text, state.effective_value, indent="  ")
     else:
-        text.append("(unset)", style=f"italic {_MUTED}")
-    text.append("\n")
+        text.append("effective: ", style=_MUTED)
+        if state is not None and state.has_effective:
+            text.append(format_value(state.effective_value), style="bold")
+        else:
+            text.append("(unset)", style=f"italic {_MUTED}")
+        text.append("\n")
 
     render_provenance(view, field.path, text)
 
@@ -251,9 +385,13 @@ def render_provenance(view: ConfigPaneView, path: str, text: Text) -> None:
         text.append(
             contribution.layer, style=f"{style} {_KIND_COLOR.get(kind, _MUTED)}"
         )
-        text.append("  ")
-        text.append(format_value(contribution.raw_value), style=style)
-        text.append("\n")
+        if is_structured_value(contribution.raw_value):
+            text.append("\n")
+            append_value_block(text, contribution.raw_value, indent="      ")
+        else:
+            text.append("  ")
+            text.append(format_value(contribution.raw_value), style=style)
+            text.append("\n")
 
 
 def render_field_diagnostics(view: ConfigPaneView, path: str, text: Text) -> None:

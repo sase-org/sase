@@ -132,6 +132,34 @@ async def test_config_center_config_long_value_png_snapshot(
         )
 
 
+async def test_config_center_config_object_value_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    view = _build_view(
+        _config_schema(object_value=True),
+        _config_layers(object_value=True),
+    )
+    _patch_config_view(monkeypatch, view)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_config_modal(page)
+        pane._do_jump("ace.lumberjack")
+        await page.wait_for(lambda _s: pane._selected_path == "ace.lumberjack")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_config_object_value_120x40",
+            title="ACE SASE Admin Center — Config tab (object value)",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
 async def test_config_center_xprompts_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

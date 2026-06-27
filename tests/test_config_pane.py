@@ -45,6 +45,27 @@ def _fixture_schema() -> dict[str, Any]:
                     },
                 },
             },
+            "ace": {
+                "type": "object",
+                "additionalProperties": False,
+                "description": "ACE TUI settings.",
+                "properties": {
+                    "lumberjack": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "object",
+                            "additionalProperties": True,
+                        },
+                        "default": {
+                            "builtin": {
+                                "description": "Builtin check runner.",
+                                "interval": "300s",
+                            }
+                        },
+                        "description": "Named background lumberjack jobs.",
+                    },
+                },
+            },
             "linked_repos": {
                 "type": "array",
                 "items": {"type": "object", "properties": {"name": {"type": "string"}}},
@@ -69,6 +90,14 @@ def _fixture_layers() -> list[ConfigLayer]:
                 "timezone": "America/New_York",
                 "use_chezmoi": False,
                 "axe": {"max_hook_runners": 3, "chop_script_dirs": ["a"]},
+                "ace": {
+                    "lumberjack": {
+                        "builtin": {
+                            "description": "Builtin check runner.",
+                            "interval": "300s",
+                        },
+                    },
+                },
                 "linked_repos": [{"name": "core"}],
             },
         ),
@@ -80,6 +109,14 @@ def _fixture_layers() -> list[ConfigLayer]:
             data={
                 "timezone": "US/Pacific",
                 "axe": {"max_hook_runners": 5},
+                "ace": {
+                    "lumberjack": {
+                        "recent_audit": {
+                            "description": "Audit recent saves.",
+                            "interval": "900s",
+                        },
+                    },
+                },
                 "sibling_repos": [{"name": "dep"}],
             },
         ),
@@ -235,6 +272,23 @@ def test_render_source_rail_lists_layers_with_badges(
 # --- Detail / provenance ---------------------------------------------------
 
 
+def test_structured_value_predicate_distinguishes_blocks_from_inline() -> None:
+    assert cp._is_structured_value({"enabled": True}) is True
+    assert cp._is_structured_value({}) is False
+    assert cp._is_structured_value([{"name": "core"}]) is True
+    assert cp._is_structured_value([["builtin"]]) is True
+    assert cp._is_structured_value(["builtin", "work"]) is False
+    assert cp._is_structured_value(["x" * 24, "y" * 24]) is True
+    assert cp._is_structured_value("plain") is False
+
+
+def test_format_value_block_uses_sorted_multiline_yaml() -> None:
+    assert (
+        cp._format_value_block({"z": 1, "a": {"c": 3, "b": 2}})
+        == "a:\n  b: 2\n  c: 3\nz: 1"
+    )
+
+
 def test_render_detail_shows_value_and_priority_ordered_provenance(
     view: cp.ConfigPaneView,
 ) -> None:
@@ -246,6 +300,37 @@ def test_render_detail_shows_value_and_priority_ordered_provenance(
     # Provenance is low -> high priority: default appears before user.
     assert detail.index("default") < detail.index("user")
     assert "▶" in detail  # winning marker present
+
+
+def test_render_detail_keeps_scalar_values_inline(view: cp.ConfigPaneView) -> None:
+    detail = cp._render_detail(view, "timezone").plain
+    assert "default:   America/New_York" in detail
+    assert "effective: US/Pacific" in detail
+
+
+def test_render_detail_pretty_renders_object_values(view: cp.ConfigPaneView) -> None:
+    rendered = cp._render_detail(view, "ace.lumberjack")
+    detail = rendered.plain
+    assert "default\n  builtin:\n    description: Builtin check runner." in detail
+    assert "effective  user\n  builtin:" in detail
+    assert "recent_audit:\n    description: Audit recent saves." in detail
+    assert "  ▶ user\n      recent_audit:" in detail
+    assert '{"' not in detail
+    key_start = detail.index("recent_audit:")
+    assert any(span.start <= key_start < span.end for span in rendered.spans)
+
+
+def test_render_detail_pretty_renders_array_of_objects(
+    view: cp.ConfigPaneView,
+) -> None:
+    rendered = cp._render_detail(view, "linked_repos")
+    detail = rendered.plain
+    assert "default:   []" in detail
+    assert "effective  built-in\n  - name: core" in detail
+    assert "  ▶ default\n      - name: core" in detail
+    assert '[{"name": "core"}]' not in detail
+    key_start = detail.index("name: core")
+    assert any(span.start <= key_start < span.end for span in rendered.spans)
 
 
 def test_render_detail_flags_deprecation_and_replacement(
