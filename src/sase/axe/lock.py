@@ -76,7 +76,10 @@ def _find_proc_lock_holder_pid() -> int | None:
 
 def read_lock_holder_pid() -> int | None:
     """Return the lifecycle lock holder PID when it can be determined."""
-    return _find_proc_lock_holder_pid() or _read_recorded_lock_holder_pid()
+    proc_holder_pid = _find_proc_lock_holder_pid()
+    if proc_holder_pid is not None and proc_holder_pid != os.getpid():
+        return proc_holder_pid
+    return _read_recorded_lock_holder_pid()
 
 
 def clear_lock_holder_pid() -> None:

@@ -1,15 +1,21 @@
 """Tests for the axe process control module."""
 
 from collections.abc import Iterator
+import os
 from pathlib import Path
+import signal
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 from sase.axe.config import AxeConfig
+from sase.axe.lock import AxeLifecycleLock
 from sase.axe._process_start import (
     _build_axe_start_command,
     _wait_for_daemon_start,
 )
+from sase.axe._process_stop import _send_signal
 from sase.axe._process_types import AxeOrchestratorProbe
 from sase.axe.process import (
     get_axe_status,
@@ -296,6 +302,110 @@ def test_stop_axe_daemon_uses_lock_holder_when_pid_file_missing(
     assert result.orchestrator_stopped is True
     mock_kill.assert_called_once_with(12345, signal.SIGTERM)
     mock_is_running.assert_any_call(12345)
+
+
+@patch("sase.axe._process_stop.os.kill")
+def test_send_signal_refuses_current_pid_direct(
+    mock_kill: MagicMock,
+) -> None:
+    assert _send_signal(os.getpid(), signal.SIGTERM) is False
+    mock_kill.assert_not_called()
+
+
+@patch("sase.axe._process_stop.os.kill")
+@patch("sase.axe._process_stop.is_lifecycle_lock_held", return_value=False)
+def test_stop_axe_daemon_filters_current_pid_before_terminating(
+    _mock_lock_held: MagicMock,
+    mock_kill: MagicMock,
+    temp_state_dir: Path,
+) -> None:
+    del temp_state_dir
+    current_pid = os.getpid()
+    self_probe = AxeOrchestratorProbe(
+        lock_held=False,
+        lock_holder_pid=current_pid,
+        orchestrator_pid_file_pid=None,
+        legacy_pid=None,
+        running_pid=current_pid,
+    )
+    stopped_probe = AxeOrchestratorProbe(
+        lock_held=False,
+        lock_holder_pid=None,
+        orchestrator_pid_file_pid=None,
+        legacy_pid=None,
+        running_pid=None,
+    )
+
+    with patch(
+        "sase.axe._process_stop.probe_orchestrator",
+        side_effect=[self_probe, stopped_probe],
+    ):
+        result = stop_axe_daemon_result(timeout=1.0)
+
+    assert result.orchestrator_pid is None
+    assert result.orchestrator_signaled is False
+    assert result.failed_pids == ()
+    mock_kill.assert_not_called()
+
+
+def test_stop_axe_daemon_targets_inherited_lock_daemon(
+    temp_state_dir: Path,
+) -> None:
+    del temp_state_dir
+    lock = AxeLifecycleLock.acquire(blocking=False)
+    assert lock is not None
+    handed_off = False
+    proc: subprocess.Popen[str] | None = None
+    child_code = "\n".join(
+        [
+            "import os",
+            "import signal",
+            "import sys",
+            "import time",
+            "fd = int(sys.argv[1])",
+            "pid = os.getpid()",
+            "os.lseek(fd, 0, os.SEEK_SET)",
+            "os.ftruncate(fd, 0)",
+            "os.write(fd, (str(pid) + '\\n').encode())",
+            "os.fsync(fd)",
+            "print(pid, flush=True)",
+            "signal.signal(signal.SIGTERM, lambda _signum, _frame: sys.exit(0))",
+            "time.sleep(30)",
+        ]
+    )
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, "-c", child_code, str(lock.fd)],
+            pass_fds=(lock.fd,),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert proc.stdout is not None
+        line = proc.stdout.readline().strip()
+        assert line, proc.stderr.read() if proc.stderr is not None else ""
+        child_pid = int(line)
+
+        lock.close_after_handoff()
+        handed_off = True
+
+        result = stop_axe_daemon_result(timeout=2.0, kill_timeout=1.0)
+
+        assert result.orchestrator_pid == child_pid
+        assert result.orchestrator_signaled is True
+        assert result.orchestrator_stopped is True
+        assert result.failed_pids == ()
+        assert proc.wait(timeout=1.0) == 0
+    finally:
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=2.0)
+        if not handed_off:
+            lock.release()
 
 
 @patch("sase.axe._process_stop.os.kill")

@@ -52,6 +52,8 @@ def stop_axe_daemon_result(
     """Stop axe and return a detailed lifecycle result."""
     probe = probe_orchestrator()
     pid = probe.running_pid or probe.lock_holder_pid
+    if pid == os.getpid():
+        pid = None
     orchestrator_result = TerminateResult()
     if pid is not None:
         orchestrator_result = _terminate_process(
@@ -124,6 +126,9 @@ def _send_signal(
     signaled_groups: set[int] | None = None,
 ) -> bool:
     """Send *sig* to a PID or, when safe, its process group."""
+    if pid == os.getpid():
+        return False
+
     if prefer_group:
         try:
             pgid = os.getpgid(pid)
