@@ -295,8 +295,39 @@ def test_show_editable_install_skips_version_comparison() -> None:
 
     assert code == 0
     assert "editable" in out
-    assert "not compared" in out
+    assert "dev" in out
     assert "update available" not in out
+
+
+def test_show_editable_update_available_uses_dev_versions_and_sase_update() -> None:
+    catalog = _catalog(
+        (
+            _entry(
+                "devkit",
+                "sase-org",
+                repo="sase-devkit",
+                installed=True,
+                version="0.1.0",
+                latest=LatestInfo(
+                    checked=True,
+                    version="0.1.0+3.gdef456abc",
+                    source="editable",
+                    install_type="editable",
+                    current_version="0.1.0+1.gabc123def",
+                    update_available=True,
+                    state="update_available",
+                    reason="behind upstream by 2 commit(s)",
+                ),
+            ),
+        )
+    )
+    code, out = _show(catalog, "devkit")
+
+    assert code == 0
+    assert "v0.1.0+1.gabc123def" in out
+    assert "v0.1.0+3.gdef456abc" in out
+    assert "dev update available" in out
+    assert "sase update" in out
 
 
 def test_show_offline_unknown_latest_has_hint() -> None:
@@ -375,6 +406,8 @@ def test_show_json_shape_is_stable(capsys: Any) -> None:
     assert plugin["name"] == "github"
     assert plugin["kind"] == "builtin"
     assert plugin["full_name"] == "sase-org/sase-github"
+    assert plugin["install_type"] is None
+    assert plugin["current_version"] == "0.4.1"
     assert plugin["installed"] == {
         "installed": True,
         "version": "0.4.1",
@@ -385,6 +418,8 @@ def test_show_json_shape_is_stable(capsys: Any) -> None:
         "version": "0.4.1",
         "source": "index",
         "update_available": False,
+        "state": None,
+        "reason": None,
         "error": None,
     }
 

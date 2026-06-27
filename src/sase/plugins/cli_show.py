@@ -37,7 +37,7 @@ LoadFn = Callable[..., PluginCatalog]
 EnrichFn = Callable[..., PluginCatalog]
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
-SHOW_JSON_SCHEMA_VERSION = 2
+SHOW_JSON_SCHEMA_VERSION = 3
 
 
 def handle_plugin_show_command(

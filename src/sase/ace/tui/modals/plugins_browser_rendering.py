@@ -293,8 +293,13 @@ class PluginsBrowserRenderingMixin:
             cell.append(f"v{installed}", style="dim")
             cell.append(" → ", style="dim")
             cell.append(f"v{latest}", style="cyan")
+            if package.install_type == "editable":
+                cell.append("   dev", style="dim")
             return cell
-        return Text(f"v{installed}", style="dim")
+        cell = Text(f"v{installed}", style="dim")
+        if package.install_type == "editable":
+            cell.append("   dev", style="dim")
+        return cell
 
     @staticmethod
     def _core_note_cell(package: CorePackageVersion) -> Text:
@@ -304,9 +309,29 @@ class PluginsBrowserRenderingMixin:
             return Text("checking latest…", style="dim")
         if package.update_available:
             return Text("update available", style="cyan")
+        if package.install_type == "editable":
+            label = PluginsBrowserRenderingMixin._dev_state_label(package.latest_state)
+            if label:
+                return Text(label, style="dim")
+            return Text("up to date", style="dim")
         if package.latest_version:
             return Text("up to date", style="dim")
         return Text("latest unknown", style="dim")
+
+    @staticmethod
+    def _dev_state_label(state: str | None) -> str:
+        labels = {
+            "current": "",
+            "update_available": "update available",
+            "dirty": "local changes",
+            "diverged": "diverged",
+            "detached": "detached HEAD",
+            "no_upstream": "no upstream",
+            "offline": "offline",
+            "fetch_failed": "fetch failed",
+            "unavailable": "unavailable",
+        }
+        return labels.get(state or "", state or "")
 
     def _current_entry(self) -> PluginCatalogEntry | None:
         option_list = self._option_list()

@@ -202,6 +202,8 @@ def test_json_payload_shape_is_stable() -> None:
     github = next(e for e in payload["entries"] if e["name"] == "github")
     assert github["kind"] == "builtin"
     assert github["full_name"] == "sase-org/sase-github"
+    assert github["install_type"] is None
+    assert github["current_version"] == "0.4.1"
     assert github["installed"] == {
         "installed": True,
         "version": "0.4.1",
@@ -212,6 +214,8 @@ def test_json_payload_shape_is_stable() -> None:
         "version": "0.4.1",
         "source": "index",
         "update_available": False,
+        "state": None,
+        "reason": None,
         "error": None,
     }
 
@@ -373,7 +377,38 @@ def test_render_installed_editable_uses_source_label() -> None:
     )
     out = _render(catalog)
 
-    assert "editable" in out
+    assert "dev" in out
+    assert "sase plugin update --all" not in out
+
+
+def test_render_editable_update_available_uses_dev_versions_and_sase_update() -> None:
+    catalog = _catalog(
+        (
+            _entry(
+                "devkit",
+                "sase-org",
+                repo="sase-devkit",
+                installed=True,
+                version="0.1.0",
+                latest=LatestInfo(
+                    checked=True,
+                    version="0.1.0+3.gdef456abc",
+                    source="editable",
+                    install_type="editable",
+                    current_version="0.1.0+1.gabc123def",
+                    update_available=True,
+                    state="update_available",
+                    reason="behind upstream by 2 commit(s)",
+                ),
+            ),
+        )
+    )
+    out = _render(catalog)
+
+    assert "v0.1.0+1.gabc123def → v0.1.0+3.gdef456abc" in out
+    assert "dev" in out
+    assert "↑" in out
+    assert "sase update" in out
     assert "sase plugin update --all" not in out
 
 

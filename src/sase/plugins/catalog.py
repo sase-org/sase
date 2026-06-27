@@ -85,11 +85,13 @@ class PluginCatalogEntry:
 
     @property
     def update_available(self) -> bool:
-        """Return whether an installed index plugin is behind the latest version."""
-        return (
-            self.installed.installed
-            and self.latest.source == "index"
-            and is_newer(self.latest.version, self.installed.version)
+        """Return whether an installed plugin is behind its latest version."""
+        if not self.installed.installed:
+            return False
+        if self.latest.source == "editable":
+            return self.latest.update_available
+        return self.latest.source == "index" and is_newer(
+            self.latest.version, self.installed.version
         )
 
 

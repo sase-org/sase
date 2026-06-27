@@ -233,6 +233,41 @@ def test_updates_available_counts_installed_index_updates() -> None:
     assert entry.updates_available == 1
 
 
+def test_updates_available_counts_installed_editable_dev_updates() -> None:
+    catalog = PluginCatalog(
+        fetched_at=1000.0,
+        entries=(
+            PluginCatalogEntry(
+                name="github",
+                repo="sase-github",
+                full_name="sase-org/sase-github",
+                owner="sase-org",
+                description="",
+                url="",
+                homepage="",
+                topics=(),
+                stars=0,
+                archived=False,
+                license="",
+                updated_at="",
+                installed=InstalledInfo(installed=True, version="0.4.1"),
+                latest=LatestInfo(
+                    checked=True,
+                    version="0.4.1+2.gabcdef123",
+                    source="editable",
+                    update_available=True,
+                    state="update_available",
+                ),
+            ),
+        ),
+        from_cache=True,
+        stale=False,
+    )
+
+    assert catalog.entries[0].update_available is True
+    assert catalog.updates_available == 1
+
+
 def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
     cached = CachedCatalog(
         fetched_at=500.0,

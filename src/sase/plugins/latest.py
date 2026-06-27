@@ -6,11 +6,13 @@ import dataclasses
 import importlib.metadata
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
+from sase.dev_update.detect import detect_dev_latest
+from sase.dev_update.models import DevLatest
 from sase.plugins.latest_cache import (
     CachedLatest,
     is_fresh,
@@ -19,6 +21,10 @@ from sase.plugins.latest_cache import (
 )
 from sase.plugins.pypi_source import fetch_latest_version
 from sase.version._utils import normalize_distribution_name
+from sase.version.inventory import (
+    VersionPackageRecord,
+    collect_runtime_version_inventory,
+)
 
 if TYPE_CHECKING:
     from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
@@ -30,6 +36,14 @@ ReadLatestCacheFn = Callable[[], dict[str, CachedLatest]]
 WriteLatestCacheFn = Callable[[dict[str, CachedLatest]], None]
 ClockFn = Callable[[], float]
 InstalledSourceFn = Callable[[str], LatestSource]
+VersionRecordsFn = Callable[[], Sequence[VersionPackageRecord]]
+
+
+class _DetectDevLatestFn(Protocol):
+    def __call__(self, record: VersionPackageRecord, *, offline: bool) -> DevLatest:
+        """Return latest-dev metadata for one editable package."""
+        ...
+
 
 _MAX_WORKERS = 8
 
@@ -42,6 +56,11 @@ class LatestInfo:
     version: str | None = None
     source: LatestSource = "unknown"
     error: str | None = None
+    install_type: str | None = None
+    current_version: str | None = None
+    update_available: bool = False
+    state: str | None = None
+    reason: str | None = None
 
     @classmethod
     def unknown(cls) -> LatestInfo:
@@ -107,6 +126,10 @@ def is_newer(latest: str | None, installed: str | None) -> bool:
         return False
 
 
+def _runtime_version_records() -> Sequence[VersionPackageRecord]:
+    return collect_runtime_version_inventory(include_plugins=True).packages
+
+
 def enrich_with_latest(
     catalog: PluginCatalog,
     *,
@@ -117,6 +140,8 @@ def enrich_with_latest(
     write_cache_fn: WriteLatestCacheFn = write_cache,
     clock: ClockFn = time.time,
     installed_source_fn: InstalledSourceFn | None = None,
+    version_records_fn: VersionRecordsFn | None = _runtime_version_records,
+    detect_dev_latest_fn: _DetectDevLatestFn = detect_dev_latest,
     max_workers: int = _MAX_WORKERS,
 ) -> PluginCatalog:
     """Return *catalog* with latest-version metadata attached to every entry."""
@@ -127,17 +152,29 @@ def enrich_with_latest(
     cached = {} if refresh and not offline else _safe_read_cache(read_cache_fn)
     resolved: dict[str, LatestInfo] = {}
     misses: dict[str, str] = {}
+    records = _record_lookup(_safe_version_records(version_records_fn))
 
     for entry in catalog.entries:
         key = _cache_key(entry)
         if not key:
             continue
-        source = _source_for_entry(entry, key, installed_source_fn)
-        if source in {"editable", "git"}:
+        record = _record_for_entry(entry, records)
+        source = _source_for_entry(entry, key, installed_source_fn, record)
+        if source == "editable":
+            resolved[key] = _editable_latest_info(
+                entry,
+                record=record,
+                offline=offline,
+                detect_dev_latest_fn=detect_dev_latest_fn,
+            )
+            continue
+        if source == "git":
             resolved[key] = LatestInfo(
                 checked=True,
                 source=source,
                 error="non-index install",
+                install_type=source,
+                current_version=entry.installed.version,
             )
             continue
 
@@ -148,6 +185,8 @@ def enrich_with_latest(
                 version=cached_entry.version,
                 source="index",
                 error=None if cached_entry.version else "unavailable",
+                install_type=_install_type(record, "index"),
+                current_version=entry.installed.version,
             )
             continue
 
@@ -156,6 +195,8 @@ def enrich_with_latest(
                 checked=True,
                 source="unknown",
                 error="offline",
+                install_type=_install_type(record, None),
+                current_version=entry.installed.version,
             )
             continue
 
@@ -171,6 +212,8 @@ def enrich_with_latest(
                 version=version,
                 source="index",
                 error=None if version else "unavailable",
+                install_type=_install_type(records.get(key), "index"),
+                current_version=_installed_version_for_key(catalog, key),
             )
         _safe_write_cache(write_cache_fn, updated_cache)
 
@@ -198,6 +241,110 @@ def _safe_write_cache(
         write_cache_fn(entries)
     except Exception:  # noqa: BLE001 - cache writes are best effort.
         return
+
+
+def _safe_version_records(
+    version_records_fn: VersionRecordsFn | None,
+) -> Sequence[VersionPackageRecord]:
+    if version_records_fn is None:
+        return ()
+    try:
+        result = version_records_fn()
+    except Exception:  # noqa: BLE001 - update hints should never break list/show.
+        return ()
+    if hasattr(result, "packages"):
+        return tuple(result.packages)
+    return result
+
+
+def _record_lookup(
+    records: Sequence[VersionPackageRecord],
+) -> dict[str, VersionPackageRecord]:
+    lookup: dict[str, VersionPackageRecord] = {}
+    for record in records:
+        if record.role != "plugin":
+            continue
+        key = normalize_distribution_name(record.name)
+        if key:
+            lookup[key] = record
+    return lookup
+
+
+def _record_for_entry(
+    entry: PluginCatalogEntry,
+    records: dict[str, VersionPackageRecord],
+) -> VersionPackageRecord | None:
+    for candidate in _record_name_candidates(entry):
+        key = normalize_distribution_name(candidate)
+        if not key:
+            continue
+        record = records.get(key)
+        if record is not None:
+            return record
+    return None
+
+
+def _record_name_candidates(entry: PluginCatalogEntry) -> tuple[str, ...]:
+    candidates: list[str] = []
+    if entry.repo:
+        candidates.append(entry.repo)
+        if not entry.repo.lower().startswith("sase-"):
+            candidates.append(f"sase-{entry.repo}")
+    if entry.name:
+        candidates.append(entry.name)
+        candidates.append(f"sase-{entry.name}")
+    return tuple(_dedupe(candidates))
+
+
+def _editable_latest_info(
+    entry: PluginCatalogEntry,
+    *,
+    record: VersionPackageRecord | None,
+    offline: bool,
+    detect_dev_latest_fn: _DetectDevLatestFn,
+) -> LatestInfo:
+    if record is None:
+        return LatestInfo(
+            checked=True,
+            source="editable",
+            error="editable install is missing from version inventory",
+            install_type="editable",
+            current_version=entry.installed.version,
+            state="unavailable",
+            reason="editable install is missing from version inventory",
+        )
+    try:
+        latest = detect_dev_latest_fn(record, offline=offline)
+    except Exception as exc:  # noqa: BLE001 - display must never crash list/show.
+        reason = f"dev version unavailable: {exc}"
+        return LatestInfo(
+            checked=True,
+            source="editable",
+            error=reason,
+            install_type=record.install_type,
+            current_version=record.display_version,
+            state="unavailable",
+            reason=reason,
+        )
+    return LatestInfo(
+        checked=True,
+        version=latest.latest_version,
+        source="editable",
+        error=_dev_error(latest),
+        install_type=record.install_type,
+        current_version=latest.current_version,
+        update_available=latest.update_available,
+        state=latest.state,
+        reason=latest.reason,
+    )
+
+
+def _dev_error(latest: DevLatest) -> str | None:
+    if latest.state == "fetch_failed":
+        return latest.fetch_error or latest.reason
+    if latest.state == "unavailable":
+        return latest.reason
+    return None
 
 
 def _fetch_misses(
@@ -232,9 +379,15 @@ def _source_for_entry(
     entry: PluginCatalogEntry,
     key: str,
     installed_source_fn: InstalledSourceFn,
+    record: VersionPackageRecord | None,
 ) -> LatestSource:
     if not entry.installed.installed:
         return "index"
+    if record is not None:
+        if record.install_type == "editable":
+            return "editable"
+        if record.install_type == "wheel":
+            return "index"
     return installed_source_fn(key)
 
 
@@ -246,11 +399,39 @@ def _dist_name(entry: PluginCatalogEntry) -> str:
     return entry.repo or entry.name
 
 
+def _install_type(
+    record: VersionPackageRecord | None, fallback: str | None
+) -> str | None:
+    if record is not None:
+        return record.install_type
+    return fallback
+
+
+def _installed_version_for_key(catalog: PluginCatalog, key: str) -> str | None:
+    for entry in catalog.entries:
+        if _cache_key(entry) == key:
+            return entry.installed.version
+    return None
+
+
+def _dedupe(values: Sequence[str]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        lowered = value.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        result.append(value)
+    return tuple(result)
+
+
 __all__ = [
     "FetchLatestFn",
     "InstalledSourceFn",
     "LatestInfo",
     "LatestSource",
+    "VersionRecordsFn",
     "enrich_with_latest",
     "installed_source",
     "is_newer",

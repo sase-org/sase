@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import urllib.error
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.dev_update.models import DevLatest
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import enrich_with_latest, installed_source, is_newer
 from sase.plugins.latest_cache import (
@@ -17,6 +18,7 @@ from sase.plugins.latest_cache import (
     write_cache,
 )
 from sase.plugins.pypi_source import fetch_latest_version
+from sase.version._models import VersionPackageRecord
 
 
 class _Response:
@@ -72,6 +74,28 @@ def _catalog(*entries: PluginCatalogEntry) -> PluginCatalog:
         entries=entries,
         from_cache=True,
         stale=False,
+    )
+
+
+def _record(
+    name: str,
+    *,
+    display_version: str = "0.1.0+1.gabc123def",
+    install_type: Literal["editable", "wheel", "unknown"] = "editable",
+) -> VersionPackageRecord:
+    return VersionPackageRecord(
+        name=name,
+        role="plugin",
+        display_version=display_version,
+        distribution_version="0.1.0",
+        source_version="0.1.0",
+        import_module=name.replace("-", "_"),
+        import_path=None,
+        code_directory="/src/pkg",
+        source_root="/src/pkg",
+        distribution_location=None,
+        install_type=install_type,
+        git=None,
     )
 
 
@@ -178,6 +202,7 @@ def test_enrich_cache_hit_avoids_fetch() -> None:
         write_cache_fn=lambda _entries: None,
         clock=lambda: 1000.0,
         installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
     )
 
     entry = enriched.entries[0]
@@ -197,6 +222,7 @@ def test_enrich_offline_miss_makes_zero_fetches() -> None:
         write_cache_fn=lambda _entries: None,
         clock=lambda: 1000.0,
         installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
     )
 
     assert calls == []
@@ -218,6 +244,7 @@ def test_enrich_refresh_bypasses_cache_and_writes() -> None:
         write_cache_fn=lambda entries: writes.append(entries),
         clock=lambda: 1000.0,
         installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
         max_workers=1,
     )
 
@@ -243,6 +270,7 @@ def test_enrich_one_fetch_failure_does_not_sink_batch() -> None:
         write_cache_fn=lambda _entries: None,
         clock=lambda: 1000.0,
         installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
         max_workers=1,
     )
     by_name = {entry.name: entry for entry in enriched.entries}
@@ -265,8 +293,51 @@ def test_enrich_editable_install_is_not_compared_or_fetched() -> None:
         write_cache_fn=lambda _entries: None,
         clock=lambda: 1000.0,
         installed_source_fn=lambda _dist: "editable",
+        version_records_fn=lambda: (),
     )
 
     entry = enriched.entries[0]
     assert entry.latest.source == "editable"
     assert entry.update_available is False
+
+
+def test_enrich_editable_install_uses_dev_latest_detection() -> None:
+    record = _record("sase-devkit")
+    catalog = _catalog(_entry("devkit", installed=True, version="0.1.0"))
+    seen: list[tuple[str, bool]] = []
+
+    def _detect(package: VersionPackageRecord, *, offline: bool) -> DevLatest:
+        seen.append((package.name, offline))
+        return DevLatest(
+            record=package,
+            state="update_available",
+            reason="behind upstream by 2 commit(s)",
+            current_version=package.display_version,
+            latest_version="0.1.0+3.gdef456abc",
+            update_available=True,
+            git_root="/src/pkg",
+            upstream="origin/main",
+            ahead=0,
+            behind=2,
+        )
+
+    enriched = enrich_with_latest(
+        catalog,
+        offline=True,
+        fetch_fn=lambda _dist: (_ for _ in ()).throw(AssertionError("no fetch")),
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (record,),
+        detect_dev_latest_fn=_detect,
+    )
+
+    entry = enriched.entries[0]
+    assert seen == [("sase-devkit", True)]
+    assert entry.latest.source == "editable"
+    assert entry.latest.current_version == "0.1.0+1.gabc123def"
+    assert entry.latest.version == "0.1.0+3.gdef456abc"
+    assert entry.latest.state == "update_available"
+    assert entry.latest.reason == "behind upstream by 2 commit(s)"
+    assert entry.update_available is True

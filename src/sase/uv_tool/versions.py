@@ -11,14 +11,29 @@ from __future__ import annotations
 
 import dataclasses
 import importlib.metadata as importlib_metadata
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Protocol
 
+from sase.dev_update.detect import detect_dev_latest
+from sase.dev_update.models import DevLatest
 from sase.version.inventory import CORE_DISTRIBUTION_NAME, HOST_DISTRIBUTION_NAME
+from sase.version.inventory import (
+    VersionPackageRecord,
+    collect_runtime_version_inventory,
+)
 
 VersionFn = Callable[[str], str | None]
 FetchLatestFn = Callable[[str], str | None]
 IsNewerFn = Callable[[str | None, str | None], bool]
+VersionRecordsFn = Callable[[], Sequence[VersionPackageRecord]]
+
+
+class _DetectDevLatestFn(Protocol):
+    def __call__(self, record: VersionPackageRecord, *, offline: bool) -> DevLatest:
+        """Return latest-dev metadata for one editable core package."""
+        ...
+
 
 _CORE_PACKAGES: tuple[tuple[str, str], ...] = (
     ("sase", HOST_DISTRIBUTION_NAME),
@@ -37,6 +52,9 @@ class CorePackageVersion:
     latest_checked: bool = False
     update_available: bool = False
     latest_error: str | None = None
+    install_type: str | None = None
+    latest_state: str | None = None
+    latest_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -70,30 +88,49 @@ def collect_installed_core_versions(
     return CoreVersions(packages=packages)
 
 
+def _runtime_core_records() -> Sequence[VersionPackageRecord]:
+    return collect_runtime_version_inventory(include_plugins=False).packages
+
+
 def enrich_core_versions_latest(
     versions: CoreVersions,
     *,
     offline: bool = False,
     fetch_fn: FetchLatestFn,
     is_newer: IsNewerFn,
+    version_records_fn: VersionRecordsFn | None = _runtime_core_records,
+    detect_dev_latest_fn: _DetectDevLatestFn = detect_dev_latest,
 ) -> CoreVersions:
     """Return *versions* with best-effort latest-version metadata attached."""
-    if offline:
-        return CoreVersions(
-            packages=tuple(
+    records = _record_lookup(_safe_version_records(version_records_fn))
+
+    enriched: list[CorePackageVersion] = []
+    for package in versions.packages:
+        record = records.get(package.distribution_name)
+        if record is not None and record.install_type == "editable":
+            enriched.append(
+                _enrich_editable_core_package(
+                    package,
+                    record=record,
+                    offline=offline,
+                    detect_dev_latest_fn=detect_dev_latest_fn,
+                )
+            )
+            continue
+        if offline:
+            enriched.append(
                 dataclasses.replace(
                     package,
                     latest_checked=True,
                     latest_version=None,
                     update_available=False,
                     latest_error="offline",
+                    install_type=_install_type(record, package.install_type),
+                    latest_state="offline",
+                    latest_reason="offline",
                 )
-                for package in versions.packages
             )
-        )
-
-    enriched: list[CorePackageVersion] = []
-    for package in versions.packages:
+            continue
         latest = _safe_fetch_latest(package.distribution_name, fetch_fn)
         enriched.append(
             dataclasses.replace(
@@ -102,9 +139,80 @@ def enrich_core_versions_latest(
                 latest_version=latest,
                 update_available=is_newer(latest, package.installed_version),
                 latest_error=None if latest else "unavailable",
+                install_type=_install_type(record, package.install_type),
             )
         )
     return CoreVersions(packages=tuple(enriched))
+
+
+def _safe_version_records(
+    version_records_fn: VersionRecordsFn | None,
+) -> Sequence[VersionPackageRecord]:
+    if version_records_fn is None:
+        return ()
+    try:
+        return version_records_fn()
+    except Exception:  # noqa: BLE001 - version display must never break the UI.
+        return ()
+
+
+def _record_lookup(
+    records: Sequence[VersionPackageRecord],
+) -> dict[str, VersionPackageRecord]:
+    return {
+        record.name: record for record in records if record.role in {"host", "core"}
+    }
+
+
+def _enrich_editable_core_package(
+    package: CorePackageVersion,
+    *,
+    record: VersionPackageRecord,
+    offline: bool,
+    detect_dev_latest_fn: _DetectDevLatestFn,
+) -> CorePackageVersion:
+    try:
+        latest = detect_dev_latest_fn(record, offline=offline)
+    except Exception as exc:  # noqa: BLE001 - latest hints are best effort.
+        reason = f"dev version unavailable: {exc}"
+        return dataclasses.replace(
+            package,
+            installed_version=record.display_version,
+            latest_checked=True,
+            latest_version=None,
+            update_available=False,
+            latest_error=reason,
+            install_type=record.install_type,
+            latest_state="unavailable",
+            latest_reason=reason,
+        )
+    return dataclasses.replace(
+        package,
+        installed_version=latest.current_version,
+        latest_checked=True,
+        latest_version=latest.latest_version,
+        update_available=latest.update_available,
+        latest_error=_dev_error(latest),
+        install_type=record.install_type,
+        latest_state=latest.state,
+        latest_reason=latest.reason,
+    )
+
+
+def _install_type(
+    record: VersionPackageRecord | None, fallback: str | None
+) -> str | None:
+    if record is not None:
+        return record.install_type
+    return fallback
+
+
+def _dev_error(latest: DevLatest) -> str | None:
+    if latest.state == "fetch_failed":
+        return latest.fetch_error or latest.reason
+    if latest.state == "unavailable":
+        return latest.reason
+    return None
 
 
 def _safe_version(dist_name: str, version_fn: VersionFn) -> str | None:

@@ -14,6 +14,7 @@ from sase.plugins.catalog import PluginCatalogEntry
 
 def plugin_entry_json(entry: PluginCatalogEntry) -> dict[str, Any]:
     """Serialize one catalog entry to the stable ``-j|--json`` object shape."""
+    current_version = entry.latest.current_version or entry.installed.version
     return {
         "name": entry.name,
         "repo": entry.repo,
@@ -28,6 +29,8 @@ def plugin_entry_json(entry: PluginCatalogEntry) -> dict[str, Any]:
         "archived": entry.archived,
         "license": entry.license,
         "updated_at": entry.updated_at,
+        "install_type": entry.latest.install_type,
+        "current_version": current_version,
         "installed": {
             "installed": entry.installed.installed,
             "version": entry.installed.version,
@@ -38,6 +41,8 @@ def plugin_entry_json(entry: PluginCatalogEntry) -> dict[str, Any]:
             "version": entry.latest.version,
             "source": entry.latest.source,
             "update_available": entry.update_available,
+            "state": entry.latest.state,
+            "reason": entry.latest.reason,
             "error": entry.latest.error,
         },
     }

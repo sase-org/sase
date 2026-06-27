@@ -139,7 +139,7 @@ def _version_cell(entry: PluginCatalogEntry) -> Text:
             return Text("latest unknown", style="dim")
         return Text(_EMPTY, style="dim")
     if entry.latest.source == "editable":
-        return Text("editable", style="yellow")
+        return _dev_version_cell(entry)
     if entry.latest.source == "git":
         return Text("git", style="yellow")
     if entry.update_available:
@@ -157,6 +157,51 @@ def _update_cell(entry: PluginCatalogEntry) -> Text:
     if entry.update_available:
         return Text(_UPDATE_GLYPH, style="bold cyan")
     return Text("")
+
+
+def _dev_version_cell(entry: PluginCatalogEntry) -> Text:
+    latest = entry.latest
+    current = latest.current_version or entry.installed.version
+    value = Text()
+    if entry.update_available and latest.version:
+        value.append(_version_label(current) or "installed", style="dim")
+        value.append(" → ", style="dim")
+        value.append(f"v{latest.version}", style="cyan")
+        value.append("   dev", style="dim")
+        return value
+    value.append(_version_label(current) or "editable", style="green")
+    suffix = _dev_state_suffix(latest.state, update_available=False)
+    if suffix:
+        value.append(f"   {suffix}", style="dim")
+    return value
+
+
+def _version_label(version: str | None) -> str | None:
+    return f"v{version}" if version else None
+
+
+def _dev_state_suffix(state: str | None, *, update_available: bool) -> str:
+    if update_available:
+        return "dev update available"
+    label = _dev_state_label(state)
+    if label:
+        return f"dev · {label}"
+    return "dev"
+
+
+def _dev_state_label(state: str | None) -> str:
+    labels = {
+        "current": "",
+        "update_available": "update available",
+        "dirty": "local changes",
+        "diverged": "diverged",
+        "detached": "detached HEAD",
+        "no_upstream": "no upstream",
+        "offline": "offline",
+        "fetch_failed": "fetch failed",
+        "unavailable": "unavailable",
+    }
+    return labels.get(state or "", state or "")
 
 
 def _groups_cell(entry: PluginCatalogEntry) -> Text:
@@ -197,12 +242,17 @@ def _legend_counts(catalog: PluginCatalog) -> Text:
 
 def _updates_cta(catalog: PluginCatalog) -> Text:
     line = Text()
+    has_dev_update = any(
+        entry.update_available and entry.latest.source == "editable"
+        for entry in catalog.entries
+    )
+    command = "`sase update`" if has_dev_update else "`sase plugin update --all`"
     line.append(_UPDATE_GLYPH, style="bold cyan")
     line.append(
         f" {catalog.updates_available} update available · run ",
         style="cyan",
     )
-    line.append("`sase plugin update --all`", style="bold cyan")
+    line.append(command, style="bold cyan")
     return line
 
 
@@ -328,8 +378,9 @@ def _installed_value(entry: PluginCatalogEntry) -> Text:
     value = Text()
     value.append(f"{_INSTALLED_CHECK}  ", style="green")
     if entry.latest.source == "editable":
-        value.append("editable", style="yellow")
-        value.append("   (local checkout)", style="dim")
+        current = entry.latest.current_version or info.version
+        value.append(_version_label(current) or "editable", style="green")
+        value.append("   (dev editable checkout)", style="dim")
         return value
     if entry.latest.source == "git":
         value.append("git", style="yellow")
@@ -345,8 +396,22 @@ def _latest_value(entry: PluginCatalogEntry) -> Text:
     latest = entry.latest
     value = Text()
     if latest.source == "editable":
-        value.append("not compared", style="dim")
-        value.append("   editable install", style="yellow")
+        if entry.update_available and latest.version:
+            value.append(f"v{latest.version}", style="cyan")
+            value.append(
+                f"   {_UPDATE_GLYPH} {_dev_state_suffix(latest.state, update_available=True)} — run ",
+                style="cyan",
+            )
+            value.append(
+                "`sase update`",
+                style="bold cyan",
+            )
+            return value
+        value.append(_version_label(latest.version) or "unknown", style="dim")
+        value.append(
+            f"   {_dev_state_suffix(latest.state, update_available=False)}",
+            style="dim",
+        )
         return value
     if latest.source == "git":
         value.append("not compared", style="dim")
