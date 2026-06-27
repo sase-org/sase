@@ -1,0 +1,231 @@
+"""Tests for editable checkout updates handled by the dev-update backend."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from sase.axe.process import AxeStartResult
+from sase.dev_update.models import DevUpdateOutcome, DevUpdatePlan, DevUpdateResult
+from sase.main.update_handler import handle_update_command
+from sase.uv_tool.runner import UvChangeSet, parse_uv_output
+from sase.version.inventory import VersionPackageRecord
+from tests.main.update_command_helpers import (
+    _DEV_RECEIPT,
+    _args,
+    _console,
+    _dev_plan,
+    _dev_result,
+    _install,
+    _inventory,
+    _record,
+    _text,
+    _versions,
+)
+
+
+def test_dev_update_runs_backend_and_restarts_axe(tmp_path: Path) -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+    github = _record("sase-github", role="plugin", source_root="/home/u/sase-github")
+    telegram = _record(
+        "sase-telegram", role="plugin", source_root="/home/u/sase-telegram"
+    )
+    seen: dict[str, Any] = {"restart_calls": 0}
+
+    def _run_uv(_argv: list[str]) -> UvChangeSet:
+        raise AssertionError("uv tool upgrade must not run for all-editable updates")
+
+    def _plan(
+        records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+        *,
+        host_record: VersionPackageRecord,
+        receipt: Any = None,
+    ) -> DevUpdatePlan:
+        seen["records"] = [record.name for record in records]
+        seen["host"] = host_record.name
+        assert receipt is not None
+        return _dev_plan(*records)
+
+    def _execute(plan: DevUpdatePlan, *, run: Any) -> DevUpdateResult:
+        seen["executed"] = True
+        return _dev_result(plan)
+
+    def _restart() -> AxeStartResult:
+        seen["restart_calls"] += 1
+        return AxeStartResult(status="started", pid=2468)
+
+    clock = iter([0.0, 2.0])
+    out = _console()
+    code = handle_update_command(
+        _args(),
+        console=out,
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        run_fn=_run_uv,
+        inventory_fn=lambda: _inventory(host, github, telegram),
+        plan_dev_update_fn=_plan,
+        execute_dev_update_fn=_execute,
+        axe_running_fn=lambda: True,
+        restart_axe_fn=_restart,
+        version_fn=_versions,
+        clock=lambda: next(clock),
+    )
+
+    assert code == 0
+    assert seen["records"] == ["sase", "sase-github", "sase-telegram"]
+    assert seen["host"] == "sase"
+    assert seen["executed"] is True
+    assert seen["restart_calls"] == 1
+    text = _text(out)
+    assert "SASE Dev Update" in text
+    assert "0.6.1+1.gaaaaaaaaa \u2192 0.6.1+2.gbbbbbbbbb" in text
+    assert "Axe restarted (pid 2468)" in text
+
+
+def test_dev_update_json_includes_dev_outcomes_and_restart(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+
+    def _plan(
+        records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+        *,
+        host_record: VersionPackageRecord,
+        receipt: Any = None,
+    ) -> DevUpdatePlan:
+        return _dev_plan(*records)
+
+    def _execute(plan: DevUpdatePlan, *, run: Any) -> DevUpdateResult:
+        return _dev_result(plan)
+
+    code = handle_update_command(
+        _args(json=True),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        run_fn=lambda _argv: parse_uv_output("should not run"),
+        inventory_fn=lambda: _inventory(host),
+        plan_dev_update_fn=_plan,
+        execute_dev_update_fn=_execute,
+        axe_running_fn=lambda: True,
+        restart_axe_fn=lambda: AxeStartResult(status="started", pid=1357),
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == 2
+    assert payload["mode"] == "dev"
+    assert payload["command"] == []
+    assert payload["changed"] is True
+    assert payload["counts"] == {
+        "updated": 1,
+        "already_current": 0,
+        "removed": 0,
+        "skipped": 0,
+        "failed": 0,
+    }
+    assert payload["managed"] is None
+    assert payload["dev"]["changed"] is True
+    assert payload["dev"]["plan"]["packages"][0]["status"] == "actionable"
+    assert payload["dev"]["plan"]["packages"][0]["latest_version"] == (
+        "0.6.1+2.gbbbbbbbbb"
+    )
+    assert payload["dev"]["plan"]["reconcile_steps"][0]["kind"] == "uv_tool_install"
+    assert payload["dev"]["packages"][0]["name"] == "sase"
+    assert payload["dev"]["packages"][0]["status"] == "updated"
+    assert payload["restart"] == {
+        "attempted": True,
+        "message": "Axe restarted (pid 1357)",
+        "pid": 1357,
+        "reason": None,
+        "status": "restarted",
+    }
+
+
+def test_dev_update_failure_exits_one_and_does_not_restart(tmp_path: Path) -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+    restart_calls = 0
+
+    def _plan(
+        records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+        *,
+        host_record: VersionPackageRecord,
+        receipt: Any = None,
+    ) -> DevUpdatePlan:
+        return _dev_plan(*records)
+
+    def _execute(plan: DevUpdatePlan, *, run: Any) -> DevUpdateResult:
+        outcome = DevUpdateOutcome(
+            record=plan.packages[0].record,
+            status="failed",
+            reason="Rebuild sase-core-rs into the uv-tool venv failed",
+            old_version=plan.packages[0].current_version,
+            new_version=plan.packages[0].latest_version,
+            git_root=plan.packages[0].git_root,
+        )
+        return DevUpdateResult(changed=True, outcomes=(outcome,))
+
+    def _restart() -> AxeStartResult:
+        nonlocal restart_calls
+        restart_calls += 1
+        return AxeStartResult(status="started", pid=1)
+
+    err = _console()
+    code = handle_update_command(
+        _args(),
+        console=_console(),
+        err_console=err,
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        inventory_fn=lambda: _inventory(host),
+        plan_dev_update_fn=_plan,
+        execute_dev_update_fn=_execute,
+        axe_running_fn=lambda: True,
+        restart_axe_fn=_restart,
+        version_fn=_versions,
+    )
+
+    assert code == 1
+    assert restart_calls == 0
+    text = _text(err)
+    assert "Dev update failed" in text
+    assert "uv-tool venv failed" in text
+
+
+def test_upgrade_json_counts_exclude_receipt_duplicates(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+    github = _record("sase-github", role="plugin", source_root="/home/u/sase-github")
+    telegram = _record(
+        "sase-telegram", role="plugin", source_root="/home/u/sase-telegram"
+    )
+
+    code = handle_update_command(
+        _args(json=True),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        run_fn=lambda _argv: parse_uv_output("should not run"),
+        inventory_fn=lambda: _inventory(host, github, telegram),
+        plan_dev_update_fn=lambda records, **_kwargs: _dev_plan(*records),
+        execute_dev_update_fn=lambda plan, **_kwargs: _dev_result(plan),
+        axe_running_fn=lambda: False,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    names = [p["name"] for p in payload["dev"]["packages"]]
+    assert names == ["sase", "sase-github", "sase-telegram"]
+    # Counts reflect unique editable distributions, not the raw duplicated
+    # receipt rows.
+    assert payload["counts"] == {
+        "updated": 3,
+        "already_current": 0,
+        "removed": 0,
+        "skipped": 0,
+        "failed": 0,
+    }
