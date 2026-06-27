@@ -16,14 +16,14 @@ class TestGenerateXpromptYaml:
     def test_short_form_no_inputs(self) -> None:
         lines = _generate_xprompt_yaml("foo", [], "Hello world")
         assert lines == [
-            "  foo: |",
+            "  foo: |-",
             "    Hello world",
         ]
 
     def test_short_form_multiline(self) -> None:
         lines = _generate_xprompt_yaml("foo", [], "Line 1\nLine 2\nLine 3")
         assert lines == [
-            "  foo: |",
+            "  foo: |-",
             "    Line 1",
             "    Line 2",
             "    Line 3",
@@ -32,7 +32,7 @@ class TestGenerateXpromptYaml:
     def test_short_form_blank_lines(self) -> None:
         lines = _generate_xprompt_yaml("foo", [], "Line 1\n\nLine 3")
         assert lines == [
-            "  foo: |",
+            "  foo: |-",
             "    Line 1",
             "",
             "    Line 3",
@@ -44,7 +44,7 @@ class TestGenerateXpromptYaml:
             "  greet:",
             "    input:",
             "      name: word",
-            "    content: |",
+            "    content: |-",
             "      Hello {{ name }}!",
         ]
 
@@ -59,14 +59,14 @@ class TestGenerateXpromptYaml:
             "    input:",
             "      name: word",
             "      count: int",
-            "    content: |",
+            "    content: |-",
             "      Hello {{ name }}, count={{ count }}",
         ]
 
     def test_trailing_newlines_stripped(self) -> None:
         lines = _generate_xprompt_yaml("foo", [], "Hello\n\n\n")
         assert lines == [
-            "  foo: |",
+            "  foo: |-",
             "    Hello",
         ]
 
@@ -115,7 +115,7 @@ class TestInsertXpromptIntoConfig:
         result = insert_xprompt_into_config(str(config), "foo", [], "Foo content")
         assert result is True
         text = config.read_text()
-        assert "  foo: |" in text
+        assert "  foo: |-" in text
         assert "    Foo content" in text
 
     def test_insert_no_xprompts_section(self, tmp_path: Path) -> None:
@@ -125,7 +125,7 @@ class TestInsertXpromptIntoConfig:
         assert result is True
         text = config.read_text()
         assert "xprompts:" in text
-        assert "  foo: |" in text
+        assert "  foo: |-" in text
 
     def test_insert_with_inputs(self, tmp_path: Path) -> None:
         config = tmp_path / "sase.yml"
@@ -138,7 +138,7 @@ class TestInsertXpromptIntoConfig:
         assert "  greet:" in text
         assert "    input:" in text
         assert "      name: word" in text
-        assert "    content: |" in text
+        assert "    content: |-" in text
         assert "      Hello {{ name }}!" in text
 
     def test_unsorted_entries_append_without_reordering(self, tmp_path: Path) -> None:

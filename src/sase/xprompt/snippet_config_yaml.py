@@ -2,9 +2,10 @@
 
 Inserts or replaces a single snippet under the nested ``ace: -> snippets:``
 mapping of a sase YAML config file without reflowing unrelated entries or
-comments. Snippet values are emitted as block scalars (``name: |``) so multiline
-prompt text round-trips. Sorted sections stay sorted; unsorted sections receive
-new entries at the end.
+comments. Snippet values are emitted as strip-chomped block scalars
+(``name: |-``) so the writer's trailing-newline stripping survives the round
+trip. Sorted sections stay sorted; unsorted sections receive new entries at the
+end.
 
 Patterned after :mod:`sase.xprompt.config_yaml` (the flat ``xprompts:`` writer)
 but nested one mapping level deeper.
@@ -43,7 +44,7 @@ def _generate_snippet_yaml(name: str, template: str) -> list[str]:
     the entry name, 6-space for the block-scalar body).
     """
     template = template.rstrip("\n")
-    result = [f"    {name}: |"]
+    result = [f"    {name}: |-"]
     for line in template.split("\n"):
         result.append(f"      {line}" if line.strip() else "")
     return result

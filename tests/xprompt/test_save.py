@@ -69,13 +69,15 @@ def test_config_save_round_trips_full_frontmatter_and_orders_entries(
     text = config.read_text(encoding="utf-8")
     assert text.index("alpha:") < text.index("bravo:") < text.index("zulu:")
     assert "    description: Reusable review prompt." in text
-    assert "    content: |" in text
+    assert "    content: |-" in text
     assert "      ---" in text
 
     data = yaml.safe_load(text)
     parsed = parse_xprompt_entries(data["xprompts"], "config")
     loaded = parsed["bravo"]
-    assert loaded.content.rstrip("\n") == body
+    # ``|-`` strips the trailing newline, so the submitted body round-trips
+    # exactly without needing ``rstrip("\n")``.
+    assert loaded.content == body
     assert loaded.description == "Reusable review prompt."
     assert loaded.tags == frozenset({XPromptTag.vcs, XPromptTag.mentor})
     assert loaded.inputs[0].name == "topic"

@@ -49,7 +49,7 @@ def test_packed_sorted_insert_preserves_comments_and_adds_no_blank_lines(
 
     expected = _PACKED_SORTED_CONFIG.replace(
         "  research: |\n",
-        "  research/zzz: |\n    Zzz\n  research: |\n",
+        "  research/zzz: |-\n    Zzz\n  research: |\n",
     )
     assert text == expected
     assert text.count("\n\n") == _PACKED_SORTED_CONFIG.count("\n\n")
@@ -62,7 +62,7 @@ def test_sorted_insert_uses_colon_tiebreak_for_bare_name(tmp_path: Path) -> None
 
     expected = _PACKED_SORTED_CONFIG.replace(
         "  review: |\n",
-        "  researchz: |\n    Research z\n  review: |\n",
+        "  researchz: |-\n    Research z\n  review: |\n",
     )
     assert text == expected
 
@@ -73,7 +73,7 @@ def test_unsorted_section_appends_new_entry_without_reordering(tmp_path: Path) -
     text = _insert(tmp_path, initial, "bravo", "B")
 
     assert text == (
-        "xprompts:\n  charlie: |\n    C\n\n  alpha: |\n    A\n\n  bravo: |\n    B\n"
+        "xprompts:\n  charlie: |\n    C\n\n  alpha: |\n    A\n\n  bravo: |-\n    B\n"
     )
 
 
@@ -82,7 +82,7 @@ def test_overwrite_replaces_only_matching_block(tmp_path: Path) -> None:
 
     expected = _PACKED_SORTED_CONFIG.replace(
         "  research/more: |\n    More\n",
-        "  research/more: |\n    Updated\n",
+        "  research/more: |-\n    Updated\n",
     )
     assert text == expected
 
@@ -94,17 +94,17 @@ def test_one_blank_spacing_is_mirrored_for_first_middle_and_last_inserts(
 
     first = _insert(tmp_path, initial, "aardvark", "AA")
     assert first == (
-        "xprompts:\n  aardvark: |\n    AA\n\n  alpha: |\n    A\n\n  charlie: |\n    C\n"
+        "xprompts:\n  aardvark: |-\n    AA\n\n  alpha: |\n    A\n\n  charlie: |\n    C\n"
     )
 
     middle = _insert(tmp_path, initial, "bravo", "B")
     assert middle == (
-        "xprompts:\n  alpha: |\n    A\n\n  bravo: |\n    B\n\n  charlie: |\n    C\n"
+        "xprompts:\n  alpha: |\n    A\n\n  bravo: |-\n    B\n\n  charlie: |\n    C\n"
     )
 
     last = _insert(tmp_path, initial, "zulu", "Z")
     assert last == (
-        "xprompts:\n  alpha: |\n    A\n\n  charlie: |\n    C\n\n  zulu: |\n    Z\n"
+        "xprompts:\n  alpha: |\n    A\n\n  charlie: |\n    C\n\n  zulu: |-\n    Z\n"
     )
 
 
@@ -112,10 +112,10 @@ def test_empty_and_missing_section_fallbacks_insert_without_stray_blanks(
     tmp_path: Path,
 ) -> None:
     cases = [
-        ("xprompts: {}\n", "xprompts:\n  foo: |\n    Foo\n"),
-        ("xprompts:\n", "xprompts:\n  foo: |\n    Foo\n"),
-        ("", "xprompts:\n  foo: |\n    Foo\n"),
-        ("other_key: value\n", "other_key: value\n\nxprompts:\n  foo: |\n    Foo\n"),
+        ("xprompts: {}\n", "xprompts:\n  foo: |-\n    Foo\n"),
+        ("xprompts:\n", "xprompts:\n  foo: |-\n    Foo\n"),
+        ("", "xprompts:\n  foo: |-\n    Foo\n"),
+        ("other_key: value\n", "other_key: value\n\nxprompts:\n  foo: |-\n    Foo\n"),
     ]
 
     for index, (initial, expected) in enumerate(cases):

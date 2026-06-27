@@ -54,8 +54,8 @@ def generate_xprompt_yaml(
     content = content.rstrip("\n")
 
     if not inputs:
-        # Short-form:  name: |
-        result = [f"  {name}: |"]
+        # Short-form:  name: |-
+        result = [f"  {name}: |-"]
         for line in content.split("\n"):
             result.append(f"    {line}" if line.strip() else "")
         return result
@@ -65,7 +65,7 @@ def generate_xprompt_yaml(
     result.append("    input:")
     for arg_name, arg_type in inputs:
         result.append(f"      {arg_name}: {arg_type}")
-    result.append("    content: |")
+    result.append("    content: |-")
     for line in content.split("\n"):
         result.append(f"      {line}" if line.strip() else "")
     return result
@@ -82,7 +82,7 @@ def _generate_frontmatter_xprompt_yaml(
     content = content.rstrip("\n")
 
     if not mapping:
-        result = [f"  {name}: |"]
+        result = [f"  {name}: |-"]
         for line in content.split("\n"):
             result.append(f"    {line}" if line.strip() else "")
         return result
@@ -98,7 +98,7 @@ def _generate_frontmatter_xprompt_yaml(
         result.extend(f"    {line}" if line else "" for line in dumped.split("\n"))
 
     if content:
-        result.append("    content: |")
+        result.append("    content: |-")
         for line in content.split("\n"):
             result.append(f"      {line}" if line.strip() else "")
     else:

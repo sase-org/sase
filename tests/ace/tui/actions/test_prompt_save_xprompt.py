@@ -360,8 +360,11 @@ async def test_create_snippet_flow_writes_refreshes_and_offers_commit(
         await _wait_save_tasks(harness)
 
     written = config.read_text(encoding="utf-8")
-    assert "    foo: |\n      my prompt body\n" in written
-    assert _snippets_of(written) == {"existing": "old$0\n", "foo": "my prompt body\n"}
+    assert "    foo: |-\n      my prompt body\n" in written
+    # ``|-`` strips the trailing newline, so the freshly written snippet loads
+    # as exactly the active-pane body; the untouched ``existing`` entry keeps
+    # its ``|`` round-tripped newline.
+    assert _snippets_of(written) == {"existing": "old$0\n", "foo": "my prompt body"}
 
     assert (
         "Created snippet 'foo' in ~/.config/sase/sase.yml",
@@ -371,9 +374,9 @@ async def test_create_snippet_flow_writes_refreshes_and_offers_commit(
     assert harness.git_offer_nouns == ["snippet"]
 
     # Cache refreshed: user snippets reloaded, resolved cache dropped.
-    assert harness._user_snippets["foo"] == "my prompt body\n"
+    assert harness._user_snippets["foo"] == "my prompt body"
     assert harness._snippets_cache is None
-    assert harness.get_snippets()["foo"] == "my prompt body\n"
+    assert harness.get_snippets()["foo"] == "my prompt body"
 
 
 async def test_create_snippet_same_name_overwrites_without_confirmation(
@@ -423,7 +426,7 @@ async def test_create_snippet_same_name_overwrites_without_confirmation(
     # No confirm modal pushed for the overwrite; the only screens are the
     # target picker, config selector, and name modal.
     assert len(harness.pushed) == 3
-    assert _snippets_of(config.read_text(encoding="utf-8")) == {"foo": "new body\n"}
+    assert _snippets_of(config.read_text(encoding="utf-8")) == {"foo": "new body"}
 
 
 async def test_create_snippet_flow_multi_pane_writes_only_active_pane(
@@ -478,7 +481,7 @@ async def test_create_snippet_flow_multi_pane_writes_only_active_pane(
 
     written = config.read_text(encoding="utf-8")
     # Only the active-pane body is written, never the ``\n---\n``-joined body.
-    assert _snippets_of(written) == {"existing": "old$0\n", "multi": "beta\n"}
+    assert _snippets_of(written) == {"existing": "old$0\n", "multi": "beta"}
     assert "alpha" not in written
     assert "---" not in written
 
