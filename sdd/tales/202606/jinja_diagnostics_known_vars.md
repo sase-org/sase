@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 11:42:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/jinja_diagnostics_known_vars.md
 ---
 # Fix: Jinja2 prompt diagnostics falsely flag built-ins and frontmatter inputs

@@ -18,6 +18,22 @@ _jinja_env: Environment | None = None
 # resolved in the current process context.
 RESERVED_GLOBAL_NAMES: frozenset[str] = frozenset({"root"})
 
+# Static mirror of user-typeable top-level names injected by
+# ``sase.axe.run_agent_exec._build_named_args`` during agent runs. ``agents``
+# mirrors ``sase.agent.output_variable_context.AGENTS_CONTEXT_KEY``; keep the
+# literal local to avoid importing the agent package from low-level xprompt
+# helpers. Internal double-underscore workflow args are intentionally omitted.
+BUILTIN_RUNTIME_NAMES: frozenset[str] = frozenset(
+    {
+        "cl_name",
+        "workspace_num",
+        "n",
+        "N",
+        "wait_chats",
+        "agents",
+    }
+)
+
 
 def is_jinja2_template(content: str) -> bool:
     """Detect if content uses Jinja2 syntax.

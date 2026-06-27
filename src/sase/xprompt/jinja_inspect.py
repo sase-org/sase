@@ -10,7 +10,7 @@ from jinja2 import TemplateSyntaxError, meta
 
 from ._disabled_regions import disabled_region_ranges
 from ._fenced_blocks import fenced_block_ranges
-from ._jinja import RESERVED_GLOBAL_NAMES, get_jinja_env
+from ._jinja import BUILTIN_RUNTIME_NAMES, RESERVED_GLOBAL_NAMES, get_jinja_env
 
 JinjaSpanKind = Literal[
     "delimiter",
@@ -245,6 +245,11 @@ def unknown_variables(text: str, known: set[str]) -> list[str]:
 def known_toplevel_context() -> set[str]:
     """Return reserved names accepted by top-level prompt tooling."""
     return set(RESERVED_GLOBAL_NAMES)
+
+
+def builtin_runtime_names() -> set[str]:
+    """Return agent-run built-in names accepted by prompt diagnostics."""
+    return set(BUILTIN_RUNTIME_NAMES)
 
 
 def jinja_filter_names() -> tuple[str, ...]:

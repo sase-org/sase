@@ -6,6 +6,35 @@ from sase.xprompt import jinja_inspect
 from sase.xprompt._jinja import get_global_template_vars
 
 
+def test_builtin_runtime_names_contains_agent_run_context() -> None:
+    names = jinja_inspect.builtin_runtime_names()
+
+    assert names >= {
+        "cl_name",
+        "workspace_num",
+        "n",
+        "N",
+        "wait_chats",
+        "agents",
+    }
+    assert "__sase_workflow_inherited_vcs_tag" not in names
+
+
+def test_inspect_template_accepts_builtin_runtime_names() -> None:
+    known = (
+        jinja_inspect.known_toplevel_context() | jinja_inspect.builtin_runtime_names()
+    )
+
+    diagnostics = jinja_inspect.inspect_template(
+        "{{ wait_chats }} {{ agents }}",
+        known=known,
+    )
+    typo = jinja_inspect.inspect_template("{{ wait_chat }}", known=known)
+
+    assert diagnostics.unknown_variables == ()
+    assert typo.unknown_variables == ("wait_chat",)
+
+
 def test_tokenize_skips_fenced_blocks() -> None:
     text = (
         "before {{ root | tojson }}\n"

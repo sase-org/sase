@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sase.xprompt import jinja_inspect
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -79,7 +80,10 @@ class JinjaDiagnosticsMixin(_MixinBase):
         ):
             return
 
-        diagnostics = jinja_inspect.inspect_template(text)
+        diagnostics = jinja_inspect.inspect_template(
+            text,
+            known=_known_jinja_names_for_prompt(self._find_prompt_bar(), text),
+        )
         self._apply_jinja_diagnostics(diagnostics)
 
     def _apply_jinja_diagnostics(
@@ -140,3 +144,41 @@ class JinjaDiagnosticsMixin(_MixinBase):
             return
         self._jinja_matching_delimiter_spans = spans
         self._refresh_jinja_overlay()
+
+
+def _known_jinja_names_for_prompt(bar: Any, text: str) -> set[str]:
+    known = jinja_inspect.known_toplevel_context()
+    known.update(jinja_inspect.builtin_runtime_names())
+    known.update(_stack_frontmatter_input_names(bar))
+    known.update(_inline_frontmatter_input_names(text))
+    return known
+
+
+def _stack_frontmatter_input_names(bar: Any) -> set[str]:
+    stack = getattr(bar, "_stack", None)
+    if stack is None:
+        return set()
+    try:
+        model = stack.frontmatter_model
+    except (AttributeError, TypeError, ValueError):
+        return set()
+    return _frontmatter_input_names(model)
+
+
+def _inline_frontmatter_input_names(text: str) -> set[str]:
+    if not text.startswith("---"):
+        return set()
+    try:
+        model = PromptFrontmatter.parse(text)
+    except (TypeError, ValueError):
+        return set()
+    return _frontmatter_input_names(model)
+
+
+def _frontmatter_input_names(model: Any) -> set[str]:
+    names: set[str] = set()
+    for arg in getattr(model, "inputs", ()):
+        name = getattr(arg, "name", None)
+        if isinstance(name, str) and name:
+            names.add(name)
+    return names

@@ -64,7 +64,9 @@ def _candidates_for_prefix(
     tag_kind: str,
 ) -> list[CompletionCandidate]:
     prefix_lower = prefix.lower()
-    variables = sorted(jinja_inspect.known_toplevel_context())
+    variables = sorted(
+        jinja_inspect.known_toplevel_context() | jinja_inspect.builtin_runtime_names()
+    )
     keywords = sorted(jinja_inspect.JINJA_KEYWORDS)
     filters = list(jinja_inspect.jinja_filter_names())
 

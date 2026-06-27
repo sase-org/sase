@@ -18,7 +18,9 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     XPromptInputHint,
 )
+from sase.xprompt.models import InputArg, InputType
 from sase.xprompt import jinja_inspect
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 from ._completion_helpers import CompletionTestApp
 
@@ -92,6 +94,71 @@ async def test_jinja_unknown_variable_warning(monkeypatch) -> None:
     assert "missing" in panel.render().plain
     assert panel.has_class("jinja-warning")
     assert ta._jinja_unknown_spans
+
+
+async def test_jinja_diagnostics_knows_stack_frontmatter_inputs(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        panel = bar.query_one("#prompt-completion", Static)
+        bar._stack.set_frontmatter_model(
+            PromptFrontmatter(inputs=[InputArg(name="topic", type=InputType.LINE)])
+        )
+
+        ta.load_text("{{ topic }} {{ wait_chats }}")
+        ta.cursor_location = (0, len(ta.text))
+        _compute_jinja_now(ta)
+
+    assert "jinja ✓" in str(bar.border_title)
+    assert panel.has_class("hidden")
+    assert ta._jinja_unknown_spans == ()
+
+
+async def test_jinja_diagnostics_still_flags_unknown_with_known_context(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        panel = bar.query_one("#prompt-completion", Static)
+        bar._stack.set_frontmatter_model(
+            PromptFrontmatter(inputs=[InputArg(name="topic", type=InputType.LINE)])
+        )
+
+        ta.load_text("{{ topic }} {{ wait_chats }} {{ definitely_unknown }}")
+        ta.cursor_location = (0, len(ta.text))
+        _compute_jinja_now(ta)
+
+    assert "jinja ! var" in str(bar.border_title)
+    assert panel.border_title == "jinja diagnostics"
+    assert "definitely_unknown" in panel.render().plain
+    assert ta._jinja_diagnostics.unknown_variables == ("definitely_unknown",)
+    assert ta._jinja_unknown_spans
+
+
+async def test_jinja_diagnostics_knows_inline_frontmatter_inputs(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        panel = bar.query_one("#prompt-completion", Static)
+
+        ta.load_text("---\ninput:\n  topic: line\n---\n{{ topic }} {{ wait_chats }}")
+        ta.cursor_location = (4, len("{{ topic }} {{ wait_chats }}"))
+        _compute_jinja_now(ta)
+
+    assert "jinja ✓" in str(bar.border_title)
+    assert panel.has_class("hidden")
+    assert ta._jinja_unknown_spans == ()
 
 
 async def test_completion_panel_entrypoints_noop_when_panel_pruned() -> None:
@@ -187,3 +254,18 @@ def test_jinja_soft_completion(monkeypatch) -> None:
     assert suggestion is not None
     assert suggestion.completion_kind == "jinja"
     assert suggestion.display == "root"
+
+
+def test_jinja_soft_completion_includes_runtime_builtins(monkeypatch) -> None:
+    monkeypatch.setattr(jinja_inspect, "known_toplevel_context", lambda: {"root"})
+
+    suggestion = build_prompt_soft_completion(
+        text="Hello {{ wait_ }}",
+        cursor_offset=len("Hello {{ wait_"),
+        settings=PromptCompletionSettings(),
+        xprompt_entries=[],
+    )
+
+    assert suggestion is not None
+    assert suggestion.completion_kind == "jinja"
+    assert suggestion.display == "wait_chats"
