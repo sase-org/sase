@@ -283,7 +283,7 @@ def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> 
                 "",
                 "## Tier 1 (short-term) Memory",
                 "",
-                "The following memory contains core (always loaded) context:",
+                "The following memories contains core (always loaded) context:",
                 "",
                 "### memory/extra.md (Extra)",
                 "",

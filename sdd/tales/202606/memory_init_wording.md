@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 08:20:08
-status: wip
+status: done
 prompt: sdd/prompts/202606/memory_init_wording.md
 ---
 # Plan: Update `sase memory init` Short-Term Memory Wording

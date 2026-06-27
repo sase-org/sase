@@ -207,7 +207,7 @@ def _render_managed_agents(
         "",
         "## Tier 1 (short-term) Memory",
         "",
-        "The following memory contains core (always loaded) context:",
+        "The following memories contains core (always loaded) context:",
         "",
     ]
     bodies = short_memory_bodies or {}
