@@ -508,6 +508,9 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
+        # Captured before empty panes are filtered out: the snippet save option
+        # is only offered for a draft that started as a single prompt pane.
+        single_pane = len(self._stack) == 1
         panes = [
             StashedPromptPane(
                 text=stripped,
@@ -527,7 +530,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             ]
         if panes:
             self._clear_active_completion_state()
-        self.post_message(self.SaveAsXpromptRequested(panes))
+        self.post_message(self.SaveAsXpromptRequested(panes, single_pane=single_pane))
 
     def convert_active_pane_to_local_xprompt(
         self, *, target_mode: str = "normal"

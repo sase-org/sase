@@ -379,6 +379,56 @@ async def test_gx_captures_all_non_empty_panes_without_clearing_bar() -> None:
         assert app.stashed == []
 
 
+async def test_gx_single_pane_marks_event_single_pane() -> None:
+    app = _CaptureApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.press("g", "x")
+        await pilot.pause()
+
+        assert len(app.save_xprompt_requests) == 1
+        event = app.save_xprompt_requests[0]
+        assert event.single_pane is True
+        assert [p.text for p in event.panes] == ["solo draft"]
+
+
+async def test_gx_multi_pane_is_not_marked_single_pane() -> None:
+    app = _CaptureApp("alpha\n---\nbeta")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.press("g", "x")
+        await pilot.pause()
+
+        assert len(app.save_xprompt_requests) == 1
+        assert app.save_xprompt_requests[0].single_pane is False
+
+
+async def test_gx_multi_pane_with_one_empty_pane_is_not_single_pane() -> None:
+    app = _CaptureApp("alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.press("g", "-")  # append an empty bottom pane (2-pane stack)
+        await pilot.pause()
+        await pilot.press("escape")  # the new pane lands in insert mode
+        await pilot.press("g", "x")
+        await pilot.pause()
+
+        assert len(app.save_xprompt_requests) == 1
+        event = app.save_xprompt_requests[0]
+        # Only one pane has text, but the stack holds two panes -> not single.
+        assert event.single_pane is False
+        assert [p.text for p in event.panes] == ["alpha"]
+
+
 async def test_ctrl_gx_captures_frontmatter_only_draft() -> None:
     app = _CaptureApp("")
 

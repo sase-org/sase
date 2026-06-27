@@ -123,11 +123,22 @@ class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
     The bar captures every non-empty prompt pane plus shared frontmatter, but
     leaves the stack mounted and unchanged. A frontmatter-only draft is carried
     as one empty pane with frontmatter so the app can still serialize it.
+
+    ``single_pane`` reflects whether the bar held exactly one prompt pane *before*
+    empty panes were filtered out. The app uses it to gate the "save as snippet"
+    option, which only makes sense for a single-prompt draft (snippets cannot
+    carry multi-agent ``---`` separators).
     """
 
-    def __init__(self, panes: list[StashedPromptPane]) -> None:
+    def __init__(
+        self,
+        panes: list[StashedPromptPane],
+        *,
+        single_pane: bool = False,
+    ) -> None:
         super().__init__()
         self.panes = panes
+        self.single_pane = single_pane
 
 
 class EditorRequested(Message, namespace="prompt_input_bar"):

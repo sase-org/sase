@@ -28,7 +28,7 @@ from .xprompt_browser_helpers import classify_source, resolve_source_to_file_pat
 class XPromptSaveTarget:
     """A selected save target."""
 
-    kind: Literal["create", "overwrite"]
+    kind: Literal["create", "overwrite", "create_snippet"]
     name: str = ""
     path: str = ""
     target_format: SaveTargetFormat | None = None
@@ -107,11 +107,13 @@ class XPromptSaveTargetModal(
         project: str | None = None,
         pane_count: int = 0,
         has_frontmatter: bool = False,
+        allow_create_snippet: bool = False,
     ) -> None:
         super().__init__()
         self._rows = rows if rows is not None else load_xprompt_save_rows(project)
         self._pane_count = pane_count
         self._has_frontmatter = has_frontmatter
+        self._allow_create_snippet = allow_create_snippet
         self._visible_rows: list[_XPromptSaveRow] = []
 
     def compose(self) -> ComposeResult:
@@ -190,6 +192,13 @@ class XPromptSaveTargetModal(
                 id="__create__",
             )
         ]
+        if self._allow_create_snippet:
+            options.append(
+                Option(
+                    Text("  +  Create a new snippet...", style="bold #FFD700"),
+                    id="__create_snippet__",
+                )
+            )
 
         filtered = [
             row
@@ -241,6 +250,8 @@ class XPromptSaveTargetModal(
         option_id = str(option.id)
         if option_id == "__create__":
             return XPromptSaveTarget(kind="create")
+        if option_id == "__create_snippet__":
+            return XPromptSaveTarget(kind="create_snippet")
         if not option_id.startswith("row__"):
             return None
         index = int(option_id.removeprefix("row__"))
@@ -257,7 +268,7 @@ class XPromptSaveTargetModal(
             option = option_list.get_option_at_index(highlighted)
         except Exception:
             return None
-        if not option.id or str(option.id) == "__create__":
+        if not option.id or str(option.id) in {"__create__", "__create_snippet__"}:
             return None
         option_id = str(option.id)
         if not option_id.startswith("row__"):
@@ -274,6 +285,11 @@ class XPromptSaveTargetModal(
         if target is not None and target.kind == "create":
             preview.update(Syntax(self._create_preview(), "markdown", theme="monokai"))
             return
+        if target is not None and target.kind == "create_snippet":
+            preview.update(
+                Syntax(self._create_snippet_preview(), "markdown", theme="monokai")
+            )
+            return
         if row is None:
             preview.update("")
             return
@@ -287,6 +303,18 @@ class XPromptSaveTargetModal(
                 "# Create New XPrompt",
                 "",
                 "Choose a location and name after selecting this row.",
+                "",
+                self._draft_summary(),
+            ]
+        )
+
+    def _create_snippet_preview(self) -> str:
+        return "\n".join(
+            [
+                "# Create New Snippet",
+                "",
+                "Save this prompt as an ACE snippet under `ace.snippets`.",
+                "Choose a config file and trigger name after selecting this row.",
                 "",
                 self._draft_summary(),
             ]

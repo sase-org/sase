@@ -33,6 +33,10 @@ class PromptBarSaveXpromptMixin:
     """Handle prompt-bar save-as-xprompt requests."""
 
     _prompt_context: PromptContext | None
+    # Provided by the app's startup/state-init mixins; refreshed here after a
+    # snippet write so ``get_snippets()`` rebuilds with the new template.
+    _user_snippets: dict[str, str]
+    _snippets_cache: dict[str, str] | None
 
     async def on_prompt_input_bar_save_as_xprompt_requested(
         self, event: object
@@ -63,6 +67,12 @@ class PromptBarSaveXpromptMixin:
         )
         rows = await asyncio.to_thread(load_xprompt_save_rows, project)
 
+        non_empty_count = sum(1 for pane in event.panes if pane.text.strip())
+        # The snippet save option is offered only for a draft that started as a
+        # single prompt pane and yielded exactly one non-blank body. Snippets are
+        # single templates, so multi-agent ``---`` stacks are excluded.
+        allow_create_snippet = event.single_pane and non_empty_count == 1
+
         def _on_target(target: XPromptSaveTarget | None) -> None:
             if target is None:
                 return
@@ -71,14 +81,18 @@ class PromptBarSaveXpromptMixin:
                     self._create_xprompt_flow(frontmatter, body)
                 )
                 return
+            if target.kind == "create_snippet":
+                self._spawn_xprompt_save_task(self._create_snippet_flow(body))
+                return
             self._confirm_overwrite_xprompt(target, frontmatter, body)
 
         self.push_screen(  # type: ignore[attr-defined]
             XPromptSaveTargetModal(
                 rows,
                 project=project,
-                pane_count=sum(1 for pane in event.panes if pane.text.strip()),
+                pane_count=non_empty_count,
                 has_frontmatter=not frontmatter.is_empty,
+                allow_create_snippet=allow_create_snippet,
             ),
             _on_target,
         )
@@ -151,6 +165,119 @@ class PromptBarSaveXpromptMixin:
             XPromptLocationModal(project=project),
             _on_location,
         )
+
+    async def _create_snippet_flow(self, body: str) -> None:
+        import asyncio
+
+        from ...modals import (
+            SnippetConfigLocation,
+            SnippetConfigLocationModal,
+            load_snippet_config_locations,
+        )
+
+        project = (
+            self._prompt_context.project_name
+            if self._prompt_context is not None
+            else None
+        )
+        locations = await asyncio.to_thread(load_snippet_config_locations, project)
+        if not any(location.is_selectable for location in locations):
+            self.notify(  # type: ignore[attr-defined]
+                "No writable config file available to store a snippet",
+                severity="warning",
+            )
+            return
+
+        def _on_location(location: SnippetConfigLocation | None) -> None:
+            if location is None:
+                return
+            self._spawn_xprompt_save_task(self._ask_snippet_name(location, body))
+
+        self.push_screen(  # type: ignore[attr-defined]
+            SnippetConfigLocationModal(locations),
+            _on_location,
+        )
+
+    async def _ask_snippet_name(
+        self,
+        location: object,
+        body: str,
+    ) -> None:
+        import asyncio
+
+        from ...modals import SnippetConfigLocation, SnippetNameModal
+
+        assert isinstance(location, SnippetConfigLocation)
+        existing_names = await asyncio.to_thread(_existing_snippet_names, location.path)
+
+        def _on_name(name: str | None) -> None:
+            if name is None:
+                return
+            self._spawn_xprompt_save_task(self._write_snippet(location, name, body))
+
+        self.push_screen(  # type: ignore[attr-defined]
+            SnippetNameModal(
+                config_path=location.path,
+                display_path=location.display_path,
+                existing_names=existing_names,
+            ),
+            _on_name,
+        )
+
+    async def _write_snippet(
+        self,
+        location: object,
+        name: str,
+        body: str,
+    ) -> None:
+        import asyncio
+
+        from ...modals import SnippetConfigLocation
+
+        assert isinstance(location, SnippetConfigLocation)
+        try:
+            await asyncio.to_thread(_write_snippet_sync, location.path, name, body)
+        except Exception as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to save snippet: {exc}",
+                severity="error",
+            )
+            return
+
+        self.notify(  # type: ignore[attr-defined]
+            f"Created snippet '{name}' in {location.display_path}"
+        )
+        self._refresh_snippet_caches()
+        self._offer_git_commit(
+            location.path,
+            is_new=True,
+            xprompt_name=name,
+            noun="snippet",
+            commit_type="snippet",
+        )
+
+    def _refresh_snippet_caches(self) -> None:
+        """Reload merged ``ace.snippets`` and drop the resolved snippet cache.
+
+        The merged-config cache invalidates itself by file mtime, so re-reading
+        it after the write picks up the new entry; we then refresh the app's
+        ``_user_snippets`` and clear ``_snippets_cache`` so the next
+        ``get_snippets()`` rebuilds with the new template.
+        """
+        from sase.config import load_merged_config
+
+        merged = load_merged_config()
+        ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
+        raw = ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
+        if isinstance(raw, dict):
+            self._user_snippets = {
+                key: value
+                for key, value in raw.items()
+                if isinstance(key, str) and isinstance(value, str)
+            }
+        else:
+            self._user_snippets = {}
+        self._snippets_cache = None
 
     async def _ask_new_xprompt_name(
         self,
@@ -245,7 +372,13 @@ class PromptBarSaveXpromptMixin:
         self._offer_git_commit(target.path, is_new=is_new, xprompt_name=toast_name)
 
     def _offer_git_commit(
-        self, file_path: str, *, is_new: bool, xprompt_name: str
+        self,
+        file_path: str,
+        *,
+        is_new: bool,
+        xprompt_name: str,
+        noun: str = "xprompt",
+        commit_type: str = "xprompt",
     ) -> None:
         """If the file is in a git repo and has changes, offer to commit/push."""
         from ...modals import ConfirmActionModal
@@ -257,10 +390,10 @@ class PromptBarSaveXpromptMixin:
 
         rel_path = os.path.relpath(file_path, git_root)
         verb = "Add" if is_new else "Update"
-        subject = f"chore: {verb} xprompt {xprompt_name}"
+        subject = f"chore: {verb} {noun} {xprompt_name}"
         from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
-        message = apply_auto_commit_type_tag(subject, "xprompt")
+        message = apply_auto_commit_type_tag(subject, commit_type)
 
         def _on_commit_push_answer(confirmed: bool | None) -> None:
             if not confirmed:
@@ -270,6 +403,7 @@ class PromptBarSaveXpromptMixin:
                 file_path=file_path,
                 rel_path=rel_path,
                 message=message,
+                noun=noun,
             )
 
         self.push_screen(  # type: ignore[attr-defined]
@@ -287,6 +421,7 @@ class PromptBarSaveXpromptMixin:
         file_path: str,
         rel_path: str,
         message: str,
+        noun: str = "xprompt",
     ) -> None:
         """Run the git commit/push flow through the tracked task queue."""
 
@@ -314,19 +449,19 @@ class PromptBarSaveXpromptMixin:
         submit = getattr(self, "_submit_tracked_task", None)
         if submit is None:
             self.notify(  # type: ignore[attr-defined]
-                "Could not commit xprompt: background task queue unavailable.",
+                f"Could not commit {noun}: background task queue unavailable.",
                 severity="error",
             )
             return
 
         submit(
-            "xprompt-commit",
+            f"{noun}-commit",
             rel_path,
             git_root,
             _task,
-            display_name=f"commit xprompt {rel_path}",
-            dedup_key=f"xprompt-commit:{git_root}:{rel_path}",
-            duplicate_message=f"An xprompt commit is already running for {rel_path}.",
+            display_name=f"commit {noun} {rel_path}",
+            dedup_key=f"{noun}-commit:{git_root}:{rel_path}",
+            duplicate_message=f"Another {noun} commit is already running for {rel_path}.",
             on_complete=_on_complete,
             reload_on_complete=False,
             notify_on_complete=False,
@@ -424,6 +559,40 @@ def _existing_names_for_location(location: XPromptLocation) -> set[str]:
     if not isinstance(xprompts, dict):
         return set()
     return {str(name) for name in xprompts}
+
+
+def _existing_snippet_names(config_path: str) -> set[str]:
+    """Return the snippet triggers defined in *config_path* only.
+
+    Reads ``ace.snippets`` from the single selected YAML file (not the merged
+    config) so the name modal's "already defined" warning and overwrite behavior
+    reflect what writing to this file would actually replace.
+    """
+    import yaml  # type: ignore[import-untyped]
+
+    path = Path(config_path)
+    if not path.is_file():
+        return set()
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception:
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    ace = data.get("ace")
+    if not isinstance(ace, dict):
+        return set()
+    snippets = ace.get("snippets")
+    if not isinstance(snippets, dict):
+        return set()
+    return {str(name) for name in snippets}
+
+
+def _write_snippet_sync(config_path: str, name: str, body: str) -> None:
+    from sase.xprompt.snippet_config_yaml import insert_snippet_into_config
+
+    if not insert_snippet_into_config(config_path, name, body):
+        raise RuntimeError("snippet insertion failed")
 
 
 def _name_exists_at_location(

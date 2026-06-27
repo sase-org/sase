@@ -119,6 +119,42 @@ async def test_create_new_is_pinned_first_and_selectable() -> None:
     assert app.result == XPromptSaveTarget(kind="create")
 
 
+async def test_create_snippet_option_hidden_when_not_allowed() -> None:
+    app = _SaveTargetApp(XPromptSaveTargetModal([], pane_count=1))
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        modal = app.screen
+        assert isinstance(modal, XPromptSaveTargetModal)
+        option_list = modal.query_one("#save-target-list", OptionList)
+        ids = [
+            option_list.get_option_at_index(i).id
+            for i in range(option_list.option_count)
+        ]
+        assert "__create_snippet__" not in ids
+        await pilot.pause()
+
+
+async def test_create_snippet_option_shown_and_selectable_when_allowed() -> None:
+    app = _SaveTargetApp(
+        XPromptSaveTargetModal([], pane_count=1, allow_create_snippet=True)
+    )
+
+    async with app.run_test(size=(100, 32)) as pilot:
+        modal = app.screen
+        assert isinstance(modal, XPromptSaveTargetModal)
+        option_list = modal.query_one("#save-target-list", OptionList)
+        assert option_list.get_option_at_index(0).id == "__create__"
+        assert option_list.get_option_at_index(1).id == "__create_snippet__"
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        assert option_list.highlighted == 1
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert app.result == XPromptSaveTarget(kind="create_snippet")
+
+
 async def test_disabled_rows_are_skipped_by_navigation() -> None:
     disabled = _XPromptSaveRow(
         name="read_only",

@@ -1,0 +1,193 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml  # type: ignore[import-untyped]
+
+from sase.xprompt.snippet_config_yaml import insert_snippet_into_config
+
+
+def _insert(
+    tmp_path: Path,
+    initial_text: str,
+    name: str,
+    template: str,
+    *,
+    file_exists: bool = True,
+) -> str:
+    config = tmp_path / "sase.yml"
+    if file_exists:
+        config.write_text(initial_text, encoding="utf-8")
+    assert insert_snippet_into_config(str(config), name, template) is True
+    return config.read_text(encoding="utf-8")
+
+
+def _snippets(text: str) -> dict[str, str]:
+    data = yaml.safe_load(text)
+    return data["ace"]["snippets"]
+
+
+def test_creates_ace_snippets_in_empty_file(tmp_path: Path) -> None:
+    text = _insert(tmp_path, "", "foo", "hello $1 world$0")
+
+    assert text == ("ace:\n  snippets:\n    foo: |\n      hello $1 world$0\n")
+    assert _snippets(text) == {"foo": "hello $1 world$0\n"}
+
+
+def test_creates_ace_snippets_when_file_missing(tmp_path: Path) -> None:
+    text = _insert(tmp_path, "", "foo", "body", file_exists=False)
+
+    assert _snippets(text) == {"foo": "body\n"}
+
+
+def test_multiline_template_round_trips_as_block_scalar(tmp_path: Path) -> None:
+    template = "first line\n\nthird line$0"
+    text = _insert(tmp_path, "", "multi", template)
+
+    assert "    multi: |\n      first line\n\n      third line$0\n" in text
+    assert _snippets(text)["multi"] == "first line\n\nthird line$0\n"
+
+
+def test_inserts_under_existing_ace_without_disturbing_siblings(
+    tmp_path: Path,
+) -> None:
+    initial = (
+        "ace:\n"
+        "  # keep this comment\n"
+        '  repro_output_dir: ""\n'
+        "  inactive_seconds: 600\n"
+        "\n"
+        "other_top: 1\n"
+    )
+
+    text = _insert(tmp_path, initial, "foo", "body$0")
+
+    assert text == (
+        "ace:\n"
+        "  # keep this comment\n"
+        '  repro_output_dir: ""\n'
+        "  inactive_seconds: 600\n"
+        "  snippets:\n"
+        "    foo: |\n"
+        "      body$0\n"
+        "\n"
+        "other_top: 1\n"
+    )
+
+
+def test_inserts_into_existing_ace_snippets(tmp_path: Path) -> None:
+    initial = "ace:\n  snippets:\n    alpha: |\n      A$0\n"
+
+    text = _insert(tmp_path, initial, "bravo", "B$0")
+
+    # Sorted section keeps sorted order.
+    assert text == (
+        "ace:\n  snippets:\n    alpha: |\n      A$0\n    bravo: |\n      B$0\n"
+    )
+
+
+def test_creates_snippets_under_empty_ace_mapping(tmp_path: Path) -> None:
+    initial = "ace: {}\n"
+
+    text = _insert(tmp_path, initial, "foo", "body$0")
+
+    assert text == ("ace:\n  snippets:\n    foo: |\n      body$0\n")
+
+
+def test_creates_entries_under_empty_snippets_mapping(tmp_path: Path) -> None:
+    initial = "ace:\n  snippets: {}\n"
+
+    text = _insert(tmp_path, initial, "foo", "body$0")
+
+    assert text == ("ace:\n  snippets:\n    foo: |\n      body$0\n")
+
+
+def test_overwrite_replaces_only_matching_block(tmp_path: Path) -> None:
+    initial = (
+        "ace:\n"
+        "  snippets:\n"
+        "    # snippet comment\n"
+        "    alpha: |\n"
+        "      A$0\n"
+        "    bravo: |\n"
+        "      B$0\n"
+        "    charlie: |\n"
+        "      C$0\n"
+    )
+
+    text = _insert(tmp_path, initial, "bravo", "updated$0")
+
+    assert text == (
+        "ace:\n"
+        "  snippets:\n"
+        "    # snippet comment\n"
+        "    alpha: |\n"
+        "      A$0\n"
+        "    bravo: |\n"
+        "      updated$0\n"
+        "    charlie: |\n"
+        "      C$0\n"
+    )
+
+
+def test_unsorted_section_appends_without_reordering(tmp_path: Path) -> None:
+    initial = (
+        "ace:\n  snippets:\n    charlie: |\n      C$0\n\n    alpha: |\n      A$0\n"
+    )
+
+    text = _insert(tmp_path, initial, "bravo", "B$0")
+
+    assert text == (
+        "ace:\n"
+        "  snippets:\n"
+        "    charlie: |\n"
+        "      C$0\n"
+        "\n"
+        "    alpha: |\n"
+        "      A$0\n"
+        "\n"
+        "    bravo: |\n"
+        "      B$0\n"
+    )
+
+
+def test_preserves_unrelated_comments_blank_lines_and_ordering(
+    tmp_path: Path,
+) -> None:
+    initial = (
+        "# top comment\n"
+        "use_chezmoi: false\n"
+        "\n"
+        "ace:\n"
+        "  snippets:\n"
+        "    # keep-sorted start\n"
+        "    alpha: |\n"
+        "      A$0\n"
+        "    gamma: |\n"
+        "      G$0\n"
+        "    # keep-sorted end\n"
+        "\n"
+        "xprompts:\n"
+        "  foo: bar\n"
+    )
+
+    text = _insert(tmp_path, initial, "beta", "B$0")
+
+    assert text == (
+        "# top comment\n"
+        "use_chezmoi: false\n"
+        "\n"
+        "ace:\n"
+        "  snippets:\n"
+        "    # keep-sorted start\n"
+        "    alpha: |\n"
+        "      A$0\n"
+        "    beta: |\n"
+        "      B$0\n"
+        "    gamma: |\n"
+        "      G$0\n"
+        "    # keep-sorted end\n"
+        "\n"
+        "xprompts:\n"
+        "  foo: bar\n"
+    )

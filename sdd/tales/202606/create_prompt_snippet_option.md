@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 08:09:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/create_prompt_snippet_option.md
 ---
 # Plan: Add Prompt Save-As Snippet Option

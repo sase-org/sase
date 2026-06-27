@@ -31,7 +31,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("g=", "Frontmatter panel"),
         ("Ctrl+S", "Stash pane (panel if empty)"),
         ("gs / Ctrl+G s", "Stash all panes"),
-        ("gx / Ctrl+G x", "Save draft as xprompt"),
+        ("gx / Ctrl+G x", "Save draft as xprompt/snippet"),
         ("gX / Ctrl+G X", "Save pane as local xprompt"),
         ("Ctrl+G p / @", "Stashed prompts panel"),
         ("Enter", "Submit (chooser when stacked)"),

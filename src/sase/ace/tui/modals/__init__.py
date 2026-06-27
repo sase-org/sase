@@ -64,6 +64,12 @@ from .saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
     SavedAgentGroupRevivalResult,
 )
+from .snippet_config_location_modal import (
+    SnippetConfigLocation,
+    SnippetConfigLocationModal,
+    load_snippet_config_locations,
+)
+from .snippet_name_modal import SnippetNameModal
 from .snooze_duration_modal import SnoozeDurationModal
 from .runners_modal import (
     BackgroundTaskEntry,
@@ -217,7 +223,11 @@ __all__ = [
     "BackgroundTaskEntry",
     "RunnerJumpTarget",
     "RunnersModal",
+    "SnippetConfigLocation",
+    "SnippetConfigLocationModal",
+    "SnippetNameModal",
     "SnoozeDurationModal",
+    "load_snippet_config_locations",
     "get_runner_count",
     "SelectionItem",
     "StatusModal",
