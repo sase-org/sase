@@ -47,7 +47,8 @@ class Cancelled(Message, namespace="prompt_input_bar"):
     ``keep_bar`` is set when only the selected pane was cancelled while other
     panes remain; the app records ``cancelled_text`` as cancelled history but
     leaves the bar mounted.  Without it the whole bar is being dismissed, as
-    before.
+    before. ``record_segments`` controls whether a joined multi-prompt is also
+    expanded into per-segment history entries.
     """
 
     def __init__(
@@ -56,11 +57,13 @@ class Cancelled(Message, namespace="prompt_input_bar"):
         mode: str = "prompt",
         *,
         keep_bar: bool = False,
+        record_segments: bool = True,
     ) -> None:
         super().__init__()
         self.cancelled_text = cancelled_text
         self.mode = mode
         self.keep_bar = keep_bar
+        self.record_segments = record_segments
 
 
 class Stashed(Message, namespace="prompt_input_bar"):

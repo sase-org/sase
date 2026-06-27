@@ -116,4 +116,6 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         """Return the visible continuation label for a prompt ``g`` key."""
         if key == "enter":
             return "<enter>"
+        if key == "ctrl+c":
+            return "^C"
         return key

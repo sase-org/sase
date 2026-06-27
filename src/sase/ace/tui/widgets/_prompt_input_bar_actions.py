@@ -127,6 +127,23 @@ class PromptInputBarActionsMixin(_MixinBase):
             self.Cancelled(cancelled_text=self.current_prompt_text(), mode=self._mode)
         )
 
+    def action_cancel_all(self) -> None:
+        """Cancel the whole prompt stack as one history entry."""
+        if self._mode != "prompt":
+            self.action_cancel()
+            return
+
+        self._sync_state_from_widgets()
+        self._clear_active_completion_state()
+        self.post_message(
+            self.Cancelled(
+                cancelled_text=self.current_prompt_text(),
+                mode=self._mode,
+                keep_bar=False,
+                record_segments=False,
+            )
+        )
+
     def insert_snippet(
         self,
         snippet_name: str,

@@ -119,6 +119,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
 
         assert _entry_pairs(bar, via_ctrl_g=True) == [
             ("enter", "submit this draft"),
+            ("ctrl+c", "cancel all panes"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("x", "save as xprompt"),
@@ -143,6 +144,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
         ]
         assert _entry_pairs(bar, via_ctrl_g=True) == [
             ("enter", "submit this draft"),
+            ("ctrl+c", "cancel all panes"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("S", "update pinned stash"),
@@ -185,7 +187,9 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("X", "save as local xprompt"),
         ]
 
-        assert _entry_pairs(bar, via_ctrl_g=True)[-1] == ("p", "stashed prompts…")
+        ctrl_g_entries = _entry_pairs(bar, via_ctrl_g=True)
+        assert ("ctrl+c", "cancel all panes") in ctrl_g_entries
+        assert ctrl_g_entries[-1] == ("p", "stashed prompts…")
 
 
 async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
@@ -259,6 +263,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         plain = panel.render().plain
         assert "^Gg / ^G^G   edit in editor" in plain
         assert "^G<enter>   submit this draft" in plain
+        assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gp   stashed prompts…" in plain
@@ -288,6 +293,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         plain = panel.render().plain
         assert "^Gg / ^G^G   edit in editor" in plain
         assert "^G<enter>   submit this draft" in plain
+        assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
         assert "^Gs" not in plain
@@ -532,6 +538,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             bar, "move_active_pane", lambda delta, **_: calls.append(f"move{delta:+d}")
         )
         monkeypatch.setattr(bar, "submit_active_pane", lambda: calls.append("enter"))
+        monkeypatch.setattr(bar, "action_cancel_all", lambda: calls.append("ctrl+c"))
         monkeypatch.setattr(bar, "add_bottom_pane", lambda: calls.append("-"))
         monkeypatch.setattr(bar, "toggle_frontmatter_panel", lambda: calls.append("="))
         monkeypatch.setattr(bar, "stash_all_panes", lambda: calls.append("s"))
@@ -548,6 +555,8 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
 
         for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S", "x", "X"):
             assert bar.dispatch_g_prefix_key(key) is True
+        assert bar.dispatch_g_prefix_key("ctrl+c") is False
+        assert bar.dispatch_g_prefix_key("ctrl+c", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("S", via_ctrl_g=True) is True
@@ -569,6 +578,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "S",
             "x",
             "X",
+            "ctrl+c",
             "p",
             "S",
         ]

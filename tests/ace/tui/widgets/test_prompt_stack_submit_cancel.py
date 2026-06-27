@@ -18,6 +18,7 @@ import pytest
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
@@ -320,6 +321,83 @@ async def test_ctrl_s_is_noop_in_feedback_mode() -> None:
 
 
 # --- <ctrl+c>: per-pane cancel ---------------------------------------------
+
+
+async def test_ctrl_g_ctrl_c_cancels_all_panes_from_insert() -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "ctrl+c")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.cancelled) == 1
+        event = app.cancelled[0]
+        assert event.cancelled_text == "first\n---\nsecond\n---\nthird"
+        assert event.keep_bar is False
+        assert event.record_segments is False
+        assert app.submitted == []
+
+
+async def test_ctrl_g_ctrl_c_cancels_all_panes_from_normal() -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("escape", "ctrl+g", "ctrl+c")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.cancelled) == 1
+        event = app.cancelled[0]
+        assert event.cancelled_text == "first\n---\nsecond\n---\nthird"
+        assert event.keep_bar is False
+        assert event.record_segments is False
+
+
+async def test_ctrl_g_ctrl_c_cancel_all_preserves_frontmatter_xprompts() -> None:
+    prompt = "---\nxprompts:\n  _rules: Follow the checklist\n---\nfirst\n---\nsecond"
+    app = _CaptureApp(prompt)
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("ctrl+g", "ctrl+c")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.cancelled) == 1
+        event = app.cancelled[0]
+        assert event.cancelled_text == prompt
+        assert event.keep_bar is False
+        assert event.record_segments is False
+
+
+async def test_ctrl_g_ctrl_c_from_frontmatter_panel_cancels_all_panes() -> None:
+    app = _CaptureApp("---\ndescription: keep\n---\nfirst\n---\nsecond")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.focus_frontmatter_panel()
+        await pilot.pause()
+        await pilot.pause()
+
+        assert app.focused is app.query_one(FrontmatterPanel)
+        await pilot.press("ctrl+g", "ctrl+c")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.cancelled) == 1
+        event = app.cancelled[0]
+        assert event.cancelled_text == (
+            "---\ndescription: keep\n---\nfirst\n---\nsecond"
+        )
+        assert event.keep_bar is False
+        assert event.record_segments is False
 
 
 async def test_ctrl_c_cancels_only_selected_pane_and_keeps_bar() -> None:

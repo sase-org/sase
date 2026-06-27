@@ -46,6 +46,13 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_submit_active",
     ),
     _PromptGPrefixBinding(
+        "ctrl+c",
+        "action_cancel_all",
+        "_g_prefix_label_cancel_all",
+        "_g_prefix_available_cancel_all",
+        ctrl_g_only=True,
+    ),
+    _PromptGPrefixBinding(
         "j",
         "_g_focus_next_pane",
         "_g_prefix_label_focus_next",
@@ -129,6 +136,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
+        def action_cancel_all(self) -> None: ...
         def add_bottom_pane(self) -> None: ...
         def convert_active_pane_to_local_xprompt(
             self, *, target_mode: str = "normal"
@@ -222,6 +230,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         """Whether ``g<enter>`` can submit the active prompt pane."""
         return self._mode == "prompt"
 
+    def _g_prefix_available_cancel_all(self) -> bool:
+        """Whether ``Ctrl+G Ctrl+C`` can cancel the whole prompt stack."""
+        return self._mode == "prompt"
+
     def _g_prefix_available_add_pane(self) -> bool:
         """Whether ``g-`` can append a bottom pane (prompt mode only)."""
         return self._mode == "prompt"
@@ -303,6 +315,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         if len(self._stack) > 1:
             return "launch this pane"
         return "submit this draft"
+
+    def _g_prefix_label_cancel_all(self) -> str:
+        """Return the ``Ctrl+G Ctrl+C`` label."""
+        return "cancel all panes"
 
     def _g_prefix_label_add_pane(self) -> str:
         """Return the ``g-`` label."""

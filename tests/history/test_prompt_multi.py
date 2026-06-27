@@ -101,6 +101,26 @@ def test_cancelled_multi_prompt_saves_cancelled_segments(tmp_path: Path) -> None
             assert entry.cancelled is True
 
 
+def test_cancelled_multi_prompt_can_save_only_combined_entry(
+    tmp_path: Path,
+) -> None:
+    """Test that cancel-all can preserve a joined prompt as one history entry."""
+    test_file = tmp_path / "prompt_history.json"
+    prompt = "Draft fix\n---\nDraft tests"
+    with (
+        patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
+        patch(
+            "sase.history.prompt_store.generate_timestamp", return_value="251231_143052"
+        ),
+    ):
+        add_or_update_prompt(prompt, cancelled=True, record_segments=False)
+        result = load_prompt_history()
+
+        assert len(result) == 1
+        assert result[0].text == prompt
+        assert result[0].cancelled is True
+
+
 def test_single_segment_with_frontmatter_does_not_split(tmp_path: Path) -> None:
     """Test that a single-segment prompt with frontmatter does NOT split."""
     test_file = tmp_path / "prompt_history.json"

@@ -139,13 +139,17 @@ class PromptBarMountMixin:
             return ""
         return self._save_text_as_cancelled(text)
 
-    def _save_text_as_cancelled(self, text: str) -> str:
+    def _save_text_as_cancelled(
+        self, text: str, *, record_segments: bool = True
+    ) -> str:
         """Save *text* to prompt history as cancelled, with file references.
 
         Shared by the whole-bar cancel safety net and the Phase 4 per-pane
         ``<ctrl+c>`` cancel, which records only the cancelled pane's text.
-        Empty / whitespace-only text is ignored, and ``add_or_update_prompt``
-        never downgrades a non-cancelled entry to cancelled.
+        Empty / whitespace-only text is ignored. ``record_segments`` lets the
+        all-pane cancel path preserve the joined stack as one history row, and
+        ``add_or_update_prompt`` never downgrades a non-cancelled entry to
+        cancelled.
         """
         text = text.strip()
         if not text:
@@ -154,7 +158,10 @@ class PromptBarMountMixin:
         from sase.history.prompt import add_or_update_prompt, is_recordable_prompt
 
         recorded = is_recordable_prompt(text)
-        add_or_update_prompt(text, cancelled=True)
+        if record_segments:
+            add_or_update_prompt(text, cancelled=True)
+        else:
+            add_or_update_prompt(text, cancelled=True, record_segments=False)
 
         from sase.history.file_references import (
             extract_recordable_file_refs,
@@ -195,6 +202,10 @@ class PromptBarMountMixin:
         non-cancelled history entry, and routing through the cancel path
         would race that write with a stale ``cancelled=True`` entry.
         """
+        self._unmount_prompt_bar_without_cancel_save()
+
+    def _unmount_prompt_bar_without_cancel_save(self) -> None:
+        """Unmount the prompt input bar without the cancelled-history safety net."""
         from ...widgets import PromptInputBar
 
         try:

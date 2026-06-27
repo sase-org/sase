@@ -79,6 +79,20 @@ class PromptBarSubmitMixin:
                 self._notify_prompt_cancelled(stored, pane=True)
             return
 
+        if not event.record_segments:
+            # All-pane cancel: the widget emitted the canonical joined stack.
+            # Save that exact prompt once, then detach without the ordinary
+            # unmount safety net re-reading and writing it a second time.
+            stored = self._save_text_as_cancelled(  # type: ignore[attr-defined]
+                event.cancelled_text,
+                record_segments=False,
+            )
+            self._unmount_prompt_bar_without_cancel_save()  # type: ignore[attr-defined]
+            self._prompt_context = None
+            if stored:
+                self._notify_prompt_cancelled(stored, pane=False)
+            return
+
         stored = self._unmount_prompt_bar()  # type: ignore[attr-defined]
         self._prompt_context = None
         if stored:

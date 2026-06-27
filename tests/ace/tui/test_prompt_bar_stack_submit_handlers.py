@@ -50,7 +50,9 @@ class _SubmitHarness(PromptBarSubmitMixin):
         self._approve_prompt_context = None
         self.finish_calls: list[tuple[str, bool]] = []
         self.saved_cancelled: list[str] = []
+        self.saved_record_segments: list[bool] = []
         self.unmount_calls = 0
+        self.unmount_without_save_calls = 0
         self.unmount_return = "stored prompt"
         self.notifications: list[tuple[str, str | None, str | None]] = []
 
@@ -66,14 +68,23 @@ class _SubmitHarness(PromptBarSubmitMixin):
     def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
         self.finish_calls.append((prompt, keep_bar))
 
-    def _save_text_as_cancelled(self, text: str) -> str:
+    def _save_text_as_cancelled(
+        self,
+        text: str,
+        *,
+        record_segments: bool = True,
+    ) -> str:
         self.saved_cancelled.append(text)
+        self.saved_record_segments.append(record_segments)
         stripped = text.strip()
         return stripped if is_recordable_prompt(stripped) else ""
 
     def _unmount_prompt_bar(self) -> str:
         self.unmount_calls += 1
         return self.unmount_return
+
+    def _unmount_prompt_bar_without_cancel_save(self) -> None:
+        self.unmount_without_save_calls += 1
 
 
 # --- submit routing --------------------------------------------------------
@@ -126,7 +137,9 @@ def test_per_pane_cancel_saves_only_that_pane_and_keeps_bar() -> None:
     )
 
     assert harness.saved_cancelled == ["cancelled pane"]
+    assert harness.saved_record_segments == [True]
     assert harness.unmount_calls == 0
+    assert harness.unmount_without_save_calls == 0
     assert harness._prompt_context is not None
     assert harness.notifications == [
         (
@@ -145,7 +158,33 @@ def test_per_pane_cancel_skips_toast_when_text_was_not_stored() -> None:
     )
 
     assert harness.saved_cancelled == ["#gh:sase"]
+    assert harness.saved_record_segments == [True]
     assert harness.notifications == []
+
+
+def test_all_pane_cancel_saves_single_joined_entry_and_detaches_once() -> None:
+    harness = _SubmitHarness()
+
+    harness.on_prompt_input_bar_cancelled(
+        PromptInputBar.Cancelled(
+            "first\n---\nsecond",
+            "prompt",
+            record_segments=False,
+        )
+    )
+
+    assert harness.saved_cancelled == ["first\n---\nsecond"]
+    assert harness.saved_record_segments == [False]
+    assert harness.unmount_calls == 0
+    assert harness.unmount_without_save_calls == 1
+    assert harness._prompt_context is None
+    assert harness.notifications == [
+        (
+            '"first --- second"',
+            None,
+            "Prompt input cancelled — saved to history",
+        )
+    ]
 
 
 def test_whole_bar_cancel_unmounts_and_clears_context() -> None:
@@ -157,7 +196,9 @@ def test_whole_bar_cancel_unmounts_and_clears_context() -> None:
     # The whole-bar cancel saves through the unmount safety net, not the
     # explicit per-pane save helper.
     assert harness.saved_cancelled == []
+    assert harness.saved_record_segments == []
     assert harness.unmount_calls == 1
+    assert harness.unmount_without_save_calls == 0
     assert harness._prompt_context is None
     assert harness.notifications == [
         (
@@ -177,6 +218,7 @@ def test_whole_bar_cancel_skips_toast_when_text_was_not_stored() -> None:
     )
 
     assert harness.unmount_calls == 1
+    assert harness.unmount_without_save_calls == 0
     assert harness._prompt_context is None
     assert harness.notifications == []
 

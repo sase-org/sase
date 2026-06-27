@@ -96,6 +96,9 @@ class FrontmatterPanel(
         self._edit_mode = "rows"
         # Pending panel-local ``g`` prefix (rows mode only); ``g=`` deactivates.
         self._pending_g = False
+        # Pending prompt-local ``Ctrl+G`` prefix; ``Ctrl+G Ctrl+C`` forwards a
+        # whole-stack cancel to the host bar even when the panel owns focus.
+        self._pending_ctrl_g = False
         self._editing_field: str | None = None
         self._adding_field: str | None = None
         self._content_lines = 1
@@ -133,6 +136,7 @@ class FrontmatterPanel(
         self._selected = min(self._selected, max(0, len(self._fields) - 1))
         self._edit_mode = "rows"
         self._pending_g = False
+        self._pending_ctrl_g = False
         self._editing_field = None
         self._adding_field = None
         self._show_rows_only()
@@ -142,6 +146,7 @@ class FrontmatterPanel(
         """Focus the panel for row navigation (the ``g=`` show/focus target)."""
         self._edit_mode = "rows"
         self._pending_g = False
+        self._pending_ctrl_g = False
         self._show_rows_only()
         self.focus()
         self._refresh()
@@ -177,18 +182,23 @@ class FrontmatterPanel(
           discarding the invalid edit).
         """
         if self._edit_mode == "edit":
+            self._pending_ctrl_g = False
             self._cancel_inline_edit()
             self._close()
             return
         if self._edit_mode == "raw":
+            self._pending_ctrl_g = False
             self._commit_raw()
             if self._edit_mode == "rows":
                 self._close()
             return
+        self._pending_ctrl_g = False
         self._close()
 
     def on_key(self, event: events.Key) -> None:
         """Dispatch panel keys, deferring to child editors while editing."""
+        if self._handle_ctrl_g_prefix(event):
+            return
         if self._edit_mode == "edit":
             # Inline editing: literal text entry is preserved (``g`` / ``=`` type
             # into the child ``Input``); only ``esc`` is intercepted here.
@@ -247,6 +257,40 @@ class FrontmatterPanel(
             handled = False
         if handled:
             event.stop()
+
+    def _handle_ctrl_g_prefix(self, event: events.Key) -> bool:
+        """Forward the explicit ``Ctrl+G Ctrl+C`` chord to the host prompt bar."""
+        if self._pending_ctrl_g:
+            self._pending_ctrl_g = False
+            if event.key == "escape":
+                event.stop()
+                event.prevent_default()
+                return True
+            if event.key == "ctrl+c":
+                event.stop()
+                event.prevent_default()
+                bar = self._host_prompt_bar()
+                action = getattr(bar, "action_cancel_all", None)
+                if callable(action):
+                    action()
+                return True
+            return False
+
+        if event.key != "ctrl+g":
+            return False
+        event.stop()
+        event.prevent_default()
+        self._pending_ctrl_g = True
+        return True
+
+    def _host_prompt_bar(self) -> object | None:
+        """Return the containing prompt bar without importing it at module load."""
+        node = self.parent
+        while node is not None:
+            if callable(getattr(node, "action_cancel_all", None)):
+                return node
+            node = node.parent
+        return None
 
     def _move(self, delta: int) -> None:
         """Move the row selection by *delta* (clamped over nav rows)."""

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 13:24:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/ctrl_g_ctrl_c_cancel_all.md
 ---
 # Plan: Ctrl+G Ctrl+C Cancel All Prompt Panes

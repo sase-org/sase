@@ -481,6 +481,7 @@ def add_or_update_prompt(
     *,
     cancelled: bool = False,
     allow_short: bool = False,
+    record_segments: bool = True,
 ) -> None:
     """Add a new prompt or update an existing prompt's last_used timestamp.
 
@@ -494,13 +495,17 @@ def add_or_update_prompt(
         allow_short: If True, record the prompt even when it is shorter than
             the normal history threshold. This is used for replayable generated
             fanout invocations such as a bare multi-agent xprompt trigger.
+        record_segments: If True, multi-prompts also record their individual
+            long-enough segments. If False, only the exact prompt text passed by
+            the caller is written.
     """
     if not is_recordable_prompt(text, allow_short=allow_short):
         return
 
     current_timestamp = generate_timestamp()
     mutations = [_PromptMutation(text=text, cancelled=cancelled)]
-    mutations.extend(_multi_prompt_segment_mutations(text, cancelled=cancelled))
+    if record_segments:
+        mutations.extend(_multi_prompt_segment_mutations(text, cancelled=cancelled))
 
     _apply_prompt_mutations(mutations, current_timestamp)
 
