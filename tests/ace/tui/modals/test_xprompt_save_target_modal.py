@@ -155,6 +155,20 @@ async def test_create_snippet_option_shown_and_selectable_when_allowed() -> None
     assert app.result == XPromptSaveTarget(kind="create_snippet")
 
 
+def test_snippet_preview_notes_current_pane_for_multi_pane_draft() -> None:
+    modal = XPromptSaveTargetModal([], pane_count=3, allow_create_snippet=True)
+    preview = modal._create_snippet_preview()
+    assert "current pane only" in preview
+    assert "3 panes" in preview
+
+
+def test_snippet_preview_describes_single_pane_source() -> None:
+    modal = XPromptSaveTargetModal([], pane_count=1, allow_create_snippet=True)
+    preview = modal._create_snippet_preview()
+    assert "the current prompt pane." in preview
+    assert "panes in the draft" not in preview
+
+
 async def test_disabled_rows_are_skipped_by_navigation() -> None:
     disabled = _XPromptSaveRow(
         name="read_only",

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 11:16:39
-status: wip
+status: done
 prompt: sdd/prompts/202606/always_show_create_snippet.md
 ---
 # Always Offer Prompt Snippet Creation from `gx`

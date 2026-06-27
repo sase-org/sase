@@ -120,14 +120,23 @@ class UpdatePinnedRequested(Message, namespace="prompt_input_bar"):
 class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
     """Message sent when the user asks to save the draft as an xprompt.
 
-    The bar captures every non-empty prompt pane plus shared frontmatter, but
-    leaves the stack mounted and unchanged. A frontmatter-only draft is carried
-    as one empty pane with frontmatter so the app can still serialize it.
+    The message carries two distinct save sources:
+
+    - ``panes`` is the *xprompt* body source: every non-empty prompt pane plus
+      shared frontmatter (the stack stays mounted and unchanged). A
+      frontmatter-only draft is carried as one empty pane with frontmatter so
+      the app can still serialize it. The app joins these panes with
+      ``\n---\n`` for xprompt creation / overwrite.
+    - ``snippet_body`` is the *snippet* body source: only the active pane's
+      stripped text, so choosing "Create a new snippet..." saves that single
+      pane even when the stack holds several ``---`` panes. ``None`` marks a
+      legacy/direct event that carried no separate snippet source, in which case
+      the app falls back to the single-pane body when that is unambiguous.
 
     ``single_pane`` reflects whether the bar held exactly one prompt pane *before*
-    empty panes were filtered out. The app uses it to gate the "save as snippet"
-    option, which only makes sense for a single-prompt draft (snippets cannot
-    carry multi-agent ``---`` separators).
+    empty panes were filtered out. It is retained only as compatibility/context;
+    the snippet option is now always offered, with ``snippet_body`` as its
+    source.
     """
 
     def __init__(
@@ -135,10 +144,12 @@ class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
         panes: list[StashedPromptPane],
         *,
         single_pane: bool = False,
+        snippet_body: str | None = None,
     ) -> None:
         super().__init__()
         self.panes = panes
         self.single_pane = single_pane
+        self.snippet_body = snippet_body
 
 
 class EditorRequested(Message, namespace="prompt_input_bar"):

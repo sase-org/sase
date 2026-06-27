@@ -284,7 +284,7 @@ async def test_single_pane_request_enables_snippet_option() -> None:
     assert modal._allow_create_snippet is True
 
 
-async def test_multi_pane_request_disables_snippet_option() -> None:
+async def test_multi_pane_request_enables_snippet_option() -> None:
     harness = _SaveHarness()
 
     with _patch_save_rows():
@@ -295,12 +295,14 @@ async def test_multi_pane_request_disables_snippet_option() -> None:
                     StashedPromptPane(text="beta", frontmatter=""),
                 ],
                 single_pane=False,
+                snippet_body="beta",
             )
         )
 
     modal, _on_target = harness.pushed[0]
     assert isinstance(modal, XPromptSaveTargetModal)
-    assert modal._allow_create_snippet is False
+    # The snippet option is now always offered, even for multi-pane drafts.
+    assert modal._allow_create_snippet is True
 
 
 async def test_create_snippet_flow_writes_refreshes_and_offers_commit(
@@ -422,6 +424,90 @@ async def test_create_snippet_same_name_overwrites_without_confirmation(
     # target picker, config selector, and name modal.
     assert len(harness.pushed) == 3
     assert _snippets_of(config.read_text(encoding="utf-8")) == {"foo": "new body\n"}
+
+
+async def test_create_snippet_flow_multi_pane_writes_only_active_pane(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "sase.yml"
+    config.write_text(
+        "ace:\n  snippets:\n    existing: |\n      old$0\n",
+        encoding="utf-8",
+    )
+    location = SnippetConfigLocation(
+        label="User sase.yml",
+        path=str(config),
+        display_path="~/.config/sase/sase.yml",
+    )
+    harness = _SaveHarness()
+
+    def _fake_merged() -> dict[str, object]:
+        return yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+
+    with (
+        _patch_save_rows(),
+        patch(
+            "sase.ace.tui.modals.load_snippet_config_locations",
+            return_value=[location],
+        ),
+        patch("sase.config.load_merged_config", _fake_merged),
+        patch("sase.xprompt.snippet_bridge.get_xprompt_snippets", return_value={}),
+    ):
+        # Multi-pane draft: the xprompt body joins both panes, but ``snippet_body``
+        # carries only the active pane ("beta").
+        await harness.on_prompt_input_bar_save_as_xprompt_requested(
+            PromptInputBar.SaveAsXpromptRequested(
+                [
+                    StashedPromptPane(text="alpha", frontmatter=""),
+                    StashedPromptPane(text="beta", frontmatter=""),
+                ],
+                single_pane=False,
+                snippet_body="beta",
+            )
+        )
+        _target_modal, on_target = harness.pushed[0]
+        on_target(XPromptSaveTarget(kind="create_snippet"))
+        await _wait_save_tasks(harness)
+        _config_modal, on_location = harness.pushed[1]
+        on_location(location)
+        await _wait_save_tasks(harness)
+        name_modal, on_name = harness.pushed[2]
+        assert isinstance(name_modal, SnippetNameModal)
+        on_name("multi")
+        await _wait_save_tasks(harness)
+
+    written = config.read_text(encoding="utf-8")
+    # Only the active-pane body is written, never the ``\n---\n``-joined body.
+    assert _snippets_of(written) == {"existing": "old$0\n", "multi": "beta\n"}
+    assert "alpha" not in written
+    assert "---" not in written
+
+
+async def test_blank_snippet_body_selection_warns_and_skips_flow() -> None:
+    harness = _SaveHarness()
+
+    with _patch_save_rows():
+        # Frontmatter-only draft: the xprompt body is empty and the active pane
+        # carries no text, so the snippet source is blank.
+        await harness.on_prompt_input_bar_save_as_xprompt_requested(
+            PromptInputBar.SaveAsXpromptRequested(
+                [StashedPromptPane(text="", frontmatter="---\ndescription: fm\n---")],
+                single_pane=True,
+                snippet_body="",
+            )
+        )
+
+        assert len(harness.pushed) == 1
+        _target_modal, on_target = harness.pushed[0]
+        on_target(XPromptSaveTarget(kind="create_snippet"))
+        await _wait_save_tasks(harness)
+
+    # No config/name modal pushed; the user is warned instead.
+    assert len(harness.pushed) == 1
+    assert (
+        "Current prompt pane is empty - nothing to save as a snippet",
+        "warning",
+    ) in harness.notifications
 
 
 def _snippets_of(text: str) -> dict[str, str]:

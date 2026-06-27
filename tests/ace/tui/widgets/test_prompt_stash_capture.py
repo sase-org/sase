@@ -393,6 +393,8 @@ async def test_gx_single_pane_marks_event_single_pane() -> None:
         event = app.save_xprompt_requests[0]
         assert event.single_pane is True
         assert [p.text for p in event.panes] == ["solo draft"]
+        # The active pane is also captured as the snippet source.
+        assert event.snippet_body == "solo draft"
 
 
 async def test_gx_multi_pane_is_not_marked_single_pane() -> None:
@@ -407,6 +409,32 @@ async def test_gx_multi_pane_is_not_marked_single_pane() -> None:
 
         assert len(app.save_xprompt_requests) == 1
         assert app.save_xprompt_requests[0].single_pane is False
+
+
+async def test_gx_multi_pane_captures_active_pane_as_snippet_body() -> None:
+    app = _CaptureApp("first\n---\nsecond\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert bar._stack.selected_index == 2  # bottom pane active
+
+        await pilot.press("escape")
+        await pilot.press("g", "k")  # focus the middle pane ("second")
+        await pilot.pause()
+        assert bar._stack.selected_index == 1
+
+        await pilot.press("g", "x")
+        await pilot.pause()
+
+        assert len(app.save_xprompt_requests) == 1
+        event = app.save_xprompt_requests[0]
+        # The xprompt source still carries every non-empty pane in launch order.
+        assert [p.text for p in event.panes] == ["first", "second", "third"]
+        assert [p.pane_index for p in event.panes] == [0, 1, 2]
+        assert event.single_pane is False
+        # The snippet source is only the active (middle) pane.
+        assert event.snippet_body == "second"
 
 
 async def test_gx_multi_pane_with_one_empty_pane_is_not_single_pane() -> None:
@@ -427,6 +455,9 @@ async def test_gx_multi_pane_with_one_empty_pane_is_not_single_pane() -> None:
         # Only one pane has text, but the stack holds two panes -> not single.
         assert event.single_pane is False
         assert [p.text for p in event.panes] == ["alpha"]
+        # The active pane is the new empty bottom pane, so the snippet source is
+        # blank even though the xprompt body ("alpha") is not.
+        assert event.snippet_body == ""
 
 
 async def test_ctrl_gx_captures_frontmatter_only_draft() -> None:
@@ -447,6 +478,8 @@ async def test_ctrl_gx_captures_frontmatter_only_draft() -> None:
         assert len(event.panes) == 1
         assert event.panes[0].text == ""
         assert event.panes[0].frontmatter == "---\ndescription: frontmatter only\n---"
+        # No active pane body -> blank snippet source even with frontmatter.
+        assert event.snippet_body == ""
 
 
 # --- guards ----------------------------------------------------------------

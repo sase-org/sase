@@ -68,10 +68,15 @@ class PromptBarSaveXpromptMixin:
         rows = await asyncio.to_thread(load_xprompt_save_rows, project)
 
         non_empty_count = sum(1 for pane in event.panes if pane.text.strip())
-        # The snippet save option is offered only for a draft that started as a
-        # single prompt pane and yielded exactly one non-blank body. Snippets are
-        # single templates, so multi-agent ``---`` stacks are excluded.
-        allow_create_snippet = event.single_pane and non_empty_count == 1
+        # The snippet save option is always offered. Its source is the active
+        # pane captured separately as ``snippet_body``; a legacy/direct event
+        # without that field falls back to the xprompt body, but only when a
+        # single non-blank pane makes that unambiguous. Snippets are single
+        # templates, so the active-pane body never carries ``---`` separators.
+        snippet_body = event.snippet_body
+        if snippet_body is None:
+            snippet_body = body if non_empty_count == 1 else ""
+        snippet_body = snippet_body.strip()
 
         def _on_target(target: XPromptSaveTarget | None) -> None:
             if target is None:
@@ -82,7 +87,13 @@ class PromptBarSaveXpromptMixin:
                 )
                 return
             if target.kind == "create_snippet":
-                self._spawn_xprompt_save_task(self._create_snippet_flow(body))
+                if not snippet_body:
+                    self.notify(  # type: ignore[attr-defined]
+                        "Current prompt pane is empty - nothing to save as a snippet",
+                        severity="warning",
+                    )
+                    return
+                self._spawn_xprompt_save_task(self._create_snippet_flow(snippet_body))
                 return
             self._confirm_overwrite_xprompt(target, frontmatter, body)
 
@@ -92,7 +103,7 @@ class PromptBarSaveXpromptMixin:
                 project=project,
                 pane_count=non_empty_count,
                 has_frontmatter=not frontmatter.is_empty,
-                allow_create_snippet=allow_create_snippet,
+                allow_create_snippet=True,
             ),
             _on_target,
         )

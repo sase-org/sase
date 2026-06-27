@@ -309,16 +309,24 @@ class XPromptSaveTargetModal(
         )
 
     def _create_snippet_preview(self) -> str:
-        return "\n".join(
-            [
-                "# Create New Snippet",
-                "",
-                "Save this prompt as an ACE snippet under `ace.snippets`.",
-                "Choose a config file and trigger name after selecting this row.",
-                "",
-                self._draft_summary(),
-            ]
-        )
+        lines = [
+            "# Create New Snippet",
+            "",
+            "Save the current prompt pane as an ACE snippet under",
+            "`ace.snippets`. Choose a config file and trigger name after",
+            "selecting this row.",
+            "",
+        ]
+        if self._pane_count > 1:
+            # The xprompt body spans every pane, but a snippet is a single
+            # template, so only the active pane is saved here.
+            lines.append(
+                "Snippet source: the current pane only "
+                f"({self._pane_count} panes in the draft)."
+            )
+        else:
+            lines.append("Snippet source: the current prompt pane.")
+        return "\n".join(lines)
 
     def _overwrite_preview(self, row: _XPromptSaveRow) -> str:
         workflow = row.workflow
