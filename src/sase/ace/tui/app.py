@@ -42,6 +42,7 @@ from .actions import (
     WorkspaceActionsMixin,
 )
 from .bindings import DEFAULT_BINDINGS
+from .exit_action import AceExitAction
 from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
 from .widgets import (
     AgentDetail,
@@ -147,6 +148,7 @@ class AceApp(
     hide_non_run_agents: reactive[bool] = reactive(True, recompose=False)
     marked_indices: reactive[set[int]] = reactive(set, recompose=False)
 
+    exit_action: AceExitAction
     _current_idx: int
     _current_attempt_number: int | None
     _jk_perf: JKPerfTimer | None

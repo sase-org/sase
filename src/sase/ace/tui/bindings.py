@@ -58,7 +58,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),
     # Agent cleanup on Agents; clear output on AXE.
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
-    Binding("Q", "stop_axe_and_quit", "Stop & Quit", show=False),
+    Binding("Q", "stop_axe_and_quit", "Quit / Restart", show=False),
     # Agent workflow (all tabs) - shows project/PR selection modals
     Binding("plus", "start_custom_agent", "Run Agent", show=False),
     Binding("space", "start_agent_home", "Run Agent (Home)", show=False),

@@ -136,7 +136,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_AXE,
         ("cleanup", "dismiss all", "clear output"),
     ),
-    ("stop_axe_and_quit", "Stop AXE and quit", "Axe", ALL_TABS, ()),
+    ("stop_axe_and_quit", "Quit / restart menu", "Axe", ALL_TABS, ()),
     ("start_custom_agent", "Run custom agent", "Agents", ALL_TABS, ("+",)),
     (
         "start_agent_home",

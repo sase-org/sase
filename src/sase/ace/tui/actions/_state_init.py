@@ -22,6 +22,7 @@ from textual.worker import Worker
 
 from ...query import parse_query
 from ..activity_log import ActivityLog
+from ..exit_action import AceExitAction
 from ..models.fold_state import FoldStateManager
 from ..util.fs_watcher import ArtifactWatcher
 from ..util.nav_gate import NavigationGate
@@ -72,6 +73,7 @@ class StateInitMixin:
         self._admin_center_tab: str = "config"
         self._auto_start_axe = auto_start_axe
         self._restart_axe = restart_axe
+        self.exit_action = AceExitAction.QUIT
         # Set during on_mount to suppress reactive-watcher cold loads that
         # would otherwise duplicate work the mount body already performs.
         self._mounting = False

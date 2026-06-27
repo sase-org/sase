@@ -891,6 +891,7 @@ ProjectAliasEditorModal Button {
 
 /* Shared Duration Choice Modal styling */
 PromptSubmitChoiceModal,
+QuitOptionsModal,
 SnoozeDurationModal,
 _DurationPickerModal {
     align: center middle;
@@ -916,7 +917,15 @@ _DurationPickerModal {
     width: 62;
 }
 
+#quit-options-container {
+    width: 70;
+}
+
 #prompt-submit-choice-title {
+    width: 100%;
+}
+
+#quit-options-title {
     width: 100%;
 }
 

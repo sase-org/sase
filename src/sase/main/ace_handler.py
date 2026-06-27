@@ -5,11 +5,16 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sase.ace.query import QueryParseError
 from sase.core.clipboard import copy_to_system_clipboard
 from sase.core.paths import get_sase_tmpdir, shorten_path
+
+if TYPE_CHECKING:
+    from sase.ace.tui.exit_action import AceExitAction
+
+_RESTART_FILTER_FLAGS = frozenset(("-R", "--restart-axe", "-T", "--tmux"))
 
 
 def _profile_output_path(profile_arg: str) -> str:
@@ -42,6 +47,51 @@ def _write_profile_output(profiler: Any, profile_arg: str) -> str:
             file=sys.stderr,
         )
     return output_path
+
+
+def _build_ace_restart_argv(*, restart_axe: bool, argv: list[str]) -> list[str]:
+    """Build ``sase ace`` argv for a TUI restart."""
+    forwarded: list[str] = []
+    after_separator = False
+    for arg in argv:
+        if arg == "--":
+            after_separator = True
+            forwarded.append(arg)
+            continue
+        if not after_separator and arg in _RESTART_FILTER_FLAGS:
+            continue
+        forwarded.append(arg)
+
+    if not forwarded or forwarded[0] != "ace":
+        forwarded = ["ace", *forwarded]
+
+    if restart_axe:
+        try:
+            insert_idx = forwarded.index("--")
+        except ValueError:
+            insert_idx = len(forwarded)
+        forwarded.insert(insert_idx, "--restart-axe")
+
+    return forwarded
+
+
+def _exec_ace_restart_if_requested(exit_action: "AceExitAction | None") -> None:
+    """Re-exec ``sase ace`` for restart exit actions."""
+    from sase.ace.tui.exit_action import AceExitAction
+
+    if exit_action is None or exit_action == AceExitAction.QUIT:
+        return
+
+    argv = _build_ace_restart_argv(
+        restart_axe=exit_action == AceExitAction.RESTART_TUI_AND_AXE,
+        argv=sys.argv[1:],
+    )
+    exec_args = [sys.executable, "-m", "sase", *argv]
+    try:
+        os.execv(sys.executable, exec_args)
+    except OSError as exc:
+        print(f"sase ace restart failed: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 def handle_ace_command(args: argparse.Namespace) -> None:
@@ -114,4 +164,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     else:
         app.run()
 
+    _exec_ace_restart_if_requested(
+        getattr(app, "exit_action", None),
+    )
     sys.exit(0)

@@ -19,6 +19,7 @@ from sase.axe.state import (
 )
 
 from ..bgcmd import BackgroundCommandInfo, clear_slot_output
+from ..exit_action import AceExitAction
 from .axe_bgcmd import AxeBgCmdMixin
 from .axe_chop_run import AxeChopRunMixin
 from .axe_display import AxeDisplayMixin
@@ -26,6 +27,7 @@ from .axe_display import AxeDisplayMixin
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
     from ..keymaps import KeymapRegistry
+    from ..modals import QuitOption
     from .axe_display._loaders import AxeItemKey
 
 # Type alias for tab names
@@ -174,8 +176,23 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
             pass
 
     def action_stop_axe_and_quit(self) -> None:
-        """Stop the axe daemon and quit the application."""
-        self.run_worker(self._stop_axe_and_quit())  # type: ignore[attr-defined]
+        """Open the quit / restart options panel."""
+        from ..modals import QuitOptionsModal
+
+        def _on_choice(choice: QuitOption | None) -> None:
+            if choice is None:
+                return
+            if choice == "quit_stop_axe":
+                self.run_worker(self._stop_axe_and_quit())  # type: ignore[attr-defined]
+                return
+            self._restart_tui(restart_axe=choice == "restart_tui_and_axe")
+
+        self.push_screen(  # type: ignore[attr-defined]
+            QuitOptionsModal(
+                running_task_count=self._count_running_tasks(),  # type: ignore[attr-defined]
+            ),
+            callback=_on_choice,
+        )
 
     async def _stop_axe_and_quit(self) -> None:
         """Stop axe with the robust daemon stop path, then quit."""
@@ -194,6 +211,25 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
                 timeout=5.0,
                 kill_timeout=2.0,
             )
+        except Exception:
+            pass
+        finally:
+            self._do_quit()  # type: ignore[attr-defined]
+
+    def _restart_tui(self, *, restart_axe: bool) -> None:
+        """Quit this TUI and ask the command handler to re-exec it."""
+        self.exit_action = (
+            AceExitAction.RESTART_TUI_AND_AXE
+            if restart_axe
+            else AceExitAction.RESTART_TUI
+        )
+
+        stop_watchdog = getattr(self, "_stop_tui_stall_watchdog", None)
+        if callable(stop_watchdog):
+            stop_watchdog()
+
+        try:
+            self._kill_all_running_tasks()  # type: ignore[attr-defined]
         except Exception:
             pass
         finally:

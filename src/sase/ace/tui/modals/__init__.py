@@ -54,6 +54,7 @@ from .prompt_history_modal import (
 from .prompt_submit_choice_modal import PromptSubmitChoice, PromptSubmitChoiceModal
 from .query_edit_modal import QueryEditModal
 from .quit_confirm_modal import QuitConfirmModal
+from .quit_options_modal import QuitOption, QuitOptionsModal
 from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
 from .update_pinned_stash_modal import UpdatePinnedStashModal
 from .recursive_finder_modal import RecursiveFileFinderModal
@@ -216,6 +217,8 @@ __all__ = [
     "PromptSubmitChoiceModal",
     "QueryEditModal",
     "QuitConfirmModal",
+    "QuitOption",
+    "QuitOptionsModal",
     "RenameCLModal",
     "StashRestoreResult",
     "StashedPromptsModal",

@@ -301,7 +301,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.show_notifications), "Show notifications"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
-                (d(a.stop_axe_and_quit), "Stop axe and quit"),
+                (d(a.stop_axe_and_quit), "Quit / restart menu"),
                 (d(a.refresh), "Refresh"),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),

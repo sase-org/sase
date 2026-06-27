@@ -116,7 +116,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
             [
                 (d(a.kill_agent), "Start / stop axe (or kill command)"),
                 (d(a.open_agent_cleanup_panel), "Clear output"),
-                (d(a.stop_axe_and_quit), "Stop axe and quit"),
+                (d(a.stop_axe_and_quit), "Quit / restart menu"),
             ],
         ),
     ]

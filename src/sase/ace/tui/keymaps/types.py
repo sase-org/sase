@@ -69,7 +69,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("next_tab", "Next Tab", True),
     ("prev_tab", "Prev Tab", True),
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
-    ("stop_axe_and_quit", "Stop & Quit", False),
+    ("stop_axe_and_quit", "Quit / Restart", False),
     ("start_custom_agent", "Run Agent", False),
     ("start_agent_home", "Run Agent (Home)", False),
     ("start_agent_from_changespec", "Run Agent (PR)", False),

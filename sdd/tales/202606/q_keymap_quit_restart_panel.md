@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 13:53:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/q_keymap_quit_restart_panel.md
 ---
 # `Q` Keymap → Quit / Restart Options Panel
