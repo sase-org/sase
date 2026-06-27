@@ -92,6 +92,7 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("x", "save as xprompt"),
+            ("X", "save as local xprompt"),
         ]
 
 
@@ -106,6 +107,7 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("x", "save as xprompt"),
+            ("X", "save as local xprompt"),
         ]
 
 
@@ -120,6 +122,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("x", "save as xprompt"),
+            ("X", "save as local xprompt"),
             ("p", "stashed prompts…"),
         ]
 
@@ -136,6 +139,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("=", "toggle frontmatter"),
             ("S", "update pinned stash"),
             ("x", "save as xprompt"),
+            ("X", "save as local xprompt"),
         ]
         assert _entry_pairs(bar, via_ctrl_g=True) == [
             ("enter", "submit this draft"),
@@ -143,6 +147,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("=", "toggle frontmatter"),
             ("S", "update pinned stash"),
             ("x", "save as xprompt"),
+            ("X", "save as local xprompt"),
             ("p", "stashed prompts…"),
         ]
 
@@ -177,6 +182,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("s", "stash all panes"),
             ("S", "update pinned stash"),
             ("x", "save as xprompt"),
+            ("X", "save as local xprompt"),
         ]
 
         assert _entry_pairs(bar, via_ctrl_g=True)[-1] == ("p", "stashed prompts…")
@@ -192,7 +198,7 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
         assert "p" not in keys
         assert "P" not in keys
         # Multi-pane nav and stash-all stay available.
-        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s", "x"]
+        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s", "x", "X"]
 
 
 async def test_feedback_bar_has_no_prompt_g_prefix_hints() -> None:
@@ -533,9 +539,14 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             bar, "request_update_pinned_stash", lambda: calls.append("S")
         )
         monkeypatch.setattr(bar, "request_save_as_xprompt", lambda: calls.append("x"))
+        monkeypatch.setattr(
+            bar,
+            "convert_active_pane_to_local_xprompt",
+            lambda **_: calls.append("X"),
+        )
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
 
-        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S", "x"):
+        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S", "x", "X"):
             assert bar.dispatch_g_prefix_key(key) is True
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
@@ -557,6 +568,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "s",
             "S",
             "x",
+            "X",
             "p",
             "S",
         ]
@@ -584,8 +596,14 @@ async def test_dispatch_g_prefix_key_can_target_insert_mode(
                 f"move{delta:+d}:{target_mode}"
             ),
         )
+        monkeypatch.setattr(
+            bar,
+            "convert_active_pane_to_local_xprompt",
+            lambda *, target_mode="normal": calls.append(f"X:{target_mode}"),
+        )
 
         assert bar.dispatch_g_prefix_key("j", target_mode="insert") is True
         assert bar.dispatch_g_prefix_key("K", target_mode="insert") is True
+        assert bar.dispatch_g_prefix_key("X", target_mode="insert") is True
 
-        assert calls == ["focus+1:insert", "move-1:insert"]
+        assert calls == ["focus+1:insert", "move-1:insert", "X:insert"]

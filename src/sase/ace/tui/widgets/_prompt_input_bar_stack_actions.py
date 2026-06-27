@@ -5,11 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.widgets._local_xprompt_conversion import (
+    build_local_xprompt,
+    infer_local_xprompt_inputs,
+    local_xprompt_invocation_skeleton,
+)
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
+
+    from sase.xprompt.models import InputArg, XPrompt
 else:
     _MixinBase = object
 
@@ -123,6 +131,13 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_save_xprompt",
     ),
     _PromptGPrefixBinding(
+        "X",
+        "convert_active_pane_to_local_xprompt",
+        "_g_prefix_label_convert_local_xprompt",
+        "_g_prefix_available_convert_local_xprompt",
+        uses_target_mode=True,
+    ),
+    _PromptGPrefixBinding(
         "p",
         "request_open_prompt_stash",
         "_g_prefix_label_open_stash",
@@ -148,6 +163,7 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
+        def local_xprompts(self) -> dict[str, XPrompt]: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def toggle_frontmatter_panel(self) -> None: ...
         def hide_file_completions(self) -> None: ...
@@ -282,6 +298,18 @@ class PromptInputBarStackActionsMixin(_MixinBase):
             self._stack.frontmatter.strip()
         )
 
+    def _g_prefix_available_convert_local_xprompt(self) -> bool:
+        """Whether ``gX`` can convert the active pane into a local xprompt.
+
+        Prompt mode only, and only when the active pane has non-blank text —
+        the conversion stores that pane body as a local ``xprompts:`` helper, so
+        an empty pane has nothing to save.
+        """
+        if self._mode != "prompt":
+            return False
+        self._sync_state_from_widgets()
+        return bool(self._stack.selected_item.text.strip())
+
     def _g_prefix_label_focus_next(self) -> str:
         """Return the ``gj`` label."""
         return "focus next pane"
@@ -323,6 +351,10 @@ class PromptInputBarStackActionsMixin(_MixinBase):
     def _g_prefix_label_save_xprompt(self) -> str:
         """Return the ``gx`` label."""
         return "save as xprompt"
+
+    def _g_prefix_label_convert_local_xprompt(self) -> str:
+        """Return the ``gX`` label."""
+        return "save as local xprompt"
 
     def _g_prefix_label_open_stash(self) -> str:
         """Return the ``Ctrl+G p`` label."""
@@ -496,6 +528,114 @@ class PromptInputBarStackActionsMixin(_MixinBase):
         if panes:
             self._clear_active_completion_state()
         self.post_message(self.SaveAsXpromptRequested(panes))
+
+    def convert_active_pane_to_local_xprompt(
+        self, *, target_mode: str = "normal"
+    ) -> None:
+        """Convert the active pane into a local xprompt (the ``gX`` keymap).
+
+        Prompt mode only.  Captures the active pane's body, infers its inputs
+        from undeclared Jinja variables, prompts for a ``_``-scoped name, and on
+        a valid name stores the body as a local ``xprompts:`` helper in the bar's
+        shared frontmatter and rewrites the pane into an invocation of it.  A
+        blank pane or invalid Jinja in the body leaves everything unchanged and
+        notifies; cancelling or naming a duplicate is a no-op too.
+
+        ``target_mode`` is the mode the rewritten pane should end in for a
+        no-argument invocation (``Ctrl+G X`` from INSERT keeps INSERT); an
+        invocation with generated argument slots always lands in INSERT so the
+        user can fill them straight away.
+        """
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        body = self._stack.selected_item.text.strip()
+        if not body:
+            self.app.notify(
+                "Active prompt pane is empty — nothing to save.",
+                severity="warning",
+            )
+            return
+        inputs = infer_local_xprompt_inputs(body)
+        if inputs is None:
+            self.app.notify(
+                "Active pane has invalid Jinja — fix it before saving as a "
+                "local xprompt.",
+                severity="warning",
+            )
+            return
+        self._clear_active_completion_state()
+        used_names = set(self.local_xprompts())
+
+        def _on_name(name: str | None) -> None:
+            if name is None:
+                # Cancelled: restore focus to the untouched pane.
+                try:
+                    self.active_text_area().focus()
+                except Exception:
+                    pass
+                return
+            self._store_local_xprompt_and_replace_pane(
+                name, body, inputs, target_mode=target_mode
+            )
+
+        from sase.ace.tui.modals import LocalXPromptNameModal
+
+        self.app.push_screen(LocalXPromptNameModal(used_names=used_names), _on_name)
+
+    def _store_local_xprompt_and_replace_pane(
+        self,
+        name: str,
+        body: str,
+        inputs: list[InputArg],
+        *,
+        target_mode: str,
+    ) -> None:
+        """Persist the new local xprompt and rewrite the active pane to invoke it.
+
+        The helper is merged into the shared frontmatter (so any pane can
+        reference it) and the active pane's whole body is replaced with the
+        invocation skeleton expanded through the snippet engine.
+        """
+        xprompt = build_local_xprompt(name, body, inputs)
+        try:
+            model = PromptFrontmatter.parse(self._stack.frontmatter)
+        except Exception:
+            model = PromptFrontmatter()
+        model.set_xprompt(xprompt)
+        self._stack.set_frontmatter_model(model)
+        self.refresh_frontmatter_panel_from_stack()
+
+        skeleton = local_xprompt_invocation_skeleton(xprompt)
+        enter_insert = bool(inputs) or target_mode == "insert"
+        self._replace_active_pane_with_skeleton(skeleton, enter_insert=enter_insert)
+
+    def _replace_active_pane_with_skeleton(
+        self, skeleton: str, *, enter_insert: bool
+    ) -> None:
+        """Replace the active pane's whole body with an expanded snippet skeleton.
+
+        The snippet engine edits through the keyboard path, which is inert while
+        the pane is read-only (NORMAL mode), so the pane is switched to INSERT
+        first; a skeleton carrying argument tabstops stays in INSERT (dropping to
+        NORMAL would discard the pending tabstops), while a bare ``#_name``
+        invocation honors *enter_insert* to preserve the caller's target mode.
+        """
+        try:
+            text_area = self.active_text_area()
+        except Exception:
+            return
+        text_area.focus()
+        text_area._enter_insert_mode()
+        document = text_area.document
+        last_row = document.line_count - 1
+        end = (last_row, len(document.get_line(last_row)))
+        text_area._expand_snippet_template_at_range(skeleton, (0, 0), end)
+        if not enter_insert:
+            text_area._enter_normal_mode()
+        text_area.focus()
+        self._sync_state_from_widgets()
+        self._schedule_height_update()
 
     def request_open_prompt_stash(self) -> None:
         """Ask the app to open the unified prompt-stash panel.

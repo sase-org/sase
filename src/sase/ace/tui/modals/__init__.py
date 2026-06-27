@@ -38,6 +38,7 @@ from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
 from .input_item_modal import InputItemModal
 from .jump_all_modal import JumpAllModal, JumpAllResult
+from .local_xprompt_name_modal import LocalXPromptNameModal
 from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
@@ -186,6 +187,7 @@ __all__ = [
     "HookHistoryResult",
     "JumpAllModal",
     "JumpAllResult",
+    "LocalXPromptNameModal",
     "RecursiveFileFinderModal",
     "ModelPickerModal",
     "NotificationModal",

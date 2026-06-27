@@ -3875,6 +3875,43 @@ XPromptNameModal #xprompt-name-error {
     margin-top: 1;
 }
 
+/* Local xprompt name modal (gX / Ctrl+G X) styling */
+LocalXPromptNameModal {
+    align: center middle;
+}
+
+LocalXPromptNameModal > Container {
+    width: 60;
+    height: auto;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+LocalXPromptNameModal #local-xprompt-name-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+LocalXPromptNameModal #local-xprompt-name-hint {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+LocalXPromptNameModal #local-xprompt-name-input {
+    width: 100%;
+}
+
+LocalXPromptNameModal #local-xprompt-name-note {
+    color: #87D7FF;
+    margin-top: 1;
+}
+
+LocalXPromptNameModal #local-xprompt-name-error {
+    color: $error;
+    margin-top: 1;
+}
+
 /* XPrompt config entry modal styling */
 XPromptConfigEntryModal {
     align: center middle;

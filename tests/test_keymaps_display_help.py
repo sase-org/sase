@@ -119,6 +119,7 @@ def test_help_modal_lists_frontmatter_panel_toggle() -> None:
         assert ("Ctrl+S", "Stash pane (panel if empty)") in pairs
         assert ("gs / Ctrl+G s", "Stash all panes") in pairs
         assert ("gx / Ctrl+G x", "Save draft as xprompt") in pairs
+        assert ("gX / Ctrl+G X", "Save pane as local xprompt") in pairs
         assert ("Ctrl+G p / @", "Stashed prompts panel") in pairs
 
 

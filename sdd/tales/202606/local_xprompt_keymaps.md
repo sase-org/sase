@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-27 07:39:15
-status: wip
+status: done
 prompt: sdd/prompts/202606/local_xprompt_keymaps.md
 ---
 # Plan: Prompt Input `gX` / `Ctrl+G X` Local XPrompt Conversion
