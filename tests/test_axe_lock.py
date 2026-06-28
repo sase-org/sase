@@ -65,8 +65,27 @@ def test_lifecycle_lock_prefers_external_proc_holder(
     path = temp_state_dir / "orchestrator.lock"
     path.write_text("24680")
 
-    with patch("sase.axe.lock._find_proc_lock_holder_pid", return_value=13579):
+    with (
+        patch("sase.axe.lock._find_proc_lock_holder_pid", return_value=13579),
+        patch("sase.ace.hooks.processes.is_process_running", return_value=False),
+    ):
         assert read_lock_holder_pid() == 13579
+
+
+def test_lifecycle_lock_prefers_live_recorded_daemon_over_proc_holder(
+    temp_state_dir: Path,
+) -> None:
+    path = temp_state_dir / "orchestrator.lock"
+    path.write_text("24680")
+
+    def is_running(pid: int) -> bool:
+        return pid == 24680
+
+    with (
+        patch("sase.axe.lock._find_proc_lock_holder_pid", return_value=13579),
+        patch("sase.ace.hooks.processes.is_process_running", side_effect=is_running),
+    ):
+        assert read_lock_holder_pid() == 24680
 
 
 def test_lifecycle_lock_uses_recorded_pid_when_proc_holder_is_current_process(
@@ -75,7 +94,10 @@ def test_lifecycle_lock_uses_recorded_pid_when_proc_holder_is_current_process(
     path = temp_state_dir / "orchestrator.lock"
     path.write_text("24680")
 
-    with patch("sase.axe.lock._find_proc_lock_holder_pid", return_value=os.getpid()):
+    with (
+        patch("sase.axe.lock._find_proc_lock_holder_pid", return_value=os.getpid()),
+        patch("sase.ace.hooks.processes.is_process_running", return_value=False),
+    ):
         assert read_lock_holder_pid() == 24680
 
 

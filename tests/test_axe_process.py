@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.lock import AxeLifecycleLock
+from sase.axe._process_probe import probe_orchestrator
 from sase.axe._process_start import (
     _build_axe_start_command,
     _wait_for_daemon_start,
@@ -346,6 +347,90 @@ def test_stop_axe_daemon_filters_current_pid_before_terminating(
     assert result.orchestrator_signaled is False
     assert result.failed_pids == ()
     mock_kill.assert_not_called()
+
+
+def test_probe_orchestrator_resolves_recorded_daemon_over_acquirer(
+    temp_state_dir: Path,
+) -> None:
+    path = temp_state_dir / "orchestrator.lock"
+    path.write_text("24680")
+
+    def is_running(pid: int) -> bool:
+        return pid in {13579, 24680}
+
+    with (
+        patch("sase.axe._process_probe.is_lifecycle_lock_held", return_value=True),
+        patch("sase.axe.lock._find_proc_lock_holder_pid", return_value=13579),
+        patch("sase.ace.hooks.processes.is_process_running", side_effect=is_running),
+        patch("sase.axe._process_probe.is_process_running", side_effect=is_running),
+    ):
+        probe = probe_orchestrator()
+
+    assert probe.lock_holder_pid == 24680
+    assert probe.running_pid == 24680
+
+
+def test_stop_axe_daemon_targets_recorded_daemon_not_acquirer(
+    temp_state_dir: Path,
+) -> None:
+    acquirer = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    daemon: subprocess.Popen[str] | None = None
+    daemon_code = "\n".join(
+        [
+            "import os",
+            "import signal",
+            "import sys",
+            "import time",
+            "signal.signal(signal.SIGTERM, lambda _signum, _frame: sys.exit(0))",
+            "print(os.getpid(), flush=True)",
+            "time.sleep(30)",
+        ]
+    )
+    try:
+        daemon = subprocess.Popen(
+            [sys.executable, "-c", daemon_code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        assert daemon.stdout is not None
+        line = daemon.stdout.readline().strip()
+        assert line, daemon.stderr.read() if daemon.stderr is not None else ""
+        daemon_pid = int(line)
+
+        path = temp_state_dir / "orchestrator.lock"
+        path.write_text(f"{daemon_pid}\n")
+
+        with (
+            patch("sase.axe._process_probe.is_lifecycle_lock_held", return_value=True),
+            patch(
+                "sase.axe.lock._find_proc_lock_holder_pid",
+                return_value=acquirer.pid,
+            ),
+        ):
+            result = stop_axe_daemon_result(timeout=2.0, kill_timeout=1.0)
+
+        assert result.orchestrator_pid == daemon_pid
+        assert result.orchestrator_signaled is True
+        assert result.orchestrator_stopped is True
+        assert result.failed_pids == ()
+        assert daemon.wait(timeout=1.0) == 0
+        assert acquirer.poll() is None
+    finally:
+        if daemon is not None and daemon.poll() is None:
+            daemon.terminate()
+            try:
+                daemon.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                daemon.kill()
+                daemon.wait(timeout=2.0)
+        if acquirer.poll() is None:
+            acquirer.terminate()
+            try:
+                acquirer.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                acquirer.kill()
+                acquirer.wait(timeout=2.0)
 
 
 def test_stop_axe_daemon_targets_inherited_lock_daemon(

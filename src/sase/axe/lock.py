@@ -76,10 +76,17 @@ def _find_proc_lock_holder_pid() -> int | None:
 
 def read_lock_holder_pid() -> int | None:
     """Return the lifecycle lock holder PID when it can be determined."""
+    recorded_pid = _read_recorded_lock_holder_pid()
+    if recorded_pid is not None:
+        from sase.ace.hooks.processes import is_process_running
+
+        if is_process_running(recorded_pid):
+            return recorded_pid
+
     proc_holder_pid = _find_proc_lock_holder_pid()
     if proc_holder_pid is not None and proc_holder_pid != os.getpid():
         return proc_holder_pid
-    return _read_recorded_lock_holder_pid()
+    return recorded_pid
 
 
 def clear_lock_holder_pid() -> None:
