@@ -147,13 +147,76 @@ async def test_agent_neighbor_modal_narrow_png_snapshot(
         assert modal.__class__.__name__ == "AgentNeighborModal"
         choices = vars(modal)["_choices"]
         assert [choice.global_idx for choice in choices] == [1, 2]
-        assert_page_svg_contains(page, "Neighbor Agents: visual.code hood")
+        assert_page_svg_contains(page, "Neighbors of visual.code.plan")
         assert_page_svg_contains(page, "visual.code.implementation")
 
         ace_png_visual.assert_page_png(
             page,
             "agent_neighbor_modal_60x30",
             title="ACE agent neighbor modal narrow",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-parent",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 23, 13, 0, 0),
+        raw_suffix="20260523-130000-parent",
+        agent_name="visual.root",
+        tag="api",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-child",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 13, 8, 0),
+        stop_time=datetime(2026, 5, 23, 13, 12, 30),
+        raw_suffix="20260523-130800-child",
+        agent_name="visual.root.visible",
+        tag="api",
+    )
+    dismissed = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-dismissed",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 23, 13, 16, 0),
+        stop_time=datetime(2026, 5, 23, 13, 17, 5),
+        raw_suffix="20260523-131600-dismissed",
+        agent_name="visual.root.dismissed",
+        tag="api",
+    )
+    patch_startup_loaders(monkeypatch, agents=[parent, child])
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(60, 30)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 2)
+        page.app._dismissed_agent_objects = [dismissed]
+        page.app._dismissed_agents = {dismissed.identity}
+        page.app._dismiss_revive_epoch += 1
+        page.app.action_start_sibling_mode()
+        await page.expect_modal("AgentNeighborModal")
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "Descendants")
+        assert_page_svg_contains(page, "visual.root.dismissed")
+        assert_page_svg_contains(page, "dismissed")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_neighbor_modal_descendants_dismissed_60x30",
+            title="ACE agent neighbor modal dismissed descendant",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

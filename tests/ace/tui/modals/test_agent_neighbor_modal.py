@@ -23,12 +23,13 @@ class _TestApp(App[object | None]):
 def _choices(count: int = 3) -> list[AgentNeighborChoice]:
     return [
         AgentNeighborChoice(
-            global_idx=index + 10,
             agent_name=f"foo.agent{index}",
             display_name="demo",
             status="RUNNING" if index == 0 else "DONE",
             panel_label="#review" if index == 1 else "(untagged)",
             time_hint="4m",
+            group="neighbor",
+            global_idx=index + 10,
         )
         for index in range(count)
     ]
@@ -49,11 +50,11 @@ async def test_agent_neighbor_modal_enter_selects_highlighted_row() -> None:
         await pilot.pause()
 
         option_list = modal.query_one("#agent-neighbor-list", OptionList)
-        option_list.highlighted = 1
+        option_list.highlighted = 2
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == choices[1].global_idx
+    assert result == 1
 
 
 async def test_agent_neighbor_modal_letter_quick_selects_row() -> None:
@@ -73,7 +74,7 @@ async def test_agent_neighbor_modal_letter_quick_selects_row() -> None:
         await pilot.press("b")
         await pilot.pause()
 
-    assert result == choices[1].global_idx
+    assert result == 1
 
 
 async def test_agent_neighbor_modal_j_k_move_highlight() -> None:
@@ -83,15 +84,15 @@ async def test_agent_neighbor_modal_j_k_move_highlight() -> None:
         await pilot.pause()
 
         option_list = modal.query_one("#agent-neighbor-list", OptionList)
-        assert option_list.highlighted == 0
+        assert option_list.highlighted == 1
 
         await pilot.press("j")
         await pilot.pause()
-        assert option_list.highlighted == 1
+        assert option_list.highlighted == 2
 
         await pilot.press("k")
         await pilot.pause()
-        assert option_list.highlighted == 0
+        assert option_list.highlighted == 1
 
 
 async def test_agent_neighbor_modal_escape_and_q_cancel() -> None:
@@ -132,15 +133,74 @@ def test_agent_neighbor_modal_option_text_includes_row_metadata() -> None:
     assert "4m" in plain
 
 
+def test_agent_neighbor_modal_option_text_tags_dismissed_rows() -> None:
+    choice = AgentNeighborChoice(
+        agent_name="foo.dismissed",
+        display_name="demo",
+        status="DONE",
+        panel_label="#review",
+        dismissed=True,
+        group="descendant",
+    )
+
+    plain = _agent_neighbor_option_text("a", choice).plain
+
+    assert "foo.dismissed" in plain
+    assert "dismissed" in plain
+
+
 def test_agent_neighbor_modal_title_uses_hood_label() -> None:
-    modal = AgentNeighborModal("foo.bar", _choices(2))
+    modal = AgentNeighborModal("foo.bar", _choices(2), hood_label="foo")
 
     title = modal._title_text()
 
-    assert title == "Neighbor Agents: foo.bar hood  [2 neighbors]"
+    assert title == "Neighbors of foo.bar  [2 neighbors]"
 
 
 def test_agent_neighbor_modal_title_singularizes_one_neighbor() -> None:
     modal = AgentNeighborModal("foo", _choices(1))
 
-    assert modal._title_text() == "Neighbor Agents: foo hood  [1 neighbor]"
+    assert modal._title_text() == "Neighbors of foo  [1 neighbor]"
+
+
+def test_agent_neighbor_modal_title_summarizes_two_groups() -> None:
+    choices = [
+        AgentNeighborChoice(
+            agent_name="foo.child",
+            display_name="child",
+            status="DONE",
+            panel_label="#api",
+            group="descendant",
+        ),
+        *_choices(2),
+    ]
+    modal = AgentNeighborModal("foo", choices, hood_label="foo")
+
+    assert modal._title_text() == "Neighbors of foo  [1 descendant - 2 neighbors]"
+
+
+async def test_agent_neighbor_modal_headers_are_non_selectable() -> None:
+    choices = [
+        AgentNeighborChoice(
+            agent_name="foo.child",
+            display_name="child",
+            status="DONE",
+            panel_label="#api",
+            group="descendant",
+        ),
+        *_choices(1),
+    ]
+
+    async with _TestApp().run_test() as pilot:
+        modal = AgentNeighborModal("foo", choices, hood_label="foo")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-neighbor-list", OptionList)
+        first = option_list.get_option_at_index(0)
+        second_header = option_list.get_option_at_index(2)
+
+    assert first.disabled is True
+    assert "Descendants" in first.prompt.plain
+    assert second_header.disabled is True
+    assert "Neighbors - foo hood" in second_header.prompt.plain

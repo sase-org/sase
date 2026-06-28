@@ -20,18 +20,21 @@ _MAX_AGENT_NAME_LEN = 34
 _MAX_DISPLAY_NAME_LEN = 24
 _MAX_PANEL_LABEL_LEN = 18
 _MAX_TIME_HINT_LEN = 18
+_MAX_TITLE_AGENT_LEN = 48
 
 
 @dataclass(frozen=True)
 class AgentNeighborChoice:
-    """One visible neighbor row offered by :class:`AgentNeighborModal`."""
+    """One selectable related-agent row offered by :class:`AgentNeighborModal`."""
 
-    global_idx: int
     agent_name: str
     display_name: str
     status: str
     panel_label: str
     time_hint: str = ""
+    group: str = "neighbor"
+    dismissed: bool = False
+    global_idx: int | None = None
 
 
 def _agent_neighbor_selector_keys(count: int) -> list[str]:
@@ -72,16 +75,17 @@ def _agent_neighbor_option_text(
         text.append("   ", style="dim")
     else:
         text.append(f"{selector}  ", style="bold #D7AF5F")
+    dim_prefix = "dim " if choice.dismissed else ""
     text.append(
         _short_text(choice.agent_name, max_len=_MAX_AGENT_NAME_LEN),
-        style="bold #00D7AF",
+        style=f"{dim_prefix}bold #00D7AF",
     )
     text.append("  ")
-    text.append(choice.status, style=_status_style(choice.status))
+    text.append(choice.status, style=f"{dim_prefix}{_status_style(choice.status)}")
     text.append("  ")
     text.append(
         _short_text(choice.panel_label, max_len=_MAX_PANEL_LABEL_LEN),
-        style="dim #FFD75F",
+        style=f"{dim_prefix}#FFD75F",
     )
     if choice.time_hint:
         text.append("  ")
@@ -95,14 +99,34 @@ def _agent_neighbor_option_text(
             _short_text(choice.display_name, max_len=_MAX_DISPLAY_NAME_LEN),
             style="dim #87D7FF",
         )
+    if choice.dismissed:
+        text.append("  ")
+        text.append("dismissed", style="bold #FFAF00")
     return text
+
+
+def _agent_neighbor_header_text(label: str) -> Text:
+    """Render a non-selectable section header."""
+    text = Text()
+    text.append(f"-- {label} ", style="dim bold")
+    text.append("-" * 20, style="dim")
+    return text
+
+
+def _choice_index_from_option_id(option_id: str | None) -> int | None:
+    if option_id is None or not option_id.startswith("choice-"):
+        return None
+    try:
+        return int(option_id.removeprefix("choice-"))
+    except ValueError:
+        return None
 
 
 class AgentNeighborModal(
     OptionListNavigationMixin,
     ModalScreen[int | None],
 ):
-    """Keyboard-first chooser for visible neighbor Agents-tab rows."""
+    """Keyboard-first chooser for related Agents-tab rows."""
 
     _option_list_id = "agent-neighbor-list"
     BINDINGS = [
@@ -112,10 +136,13 @@ class AgentNeighborModal(
 
     def __init__(
         self,
-        hood_label: str,
+        agent_label: str,
         choices: list[AgentNeighborChoice],
+        *,
+        hood_label: str | None = None,
     ) -> None:
         super().__init__()
+        self._agent_label = agent_label
         self._hood_label = hood_label
         self._choices = choices
         selectors = _agent_neighbor_selector_keys(len(choices))
@@ -129,16 +156,70 @@ class AgentNeighborModal(
             yield Static(self._hint_text(), id="agent-neighbor-hints")
 
     def _title_text(self) -> str:
-        count = len(self._choices)
-        plural = "" if count == 1 else "s"
-        return f"Neighbor Agents: {self._hood_label} hood  [{count} neighbor{plural}]"
+        descendant_count = sum(
+            1 for choice in self._choices if choice.group == "descendant"
+        )
+        neighbor_count = sum(
+            1 for choice in self._choices if choice.group == "neighbor"
+        )
+        summary_parts: list[str] = []
+        if descendant_count:
+            plural = "" if descendant_count == 1 else "s"
+            summary_parts.append(f"{descendant_count} descendant{plural}")
+        if neighbor_count:
+            plural = "" if neighbor_count == 1 else "s"
+            summary_parts.append(f"{neighbor_count} neighbor{plural}")
+        agent_label = _short_text(self._agent_label, max_len=_MAX_TITLE_AGENT_LEN)
+        summary = f"  [{' - '.join(summary_parts)}]" if summary_parts else ""
+        return f"Neighbors of {agent_label}{summary}"
 
     def _hint_text(self) -> str:
-        return "enter jump  a-z select  j/k move  q/esc close"
+        return "enter jump/revive  a-z select  j/k move  q/esc close"
 
     def _create_options(self) -> list[Option]:
         options: list[Option] = []
-        for index, choice in enumerate(self._choices):
+        descendant_choices = [
+            (index, choice)
+            for index, choice in enumerate(self._choices)
+            if choice.group == "descendant"
+        ]
+        neighbor_choices = [
+            (index, choice)
+            for index, choice in enumerate(self._choices)
+            if choice.group == "neighbor"
+        ]
+
+        if descendant_choices:
+            options.append(
+                Option(
+                    _agent_neighbor_header_text("Descendants"),
+                    id="header-descendants",
+                    disabled=True,
+                )
+            )
+            self._append_choice_options(options, descendant_choices)
+        if neighbor_choices:
+            header = (
+                f"Neighbors - {self._hood_label} hood"
+                if self._hood_label
+                else "Neighbors"
+            )
+            options.append(
+                Option(
+                    _agent_neighbor_header_text(header),
+                    id="header-neighbors",
+                    disabled=True,
+                )
+            )
+            self._append_choice_options(options, neighbor_choices)
+        return options
+
+    def _append_choice_options(
+        self,
+        options: list[Option],
+        indexed_choices: list[tuple[int, AgentNeighborChoice]],
+    ) -> None:
+        for index, choice in indexed_choices:
             selector = (
                 self._selector_by_index[index]
                 if index < len(self._selector_by_index)
@@ -147,10 +228,9 @@ class AgentNeighborModal(
             options.append(
                 Option(
                     _agent_neighbor_option_text(selector, choice),
-                    id=str(choice.global_idx),
+                    id=f"choice-{index}",
                 )
             )
-        return options
 
     def on_mount(self) -> None:
         self.query_one(f"#{self._option_list_id}", OptionList).focus()
@@ -158,17 +238,24 @@ class AgentNeighborModal(
     def on_key(self, event: events.Key) -> None:
         if event.key not in self._index_by_selector:
             return
-        self.dismiss(self._choices[self._index_by_selector[event.key]].global_idx)
+        self.dismiss(self._index_by_selector[event.key])
         event.prevent_default()
         event.stop()
 
     def action_select_highlighted(self) -> None:
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
         index = option_list.highlighted
-        if index is None or not 0 <= index < len(self._choices):
+        if index is None:
             return
-        self.dismiss(self._choices[index].global_idx)
+        choice_idx = _choice_index_from_option_id(
+            str(option_list.get_option_at_index(index).id)
+        )
+        if choice_idx is None or not 0 <= choice_idx < len(self._choices):
+            return
+        self.dismiss(choice_idx)
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        if event.option and event.option.id is not None:
-            self.dismiss(int(str(event.option.id)))
+        option_id = str(event.option.id) if event.option else None
+        choice_idx = _choice_index_from_option_id(option_id)
+        if choice_idx is not None:
+            self.dismiss(choice_idx)

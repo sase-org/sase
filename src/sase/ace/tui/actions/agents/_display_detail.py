@@ -353,7 +353,7 @@ class DetailMixin:
         return metrics
 
     def _selected_agent_neighbor_count(self, current_agent: Agent | None) -> int:
-        """Return the visible neighbor count for the focused agent row."""
+        """Return the reachable neighbor/descendant count for the focused row."""
         if current_agent is None:
             return 0
         if getattr(self, "_current_group_key", None) is not None:
@@ -363,7 +363,11 @@ class DetailMixin:
         index_getter = getattr(self, "_agent_neighbor_index", None)
         if not callable(index_getter):
             return 0
-        return int(index_getter().neighbor_count(self.current_idx))
+        index = index_getter()
+        return int(
+            index.neighbor_count(self.current_idx)
+            + index.descendant_count(self.current_idx)
+        )
 
     def _selected_agent_tmux_choice_count(self, current_agent: Agent | None) -> int:
         """Return the cached tmux chooser target count for the focused agent.

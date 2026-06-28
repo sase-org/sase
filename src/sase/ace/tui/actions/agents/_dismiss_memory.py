@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ._dismiss_cleanup import AgentIdentity
 from sase.core.agent_artifact_index_lifecycle import (
@@ -39,7 +39,15 @@ class AgentDismissMemoryMixin:
     _agents_with_children: list[Agent]
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
     _agent_pre_question_status: dict[tuple[AgentType, str, str | None], str | None]
+    _agent_neighbor_index_cache: tuple[Any, ...] | None
+    _dismiss_revive_epoch: int
     current_tab: str
+
+    def _bump_dismiss_revive_epoch(self) -> None:
+        """Invalidate neighbor relationships that depend on dismissed objects."""
+        self._dismiss_revive_epoch = getattr(self, "_dismiss_revive_epoch", 0) + 1
+        if hasattr(self, "_agent_neighbor_index_cache"):
+            self._agent_neighbor_index_cache = None
 
     def _clear_revived_agent_suffixes(self, agents: Iterable[Agent]) -> None:
         """Stop preserving revived rows once they are dismissed again."""
@@ -73,6 +81,7 @@ class AgentDismissMemoryMixin:
         if not agents_list:
             self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
             return
+        self._bump_dismiss_revive_epoch()
 
         removed: list[Agent] = list(agents_list)
         removed_identities: set[tuple[AgentType, str, str | None]] = {
@@ -174,6 +183,7 @@ class AgentDismissMemoryMixin:
         from ....dismissed_agents import save_dismissed_agents
 
         self._dismissed_agents.add(identity)
+        self._bump_dismiss_revive_epoch()
         revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
         if revived_suffixes and identity[2] is not None:
             revived_suffixes.discard(identity[2])
@@ -223,3 +233,5 @@ class AgentDismissMemoryMixin:
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             self._dismissed_agent_objects
         )
+        if identities:
+            self._bump_dismiss_revive_epoch()

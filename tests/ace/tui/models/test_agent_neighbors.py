@@ -11,6 +11,7 @@ from sase.ace.tui.models.agent_hoods import (
     AgentNeighborIndex,
     AgentNeighborRow,
     agent_hood,
+    is_agent_descendant,
 )
 
 
@@ -154,6 +155,51 @@ def test_index_matches_case_insensitively() -> None:
 
     assert index.neighbors_for(0) == (1,)
     assert index.neighbors_for(1) == (0,)
+
+
+def test_agent_descendant_uses_dotted_boundary_prefix() -> None:
+    assert is_agent_descendant("foo.bar.baz", "foo.bar") is True
+    assert is_agent_descendant("Foo.Bar.Baz", "foo.bar") is True
+    assert is_agent_descendant("foo.bar.baz.deep", "foo.bar") is True
+    assert is_agent_descendant("foo.barbaz", "foo.bar") is False
+    assert is_agent_descendant("foo.bar", "foo.bar") is False
+    assert is_agent_descendant("foo..bar", "foo") is False
+    assert is_agent_descendant("", "foo") is False
+
+
+def test_index_tracks_visible_descendants_for_dotless_and_dotted_agents() -> None:
+    rows = [
+        AgentNeighborRow(0, 0, _agent("foo")),
+        AgentNeighborRow(1, 0, _agent("foo.bar")),
+        AgentNeighborRow(2, 0, _agent("foo.bar.baz")),
+        AgentNeighborRow(3, 0, _agent("foo.barbaz")),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows)
+
+    assert index.descendants_for(0) == (1, 2, 3)
+    assert index.descendants_for(1) == (2,)
+    assert index.descendants_for(2) == ()
+    assert index.descendant_count(0) == 3
+    assert index.descendant_count(1) == 1
+
+
+def test_index_descendant_count_includes_dismissed_kin() -> None:
+    rows = [
+        AgentNeighborRow(0, 0, _agent("foo.bar")),
+        AgentNeighborRow(1, 0, _agent("foo.bar.visible")),
+        AgentNeighborRow(2, 0, _agent("foo.barbaz")),
+    ]
+    dismissed = [
+        _agent("foo.bar.dismissed"),
+        _agent("foo.bar.dismissed.deep"),
+        _agent("foo.barbaz.dismissed"),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows, dismissed_agents=dismissed)
+
+    assert index.descendants_for(0) == (1,)
+    assert index.descendant_count(0) == 3
 
 
 def test_index_excludes_non_rendered_starting_rows() -> None:

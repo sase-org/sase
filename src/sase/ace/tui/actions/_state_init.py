@@ -436,6 +436,7 @@ class StateInitMixin:
         self._panel_keys_cache: tuple[Any, ...] | None = None
         self._agent_panel_index_cache: tuple[Any, bool, Any] | None = None
         self._agent_neighbor_index_cache: tuple[Any, ...] | None = None
+        self._dismiss_revive_epoch: int = 0
         self._agent_info_metrics_cache: tuple[Any, ...] | None = None
 
         # Agent completion tracking for notifications

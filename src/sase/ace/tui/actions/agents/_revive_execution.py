@@ -131,6 +131,9 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             stage = "artifact_index"
             upsert_agent_artifact_index_artifacts(revived_artifact_dirs)
             self._record_revived_agent_suffixes(revived_suffixes)
+            bump_epoch = getattr(self, "_bump_dismiss_revive_epoch", None)
+            if callable(bump_epoch):
+                bump_epoch()
         except Exception as exc:
             log_revive_failure(
                 stage=stage,
@@ -348,6 +351,9 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             )
 
         self._record_revived_agent_suffixes(succeeded_suffixes)
+        bump_epoch = getattr(self, "_bump_dismiss_revive_epoch", None)
+        if callable(bump_epoch):
+            bump_epoch()
 
         # Phase 4: Single notification and async refresh
         count = len(succeeded)

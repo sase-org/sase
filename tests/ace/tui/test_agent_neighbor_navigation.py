@@ -50,7 +50,10 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
         self._panel_keys_cache = None
         self._agent_panel_index_cache = None
         self._agent_neighbor_index_cache = None
+        self._dismiss_revive_epoch = 0
         self._agent_info_metrics_cache = None
+        self._dismissed_agents = set()
+        self._dismissed_agent_objects: list[Agent] = []
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
@@ -78,6 +81,7 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
         self.display_refreshes: list[dict[str, Any]] = []
         self.current_tab_refreshes = 0
         self.jump_footer_updates = 0
+        self.revived_agents: list[Agent] = []
         self._agent_detail_debouncer = _Debouncer()
         self.pushed_screens: list[Any] = []
         self.pushed_callbacks: list[Any] = []
@@ -127,6 +131,9 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
 
     def _fire_debounced_detail_update(self) -> None:
         return
+
+    def _do_revive_agent(self, agent: Agent) -> None:
+        self.revived_agents.append(agent)
 
     def push_screen(self, screen: Any, callback: Any = None) -> None:
         self.pushed_screens.append(screen)
@@ -239,18 +246,32 @@ def test_agent_neighbor_navigation_fast_back_jump_restores_origin_without_hints(
     assert app.jump_footer_updates == 0
 
 
-def test_agent_neighbor_navigation_skips_dotless_parent_and_descendant() -> None:
-    # ``foo`` is dotless (no hood), ``foo.bar`` lives in hood ``foo`` and
-    # ``foo.bar.baz`` lives in hood ``foo.bar`` -> no two share a hood.
-    for current_idx in range(3):
-        agents = [_agent("foo"), _agent("foo.bar"), _agent("foo.bar.baz")]
-        app = _NeighborApp(agents, current_idx=current_idx)
+def test_agent_neighbor_navigation_opens_modal_for_dotless_root_descendants() -> None:
+    agents = [_agent("foo"), _agent("foo.bar"), _agent("foo.baz")]
+    app = _NeighborApp(agents)
 
-        app.action_start_sibling_mode()
+    app.action_start_sibling_mode()
 
-        assert app.current_idx == current_idx
-        assert app.pushed_screens == []
-        assert app.acknowledged == []
+    assert app.current_idx == 0
+    assert len(app.pushed_screens) == 1
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    assert [choice.group for choice in modal._choices] == [
+        "descendant",
+        "descendant",
+    ]
+    assert [choice.agent_name for choice in modal._choices] == ["foo.bar", "foo.baz"]
+
+
+def test_agent_neighbor_navigation_fast_jumps_to_single_visible_descendant() -> None:
+    agents = [_agent("foo.bar"), _agent("foo.bar.baz")]
+    app = _NeighborApp(agents)
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 1
+    assert app.pushed_screens == []
+    assert app.acknowledged == [agents[1]]
 
 
 def test_agent_neighbor_navigation_jumps_within_a_sub_hood() -> None:
@@ -288,11 +309,47 @@ def test_agent_neighbor_navigation_opens_modal_for_multiple_neighbors() -> None:
     assert app._entry_jump_agents_anchor_stack == []
     assert app.acknowledged == []
 
-    app.pushed_callbacks[0](2)
+    app.pushed_callbacks[0](1)
 
     assert app.current_idx == 2
     assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
     assert app.acknowledged == [agents[2]]
+
+
+def test_agent_neighbor_navigation_selecting_visible_descendant_jumps() -> None:
+    agents = [_agent("foo"), _agent("foo.bar"), _agent("foo.baz")]
+    app = _NeighborApp(agents)
+
+    app.action_start_sibling_mode()
+
+    app.pushed_callbacks[0](0)
+
+    assert app.current_idx == 1
+    assert app.acknowledged == [agents[1]]
+
+
+def test_agent_neighbor_navigation_selecting_dismissed_descendant_revives() -> None:
+    visible = [_agent("foo.bar")]
+    dismissed = _agent("foo.bar.dismissed", status="DONE")
+    app = _NeighborApp(visible)
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+    app._dismiss_revive_epoch += 1
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 0
+    assert len(app.pushed_screens) == 1
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    assert [(choice.agent_name, choice.dismissed) for choice in modal._choices] == [
+        ("foo.bar.dismissed", True)
+    ]
+
+    app.pushed_callbacks[0](0)
+
+    assert app.revived_agents == [dismissed]
+    assert app.current_idx == 0
 
 
 def test_agent_neighbor_navigation_switches_focused_panel() -> None:

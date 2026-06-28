@@ -756,7 +756,12 @@ AgentNeighborModal {
 
 #agent-neighbor-list {
     height: auto;
-    max-height: 16;
+    max-height: 18;
+}
+
+#agent-neighbor-list > .option-list--option-disabled {
+    color: $text-muted;
+    text-style: bold;
 }
 
 #agent-neighbor-hints {

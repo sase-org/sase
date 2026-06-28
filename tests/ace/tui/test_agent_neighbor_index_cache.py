@@ -39,6 +39,7 @@ class _Bare(AgentDisplayMixin):
         self._panel_keys_cache = None
         self._agent_panel_index_cache = None
         self._agent_neighbor_index_cache = None
+        self._dismiss_revive_epoch = 0
         self._panel_group = AgentPanelGroup.from_agents(
             agents, merge_tag_panels=grouped
         )
@@ -47,6 +48,8 @@ class _Bare(AgentDisplayMixin):
         self._agent_panels_grouped = grouped
         self._marked_agents = set()
         self._fold_counts = {}
+        self._dismissed_agents = set()
+        self._dismissed_agent_objects: list[Agent] = []
         self.current_idx = 0
         self.current_attempt_number = None
         self._current_group_key = None
@@ -166,6 +169,33 @@ def test_agent_neighbor_index_cache_tracks_panel_mode() -> None:
     assert grouped is not split
     assert grouped.panel_idx_for(0) == 0
     assert grouped.panel_idx_for(1) == 0
+    assert app.visible_walk_count == 2
+
+
+def test_agent_neighbor_index_cache_tracks_dismiss_revive_epoch() -> None:
+    app = _Bare(
+        [
+            _agent("foo.plan", suffix="a"),
+            _agent("bar.plan", suffix="b"),
+        ]
+    )
+    dismissed = _agent("foo.plan.child", suffix="d")
+    app._dismissed_agent_objects = [dismissed]
+    app._dismissed_agents = {dismissed.identity}
+
+    first = app._agent_neighbor_index()
+    assert first.descendant_count(0) == 1
+
+    dismissed_2 = _agent("foo.plan.child2", suffix="e")
+    app._dismissed_agent_objects.append(dismissed_2)
+    app._dismissed_agents.add(dismissed_2.identity)
+    assert app._agent_neighbor_index() is first
+
+    app._dismiss_revive_epoch += 1
+    second = app._agent_neighbor_index()
+
+    assert second is not first
+    assert second.descendant_count(0) == 2
     assert app.visible_walk_count == 2
 
 
