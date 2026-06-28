@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 10:39:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/jump_to_definition_keymap.md
 ---
 # Plan: `Ctrl+]` Jump-to-Definition Keymap for the Prompt Input Widget
