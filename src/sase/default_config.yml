@@ -31,7 +31,7 @@ ace:
   snippets: {}
   updates:
     startup_toast: true
-    check_ttl_hours: 24
+    check_ttl_minutes: 10
   prompt_completion:
     auto: soft
     debounce_ms: 90

@@ -1,6 +1,7 @@
 """Shared update-status helpers for SASE core and plugins."""
 
 from .cache import (
+    DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     get_cached_update_status,
     read_update_status_snapshot,
     revalidate_update_status,
@@ -14,6 +15,7 @@ from .status import (
 )
 
 __all__ = [
+    "DEFAULT_UPDATE_STATUS_TTL_SECONDS",
     "OutdatedComponent",
     "UpdateStatus",
     "compute_update_status",

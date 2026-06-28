@@ -10,7 +10,9 @@ import pytest
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
+from sase.plugins.latest_cache import CachedLatest
 from sase.updates import (
+    DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     OutdatedComponent,
     UpdateStatus,
     compute_update_status,
@@ -262,3 +264,54 @@ def test_get_cached_update_status_falls_back_to_snapshot_on_compute_failure(
     )
 
     assert result == status
+
+
+def test_default_update_status_ttl_is_ten_minutes() -> None:
+    assert DEFAULT_UPDATE_STATUS_TTL_SECONDS == 600
+
+
+def test_update_status_snapshot_freshness_uses_default_ttl() -> None:
+    status = UpdateStatus(checked_at=0.0, components=())
+
+    assert update_status_snapshot_is_fresh(status, now=599.0)
+    assert not update_status_snapshot_is_fresh(status, now=600.0)
+    assert not update_status_snapshot_is_fresh(status, now=601.0)
+
+
+def test_cached_core_fetch_uses_fresh_latest_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.updates.status as status_module
+
+    monkeypatch.setattr(
+        status_module,
+        "_read_latest_cache",
+        lambda: {"sase": CachedLatest(version="1.1.0", fetched_at=100.0)},
+    )
+
+    def _no_fetch(_dist_name: str) -> str | None:
+        raise AssertionError("a fresh latest-version cache must not hit PyPI")
+
+    monkeypatch.setattr(status_module, "_fetch_latest_version", _no_fetch)
+
+    fetch = status_module._make_cached_core_fetch_fn(now=120.0)
+
+    assert fetch("sase") == "1.1.0"
+
+
+def test_cached_core_fetch_writes_through_on_miss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.updates.status as status_module
+
+    monkeypatch.setattr(status_module, "_read_latest_cache", dict)
+    monkeypatch.setattr(status_module, "_fetch_latest_version", lambda _d: "2.0.0")
+    written: dict[str, CachedLatest] = {}
+    monkeypatch.setattr(
+        status_module, "_write_latest_cache", lambda cache: written.update(cache)
+    )
+
+    fetch = status_module._make_cached_core_fetch_fn(now=500.0)
+
+    assert fetch("sase-core-rs") == "2.0.0"
+    assert written == {"sase-core-rs": CachedLatest(version="2.0.0", fetched_at=500.0)}

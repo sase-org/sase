@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 15:58:56
-status: wip
+status: done
 prompt: sdd/prompts/202606/ace_update_check_10m_fast.md
 ---
 # ACE Update Check Cadence and Speed Plan

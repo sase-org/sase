@@ -142,11 +142,16 @@
               "description": "Show an informational toast on ACE startup when SASE core or installed plugins have updates available",
               "default": true
             },
+            "check_ttl_minutes": {
+              "type": "number",
+              "description": "Minimum minutes between background latest-version checks for the startup update toast. Takes precedence over check_ttl_hours when both are set.",
+              "minimum": 0,
+              "default": 10
+            },
             "check_ttl_hours": {
               "type": "number",
-              "description": "Minimum hours between background latest-version checks for the startup update toast",
-              "minimum": 0,
-              "default": 24
+              "description": "Legacy/deprecated: minimum hours between startup update-toast checks. Prefer check_ttl_minutes, which overrides this when both are set.",
+              "minimum": 0
             }
           }
         },

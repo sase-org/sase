@@ -56,7 +56,7 @@ async def test_startup_update_toast_png_snapshot(
     monkeypatch.setattr(
         update_toast,
         "_load_update_toast_config",
-        lambda: update_toast._UpdateToastConfig(startup_toast=True, check_ttl_hours=24),
+        lambda: update_toast._UpdateToastConfig(startup_toast=True),
     )
     monkeypatch.setattr(
         update_toast,

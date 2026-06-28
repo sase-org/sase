@@ -116,6 +116,85 @@ def test_startup_update_check_respects_disabled_config(
     assert app.called is False
 
 
+def test_load_update_toast_config_defaults_to_ten_minutes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(update_toast, "load_merged_config", dict)
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.startup_toast is True
+    assert config.check_ttl_seconds == 600.0
+
+
+def test_load_update_toast_config_minutes_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: {"ace": {"updates": {"check_ttl_minutes": 5}}},
+    )
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.check_ttl_seconds == 300.0
+
+
+def test_load_update_toast_config_legacy_hours_still_works(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: {"ace": {"updates": {"check_ttl_hours": 2}}},
+    )
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.check_ttl_seconds == 7200.0
+
+
+def test_load_update_toast_config_minutes_take_precedence_over_hours(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: {"ace": {"updates": {"check_ttl_minutes": 10, "check_ttl_hours": 24}}},
+    )
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.check_ttl_seconds == 600.0
+
+
+def test_startup_update_check_passes_default_ttl_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(),
+    )
+
+    def _fake_get(**kwargs: object) -> None:
+        captured.update(kwargs)
+        return None
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", _fake_get)
+
+    class _App(UpdateToastMixin):
+        def call_from_thread(self, callback: object, *args: object) -> None:
+            raise AssertionError("no toast should be shown when status is None")
+
+    _App()._run_startup_update_toast_check()
+
+    assert captured["ttl_seconds"] == 600.0
+
+
 async def test_startup_update_toast_appears_once_in_tui(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -124,7 +203,7 @@ async def test_startup_update_toast_appears_once_in_tui(
     monkeypatch.setattr(
         update_toast,
         "_load_update_toast_config",
-        lambda: update_toast._UpdateToastConfig(startup_toast=True, check_ttl_hours=24),
+        lambda: update_toast._UpdateToastConfig(startup_toast=True),
     )
     monkeypatch.setattr(
         update_toast,

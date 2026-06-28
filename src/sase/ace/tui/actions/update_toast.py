@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING, Any, cast
 from textual.markup import escape
 
 from sase.config.core import load_merged_config
-from sase.updates import UpdateStatus, get_cached_update_status
+from sase.updates import (
+    DEFAULT_UPDATE_STATUS_TTL_SECONDS,
+    UpdateStatus,
+    get_cached_update_status,
+)
 
 from ..modals.config_center_modal import (
     center_tab_accent,
@@ -24,7 +28,10 @@ log = logging.getLogger(__name__)
 _UPDATE_GLYPH = "↑"
 _TOAST_TITLE = f"{_UPDATE_GLYPH} Updates available"
 _TOAST_TIMEOUT_SECONDS = 12.0
-_DEFAULT_CHECK_TTL_HOURS = 24.0
+# Fallbacks used only when a TTL key is present but unparsable; both resolve to
+# the 10-minute default so a garbage override never silently re-enables a day.
+_DEFAULT_CHECK_TTL_MINUTES = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 60.0
+_DEFAULT_CHECK_TTL_HOURS = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 3600.0
 _MAX_COMPONENT_LINES = 3
 
 
@@ -33,7 +40,7 @@ class _UpdateToastConfig:
     """Config values controlling the startup update toast."""
 
     startup_toast: bool = True
-    check_ttl_hours: float = _DEFAULT_CHECK_TTL_HOURS
+    check_ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS
 
 
 class UpdateToastMixin:
@@ -59,9 +66,7 @@ class UpdateToastMixin:
             config = _load_update_toast_config()
             if not config.startup_toast:
                 return
-            status = get_cached_update_status(
-                ttl_seconds=max(0.0, config.check_ttl_hours) * 60 * 60
-            )
+            status = get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
             if status is None or not status.has_updates:
                 return
             self.call_from_thread(  # type: ignore[attr-defined]
@@ -98,11 +103,26 @@ def _load_update_toast_config() -> _UpdateToastConfig:
         return _UpdateToastConfig()
     return _UpdateToastConfig(
         startup_toast=_coerce_bool(updates.get("startup_toast"), default=True),
-        check_ttl_hours=_coerce_positive_float(
-            updates.get("check_ttl_hours"),
-            default=_DEFAULT_CHECK_TTL_HOURS,
-        ),
+        check_ttl_seconds=_resolve_check_ttl_seconds(updates),
     )
+
+
+def _resolve_check_ttl_seconds(updates: dict[str, Any]) -> float:
+    """Resolve the startup-check TTL in seconds from the updates config.
+
+    ``check_ttl_minutes`` is the primary knob; ``check_ttl_hours`` is retained
+    only for backward compatibility and consulted when minutes is absent. The
+    value is carried internally as seconds so the worker never re-derives units.
+    """
+    minutes = updates.get("check_ttl_minutes")
+    if minutes is not None:
+        return (
+            _coerce_positive_float(minutes, default=_DEFAULT_CHECK_TTL_MINUTES) * 60.0
+        )
+    hours = updates.get("check_ttl_hours")
+    if hours is not None:
+        return _coerce_positive_float(hours, default=_DEFAULT_CHECK_TTL_HOURS) * 3600.0
+    return DEFAULT_UPDATE_STATUS_TTL_SECONDS
 
 
 def _format_update_toast_message(status: UpdateStatus) -> str:

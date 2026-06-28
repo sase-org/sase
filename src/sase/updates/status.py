@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
 from sase.plugins.catalog import PluginCatalogEntry, load_plugin_catalog
 from sase.plugins.latest import enrich_with_latest, is_newer
+from sase.plugins.latest_cache import (
+    CachedLatest,
+    is_fresh,
+    read_cache,
+    write_cache,
+)
 from sase.plugins.pypi_source import fetch_latest_version
 from sase.uv_tool.versions import (
     CorePackageVersion,
     collect_installed_core_versions,
     enrich_core_versions_latest,
 )
+from sase.version._utils import normalize_distribution_name
 
 ComponentRole = Literal["host", "core", "plugin"]
 
@@ -61,7 +69,7 @@ def compute_update_status(
     """
     checked_at = time.time() if now is None else now
     components: list[OutdatedComponent] = []
-    components.extend(_compute_core_components(offline=offline))
+    components.extend(_compute_core_components(offline=offline, now=checked_at))
     components.extend(
         _compute_plugin_components(
             offline=offline,
@@ -83,13 +91,15 @@ def compute_update_status(
     )
 
 
-def _compute_core_components(*, offline: bool) -> tuple[OutdatedComponent, ...]:
+def _compute_core_components(
+    *, offline: bool, now: float
+) -> tuple[OutdatedComponent, ...]:
     try:
         versions = _collect_installed_core_versions()
         versions = _enrich_core_versions_latest(
             versions,
             offline=offline,
-            fetch_fn=_fetch_latest_version,
+            fetch_fn=_make_cached_core_fetch_fn(now),
             is_newer=_is_newer,
         )
     except Exception:  # noqa: BLE001 - startup update hints are best effort.
@@ -99,6 +109,49 @@ def _compute_core_components(*, offline: bool) -> tuple[OutdatedComponent, ...]:
         for package in versions.packages
         if package.update_available
     )
+
+
+def _make_cached_core_fetch_fn(now: float) -> Callable[[str], str | None]:
+    """Build a PyPI fetcher for core packages backed by the latest-version cache.
+
+    The startup snapshot recompute is eligible every 10 minutes, but PyPI's
+    answer for ``sase`` / ``sase-core-rs`` rarely changes that fast. Core
+    lookups share the plugin latest-version cache (distinct distribution keys,
+    so no collision) and only hit the network when their cached entry has
+    lapsed the latest-version TTL. Misses are written through so the next
+    recompute stays offline. The cache is read lazily so an offline recompute,
+    which never calls ``fetch_fn``, touches no disk.
+    """
+    cache: dict[str, CachedLatest] | None = None
+
+    def _fetch(dist_name: str) -> str | None:
+        nonlocal cache
+        if cache is None:
+            cache = _safe_read_latest_cache()
+        key = normalize_distribution_name(dist_name)
+        cached = cache.get(key)
+        if cached is not None and _latest_cache_is_fresh(cached, now):
+            return cached.version
+        version = _fetch_latest_version(dist_name)
+        cache[key] = CachedLatest(version=version, fetched_at=now)
+        _safe_write_latest_cache(cache)
+        return version
+
+    return _fetch
+
+
+def _safe_read_latest_cache() -> dict[str, CachedLatest]:
+    try:
+        return _read_latest_cache()
+    except Exception:  # noqa: BLE001 - cache reads must never break update hints.
+        return {}
+
+
+def _safe_write_latest_cache(cache: dict[str, CachedLatest]) -> None:
+    try:
+        _write_latest_cache(cache)
+    except Exception:  # noqa: BLE001 - cache writes are best effort.
+        return
 
 
 def _core_component(package: CorePackageVersion) -> OutdatedComponent:
@@ -163,6 +216,9 @@ _load_plugin_catalog = load_plugin_catalog
 _enrich_with_latest = enrich_with_latest
 _fetch_latest_version = fetch_latest_version
 _is_newer = is_newer
+_read_latest_cache = read_cache
+_write_latest_cache = write_cache
+_latest_cache_is_fresh = is_fresh
 
 __all__ = [
     "ComponentRole",

@@ -22,7 +22,7 @@ from .status import (
 SCHEMA_VERSION = 1
 CACHE_SUBDIR = "updates"
 CACHE_FILENAME = "status_snapshot.json"
-DEFAULT_UPDATE_STATUS_TTL_SECONDS = 24 * 60 * 60
+DEFAULT_UPDATE_STATUS_TTL_SECONDS = 10 * 60
 
 VersionFn = Callable[[str], str | None]
 IsNewerFn = Callable[[str | None, str | None], bool]
