@@ -19,6 +19,7 @@ from .startup import StartupMixin
 from .status import StatusActionsMixin
 from .sync import SyncMixin
 from .task_actions import TaskActionsMixin
+from .update_toast import UpdateToastMixin
 from .workspace import WorkspaceActionsMixin
 
 __all__ = [
@@ -42,5 +43,6 @@ __all__ = [
     "StatusActionsMixin",
     "SyncMixin",
     "TaskActionsMixin",
+    "UpdateToastMixin",
     "WorkspaceActionsMixin",
 ]

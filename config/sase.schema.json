@@ -132,6 +132,24 @@
             "type": "string"
           }
         },
+        "updates": {
+          "type": "object",
+          "description": "Startup update-check behavior for the ACE Updates tab",
+          "additionalProperties": false,
+          "properties": {
+            "startup_toast": {
+              "type": "boolean",
+              "description": "Show an informational toast on ACE startup when SASE core or installed plugins have updates available",
+              "default": true
+            },
+            "check_ttl_hours": {
+              "type": "number",
+              "description": "Minimum hours between background latest-version checks for the startup update toast",
+              "minimum": 0,
+              "default": 24
+            }
+          }
+        },
         "prompt_completion": {
           "type": "object",
           "description": "Live completion settings for the ACE prompt input",

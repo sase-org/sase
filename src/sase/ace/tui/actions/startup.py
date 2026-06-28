@@ -313,6 +313,10 @@ class StartupMixin(StateInitMixin):
             self._start_artifact_watcher()
         except Exception:
             log.exception("Failed to start artifact inotify watcher")
+        try:
+            self._schedule_startup_update_toast_check()  # type: ignore[attr-defined]
+        except Exception:
+            log.debug("Failed to schedule startup update toast", exc_info=True)
 
     async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
         """Refresh stale index projections before the first agents query."""

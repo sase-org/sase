@@ -39,6 +39,7 @@ from .actions import (
     StatusActionsMixin,
     SyncMixin,
     TaskActionsMixin,
+    UpdateToastMixin,
     WorkspaceActionsMixin,
 )
 from .bindings import DEFAULT_BINDINGS
@@ -111,6 +112,7 @@ class AceApp(
     StatusActionsMixin,
     SyncMixin,
     TaskActionsMixin,
+    UpdateToastMixin,
     WorkspaceActionsMixin,
     BaseActionsMixin,
     HintActionsMixin,

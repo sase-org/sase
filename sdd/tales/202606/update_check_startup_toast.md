@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 14:54:21
-status: wip
+status: done
 prompt: sdd/prompts/202606/update_check_startup_toast.md
 ---
 # Plan: "Updates available" startup toast + lightweight periodic version check

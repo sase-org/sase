@@ -17,6 +17,7 @@ from sase.ace.tui.modals.config_center_modal import (
     _TITLE_TEXT,
     _TITLE_UNDERLINE,
     ConfigCenterModal,
+    center_tab_shortcut,
 )
 
 from tests.ace.tui._plugins_browser_pane_helpers import (
@@ -133,7 +134,9 @@ async def test_hash_digit_composition_opens_numbered_tab(
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
 
-        await page.press("5")
+        shortcut = center_tab_shortcut("updates")
+        assert shortcut is not None
+        await page.press(str(shortcut))
         await page.wait_for(lambda _s: modal._active_tab == "updates")
 
 

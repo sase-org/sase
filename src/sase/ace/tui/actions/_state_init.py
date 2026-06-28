@@ -82,6 +82,7 @@ class StateInitMixin:
         # in the TUI's agents and axe surfaces.
         self._agents_first_load_done = False
         self._axe_first_load_done = False
+        self._update_toast_shown = False
         # Deferred live-workspace pencil-hint scan coalescing. The expensive
         # per-agent live VCS diff is computed in a background worker after the
         # first agents load applies (never on the startup-critical loader

@@ -303,6 +303,7 @@ def patch_startup_loaders(
     from sase.ace.tui import memory_reads as memory_reads_module
     from sase.ace.tui import opened_workspaces as opened_workspaces_module
     from sase.ace.tui import skill_uses as skill_uses_module
+    from sase.ace.tui.actions import update_toast
     from sase.ace.tui.actions.agents import _loading
     from sase.ace.tui.models.agent_groups import GroupingMode
     from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
@@ -444,6 +445,11 @@ def patch_startup_loaders(
         llm_override_indicator,
         "get_active_temporary_override",
         _fake_get_active_temporary_override,
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: None,
     )
 
     assert (
