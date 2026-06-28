@@ -11,10 +11,8 @@ The core execution loop (retry, plan approval, question handling) lives in
 """
 
 import os
-import signal
 import sys
 import time
-from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,7 +20,6 @@ from sase.ace.hooks import format_duration
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_phases import (
-    build_done_marker,
     claim_deferred_workspace,
     extract_directives_and_write_meta,
     record_run_started_at,
@@ -30,25 +27,41 @@ from sase.axe.run_agent_phases import (
     resolve_wait_chat_paths,
     wait_for_dependencies,
 )
-from sase.axe.run_agent_repeat_stop import (
-    STOP_OUTPUT_VARIABLE,
-    RepeatStopDecision,
-    detect_repeat_stop,
-)
-from sase.axe.runner_args import parse_runner_bool_arg
+from sase.axe.run_agent_repeat_stop import RepeatStopDecision, detect_repeat_stop
 from sase.axe.run_agent_runtime import format_agent_run_runtime
+from sase.axe.run_agent_runner_cli import parse_runner_args, read_prompt_file
+from sase.axe.run_agent_runner_errors import (
+    RunnerErrorContext,
+    record_runner_error,
+)
 from sase.axe.run_agent_runner_finalize import (
     classify_exec_success,
     record_completion_metrics,
     send_completion_notification,
     write_error_done_marker,
 )
+from sase.axe.run_agent_runner_lifecycle import (
+    RunnerShutdownContext,
+    RunnerShutdownDeps,
+    RunnerShutdownState,
+    auto_dismiss_completed_agent,
+    finalize_runner_shutdown,
+)
+from sase.axe.run_agent_runner_repeat import finalize_repeat_stop
+from sase.axe.run_agent_runner_signals import (
+    install_workspace_release_sigterm_handler,
+    is_user_kill_exit,
+    system_exit_code,
+)
 from sase.axe.run_agent_runner_setup import (
     apply_retry_chain_to_meta,
     bump_spawn_telemetry,
+    build_output_variable_namespaces,
+    enter_agent_workspace,
     load_retry_handoff_from_env,
     prepare_workspace_if_needed,
     preprocess_prompt_xprompts,
+    print_agent_start_banner,
     refresh_linked_repos_for_workspace,
     setup_artifacts_directory,
     write_submitted_xprompt_artifact,
@@ -61,7 +74,6 @@ from sase.axe.runner_utils import (
     write_error_report,
 )
 from sase.core.agent_artifact_index_lifecycle import (
-    sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
@@ -71,174 +83,25 @@ from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
 
-_PENDING_HANDOFF_MARKERS = (".sase_plan_pending", ".sase_questions_pending")
-
-
-def _system_exit_code(exc: SystemExit) -> int | None:
-    """Return the integer exit code for ``SystemExit`` when one is available."""
-    return exc.code if isinstance(exc.code, int) else None
-
-
-def _is_user_kill_exit(exc: SystemExit) -> bool:
-    """Return whether ``SystemExit`` represents an explicit user kill."""
-    return was_killed() or _system_exit_code(exc) == 128 + signal.SIGTERM
-
-
-def _has_pending_handoff_marker(fallback_artifacts_dir: str | None = None) -> bool:
-    """Return whether the current artifacts dir has a plan/question handoff."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
-    if not artifacts_dir:
-        return False
-
-    try:
-        return any(
-            os.path.exists(os.path.join(artifacts_dir, marker))
-            for marker in _PENDING_HANDOFF_MARKERS
-        )
-    except OSError:
-        return False
-
-
-def _install_workspace_release_sigterm_handler(
-    *,
-    project_file: str,
-    workspace_num: int,
-    workflow_name: str,
-    cl_name: str,
-    is_home_mode: bool,
-    artifacts_dir_getter: Callable[[], str | None] | None = None,
-) -> None:
-    """Release this runner's workspace claim promptly on SIGTERM."""
-
-    def _release_workspace_claim() -> None:
-        if is_home_mode:
-            return
-        fallback_artifacts_dir = None
-        if artifacts_dir_getter is not None:
-            try:
-                fallback_artifacts_dir = artifacts_dir_getter()
-            except Exception:
-                fallback_artifacts_dir = None
-        if _has_pending_handoff_marker(fallback_artifacts_dir):
-            return
-        from sase.running_field import release_workspace
-
-        release_workspace(project_file, workspace_num, workflow_name, cl_name)
-
-    install_sigterm_handler("agent", soft=True, on_signal=_release_workspace_claim)
-
-
-def _auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None:
-    """Persist auto-dismiss identities for a completed background run."""
-    try:
-        from sase.ace.dismissed_agents import (
-            load_dismissed_agents,
-            save_dismissed_agents,
-        )
-        from sase.ace.tui.models.agent import AgentType
-
-        dismissed = load_dismissed_agents()
-        # Dismiss both RUNNING and WORKFLOW identities -- dedup may pick
-        # either depending on whether workflow_state.json exists.
-        identities = {
-            (AgentType.RUNNING, cl_name, artifacts_timestamp),
-            (AgentType.WORKFLOW, cl_name, artifacts_timestamp),
-        }
-        dismissed.update(identities)
-        if save_dismissed_agents(dismissed):
-            sync_dismissed_agent_artifact_index(dismissed, added=identities)
-    except Exception:
-        pass  # Best effort
-
-
-def _finalize_repeat_stop(
-    *,
-    decision: RepeatStopDecision,
-    artifacts_dir: str,
-    cl_name: str,
-    project_file: str,
-    timestamp: str,
-    artifacts_timestamp: str,
-    workspace_num: int,
-    workspace_dir: str,
-    output_path: str,
-    agent_name: str | None,
-    agent_model: str | None,
-    agent_llm_provider: str | None,
-    agent_vcs_provider: str | None,
-    agent_hidden: bool,
-) -> None:
-    """Finalize the current repeat slot as a successful skipped STOP slot.
-
-    Propagates ``STOP`` into this slot's own output variables *before* writing
-    the completed ``done.json`` marker: the next downstream waiter can only
-    wake once this slot has a completed done marker, so writing the variable
-    first guarantees the cascade always observes the propagated value.
-    """
-    set_agent_output_variables(
-        artifacts_dir, {STOP_OUTPUT_VARIABLE: decision.stop_value}
-    )
-    done_marker = build_done_marker(
-        cl_name,
-        project_file,
-        timestamp,
-        artifacts_timestamp,
-        workspace_num,
-        workspace_dir,
-        output_path,
-        "completed",
-        agent_name=agent_name,
-        agent_model=agent_model,
-        agent_llm_provider=agent_llm_provider,
-        agent_vcs_provider=agent_vcs_provider,
-        agent_hidden=agent_hidden,
-        repeat_stopped=True,
-        stopped_by=decision.producer_name,
-    )
-    write_done_marker_and_update_index(artifacts_dir, done_marker)
-    print(
-        f"Repeat chain stopped by {decision.producer_name} "
-        f"(STOP={decision.stop_value}); skipping execution"
-    )
-
 
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
-    # Accept 13 args: cl_name, project_file, workspace_dir, output_path,
-    # workspace_num, workflow_name, prompt_file, timestamp,
-    # update_target, project_name, cl_name_for_history, is_home_mode
-    if len(sys.argv) != 13:
-        print(
-            f"Usage: {sys.argv[0]} <cl_name> <project_file> <workspace_dir> "
-            "<output_path> <workspace_num> <workflow_name> <prompt_file> <timestamp> "
-            "<update_target> <project_name> "
-            "<cl_name_for_history> <is_home_mode>",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    cl_name = sys.argv[1]
-    project_file = sys.argv[2]
-    workspace_dir = sys.argv[3]
-    output_path = sys.argv[4]
-    workspace_num = int(sys.argv[5])
-    workflow_name = sys.argv[6]
-    prompt_file = sys.argv[7]
-    timestamp = sys.argv[8]
-
-    # Optional parameters (empty string = not provided)
-    update_target = sys.argv[9]
-    project_name = sys.argv[10]
-    # sys.argv[11] (cl_name_for_history) is no longer used here;
-    # prompt history is saved by the TUI before launch.
-    is_home_mode_arg = sys.argv[12]
-    is_home_mode = parse_runner_bool_arg(is_home_mode_arg)
+    args = parse_runner_args(sys.argv)
+    cl_name = args.cl_name
+    project_file = args.project_file
+    workspace_dir = args.workspace_dir
+    output_path = args.output_path
+    workspace_num = args.workspace_num
+    workflow_name = args.workflow_name
+    timestamp = args.timestamp
+    update_target = args.update_target
+    is_home_mode = args.is_home_mode
     signal_fallback_artifacts_dir: str | None = None
 
     def _signal_fallback_artifacts_dir() -> str | None:
         return signal_fallback_artifacts_dir
 
-    _install_workspace_release_sigterm_handler(
+    install_workspace_release_sigterm_handler(
         project_file=project_file,
         workspace_num=workspace_num,
         workflow_name=workflow_name,
@@ -247,22 +110,9 @@ def main() -> None:
         artifacts_dir_getter=_signal_fallback_artifacts_dir,
     )
 
-    # Read prompt from temp file
-    try:
-        with open(prompt_file, encoding="utf-8") as f:
-            prompt = f.read()
-        submitted_xprompt = prompt
-    except Exception as e:
-        print(f"Error reading prompt file: {e}", file=sys.stderr)
-        sys.exit(1)
-    finally:
-        # Clean up temp prompt file
-        try:
-            os.unlink(prompt_file)
-        except OSError:
-            pass
+    prompt = read_prompt_file(args.prompt_file)
+    submitted_xprompt = prompt
 
-    # Initialize telemetry and register push-on-exit for this agent process
     init_telemetry()
     register_push_on_exit(
         job="agent_runner", workflow=workflow_name, instance=timestamp
@@ -284,17 +134,13 @@ def main() -> None:
     run_started_at: str | None = None
     suppress_completion_notification = False
 
-    print("Starting agent run")
-    print(f"CL: {cl_name}")
-    print(f"Workspace: {workspace_dir}")
-    print(f"Workflow: {workflow_name}")
-    print()
-    print("=== Prompt ===")
-    print(prompt)
-    print("==============")
-    print()
+    print_agent_start_banner(
+        cl_name=cl_name,
+        workspace_dir=workspace_dir,
+        workflow_name=workflow_name,
+        prompt=prompt,
+    )
 
-    # Track running marker path for cleanup (home mode only)
     running_marker_path: str | None = None
 
     project_name, artifacts_timestamp, artifacts_dir = setup_artifacts_directory(
@@ -322,32 +168,30 @@ def main() -> None:
     # Initialize current_artifacts_dir so it's always defined for cleanup
     current_artifacts_dir = artifacts_dir
 
-    # Spawn-on-retry: detect the retry handoff env var. When set, this
-    # process is a retry child whose workspace was transferred from the
-    # failing parent; we must NOT call prepare_workspace (which would
-    # wipe the parent's in-progress file edits) and must record the
-    # retry-chain pointers into agent_meta.json so the TUI loader can
-    # build the chain.
+    def _error_context() -> RunnerErrorContext:
+        return RunnerErrorContext(
+            current_artifacts_dir=current_artifacts_dir,
+            cl_name=cl_name,
+            project_file=project_file,
+            timestamp=timestamp,
+            artifacts_timestamp=artifacts_timestamp,
+            workspace_num=workspace_num,
+            workspace_dir=workspace_dir,
+            output_path=output_path,
+            agent_name=agent_name,
+            agent_model=agent_model,
+            agent_llm_provider=agent_llm_provider,
+            agent_vcs_provider=agent_vcs_provider,
+            agent_hidden=agent_hidden,
+        )
+
     retry_handoff = load_retry_handoff_from_env()
 
     try:
         try:
             deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
 
-            # Change to the allocated workspace before prompt-derived metadata
-            # is published. Workspace preparation runs after metadata so launch
-            # surfaces can resolve the claimed agent name while prep is busy.
-            os.chdir(workspace_dir)
-            os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
-
-            # Keep ``.sase/`` untracked in this clone. Some workflows use it
-            # for project-local runtime artifacts, and ``.git/info/exclude`` is
-            # git's per-clone ignore file honored by ``git clean``.
-            from sase.workspace_provider.git_exclude import (
-                ensure_git_info_exclude_entry,
-            )
-
-            ensure_git_info_exclude_entry(workspace_dir, ".sase/")
+            enter_agent_workspace(workspace_dir)
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(
@@ -370,9 +214,6 @@ def main() -> None:
                 artifacts_dir=artifacts_dir,
             )
 
-            # Prepare normal workspaces before running the agent.  Deferred
-            # %wait agents still have only their placeholder workspace here;
-            # their real workspace is claimed and prepared after the wait.
             if deferred_workspace and not is_home_mode:
                 print(
                     "=== Skipping workspace prep "
@@ -397,7 +238,6 @@ def main() -> None:
                 timestamp=timestamp,
             )
 
-            # Write running marker for home mode (no workspace tracking available)
             if is_home_mode:
                 running_marker_path = write_home_running_marker(
                     artifacts_dir=artifacts_dir,
@@ -410,7 +250,6 @@ def main() -> None:
                     workspace_dir=workspace_dir,
                 )
 
-            # Wait for dependencies if %wait directives are present
             has_wait = (
                 bool(info.wait_names)
                 or info.wait_duration is not None
@@ -435,13 +274,10 @@ def main() -> None:
                     wait_until=info.wait_until,
                 )
 
-                # A repeat slot whose chain predecessor set STOP finalizes here
-                # as a successful skipped slot -- before resolving wait chats,
-                # claiming a deferred workspace, or invoking the provider.
                 repeat_stop = detect_repeat_stop()
 
             if repeat_stop is not None:
-                _finalize_repeat_stop(
+                finalize_repeat_stop(
                     decision=repeat_stop,
                     artifacts_dir=artifacts_dir,
                     cl_name=cl_name,
@@ -456,6 +292,8 @@ def main() -> None:
                     agent_llm_provider=agent_llm_provider,
                     agent_vcs_provider=agent_vcs_provider,
                     agent_hidden=agent_hidden,
+                    set_output_variables=set_agent_output_variables,
+                    write_done_marker=write_done_marker_and_update_index,
                 )
                 current_artifacts_dir = artifacts_dir
                 success = True
@@ -466,7 +304,6 @@ def main() -> None:
                     if info.wait_names:
                         wait_chats = resolve_wait_chat_paths(info.wait_names)
 
-                    # Allocate real workspace now that dependencies are resolved
                     if (
                         os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE")
                         and not is_home_mode
@@ -495,22 +332,13 @@ def main() -> None:
                             prompt=prompt,
                         )
 
-                # Resolve @name agent references in VCS tags
-                # (e.g., #gh:@a -> #gh:branch_name). This runs after
-                # wait_for_dependencies() so referenced agents are done.
                 prompt, vcs_tag = resolve_agent_refs_in_prompt(prompt)
 
                 if info.approve:
                     os.environ["SASE_AGENT_AUTO_APPROVE"] = "1"
 
-                from sase.agent.output_variable_context import (
-                    SASE_AGENT_VAR_UPSTREAMS_ENV,
-                    build_agent_output_variable_context,
-                )
-
-                output_variable_namespaces = build_agent_output_variable_context(
-                    upstreams_json=os.environ.get(SASE_AGENT_VAR_UPSTREAMS_ENV),
-                    wait_names=info.wait_names,
+                output_variable_namespaces = build_output_variable_namespaces(
+                    info.wait_names
                 )
 
                 ctx = AgentExecContext(
@@ -554,61 +382,28 @@ def main() -> None:
                 step_output = exec_result.step_output
 
         except Exception as e:
-            print(f"Error running agent: {e}", file=sys.stderr)
-            import traceback
-
-            traceback.print_exc()
             success = False
-            error_summary = f"{type(e).__qualname__}: {e}"
-            error_traceback_str = traceback.format_exc()
-            AGENT_KILLS.labels(reason="error").inc()
-            write_error_done_marker(
-                current_artifacts_dir=current_artifacts_dir,
-                cl_name=cl_name,
-                project_file=project_file,
-                timestamp=timestamp,
-                artifacts_timestamp=artifacts_timestamp,
-                workspace_num=workspace_num,
-                workspace_dir=workspace_dir,
-                output_path=output_path,
-                agent_name=agent_name,
-                agent_model=agent_model,
-                agent_llm_provider=agent_llm_provider,
-                agent_vcs_provider=agent_vcs_provider,
-                agent_hidden=agent_hidden,
-                error=error_summary,
-                traceback_str=error_traceback_str,
+            error_summary, error_traceback_str = record_runner_error(
+                e,
+                context=_error_context(),
+                write_error_done_marker=write_error_done_marker,
+                agent_kills=AGENT_KILLS,
+                message_prefix="Error running agent",
             )
         except SystemExit as e:
-            if _is_user_kill_exit(e):
+            if is_user_kill_exit(e):
                 exec_outcome = "killed"
                 suppress_completion_notification = True
                 raise
 
-            print(f"Agent exited before completion: {e}", file=sys.stderr)
-            import traceback
-
-            traceback.print_exc()
             success = False
-            error_summary = f"{type(e).__qualname__}: {_system_exit_code(e)}"
-            error_traceback_str = traceback.format_exc()
-            AGENT_KILLS.labels(reason="error").inc()
-            write_error_done_marker(
-                current_artifacts_dir=current_artifacts_dir,
-                cl_name=cl_name,
-                project_file=project_file,
-                timestamp=timestamp,
-                artifacts_timestamp=artifacts_timestamp,
-                workspace_num=workspace_num,
-                workspace_dir=workspace_dir,
-                output_path=output_path,
-                agent_name=agent_name,
-                agent_model=agent_model,
-                agent_llm_provider=agent_llm_provider,
-                agent_vcs_provider=agent_vcs_provider,
-                agent_hidden=agent_hidden,
-                error=error_summary,
-                traceback_str=error_traceback_str,
+            error_summary, error_traceback_str = record_runner_error(
+                e,
+                context=_error_context(),
+                write_error_done_marker=write_error_done_marker,
+                agent_kills=AGENT_KILLS,
+                message_prefix="Agent exited before completion",
+                error_summary=f"{type(e).__qualname__}: {system_exit_code(e)}",
             )
 
         completion_time = datetime.now(UTC)
@@ -641,89 +436,50 @@ def main() -> None:
         print(f"Duration: {duration}")
 
     finally:
-        # Clean up running marker for home mode (done.json replaces it)
-        if running_marker_path and os.path.exists(running_marker_path):
-            try:
-                os.unlink(running_marker_path)
-                update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-            except OSError:
-                pass
-
-        # Release workspace for non-home-mode agents
-        if not is_home_mode:
-            try:
-                from sase.running_field import release_workspace
-
-                release_workspace(project_file, workspace_num, workflow_name, cl_name)
-                print("Workspace released")
-            except Exception as e:
-                print(f"Error releasing workspace: {e}", file=sys.stderr)
-
-        # Write completion marker
-        try:
-            with open(output_path, "a") as f:
-                f.write("\n=== AGENT_RUN_COMPLETE ===\n")
-                f.write(f"Status: {'SUCCESS' if success else 'FAILED'}\n")
-                f.write(f"Duration: {duration}\n")
-        except Exception as e:
-            print(f"Error writing completion marker: {e}", file=sys.stderr)
-
-        # Auto-dismiss if launched by a run_every lumberjack chop, so
-        # recurring infrastructure agents don't accumulate as "done" entries.
-        if os.environ.get("SASE_AGENT_AUTO_DISMISS"):
-            _auto_dismiss_completed_agent(cl_name, artifacts_timestamp)
-
-        # Write error report for failed agents (before notification so it
-        # can be attached as a file).
-        error_report_path: str | None = None
-        if not success and error_summary:
-            error_report_path = write_error_report(
-                current_artifacts_dir,
-                agent_model=agent_model,
-                agent_llm_provider=agent_llm_provider,
+        finalize_runner_shutdown(
+            context=RunnerShutdownContext(
+                project_file=project_file,
                 workflow_name=workflow_name,
-                cl_name=cl_name,
-                duration=duration,
-                error_summary=error_summary,
-                error_traceback=error_traceback_str,
-                submitted_xprompt=submitted_xprompt,
-                workspace_dir=workspace_dir,
-                output_path=output_path,
-                agent_name=agent_name,
-            )
-
-        # Skip notification if the agent was killed by the user (SIGTERM).
-        # The user already knows it died because they killed it from the TUI.
-        # Also skip when every step in the workflow was hidden (e.g. for-loops
-        # over empty lists) — there's nothing useful to report.
-        if (
-            not suppress_completion_notification
-            and not was_killed()
-            and not all_steps_hidden(current_artifacts_dir)
-        ):
-            send_completion_notification(
                 cl_name=cl_name,
                 artifacts_timestamp=artifacts_timestamp,
-                workflow_name=workflow_name,
+                artifacts_dir=artifacts_dir,
+                output_path=output_path,
+                submitted_xprompt=submitted_xprompt,
+                prompt=prompt,
+                is_home_mode=is_home_mode,
+            ),
+            state=RunnerShutdownState(
                 success=success,
-                agent_hidden=agent_hidden,
+                duration=duration,
+                workspace_num=workspace_num,
+                workspace_dir=workspace_dir,
+                current_artifacts_dir=current_artifacts_dir,
+                running_marker_path=running_marker_path,
                 agent_name=agent_name,
                 agent_model=agent_model,
                 agent_llm_provider=agent_llm_provider,
-                error_summary=error_summary,
-                error_report_path=error_report_path,
+                agent_hidden=agent_hidden,
                 saved_path=saved_path,
                 diff_path=diff_path,
-                current_artifacts_dir=current_artifacts_dir,
                 markdown_pdf_paths=markdown_pdf_paths,
                 markdown_source_count=markdown_source_count,
                 image_paths=image_paths,
-                output_path=output_path,
                 step_output=step_output,
-                prompt=prompt,
-                outcome=exec_outcome,
+                exec_outcome=exec_outcome,
+                error_summary=error_summary,
+                error_traceback_str=error_traceback_str,
+                suppress_completion_notification=suppress_completion_notification,
                 runtime=runtime,
-            )
+            ),
+            deps=RunnerShutdownDeps(
+                update_artifact_index=update_agent_artifact_index_for_marker_mutation,
+                was_killed=was_killed,
+                all_steps_hidden=all_steps_hidden,
+                write_error_report=write_error_report,
+                send_completion_notification=send_completion_notification,
+                auto_dismiss_completed_agent=auto_dismiss_completed_agent,
+            ),
+        )
 
     sys.exit(0 if success else 1)
 

@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from sase.ace.tui.models.agent import AgentType
 from sase.axe.run_agent_runner import (
-    _auto_dismiss_completed_agent,
-    _install_workspace_release_sigterm_handler,
+    auto_dismiss_completed_agent,
+    install_workspace_release_sigterm_handler,
 )
 from sase.axe.runner_utils import reset_killed, was_killed
 
@@ -22,10 +22,10 @@ def test_auto_dismiss_completed_agent_syncs_dismissed_projection() -> None:
         ),
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as save,
         patch(
-            "sase.axe.run_agent_runner.sync_dismissed_agent_artifact_index"
+            "sase.axe.run_agent_runner_lifecycle.sync_dismissed_agent_artifact_index"
         ) as sync_index,
     ):
-        _auto_dismiss_completed_agent("feature_x", "20260510130000")
+        auto_dismiss_completed_agent("feature_x", "20260510130000")
 
     identities = {
         (AgentType.RUNNING, "feature_x", "20260510130000"),
@@ -43,7 +43,7 @@ def test_workspace_release_sigterm_handler_releases_claim(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     project_file = "/tmp/.sase/projects/sase/sase.sase"
     with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
-        _install_workspace_release_sigterm_handler(
+        install_workspace_release_sigterm_handler(
             project_file=project_file,
             workspace_num=10,
             workflow_name="ace(run)-260101_120000",
@@ -77,7 +77,7 @@ def test_workspace_release_sigterm_handler_skips_plan_handoff(
     (tmp_path / ".sase_plan_pending").write_text("{}", encoding="utf-8")
 
     with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
-        _install_workspace_release_sigterm_handler(
+        install_workspace_release_sigterm_handler(
             project_file="/tmp/.sase/projects/sase/sase.sase",
             workspace_num=10,
             workflow_name="ace(run)-260101_120000",
@@ -106,7 +106,7 @@ def test_workspace_release_sigterm_handler_skips_question_handoff(
     (tmp_path / ".sase_questions_pending").write_text("{}", encoding="utf-8")
 
     with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
-        _install_workspace_release_sigterm_handler(
+        install_workspace_release_sigterm_handler(
             project_file="/tmp/.sase/projects/sase/sase.sase",
             workspace_num=10,
             workflow_name="ace(run)-260101_120000",
@@ -135,7 +135,7 @@ def test_workspace_release_sigterm_handler_uses_artifacts_fallback(
     (tmp_path / ".sase_plan_pending").write_text("{}", encoding="utf-8")
 
     with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
-        _install_workspace_release_sigterm_handler(
+        install_workspace_release_sigterm_handler(
             project_file="/tmp/.sase/projects/sase/sase.sase",
             workspace_num=10,
             workflow_name="ace(run)-260101_120000",

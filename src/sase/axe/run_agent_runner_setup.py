@@ -179,6 +179,45 @@ def load_retry_handoff_from_env() -> RetryHandoff | None:
     return handoff
 
 
+def print_agent_start_banner(
+    *, cl_name: str, workspace_dir: str, workflow_name: str, prompt: str
+) -> None:
+    print("Starting agent run")
+    print(f"CL: {cl_name}")
+    print(f"Workspace: {workspace_dir}")
+    print(f"Workflow: {workflow_name}")
+    print()
+    print("=== Prompt ===")
+    print(prompt)
+    print("==============")
+    print()
+
+
+def enter_agent_workspace(workspace_dir: str) -> None:
+    """Chdir into the agent workspace and install per-clone ignore entries."""
+    os.chdir(workspace_dir)
+    os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
+
+    # Keep ``.sase/`` untracked in this clone. Some workflows use it for
+    # project-local runtime artifacts, and ``.git/info/exclude`` is git's
+    # per-clone ignore file honored by ``git clean``.
+    from sase.workspace_provider.git_exclude import ensure_git_info_exclude_entry
+
+    ensure_git_info_exclude_entry(workspace_dir, ".sase/")
+
+
+def build_output_variable_namespaces(wait_names: list[str]) -> dict[str, Any]:
+    from sase.agent.output_variable_context import (
+        SASE_AGENT_VAR_UPSTREAMS_ENV,
+        build_agent_output_variable_context,
+    )
+
+    return build_agent_output_variable_context(
+        upstreams_json=os.environ.get(SASE_AGENT_VAR_UPSTREAMS_ENV),
+        wait_names=wait_names,
+    )
+
+
 def apply_retry_chain_to_meta(
     *,
     retry_handoff: RetryHandoff | None,

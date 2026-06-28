@@ -40,7 +40,7 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
         _SYNC_DISMISSED_INDEX,
     ),
     "src/sase/agent/running.py:_record_dismissal": (_SYNC_DISMISSED_INDEX,),
-    "src/sase/axe/run_agent_runner.py:_auto_dismiss_completed_agent": (
+    "src/sase/axe/run_agent_runner_lifecycle.py:auto_dismiss_completed_agent": (
         _SYNC_DISMISSED_INDEX,
     ),
 }
