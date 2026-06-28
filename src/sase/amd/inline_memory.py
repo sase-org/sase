@@ -2,9 +2,10 @@
 
 These functions are dependency-free building blocks consumed by ``sase memory
 init`` (wired up in a later phase). They translate a memory note's Markdown body
-into the inlined ``### Title (file)`` section shape used inside the
-``## Tier 1 (short-term) Memory`` block, and validate that a short note's
-heading structure can be inlined safely.
+into the inlined ``### Title (file)`` section shape, or the numbered
+``### N. Title (file)`` section shape, used inside the ``## Tier 1
+(short-term) Memory`` block, and validate that a short note's heading structure
+can be inlined safely.
 
 Heading detection is *fence-aware*: ``#`` characters at the start of lines inside
 fenced code blocks (for example ``# comment`` lines in a ``bash`` block) are
@@ -141,18 +142,29 @@ def _shift_body(body: str) -> list[str]:
     return result
 
 
-def inline_memory_section(relative_path: str, body: str) -> str:
+def inline_memory_section(
+    relative_path: str,
+    body: str,
+    *,
+    number: int | None = None,
+) -> str:
     """Render *body* as an inlined Tier 1 memory section for *relative_path*.
 
     The note's H1 title is consumed into the section header
-    ``### {title} ({basename})``; the remaining body has every heading shifted
-    down two levels (H2->H4, H3->H5) with code fences copied verbatim. If the
-    body has no title, the header falls back to ``### {basename}``. The returned
-    block ends with a single trailing newline.
+    ``### {title} ({basename})``. When *number* is provided, the header is
+    prefixed as ``### {number}. {title} ({basename})``. The remaining body has
+    every heading shifted down two levels (H2->H4, H3->H5) with code fences
+    copied verbatim. If the body has no title, the header falls back to
+    ``### {basename}`` or ``### {number}. {basename}``. The returned block ends
+    with a single trailing newline.
     """
     title = _extract_memory_title(body)
     basename = Path(relative_path).stem
-    header = f"### {title} ({basename})" if title else f"### {basename}"
+    prefix = f"{number}. " if number is not None else ""
+    if title:
+        header = f"### {prefix}{title} ({basename})"
+    else:
+        header = f"### {prefix}{basename}"
     transformed = _shift_body(body)
     if transformed:
         return header + "\n\n" + "\n".join(transformed) + "\n"

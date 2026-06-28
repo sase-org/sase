@@ -216,7 +216,7 @@ def test_inlined_short_note_is_loaded_in_inventory(tmp_path: Path) -> None:
     _write(
         tmp_path / "AGENTS.md",
         "# Title\n\n## Tier 1 (short-term) Memory\n\n"
-        "### Note (draft) (note)\n\nInlined body.\n",
+        "### 1. Note (draft) (note)\n\nInlined body.\n",
     )
     _write(
         tmp_path / "memory" / "note.md",

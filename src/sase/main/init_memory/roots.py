@@ -157,6 +157,7 @@ def _minimal_agents_content(generated_sase_body: str) -> str:
     section = inline_memory_section(
         _generated_sase_memory_relative_path().as_posix(),
         generated_sase_body,
+        number=1,
     )
     return f"# Agent Instructions\n\n{section}"
 

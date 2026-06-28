@@ -122,8 +122,8 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "## Tier 1 (short-term) Memory" in agents
     assert "The following memories contains core (always loaded) context:" in agents
     # Short memory is inlined (no ``@memory/...`` imports) under H3 headers.
-    assert "### Extra (extra)" in agents
-    assert "### SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1. Extra (extra)" in agents
+    assert "### 2. SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "@memory/extra.md" not in agents
     assert "@memory/sase.md" not in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
@@ -193,7 +193,7 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
     assert run_handler() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "### SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "@memory/sase.md" not in agents
 
     # ``memory/sase.md`` is regenerated every run, and its *fresh* body is the one

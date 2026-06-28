@@ -214,7 +214,9 @@ def _render_managed_agents(
     for index, (relative_path, body) in enumerate(bodies.items()):
         if index:
             lines.append("")
-        lines.extend(inline_memory_section(relative_path, body).splitlines())
+        lines.extend(
+            inline_memory_section(relative_path, body, number=index + 1).splitlines()
+        )
     lines.append("")
     lines.extend(
         [

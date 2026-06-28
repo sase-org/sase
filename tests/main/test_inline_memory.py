@@ -105,6 +105,22 @@ def test_inline_keeps_title_parentheses_before_basename() -> None:
     )
 
 
+def test_inline_can_prefix_numbered_header() -> None:
+    assert inline_memory_section("memory/x.md", "# Title\n", number=1) == (
+        "### 1. Title (x)\n"
+    )
+    assert inline_memory_section("memory/x.md", "# Title\n", number=12) == (
+        "### 12. Title (x)\n"
+    )
+
+
+def test_inline_can_number_parenthesized_title() -> None:
+    body = "# Foo (bar)\n"
+    assert inline_memory_section("memory/build_and_run.md", body, number=3) == (
+        "### 3. Foo (bar) (build_and_run)\n"
+    )
+
+
 def test_inline_copies_code_fences_verbatim() -> None:
     expected = (
         "### Build & Run Commands (build_and_run)\n"
@@ -139,3 +155,10 @@ def test_inline_keeps_fenced_hash_lines_untouched() -> None:
 def test_inline_without_title_omits_parenthetical() -> None:
     body = "no heading here\n"
     assert inline_memory_section("memory/x.md", body) == "### x\n\nno heading here\n"
+
+
+def test_inline_without_title_can_prefix_numbered_header() -> None:
+    body = "no heading here\n"
+    assert inline_memory_section("memory/x.md", body, number=1) == (
+        "### 1. x\n\nno heading here\n"
+    )

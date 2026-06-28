@@ -390,7 +390,7 @@ def _inlined_short_memory_files(
     *,
     overlay: Mapping[Path, str],
 ) -> tuple[Path, ...]:
-    """Return short notes inlined as ``### Title (file)`` sections in *source*.
+    """Return short notes inlined as ``### [N. ]Title (file)`` sections.
 
     ``sase memory init`` inlines each short note's body under such a header, so a
     note reached this way has its bytes loaded as part of *source* (an

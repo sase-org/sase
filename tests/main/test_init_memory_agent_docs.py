@@ -27,7 +27,7 @@ def _assert_minimal_inlined_agents(agents: str) -> None:
     """Assert *agents* is a self-contained minimal AGENTS.md (sase.md inlined)."""
     assert agents.startswith(
         "# Agent Instructions\n\n"
-        "### SASE = Structured Agentic Software Engineering (sase)\n"
+        "### 1. SASE = Structured Agentic Software Engineering (sase)\n"
     )
     assert "@memory/sase.md" not in agents
     assert "@AGENTS.md" not in agents
@@ -62,7 +62,7 @@ def test_init_memory_manages_live_home_from_user_overlay(
     agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Athena Home\n")
     assert "## Tier 1 (short-term) Memory" in agents
-    assert "### SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "- @memory/sase.md" not in agents
     # Provider files are byte-for-byte copies of ``AGENTS.md``.
     for filename in PROVIDER_SHIM_FILES:
@@ -106,7 +106,7 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
 
     agents = (chezmoi_home / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Source Title\n")
-    assert "### SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "- @memory/sase.md" not in agents
     # Chezmoi writes a static copy of ``AGENTS.md`` (no ``.tmpl``) because the
     # inlined content carries no template variables.
