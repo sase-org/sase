@@ -140,7 +140,9 @@ class TestAgentAutoApproveMetadata:
         assert "Mode:" not in header.plain
         assert "Auto-Approve" not in header.plain
 
-    def test_auto_field_renders_before_xprompts(self) -> None:
+    def test_auto_field_renders_before_xprompts_without_model(self) -> None:
+        # No-model agent: ``Model:`` is omitted, so ``Auto:`` is adjacent to
+        # ``Xprompts:`` with nothing rendered between them.
         agent = make_agent(approve=True)
         summary = DetailHeaderSummary(
             xprompts_used=[{"kind": "part", "name": "plan"}],
@@ -150,6 +152,7 @@ class TestAgentAutoApproveMetadata:
 
         assert "Auto: ⚡ PLAN\n" in header.plain
         assert "Xprompts:" in header.plain
+        assert "Model:" not in header.plain
         auto_index = header.plain.index("Auto:")
         xprompts_index = header.plain.index("Xprompts:")
         assert auto_index < xprompts_index
@@ -158,3 +161,43 @@ class TestAgentAutoApproveMetadata:
         assert between == "Auto: ⚡ PLAN\n"
         assert "Mode:" not in header.plain
         assert "Auto-Approve" not in header.plain
+
+    def test_auto_model_xprompts_render_in_order(self) -> None:
+        # With auto-approval, a renderable model, and xprompt metadata the
+        # rows render as Auto: then Model: then Xprompts:.
+        agent = make_agent(approve=True, model="opus", llm_provider="claude")
+        summary = DetailHeaderSummary(
+            xprompts_used=[{"kind": "part", "name": "plan"}],
+        )
+
+        header, _ = build_header_text(agent, cheap=False, summary=summary)
+
+        assert "Auto: ⚡ PLAN\n" in header.plain
+        assert "Model: CLAUDE(opus)\n" in header.plain
+        assert "Xprompts:" in header.plain
+        auto_index = header.plain.index("Auto:")
+        model_index = header.plain.index("Model:")
+        xprompts_index = header.plain.index("Xprompts:")
+        assert auto_index < model_index < xprompts_index
+        # Only the Model row renders between Auto and Xprompts.
+        between = header.plain[auto_index:xprompts_index]
+        assert between == "Auto: ⚡ PLAN\nModel: CLAUDE(opus)\n"
+        assert "Mode:" not in header.plain
+        assert "Auto-Approve" not in header.plain
+
+    def test_model_renders_before_xprompts_without_auto(self) -> None:
+        # Without auto-approval, ``Model:`` still renders before the
+        # ``Xprompts:`` section.
+        agent = make_agent(model="opus", llm_provider="claude")
+        summary = DetailHeaderSummary(
+            xprompts_used=[{"kind": "part", "name": "plan"}],
+        )
+
+        header, _ = build_header_text(agent, cheap=False, summary=summary)
+
+        assert "Auto:" not in header.plain
+        assert "Model: CLAUDE(opus)\n" in header.plain
+        assert "Xprompts:" in header.plain
+        model_index = header.plain.index("Model:")
+        xprompts_index = header.plain.index("Xprompts:")
+        assert model_index < xprompts_index

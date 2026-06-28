@@ -294,8 +294,9 @@ async def test_agents_auto_approve_metadata_png_snapshots(
 def _auto_approve_xprompts_agent(artifacts_dir: Path) -> Agent:
     """One approved agent whose artifacts dir carries ``xprompts.json``.
 
-    Exercises the combined metadata layout where the ``Auto:`` field renders
-    immediately before the disk-enriched ``Xprompts:`` section.
+    Exercises the combined metadata layout where the ``Auto:`` and ``Model:``
+    fields render in order immediately before the disk-enriched ``Xprompts:``
+    section.
     """
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     (artifacts_dir / "xprompts.json").write_text(
@@ -316,6 +317,8 @@ def _auto_approve_xprompts_agent(artifacts_dir: Path) -> Agent:
         raw_suffix="20260509-100000-plan",
         agent_name="planner",
         approve=True,
+        llm_provider="claude",
+        model="opus",
         artifacts_dir=str(artifacts_dir),
     )
 
@@ -338,8 +341,13 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
         svg = page.export_svg(title="ACE auto/xprompts metadata")
         svg_plain = svg.replace("&#160;", " ")
         assert "Auto:" in svg_plain
+        assert "Model:" in svg_plain
         assert "Xprompts:" in svg_plain
-        assert svg_plain.index("Auto:") < svg_plain.index("Xprompts:")
+        assert (
+            svg_plain.index("Auto:")
+            < svg_plain.index("Model:")
+            < svg_plain.index("Xprompts:")
+        )
 
         ace_png_visual.assert_page_png(
             page,

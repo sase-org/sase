@@ -205,9 +205,18 @@ def build_header_text(
         header_text.append(f"{agent.workflow}\n")
 
     # Auto-approve kind (autonomous agents). Rendered immediately before the
-    # Xprompts section so an auto-approved agent shows ``Auto:`` ahead of
-    # ``Xprompts:`` rather than after it.
+    # Model/Xprompts rows so an auto-approved agent shows ``Auto:`` ahead of
+    # them rather than after.
     _append_auto_approve_field(header_text, agent)
+
+    # Model (with provider-themed styling). Rendered after ``Auto:`` and
+    # before the ``Xprompts:`` section. This is agent-field-only and reads no
+    # disk artifacts, so it renders on both the cheap and full paths without
+    # touching the disk-backed xprompt summary.
+    if should_render_agent_detail_model(agent):
+        append_model_field(
+            header_text, agent.model, agent.llm_provider, agent.reasoning_effort
+        )
 
     # Xprompts (if available) - only for agent/prompt steps.
     # Skipped on the cheap path: load_xprompts_used touches disk, and
@@ -216,12 +225,6 @@ def build_header_text(
         from ._agent_xprompts import append_agent_xprompts_section
 
         append_agent_xprompts_section(header_text, summary.xprompts_used)
-
-    # Model (with provider-themed styling)
-    if should_render_agent_detail_model(agent):
-        append_model_field(
-            header_text, agent.model, agent.llm_provider, agent.reasoning_effort
-        )
 
     # VCS provider
     if agent.vcs_provider:

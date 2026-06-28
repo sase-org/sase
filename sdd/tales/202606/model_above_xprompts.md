@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 10:00:36
-status: wip
+status: done
 prompt: sdd/prompts/202606/model_above_xprompts.md
 ---
 # Plan: Render `Model:` Above `Xprompts:` In Agent Detail Metadata
