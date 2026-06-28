@@ -90,10 +90,6 @@ All supported agent runtimes (Claude, Gemini, Codex, etc.) have the same capabil
 and the same commit workflow. Do NOT introduce runtime-specific special cases or branching logic that assumes one
 runtime lacks a capability that others have. Treat all runtimes uniformly.
 
-**Command-Line Short Options**  
-When defining new `sase` command options, make sure that all command-line options have both a long and short option
-defined (ex: `-f|--foobar` not just `--foobar`).
-
 ### Rust Core Backend Boundary (rust_core_backend_boundary)
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at `../sase-core/crates/sase_core`. Python and
