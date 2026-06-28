@@ -169,6 +169,59 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     )
 
 
+def test_init_memory_managed_agents_wraps_long_memory_descriptions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(
+        project_root / "memory" / "generated_skills.md",
+        long_note(
+            "# Generated Skills\n",
+            description=(
+                "Read when working with sase agent skills (aka xprompt skills), "
+                "which are generated from source templates in the "
+                "`src/sase/xprompts/skills/` and deployed to managed locations "
+                "(my chezmoi repo, for example)."
+            ),
+        ),
+    )
+
+    assert run_handler() == 0
+
+    agents_path = project_root / "AGENTS.md"
+    result = subprocess.run(
+        [
+            *prettier_command(),
+            "--check",
+            "--prose-wrap=always",
+            "--print-width=120",
+            str(agents_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"prettier --check failed:\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+    plan = plan_memory()
+    assert plan.blockers == ()
+    assert plan.actions == ()
+
+
 def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempotent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
