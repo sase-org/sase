@@ -14,6 +14,7 @@ import os
 import signal
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -70,6 +71,8 @@ from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
 
+_PENDING_HANDOFF_MARKERS = (".sase_plan_pending", ".sase_questions_pending")
+
 
 def _system_exit_code(exc: SystemExit) -> int | None:
     """Return the integer exit code for ``SystemExit`` when one is available."""
@@ -81,6 +84,21 @@ def _is_user_kill_exit(exc: SystemExit) -> bool:
     return was_killed() or _system_exit_code(exc) == 128 + signal.SIGTERM
 
 
+def _has_pending_handoff_marker(fallback_artifacts_dir: str | None = None) -> bool:
+    """Return whether the current artifacts dir has a plan/question handoff."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR") or fallback_artifacts_dir
+    if not artifacts_dir:
+        return False
+
+    try:
+        return any(
+            os.path.exists(os.path.join(artifacts_dir, marker))
+            for marker in _PENDING_HANDOFF_MARKERS
+        )
+    except OSError:
+        return False
+
+
 def _install_workspace_release_sigterm_handler(
     *,
     project_file: str,
@@ -88,11 +106,20 @@ def _install_workspace_release_sigterm_handler(
     workflow_name: str,
     cl_name: str,
     is_home_mode: bool,
+    artifacts_dir_getter: Callable[[], str | None] | None = None,
 ) -> None:
     """Release this runner's workspace claim promptly on SIGTERM."""
 
     def _release_workspace_claim() -> None:
         if is_home_mode:
+            return
+        fallback_artifacts_dir = None
+        if artifacts_dir_getter is not None:
+            try:
+                fallback_artifacts_dir = artifacts_dir_getter()
+            except Exception:
+                fallback_artifacts_dir = None
+        if _has_pending_handoff_marker(fallback_artifacts_dir):
             return
         from sase.running_field import release_workspace
 
@@ -206,12 +233,18 @@ def main() -> None:
     # prompt history is saved by the TUI before launch.
     is_home_mode_arg = sys.argv[12]
     is_home_mode = parse_runner_bool_arg(is_home_mode_arg)
+    signal_fallback_artifacts_dir: str | None = None
+
+    def _signal_fallback_artifacts_dir() -> str | None:
+        return signal_fallback_artifacts_dir
+
     _install_workspace_release_sigterm_handler(
         project_file=project_file,
         workspace_num=workspace_num,
         workflow_name=workflow_name,
         cl_name=cl_name,
         is_home_mode=is_home_mode,
+        artifacts_dir_getter=_signal_fallback_artifacts_dir,
     )
 
     # Read prompt from temp file
@@ -270,6 +303,7 @@ def main() -> None:
         cl_name=cl_name,
         is_home_mode=is_home_mode,
     )
+    signal_fallback_artifacts_dir = artifacts_dir
     try:
         write_submitted_xprompt_artifact(artifacts_dir, submitted_xprompt)
     except OSError as e:

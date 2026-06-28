@@ -455,6 +455,7 @@ def test_rollback_kills_partially_launched_agents(
         [sys.executable, "-c", "import time; time.sleep(60)"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     try:
         partial_result = AgentLaunchResult(

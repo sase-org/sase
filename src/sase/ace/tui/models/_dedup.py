@@ -85,8 +85,9 @@ def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
     running_axe_agents_by_key: dict[tuple[str, str], Agent] = {}
     for agent in agents:
         if agent.agent_type == AgentType.RUNNING:
-            workflow = (agent.workflow or "").replace("-", "_")
-            if any(workflow.startswith(p) for p in _AXE_WORKFLOW_PREFIXES):
+            workflow = agent.workflow or ""
+            norm_workflow = workflow.replace("-", "_")
+            if any(norm_workflow.startswith(p) for p in _AXE_WORKFLOW_PREFIXES):
                 ts = extract_timestamp_from_workflow(workflow)
                 # Fallback: mentor( workflows don't embed timestamps in
                 # their name — use raw_suffix (14-digit) converted to 13-char
