@@ -272,20 +272,16 @@ class FileCompletionContextMixin(_MixinBase):
 
         The warm project cache is the fast path; live local xprompts from the
         Frontmatter Panel are merged over it so ``#_helper`` lists under
-        ``<ctrl+t>`` like a global xprompt.  When the warm cache is cold but
-        local xprompts exist, the project catalog is built synchronously so both
-        the global and local candidates appear (no regression over the prior
-        cold-path build).
+        ``<ctrl+t>`` like a global xprompt. When the app catalog is cold, this
+        schedules a warm and returns local-only candidates if present.
         """
         local = self._local_xprompt_assist_entries()
         warm = self._get_warm_xprompt_arg_assist_entries()
         if warm is not None:
             entries = merge_local_xprompt_entries(warm, local)
             return build_xprompt_completion_candidates(token, entries=entries)
-        if local:
-            entries = self._get_xprompt_arg_assist_entries()
-            return build_xprompt_completion_candidates(token, entries=entries)
-        return build_xprompt_completion_candidates(token)
+        self._warm_current_xprompt_assist_entries()
+        return build_xprompt_completion_candidates(token, entries=local)
 
     def _build_warm_xprompt_completion_candidates(
         self,

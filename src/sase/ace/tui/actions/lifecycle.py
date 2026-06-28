@@ -34,6 +34,9 @@ class LifecycleMixin:
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
             stop_watcher()
+        stop_prompt_watcher = getattr(self, "_stop_prompt_source_watcher", None)
+        if stop_prompt_watcher is not None:
+            stop_prompt_watcher()
         cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
         if cancel_discovery is not None:
             cancel_discovery()
@@ -221,6 +224,9 @@ class LifecycleMixin:
             stop_watcher = getattr(self, "_stop_artifact_watcher", None)
             if stop_watcher is not None:
                 stop_watcher()
+            stop_prompt_watcher = getattr(self, "_stop_prompt_source_watcher", None)
+            if stop_prompt_watcher is not None:
+                stop_prompt_watcher()
 
         def cancel_artifact_discovery() -> None:
             cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)

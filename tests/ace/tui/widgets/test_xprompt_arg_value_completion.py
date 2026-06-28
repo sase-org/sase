@@ -107,6 +107,14 @@ def _agent_candidate(
     )
 
 
+def _seed_entries(
+    ta: PromptTextArea,
+    entries: list[XPromptAssistEntry],
+    project: str | None = None,
+) -> None:
+    ta._xprompt_arg_assist_entries_by_project[project] = entries
+
+
 async def test_colon_path_arg_uses_existing_file_completion(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -121,11 +129,8 @@ async def test_colon_path_arg_uses_existing_file_completion(
         ta.load_text("#review:")
         ta.cursor_location = (0, len("#review:"))
 
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=[_entry()],
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, [_entry()])
+        assert ta._try_file_completion_tab() is True
 
         assert ta.text == "#review:./a"
         assert ta._file_completion_active is True
@@ -145,18 +150,15 @@ async def test_bool_named_arg_offers_true_false_values() -> None:
         ta.load_text("#review(enabled=)")
         ta.cursor_location = (0, len("#review(enabled="))
 
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=[_entry()],
-        ):
-            await pilot.press("ctrl+t")
-            assert ta._file_completion_active is True
-            assert ta._completion_kind == "xprompt_arg_value"
-            assert [c.insertion for c in ta._file_completion_candidates] == [
-                "true",
-                "false",
-            ]
-            await pilot.press("ctrl+l")
+        _seed_entries(ta, [_entry()])
+        await pilot.press("ctrl+t")
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_value"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "true",
+            "false",
+        ]
+        await pilot.press("ctrl+l")
 
     assert ta.text == "#review(enabled=true)"
     assert ta._file_completion_active is False
@@ -237,10 +239,9 @@ async def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> No
         ta = app.query_one(PromptTextArea)
         # ``#gh:sase`` is a leading VCS tag, so the widget resolves project
         # ``sase`` and looks up assist entries under that key.
-        ta._xprompt_arg_assist_entries_by_project["sase"] = [
-            _gh_entry(),
-            _fork_entry(),
-        ]
+        entries = [_gh_entry(), _fork_entry()]
+        _seed_entries(ta, entries)
+        _seed_entries(ta, entries, project="sase")
         ta.load_text("#gh:sase #fork:")
         ta.cursor_location = (0, len("#gh:sase #fork:"))
 
@@ -306,11 +307,8 @@ async def test_parenthesized_arg_name_completion_skips_existing_names() -> None:
         ta.load_text("#review(path=foo, e")
         ta.cursor_location = (0, len("#review(path=foo, e"))
 
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=[_entry()],
-        ):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, [_entry()])
+        await pilot.press("ctrl+t")
 
     assert ta.text == "#review(path=foo, enabled="
     assert ta._file_completion_active is False
@@ -324,11 +322,8 @@ async def test_numeric_arg_keeps_hint_without_value_suggestions() -> None:
         ta.load_text("#review(count=")
         ta.cursor_location = (0, len("#review(count="))
 
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=[_entry()],
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, [_entry()])
+        assert ta._try_file_completion_tab() is True
 
     assert ta._file_completion_active is False
     assert ta._active_xprompt_arg_hint is not None
@@ -343,11 +338,8 @@ async def test_named_arg_completion_does_not_interfere_with_snippet_tab() -> Non
         assert ta.text == "x= y="
         assert ta._snippet_tabstops
 
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=[_entry()],
-        ):
-            await pilot.press("tab")
+        _seed_entries(ta, [_entry()])
+        await pilot.press("tab")
 
     assert ta.cursor_location == (0, len("x= y="))
     assert ta._file_completion_active is False

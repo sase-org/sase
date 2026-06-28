@@ -19,7 +19,7 @@ _PROJECT_ENTRIES_PATH = (
     "sase.ace.tui.widgets.vcs_project_completion.build_vcs_project_completion_entries"
 )
 _XPROMPT_COLD_BUILD_PATH = (
-    "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries"
+    "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries"
 )
 
 

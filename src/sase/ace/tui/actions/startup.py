@@ -24,7 +24,9 @@ from ._state_init import StateInitMixin
 
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
+    from ..prompt_catalog import PromptCatalogSnapshot
     from ..widgets.prompt_completion import PromptCompletionSettings
+    from ..widgets.xprompt_arg_assist import XPromptAssistEntry
 
 log = logging.getLogger(__name__)
 
@@ -76,34 +78,210 @@ class StartupMixin(StateInitMixin):
     _last_full_sanity_refresh: float
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
+    _prompt_catalog: PromptCatalogSnapshot | None
+    _prompt_catalog_generation: int
+    _prompt_catalog_rebuild_in_flight: bool
+    _prompt_catalog_rebuild_pending: bool
+    _prompt_catalog_rebuild_pending_force: bool
+    _prompt_catalog_projects: set[str | None]
+    _prompt_catalog_token_check_last_mono: float
+    _prompt_source_watcher: ArtifactWatcher | None
+    _prompt_source_watcher_active: bool
+    _prompt_source_watched_projects: set[str | None]
+    _prompt_source_debounce_timer: Timer | None
     _prompt_completion_settings: PromptCompletionSettings
 
     def get_snippets(self) -> dict[str, str]:
-        """Return the merged xprompt + user snippet registry, building on demand.
-
-        First call walks disk-backed xprompt definitions to materialize the
-        combined map; subsequent calls reuse the cached dict. The widgets
-        that need snippets (prompt text-area, help modal) call this rather
-        than reading ``_snippets`` directly so cold startup never pays the
-        scan unless the user opens the snippet entry surface.
-        """
+        """Return the memory-only xprompt + user snippet registry."""
         cached = getattr(self, "_snippets_cache", None)
         if cached is not None:
+            self._schedule_prompt_catalog_token_fallback_check()
             return cached
-        from sase.xprompt.snippet_bridge import (
-            get_xprompt_snippets,
-            resolve_snippet_references,
-        )
-
-        merged = get_xprompt_snippets()
-        merged.update(self._user_snippets)
-        merged = resolve_snippet_references(merged)
-        self._snippets_cache = merged
-        return merged
+        self._schedule_prompt_catalog_rebuild(reason="snippet_cache_miss")
+        return self._user_snippets
 
     def get_prompt_completion_settings(self) -> PromptCompletionSettings:
         """Return parsed prompt completion behavior settings."""
         return self._prompt_completion_settings
+
+    def get_prompt_catalog_assist_entries(
+        self,
+        project: str | None,
+        *,
+        schedule: bool = True,
+    ) -> list[XPromptAssistEntry] | None:
+        """Return memory-only xprompt assist entries for *project* if warm."""
+        self._ensure_prompt_catalog_project(project)
+        catalog = self._prompt_catalog
+        if catalog is not None:
+            entries = catalog.assist_entries_by_project.get(project)
+            if entries is not None:
+                self._schedule_prompt_catalog_token_fallback_check()
+                return list(entries)
+            if project is not None:
+                fallback = catalog.assist_entries_by_project.get(None)
+                if fallback is not None:
+                    if schedule:
+                        self._schedule_prompt_catalog_rebuild(
+                            reason="assist_project_miss"
+                        )
+                    return list(fallback)
+        if schedule:
+            self._schedule_prompt_catalog_rebuild(reason="assist_cache_miss")
+        return None
+
+    def warm_prompt_catalog_project(self, project: str | None) -> None:
+        """Schedule an off-thread catalog warm for *project*."""
+        self._ensure_prompt_catalog_project(project)
+        self._schedule_prompt_catalog_token_fallback_check()
+        catalog = self._prompt_catalog
+        if (
+            catalog is not None
+            and project in catalog.assist_entries_by_project
+            and self._snippets_cache is not None
+        ):
+            return
+        self._schedule_prompt_catalog_rebuild(reason="assist_warm")
+
+    def _ensure_prompt_catalog_project(self, project: str | None) -> None:
+        """Track requested project catalogs and expand watches when needed."""
+        if project in self._prompt_catalog_projects:
+            return
+        self._prompt_catalog_projects.add(project)
+        if self._prompt_source_watcher is not None:
+            self._restart_prompt_source_watcher()
+
+    def _schedule_prompt_catalog_token_fallback_check(self) -> None:
+        """Schedule a throttled token check when no watcher is active."""
+        if self._prompt_source_watcher_active:
+            return
+        now = time.monotonic()
+        if now - self._prompt_catalog_token_check_last_mono < 1.0:
+            return
+        self._prompt_catalog_token_check_last_mono = now
+        self._schedule_prompt_catalog_rebuild(reason="token_fallback")
+
+    def _schedule_prompt_catalog_rebuild(
+        self,
+        *,
+        reason: str,
+        force: bool = False,
+    ) -> None:
+        """Schedule a prompt catalog rebuild with last-request-wins coalescing."""
+        del reason
+        self._prompt_catalog_projects.add(None)
+        if self._prompt_catalog_rebuild_in_flight:
+            self._prompt_catalog_rebuild_pending = True
+            self._prompt_catalog_rebuild_pending_force = (
+                self._prompt_catalog_rebuild_pending_force or force
+            )
+            return
+
+        self._prompt_catalog_rebuild_in_flight = True
+        self._prompt_catalog_rebuild_pending = False
+        self._prompt_catalog_rebuild_pending_force = False
+        generation = self._prompt_catalog_generation
+        projects = frozenset(self._prompt_catalog_projects)
+        previous_token = (
+            None
+            if force or self._prompt_catalog is None
+            else self._prompt_catalog.source_token
+        )
+
+        async def run_rebuild() -> None:
+            await self._run_prompt_catalog_rebuild(
+                generation,
+                projects,
+                previous_token,
+            )
+
+        try:
+            self.run_worker(  # type: ignore[attr-defined]
+                cast(Any, run_rebuild),
+                name=f"prompt-catalog:{generation}",
+                group="prompt-catalog",
+                exclusive=False,
+            )
+        except Exception:
+            self._prompt_catalog_rebuild_in_flight = False
+            log.exception("Failed to schedule prompt catalog rebuild")
+
+    async def _run_prompt_catalog_rebuild(
+        self,
+        generation: int,
+        projects: frozenset[str | None],
+        previous_source_token: tuple[Any, ...] | None,
+    ) -> None:
+        """Build the prompt catalog off-thread and apply it on the UI task."""
+        import asyncio
+
+        from ..prompt_catalog import build_prompt_catalog_snapshot
+
+        snapshot = None
+        try:
+            snapshot = await asyncio.to_thread(
+                build_prompt_catalog_snapshot,
+                generation=generation,
+                projects=projects,
+                previous_source_token=previous_source_token,
+            )
+        except Exception:
+            log.exception("Prompt catalog rebuild failed")
+            try:
+                self.notify(  # type: ignore[attr-defined]
+                    "Failed to reload snippets/xprompts; keeping previous catalog",
+                    severity="warning",
+                    timeout=8,
+                )
+            except Exception:
+                pass
+        finally:
+            self._prompt_catalog_rebuild_in_flight = False
+
+        if snapshot is not None:
+            self._apply_prompt_catalog_snapshot(snapshot)
+
+        if self._prompt_catalog_rebuild_pending:
+            pending_force = self._prompt_catalog_rebuild_pending_force
+            self._prompt_catalog_rebuild_pending = False
+            self._prompt_catalog_rebuild_pending_force = False
+            self._schedule_prompt_catalog_rebuild(
+                reason="prompt_catalog_pending",
+                force=pending_force,
+            )
+
+    def _apply_prompt_catalog_snapshot(
+        self,
+        snapshot: PromptCatalogSnapshot,
+    ) -> None:
+        """Publish a freshly-built prompt catalog snapshot."""
+        if snapshot.generation != self._prompt_catalog_generation:
+            return
+        self._prompt_catalog = snapshot
+        self._snippets_cache = dict(snapshot.snippets)
+        self._refresh_visible_prompt_catalog_surfaces()
+
+    def _refresh_visible_prompt_catalog_surfaces(self) -> None:
+        """Refresh currently-mounted prompt completion/hint surfaces."""
+        try:
+            from ..widgets.prompt_text_area import PromptTextArea
+
+            text_areas = list(self.query(PromptTextArea))  # type: ignore[attr-defined]
+        except Exception:
+            return
+        for text_area in text_areas:
+            if not getattr(text_area, "is_mounted", False):
+                continue
+            try:
+                if getattr(text_area, "_file_completion_active", False) and str(
+                    getattr(text_area, "_completion_kind", "")
+                ).startswith("xprompt"):
+                    text_area._refresh_file_completion_from_cursor()
+                if getattr(text_area, "_active_xprompt_arg_hint", None) is not None:
+                    text_area._refresh_xprompt_arg_hint_from_cursor()
+                text_area._on_prompt_completion_context_changed()
+            except Exception:
+                log.debug("Failed to refresh prompt catalog surface", exc_info=True)
 
     def _invalidate_saved_queries_cache(self) -> None:
         """Reload ``_saved_queries`` from disk after a save/delete.
@@ -313,6 +491,22 @@ class StartupMixin(StateInitMixin):
             self._start_artifact_watcher()
         except Exception:
             log.exception("Failed to start artifact inotify watcher")
+        start_prompt_source_watcher = getattr(
+            self, "_start_prompt_source_watcher", None
+        )
+        if callable(start_prompt_source_watcher):
+            try:
+                start_prompt_source_watcher()
+            except Exception:
+                log.exception("Failed to start prompt-source inotify watcher")
+        schedule_prompt_catalog_rebuild = getattr(
+            self, "_schedule_prompt_catalog_rebuild", None
+        )
+        if callable(schedule_prompt_catalog_rebuild):
+            try:
+                schedule_prompt_catalog_rebuild(reason="startup_warm")
+            except Exception:
+                log.exception("Failed to schedule prompt catalog warm")
         try:
             self._schedule_startup_update_toast_check()  # type: ignore[attr-defined]
         except Exception:
@@ -456,6 +650,77 @@ class StartupMixin(StateInitMixin):
             watcher.stop()
         except Exception:
             log.exception("Failed to stop artifact watcher cleanly")
+
+    def _start_prompt_source_watcher(self) -> None:
+        """Spin up an inotify watcher on editable prompt/snippet sources."""
+        if self._prompt_source_watcher is not None:
+            return
+        from ..prompt_catalog import prompt_source_watch_paths
+
+        watch_paths = prompt_source_watch_paths(self._prompt_catalog_projects)
+        if not watch_paths:
+            self._prompt_source_watcher_active = False
+            return
+        watcher = ArtifactWatcher(
+            watch_paths,
+            on_change=self._on_prompt_source_change,
+            schedule_callback=self.call_from_thread,  # type: ignore[attr-defined]
+        )
+        if watcher.start():
+            self._prompt_source_watcher = watcher
+            self._prompt_source_watcher_active = True
+            self._prompt_source_watched_projects = set(self._prompt_catalog_projects)
+        else:
+            self._prompt_source_watcher_active = False
+
+    def _restart_prompt_source_watcher(self) -> None:
+        """Restart prompt watcher after the requested project set grows."""
+        self._stop_prompt_source_watcher()
+        self._start_prompt_source_watcher()
+
+    def _stop_prompt_source_watcher(self) -> None:
+        """Tear down the prompt-source inotify watcher on quit."""
+        timer = self._prompt_source_debounce_timer
+        if timer is not None:
+            timer.stop()
+            self._prompt_source_debounce_timer = None
+        watcher = self._prompt_source_watcher
+        self._prompt_source_watcher = None
+        self._prompt_source_watcher_active = False
+        self._prompt_source_watched_projects = set()
+        if watcher is None:
+            return
+        try:
+            watcher.stop()
+        except Exception:
+            log.exception("Failed to stop prompt-source watcher cleanly")
+
+    def _on_prompt_source_change(self, changed_paths: tuple[Any, ...]) -> None:
+        """Debounced callback for editable prompt/snippet source changes."""
+        from pathlib import Path
+
+        from ..prompt_catalog import (
+            PROMPT_SOURCE_DEBOUNCE_S,
+            prompt_source_change_is_relevant,
+        )
+
+        paths = tuple(Path(path) for path in changed_paths)
+        if not prompt_source_change_is_relevant(paths, self._prompt_catalog_projects):
+            return
+        timer = self._prompt_source_debounce_timer
+        if timer is not None:
+            timer.stop()
+        self._prompt_source_debounce_timer = self.set_timer(  # type: ignore[attr-defined]
+            PROMPT_SOURCE_DEBOUNCE_S,
+            self._fire_prompt_source_debounce,
+            name="prompt-source-debounce",
+        )
+
+    def _fire_prompt_source_debounce(self) -> None:
+        """Start one coalesced prompt catalog rebuild after source changes."""
+        self._prompt_source_debounce_timer = None
+        self._prompt_catalog_generation += 1
+        self._schedule_prompt_catalog_rebuild(reason="prompt_source_change")
 
     def _tui_stall_context(self) -> dict[str, Any]:
         """Return side-effect-free context for the stall watchdog thread."""

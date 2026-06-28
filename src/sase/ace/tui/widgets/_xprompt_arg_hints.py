@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from textual.worker import WorkerState
-
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     PendingOptionalSpacer,
@@ -28,12 +26,6 @@ def _prompt_text_area_module() -> Any:
     from sase.ace.tui.widgets import prompt_text_area
 
     return prompt_text_area
-
-
-def _build_xprompt_assist_entries(
-    project: str | None = None,
-) -> list[XPromptAssistEntry]:
-    return _prompt_text_area_module().build_xprompt_assist_entries(project=project)
 
 
 class XPromptArgHintMixin(_MixinBase):
@@ -161,10 +153,12 @@ class XPromptArgHintMixin(_MixinBase):
         is instantly reflected in argument hints without invalidating the cache.
         """
         project = self._xprompt_arg_assist_project_from_text()
-        entries = self._xprompt_arg_assist_entries_by_project.get(project)
+        entries = self._get_app_xprompt_arg_assist_entries(
+            project,
+            schedule=True,
+        )
         if entries is None:
-            entries = _build_xprompt_assist_entries(project=project)
-            self._xprompt_arg_assist_entries_by_project[project] = entries
+            entries = self._xprompt_arg_assist_entries_by_project.get(project, [])
         return merge_local_xprompt_entries(
             entries, self._local_xprompt_assist_entries()
         )
@@ -174,6 +168,9 @@ class XPromptArgHintMixin(_MixinBase):
     ) -> list[XPromptAssistEntry] | None:
         """Return warm xprompt entries for the current project, if available."""
         project = self._xprompt_arg_assist_project_from_text()
+        entries = self._get_app_xprompt_arg_assist_entries(project, schedule=False)
+        if entries is not None:
+            return entries
         return self._xprompt_arg_assist_entries_by_project.get(project)
 
     def _warm_current_xprompt_assist_entries(self) -> None:
@@ -181,45 +178,22 @@ class XPromptArgHintMixin(_MixinBase):
         self._schedule_xprompt_assist_warm(self._xprompt_arg_assist_project_from_text())
 
     def _schedule_xprompt_assist_warm(self, project: str | None) -> None:
-        """Schedule a background xprompt assist catalog build if supported."""
-        if project in self._xprompt_arg_assist_entries_by_project:
-            return
-        if project in self._xprompt_arg_assist_warming_projects:
-            return
-        if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
-            return
+        """Ask the app-owned prompt catalog to warm *project*."""
+        warmer = getattr(self.app, "warm_prompt_catalog_project", None)
+        if callable(warmer):
+            warmer(project)
 
-        self._xprompt_arg_assist_warming_projects.add(project)
-        worker_name = f"prompt-xprompt-assist:{project or '<default>'}"
-        self._xprompt_arg_assist_worker_projects[worker_name] = project
-
-        def build() -> tuple[str | None, list[XPromptAssistEntry]]:
-            return project, _build_xprompt_assist_entries(project=project)
-
-        self.run_worker(
-            build,
-            name=worker_name,
-            thread=True,
-        )
-
-    def on_worker_state_changed(self, event: Any) -> None:
-        """Apply async xprompt assist warm results."""
-        worker = event.worker
-        worker_name = str(getattr(worker, "name", ""))
-        if not worker_name.startswith("prompt-xprompt-assist:"):
-            return
-        pending_project = self._xprompt_arg_assist_worker_projects.pop(
-            worker_name,
-            None,
-        )
-        if event.state != WorkerState.SUCCESS:
-            self._xprompt_arg_assist_warming_projects.discard(pending_project)
-            return
-        project, entries = worker.result
-        self._xprompt_arg_assist_entries_by_project[project] = entries
-        self._xprompt_arg_assist_warming_projects.discard(project)
-        if project == self._xprompt_arg_assist_project_from_text():
-            self._on_prompt_completion_context_changed()
+    def _get_app_xprompt_arg_assist_entries(
+        self,
+        project: str | None,
+        *,
+        schedule: bool,
+    ) -> list[XPromptAssistEntry] | None:
+        getter = getattr(self.app, "get_prompt_catalog_assist_entries", None)
+        if not callable(getter):
+            return None
+        entries = getter(project, schedule=schedule)
+        return entries if isinstance(entries, list) else None
 
     def _xprompt_arg_assist_project_from_text(self) -> str | None:
         """Derive project-local xprompt context from a leading VCS tag."""

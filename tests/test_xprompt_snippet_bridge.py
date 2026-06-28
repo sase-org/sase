@@ -8,7 +8,7 @@ from sase.xprompt._parsing_args import find_matching_bracket_for_args
 from sase.xprompt.models import UNSET, InputArg, XPrompt
 from sase.xprompt.snippet_bridge import (
     _xprompt_to_snippet_template,
-    get_xprompt_snippets,
+    _get_xprompt_snippets,
     resolve_snippet_references,
 )
 
@@ -250,7 +250,7 @@ def test_find_matching_bracket_for_args_unmatched() -> None:
     assert find_matching_bracket_for_args("#[wrap([[text]])", 1) is None
 
 
-# --- get_xprompt_snippets composition ---
+# --- _get_xprompt_snippets composition ---
 
 
 def test_get_xprompt_snippets_composes_nested_xprompt_reference() -> None:
@@ -271,7 +271,7 @@ def test_get_xprompt_snippets_composes_nested_xprompt_reference() -> None:
         patch("sase.config.load_merged_config", return_value={}),
         patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
     ):
-        snippets = get_xprompt_snippets()
+        snippets = _get_xprompt_snippets()
 
     assert snippets["foo"] == (
         "Can you help me foobar? Don't forget to review bazbuz first!$0"
@@ -288,7 +288,7 @@ def test_get_xprompt_snippets_composes_non_snippet_reference() -> None:
         patch("sase.config.load_merged_config", return_value={}),
         patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
     ):
-        snippets = get_xprompt_snippets()
+        snippets = _get_xprompt_snippets()
 
     assert snippets == {"foo": "Outer Nested content$0"}
 
@@ -304,7 +304,7 @@ def test_get_xprompt_snippets_composes_multiple_nested_levels() -> None:
         patch("sase.config.load_merged_config", return_value={}),
         patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
     ):
-        snippets = get_xprompt_snippets()
+        snippets = _get_xprompt_snippets()
 
     assert snippets == {"foo": "foo bar baz$0"}
 
@@ -318,6 +318,6 @@ def test_get_xprompt_snippets_leaves_unknown_nested_references_literal() -> None
         patch("sase.config.load_merged_config", return_value={}),
         patch("sase.xprompt.loader.get_all_xprompts", return_value=xprompts),
     ):
-        snippets = get_xprompt_snippets()
+        snippets = _get_xprompt_snippets()
 
     assert snippets == {"foo": "Outer #missing$0"}

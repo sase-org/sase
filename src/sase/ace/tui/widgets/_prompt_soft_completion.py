@@ -43,9 +43,6 @@ class PromptSoftCompletionMixin(_MixinBase):
         _snippet_tabstops: list[int]
         _soft_completion: PromptSoftCompletion | None
         _vim_mode: str
-        _xprompt_arg_assist_entries_by_project: dict[
-            str | None, list[XPromptAssistEntry]
-        ]
 
         def _find_prompt_bar(self) -> Any: ...
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
@@ -60,6 +57,9 @@ class PromptSoftCompletionMixin(_MixinBase):
             selected: CompletionCandidate,
         ) -> None: ...
         def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]: ...
+        def _get_warm_xprompt_arg_assist_entries(
+            self,
+        ) -> list[XPromptAssistEntry] | None: ...
         def _local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]: ...
         def _expand_snippet_template_at_range(
             self,
@@ -144,7 +144,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             return
 
         project = self._xprompt_arg_assist_project_from_text()
-        entries = self._xprompt_arg_assist_entries_by_project.get(project)
+        entries = self._get_warm_xprompt_arg_assist_entries()
         if entries is None and self._soft_completion_may_need_xprompt_entries(
             text, cursor_offset
         ):
@@ -194,6 +194,7 @@ class PromptSoftCompletionMixin(_MixinBase):
         allow_sync_xprompt_entries: bool = False,
     ) -> PromptSoftCompletion | None:
         """Build the best soft completion for the current prompt state."""
+        del allow_sync_xprompt_entries
         text = self.text
         cursor_offset = self._absolute_offset(self.cursor_location)
         settings = self._prompt_completion_settings()
@@ -208,7 +209,9 @@ class PromptSoftCompletionMixin(_MixinBase):
         warm_entries: list[XPromptAssistEntry] | None = None
         if may_need_xprompt_entries:
             project = self._xprompt_arg_assist_project_from_text()
-            warm_entries = self._xprompt_arg_assist_entries_by_project.get(project)
+            warm_entries = self._get_warm_xprompt_arg_assist_entries()
+            if warm_entries is None:
+                self._schedule_xprompt_assist_warm(project)
             entries = self._soft_completion_xprompt_entries(warm_entries)
 
         suggestion = build_prompt_soft_completion(
@@ -218,21 +221,7 @@ class PromptSoftCompletionMixin(_MixinBase):
             xprompt_entries=entries,
             base_dir=resolve_prompt_completion_base_dir(text),
         )
-        if (
-            suggestion is not None
-            or not allow_sync_xprompt_entries
-            or warm_entries is not None
-            or not may_need_xprompt_entries
-        ):
-            return suggestion
-
-        return build_prompt_soft_completion(
-            text=text,
-            cursor_offset=cursor_offset,
-            settings=settings,
-            xprompt_entries=self._get_xprompt_arg_assist_entries(),
-            base_dir=resolve_prompt_completion_base_dir(text),
-        )
+        return suggestion
 
     def _set_soft_completion(self, suggestion: PromptSoftCompletion | None) -> None:
         self._soft_completion = suggestion

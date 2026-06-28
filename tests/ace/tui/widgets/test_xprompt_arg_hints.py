@@ -50,6 +50,14 @@ def _entry(
     )
 
 
+def _seed_entries(
+    ta: PromptTextArea,
+    entries: list[XPromptAssistEntry],
+    project: str | None = None,
+) -> None:
+    ta._xprompt_arg_assist_entries_by_project[project] = entries
+
+
 async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
     entries = [
         _entry(
@@ -64,12 +72,9 @@ async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            await pilot.press("ctrl+t")
-            await pilot.press("enter")
+        _seed_entries(ta, entries)
+        await pilot.press("ctrl+t")
+        await pilot.press("enter")
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
@@ -88,11 +93,8 @@ async def test_accepting_xprompt_without_required_inputs_skips_arg_hint() -> Non
         ta = app.query_one(PromptTextArea)
         ta.load_text("#p")
         ta.cursor_location = (0, 2)
-        with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
         assert ta.text == "#plain "
         assert ta._active_xprompt_arg_hint is None
@@ -107,12 +109,9 @@ async def test_colon_action_rewrites_reference_and_preserves_surrounding_text() 
         ta = app.query_one(PromptTextArea)
         ta.load_text("before # after")
         ta.cursor_location = (0, len("before #"))
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            bar.insert_snippet("review")
-            await pilot.press(":")
+        _seed_entries(ta, entries)
+        bar.insert_snippet("review")
+        await pilot.press(":")
 
         assert ta.text == "before #review: after"
         assert ta.cursor_location == (0, len("before #review:"))
@@ -135,12 +134,9 @@ async def test_named_action_uses_snippet_tabstops_for_required_args() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            bar.insert_snippet("review")
-            await pilot.press("(")
+        _seed_entries(ta, entries)
+        bar.insert_snippet("review")
+        await pilot.press("(")
 
         assert ta.text == "#review(path=, count=)"
         assert ta.cursor_location == (0, len("#review(path="))
@@ -156,11 +152,8 @@ async def test_submit_cancel_and_escape_clear_arg_hint_state() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
-        with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, entries)
+        await pilot.press("ctrl+t")
         assert ta._active_xprompt_arg_hint is not None
 
         ta.action_submit_prompt()
@@ -168,11 +161,8 @@ async def test_submit_cancel_and_escape_clear_arg_hint_state() -> None:
 
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
-        with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, entries)
+        await pilot.press("ctrl+t")
         assert ta._active_xprompt_arg_hint is not None
 
         bar = app.query_one(PromptInputBar)
@@ -181,11 +171,8 @@ async def test_submit_cancel_and_escape_clear_arg_hint_state() -> None:
 
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
-        with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, entries)
+        await pilot.press("ctrl+t")
         assert ta._active_xprompt_arg_hint is not None
 
         await pilot.press("escape")
@@ -201,11 +188,8 @@ async def test_typed_colon_reference_shows_arg_hint_panel() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#review:")
         ta.cursor_location = (0, len("#review:"))
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            ta._refresh_xprompt_arg_hint_from_cursor()
+        _seed_entries(ta, entries)
+        ta._refresh_xprompt_arg_hint_from_cursor()
 
         panel = bar.query_one("#prompt-completion", Static)
         assert ta._active_xprompt_arg_hint is not None
@@ -222,11 +206,8 @@ async def test_typed_hint_detection_skips_active_snippet_tabstops() -> None:
         ta.load_text("#review:")
         ta.cursor_location = (0, len("#review:"))
         ta._snippet_tabstops = [len("#review:")]
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            ta._refresh_xprompt_arg_hint_from_cursor()
+        _seed_entries(ta, entries)
+        ta._refresh_xprompt_arg_hint_from_cursor()
 
         panel = bar.query_one("#prompt-completion", Static)
         assert ta._active_xprompt_arg_hint is None
@@ -241,11 +222,8 @@ async def test_snippet_modal_insertion_opens_same_arg_hint_path() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            bar.insert_snippet("review")
+        _seed_entries(ta, entries)
+        bar.insert_snippet("review")
 
         assert ta.text == "#review"
         assert ta._active_xprompt_arg_hint is not None
@@ -374,11 +352,7 @@ async def test_snippet_modal_smart_insertion_uses_selected_metadata() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#gh:sase #")
         ta.cursor_location = (0, len("#gh:sase #"))
-        with patch(
-            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=[],
-        ):
-            bar.insert_snippet("local", entry)
+        bar.insert_snippet("local", entry)
 
         assert ta.text == "#gh:sase #local:"
         assert ta._active_xprompt_arg_hint is not None
@@ -392,9 +366,7 @@ async def test_typed_hint_uses_project_from_leading_vcs_tag() -> None:
         prompt = "#gh:sase #local:"
         ta.load_text(prompt)
         ta.cursor_location = (0, len(prompt))
-
-        def build_entries(project: str | None = None) -> list[XPromptAssistEntry]:
-            return entries if project == "sase" else []
+        _seed_entries(ta, entries, project="sase")
 
         with (
             patch(
@@ -405,12 +377,7 @@ async def test_typed_hint_uses_project_from_leading_vcs_tag() -> None:
                 "sase.ace.tui.widgets.prompt_text_area.extract_project_from_vcs_tag",
                 return_value="sase",
             ),
-            patch(
-                "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-                side_effect=build_entries,
-            ) as build,
         ):
             ta._refresh_xprompt_arg_hint_from_cursor()
 
         assert ta._active_xprompt_arg_hint is not None
-        build.assert_called_once_with(project="sase")

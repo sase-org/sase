@@ -132,6 +132,11 @@ class PromptBarSaveSnippetMixin(
         else:
             self._user_snippets = {}
         self._snippets_cache = None
+        if hasattr(self, "_prompt_catalog_generation"):
+            self._prompt_catalog_generation += 1
+        schedule_rebuild = getattr(self, "_schedule_prompt_catalog_rebuild", None)
+        if callable(schedule_rebuild):
+            schedule_rebuild(reason="snippet_save", force=True)
 
 
 def existing_snippet_names(config_path: str) -> set[str]:

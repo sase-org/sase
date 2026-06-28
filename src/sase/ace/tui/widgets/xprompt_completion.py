@@ -8,7 +8,6 @@ import re
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
-    build_xprompt_assist_entries,
 )
 
 _SLASH_SKILL_TOKEN_RE = re.compile(r"^/[A-Za-z0-9_]*$")
@@ -45,7 +44,7 @@ def build_xprompt_completion_candidates(
     partial = token[2:] if standalone_only else token[1:]
     partial_lower = partial.lower()
 
-    source_entries = entries if entries is not None else build_xprompt_assist_entries()
+    source_entries = entries if entries is not None else []
     candidates: list[CompletionCandidate] = []
     for entry in source_entries:
         if slash_skill:

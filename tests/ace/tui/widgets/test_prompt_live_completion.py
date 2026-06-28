@@ -112,7 +112,7 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
 def test_xprompt_soft_builder_uses_warm_entries_only() -> None:
     entries = [_entry("review")]
     with patch(
-        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
+        "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
         side_effect=AssertionError("cold catalog build"),
     ):
         suggestion = build_prompt_soft_completion(
@@ -195,8 +195,7 @@ async def test_ctrl_l_accepts_warm_xprompt_suggestion_before_debounce() -> None:
     assert ta._active_xprompt_arg_hint is not None
 
 
-async def test_ctrl_l_builds_xprompt_entries_when_soft_cache_is_cold() -> None:
-    entries = [_entry("review", inputs=(_input("path", "path"),))]
+async def test_ctrl_l_cold_xprompt_cache_schedules_warm_without_sync_build() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -206,13 +205,12 @@ async def test_ctrl_l_builds_xprompt_entries_when_soft_cache_is_cold() -> None:
 
         with patch(
             "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries",
-            return_value=entries,
-        ) as build_entries:
+            side_effect=AssertionError("cold catalog build"),
+        ):
             await pilot.press("ctrl+l")
 
-    build_entries.assert_called_once_with(project=None)
-    assert ta.text == "#review:"
-    assert ta._active_xprompt_arg_hint is not None
+    assert ta.text == "#r"
+    assert ta._active_xprompt_arg_hint is None
 
 
 async def test_soft_directive_suggestion_replaces_only_with_ctrl_l() -> None:

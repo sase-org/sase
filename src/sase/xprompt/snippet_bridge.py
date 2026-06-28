@@ -271,21 +271,18 @@ def _xprompt_to_snippet_template(xp: XPrompt) -> str | None:
     return result + "$0"
 
 
-def get_xprompt_snippet_entries(
-    project: str | None = None,
+def build_xprompt_snippet_entries_from_catalog(
+    xprompts: Mapping[str, XPrompt],
 ) -> list[XPromptSnippetEntry]:
-    """Load xprompt snippets with metadata preserved for editor integrations.
+    """Build xprompt snippets from an already-loaded xprompt catalog.
 
     Args:
-        project: Optional project name for xprompt loading.
+        xprompts: XPrompt catalog in loader precedence order.
 
     Returns:
         Entries in loader priority order. The first xprompt wins on trigger
-        collision, matching :func:`get_xprompt_snippets`.
+        collision, matching :func:`_get_xprompt_snippets`.
     """
-    from sase.xprompt.loader import get_all_xprompts
-
-    xprompts = get_all_xprompts(project=project)
     entries: list[XPromptSnippetEntry] = []
     seen_triggers: set[str] = set()
 
@@ -306,7 +303,7 @@ def get_xprompt_snippet_entries(
 
         composed_content = process_xprompt_references_with_catalog(
             xp.content,
-            xprompts,
+            dict(xprompts),
         )
         composed_xp = replace(xp, content=composed_content)
 
@@ -331,7 +328,24 @@ def get_xprompt_snippet_entries(
     return entries
 
 
-def get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
+def get_xprompt_snippet_entries(
+    project: str | None = None,
+) -> list[XPromptSnippetEntry]:
+    """Load xprompt snippets with metadata preserved for editor integrations.
+
+    Args:
+        project: Optional project name for xprompt loading.
+
+    Returns:
+        Entries in loader priority order. The first xprompt wins on trigger
+        collision, matching :func:`_get_xprompt_snippets`.
+    """
+    from sase.xprompt.loader import get_all_xprompts
+
+    return build_xprompt_snippet_entries_from_catalog(get_all_xprompts(project=project))
+
+
+def _get_xprompt_snippets(project: str | None = None) -> dict[str, str]:
     """Load all xprompts with ``snippet`` set and return a trigger-to-template dict.
 
     Args:

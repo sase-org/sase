@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -11,6 +9,7 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     XPromptInputHint,
+    build_xprompt_assist_entries,
 )
 from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
@@ -59,6 +58,14 @@ def _input(
     )
 
 
+def _seed_entries(
+    ta: PromptTextArea,
+    entries: list[XPromptAssistEntry],
+    project: str | None = None,
+) -> None:
+    ta._xprompt_arg_assist_entries_by_project[project] = entries
+
+
 def test_xprompt_like_token_accepts_standalone_marker() -> None:
     assert is_xprompt_like_token("#foo") is True
     assert is_xprompt_like_token("#!foo") is True
@@ -81,11 +88,7 @@ def test_xprompt_completion_uses_kind_aware_insertions() -> None:
         _entry("gh", kind="embeddable_workflow"),
         _entry("sync", prefix="#!", kind="standalone_workflow"),
     ]
-    with patch(
-        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-        return_value=entries,
-    ):
-        candidates, shared = build_xprompt_completion_candidates("#s")
+    candidates, shared = build_xprompt_completion_candidates("#s", entries=entries)
 
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
@@ -100,11 +103,7 @@ def test_standalone_marker_filters_to_standalone_workflows() -> None:
         _entry("split", prefix="#!", kind="xprompt"),
         _entry("send", kind="embeddable_workflow"),
     ]
-    with patch(
-        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-        return_value=entries,
-    ):
-        candidates, shared = build_xprompt_completion_candidates("#!s")
+    candidates, shared = build_xprompt_completion_candidates("#!s", entries=entries)
 
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
@@ -114,7 +113,10 @@ def test_standalone_marker_filters_to_standalone_workflows() -> None:
 
 
 def test_xprompt_completion_finds_builtin_cd_workflow() -> None:
-    candidates, _ = build_xprompt_completion_candidates("#c")
+    candidates, _ = build_xprompt_completion_candidates(
+        "#c",
+        entries=build_xprompt_assist_entries(),
+    )
     by_name = {candidate.name: candidate for candidate in candidates}
 
     assert "cd" in by_name
@@ -124,11 +126,7 @@ def test_xprompt_completion_finds_builtin_cd_workflow() -> None:
 
 def test_xprompt_candidates_carry_assist_metadata() -> None:
     entry = _entry("review", inputs=(_input("path", "path"),))
-    with patch(
-        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-        return_value=[entry],
-    ):
-        candidates, _ = build_xprompt_completion_candidates("#r")
+    candidates, _ = build_xprompt_completion_candidates("#r", entries=[entry])
 
     assert candidates[0].metadata is entry
 
@@ -140,11 +138,10 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
         _entry("sase_regular"),
         _entry("review", is_skill=True),
     ]
-    with patch(
-        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-        return_value=entries,
-    ):
-        candidates, shared = build_xprompt_completion_candidates("/sase_")
+    candidates, shared = build_xprompt_completion_candidates(
+        "/sase_",
+        entries=entries,
+    )
 
     assert shared == ""
     assert [(c.display, c.insertion, c.name) for c in candidates] == [
@@ -155,7 +152,10 @@ def test_slash_skill_completion_filters_to_skills_and_uses_slash_insertions() ->
 
 
 def test_slash_skill_completion_finds_packaged_sase_skills() -> None:
-    candidates, _ = build_xprompt_completion_candidates("/sase_")
+    candidates, _ = build_xprompt_completion_candidates(
+        "/sase_",
+        entries=build_xprompt_assist_entries(),
+    )
     by_name = {candidate.name: candidate for candidate in candidates}
 
     assert "sase_plan" in by_name
@@ -171,11 +171,7 @@ def test_slash_skill_completion_extends_shared_prefix() -> None:
         _entry("sase_questions", is_skill=True),
         _entry("sample", is_skill=True),
     ]
-    with patch(
-        "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-        return_value=entries,
-    ):
-        candidates, shared = build_xprompt_completion_candidates("/s")
+    candidates, shared = build_xprompt_completion_candidates("/s", entries=entries)
 
     assert [c.insertion for c in candidates] == [
         "/sample",
@@ -196,18 +192,8 @@ async def test_completion_panel_shows_required_input_names_and_types() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
@@ -225,18 +211,8 @@ async def test_completion_panel_shows_xprompt_description() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
@@ -260,18 +236,8 @@ async def test_completion_panel_renders_optional_inputs_distinctly() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
@@ -287,18 +253,8 @@ async def test_completion_panel_handles_xprompt_with_no_visible_inputs() -> None
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
@@ -315,18 +271,8 @@ async def test_standalone_marker_single_candidate_inserts_canonical_reference() 
         ta = app.query_one(PromptTextArea)
         ta.load_text("#!s")
         ta.cursor_location = (0, 3)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
     assert ta.text == "#!sync "
     assert ta._file_completion_active is False
@@ -339,18 +285,8 @@ async def test_single_candidate_xprompt_without_inputs_adds_trailing_space() -> 
         ta = app.query_one(PromptTextArea)
         ta.load_text("#n")
         ta.cursor_location = (0, 2)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
     assert ta.text == "#none "
     assert ta.cursor_location == (0, len("#none "))
@@ -364,18 +300,8 @@ async def test_single_candidate_xprompt_required_path_inserts_colon() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#r")
         ta.cursor_location = (0, 2)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
     assert ta.text == "#review:"
     assert ta.cursor_location == (0, len("#review:"))
@@ -391,18 +317,8 @@ async def test_single_candidate_xprompt_required_text_inserts_double_colon_space
         ta = app.query_one(PromptTextArea)
         ta.load_text("#w")
         ta.cursor_location = (0, 2)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
     # End-of-line acceptance widens the ``::`` skeleton to the free-form ``:: ``
     # shorthand and parks the cursor after the delimiter space, which ends
@@ -427,18 +343,8 @@ async def test_single_candidate_xprompt_many_inputs_places_cursor_in_parens() ->
         ta = app.query_one(PromptTextArea)
         ta.load_text("#m")
         ta.cursor_location = (0, 2)
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
     assert ta.text == "#many()"
     assert "$0" not in ta.text
@@ -456,12 +362,9 @@ async def test_panel_acceptance_uses_xprompt_completion_skeleton() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#m")
         ta.cursor_location = (0, 2)
-        with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            await pilot.press("ctrl+t")
-            await pilot.press("enter")
+        _seed_entries(ta, entries)
+        await pilot.press("ctrl+t")
+        await pilot.press("enter")
 
     assert ta.text == "#many()"
     assert ta.cursor_location == (0, len("#many("))
@@ -474,11 +377,8 @@ async def test_ctrl_t_required_text_before_existing_text_keeps_single_space() ->
         ta = app.query_one(PromptTextArea)
         ta.load_text("#a here")
         ta.cursor_location = (0, 2)
-        with patch(
-            "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-            return_value=entries,
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
     # Mid-line acceptance keeps ``::`` so the existing following space is the
     # single delimiter rather than a doubled space.
@@ -495,18 +395,8 @@ async def test_slash_skill_single_candidate_inserts_slash_reference() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("/sase_p")
         ta.cursor_location = (0, len("/sase_p"))
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
     assert ta.text == "/sase_plan"
     assert ta._file_completion_active is False
@@ -525,18 +415,8 @@ async def test_slash_skill_multiple_candidates_opens_completion_panel() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("/sase_")
         ta.cursor_location = (0, len("/sase_"))
-        with (
-            patch.object(
-                type(ta),
-                "_ace_app",
-                new_callable=lambda: property(lambda _s: app),
-            ),
-            patch(
-                "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries",
-                return_value=entries,
-            ),
-        ):
-            assert ta._try_file_completion_tab() is True
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()

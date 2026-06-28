@@ -61,11 +61,11 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         if cached is not None:
             return cached
         from sase.xprompt.snippet_bridge import (
-            get_xprompt_snippets,
+            _get_xprompt_snippets,
             resolve_snippet_references,
         )
 
-        merged = get_xprompt_snippets()
+        merged = _get_xprompt_snippets()
         merged.update(self._user_snippets)
         merged = resolve_snippet_references(merged)
         self._snippets_cache = merged
@@ -330,7 +330,7 @@ async def test_create_snippet_flow_writes_refreshes_and_offers_commit(
             return_value=[location],
         ),
         patch("sase.config.load_merged_config", _fake_merged),
-        patch("sase.xprompt.snippet_bridge.get_xprompt_snippets", return_value={}),
+        patch("sase.xprompt.snippet_bridge._get_xprompt_snippets", return_value={}),
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(
@@ -404,7 +404,7 @@ async def test_create_snippet_same_name_overwrites_without_confirmation(
             return_value=[location],
         ),
         patch("sase.config.load_merged_config", _fake_merged),
-        patch("sase.xprompt.snippet_bridge.get_xprompt_snippets", return_value={}),
+        patch("sase.xprompt.snippet_bridge._get_xprompt_snippets", return_value={}),
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(
@@ -454,7 +454,7 @@ async def test_create_snippet_flow_multi_pane_writes_only_active_pane(
             return_value=[location],
         ),
         patch("sase.config.load_merged_config", _fake_merged),
-        patch("sase.xprompt.snippet_bridge.get_xprompt_snippets", return_value={}),
+        patch("sase.xprompt.snippet_bridge._get_xprompt_snippets", return_value={}),
     ):
         # Multi-pane draft: the xprompt body joins both panes, but ``snippet_body``
         # carries only the active pane ("beta").

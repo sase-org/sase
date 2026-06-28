@@ -25,8 +25,6 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 
 from ._completion_helpers import CompletionTestApp
 
-_ENTRY_PATCH = "sase.ace.tui.widgets.xprompt_completion.build_xprompt_assist_entries"
-
 
 def _input(
     name: str,
@@ -130,8 +128,8 @@ async def test_optional_only_ctrl_t_single_candidate_then_colon() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#o")
         ta.cursor_location = (0, 2)
-        with patch(_ENTRY_PATCH, return_value=[_optional_entry()]):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, [_optional_entry()])
+        await pilot.press("ctrl+t")
 
         assert ta.text == "#optional "
         assert ta._pending_optional_spacer is not None
@@ -149,10 +147,10 @@ async def test_optional_only_panel_accept_then_colon() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#")
         ta.cursor_location = (0, 1)
-        with patch(_ENTRY_PATCH, return_value=entries):
-            # Two candidates -> the panel opens; ``enter`` accepts the first.
-            await pilot.press("ctrl+t")
-            await pilot.press("enter")
+        _seed_entries(ta, entries)
+        # Two candidates -> the panel opens; ``enter`` accepts the first.
+        await pilot.press("ctrl+t")
+        await pilot.press("enter")
 
         assert ta.text == "#optional "
         assert ta._pending_optional_spacer is not None
@@ -173,12 +171,11 @@ async def test_optional_agent_spacer_colon_opens_agent_menu() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#f")
         ta.cursor_location = (0, 2)
-        with patch(_ENTRY_PATCH, return_value=[entry]):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, [entry])
+        await pilot.press("ctrl+t")
 
         assert ta.text == "#fork "
         assert ta._pending_optional_spacer is not None
-        _seed_entries(ta, [entry])
 
         await pilot.press(":")
 
@@ -202,12 +199,11 @@ async def test_optional_agent_spacer_colon_respects_disabled_auto_menu() -> None
         ta = app.query_one(PromptTextArea)
         ta.load_text("#f")
         ta.cursor_location = (0, 2)
-        with patch(_ENTRY_PATCH, return_value=[entry]):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, [entry])
+        await pilot.press("ctrl+t")
 
         assert ta.text == "#fork "
         assert ta._pending_optional_spacer is not None
-        _seed_entries(ta, [entry])
 
         with patch.object(
             type(ta),
@@ -269,8 +265,8 @@ async def test_no_input_xprompt_colon_is_not_rewritten() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#p")
         ta.cursor_location = (0, 2)
-        with patch(_ENTRY_PATCH, return_value=[_entry("plain")]):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, [_entry("plain")])
+        await pilot.press("ctrl+t")
 
         assert ta.text == "#plain "
         assert ta._pending_optional_spacer is None
@@ -287,8 +283,8 @@ async def test_intervening_keystroke_clears_pending_spacer() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#o")
         ta.cursor_location = (0, 2)
-        with patch(_ENTRY_PATCH, return_value=[_optional_entry()]):
-            await pilot.press("ctrl+t")
+        _seed_entries(ta, [_optional_entry()])
+        await pilot.press("ctrl+t")
 
         assert ta.text == "#optional "
         assert ta._pending_optional_spacer is not None

@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from ..models import Agent
     from ..models.agent import AgentType
     from ..models.agent_loader import AgentLoadState
+    from ..prompt_catalog import PromptCatalogSnapshot
     from .axe_display._loaders import AxeItemKey
     from .navigation._types import JumpAllResult
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
@@ -612,6 +613,17 @@ class StateInitMixin:
         # this on the mount path keeps the stopwatch tight.
         self._user_snippets = dict(user_snippets)
         self._snippets_cache: dict[str, str] | None = None
+        self._prompt_catalog: PromptCatalogSnapshot | None = None
+        self._prompt_catalog_generation: int = 0
+        self._prompt_catalog_rebuild_in_flight: bool = False
+        self._prompt_catalog_rebuild_pending: bool = False
+        self._prompt_catalog_rebuild_pending_force: bool = False
+        self._prompt_catalog_projects: set[str | None] = {None}
+        self._prompt_catalog_token_check_last_mono: float = 0.0
+        self._prompt_source_watcher: ArtifactWatcher | None = None
+        self._prompt_source_watcher_active: bool = False
+        self._prompt_source_watched_projects: set[str | None] = set()
+        self._prompt_source_debounce_timer: Timer | None = None
 
         # Build keymap registry from config
         from ..keymaps import (
