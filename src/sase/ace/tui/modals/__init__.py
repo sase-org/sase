@@ -38,6 +38,7 @@ from .confirm_revert_agent_modal import ConfirmRevertAgentModal
 from .help_modal import HelpModal, TabName
 from .hook_history_modal import HookHistoryAction, HookHistoryModal, HookHistoryResult
 from .input_item_modal import InputItemModal
+from .jump_action_modal import JumpActionModal, JumpChoice
 from .jump_all_modal import JumpAllModal, JumpAllResult
 from .local_xprompt_name_modal import LocalXPromptNameModal
 from .notification_modal import NotificationModal
@@ -139,6 +140,8 @@ __all__ = [
     "AddableProperty",
     "AddPropertyModal",
     "InputItemModal",
+    "JumpActionModal",
+    "JumpChoice",
     "MentorApplyResult",
     "MentorInfo",
     "MentorKillResult",

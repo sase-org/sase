@@ -20,6 +20,7 @@ class VimNormalModeMixin(VimNormalEditingMixin):
 
         def _clear_search_highlights(self, *, refresh: bool = True) -> None: ...
         def _clear_count_prefix(self) -> None: ...
+        def _jump_to_definition_under_cursor(self) -> None: ...
         def _preview_token_under_cursor(self) -> None: ...
         def _start_prompt_search(self, direction: SearchDirection) -> None: ...
 
@@ -55,6 +56,13 @@ class VimNormalModeMixin(VimNormalEditingMixin):
 
         if key == "K" and self._can_start_prompt_search_from_normal_key():
             self._preview_token_under_cursor()
+            return True
+
+        if (
+            event.key == "ctrl+right_square_bracket"
+            and self._can_start_prompt_search_from_normal_key()
+        ):
+            self._jump_to_definition_under_cursor()
             return True
 
         if (

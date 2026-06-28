@@ -883,6 +883,7 @@ ProjectAliasEditorModal Button {
 
 /* Shared Duration Choice Modal styling */
 PromptSubmitChoiceModal,
+JumpActionModal,
 QuitOptionsModal,
 SnoozeDurationModal,
 _DurationPickerModal {
@@ -909,6 +910,10 @@ _DurationPickerModal {
     width: 62;
 }
 
+#jump-action-container {
+    width: 64;
+}
+
 #quit-options-container {
     width: 70;
 }
@@ -917,8 +922,20 @@ _DurationPickerModal {
     width: 100%;
 }
 
+#jump-action-title {
+    width: 100%;
+}
+
 #quit-options-title {
     width: 100%;
+}
+
+#jump-action-header {
+    color: $text;
+}
+
+.jump-action-footer {
+    color: $text-muted;
 }
 
 .duration-choice-title {

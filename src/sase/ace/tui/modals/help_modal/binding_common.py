@@ -26,6 +26,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("%wait: / #fork:", "Complete visible agent names"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),
         ("K", "Preview xprompt/skill/file"),
+        ("Ctrl+]", "Jump to xprompt/skill/file"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),
         ("n / N", "Repeat prompt search fwd/rev"),
         ("Enter / Esc", "Confirm / cancel prompt search"),

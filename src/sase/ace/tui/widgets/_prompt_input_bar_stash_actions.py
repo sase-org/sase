@@ -26,6 +26,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         _stack: PromptStackState
 
         def _clear_active_completion_state(self) -> None: ...
+        def load_stack_from_xprompt_markdown(self, text: str) -> None: ...
         def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
@@ -92,6 +93,33 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             return
         self._clear_active_completion_state()
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
+
+    def stash_all_and_load_xprompt_markdown(self, markdown: str) -> None:
+        """Stash the whole bar as one bundle, then load *markdown* in its place."""
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        panes = [
+            StashedPromptPane(
+                text=stripped,
+                frontmatter=self._stack.frontmatter,
+                pane_index=index,
+            )
+            for index, item in enumerate(self._stack.items)
+            if (stripped := item.text.strip())
+        ]
+        if not panes and self._stack.frontmatter.strip():
+            panes = [
+                StashedPromptPane(
+                    text="",
+                    frontmatter=self._stack.frontmatter,
+                    pane_index=self._stack.selected_index,
+                )
+            ]
+        if panes:
+            self._clear_active_completion_state()
+            self.post_message(self.Stashed(panes, source="all", dismiss_bar=False))
+        self.load_stack_from_xprompt_markdown(markdown)
 
     def request_update_pinned_stash(self) -> None:
         """Ask the app to update a pinned stash from the current prompt stack."""
