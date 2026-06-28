@@ -434,7 +434,7 @@ class StateInitMixin:
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_keys_cache: tuple[Any, ...] | None = None
         self._agent_panel_index_cache: tuple[Any, bool, Any] | None = None
-        self._agent_sibling_index_cache: tuple[Any, ...] | None = None
+        self._agent_neighbor_index_cache: tuple[Any, ...] | None = None
         self._agent_info_metrics_cache: tuple[Any, ...] | None = None
 
         # Agent completion tracking for notifications

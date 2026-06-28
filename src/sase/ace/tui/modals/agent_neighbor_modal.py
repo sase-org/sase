@@ -1,4 +1,4 @@
-"""Modal for choosing a visible sibling agent."""
+"""Modal for choosing a visible neighbor agent."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ _MAX_TIME_HINT_LEN = 18
 
 
 @dataclass(frozen=True)
-class AgentSiblingChoice:
-    """One visible sibling row offered by :class:`AgentSiblingModal`."""
+class AgentNeighborChoice:
+    """One visible neighbor row offered by :class:`AgentNeighborModal`."""
 
     global_idx: int
     agent_name: str
@@ -34,7 +34,7 @@ class AgentSiblingChoice:
     time_hint: str = ""
 
 
-def _agent_sibling_selector_keys(count: int) -> list[str]:
+def _agent_neighbor_selector_keys(count: int) -> list[str]:
     """Return quick-select keys that do not conflict with modal navigation."""
     return [key for key in _SELECTOR_KEYS if key not in _RESERVED_KEYS][:count]
 
@@ -62,11 +62,11 @@ def _status_style(status: str) -> str:
     return "bold #87D7FF"
 
 
-def _agent_sibling_option_text(
+def _agent_neighbor_option_text(
     selector: str | None,
-    choice: AgentSiblingChoice,
+    choice: AgentNeighborChoice,
 ) -> Text:
-    """Render one sibling choice as compact OptionList text."""
+    """Render one neighbor choice as compact OptionList text."""
     text = Text()
     if selector is None:
         text.append("   ", style="dim")
@@ -98,13 +98,13 @@ def _agent_sibling_option_text(
     return text
 
 
-class AgentSiblingModal(
+class AgentNeighborModal(
     OptionListNavigationMixin,
     ModalScreen[int | None],
 ):
-    """Keyboard-first chooser for visible sibling Agents-tab rows."""
+    """Keyboard-first chooser for visible neighbor Agents-tab rows."""
 
-    _option_list_id = "agent-sibling-list"
+    _option_list_id = "agent-neighbor-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("enter", "select_highlighted", "Jump"),
@@ -112,26 +112,26 @@ class AgentSiblingModal(
 
     def __init__(
         self,
-        family_label: str,
-        choices: list[AgentSiblingChoice],
+        hood_label: str,
+        choices: list[AgentNeighborChoice],
     ) -> None:
         super().__init__()
-        self._family_label = family_label
+        self._hood_label = hood_label
         self._choices = choices
-        selectors = _agent_sibling_selector_keys(len(choices))
+        selectors = _agent_neighbor_selector_keys(len(choices))
         self._selector_by_index = selectors
         self._index_by_selector = {key: index for index, key in enumerate(selectors)}
 
     def compose(self) -> ComposeResult:
-        with Container(id="agent-sibling-container"):
-            yield Label(self._title_text(), id="agent-sibling-title")
+        with Container(id="agent-neighbor-container"):
+            yield Label(self._title_text(), id="agent-neighbor-title")
             yield OptionList(*self._create_options(), id=self._option_list_id)
-            yield Static(self._hint_text(), id="agent-sibling-hints")
+            yield Static(self._hint_text(), id="agent-neighbor-hints")
 
     def _title_text(self) -> str:
         count = len(self._choices)
         plural = "" if count == 1 else "s"
-        return f"Sibling Agents: {self._family_label}  [{count} sibling{plural}]"
+        return f"Neighbor Agents: {self._hood_label} hood  [{count} neighbor{plural}]"
 
     def _hint_text(self) -> str:
         return "enter jump  a-z select  j/k move  q/esc close"
@@ -146,7 +146,7 @@ class AgentSiblingModal(
             )
             options.append(
                 Option(
-                    _agent_sibling_option_text(selector, choice),
+                    _agent_neighbor_option_text(selector, choice),
                     id=str(choice.global_idx),
                 )
             )

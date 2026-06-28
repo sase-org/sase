@@ -1,4 +1,4 @@
-"""Integration tests for the cached Agents-tab sibling index."""
+"""Integration tests for the cached Agents-tab neighbor index."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_hoods import AgentNeighborRow
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
-from sase.ace.tui.models.agent_siblings import AgentSiblingRow
 
 
 def _agent(
@@ -38,7 +38,7 @@ class _Bare(AgentDisplayMixin):
         self._agents = agents
         self._panel_keys_cache = None
         self._agent_panel_index_cache = None
-        self._agent_sibling_index_cache = None
+        self._agent_neighbor_index_cache = None
         self._panel_group = AgentPanelGroup.from_agents(
             agents, merge_tag_panels=grouped
         )
@@ -56,9 +56,9 @@ class _Bare(AgentDisplayMixin):
         self.refresh_interval = 0
         self.visible_walk_count = 0
 
-    def _visible_agent_sibling_rows(self) -> Iterator[AgentSiblingRow]:
+    def _visible_agent_neighbor_rows(self) -> Iterator[AgentNeighborRow]:
         self.visible_walk_count += 1
-        yield from super()._visible_agent_sibling_rows()
+        yield from super()._visible_agent_neighbor_rows()
 
     def _get_selected_agent(self) -> Agent | None:
         if self._agents and 0 <= self.current_idx < len(self._agents):
@@ -66,23 +66,23 @@ class _Bare(AgentDisplayMixin):
         return None
 
 
-def test_agent_sibling_index_is_cached_for_repeated_count_reads() -> None:
+def test_agent_neighbor_index_is_cached_for_repeated_count_reads() -> None:
     app = _Bare(
         [
-            _agent("foo", suffix="a"),
+            _agent("foo.plan", suffix="a"),
             _agent("foo.code", suffix="b"),
             _agent("foo.review", suffix="c"),
         ]
     )
 
-    assert app._agent_sibling_index().sibling_count(0) == 2
+    assert app._agent_neighbor_index().neighbor_count(0) == 2
     for _ in range(25):
-        assert app._agent_sibling_index().sibling_count(1) == 2
+        assert app._agent_neighbor_index().neighbor_count(1) == 2
 
     assert app.visible_walk_count == 1
 
 
-def test_agent_sibling_index_cache_clears_with_panel_cache_invalidation() -> None:
+def test_agent_neighbor_index_cache_clears_with_panel_cache_invalidation() -> None:
     app = _Bare(
         [
             _agent("foo.plan", suffix="a"),
@@ -90,15 +90,15 @@ def test_agent_sibling_index_cache_clears_with_panel_cache_invalidation() -> Non
         ]
     )
 
-    first = app._agent_sibling_index()
+    first = app._agent_neighbor_index()
     app._invalidate_agent_panel_cache()
-    second = app._agent_sibling_index()
+    second = app._agent_neighbor_index()
 
     assert second is not first
     assert app.visible_walk_count == 2
 
 
-def test_agent_sibling_index_cache_tracks_fold_version() -> None:
+def test_agent_neighbor_index_cache_tracks_fold_version() -> None:
     app = _Bare(
         [
             _agent("foo.plan", suffix="a"),
@@ -106,15 +106,15 @@ def test_agent_sibling_index_cache_tracks_fold_version() -> None:
             _agent("bar.plan", suffix="c"),
         ]
     )
-    assert app._agent_sibling_index().sibling_count(0) == 1
+    assert app._agent_neighbor_index().neighbor_count(0) == 1
 
     app._group_fold_registry.collapse(("proj", "demo", "foo"))
 
-    assert app._agent_sibling_index().sibling_count(0) == 0
+    assert app._agent_neighbor_index().neighbor_count(0) == 0
     assert app.visible_walk_count == 2
 
 
-def test_agent_sibling_index_walks_panels_in_render_order() -> None:
+def test_agent_neighbor_index_walks_panels_in_render_order() -> None:
     app = _Bare(
         [
             _agent("foo.zeta", suffix="z", tag="zeta"),
@@ -123,17 +123,17 @@ def test_agent_sibling_index_walks_panels_in_render_order() -> None:
         ]
     )
 
-    index = app._agent_sibling_index()
+    index = app._agent_neighbor_index()
 
     assert app._panel_group.panel_keys == [None, "alpha", "zeta"]
-    assert index.siblings_for(2) == (1, 0)
-    assert index.siblings_for(1) == (2, 0)
+    assert index.neighbors_for(2) == (1, 0)
+    assert index.neighbors_for(1) == (2, 0)
     assert index.panel_idx_for(2) == 0
     assert index.panel_idx_for(1) == 1
     assert index.panel_idx_for(0) == 2
 
 
-def test_agent_sibling_index_omits_starting_rows_from_app_walk() -> None:
+def test_agent_neighbor_index_omits_starting_rows_from_app_walk() -> None:
     app = _Bare(
         [
             _agent("foo.plan", suffix="a"),
@@ -142,26 +142,26 @@ def test_agent_sibling_index_omits_starting_rows_from_app_walk() -> None:
         ]
     )
 
-    index = app._agent_sibling_index()
+    index = app._agent_neighbor_index()
 
-    assert index.siblings_for(0) == (2,)
-    assert index.siblings_for(1) == ()
-    assert index.siblings_for(2) == (0,)
+    assert index.neighbors_for(0) == (2,)
+    assert index.neighbors_for(1) == ()
+    assert index.neighbors_for(2) == (0,)
 
 
-def test_agent_sibling_index_cache_tracks_panel_mode() -> None:
+def test_agent_neighbor_index_cache_tracks_panel_mode() -> None:
     app = _Bare(
         [
             _agent("foo.alpha", suffix="a", tag="alpha"),
             _agent("foo.beta", suffix="b", tag="beta"),
         ]
     )
-    split = app._agent_sibling_index()
+    split = app._agent_neighbor_index()
 
     app._agent_panels_grouped = True
     app._panel_group = AgentPanelGroup.from_agents(app._agents, merge_tag_panels=True)
 
-    grouped = app._agent_sibling_index()
+    grouped = app._agent_neighbor_index()
 
     assert grouped is not split
     assert grouped.panel_idx_for(0) == 0
@@ -169,7 +169,7 @@ def test_agent_sibling_index_cache_tracks_panel_mode() -> None:
     assert app.visible_walk_count == 2
 
 
-def test_agents_info_panel_update_uses_cached_sibling_count() -> None:
+def test_agents_info_panel_update_uses_cached_neighbor_count() -> None:
     app = _Bare(
         [
             _agent("foo.plan", suffix="a"),
@@ -202,5 +202,5 @@ def test_agents_info_panel_update_uses_cached_sibling_count() -> None:
     app._update_agents_info_panel()
     app._update_agents_info_panel()
 
-    assert info_panel.kwargs["sibling_count"] == 2
+    assert info_panel.kwargs["neighbor_count"] == 2
     assert app.visible_walk_count == 1

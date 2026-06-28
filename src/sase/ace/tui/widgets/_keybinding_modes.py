@@ -45,7 +45,7 @@ class KeybindingModesMixin:
             group_focused: bool = False,
             has_agent_artifacts: bool = False,
             artifact_viewer_active: bool = False,
-            sibling_count: int = 0,
+            neighbor_count: int = 0,
             tmux_choice_count: int = 0,
         ) -> list[tuple[str, str]]: ...
 
@@ -87,7 +87,7 @@ class KeybindingModesMixin:
         group_focused: bool = False,
         has_agent_artifacts: bool = False,
         artifact_viewer_active: bool = False,
-        sibling_count: int = 0,
+        neighbor_count: int = 0,
         tmux_choice_count: int = 0,
     ) -> None:
         """Update bindings for Agents tab."""
@@ -100,7 +100,7 @@ class KeybindingModesMixin:
             group_focused=group_focused,
             has_agent_artifacts=has_agent_artifacts,
             artifact_viewer_active=artifact_viewer_active,
-            sibling_count=sibling_count,
+            neighbor_count=neighbor_count,
             tmux_choice_count=tmux_choice_count,
         )
         self._update_display(bindings)

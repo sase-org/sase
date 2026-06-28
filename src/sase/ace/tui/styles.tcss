@@ -732,12 +732,12 @@ AgentArtifactSelectionModal {
     padding-top: 1;
 }
 
-/* Agent Sibling Modal styling */
-AgentSiblingModal {
+/* Agent Neighbor Modal styling */
+AgentNeighborModal {
     align: center middle;
 }
 
-#agent-sibling-container {
+#agent-neighbor-container {
     width: 78;
     max-width: 94%;
     height: auto;
@@ -747,19 +747,19 @@ AgentSiblingModal {
     padding: 1 2;
 }
 
-#agent-sibling-title {
+#agent-neighbor-title {
     text-align: center;
     text-style: bold;
     height: auto;
     margin-bottom: 1;
 }
 
-#agent-sibling-list {
+#agent-neighbor-list {
     height: auto;
     max-height: 16;
 }
 
-#agent-sibling-hints {
+#agent-neighbor-hints {
     text-align: center;
     color: $text-muted;
     height: auto;

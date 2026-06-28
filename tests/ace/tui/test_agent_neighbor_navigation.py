@@ -1,4 +1,4 @@
-"""Tests for Agents-tab ``~`` sibling navigation."""
+"""Tests for Agents-tab ``~`` neighbor navigation (dotted-name hoods)."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from unittest.mock import MagicMock
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.actions.navigation._tree import TreeNavigationMixin
+from sase.ace.tui.modals import AgentNeighborModal
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
-from sase.ace.tui.modals import AgentSiblingModal
 
 
 class _Debouncer:
@@ -24,8 +24,8 @@ class _Debouncer:
         self.scheduled += 1
 
 
-class _SiblingApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixin):
-    """Small harness for the shared ``~`` action and Agents sibling helpers."""
+class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixin):
+    """Small harness for the shared ``~`` action and Agents neighbor helpers."""
 
     def __init__(
         self,
@@ -49,7 +49,7 @@ class _SiblingApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMixi
         self._current_group_key: tuple[str, ...] | None = None
         self._panel_keys_cache = None
         self._agent_panel_index_cache = None
-        self._agent_sibling_index_cache = None
+        self._agent_neighbor_index_cache = None
         self._agent_info_metrics_cache = None
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index: dict[str, int] = {}
@@ -177,8 +177,8 @@ def test_changespec_sibling_navigation_still_direct_jumps() -> None:
     assert app.navigated == [("target", False, True)]
 
 
-def test_agent_sibling_navigation_noops_without_visible_sibling() -> None:
-    app = _SiblingApp([_agent("foo.plan"), _agent("bar.plan")])
+def test_agent_neighbor_navigation_noops_without_visible_neighbor() -> None:
+    app = _NeighborApp([_agent("foo.plan"), _agent("bar.plan")])
     app._entry_jump_agents_anchor_stack = [("agent", 1, 0)]
 
     app.action_start_sibling_mode()
@@ -190,9 +190,9 @@ def test_agent_sibling_navigation_noops_without_visible_sibling() -> None:
     assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
 
 
-def test_agent_sibling_navigation_direct_jumps_to_single_sibling() -> None:
+def test_agent_neighbor_navigation_direct_jumps_to_single_neighbor() -> None:
     agents = [_agent("foo.plan"), _agent("foo.code")]
-    app = _SiblingApp(agents)
+    app = _NeighborApp(agents)
 
     app.action_start_sibling_mode()
 
@@ -208,9 +208,9 @@ def test_agent_sibling_navigation_direct_jumps_to_single_sibling() -> None:
     assert app._agent_detail_debouncer.scheduled == 1
 
 
-def test_agent_sibling_navigation_back_jump_restores_origin() -> None:
+def test_agent_neighbor_navigation_back_jump_restores_origin() -> None:
     agents = [_agent("foo.plan"), _agent("foo.code")]
-    app = _SiblingApp(agents)
+    app = _NeighborApp(agents)
 
     app.action_start_sibling_mode()
     app.action_jump_to_entry()
@@ -224,11 +224,11 @@ def test_agent_sibling_navigation_back_jump_restores_origin() -> None:
     assert app.jump_footer_updates == 1
 
 
-def test_agent_sibling_navigation_fast_back_jump_restores_origin_without_hints() -> (
+def test_agent_neighbor_navigation_fast_back_jump_restores_origin_without_hints() -> (
     None
 ):
     agents = [_agent("foo.plan"), _agent("foo.code")]
-    app = _SiblingApp(agents)
+    app = _NeighborApp(agents)
 
     app.action_start_sibling_mode()
     app.action_jump_to_entry_fast()
@@ -239,9 +239,23 @@ def test_agent_sibling_navigation_fast_back_jump_restores_origin_without_hints()
     assert app.jump_footer_updates == 0
 
 
-def test_agent_sibling_navigation_direct_jumps_from_descendant_to_root() -> None:
-    agents = [_agent("foo.bar"), _agent("foo")]
-    app = _SiblingApp(agents)
+def test_agent_neighbor_navigation_skips_dotless_parent_and_descendant() -> None:
+    # ``foo`` is dotless (no hood), ``foo.bar`` lives in hood ``foo`` and
+    # ``foo.bar.baz`` lives in hood ``foo.bar`` -> no two share a hood.
+    for current_idx in range(3):
+        agents = [_agent("foo"), _agent("foo.bar"), _agent("foo.bar.baz")]
+        app = _NeighborApp(agents, current_idx=current_idx)
+
+        app.action_start_sibling_mode()
+
+        assert app.current_idx == current_idx
+        assert app.pushed_screens == []
+        assert app.acknowledged == []
+
+
+def test_agent_neighbor_navigation_jumps_within_a_sub_hood() -> None:
+    agents = [_agent("foo.bar.baz"), _agent("foo.bar.qux")]
+    app = _NeighborApp(agents)
 
     app.action_start_sibling_mode()
 
@@ -250,20 +264,9 @@ def test_agent_sibling_navigation_direct_jumps_from_descendant_to_root() -> None
     assert app.acknowledged == [agents[1]]
 
 
-def test_agent_sibling_navigation_direct_jumps_from_root_to_descendant() -> None:
-    agents = [_agent("foo"), _agent("foo.bar")]
-    app = _SiblingApp(agents)
-
-    app.action_start_sibling_mode()
-
-    assert app.current_idx == 1
-    assert app.armed_departures == [agents[0]]
-    assert app.acknowledged == [agents[1]]
-
-
-def test_agent_sibling_navigation_opens_modal_for_multiple_siblings() -> None:
-    agents = [_agent("foo.plan"), _agent("foo"), _agent("foo.review")]
-    app = _SiblingApp(agents)
+def test_agent_neighbor_navigation_opens_modal_for_multiple_neighbors() -> None:
+    agents = [_agent("foo.plan"), _agent("foo.code"), _agent("foo.review")]
+    app = _NeighborApp(agents)
 
     app.action_start_sibling_mode()
 
@@ -271,10 +274,13 @@ def test_agent_sibling_navigation_opens_modal_for_multiple_siblings() -> None:
     assert app._entry_jump_agents_anchor_stack == []
     assert len(app.pushed_screens) == 1
     modal = app.pushed_screens[0]
-    assert isinstance(modal, AgentSiblingModal)
+    assert isinstance(modal, AgentNeighborModal)
     assert [choice.global_idx for choice in modal._choices] == [1, 2]
-    assert [choice.agent_name for choice in modal._choices] == ["foo", "foo.review"]
-    assert modal._family_label == "foo family"
+    assert [choice.agent_name for choice in modal._choices] == [
+        "foo.code",
+        "foo.review",
+    ]
+    assert modal._hood_label == "foo"
 
     app.pushed_callbacks[0](None)
 
@@ -289,12 +295,12 @@ def test_agent_sibling_navigation_opens_modal_for_multiple_siblings() -> None:
     assert app.acknowledged == [agents[2]]
 
 
-def test_agent_sibling_navigation_switches_focused_panel() -> None:
+def test_agent_neighbor_navigation_switches_focused_panel() -> None:
     agents = [
         _agent("foo.plan"),
         _agent("foo.code", tag="review"),
     ]
-    app = _SiblingApp(agents)
+    app = _NeighborApp(agents)
     assert app._panel_group.panel_keys == [None, "review"]
 
     app.action_start_sibling_mode()
@@ -306,13 +312,13 @@ def test_agent_sibling_navigation_switches_focused_panel() -> None:
     assert app.highlight_refreshes == 0
 
 
-def test_agent_sibling_navigation_excludes_collapsed_hidden_rows() -> None:
+def test_agent_neighbor_navigation_excludes_collapsed_hidden_rows() -> None:
     agents = [
         _agent("foo.code"),
         _agent("foo.plan"),
         _agent("foo.plan.review"),
     ]
-    app = _SiblingApp(
+    app = _NeighborApp(
         agents,
         current_idx=0,
         collapsed=[("proj", "demo", "foo", "foo.plan")],
@@ -325,9 +331,9 @@ def test_agent_sibling_navigation_excludes_collapsed_hidden_rows() -> None:
     assert app.acknowledged == []
 
 
-def test_agent_sibling_navigation_guard_blocks_row_change() -> None:
+def test_agent_neighbor_navigation_guard_blocks_row_change() -> None:
     agents = [_agent("foo.plan"), _agent("foo.code")]
-    app = _SiblingApp(agents)
+    app = _NeighborApp(agents)
     app.artifact_viewer_guard_active = True
     app._entry_jump_agents_anchor_stack = [("agent", 1, 0)]
 

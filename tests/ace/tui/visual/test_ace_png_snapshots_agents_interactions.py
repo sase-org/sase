@@ -16,8 +16,9 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
+    hood_neighbor_agents,
     patch_startup_loaders,
-    sibling_agents,
+    visual_agents,
     wait_for_startup,
     wait_for_visual_idle,
 )
@@ -102,11 +103,11 @@ async def test_agents_unread_highlight_png_snapshot(
         )
 
 
-async def test_agents_sibling_badge_png_snapshot(
+async def test_agents_neighbor_badge_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+    patch_startup_loaders(monkeypatch, agents=hood_neighbor_agents())
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
@@ -114,22 +115,23 @@ async def test_agents_sibling_badge_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
-        assert page.app._agent_sibling_index().sibling_count(page.app.current_idx) == 2
-        assert_page_svg_contains(page, "siblings: ")
+        neighbor_index = page.app._agent_neighbor_index()
+        assert neighbor_index.neighbor_count(page.app.current_idx) == 2
+        assert_page_svg_contains(page, "neighbors: ")
 
         ace_png_visual.assert_page_png(
             page,
-            "agents_sibling_badge_120x40",
-            title="ACE agents sibling badge",
+            "agents_neighbor_badge_120x40",
+            title="ACE agents neighbor badge",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
-async def test_agent_sibling_modal_narrow_png_snapshot(
+async def test_agent_neighbor_modal_narrow_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+    patch_startup_loaders(monkeypatch, agents=hood_neighbor_agents())
 
     async with AcePage(
         query='"visual"', changespecs=changespecs(), size=(60, 30)
@@ -139,19 +141,19 @@ async def test_agent_sibling_modal_narrow_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         page.app.action_start_sibling_mode()
-        await page.expect_modal("AgentSiblingModal")
+        await page.expect_modal("AgentNeighborModal")
         await wait_for_visual_idle(page)
         modal = page.app.screen_stack[-1]
-        assert modal.__class__.__name__ == "AgentSiblingModal"
+        assert modal.__class__.__name__ == "AgentNeighborModal"
         choices = vars(modal)["_choices"]
         assert [choice.global_idx for choice in choices] == [1, 2]
-        assert_page_svg_contains(page, "Sibling Agents: visual family")
-        assert_page_svg_contains(page, "visual.code.implementation.with...")
+        assert_page_svg_contains(page, "Neighbor Agents: visual.code hood")
+        assert_page_svg_contains(page, "visual.code.implementation")
 
         ace_png_visual.assert_page_png(
             page,
-            "agent_sibling_modal_60x30",
-            title="ACE agent sibling modal narrow",
+            "agent_neighbor_modal_60x30",
+            title="ACE agent neighbor modal narrow",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
@@ -361,7 +363,7 @@ async def test_auto_approve_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+    patch_startup_loaders(monkeypatch, agents=visual_agents())
 
     async with AcePage(
         query='"visual"', changespecs=changespecs(), size=(60, 30)
@@ -397,7 +399,7 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+    patch_startup_loaders(monkeypatch, agents=visual_agents())
 
     async with AcePage(
         query='"visual"', changespecs=changespecs(), size=(100, 28)
@@ -434,7 +436,7 @@ async def test_wait_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(monkeypatch, agents=sibling_agents())
+    patch_startup_loaders(monkeypatch, agents=visual_agents())
 
     async with AcePage(
         query='"visual"', changespecs=changespecs(), size=(100, 32)

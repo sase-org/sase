@@ -40,7 +40,7 @@ from ._refresh_trace import (
     AgentRefreshFallbackReason,
     record_agents_refresh_trace,
 )
-from ._siblings import AgentSiblingMixin
+from ._neighbors import AgentNeighborMixin
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ _panel_widget_id = panel_widget_id
 __all__ = ["AgentDisplayMixin", "TabName", "_MAIN_PANEL_ID", "_panel_widget_id"]
 
 
-class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
+class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     """Mixin providing agent display and refresh methods.
 
     Type hints below declare attributes that are defined at runtime by AceApp.
@@ -96,14 +96,14 @@ class AgentDisplayMixin(AgentSiblingMixin, PanelsMixin, DetailMixin):
     # single agents-list ref reuses the same panels / non-child indices /
     # completed count across every refresh path.
     _agent_panel_index_cache: tuple[Any, bool, AgentPanelIndex] | None
-    _agent_sibling_index_cache: tuple[Any, ...] | None
+    _agent_neighbor_index_cache: tuple[Any, ...] | None
 
     def _invalidate_agent_panel_cache(self) -> None:
         """Clear panel-derived caches after in-place agent mutations."""
         if hasattr(self, "_agent_panel_index_cache"):
             self._agent_panel_index_cache = None
-        if hasattr(self, "_agent_sibling_index_cache"):
-            self._agent_sibling_index_cache = None
+        if hasattr(self, "_agent_neighbor_index_cache"):
+            self._agent_neighbor_index_cache = None
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None
         if hasattr(self, "_panel_keys_cache"):

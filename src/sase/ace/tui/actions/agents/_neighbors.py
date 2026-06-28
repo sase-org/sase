@@ -1,4 +1,4 @@
-"""Cached Agents-tab sibling index helpers."""
+"""Cached Agents-tab neighbor index helpers."""
 
 from __future__ import annotations
 
@@ -11,27 +11,27 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_groups import GroupingMode
+    from ...models.agent_hoods import AgentNeighborIndex, AgentNeighborRow
     from ...models.agent_panels import AgentPanelGroup
-    from ...models.agent_siblings import AgentSiblingIndex, AgentSiblingRow
-    from ...modals.agent_sibling_modal import AgentSiblingChoice
+    from ...modals.agent_neighbor_modal import AgentNeighborChoice
 
 
-class AgentSiblingMixin:
-    """Mixin that exposes the cached visible sibling index."""
+class AgentNeighborMixin:
+    """Mixin that exposes the cached visible neighbor index."""
 
     _agents: list[Agent]
     _group_fold_registry: AgentGroupFoldRegistry
     _grouping_mode: GroupingMode
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
-    _agent_sibling_index_cache: tuple[Any, ...] | None
+    _agent_neighbor_index_cache: tuple[Any, ...] | None
     _current_group_key: tuple[str, ...] | None
     current_idx: int
     current_attempt_number: int | None
     current_tab: str
 
-    def _agent_sibling_index(self) -> AgentSiblingIndex:
-        """Return the sibling index for all currently visible agent rows."""
+    def _agent_neighbor_index(self) -> AgentNeighborIndex:
+        """Return the neighbor index for all currently visible agent rows."""
         from ...models.agent_groups import GroupingMode
 
         panel_group = getattr(self, "_panel_group", None)
@@ -41,7 +41,7 @@ class AgentSiblingMixin:
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
 
-        cached = getattr(self, "_agent_sibling_index_cache", None)
+        cached = getattr(self, "_agent_neighbor_index_cache", None)
         if (
             cached is not None
             and cached[0] is self._agents
@@ -52,8 +52,8 @@ class AgentSiblingMixin:
         ):
             return cached[5]
 
-        index = self._build_agent_sibling_index()
-        self._agent_sibling_index_cache = (
+        index = self._build_agent_neighbor_index()
+        self._agent_neighbor_index_cache = (
             self._agents,
             panel_keys,
             merge_tag_panels,
@@ -63,19 +63,19 @@ class AgentSiblingMixin:
         )
         return index
 
-    def _build_agent_sibling_index(self) -> AgentSiblingIndex:
-        """Build a fresh sibling index by walking rendered rows."""
-        from ...models.agent_siblings import AgentSiblingIndex
+    def _build_agent_neighbor_index(self) -> AgentNeighborIndex:
+        """Build a fresh neighbor index by walking rendered rows."""
+        from ...models.agent_hoods import AgentNeighborIndex
 
-        return AgentSiblingIndex.from_visible_rows(
-            list(self._visible_agent_sibling_rows())
+        return AgentNeighborIndex.from_visible_rows(
+            list(self._visible_agent_neighbor_rows())
         )
 
-    def _visible_agent_sibling_rows(self) -> Iterator[AgentSiblingRow]:
+    def _visible_agent_neighbor_rows(self) -> Iterator[AgentNeighborRow]:
         """Yield visible agent rows across every rendered Agents-tab panel."""
         from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ...models.agent_hoods import AgentNeighborRow, agent_hood
         from ...models.agent_panels import agent_is_rendered_in_agents_panel
-        from ...models.agent_siblings import AgentSiblingRow, agent_sibling_family
 
         registry = getattr(self, "_group_fold_registry", None)
         mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
@@ -92,11 +92,11 @@ class AgentSiblingMixin:
             for entry in tree:
                 if entry.kind == "agent" and entry.agent_idx is not None:
                     local_idx = entry.agent_idx
-                    yield AgentSiblingRow(
+                    yield AgentNeighborRow(
                         global_idx=global_indices[local_idx],
                         panel_idx=0,
                         agent=panel_agents[local_idx],
-                        family=agent_sibling_family(panel_agents[local_idx]),
+                        hood=agent_hood(panel_agents[local_idx]),
                     )
             return
 
@@ -106,15 +106,15 @@ class AgentSiblingMixin:
             for entry in tree:
                 if entry.kind == "agent" and entry.agent_idx is not None:
                     local_idx = entry.agent_idx
-                    yield AgentSiblingRow(
+                    yield AgentNeighborRow(
                         global_idx=global_indices[local_idx],
                         panel_idx=panel_idx,
                         agent=panel_agents[local_idx],
-                        family=agent_sibling_family(panel_agents[local_idx]),
+                        hood=agent_hood(panel_agents[local_idx]),
                     )
 
-    def _start_agent_sibling_navigation(self) -> None:
-        """Jump to, or choose from, visible siblings of the selected agent."""
+    def _start_agent_neighbor_navigation(self) -> None:
+        """Jump to, or choose from, visible neighbors of the selected agent."""
         if getattr(self, "current_tab", None) != "agents":
             return
         if getattr(self, "_current_group_key", None) is not None:
@@ -126,60 +126,62 @@ class AgentSiblingMixin:
         if selected is None:
             return
 
-        from ...models.agent_siblings import agent_sibling_family
+        from ...models.agent_hoods import agent_hood
 
-        if agent_sibling_family(selected) is None:
+        if agent_hood(selected) is None:
             return
 
-        index = self._agent_sibling_index()
-        siblings = index.siblings_for(self.current_idx)
-        if not siblings:
+        index = self._agent_neighbor_index()
+        neighbors = index.neighbors_for(self.current_idx)
+        if not neighbors:
             return
 
         guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
         if callable(guard) and guard():
             return
 
-        if len(siblings) == 1:
-            self._focus_agent_sibling_by_global_index(
-                siblings[0],
-                sibling_index=index,
+        if len(neighbors) == 1:
+            self._focus_agent_neighbor_by_global_index(
+                neighbors[0],
+                neighbor_index=index,
             )
             return
 
-        choices = self._agent_sibling_choices(siblings, index)
+        choices = self._agent_neighbor_choices(neighbors, index)
         if not choices:
             return
 
-        from ...modals import AgentSiblingModal
+        from ...modals import AgentNeighborModal
 
-        def _on_sibling_selected(target_idx: int | None) -> None:
+        def _on_neighbor_selected(target_idx: int | None) -> None:
             if target_idx is None:
                 return
-            self._focus_agent_sibling_by_global_index(target_idx)
+            self._focus_agent_neighbor_by_global_index(target_idx)
 
         self.push_screen(  # type: ignore[attr-defined]
-            AgentSiblingModal(
-                self._agent_sibling_family_label(selected),
+            AgentNeighborModal(
+                self._agent_neighbor_hood_label(selected),
                 choices,
             ),
-            _on_sibling_selected,
+            _on_neighbor_selected,
         )
 
-    def _focus_agent_sibling_by_global_index(
+    def _focus_agent_neighbor_by_global_index(
         self,
         target_idx: int,
         *,
-        sibling_index: AgentSiblingIndex | None = None,
+        neighbor_index: AgentNeighborIndex | None = None,
     ) -> bool:
-        """Focus the visible sibling row identified by its global agent index."""
+        """Focus the visible neighbor row identified by its global agent index."""
         if getattr(self, "current_tab", None) != "agents":
             return False
         if not (0 <= target_idx < len(self._agents)):
             return False
 
         index = (
-            sibling_index if sibling_index is not None else self._agent_sibling_index()
+            neighbor_index
+            if neighbor_index is not None
+            else self._agent_neighbor_index()
         )
         target_panel_idx = index.panel_idx_for(target_idx)
         if target_panel_idx is None:
@@ -236,11 +238,13 @@ class AgentSiblingMixin:
         if callable(ack_unread):
             ack_unread(target_agent)
 
-        self._refresh_agent_sibling_jump_views(old_focused_idx=old_focused_idx)
+        self._refresh_agent_neighbor_jump_views(old_focused_idx=old_focused_idx)
         return True
 
-    def _refresh_agent_sibling_jump_views(self, *, old_focused_idx: int | None) -> None:
-        """Refresh selection chrome after a sibling jump without rebuilding rows."""
+    def _refresh_agent_neighbor_jump_views(
+        self, *, old_focused_idx: int | None
+    ) -> None:
+        """Refresh selection chrome after a neighbor jump without rebuilding rows."""
         panel_group = getattr(self, "_panel_group", None)
         focused_changed = (
             panel_group is not None
@@ -270,41 +274,41 @@ class AgentSiblingMixin:
         if debouncer is not None and callable(fire_detail):
             debouncer.schedule(fire_detail)
 
-    def _agent_sibling_choices(
+    def _agent_neighbor_choices(
         self,
-        siblings: tuple[int, ...],
-        index: AgentSiblingIndex,
-    ) -> list[AgentSiblingChoice]:
-        """Build modal choices for sibling rows in render order."""
-        from ...modals.agent_sibling_modal import AgentSiblingChoice
+        neighbors: tuple[int, ...],
+        index: AgentNeighborIndex,
+    ) -> list[AgentNeighborChoice]:
+        """Build modal choices for neighbor rows in render order."""
+        from ...modals.agent_neighbor_modal import AgentNeighborChoice
 
-        choices: list[AgentSiblingChoice] = []
-        for global_idx in siblings:
+        choices: list[AgentNeighborChoice] = []
+        for global_idx in neighbors:
             if not (0 <= global_idx < len(self._agents)):
                 continue
             agent = self._agents[global_idx]
             choices.append(
-                AgentSiblingChoice(
+                AgentNeighborChoice(
                     global_idx=global_idx,
                     agent_name=agent.agent_name or agent.display_name,
                     display_name=agent.display_name,
                     status=agent.status,
-                    panel_label=self._agent_sibling_panel_label(
+                    panel_label=self._agent_neighbor_panel_label(
                         index.panel_idx_for(global_idx)
                     ),
-                    time_hint=self._agent_sibling_time_hint(agent),
+                    time_hint=self._agent_neighbor_time_hint(agent),
                 )
             )
         return choices
 
-    def _agent_sibling_family_label(self, agent: Agent) -> str:
-        """Return the display family label used by the chooser title."""
+    def _agent_neighbor_hood_label(self, agent: Agent) -> str:
+        """Return the display hood label used by the chooser title."""
         name = agent.agent_name or ""
-        family = name.split(".", 1)[0] if "." in name else name
-        return f"{family} family" if family else "agent family"
+        hood, _, last = name.rpartition(".")
+        return hood if hood and last else "agent"
 
-    def _agent_sibling_panel_label(self, panel_idx: int | None) -> str:
-        """Return a compact label for the tag panel containing a sibling."""
+    def _agent_neighbor_panel_label(self, panel_idx: int | None) -> str:
+        """Return a compact label for the tag panel containing a neighbor."""
         if getattr(self, "_agent_panels_grouped", False):
             return "all"
         panel_group = getattr(self, "_panel_group", None)
@@ -317,8 +321,8 @@ class AgentSiblingMixin:
         key = panel_group.panel_keys[panel_idx]
         return "(untagged)" if key is None else f"#{key}"
 
-    def _agent_sibling_time_hint(self, agent: Agent) -> str:
-        """Return a compact timestamp/runtime hint for a sibling row."""
+    def _agent_neighbor_time_hint(self, agent: Agent) -> str:
+        """Return a compact timestamp/runtime hint for a neighbor row."""
         from ...models.agent import compute_row_runtime
 
         timestamp, elapsed = compute_row_runtime(agent)

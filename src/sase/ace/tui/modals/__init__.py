@@ -2,7 +2,7 @@
 
 from .add_property_modal import AddableProperty, AddPropertyModal
 from .agent_name_modal import AgentNameModal
-from .agent_sibling_modal import AgentSiblingChoice, AgentSiblingModal
+from .agent_neighbor_modal import AgentNeighborChoice, AgentNeighborModal
 from .agent_workspace_tmux_modal import (
     AgentWorkspaceTmuxChoice,
     AgentWorkspaceTmuxModal,
@@ -160,8 +160,8 @@ __all__ = [
     "CustomApprovalModal",
     "CustomApprovalResult",
     "AgentNameModal",
-    "AgentSiblingChoice",
-    "AgentSiblingModal",
+    "AgentNeighborChoice",
+    "AgentNeighborModal",
     "AgentWorkspaceTmuxChoice",
     "AgentWorkspaceTmuxModal",
     "build_agent_workspace_tmux_choices",

@@ -210,32 +210,32 @@ def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
     assert ("D", "attempt view") in bindings
 
 
-def test_keybinding_footer_agent_sibling_binding_for_single_sibling() -> None:
+def test_keybinding_footer_agent_neighbor_binding_for_single_neighbor() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
 
-    bindings = footer._compute_agent_bindings(agent, sibling_count=1)
+    bindings = footer._compute_agent_bindings(agent, neighbor_count=1)
 
-    assert ("~", "sibling") in bindings
+    assert ("~", "neighbor") in bindings
 
 
-def test_keybinding_footer_agent_sibling_binding_for_multiple_siblings() -> None:
+def test_keybinding_footer_agent_neighbor_binding_for_multiple_neighbors() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
 
-    bindings = footer._compute_agent_bindings(agent, sibling_count=3)
+    bindings = footer._compute_agent_bindings(agent, neighbor_count=3)
 
-    assert ("~", "siblings (3)") in bindings
+    assert ("~", "neighbors (3)") in bindings
 
 
-def test_keybinding_footer_agent_sibling_binding_hidden_without_siblings() -> None:
+def test_keybinding_footer_agent_neighbor_binding_hidden_without_neighbors() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
 
-    bindings = footer._compute_agent_bindings(agent, sibling_count=0)
+    bindings = footer._compute_agent_bindings(agent, neighbor_count=0)
 
-    assert ("~", "sibling") not in bindings
-    assert not any(label.startswith("siblings") for _key, label in bindings)
+    assert ("~", "neighbor") not in bindings
+    assert not any(label.startswith("neighbors") for _key, label in bindings)
 
 
 def _workspace_agent() -> Agent:

@@ -39,13 +39,17 @@ class TreeNavigationMixin(NavigationMixinBase):
             self._child_mode_active = True
 
     def action_start_sibling_mode(self) -> None:
-        """Enter sibling navigation mode (~ key pressed)."""
+        """Enter sibling/neighbor navigation mode (~ key pressed).
+
+        On the ChangeSpec tab this drives ChangeSpec sibling navigation; on
+        the Agents tab it delegates to dotted-name hood neighbor navigation.
+        """
         if self.current_tab == "agents":
-            start_agent_siblings = getattr(
-                self, "_start_agent_sibling_navigation", None
+            start_agent_neighbors = getattr(
+                self, "_start_agent_neighbor_navigation", None
             )
-            if callable(start_agent_siblings):
-                start_agent_siblings()
+            if callable(start_agent_neighbors):
+                start_agent_neighbors()
             return
 
         if self.current_tab != "changespecs" or not self.changespecs:

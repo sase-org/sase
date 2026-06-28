@@ -95,7 +95,7 @@ class KeybindingBindingsMixin:
         group_focused: bool = False,
         has_agent_artifacts: bool = False,
         artifact_viewer_active: bool = False,
-        sibling_count: int = 0,
+        neighbor_count: int = 0,
         tmux_choice_count: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
@@ -233,8 +233,10 @@ class KeybindingBindingsMixin:
                 )
             )
 
-        if sibling_count > 0:
-            label = "sibling" if sibling_count == 1 else f"siblings ({sibling_count})"
+        if neighbor_count > 0:
+            label = (
+                "neighbor" if neighbor_count == 1 else f"neighbors ({neighbor_count})"
+            )
             bindings.append((self._kd("start_sibling_mode"), label))
 
         return bindings

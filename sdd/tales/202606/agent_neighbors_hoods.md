@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 15:41:42
-status: wip
+status: done
 prompt: sdd/prompts/202606/agent_neighbors_hoods.md
 ---
 # Agent Neighbors and Hoods Terminology Plan

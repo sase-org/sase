@@ -51,7 +51,7 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
     assert ("e", "Edit chat in editor") not in agent_pairs
 
 
-def test_agents_help_lists_sibling_navigation() -> None:
+def test_agents_help_lists_neighbor_navigation() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {
         (key, label)
@@ -64,7 +64,7 @@ def test_agents_help_lists_sibling_navigation() -> None:
         for key, label in bindings
     }
 
-    assert ("~", "Jump to sibling agent") in agent_pairs
+    assert ("~", "Jump to neighbor agent") in agent_pairs
     assert ("< / > / ~", "Navigate to ancestor / child / sibling") in cls_pairs
 
 

@@ -263,7 +263,7 @@ class DetailMixin:
                 group_focused=self._current_group_key is not None,
                 has_agent_artifacts=has_agent_artifacts,
                 artifact_viewer_active=artifact_viewer_active,
-                sibling_count=self._selected_agent_sibling_count(current_agent),
+                neighbor_count=self._selected_agent_neighbor_count(current_agent),
                 tmux_choice_count=self._selected_agent_tmux_choice_count(current_agent),
             )
 
@@ -352,18 +352,18 @@ class DetailMixin:
         self._agent_info_metrics_cache = (cache_key, metrics)
         return metrics
 
-    def _selected_agent_sibling_count(self, current_agent: Agent | None) -> int:
-        """Return the visible sibling count for the focused agent row."""
+    def _selected_agent_neighbor_count(self, current_agent: Agent | None) -> int:
+        """Return the visible neighbor count for the focused agent row."""
         if current_agent is None:
             return 0
         if getattr(self, "_current_group_key", None) is not None:
             return 0
         if not (0 <= self.current_idx < len(self._agents)):
             return 0
-        index_getter = getattr(self, "_agent_sibling_index", None)
+        index_getter = getattr(self, "_agent_neighbor_index", None)
         if not callable(index_getter):
             return 0
-        return int(index_getter().sibling_count(self.current_idx))
+        return int(index_getter().neighbor_count(self.current_idx))
 
     def _selected_agent_tmux_choice_count(self, current_agent: Agent | None) -> int:
         """Return the cached tmux chooser target count for the focused agent.
@@ -402,7 +402,7 @@ class DetailMixin:
             starting_count,
         ) = self._agent_info_metrics()
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        sibling_count = self._selected_agent_sibling_count(current_agent)
+        neighbor_count = self._selected_agent_neighbor_count(current_agent)
         view_mode = ""
         if current_agent is not None:
             try:
@@ -431,7 +431,7 @@ class DetailMixin:
                 read=read_count,
                 visible_agent_count=visible_agent_count,
                 starting=starting_count,
-                sibling_count=sibling_count,
+                neighbor_count=neighbor_count,
                 countdown=self._countdown_remaining,
                 interval=self.refresh_interval,
                 search_query=self._agent_search_query,
