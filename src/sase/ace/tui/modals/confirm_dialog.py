@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Literal
 
+from rich.style import Style
 from rich.text import Text
+from textual._context import NoActiveAppError
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
@@ -26,6 +29,79 @@ _DEFAULT_ICONS = {
     ConfirmKind.NEUTRAL: "?",
     ConfirmKind.DANGER: "!",
 }
+
+_SUBJECT_HEADER_RE = re.compile(r"^(?P<label>[^:\n]+:)(?P<rest>.*)$")
+_SUBJECT_COUNT_RE = re.compile(
+    r"^(?P<prefix>\s*)(?P<count>\d+)(?P<units>(?:\s+\S.*)?)$"
+)
+_SUBJECT_ENTRY_RE = re.compile(
+    r"^\s{2,}(?P<name>\S+)(?:(?P<gap>\s+)(?P<sigil>@)(?P<handle>\S+))?\s*$"
+)
+
+_FALLBACK_THEME_COLORS = {
+    "accent": "cyan",
+    "error": "red",
+    "foreground": "white",
+    "primary": "cyan",
+    "success": "green",
+    "warning": "yellow",
+}
+
+_PALETTE_THEME_ATTRS = {
+    ConfirmKind.NEUTRAL: {
+        "message": "foreground",
+        "plain_subject": "accent",
+        "subject_bullet": "primary",
+        "subject_count": "accent",
+        "subject_handle": "accent",
+        "subject_header_label": "primary",
+        "subject_name": "success",
+        "subject_sigil": "foreground",
+        "subject_units": "foreground",
+        "subtitle_cancel_key": "foreground",
+        "subtitle_confirm_key": "accent",
+        "subtitle_text": "foreground",
+        "title_icon": "accent",
+        "title_text": "foreground",
+    },
+    ConfirmKind.DANGER: {
+        "message": "foreground",
+        "plain_subject": "warning",
+        "subject_bullet": "error",
+        "subject_count": "error",
+        "subject_handle": "accent",
+        "subject_header_label": "warning",
+        "subject_name": "success",
+        "subject_sigil": "foreground",
+        "subject_units": "foreground",
+        "subtitle_cancel_key": "foreground",
+        "subtitle_confirm_key": "error",
+        "subtitle_text": "foreground",
+        "title_icon": "error",
+        "title_text": "foreground",
+    },
+}
+
+_PALETTE_BOLD_ROLES = frozenset(
+    {
+        "message",
+        "subject_count",
+        "subject_handle",
+        "subject_header_label",
+        "subject_name",
+        "subtitle_confirm_key",
+        "title_icon",
+        "title_text",
+    }
+)
+_PALETTE_DIM_ROLES = frozenset(
+    {
+        "subject_sigil",
+        "subject_units",
+        "subtitle_cancel_key",
+        "subtitle_text",
+    }
+)
 
 
 class ConfirmDialog(ModalScreen[bool]):
@@ -75,7 +151,7 @@ class ConfirmDialog(ModalScreen[bool]):
                 classes="confirm-dialog-message",
             )
             yield Static(
-                self._subject_text(),
+                self._styled_subject_text(),
                 id="confirm-subject",
                 classes=self._subject_classes(),
             )
@@ -116,6 +192,8 @@ class ConfirmDialog(ModalScreen[bool]):
         dialog.set_class(kind is ConfirmKind.NEUTRAL, "confirm-dialog--neutral")
         dialog.set_class(kind is ConfirmKind.DANGER, "confirm-dialog--danger")
         self._apply_dialog_frame(dialog)
+        self.query_one("#confirm-message", Static).update(self._message_text())
+        self.query_one("#confirm-subject", Static).update(self._styled_subject_text())
         self.query_one("#confirm-btn", Button).variant = self._confirm_button_variant()
         self.query_one("#cancel-btn", Button).variant = self._cancel_button_variant()
 
@@ -135,7 +213,7 @@ class ConfirmDialog(ModalScreen[bool]):
         """Update the emphasized subject line."""
         self._subject = subject
         widget = self.query_one("#confirm-subject", Static)
-        widget.update(self._subject_text())
+        widget.update(self._styled_subject_text())
         widget.set_class(subject is None, "is-empty")
 
     def _set_confirm_label(self, label: str) -> None:
@@ -153,24 +231,137 @@ class ConfirmDialog(ModalScreen[bool]):
 
     def _apply_dialog_frame(self, dialog: Container) -> None:
         dialog.border_title = self._build_border_title()
-        dialog.border_subtitle = "y confirm · n/esc cancel"
+        dialog.border_subtitle = self._build_border_subtitle()
 
     def _build_border_title(self) -> Text:
+        palette = self._resolve_palette()
         title = Text()
-        style = "bold red" if self._kind is ConfirmKind.DANGER else "bold cyan"
-        title.append(self._icon or _DEFAULT_ICONS[self._kind], style=style)
+        title.append(
+            self._icon or _DEFAULT_ICONS[self._kind],
+            style=palette["title_icon"],
+        )
         title.append("  ")
-        title.append(self._title, style="bold")
+        title.append(self._title, style=palette["title_text"])
         return title
 
-    def _message_text(self) -> Text:
-        return Text(self._message)
+    def _build_border_subtitle(self) -> Text:
+        palette = self._resolve_palette()
+        subtitle = Text()
+        subtitle.append("y", style=palette["subtitle_confirm_key"])
+        subtitle.append(" confirm ", style=palette["subtitle_text"])
+        subtitle.append("·", style=palette["subtitle_text"])
+        subtitle.append(" ", style=palette["subtitle_text"])
+        subtitle.append("n/esc", style=palette["subtitle_cancel_key"])
+        subtitle.append(" cancel", style=palette["subtitle_text"])
+        return subtitle
 
-    def _subject_text(self) -> Text:
+    def _message_text(self) -> Text:
+        return Text(self._message, style=self._resolve_palette()["message"])
+
+    def _styled_subject_text(self) -> Text:
         text = Text()
-        if self._subject is not None:
-            text.append(self._subject)
+        if self._subject is None:
+            return text
+        palette = self._resolve_palette()
+        for index, line in enumerate(self._subject.splitlines()):
+            if index:
+                text.append("\n")
+            self._append_styled_subject_line(text, line, palette)
         return text
+
+    def _append_styled_subject_line(
+        self,
+        text: Text,
+        line: str,
+        palette: dict[str, Style],
+    ) -> None:
+        if line.startswith("  "):
+            self._append_styled_subject_entry(text, line, palette)
+            return
+
+        header_match = _SUBJECT_HEADER_RE.match(line)
+        if header_match is not None:
+            self._append_styled_subject_header(text, header_match, palette)
+            return
+
+        text.append(line, style=palette["plain_subject"])
+
+    def _append_styled_subject_header(
+        self,
+        text: Text,
+        header_match: re.Match[str],
+        palette: dict[str, Style],
+    ) -> None:
+        text.append(
+            header_match.group("label"),
+            style=palette["subject_header_label"],
+        )
+        rest = header_match.group("rest")
+        count_match = _SUBJECT_COUNT_RE.match(rest)
+        if count_match is None:
+            text.append(rest, style=palette["plain_subject"])
+            return
+        text.append(count_match.group("prefix"))
+        text.append(count_match.group("count"), style=palette["subject_count"])
+        units = count_match.group("units")
+        if units:
+            text.append(units, style=palette["subject_units"])
+
+    def _append_styled_subject_entry(
+        self,
+        text: Text,
+        line: str,
+        palette: dict[str, Style],
+    ) -> None:
+        entry_match = _SUBJECT_ENTRY_RE.match(line)
+        text.append("› ", style=palette["subject_bullet"])
+        if entry_match is None:
+            text.append(line.strip(), style=palette["plain_subject"])
+            return
+        text.append(entry_match.group("name"), style=palette["subject_name"])
+        handle = entry_match.group("handle")
+        if handle is None:
+            return
+        text.append(" ", style=palette["subject_sigil"])
+        text.append(entry_match.group("sigil"), style=palette["subject_sigil"])
+        text.append(handle, style=palette["subject_handle"])
+
+    def _resolve_palette(self) -> dict[str, Style]:
+        theme = self._resolve_current_theme()
+        palette: dict[str, Style] = {}
+        for role, theme_attr in _PALETTE_THEME_ATTRS[self._kind].items():
+            color = self._resolve_theme_color(theme, theme_attr)
+            palette[role] = Style(
+                color=color,
+                bold=True if role in _PALETTE_BOLD_ROLES else None,
+                dim=True if role in _PALETTE_DIM_ROLES else None,
+            )
+        return palette
+
+    def _resolve_current_theme(self) -> object | None:
+        try:
+            return self.app.current_theme
+        except NoActiveAppError:
+            return None
+
+    @staticmethod
+    def _resolve_theme_color(theme: object | None, theme_attr: str) -> str:
+        if theme is not None:
+            color = getattr(theme, theme_attr, None)
+            if color:
+                return str(color)
+        return _FALLBACK_THEME_COLORS[theme_attr]
+
+    def _app_theme_changed(self) -> None:
+        super_changed = getattr(super(), "_app_theme_changed", None)
+        if callable(super_changed):
+            super_changed()
+        if not self.is_mounted:
+            return
+        dialog = self.query_one("#confirm-dialog-container", Container)
+        self._apply_dialog_frame(dialog)
+        self.query_one("#confirm-message", Static).update(self._message_text())
+        self.query_one("#confirm-subject", Static).update(self._styled_subject_text())
 
     def _confirm_button_variant(self) -> ButtonVariant:
         return "error" if self._kind is ConfirmKind.DANGER else "primary"

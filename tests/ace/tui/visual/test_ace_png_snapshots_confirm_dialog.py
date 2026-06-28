@@ -8,6 +8,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import (
     ConfirmActionModal,
     ConfirmDeleteModal,
+    ConfirmDismissAllModal,
     ConfirmKillAllModal,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -71,6 +72,31 @@ async def test_confirm_dialog_danger_png_snapshot(
             page,
             "confirm_dialog_danger_120x40",
             title="ACE danger confirmation dialog",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
+
+
+async def test_confirm_dialog_dismiss_all_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+
+        page.app.push_screen(
+            ConfirmDismissAllModal(
+                "Dismiss: 2 agents\n  sase @research.0s.cld\n  sase @research.0s.cdx"
+            )
+        )
+        await page.expect_modal("ConfirmDismissAllModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "confirm_dialog_dismiss_all_120x40",
+            title="ACE dismiss-all confirmation dialog",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 

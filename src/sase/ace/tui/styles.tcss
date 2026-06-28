@@ -192,16 +192,8 @@ StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Conta
     width: 100%;
     height: auto;
     text-align: center;
-    text-style: bold;
+    color: $text;
     margin-top: 1;
-}
-
-.confirm-dialog--neutral .confirm-dialog-subject {
-    color: $primary;
-}
-
-.confirm-dialog--danger .confirm-dialog-subject {
-    color: $error;
 }
 
 .confirm-dialog-subject.is-empty {
