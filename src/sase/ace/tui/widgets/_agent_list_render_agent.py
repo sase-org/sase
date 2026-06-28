@@ -8,6 +8,7 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.agent.status_buckets import (
+    FEEDBACK_STATUS,
     PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
@@ -218,6 +219,8 @@ def format_agent_option(
         text.append(" (RETRIED)", style="dim #FF5F5F")
     elif agent.status == "PLAN":
         text.append(agent.status, style="bold #FF87AF")  # Pink
+    elif agent.status == FEEDBACK_STATUS:
+        text.append(agent.status, style="bold #FF5FD7")  # Magenta
     elif agent.status == PLAN_APPROVED_STATUS:
         text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
     elif agent.status == TALE_APPROVED_STATUS:

@@ -27,6 +27,7 @@ LEGEND_APPROVED_STATUS = "LEGEND APPROVED"
 PLAN_COMMITTED_STATUS = "PLAN COMMITTED"
 WORKING_PLAN_STATUS = "WORKING PLAN"
 WORKING_TALE_STATUS = "WORKING TALE"
+FEEDBACK_STATUS = "FEEDBACK"
 
 APPROVED_PLAN_STATUSES: frozenset[str] = frozenset(
     {PLAN_APPROVED_STATUS, TALE_APPROVED_STATUS}
@@ -77,7 +78,15 @@ _STOPPED_STATUSES: frozenset[str] = frozenset({"PLAN", "QUESTION"})
 #: ``stop_time`` rather than ``start_time``) and status bucketing (which maps
 #: these into the ``Done`` bucket).
 _TERMINAL_STATUSES: frozenset[str] = frozenset(
-    {"DONE", "PLAN DONE", "TALE DONE", "PLAN REJECTED", "EPIC CREATED", "STOPPED"}
+    {
+        "DONE",
+        "PLAN DONE",
+        "TALE DONE",
+        "PLAN REJECTED",
+        "EPIC CREATED",
+        "STOPPED",
+        FEEDBACK_STATUS,
+    }
 )
 
 # TODO(@user): confirm needs:input mapping. Initial set drawn from

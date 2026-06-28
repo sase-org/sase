@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 
+from sase.agent.status_buckets import FEEDBACK_STATUS
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from sase.ace.tui.modals.zoom_panel_modal import _renderable_to_text, _status_text
 from sase.ace.tui.models.agent_status import (
@@ -27,6 +28,13 @@ def test_zoom_status_text_renders_stopped_identity() -> None:
 
     assert text.plain == f"{STOPPED_GLYPH} {STOPPED_STATUS}"
     assert str(text.style) == f"bold {STOPPED_COLOR}"
+
+
+def test_zoom_status_text_renders_feedback_as_terminal_magenta() -> None:
+    text = _status_text(FEEDBACK_STATUS)
+
+    assert text.plain == f"● {FEEDBACK_STATUS}"
+    assert str(text.style) == "bold #FF5FD7"
 
 
 async def test_zoom_modal_z_closes() -> None:

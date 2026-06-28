@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sase.agent.status_buckets import FEEDBACK_STATUS
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent import compute_row_runtime
 from sase.ace.tui.models.agent_time import runtime_suffix_ticks
@@ -180,6 +181,28 @@ def test_plan_approved_plan_suffix_runtime_is_frozen() -> None:
 
     assert ts == ("", "13:14:53")
     assert elapsed == "4m46s"
+    assert runtime_suffix_ticks(result) is False
+
+
+def test_feedback_runtime_uses_plan_submission_before_feedback() -> None:
+    start = datetime(2026, 6, 28, 13, 17, 57)
+    p1 = datetime(2026, 6, 28, 13, 29, 35)
+    f1 = datetime(2026, 6, 28, 13, 36, 5)
+    p2 = datetime(2026, 6, 28, 13, 47, 25)
+    result = agent(
+        agent_type=AgentType.WORKFLOW,
+        status=FEEDBACK_STATUS,
+        start=start,
+        run_start=start,
+        plan_times=[p1, p2],
+        role_suffix="--plan",
+    )
+    result.feedback_times = [f1]
+
+    ts, elapsed = compute_row_runtime(result, now=datetime(2026, 6, 28, 13, 50, 0))
+
+    assert ts == ("", "13:29:35")
+    assert elapsed == "11m38s"
     assert runtime_suffix_ticks(result) is False
 
 

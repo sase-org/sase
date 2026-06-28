@@ -11,6 +11,10 @@ def test_status_bucket_done() -> None:
     assert _status_bucket_for(_agent(status="DONE")) == "Done"
 
 
+def test_status_bucket_feedback_is_done() -> None:
+    assert _status_bucket_for(_agent(status="FEEDBACK")) == "Done"
+
+
 def test_status_bucket_running() -> None:
     assert _status_bucket_for(_agent(status="RUNNING")) == "Running"
 

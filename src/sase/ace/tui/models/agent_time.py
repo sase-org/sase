@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
     APPROVED_PLAN_STATUSES,
+    FEEDBACK_STATUS,
 )
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -25,6 +26,7 @@ _PLANNER_PHASE_ENDED_STATUSES = {
     "PLAN DONE",
     "TALE DONE",
     "DONE",
+    FEEDBACK_STATUS,
     "FAILED",
     "FAILED (RETRIED)",
     "PLAN REJECTED",
@@ -118,6 +120,8 @@ def _format_finish_timestamp(
 
 def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
     """Return the terminal timestamp to anchor a completed row runtime."""
+    if agent.status == FEEDBACK_STATUS:
+        return _feedback_terminal_plan_time(agent)
     if _is_planner_phase_row(agent) and agent.plan_times:
         return max(agent.plan_times)
     if agent.status in APPROVED_PLAN_STATUSES and agent.plan_times:
@@ -131,6 +135,20 @@ def _row_runtime_terminal_time(agent: "Agent") -> datetime | None:
     if agent.status == "QUESTION" and agent.questions_times:
         return max(agent.questions_times)
     return None
+
+
+def _feedback_terminal_plan_time(agent: "Agent") -> datetime | None:
+    """Return the plan submission that was resolved by latest feedback."""
+    if agent.feedback_times and agent.plan_times:
+        latest_feedback = max(agent.feedback_times)
+        submitted_before_feedback = [
+            plan_time for plan_time in agent.plan_times if plan_time <= latest_feedback
+        ]
+        if submitted_before_feedback:
+            return max(submitted_before_feedback)
+    if agent.plan_times:
+        return max(agent.plan_times)
+    return agent.stop_time
 
 
 def _is_planner_phase_row(agent: "Agent") -> bool:

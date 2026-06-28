@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 from rich.text import Text
 
+from sase.agent.status_buckets import FEEDBACK_STATUS
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -259,6 +260,7 @@ def test_format_agent_option_working_linked_coder_child_has_running_marker() -> 
         ("TALE APPROVED", "bold #00D7D7"),
         ("WORKING PLAN", "bold #00AF87"),
         ("WORKING TALE", "bold #00AFAF"),
+        (FEEDBACK_STATUS, "bold #FF5FD7"),
     ],
 )
 def test_format_agent_option_plan_handoff_status_colors(

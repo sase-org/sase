@@ -5,6 +5,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.agent.status_buckets import (
+    FEEDBACK_STATUS,
     PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
@@ -78,6 +79,7 @@ def build_workflow_detail_renderable(
         "DONE": "#5FD75F",
         "FAILED": "#FF5F5F",
         "PLAN": "#FF87AF",
+        FEEDBACK_STATUS: "#FF5FD7",
         PLAN_APPROVED_STATUS: "#00D7AF",
         TALE_APPROVED_STATUS: "#00D7D7",
         WORKING_PLAN_STATUS: "#00AF87",

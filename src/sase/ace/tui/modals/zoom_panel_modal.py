@@ -22,6 +22,7 @@ from textual.widgets import Label, Static
 
 from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
+    FEEDBACK_STATUS,
     PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
     WORKING_PLAN_STATUS,
@@ -632,6 +633,7 @@ def _status_text(status: str) -> Text:
         "QUESTION": "bold yellow",
         "ANSWERED": "bold #5FD7FF",
         "PLAN": "bold #FFD787",
+        FEEDBACK_STATUS: "bold #FF5FD7",
         PLAN_APPROVED_STATUS: "bold #FFD787",
         TALE_APPROVED_STATUS: "bold #FFD7AF",
         WORKING_PLAN_STATUS: "bold #FFAF87",

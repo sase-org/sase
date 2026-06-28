@@ -25,6 +25,7 @@ from .agent import Agent, AgentType
 
 APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "legend", "commit"})
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
+PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
 
 
 def append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:
@@ -288,7 +289,7 @@ def _approved_planner_status(
 
 def approved_followup_planner_status(agent: Agent) -> str | None:
     """Return the sticky approved status for a concrete follow-up planner."""
-    if agent_family_role(agent) != "plan":
+    if agent_family_role(agent) not in PLANNER_FAMILY_ROLES:
         return None
     if not agent.plan_times:
         return None
@@ -297,6 +298,33 @@ def approved_followup_planner_status(agent: Agent) -> str | None:
     if agent.plan_action == "tale":
         return TALE_APPROVED_STATUS
     return PLAN_APPROVED_STATUS
+
+
+def _is_planner_family_row(agent: Agent) -> bool:
+    """Return True for visible planner/replanner rows in a plan family."""
+    if agent_family_role(agent) not in PLANNER_FAMILY_ROLES:
+        return False
+    return not agent.parent_workflow or is_main_workflow_agent_step(agent)
+
+
+def superseded_by_feedback_round(
+    agent: Agent,
+    children_by_parent: dict[str, list[Agent]],
+) -> bool:
+    """Return True when a later planner-family sibling superseded this row."""
+    if not agent.parent_timestamp or not _is_planner_family_row(agent):
+        return False
+    if not agent.plan_times:
+        return False
+    launched_at = child_launch_time(agent)
+    return any(
+        sibling is not agent
+        and sibling.parent_timestamp == agent.parent_timestamp
+        and _is_planner_family_row(sibling)
+        and child_launch_time(sibling) > launched_at
+        and bool(agent.feedback_times or sibling.feedback_times)
+        for sibling in children_by_parent.get(agent.parent_timestamp, [])
+    )
 
 
 def feedback_child_progressed_past_review(
@@ -389,9 +417,12 @@ def sync_planner_child_from_parent(
     )
     if freeze_time is not None:
         child.stop_time = freeze_time
-    child.plan_times = list(parent.plan_times)
-    child.feedback_times = list(parent.feedback_times)
-    child.feedback_plan_paths = dict(parent.feedback_plan_paths)
+    if not child.plan_times:
+        child.plan_times = list(parent.plan_times)
+    if not child.feedback_times:
+        child.feedback_times = list(parent.feedback_times)
+    if not child.feedback_plan_paths:
+        child.feedback_plan_paths = dict(parent.feedback_plan_paths)
     child.questions_times = list(parent.questions_times)
     child.question_request_path = parent.question_request_path
     child.question_response_path = parent.question_response_path

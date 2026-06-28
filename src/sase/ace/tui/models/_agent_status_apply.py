@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from datetime import datetime
 
+from sase.agent.status_buckets import FEEDBACK_STATUS
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
@@ -27,6 +28,7 @@ from ._agent_status_family import (
     latest_non_workflow_child_launch_by_parent,
     merge_feedback_plan_paths,
     root_child_suffix,
+    superseded_by_feedback_round,
     sync_planner_child_from_parent,
     is_root_plan_workflow,
 )
@@ -248,6 +250,13 @@ def apply_status_overrides(
             agent.status = "EPIC CREATED"
         elif is_completed_plan_handoff_child(agent):
             agent.status = done_handoff_status(parent, agent)
+
+    # Planner rounds superseded by a later planner-family round were resolved
+    # by user feedback, not approval. Apply this late so it wins over sticky
+    # approved-plan status, but before roots mirror their newest child.
+    for agent in all_agents:
+        if superseded_by_feedback_round(agent, children_by_parent):
+            agent.status = FEEDBACK_STATUS
 
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in all_agents:
