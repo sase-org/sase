@@ -9,6 +9,7 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
 )
+from sase.ace.tui.task_subprocess import TaskReporter
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     AlreadyAbsent,
@@ -100,7 +101,9 @@ class PluginUninstallActionsMixin:
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
-        def _execute_uninstall(self, plan: UninstallReady) -> UninstallOutcome: ...
+        def _execute_uninstall(
+            self, plan: UninstallReady, *, run_fn: Any = None
+        ) -> UninstallOutcome: ...
 
         def _make_uninstall_preview(
             self, query: str, *, offline: bool
@@ -194,16 +197,19 @@ class PluginUninstallActionsMixin:
     def _submit_uninstall_task(self, plan: UninstallReady) -> None:
         """Run ``execute_uninstall`` in a tracked background task (never blocks)."""
 
-        def task() -> TrackedTaskResult[UninstallOutcome]:
+        def task(reporter: TaskReporter) -> TrackedTaskResult[UninstallOutcome]:
             try:
-                outcome = self._execute_uninstall(plan)
+                reporter.phase(f"Uninstalling {plan.display_name}")
+                outcome = self._execute_uninstall(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
                 return TrackedTaskResult(
                     success=False, message=str(exc), error=str(exc)
                 )
+            message = uninstall_success_message(outcome)
+            reporter.log(message, stream="result")
             return TrackedTaskResult(
                 success=True,
-                message=uninstall_success_message(outcome),
+                message=message,
                 payload=outcome,
             )
 

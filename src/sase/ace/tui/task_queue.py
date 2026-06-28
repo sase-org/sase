@@ -1,20 +1,138 @@
 """Background task queue for the ace TUI.
 
 Provides TaskInfo (state for a single background task), TaskQueue (thread-safe
-registry with per-CL deduplication), and a capture_output() context manager
-that redirects stdout/stderr to a StringIO buffer.
+registry with per-CL deduplication), and task-local output storage.
 """
 
 from __future__ import annotations
 
 import io
+import os
+import signal
+import subprocess
 import sys
 import threading
+import time
 import uuid
-from contextlib import contextmanager
 from collections.abc import Generator
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Literal
+
+TaskLogStream = Literal["stdout", "stderr", "progress", "header", "result"]
+
+_MAX_TASK_LOG_LINES = 5_000
+_MAX_TASK_LOG_CHARS = 512 * 1024
+
+
+@dataclass(frozen=True)
+class TaskLogLine:
+    """One append-only task log line."""
+
+    text: str
+    stream: TaskLogStream
+    ts: datetime
+
+
+@dataclass(frozen=True)
+class _TaskLogSnapshot:
+    """Immutable view of a task log."""
+
+    lines: tuple[TaskLogLine, ...]
+    version: int
+    trimmed_count: int
+
+
+# pyvision: sdd/tales/202606/tasks_tab_live_output.md
+@dataclass
+class TaskLog:
+    """Thread-safe, bounded log for one background task."""
+
+    max_lines: int = _MAX_TASK_LOG_LINES
+    max_chars: int = _MAX_TASK_LOG_CHARS
+    _lines: list[TaskLogLine] = field(default_factory=list, init=False, repr=False)
+    _chars: int = field(default=0, init=False, repr=False)
+    _trimmed_count: int = field(default=0, init=False, repr=False)
+    _version: int = field(default=0, init=False, repr=False)
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False
+    )
+
+    @property
+    def version(self) -> int:
+        """Return the current monotonically-increasing version."""
+        with self._lock:
+            return self._version
+
+    def append(self, text: str, *, stream: TaskLogStream = "stdout") -> None:
+        """Append text to the log, splitting multi-line chunks into log lines."""
+        if text == "":
+            return
+        entries = text.splitlines() or [text]
+        with self._lock:
+            for entry in entries:
+                self._append_locked(entry.rstrip("\r"), stream=stream)
+            self._trim_locked()
+            self._version += 1
+
+    def snapshot(self) -> _TaskLogSnapshot:
+        """Return an immutable log snapshot."""
+        with self._lock:
+            return _TaskLogSnapshot(
+                lines=tuple(self._lines),
+                version=self._version,
+                trimmed_count=self._trimmed_count,
+            )
+
+    def text(self) -> str:
+        """Return the full retained log as plain text."""
+        snapshot = self.snapshot()
+        lines: list[str] = []
+        if snapshot.trimmed_count:
+            lines.append(f"... {snapshot.trimmed_count} earlier lines trimmed")
+        lines.extend(line.text for line in snapshot.lines)
+        if not lines:
+            return ""
+        return "\n".join(lines) + "\n"
+
+    def _append_locked(self, text: str, *, stream: TaskLogStream) -> None:
+        self._lines.append(TaskLogLine(text=text, stream=stream, ts=datetime.now()))
+        self._chars += len(text)
+
+    def _trim_locked(self) -> None:
+        while self._lines and (
+            len(self._lines) > self.max_lines or self._chars > self.max_chars
+        ):
+            removed = self._lines.pop(0)
+            self._chars -= len(removed.text)
+            self._trimmed_count += 1
+
+
+class _TaskLogWriter(io.TextIOBase):
+    """Text writer that forwards print-style chunks into a TaskLog."""
+
+    def __init__(self, log: TaskLog, *, stream: TaskLogStream) -> None:
+        self._log = log
+        self._stream = stream
+        self._pending = ""
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, value: str) -> int:
+        if not value:
+            return 0
+        self._pending += value
+        while "\n" in self._pending:
+            line, self._pending = self._pending.split("\n", 1)
+            self._log.append(line, stream=self._stream)
+        return len(value)
+
+    def flush(self) -> None:
+        if self._pending:
+            self._log.append(self._pending, stream=self._stream)
+            self._pending = ""
 
 
 @dataclass
@@ -33,7 +151,16 @@ class TaskInfo:
     finished_at: datetime | None = None
     output: str = ""
     error: str | None = None
+    log: TaskLog = field(default_factory=TaskLog)
+    command: list[str] | None = None
+    phase: str | None = None
+    exit_code: int | None = None
+    cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
     _live_buffer: io.StringIO | None = field(default=None, repr=False)
+    _processes: dict[int, subprocess.Popen[str]] = field(
+        default_factory=dict, repr=False
+    )
+    _process_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @property
     def label(self) -> str:
@@ -45,10 +172,51 @@ class TaskInfo:
         return self.task_type
 
     def get_live_output(self) -> str:
-        """Return live output from the buffer if running, otherwise the final output."""
-        if self._live_buffer is not None and self.status == "running":
-            return self._live_buffer.getvalue()
+        """Return retained log output, falling back to legacy/final output."""
+        log_text = self.log.text()
+        if log_text:
+            return log_text
+        if self._live_buffer is not None:
+            legacy = self._live_buffer.getvalue()
+            if legacy:
+                return legacy
         return self.output
+
+    def register_process(self, process: subprocess.Popen[str]) -> None:
+        """Register a live child process owned by this task."""
+        with self._process_lock:
+            self._processes[process.pid] = process
+
+    def unregister_process(self, process: subprocess.Popen[str]) -> None:
+        """Remove a child process from the live process registry."""
+        with self._process_lock:
+            self._processes.pop(process.pid, None)
+
+    def terminate_processes(self, *, grace_seconds: float = 1.0) -> None:
+        """Terminate all registered child process groups for this task."""
+        self.cancel_event.set()
+        with self._process_lock:
+            processes = list(self._processes.values())
+
+        for process in processes:
+            if process.poll() is not None:
+                continue
+            _terminate_process_group(process)
+
+        deadline = time.monotonic() + grace_seconds
+        for process in processes:
+            if process.poll() is not None:
+                continue
+            timeout = max(0.0, deadline - time.monotonic())
+            try:
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                pass
+
+        for process in processes:
+            if process.poll() is not None:
+                continue
+            _kill_process_group(process)
 
 
 @dataclass
@@ -105,9 +273,11 @@ class TaskQueue:
                 return
             info.status = "success" if success else "error"
             info.message = message
-            info.output = output
+            info.output = output or info.get_live_output()
             info.error = error
             info.finished_at = datetime.now()
+            if success:
+                info.exit_code = 0 if info.exit_code is None else info.exit_code
 
     def get_running_for_cl(self, cl_name: str) -> TaskInfo | None:
         """Return the running per-CL-deduped task for *cl_name*, or None.
@@ -183,6 +353,7 @@ class TaskQueue:
             }
 
 
+# pyvision: sdd/tales/202606/tasks_tab_live_output.md
 @contextmanager
 def capture_output(
     buffer: io.StringIO | None = None,
@@ -200,3 +371,40 @@ def capture_output(
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
+
+
+@contextmanager
+def redirect_print_to(log: TaskLog) -> Generator[None, None, None]:
+    """Best-effort legacy print capture into a task-local log."""
+    out = _TaskLogWriter(log, stream="stdout")
+    err = _TaskLogWriter(log, stream="stderr")
+    with redirect_stdout(out), redirect_stderr(err):
+        try:
+            yield
+        finally:
+            out.flush()
+            err.flush()
+
+
+def _terminate_process_group(process: subprocess.Popen[str]) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except OSError:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            return
+
+
+def _kill_process_group(process: subprocess.Popen[str]) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    except OSError:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            return

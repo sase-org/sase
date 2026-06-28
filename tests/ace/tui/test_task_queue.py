@@ -3,17 +3,27 @@
 from __future__ import annotations
 
 import io
+import subprocess
 import sys
 import threading
 from types import SimpleNamespace
 from typing import Any
+
+import pytest
 
 from sase.ace.tui.actions.task_actions import (
     TaskActionsMixin,
     TrackedTaskCompletion,
     TrackedTaskResult,
 )
-from sase.ace.tui.task_queue import TaskInfo, TaskQueue, capture_output
+from sase.ace.tui.task_queue import (
+    TaskInfo,
+    TaskLog,
+    TaskQueue,
+    capture_output,
+    redirect_print_to,
+)
+from sase.ace.tui.task_subprocess import TaskReporter, stream_subprocess
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +196,44 @@ class TestTaskQueueThreadSafety:
 
 
 # ---------------------------------------------------------------------------
+# TaskLog
+# ---------------------------------------------------------------------------
+
+
+class TestTaskLog:
+    def test_append_snapshot_and_text(self) -> None:
+        log = TaskLog()
+
+        log.append("line 1\nline 2", stream="stdout")
+        snapshot = log.snapshot()
+
+        assert snapshot.version == 1
+        assert [line.text for line in snapshot.lines] == ["line 1", "line 2"]
+        assert log.text() == "line 1\nline 2\n"
+
+    def test_bounds_by_lines_and_reports_trimmed_count(self) -> None:
+        log = TaskLog(max_lines=2, max_chars=1_000)
+
+        log.append("one")
+        log.append("two")
+        log.append("three")
+
+        snapshot = log.snapshot()
+        assert snapshot.trimmed_count == 1
+        assert [line.text for line in snapshot.lines] == ["two", "three"]
+        assert log.text().startswith("... 1 earlier lines trimmed\n")
+
+    def test_redirect_print_to_captures_stdout_and_stderr(self) -> None:
+        log = TaskLog()
+
+        with redirect_print_to(log):
+            print("hello")
+            print("err", file=sys.stderr)
+
+        assert log.text() == "hello\nerr\n"
+
+
+# ---------------------------------------------------------------------------
 # capture_output
 # ---------------------------------------------------------------------------
 
@@ -279,6 +327,67 @@ def test_submit_tracked_task_completes_queue_and_typed_callback() -> None:
     assert [completion.payload for completion in completions] == ["payload"]
     assert app.notifications == []
     assert app.reloads == 0
+
+
+def test_submit_tracked_task_passes_reporter_when_callable_accepts_it() -> None:
+    app = _TaskActionsHarness()
+
+    def task(reporter: TaskReporter) -> TrackedTaskResult[str]:
+        reporter.phase("Doing work")
+        reporter.log("live line")
+        return TrackedTaskResult(True, "done", payload="payload")
+
+    info = app._submit_tracked_task(
+        "launch",
+        "foo",
+        "/proj.sase",
+        task,
+        display_name="launch foo",
+        dedup_key="launch:foo",
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+
+    assert info is not None
+    assert "Doing work" in info.get_live_output()
+    assert "live line" in info.get_live_output()
+
+
+def test_stream_subprocess_streams_lines_and_returns_completed_process() -> None:
+    seen: list[str] = []
+
+    result = stream_subprocess(
+        [
+            sys.executable,
+            "-c",
+            "import sys; print('out', flush=True); print('err', file=sys.stderr, flush=True)",
+        ],
+        on_line=seen.append,
+        cancel_event=threading.Event(),
+    )
+
+    assert result.returncode == 0
+    assert seen == ["out", "err"]
+    assert "out" in result.stdout
+    assert "err" in result.stdout
+
+
+def test_stream_subprocess_timeout_raises_with_captured_output() -> None:
+    with pytest.raises(subprocess.TimeoutExpired) as exc_info:
+        stream_subprocess(
+            [
+                sys.executable,
+                "-c",
+                "import time; print('started', flush=True); time.sleep(5)",
+            ],
+            on_line=lambda _line: None,
+            cancel_event=threading.Event(),
+            timeout=0.1,
+        )
+
+    output = exc_info.value.output
+    assert isinstance(output, str)
+    assert "started" in output
 
 
 # ---------------------------------------------------------------------------

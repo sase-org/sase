@@ -19,7 +19,8 @@ from textual.widgets.option_list import Option
 from sase.ace.hints import build_editor_args
 
 from ..actions.clipboard import copy_to_system_clipboard
-from ..task_queue import TaskInfo, TaskQueue
+from ..task_queue import TaskInfo, TaskLogLine, TaskQueue
+from ..task_subprocess import command_display
 
 
 _STATUS_DISPLAY: dict[str, tuple[str, str]] = {
@@ -27,6 +28,8 @@ _STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "success": ("✓", "bold cyan"),
     "error": ("✗", "bold red"),
 }
+_SPINNER_FRAMES = ("|", "/", "-", "\\")
+_MAX_RENDERED_LOG_LINES = 1_200
 
 
 def _relative_time(dt: datetime, *, now: datetime | None = None) -> str:
@@ -128,10 +131,12 @@ class TasksPane(Vertical):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._tasks: list[TaskInfo] = []
-        self._last_statuses: dict[str, str] = {}
+        self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
         self._syncing_options = False
         self._refresh_timer: Any | None = None
+        self._spinner_index = 0
+        self._body_cache: dict[str, tuple[int, str | None, Text]] = {}
 
     def compose(self) -> ComposeResult:
         yield Label(self._title_text(), id="tasks-pane-title")
@@ -152,7 +157,7 @@ class TasksPane(Vertical):
         if queue is not None:
             queue.prune_old()
         self._refresh_snapshot(highlight_index=0)
-        self._refresh_timer = self.set_interval(1, self._refresh_running_output)
+        self._refresh_timer = self.set_interval(0.25, self._refresh_running_output)
 
     def on_unmount(self) -> None:
         if self._refresh_timer is not None:
@@ -197,11 +202,18 @@ class TasksPane(Vertical):
     def _create_task_label(self, task: TaskInfo) -> Text:
         """Create styled text for a single task row."""
         icon, icon_style = _STATUS_DISPLAY.get(task.status, ("?", "dim"))
+        if task.status == "running":
+            icon = "●"
         text = Text()
         text.append(f"{icon} ", style=icon_style)
         text.append(task.label, style="bold")
         time_ref = task.finished_at or task.started_at
         text.append(f"  {_relative_time(time_ref)}", style="dim")
+        secondary = task.phase or (
+            "Working..." if task.status == "running" else task.message
+        )
+        if secondary:
+            text.append(f"\n   {secondary}", style="dim")
         return text
 
     def _option_list(self) -> OptionList | None:
@@ -249,24 +261,104 @@ class TasksPane(Vertical):
 
     def _output_text(self, task: TaskInfo) -> Text:
         out = Text()
-        if task.status == "running":
-            live = task.get_live_output()
-            if live:
-                return Text.from_ansi(live)
-            out.append("Task is running...", style="bold green")
-            return out
-        if task.status == "error" and task.error:
-            out.append("Error: ", style="bold red")
-            out.append(task.error, style="red")
-            if task.output:
-                out.append("\n\n")
-                out.append(task.output)
-            return out
-        if task.output:
-            out.append_text(Text.from_ansi(task.output))
-            return out
-        out.append(f"Completed: {task.message}", style="dim")
+        out.append_text(self._output_header(task))
+        body = self._output_body(task)
+        if body.plain:
+            out.append("\n")
+            out.append_text(body)
+        elif task.status == "running":
+            out.append("\nWorking...", style="dim italic")
+
+        if task.status != "running":
+            footer = self._output_footer(task)
+            if footer.plain:
+                out.append("\n")
+                out.append_text(footer)
         return out
+
+    def _output_header(self, task: TaskInfo) -> Text:
+        out = Text()
+        icon, style = self._task_status_token(task)
+        out.append(task.label, style="bold")
+        out.append("  ")
+        out.append(icon, style=style)
+        out.append(f"  {_elapsed(task)}", style="dim")
+        if task.command:
+            out.append("\n$ ", style="dim")
+            out.append(command_display(task.command), style="dim")
+        phase = task.phase
+        if task.status == "running":
+            phase = phase or "Working..."
+        elif phase is None and task.message:
+            phase = task.message
+        if phase:
+            out.append("\n")
+            out.append(phase, style="bold green" if task.status == "running" else "dim")
+        out.append("\n")
+        out.append("─" * 60, style="dim")
+        return out
+
+    def _output_body(self, task: TaskInfo) -> Text:
+        snapshot = task.log.snapshot()
+        legacy = None
+        final_output = None
+        if not snapshot.lines and task.status != "running" and task.output:
+            final_output = task.output
+        elif not snapshot.lines and task._live_buffer is not None:
+            legacy = task._live_buffer.getvalue()
+        cache_key = (snapshot.version, legacy or final_output)
+        cached = self._body_cache.get(task.task_id)
+        if (
+            cached is not None
+            and cached[0] == cache_key[0]
+            and cached[1] == cache_key[1]
+        ):
+            return cached[2].copy()
+
+        out = Text()
+        if legacy:
+            out.append_text(Text.from_ansi(legacy))
+        elif final_output:
+            out.append_text(Text.from_ansi(final_output))
+        else:
+            if snapshot.trimmed_count:
+                out.append(
+                    f"... {snapshot.trimmed_count} earlier lines trimmed\n",
+                    style="dim italic",
+                )
+            lines = snapshot.lines
+            if len(lines) > _MAX_RENDERED_LOG_LINES:
+                hidden = len(lines) - _MAX_RENDERED_LOG_LINES
+                out.append(f"... {hidden} earlier retained lines hidden\n", style="dim")
+                lines = lines[-_MAX_RENDERED_LOG_LINES:]
+            for line in lines:
+                out.append_text(_render_log_line(line))
+                out.append("\n")
+        self._body_cache[task.task_id] = (cache_key[0], cache_key[1], out.copy())
+        return out
+
+    def _output_footer(self, task: TaskInfo) -> Text:
+        out = Text()
+        out.append("─" * 60, style="dim")
+        out.append("\n")
+        if task.status == "success":
+            out.append("✓ ", style="bold cyan")
+            out.append(task.message or "Completed", style="bold cyan")
+        elif task.status == "error":
+            out.append("✗ ", style="bold red")
+            out.append(task.error or task.message or "Failed", style="bold red")
+        else:
+            out.append(task.message, style="dim")
+        out.append(f"  ({_elapsed(task)})", style="dim")
+        return out
+
+    def _task_status_token(self, task: TaskInfo) -> tuple[str, str]:
+        if task.status == "running":
+            return (
+                _SPINNER_FRAMES[self._spinner_index % len(_SPINNER_FRAMES)],
+                "bold green",
+            )
+        return _STATUS_DISPLAY.get(task.status, ("?", "dim"))
 
     def _reset_output_scroll(self) -> None:
         """Reset the output scroll pane to the top."""
@@ -289,6 +381,7 @@ class TasksPane(Vertical):
         if not self._is_active_tab():
             return
 
+        self._spinner_index = (self._spinner_index + 1) % len(_SPINNER_FRAMES)
         queue = self._task_queue()
         if queue is None:
             self._tasks = []
@@ -306,17 +399,15 @@ class TasksPane(Vertical):
 
         self._update_title()
         task = self._get_selected_task()
-        if task is not None and task.status == "running":
+        if task is not None and (
+            task.status == "running" or task.log.version != self._rendered_version(task)
+        ):
             self._display_task_live_output(task)
 
     def _display_task_live_output(self, task: TaskInfo) -> None:
         """Update the output pane with live output and scroll to bottom."""
         content = self.query_one("#tasks-output-content", Static)
-        live = task.get_live_output()
-        if live:
-            content.update(Text.from_ansi(live))
-        else:
-            content.update(Text("Task is running...", style="bold green"))
+        content.update(self._output_text(task))
         if not self._user_scrolled:
             self._scroll_output_to_end()
 
@@ -506,8 +597,11 @@ class TasksPane(Vertical):
         if self._is_active_tab():
             option_list.focus()
 
-    def _status_snapshot(self) -> dict[str, str]:
-        return {task.task_id: task.status for task in self._tasks}
+    def _status_snapshot(self) -> dict[str, tuple[str, str | None, str]]:
+        return {
+            task.task_id: (task.status, task.phase, task.message)
+            for task in self._tasks
+        }
 
     def _update_title(self) -> None:
         try:
@@ -537,5 +631,39 @@ class TasksPane(Vertical):
         target = max(0, min(int(y), int(output_scroll.max_scroll_y)))
         output_scroll._scroll_to(y=target, animate=False, force=True)  # noqa: SLF001
 
+    def _rendered_version(self, task: TaskInfo) -> int:
+        cached = self._body_cache.get(task.task_id)
+        return -1 if cached is None else cached[0]
 
-__all__ = ["TasksPane", "_relative_time"]
+
+def _render_log_line(line: TaskLogLine) -> Text:
+    if line.stream == "progress":
+        return Text(line.text, style="bold #48CAE4")
+    if line.stream == "header":
+        return Text(line.text, style="dim")
+    if line.stream == "result":
+        style = "bold red" if line.text.startswith("ERROR") else "bold cyan"
+        return Text(line.text, style=style)
+
+    rendered = Text.from_ansi(line.text)
+    lower = line.text.lower()
+    if line.stream == "stderr":
+        rendered.stylize("red")
+    elif "error" in lower or "failed" in lower:
+        rendered.stylize("bold red")
+    elif "warning" in lower or "conflict" in lower:
+        rendered.stylize("yellow")
+    return rendered
+
+
+def _elapsed(task: TaskInfo, *, now: datetime | None = None) -> str:
+    end = task.finished_at or now or datetime.now()
+    seconds = max(0, int((end - task.started_at).total_seconds()))
+    minutes, sec = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{sec:02d}"
+    return f"{minutes}:{sec:02d}"
+
+
+__all__ = ["TasksPane", "_elapsed", "_relative_time"]

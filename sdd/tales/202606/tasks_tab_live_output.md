@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 14:45:41
-status: wip
+status: done
 prompt: sdd/prompts/202606/tasks_tab_live_output.md
 ---
 # Plan: Beautiful, Live Output for the Admin Center "Tasks" Tab

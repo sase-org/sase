@@ -11,6 +11,7 @@ input/navigation glue.
 from __future__ import annotations
 
 import time
+from inspect import Parameter, signature
 from typing import Any, Literal
 
 from rich.console import RenderableType
@@ -305,8 +306,10 @@ class PluginsBrowserPane(
         return _plan_install_preview(name, offline=offline)
 
     @staticmethod
-    def _execute_install(plan: InstallReady) -> InstallOutcome:
-        return execute_install(plan)
+    def _execute_install(plan: InstallReady, *, run_fn: Any = None) -> InstallOutcome:
+        if run_fn is None:
+            return execute_install(plan)
+        return execute_install(plan, run_fn=run_fn)
 
     def _make_update_preview(
         self, query: str | None, *, all_plugins: bool, offline: bool
@@ -314,8 +317,10 @@ class PluginsBrowserPane(
         return _plan_update_preview(query, all_plugins=all_plugins, offline=offline)
 
     @staticmethod
-    def _execute_update(plan: UpdateReady) -> UpdateOutcome:
-        return execute_update(plan)
+    def _execute_update(plan: UpdateReady, *, run_fn: Any = None) -> UpdateOutcome:
+        if run_fn is None:
+            return execute_update(plan)
+        return execute_update(plan, run_fn=run_fn)
 
     @staticmethod
     def _make_plugin_dev_update_preview(
@@ -331,8 +336,10 @@ class PluginsBrowserPane(
         )
 
     @staticmethod
-    def _execute_dev_update(plan: Any) -> Any:
-        return _execute_tui_dev_update(plan)
+    def _execute_dev_update(plan: Any, *, run: Any = None) -> Any:
+        if run is None or not _callable_accepts_keyword(_execute_tui_dev_update, "run"):
+            return _execute_tui_dev_update(plan)
+        return _execute_tui_dev_update(plan, run=run)
 
     def _make_uninstall_preview(
         self, query: str, *, offline: bool
@@ -340,11 +347,21 @@ class PluginsBrowserPane(
         return _plan_uninstall_preview(query, offline=offline)
 
     @staticmethod
-    def _execute_uninstall(plan: UninstallReady) -> UninstallOutcome:
-        return execute_uninstall(plan)
+    def _execute_uninstall(
+        plan: UninstallReady, *, run_fn: Any = None
+    ) -> UninstallOutcome:
+        if run_fn is None:
+            return execute_uninstall(plan)
+        return execute_uninstall(plan, run_fn=run_fn)
 
     @staticmethod
-    def _run_sase_update_summary(install: object | None) -> tuple[UpdateSummary, float]:
+    def _run_sase_update_summary(
+        install: object | None, *, run_fn: Any = None
+    ) -> tuple[UpdateSummary, float]:
+        if run_fn is None:
+            return run_sase_update_summary(install)
+        if _callable_accepts_keyword(run_sase_update_summary, "run_fn"):
+            return run_sase_update_summary(install, run_fn=run_fn)
         return run_sase_update_summary(install)
 
     @staticmethod
@@ -469,3 +486,19 @@ class PluginsBrowserPane(
             self.query_one(selector, Static).update(content)
         except Exception:
             pass
+
+
+def _callable_accepts_keyword(fn: Any, name: str) -> bool:
+    try:
+        params = signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    for param in params:
+        if param.kind is Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind in (
+            Parameter.KEYWORD_ONLY,
+            Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            return True
+    return False

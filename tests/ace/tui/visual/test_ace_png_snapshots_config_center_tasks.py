@@ -41,6 +41,15 @@ async def test_config_center_tasks_tab_png_snapshot(
         "_relative_time",
         lambda dt: original_relative_time(dt, now=_FIXED_TASK_NOW),
     )
+    original_elapsed = tp._elapsed
+    monkeypatch.setattr(
+        tp,
+        "_elapsed",
+        lambda task, *, now=None: original_elapsed(
+            task,
+            now=_FIXED_TASK_NOW.replace(tzinfo=None),
+        ),
+    )
     monkeypatch.setattr(TaskQueue, "prune_old", lambda self: None)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:

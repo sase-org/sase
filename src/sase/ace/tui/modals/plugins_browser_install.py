@@ -9,6 +9,7 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
 )
+from sase.ace.tui.task_subprocess import TaskReporter
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     AlreadyInstalled,
@@ -118,7 +119,9 @@ class PluginInstallActionsMixin:
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
-        def _execute_install(self, plan: InstallReady) -> InstallOutcome: ...
+        def _execute_install(
+            self, plan: InstallReady, *, run_fn: Any = None
+        ) -> InstallOutcome: ...
 
         def _make_install_preview(
             self, name: str, *, offline: bool
@@ -223,16 +226,19 @@ class PluginInstallActionsMixin:
     def _submit_install_task(self, name: str, plan: InstallReady) -> None:
         """Run ``execute_install`` in a tracked background task (never blocks)."""
 
-        def task() -> TrackedTaskResult[InstallOutcome]:
+        def task(reporter: TaskReporter) -> TrackedTaskResult[InstallOutcome]:
             try:
-                outcome = self._execute_install(plan)
+                reporter.phase(f"Installing {name}")
+                outcome = self._execute_install(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
                 return TrackedTaskResult(
                     success=False, message=str(exc), error=str(exc)
                 )
+            message = install_success_message(outcome)
+            reporter.log(message, stream="result")
             return TrackedTaskResult(
                 success=True,
-                message=install_success_message(outcome),
+                message=message,
                 payload=outcome,
             )
 

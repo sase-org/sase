@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.dev_update.execute import execute_dev_update, run_dev_update_command
-from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
+from sase.dev_update.models import DevCommandRunner, DevUpdatePlan, DevUpdateResult
 from sase.dev_update.plan import plan_dev_update
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.render_common import humanize_duration
@@ -86,9 +86,12 @@ def make_plugin_dev_update_preview(
     return _plan((target,), records=records, receipt=receipt, subject=query)
 
 
-def execute_tui_dev_update(plan: DevUpdatePlan) -> DevUpdateResult:
+def execute_tui_dev_update(
+    plan: DevUpdatePlan, *, run: DevCommandRunner | None = None
+) -> DevUpdateResult:
     """Execute a dev-update plan with the default subprocess runner."""
-    return execute_dev_update(plan, run=run_dev_update_command)
+    runner = run if run is not None else run_dev_update_command
+    return execute_dev_update(plan, run=runner)
 
 
 def entry_uses_dev_update(entry: PluginCatalogEntry) -> bool:

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
+from inspect import Parameter, signature
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
-from ..task_queue import TaskInfo, TaskQueue, capture_output
+from ..task_queue import TaskInfo, TaskQueue, redirect_print_to
+from ..task_subprocess import TaskReporter
 from ..widgets.task_indicator import TaskIndicator
 
 if TYPE_CHECKING:
@@ -83,7 +85,7 @@ class TaskActionsMixin:
         task_type: str,
         cl_name: str,
         project_file: str,
-        task_callable: Callable[[], tuple[bool, str]],
+        task_callable: Callable[..., tuple[bool, str]],
         on_success: Callable[[], None] | None = None,
     ) -> bool:
         """Submit a task to run in background via run_worker().
@@ -93,8 +95,8 @@ class TaskActionsMixin:
         Output capture (stdout/stderr redirect) is handled automatically.
         """
 
-        def _callable() -> TrackedTaskResult[None]:
-            success, message = task_callable()
+        def _callable(reporter: TaskReporter) -> TrackedTaskResult[None]:
+            success, message = _invoke_task_callable(task_callable, reporter)
             return TrackedTaskResult(
                 success=success,
                 message=message,
@@ -120,7 +122,7 @@ class TaskActionsMixin:
         task_type: str,
         cl_name: str,
         project_file: str,
-        task_callable: Callable[[], TrackedTaskResult[T]],
+        task_callable: Callable[..., TrackedTaskResult[T]],
         *,
         display_name: str | None = None,
         dedup_key: str | None = None,
@@ -162,25 +164,24 @@ class TaskActionsMixin:
         )
         task_id = task_info.task_id
 
-        # Create the buffer up-front so the modal can read partial output
-        import io
-
-        live_buf = io.StringIO()
-        task_info._live_buffer = live_buf
-
         def _wrapped() -> _TaskWorkerResult[T]:
-            """Run the callable with captured output."""
-            with capture_output(live_buf) as buf:
+            """Run the callable with task-local reporting."""
+            reporter = TaskReporter(task_info)
+            with redirect_print_to(task_info.log):
                 try:
-                    result = task_callable()
+                    result = _invoke_task_callable(task_callable, reporter)
                 except Exception as exc:
                     log.exception("Background task %s failed", task_id)
+                    reporter.log(str(exc), stream="stderr")
                     result = TrackedTaskResult(
                         success=False,
                         message=str(exc),
                         error=str(exc),
                     )
-            return _TaskWorkerResult(task_id, result, buf.getvalue())
+            if result.message:
+                marker = "OK" if result.success else "ERROR"
+                reporter.log(f"{marker}: {result.message}", stream="result")
+            return _TaskWorkerResult(task_id, result, task_info.get_live_output())
 
         self._task_completion_callbacks[task_id] = _TaskCallbackConfig(
             on_complete=on_complete,  # type: ignore[arg-type]
@@ -301,6 +302,8 @@ class TaskActionsMixin:
             error_msg = str(worker.error) if worker.error else "Unknown error"
             task_info = self._task_queue.get(task_id)
             output = task_info.get_live_output() if task_info is not None else ""
+            if task_info is not None:
+                task_info.log.append(f"ERROR: {error_msg}", stream="result")
             self._task_queue.complete(
                 task_id,
                 success=False,
@@ -349,6 +352,11 @@ class TaskActionsMixin:
         if worker is None:
             return False
 
+        task_info = self._task_queue.get(task_id)
+        if task_info is not None:
+            task_info.terminate_processes()
+            task_info.log.append("ERROR: Killed by user", stream="result")
+
         worker.cancel()
 
         # Mark as killed in the task queue
@@ -356,7 +364,7 @@ class TaskActionsMixin:
             task_id,
             success=False,
             message="Killed by user",
-            output="",
+            output=task_info.get_live_output() if task_info is not None else "",
             error="Killed by user",
         )
 
@@ -382,3 +390,27 @@ class TaskActionsMixin:
         if axe_worker is not None and event.worker is axe_worker:
             if event.state in (WorkerState.SUCCESS, WorkerState.ERROR):
                 self._on_axe_worker_done(event.worker, event.state)  # type: ignore[attr-defined]
+
+
+def _invoke_task_callable[T](
+    task_callable: Callable[..., T], reporter: TaskReporter
+) -> T:
+    if _callable_accepts_reporter(task_callable):
+        return task_callable(reporter)
+    return task_callable()
+
+
+def _callable_accepts_reporter(task_callable: Callable[..., object]) -> bool:
+    try:
+        params = signature(task_callable).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    for param in params:
+        if param.kind is Parameter.VAR_POSITIONAL:
+            return True
+        if param.kind in (
+            Parameter.POSITIONAL_ONLY,
+            Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            return True
+    return False

@@ -9,6 +9,7 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
 )
+from sase.ace.tui.task_subprocess import TaskReporter
 from sase.dev_update.models import DevUpdatePlan
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
@@ -131,7 +132,9 @@ class PluginUpdateActionsMixin:
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
-        def _execute_update(self, plan: UpdateReady) -> UpdateOutcome: ...
+        def _execute_update(
+            self, plan: UpdateReady, *, run_fn: Any = None
+        ) -> UpdateOutcome: ...
 
         def _make_update_preview(
             self, query: str | None, *, all_plugins: bool, offline: bool
@@ -347,16 +350,20 @@ class PluginUpdateActionsMixin:
     def _submit_update_task(self, plan: UpdateReady) -> None:
         """Run ``execute_update`` in a tracked background task (never blocks)."""
 
-        def task() -> TrackedTaskResult[UpdateOutcome]:
+        def task(reporter: TaskReporter) -> TrackedTaskResult[UpdateOutcome]:
             try:
-                outcome = self._execute_update(plan)
+                label = "all plugins" if plan.all_plugins else plan.targets[0]
+                reporter.phase(f"Updating {label}")
+                outcome = self._execute_update(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
                 return TrackedTaskResult(
                     success=False, message=str(exc), error=str(exc)
                 )
+            message = update_success_message(outcome)
+            reporter.log(message, stream="result")
             return TrackedTaskResult(
                 success=True,
-                message=update_success_message(outcome),
+                message=message,
                 payload=outcome,
             )
 

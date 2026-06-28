@@ -10,6 +10,7 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
 )
+from sase.ace.tui.task_subprocess import TaskReporter
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.commands import build_upgrade_all
@@ -61,11 +62,13 @@ def load_receipt_for_summary(install: object | None) -> ToolReceipt | None:
         return None
 
 
-def run_sase_update_summary(install: object | None) -> tuple[UpdateSummary, float]:
+def run_sase_update_summary(
+    install: object | None, *, run_fn: Any = run_uv
+) -> tuple[UpdateSummary, float]:
     """Run ``uv tool upgrade sase`` and summarize the changed package set."""
     argv = build_upgrade_all(color="never")
     start = time.monotonic()
-    change_set = run_uv(argv)
+    change_set = run_fn(argv)
     elapsed = max(0.0, time.monotonic() - start)
     return (
         summarize_update(
@@ -145,14 +148,16 @@ class SaseUpdateActionsMixin:
         ) -> None: ...
 
         def _run_sase_update_summary(
-            self, install: object | None
+            self, install: object | None, *, run_fn: Any = run_uv
         ) -> tuple[UpdateSummary, float]: ...
 
         def _make_sase_update_preview(
             self, receipt: object | None
         ) -> DevUpdatePreview: ...
 
-        def _execute_dev_update(self, plan: DevUpdatePlan) -> DevUpdateResult: ...
+        def _execute_dev_update(
+            self, plan: DevUpdatePlan, *, run: Any = None
+        ) -> DevUpdateResult: ...
 
         def _start_load(self, *, force: bool) -> None: ...
 
@@ -250,18 +255,24 @@ class SaseUpdateActionsMixin:
         """Run the self-update engine in the shared tracked-task system."""
         install = self._uv_tool
 
-        def task() -> TrackedTaskResult[UpdateSummary]:
+        def task(reporter: TaskReporter) -> TrackedTaskResult[UpdateSummary]:
             try:
-                summary, elapsed = self._run_sase_update_summary(install)
+                reporter.phase("Resolving sase update")
+                summary, elapsed = self._run_sase_update_summary(
+                    install,
+                    run_fn=reporter.uv_runner(),
+                )
             except UvToolError as exc:
                 return TrackedTaskResult(
                     success=False,
                     message=str(exc),
                     error=str(exc),
                 )
+            message = sase_update_success_message(summary, elapsed)
+            _log_update_summary(reporter, summary, message)
             return TrackedTaskResult(
                 success=True,
-                message=sase_update_success_message(summary, elapsed),
+                message=message,
                 payload=summary,
             )
 
@@ -301,9 +312,13 @@ class SaseUpdateActionsMixin:
     ) -> None:
         """Run a dev-update plan in the shared tracked-task system."""
 
-        def task() -> TrackedTaskResult[DevUpdateResult]:
+        def task(reporter: TaskReporter) -> TrackedTaskResult[DevUpdateResult]:
             start = time.monotonic()
-            result = self._execute_dev_update(plan)
+            reporter.phase("Fetching editable checkouts")
+            result = self._execute_dev_update(
+                plan,
+                run=_dev_update_reporter_runner(reporter),
+            )
             elapsed = max(0.0, time.monotonic() - start)
             if dev_update_failed(result):
                 reason = dev_update_failure_message(result)
@@ -313,11 +328,13 @@ class SaseUpdateActionsMixin:
                     error=reason,
                     payload=result,
                 )
+            message = dev_update_success_message(
+                result, subject=subject, elapsed=elapsed
+            )
+            reporter.log(message, stream="result")
             return TrackedTaskResult(
                 success=True,
-                message=dev_update_success_message(
-                    result, subject=subject, elapsed=elapsed
-                ),
+                message=message,
                 payload=result,
             )
 
@@ -388,3 +405,35 @@ _installed_version = installed_version
 _load_receipt_for_summary = load_receipt_for_summary
 _run_sase_update_summary = run_sase_update_summary
 _sase_update_success_message = sase_update_success_message
+
+
+def _log_update_summary(
+    reporter: TaskReporter, summary: UpdateSummary, message: str
+) -> None:
+    reporter.section("Summary")
+    reporter.log(message, stream="result")
+    for outcome in summary.outcomes:
+        old = getattr(outcome, "old_version", None)
+        new = getattr(outcome, "new_version", None)
+        name = getattr(outcome, "name", "package")
+        if old and new:
+            reporter.log(f"{name}: {old} -> {new}", stream="result")
+        elif new:
+            reporter.log(f"{name}: installed {new}", stream="result")
+        elif old:
+            reporter.log(f"{name}: removed {old}", stream="result")
+
+
+def _dev_update_reporter_runner(reporter: TaskReporter) -> Any:
+    from sase.dev_update.models import DevCommandResult
+
+    def _run(argv: Any, *, cwd: Any = None) -> DevCommandResult:
+        reporter.phase("Running " + " ".join(str(part) for part in argv[:2]))
+        completed = reporter.run(argv, cwd=cwd)
+        return DevCommandResult(
+            returncode=completed.returncode,
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+        )
+
+    return _run
