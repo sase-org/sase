@@ -55,6 +55,8 @@ class CorePackageVersion:
     install_type: str | None = None
     latest_state: str | None = None
     latest_reason: str | None = None
+    git_root: str | None = None
+    upstream_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -196,6 +198,8 @@ def _enrich_editable_core_package(
         install_type=record.install_type,
         latest_state=latest.state,
         latest_reason=latest.reason,
+        git_root=latest.git_root,
+        upstream_ref=latest.upstream,
     )
 
 

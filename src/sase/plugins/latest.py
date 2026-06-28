@@ -61,6 +61,8 @@ class LatestInfo:
     update_available: bool = False
     state: str | None = None
     reason: str | None = None
+    git_root: str | None = None
+    upstream_ref: str | None = None
 
     @classmethod
     def unknown(cls) -> LatestInfo:
@@ -336,6 +338,8 @@ def _editable_latest_info(
         update_available=latest.update_available,
         state=latest.state,
         reason=latest.reason,
+        git_root=latest.git_root,
+        upstream_ref=latest.upstream,
     )
 
 

@@ -25,6 +25,7 @@ from sase.ace.tui.task_queue import TaskInfo
 from sase.config.core import ConfigLayer
 from sase.config.inventory import build_config_inventory, config_field_model
 from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.updates.incoming_commits import CommitSummary, IncomingCommits
 from sase.logs import (
     events_log_path,
     launch_failures_log_path,
@@ -285,17 +286,47 @@ def _patch_plugins_catalog(
     catalog: Any | None = "default",
     error: str | None = None,
     core_versions: Any | None = None,
+    core_incoming_commits: dict[str, IncomingCommits] | None = None,
 ) -> None:
     """Stub the Updates pane's plugin catalog load with a deterministic result."""
     resolved = _catalog() if catalog == "default" else catalog
+    resolved_core_versions = core_versions or _core_versions()
     result = pbp._PluginsLoadResult(
         catalog=resolved,
         error=error,
         now=_PLUGINS_NOW,
-        core_versions=core_versions or _core_versions(),
+        core_versions=resolved_core_versions,
+        core_incoming_commits=core_incoming_commits
+        if core_incoming_commits is not None
+        else _default_core_incoming_commits(resolved_core_versions),
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
+    monkeypatch.setattr(
+        pbp,
+        "_fetch_incoming_commits",
+        lambda *_a, **_kw: _visual_incoming_commits("plugin"),
+    )
+
+
+def _visual_incoming_commits(label: str) -> IncomingCommits:
+    return IncomingCommits(
+        total=3,
+        commits=(
+            CommitSummary("abc1234", f"Newest {label} change"),
+            CommitSummary("def5678", f"Older {label} change"),
+        ),
+        source="github",
+    )
+
+
+def _default_core_incoming_commits(core_versions: Any) -> dict[str, IncomingCommits]:
+    packages = getattr(core_versions, "packages", ())
+    return {
+        package.name: _visual_incoming_commits(package.name)
+        for package in packages
+        if getattr(package, "update_available", False)
+    }
 
 
 def _patch_project_records(

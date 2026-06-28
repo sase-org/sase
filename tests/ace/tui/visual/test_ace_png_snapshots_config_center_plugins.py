@@ -107,6 +107,8 @@ async def test_config_center_plugins_dev_update_available_png_snapshot(
             update_available=True,
             state="update_available",
             reason="behind upstream by 2 commit(s)",
+            git_root="/repo/sase-github",
+            upstream_ref="origin/main",
         ),
     )
     catalog = PluginCatalog(

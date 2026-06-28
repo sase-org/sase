@@ -8,6 +8,7 @@ from textual.widgets import OptionList
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.plugins.catalog import PluginCatalog
+from sase.updates.incoming_commits import CommitSummary, IncomingCommits
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
     _catalog,
@@ -76,6 +77,35 @@ async def test_updates_pane_core_panel_shows_versions_and_update_status(
         assert "v0.6.0" in text
         assert "update available" in text
         assert "S  run `sase update`" in text
+
+
+async def test_updates_pane_core_panel_shows_incoming_commits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    versions = _core_versions(sase_latest="0.6.0")
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        core_versions=versions,
+        core_incoming_commits={
+            "sase": IncomingCommits(
+                total=2,
+                commits=(
+                    CommitSummary("abc1234", "Newest core change"),
+                    CommitSummary("def5678", "Older core change"),
+                ),
+                source="github",
+            )
+        },
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        text = str(_render(pane._core_versions_panel()))
+
+        assert "sase" in text
+        assert "↑ 2 incoming commits" in text
+        assert "Newest core change" in text
 
 
 async def test_updates_pane_core_panel_drops_cta_when_not_uv_tool(

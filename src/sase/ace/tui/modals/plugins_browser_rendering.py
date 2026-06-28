@@ -19,8 +19,10 @@ from sase.plugins.render_common import (
     _COMMUNITY_STYLE,
     _INSTALLED_GLYPH,
     _UPDATE_GLYPH,
+    build_incoming_commits_renderable,
     humanize_age,
 )
+from sase.updates.incoming_commits import IncomingCommits
 from sase.uv_tool.detect import NotUvToolInstall
 from sase.uv_tool.versions import CorePackageVersion, CoreVersions
 
@@ -38,12 +40,14 @@ class PluginsBrowserRenderingMixin:
 
     if TYPE_CHECKING:
         _catalog: PluginCatalog | None
+        _core_incoming_commits: dict[str, IncomingCommits]
         _core_versions: CoreVersions
         _detail_debouncer: DetailPanelDebouncer | None
         _detail_name: str | None
         _error: str | None
         _filter_text: str
         _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
+        _incoming_commits_enabled: bool
         _loading: bool
         _now: float
         _offline: bool
@@ -52,6 +56,14 @@ class PluginsBrowserRenderingMixin:
         _verbose: bool
 
         def _detail_widget(self) -> Static | None: ...
+
+        def _ensure_plugin_incoming_commits(
+            self, entry: PluginCatalogEntry
+        ) -> None: ...
+
+        def _plugin_incoming_commits_state(
+            self, entry: PluginCatalogEntry
+        ) -> tuple[IncomingCommits | None, bool]: ...
 
         def _is_item(self, option_list: OptionList, index: int) -> bool: ...
 
@@ -234,20 +246,31 @@ class PluginsBrowserRenderingMixin:
         if entry is None:
             detail.update(_DETAIL_PLACEHOLDER)
             return
+        self._ensure_plugin_incoming_commits(entry)
         detail.update(self._detail_renderable(entry))
 
-    @staticmethod
-    def _detail_renderable(entry: PluginCatalogEntry) -> RenderableType:
+    def _detail_renderable(self, entry: PluginCatalogEntry) -> RenderableType:
         """The ``show``-equivalent detail: community warning (if any) + panel."""
         parts: list[RenderableType] = []
         if entry.is_community:
             parts.append(build_community_warning_panel(entry))
-        parts.append(build_detail_panel(entry))
+        incoming, loading = self._plugin_incoming_commits_state(entry)
+        parts.append(
+            build_detail_panel(
+                entry,
+                incoming_commits=incoming,
+                incoming_commits_loading=loading,
+            )
+        )
         return Group(*parts)
 
     def _core_versions_panel(self) -> Panel:
         """Compact installed/latest display for SASE's own packages."""
         body: list[RenderableType] = [self._core_versions_table()]
+        incoming_sections = self._core_incoming_sections()
+        if incoming_sections:
+            body.append(Text(""))
+            body.extend(incoming_sections)
         body.append(Text(""))
         if isinstance(self._uv_tool, NotUvToolInstall):
             warning = Text()
@@ -264,6 +287,26 @@ class PluginsBrowserRenderingMixin:
             cta.append("  ·  upgrades sase core + all plugins", style="dim")
             body.append(cta)
         return Panel(Group(*body), title="SASE Core", border_style="#AF87FF")
+
+    def _core_incoming_sections(self) -> list[RenderableType]:
+        if not self._incoming_commits_enabled:
+            return []
+        sections: list[RenderableType] = []
+        for package in self._core_versions.packages:
+            if not package.update_available:
+                continue
+            incoming = self._core_incoming_commits.get(package.name)
+            loading = self._loading and incoming is None
+            if incoming is None and not loading:
+                continue
+            label = Text(package.name, style="bold")
+            sections.append(
+                Group(
+                    label,
+                    build_incoming_commits_renderable(incoming, loading=loading),
+                )
+            )
+        return sections
 
     def _core_versions_table(self) -> Table:
         table = Table(show_header=False, box=None, pad_edge=False, padding=(0, 2))

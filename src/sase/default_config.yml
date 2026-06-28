@@ -32,6 +32,9 @@ ace:
   updates:
     startup_toast: true
     check_ttl_minutes: 10
+    incoming_commits:
+      enabled: true
+      max_per_repo: 7
   prompt_completion:
     auto: soft
     debounce_ms: 90

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sase.plugins.catalog import (
     PluginCatalog,
@@ -21,6 +21,11 @@ from sase.uv_tool.versions import (
     CoreVersions,
     collect_installed_core_versions,
     enrich_core_versions_latest,
+)
+from sase.updates.incoming_commits import (
+    IncomingCommits,
+    core_package_commit_spec,
+    fetch_incoming_commits,
 )
 
 
@@ -40,6 +45,7 @@ class PluginsLoadResult:
     now: float
     uv_tool: UvToolInstall | NotUvToolInstall | None = None
     core_versions: CoreVersions | None = None
+    core_incoming_commits: dict[str, IncomingCommits] = field(default_factory=dict)
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -65,6 +71,8 @@ def load_plugins_catalog_for_pane(
     *,
     refresh: bool = False,
     offline: bool = False,
+    incoming_commits_enabled: bool = True,
+    incoming_commits_limit: int = 7,
     now: float | None = None,
 ) -> PluginsLoadResult:
     """Load the plugin catalog (merged with installed + latest). Off-thread safe.
@@ -79,6 +87,12 @@ def load_plugins_catalog_for_pane(
     load_now = time.time() if now is None else now
     uv_tool = probe_uv_tool()
     core_versions = _collect_core_versions_for_pane(offline=offline)
+    core_incoming_commits = _fetch_core_incoming_commits_for_pane(
+        core_versions,
+        enabled=incoming_commits_enabled,
+        limit=incoming_commits_limit,
+        offline=offline,
+    )
     try:
         catalog = load_plugin_catalog(refresh=refresh, offline=offline, now=load_now)
     except PluginCatalogError as exc:
@@ -88,6 +102,7 @@ def load_plugins_catalog_for_pane(
             now=load_now,
             uv_tool=uv_tool,
             core_versions=core_versions,
+            core_incoming_commits=core_incoming_commits,
         )
     try:
         catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
@@ -99,7 +114,30 @@ def load_plugins_catalog_for_pane(
         now=load_now,
         uv_tool=uv_tool,
         core_versions=core_versions,
+        core_incoming_commits=core_incoming_commits,
     )
+
+
+def _fetch_core_incoming_commits_for_pane(
+    core_versions: CoreVersions,
+    *,
+    enabled: bool,
+    limit: int,
+    offline: bool,
+) -> dict[str, IncomingCommits]:
+    if not enabled:
+        return {}
+    results: dict[str, IncomingCommits] = {}
+    for package in core_versions.packages:
+        spec = core_package_commit_spec(package)
+        if spec is None:
+            continue
+        results[package.name] = fetch_incoming_commits(
+            spec,
+            limit=limit,
+            offline=offline,
+        )
+    return results
 
 
 _PluginsLoadResult = PluginsLoadResult

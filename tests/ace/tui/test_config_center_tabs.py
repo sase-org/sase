@@ -110,7 +110,10 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert switcher.current == "updates"
         content = description.content
         assert isinstance(content, Text)
-        assert content.plain == "› Update SASE core and installed plugins"
+        assert (
+            content.plain
+            == "› Update SASE core and plugins with incoming commit previews"
+        )
         assert str(content.style) == _TAB_COLORS["updates"]
 
         await page.press("7")
@@ -119,7 +122,10 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert switcher.current == "updates"
         content = description.content
         assert isinstance(content, Text)
-        assert content.plain == "› Update SASE core and installed plugins"
+        assert (
+            content.plain
+            == "› Update SASE core and plugins with incoming commit previews"
+        )
         assert calls == []
 
 

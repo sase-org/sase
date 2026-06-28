@@ -11,6 +11,8 @@ input/navigation glue.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from inspect import Parameter, signature
 from typing import Any, Literal
 
@@ -22,6 +24,7 @@ from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.config.core import load_merged_config
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.operations import (
     InstallOutcome,
@@ -33,6 +36,13 @@ from sase.plugins.operations import (
     execute_install,
     execute_uninstall,
     execute_update,
+)
+from sase.updates.incoming_commits import (
+    CommitSourceSpec,
+    IncomingCommits,
+    IncomingCommitsCacheKey,
+    fetch_incoming_commits,
+    plugin_entry_commit_spec,
 )
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.receipt import ToolReceipt
@@ -125,6 +135,15 @@ _installed_version = installed_version
 _load_receipt_for_summary = load_receipt_for_summary
 _run_sase_update_summary = run_sase_update_summary
 _sase_update_success_message = sase_update_success_message
+_fetch_incoming_commits = fetch_incoming_commits
+
+
+@dataclass(frozen=True)
+class _IncomingCommitsConfig:
+    """Config for Updates-tab incoming commit previews."""
+
+    enabled: bool = True
+    max_per_repo: int = 7
 
 
 class PluginsBrowserPane(
@@ -184,6 +203,13 @@ class PluginsBrowserPane(
         self._detail_name: str | None = None
         #: Plugin to re-highlight after the next reload (selection preservation).
         self._restore_name: str | None = None
+        incoming_config = _load_incoming_commits_config()
+        self._incoming_commits_enabled = incoming_config.enabled
+        self._incoming_commits_limit = incoming_config.max_per_repo
+        self._incoming_commit_cache: dict[IncomingCommitsCacheKey, IncomingCommits] = {}
+        self._incoming_commit_loading: set[IncomingCommitsCacheKey] = set()
+        self._incoming_commit_workers: dict[int, IncomingCommitsCacheKey] = {}
+        self._core_incoming_commits: dict[str, IncomingCommits] = {}
 
     def compose(self) -> ComposeResult:
         yield Static(self._core_versions_panel(), id="sase-core-versions")
@@ -218,19 +244,31 @@ class PluginsBrowserPane(
         # Re-highlight whatever is selected now once the reload lands so a
         # refresh / offline toggle doesn't snap the user back to the top.
         self._restore_name = self._highlighted_name()
+        self._core_incoming_commits = {}
         self._sync_state_visibility()
         self._update_static("#plugins-summary", self._summary_text())
         self._update_static("#plugins-hints", self._hints())
         self._update_static("#sase-core-versions", self._core_versions_panel())
         refresh = force
         offline = self._offline
+        incoming_commits_enabled = self._incoming_commits_enabled
+        incoming_commits_limit = self._incoming_commits_limit
 
         def task() -> _PluginsLoadResult:
-            return _load_plugins_catalog(refresh=refresh, offline=offline)
+            return _load_plugins_catalog(
+                refresh=refresh,
+                offline=offline,
+                incoming_commits_enabled=incoming_commits_enabled,
+                incoming_commits_limit=incoming_commits_limit,
+            )
 
         self._worker = self.run_worker(task, thread=True, exclusive=True)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        incoming_key = self._incoming_commit_workers.get(id(event.worker))
+        if incoming_key is not None:
+            self._on_incoming_commits_worker_state(event, incoming_key)
+            return
         if event.worker is self._plan_worker:
             if event.state == WorkerState.SUCCESS:
                 self._plan_worker = None
@@ -288,12 +326,16 @@ class PluginsBrowserPane(
             core_versions = getattr(result, "core_versions", None)
             if core_versions is not None:
                 self._core_versions = core_versions
+            self._core_incoming_commits = dict(
+                getattr(result, "core_incoming_commits", {}) or {}
+            )
             self._render_all()
         elif event.state == WorkerState.ERROR:
             self._loading = False
             self._error = (
                 str(event.worker.error) if event.worker.error else "load failed"
             )
+            self._core_incoming_commits = {}
             self._render_all()
 
     @staticmethod
@@ -353,6 +395,80 @@ class PluginsBrowserPane(
         if run_fn is None:
             return execute_uninstall(plan)
         return execute_uninstall(plan, run_fn=run_fn)
+
+    def _ensure_plugin_incoming_commits(self, entry: PluginCatalogEntry) -> None:
+        spec = self._plugin_incoming_commit_spec(entry)
+        if spec is None:
+            return
+        key = spec.cache_key
+        if key in self._incoming_commit_cache or key in self._incoming_commit_loading:
+            return
+        self._incoming_commit_loading.add(key)
+        offline = self._offline
+        limit = self._incoming_commits_limit
+
+        def task() -> IncomingCommits:
+            return _fetch_incoming_commits(spec, limit=limit, offline=offline)
+
+        worker = self.run_worker(
+            task,
+            thread=True,
+            exclusive=False,
+            group="updates-incoming-commits",
+        )
+        self._incoming_commit_workers[id(worker)] = key
+
+    def _plugin_incoming_commit_spec(
+        self, entry: PluginCatalogEntry
+    ) -> CommitSourceSpec | None:
+        if not self._incoming_commits_enabled or self._offline:
+            return None
+        return plugin_entry_commit_spec(entry)
+
+    def _plugin_incoming_commits_state(
+        self, entry: PluginCatalogEntry
+    ) -> tuple[IncomingCommits | None, bool]:
+        spec = self._plugin_incoming_commit_spec(entry)
+        if spec is None:
+            return None, False
+        key = spec.cache_key
+        return (
+            self._incoming_commit_cache.get(key),
+            key in self._incoming_commit_loading,
+        )
+
+    def _on_incoming_commits_worker_state(
+        self,
+        event: Worker.StateChanged,
+        key: IncomingCommitsCacheKey,
+    ) -> None:
+        terminal_states = {
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        }
+        if event.state not in terminal_states:
+            return
+        self._incoming_commit_workers.pop(id(event.worker), None)
+        self._incoming_commit_loading.discard(key)
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            if isinstance(result, IncomingCommits):
+                self._incoming_commit_cache[key] = result
+        elif event.state == WorkerState.ERROR:
+            error = self._worker_error_text(event.worker, kind="incoming commits")
+            self._incoming_commit_cache[key] = IncomingCommits(
+                total=0,
+                commits=(),
+                source="unavailable",
+                error=error,
+            )
+        entry = self._current_entry()
+        if entry is None:
+            return
+        spec = self._plugin_incoming_commit_spec(entry)
+        if spec is not None and spec.cache_key == key:
+            self._render_detail_now(force=True)
 
     @staticmethod
     def _run_sase_update_summary(
@@ -502,3 +618,52 @@ def _callable_accepts_keyword(fn: Any, name: str) -> bool:
         ):
             return True
     return False
+
+
+def _load_incoming_commits_config(
+    load_fn: Callable[[], dict[str, Any]] = load_merged_config,
+) -> _IncomingCommitsConfig:
+    try:
+        data = load_fn()
+    except Exception:  # noqa: BLE001 - config failures should not break the pane.
+        return _IncomingCommitsConfig()
+    ace = data.get("ace") if isinstance(data, dict) else None
+    updates = ace.get("updates") if isinstance(ace, dict) else None
+    incoming = updates.get("incoming_commits") if isinstance(updates, dict) else None
+    if not isinstance(incoming, dict):
+        return _IncomingCommitsConfig()
+    return _IncomingCommitsConfig(
+        enabled=_coerce_bool(incoming.get("enabled"), default=True),
+        max_per_repo=_coerce_nonnegative_int(
+            incoming.get("max_per_repo"),
+            default=7,
+        ),
+    )
+
+
+def _coerce_bool(value: object, *, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "none", "disabled"}:
+            return False
+    return default
+
+
+def _coerce_nonnegative_int(value: object, *, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value if value >= 0 else default
+    if isinstance(value, float) and value.is_integer():
+        return int(value) if value >= 0 else default
+    if isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            return default
+        return parsed if parsed >= 0 else default
+    return default

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 16:36:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/updates_tab_incoming_commits.md
 ---
 # Plan: Incoming Commits on the Admin Center "Updates" Tab

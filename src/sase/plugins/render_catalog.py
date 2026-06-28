@@ -24,8 +24,10 @@ from sase.plugins.render_common import (
     _NOT_INSTALLED_CROSS,
     _REFRESH_COMMAND,
     _UPDATE_GLYPH,
+    build_incoming_commits_renderable,
     humanize_age,
 )
+from sase.updates.incoming_commits import IncomingCommits
 
 #: The community section header *is* the warning, so the built-in/community
 #: distinction is impossible to miss.
@@ -313,7 +315,12 @@ def build_community_warning_panel(entry: PluginCatalogEntry) -> Panel:
     )
 
 
-def build_detail_panel(entry: PluginCatalogEntry) -> Panel:
+def build_detail_panel(
+    entry: PluginCatalogEntry,
+    *,
+    incoming_commits: IncomingCommits | None = None,
+    incoming_commits_loading: bool = False,
+) -> Panel:
     """Console-free renderable for the ``sase plugin show`` detail panel.
 
     Public so the TUI detail panel can display the same ``show``-equivalent
@@ -323,6 +330,14 @@ def build_detail_panel(entry: PluginCatalogEntry) -> Panel:
 
     body: list[RenderableType] = [_kind_line(entry), Text("")]
     body.append(_detail_description(entry))
+    if incoming_commits is not None or incoming_commits_loading:
+        body.append(Text(""))
+        body.append(
+            build_incoming_commits_renderable(
+                incoming_commits,
+                loading=incoming_commits_loading,
+            )
+        )
     body.append(Text(""))
     body.append(_detail_rows(entry))
     if not entry.installed.installed:

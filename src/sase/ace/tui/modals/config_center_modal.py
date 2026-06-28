@@ -76,7 +76,7 @@ _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "logs": "Browse SASE logs and launch failures",
     "projects": "Manage project lifecycle states and claims",
     "tasks": "Monitor background tasks and live output",
-    "updates": "Update SASE core and installed plugins",
+    "updates": "Update SASE core and plugins with incoming commit previews",
     "xprompts": "Browse and preview xprompt definitions",
 }
 _TITLE_LABEL = "SASE Admin Center"

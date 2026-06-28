@@ -8,6 +8,15 @@ from .cache import (
     update_status_snapshot_is_fresh,
     write_update_status_snapshot,
 )
+from .incoming_commits import (
+    CommitSourceSpec,
+    CommitSummary,
+    IncomingCommits,
+    IncomingCommitsCacheKey,
+    core_package_commit_spec,
+    fetch_incoming_commits,
+    plugin_entry_commit_spec,
+)
 from .status import (
     OutdatedComponent,
     UpdateStatus,
@@ -15,11 +24,18 @@ from .status import (
 )
 
 __all__ = [
+    "CommitSourceSpec",
+    "CommitSummary",
     "DEFAULT_UPDATE_STATUS_TTL_SECONDS",
+    "IncomingCommits",
+    "IncomingCommitsCacheKey",
     "OutdatedComponent",
     "UpdateStatus",
     "compute_update_status",
+    "core_package_commit_spec",
+    "fetch_incoming_commits",
     "get_cached_update_status",
+    "plugin_entry_commit_spec",
     "read_update_status_snapshot",
     "revalidate_update_status",
     "update_status_snapshot_is_fresh",

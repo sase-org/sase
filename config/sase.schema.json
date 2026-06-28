@@ -152,6 +152,24 @@
               "type": "number",
               "description": "Legacy/deprecated: minimum hours between startup update-toast checks. Prefer check_ttl_minutes, which overrides this when both are set.",
               "minimum": 0
+            },
+            "incoming_commits": {
+              "type": "object",
+              "description": "Incoming commit previews shown on the ACE Updates tab for SASE core and installed plugin updates",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Fetch and show incoming commit subjects for available updates",
+                  "default": true
+                },
+                "max_per_repo": {
+                  "type": "integer",
+                  "description": "Maximum incoming commit subjects to display per repository",
+                  "minimum": 0,
+                  "default": 7
+                }
+              }
             }
           }
         },

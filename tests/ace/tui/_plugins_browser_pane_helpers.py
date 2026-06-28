@@ -23,6 +23,7 @@ from sase.plugins.operations import (
     UninstallReady,
     UpdateReady,
 )
+from sase.updates.incoming_commits import IncomingCommits
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason
 from sase.uv_tool.receipt import Requirement
 from sase.uv_tool.versions import CorePackageVersion, CoreVersions
@@ -140,21 +141,36 @@ def _patch_catalog(
     *,
     catalog: PluginCatalog | None = None,
     error: str | None = None,
+    core_versions: CoreVersions | None = None,
+    core_incoming_commits: dict[str, IncomingCommits] | None = None,
 ) -> None:
     result = pbp._PluginsLoadResult(
         catalog=catalog,
         error=error,
         now=_NOW,
-        core_versions=_core_versions(),
+        core_versions=core_versions or _core_versions(),
+        core_incoming_commits=core_incoming_commits or {},
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
+    monkeypatch.setattr(
+        pbp,
+        "_fetch_incoming_commits",
+        lambda *_a, **_kw: IncomingCommits(
+            total=0,
+            commits=(),
+            source="unavailable",
+            error="test",
+        ),
+    )
 
 
 def _patch_catalog_recording(
     monkeypatch: pytest.MonkeyPatch,
     *,
     catalog: PluginCatalog | None = None,
+    core_versions: CoreVersions | None = None,
+    core_incoming_commits: dict[str, IncomingCommits] | None = None,
 ) -> list[dict[str, object]]:
     """Patch the loader and return a list that records each call's kwargs."""
     calls: list[dict[str, object]] = []
@@ -162,7 +178,8 @@ def _patch_catalog_recording(
         catalog=catalog,
         error=None,
         now=_NOW,
-        core_versions=_core_versions(),
+        core_versions=core_versions or _core_versions(),
+        core_incoming_commits=core_incoming_commits or {},
     )
 
     def _fake(**kwargs: object) -> pbp._PluginsLoadResult:
@@ -171,6 +188,16 @@ def _patch_catalog_recording(
 
     monkeypatch.setattr(pbp, "_load_plugins_catalog", _fake)
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
+    monkeypatch.setattr(
+        pbp,
+        "_fetch_incoming_commits",
+        lambda *_a, **_kw: IncomingCommits(
+            total=0,
+            commits=(),
+            source="unavailable",
+            error="test",
+        ),
+    )
     return calls
 
 

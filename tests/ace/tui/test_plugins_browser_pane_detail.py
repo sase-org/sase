@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.plugins.catalog import PluginCatalog
+from sase.updates.incoming_commits import CommitSummary, IncomingCommits
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
     _catalog,
@@ -33,6 +34,41 @@ async def test_plugins_pane_detail_follows_highlight(
         assert "github" in text
         assert "BUILT-IN" in text
         assert "GitHub VCS" in text
+
+
+async def test_plugins_pane_detail_shows_lazy_incoming_commits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    calls: list[object] = []
+
+    def _fake_fetch(*args: object, **_kwargs: object) -> IncomingCommits:
+        calls.extend(args)
+        return IncomingCommits(
+            total=3,
+            commits=(
+                CommitSummary("abc1234", "Newest plugin change"),
+                CommitSummary("def5678", "Older plugin change"),
+            ),
+            source="github",
+        )
+
+    from sase.ace.tui.modals import plugins_browser_pane as pbp
+
+    monkeypatch.setattr(pbp, "_fetch_incoming_commits", _fake_fetch)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        await page.wait_for(lambda _s: bool(pane._incoming_commit_cache))
+        entry = pane._entry_by_name("github")
+        assert entry is not None
+        text = _render(pane._detail_renderable(entry))
+
+        assert calls
+        assert "↑ 3 incoming commits" in text
+        assert "abc1234" in text
+        assert "Newest plugin change" in text
+        assert "+1 more" in text
 
 
 async def test_plugins_pane_detail_shows_community_warning(
