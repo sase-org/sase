@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 12:52:00
-status: wip
+status: done
 prompt: sdd/prompts/202606/agy_model_alias_routing.md
 ---
 # Plan: Restore Antigravity model xprompt routing

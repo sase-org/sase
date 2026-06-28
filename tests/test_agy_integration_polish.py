@@ -182,6 +182,64 @@ def test_agent_metadata_records_agy_provider_directive(
     assert meta["llm_provider"] == "agy"
 
 
+def test_agent_metadata_routes_model_xprompt_alias_to_agy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``%model:#agy_flash`` records agy + the exact display model, not the default.
+
+    This pins the full readable surface end to end: the ``#agy_flash`` xprompt
+    expands to the ``agy_flash`` token, the configured ``model_aliases`` entry
+    rewrites that token to ``agy/Gemini 3.5 Flash (High)``, and the recorded
+    metadata routes to the Antigravity provider even though the configured
+    default provider is Codex. It is the regression guard for the bug where the
+    removed alias silently degraded these presets to the default provider.
+    """
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts" / "20260628120000"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir(parents=True)
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+
+    config = {
+        "provider": "codex",
+        "model_aliases": {"agy_flash": f"agy/{_AGY_LARGE}"},
+    }
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config", lambda: config
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: config
+    )
+    # The `#agy_flash` preset expands to the `agy_flash` alias token; inject just
+    # that xprompt so the test does not depend on the live user config.
+    from sase.xprompt.models import XPrompt
+
+    monkeypatch.setattr(
+        "sase.xprompt.processor.get_all_xprompts",
+        lambda *_args, **_kwargs: {
+            "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
+        },
+    )
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.ace.agent_tags.update_agent_tag"),
+    ):
+        info = extract_directives_and_write_meta(
+            "%model:#agy_flash\nDo work",
+            str(workspace_dir),
+            str(artifacts_dir),
+        )
+
+    meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
+    assert info.llm_provider == "agy"
+    assert info.model == _AGY_LARGE
+    assert meta["llm_provider"] == "agy"
+    assert meta["model"] == _AGY_LARGE
+
+
 def test_agy_default_retry_config_matches_transient_failures() -> None:
     config = get_retry_config("agy")
 

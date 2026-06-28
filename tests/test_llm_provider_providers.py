@@ -168,6 +168,42 @@ def test_resolve_model_provider_resolves_bare_alias(
     assert resolve_model_provider("other") == ("claude", "opus")
 
 
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_resolve_model_provider_resolves_agy_display_name_alias(
+    mock_config: MagicMock,
+) -> None:
+    """A model alias pointing at ``agy/<exact display name>`` routes to agy.
+
+    This is the regression guard for the readable ``#agy_flash``/``#m_agy_flash``
+    presets: the alias token expands to an explicit ``agy/<display name>`` target
+    whose space-and-paren-laden model survives intact, so the launch routes to
+    the Antigravity provider rather than falling back to the configured default.
+    """
+    mock_config.return_value = {
+        "provider": "codex",
+        "model_aliases": {"agy_flash": "agy/Gemini 3.5 Flash (High)"},
+    }
+
+    assert resolve_model_provider("agy_flash") == ("agy", "Gemini 3.5 Flash (High)")
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_resolve_model_provider_unknown_agy_token_falls_back(
+    mock_config: MagicMock,
+) -> None:
+    """Without the alias, ``agy_flash`` keeps the documented default fallback.
+
+    When the ``agy_flash`` alias is missing from ``model_aliases`` (the broken
+    state this work fixes), the bare token is unknown to every provider, so
+    resolution returns ``(None, ...)`` and the launch falls back to the
+    configured default provider. The doctor guard (not a hard error) is what
+    surfaces this degradation.
+    """
+    mock_config.return_value = {"provider": "codex", "model_aliases": {}}
+
+    assert resolve_model_provider("agy_flash") == (None, "agy_flash")
+
+
 def test_worker_alias_resolves_effective_worker_lane(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

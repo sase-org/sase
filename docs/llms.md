@@ -590,6 +590,13 @@ Alias values may point at another alias, a bare known model such as `opus`, an e
 `claude/opus`, or a nested provider-local path such as `opencode/anthropic/claude-sonnet-4-5`. Cycles are ignored and
 fall back to the raw input.
 
+A bare `%model` token that is _not_ a configured alias, an explicit `provider/model` target, or a known provider model
+silently falls back to the default provider rather than erroring. To catch this drift — for example a removed
+`model_aliases` entry that quietly reroutes a `#m_<provider>_*` preset to the default provider — `sase doctor`
+(`-C config.model_xprompts`) scans configured model presets and warns with
+`<xprompt> -> <token> does not resolve to a provider; it will fall back to the default provider`. The check is
+provider-neutral and read-only.
+
 #### Reserved alias: `other`
 
 The literal alias name `other` is reserved as a context-aware key. When a

@@ -39,6 +39,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="SDD validation",
             runner=lambda: _check_config_sdd(context),
         ),
+        CheckSpec(
+            id="config.model_xprompts",
+            group="config",
+            title="Model xprompt routing",
+            runner=lambda: _check_config_model_xprompts(context),
+        ),
     )
 
 
@@ -236,6 +242,126 @@ def _check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
             "issues": issue_rows[:_MAX_DETAIL_ROWS],
         },
     )
+
+
+def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
+    """Warn when a model-preset xprompt expands to an unroutable model token.
+
+    Configured ``%model``/``%m`` presets (e.g. ``#m_agy_flash`` expands to
+    ``%model:#agy_flash``) resolve their final model token to a provider at
+    launch time. When that token is a bare name that is neither a configured
+    ``llm_provider.model_aliases`` entry, an explicit ``provider/model`` target,
+    nor a model a registered provider plugin knows, the launch silently falls
+    back to the default provider instead of the intended one.
+
+    This read-only guard surfaces that drift — for example a removed
+    ``agy_flash`` alias quietly rerouting every ``#agy_*``/``#m_agy_*`` preset to
+    the default provider. It is provider-neutral, so it also catches
+    ``#m_fable``, ``#m_qwen``, or plugin-provided presets whose tokens stop
+    resolving.
+    """
+    from sase.llm_provider.config import get_model_aliases
+    from sase.xprompt.loader import get_all_xprompts
+
+    aliases = set(get_model_aliases())
+    xprompts = get_all_xprompts(context.project)
+
+    problems: list[dict[str, str]] = []
+    scanned = 0
+    for name in sorted(xprompts):
+        tokens = _model_preset_tokens(xprompts[name].content)
+        if tokens is None:
+            continue
+        scanned += 1
+        for token in tokens:
+            if _model_token_routes(token, aliases):
+                continue
+            problems.append({"xprompt": name, "token": token})
+
+    status: CheckStatus = "WARN" if problems else "OK"
+    details = tuple(
+        f"{row['xprompt']} -> {row['token']} does not resolve to a provider; "
+        "it will fall back to the default provider"
+        for row in problems[:_MAX_DETAIL_ROWS]
+    )
+    summary = (
+        f"{scanned} model preset xprompt(s) route to a provider"
+        if not problems
+        else f"{len(problems)} model preset token(s) fall back to the default provider"
+    )
+    next_steps = (
+        (
+            "Add the unresolved token(s) to `llm_provider.model_aliases`, or "
+            "point the xprompt at an explicit `provider/model` target, then rerun "
+            "`sase doctor -C config.model_xprompts`.",
+        )
+        if problems
+        else ()
+    )
+
+    return DiagnosticCheck(
+        id="config.model_xprompts",
+        group="config",
+        status=status,
+        title="Model xprompt routing",
+        summary=summary,
+        details=details,
+        next_steps=next_steps,
+        data={"scanned": scanned, "problems": problems},
+    )
+
+
+def _model_preset_tokens(content: str) -> list[str] | None:
+    """Return the final model token(s) a model-preset xprompt expands to.
+
+    Returns ``None`` when *content* does not expand into any ``%model``/``%m``
+    directive (so it is not a model preset) or cannot be parsed as a clean
+    single/fan-out model directive. Multi-segment prompts carrying several
+    explicit ``%model`` directives are split by the launcher, not here, so they
+    are skipped rather than reported.
+    """
+    from sase.xprompt.directives import (
+        DirectiveError,
+        extract_prompt_directives,
+        has_model_directive,
+        split_prompt_for_models,
+    )
+    from sase.xprompt.processor import process_xprompt_references
+
+    try:
+        expanded = process_xprompt_references(content)
+        if not has_model_directive(expanded):
+            return None
+        branches = split_prompt_for_models(expanded)
+        sources = branches if branches else [expanded]
+        tokens: list[str] = []
+        for source in sources:
+            _, directives = extract_prompt_directives(source)
+            if directives.model:
+                tokens.append(directives.model)
+    except DirectiveError:
+        return None
+    except Exception:  # noqa: BLE001 - a malformed preset must not break doctor.
+        return None
+    return tokens
+
+
+def _model_token_routes(token: str, aliases: set[str]) -> bool:
+    """Return ``True`` when *token* routes to a concrete provider.
+
+    A token is routable when it resolves to a known provider, is a configured
+    alias (whose target provider plugin may simply be uninstalled on this
+    machine), or uses explicit ``provider/model`` syntax. Only a bare, unknown
+    token that is none of these silently falls back to the default provider.
+    """
+    from sase.llm_provider.registry import resolve_model_provider
+
+    provider, _ = resolve_model_provider(token)
+    if provider is not None:
+        return True
+    if token in aliases:
+        return True
+    return "/" in token
 
 
 def _plan_row(plan: InitPlan) -> dict[str, Any]:
