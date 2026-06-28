@@ -10,7 +10,7 @@ from sase.axe.run_agent_runner import (
     _auto_dismiss_completed_agent,
     _install_workspace_release_sigterm_handler,
 )
-from sase.axe.runner_utils import reset_killed
+from sase.axe.runner_utils import reset_killed, was_killed
 
 
 def test_auto_dismiss_completed_agent_syncs_dismissed_projection() -> None:
@@ -37,6 +37,7 @@ def test_auto_dismiss_completed_agent_syncs_dismissed_projection() -> None:
 
 
 def test_workspace_release_sigterm_handler_releases_claim() -> None:
+    reset_killed()
     with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
         _install_workspace_release_sigterm_handler(
             project_file="/tmp/.sase/projects/sase/sase.sase",
@@ -49,7 +50,7 @@ def test_workspace_release_sigterm_handler_releases_claim() -> None:
 
     with (
         patch("sase.running_field.release_workspace") as release,
-        patch("sase.axe.runner_utils.sys.exit"),
+        patch("sase.axe.runner_utils.sys.exit") as exit_mock,
     ):
         captured_handler(signal.SIGTERM, None)
 
@@ -59,4 +60,6 @@ def test_workspace_release_sigterm_handler_releases_claim() -> None:
         "ace(run)-260101_120000",
         "sase",
     )
+    exit_mock.assert_not_called()
+    assert was_killed() is True
     reset_killed()

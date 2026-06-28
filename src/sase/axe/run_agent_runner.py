@@ -98,7 +98,7 @@ def _install_workspace_release_sigterm_handler(
 
         release_workspace(project_file, workspace_num, workflow_name, cl_name)
 
-    install_sigterm_handler("agent", on_signal=_release_workspace_claim)
+    install_sigterm_handler("agent", soft=True, on_signal=_release_workspace_claim)
 
 
 def _auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None:
