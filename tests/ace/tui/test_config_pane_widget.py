@@ -11,6 +11,8 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+from textual.containers import VerticalScroll
+from textual.widgets import Tree
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
@@ -59,6 +61,18 @@ async def _open_config_pane(page: AcePage) -> ConfigPane:
     pane = modal.query_one("#config", ConfigPane)
     await page.wait_for(lambda _s: bool(pane._node_by_path))
     return pane
+
+
+def _binding_action(key: str) -> str | None:
+    """Action bound to *key* in ``ConfigPane.BINDINGS`` (tuple or Binding)."""
+    for binding in ConfigPane.BINDINGS:
+        if isinstance(binding, tuple):
+            bind_key, action = binding[0], binding[1]
+        else:
+            bind_key, action = binding.key, binding.action
+        if bind_key == key:
+            return action
+    return None
 
 
 async def test_config_pane_loads_and_populates_tree(
@@ -157,3 +171,42 @@ async def test_config_pane_migrate_opens_migration_modal(
         modal = page.app.screen
         assert isinstance(modal, ConfigEditModal)
         assert modal._mode == "migration"
+
+
+def test_config_pane_binds_ctrl_d_and_ctrl_u_to_detail_scroll() -> None:
+    assert _binding_action("ctrl+d") == "scroll_detail_down"
+    assert _binding_action("ctrl+u") == "scroll_detail_up"
+    assert "ctrl+d/u: scroll" in ConfigPane(auto_load=False)._hints()
+
+
+async def test_config_pane_ctrl_d_and_ctrl_u_scroll_detail_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage(size=(120, 30)) as page:
+        pane = await _open_config_pane(page)
+        pane._do_jump("ace.lumberjack")
+        await page.wait_for(lambda _s: pane._selected_path == "ace.lumberjack")
+
+        tree = pane.query_one("#config-tree", Tree)
+        cursor_before = tree.cursor_node.data if tree.cursor_node is not None else None
+        selected_before = pane._selected_path
+        scroll = pane.query_one("#config-detail-scroll", VerticalScroll)
+        await page.wait_for(lambda _s: scroll.max_scroll_y > 0)
+        assert scroll.scroll_y == 0
+
+        half_page = scroll.scrollable_content_region.height // 2
+        assert half_page > 0
+
+        await page.press("ctrl+d")
+        await page.pause()
+        expected_down = min(half_page, scroll.max_scroll_y)
+        assert scroll.scroll_y == expected_down
+        assert pane._selected_path == selected_before
+        assert tree.cursor_node is not None and tree.cursor_node.data == cursor_before
+
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
+        assert pane._selected_path == selected_before
+        assert tree.cursor_node is not None and tree.cursor_node.data == cursor_before

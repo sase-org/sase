@@ -64,6 +64,8 @@ class ConfigPane(Vertical):
         ("k", "cursor_up", "Up"),
         ("down", "cursor_down", "Down"),
         ("up", "cursor_up", "Up"),
+        ("ctrl+d", "scroll_detail_down", "Scroll Down"),
+        ("ctrl+u", "scroll_detail_up", "Scroll Up"),
         ("slash", "focus_filter", "Filter"),
         ("m", "toggle_modified", "Modified only"),
         ("colon", "jump_to_path", "Jump to path"),
@@ -275,8 +277,8 @@ class ConfigPane(Vertical):
     def _hints(self) -> str:
         mod = "modified ✓" if self._modified_only else "modified"
         return (
-            f"j/k: move  ↵/e: edit  /: filter  :: jump  m: {mod}  g: migrate  "
-            "r: refresh  [ / ]: tab  Esc: close"
+            f"j/k: move  ctrl+d/u: scroll  ↵/e: edit  /: filter  :: jump  "
+            f"m: {mod}  g: migrate  r: refresh  [ / ]: tab  Esc: close"
         )
 
     # -- tree selection events --
@@ -311,6 +313,22 @@ class ConfigPane(Vertical):
         except Exception:
             return
         getattr(tree, name)()
+
+    def action_scroll_detail_down(self) -> None:
+        try:
+            scroll = self.query_one("#config-detail-scroll", VerticalScroll)
+        except Exception:
+            return
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=height // 2, animate=False)
+
+    def action_scroll_detail_up(self) -> None:
+        try:
+            scroll = self.query_one("#config-detail-scroll", VerticalScroll)
+        except Exception:
+            return
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=-(height // 2), animate=False)
 
     def action_focus_filter(self) -> None:
         self._input_mode = "filter"
