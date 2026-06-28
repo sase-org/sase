@@ -1,7 +1,9 @@
 ---
 type: long
 parent: AGENTS.md
-description: Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
+description:
+  Read when working with sase agent skills (aka xprompt skills), which are generated from source templates in the
+  `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for example).
 keywords:
   - sase commit
   - SKILL.md

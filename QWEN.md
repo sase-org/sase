@@ -144,7 +144,8 @@ skill to review their contents. Do not read canonical memory files directly.
 Read anytime new CLI subcommands or options are added.
 
 **`memory/generated_skills.md`**  
-Skill file generation pipeline, CLI/skill contract synchronization, commit skills per runtime.
+Read when working with sase agent skills (aka xprompt skills), which are generated from source templates in the
+`src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for example).
 
 **`memory/tui_perf.md`**  
 Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering, startup).
