@@ -253,6 +253,42 @@ async def test_agents_auto_approve_icons_png_snapshot(
         )
 
 
+async def test_agents_auto_approve_metadata_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _auto_approve_agents()
+    patch_startup_loaders(monkeypatch, agents=agents)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        for idx, (token, snapshot_name, title) in enumerate(
+            (
+                ("⚡ PLAN", "agents_auto_approve_metadata_plan_120x40", "PLAN"),
+                ("⚡ TALE", "agents_auto_approve_metadata_tale_120x40", "TALE"),
+                ("⚡ EPIC", "agents_auto_approve_metadata_epic_120x40", "EPIC"),
+            )
+        ):
+            if idx:
+                await page.press("j")
+                await wait_for_visual_idle(page)
+            assert page.app.current_idx == idx
+            assert_page_svg_contains(page, "Auto:")
+            assert_page_svg_contains(page, token)
+
+            ace_png_visual.assert_page_png(
+                page,
+                snapshot_name,
+                title=f"ACE agents auto-approve metadata {title}",
+                max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+            )
+
+
 async def test_auto_approve_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

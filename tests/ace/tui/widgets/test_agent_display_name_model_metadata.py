@@ -93,3 +93,46 @@ class TestAgentModelMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Model: CLAUDE(opus)\n" in header.plain
+
+
+class TestAgentAutoApproveMetadata:
+    def test_plain_auto_approve_renders_plan_token(self) -> None:
+        agent = make_agent(approve=True)
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Auto: \u26a1 PLAN\n" in header.plain
+        assert "Mode:" not in header.plain
+        assert "Auto-Approve" not in header.plain
+        assert "Epic Auto-Approve" not in header.plain
+        assert_span_covers(header, "\u26a1 PLAN", "bold #5FD7FF")
+
+    def test_tale_auto_approve_renders_tale_token(self) -> None:
+        agent = make_agent(approve=True, auto_approve_plan_action="tale")
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Auto: \u26a1 TALE\n" in header.plain
+        assert "Mode:" not in header.plain
+        assert "Auto-Approve" not in header.plain
+        assert_span_covers(header, "\u26a1 TALE", "bold #FFD75F")
+
+    def test_epic_auto_approve_renders_epic_token(self) -> None:
+        agent = make_agent(approve=True, auto_approve_plan_action="epic")
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Auto: \u26a1 EPIC\n" in header.plain
+        assert "Mode:" not in header.plain
+        assert "Auto-Approve" not in header.plain
+        assert "Epic Auto-Approve" not in header.plain
+        assert_span_covers(header, "\u26a1 EPIC", "bold #AF87FF")
+
+    def test_disabled_auto_approve_omits_auto_field(self) -> None:
+        agent = make_agent(approve=False)
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Auto:" not in header.plain
+        assert "Mode:" not in header.plain
+        assert "Auto-Approve" not in header.plain

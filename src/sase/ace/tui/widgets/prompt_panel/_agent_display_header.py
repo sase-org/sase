@@ -36,6 +36,11 @@ _WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
     "Failed": (AGENT_STATUS_BUCKET_GLYPHS["Failed"], "bold #FF5F5F"),
     "Stopped": (AGENT_STATUS_BUCKET_GLYPHS["Stopped"], "bold #8787AF"),
 }
+_AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
+    "plan": ("\u26a1 PLAN", "bold #5FD7FF"),
+    "tale": ("\u26a1 TALE", "bold #FFD75F"),
+    "epic": ("\u26a1 EPIC", "bold #AF87FF"),
+}
 
 
 def _append_major_section_divider(text: Text) -> None:
@@ -206,13 +211,14 @@ def build_header_text(
         header_text.append("VCS: ", style="bold #87D7FF")
         header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
 
-    # Mode (autonomous agents)
+    # Auto-approve kind (autonomous agents)
     if agent.approve:
-        header_text.append("Mode: ", style="bold #87D7FF")
-        if agent.auto_approve_plan_action == "epic":
-            header_text.append("\u26a1 Epic Auto-Approve\n", style="bold #00FFFF")
-        else:
-            header_text.append("\u26a1 Auto-Approve\n", style="bold #00FFFF")
+        kind = agent.auto_approve_plan_action or "plan"
+        token, style = _AUTO_APPROVE_KIND_STYLES.get(
+            kind, (f"\u26a1 {kind.upper()}", "bold #BCBCBC")
+        )
+        header_text.append("Auto: ", style="bold #87D7FF")
+        header_text.append(f"{token}\n", style=style)
 
     # PID (if available)
     if agent.pid:
