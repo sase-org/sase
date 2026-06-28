@@ -451,10 +451,16 @@ def test_rollback_kills_partially_launched_agents(
 
     epic_id, _ = seed_diamond(project_dir)
 
+    # Spawn the stand-in agent in its own session/process group, exactly as
+    # real launched agents are. Without this, the child shares the pytest
+    # worker's process group and the rollback's ``os.killpg`` below would
+    # signal the entire test-runner group (controller + xdist workers),
+    # tearing down the whole run.
     child = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(60)"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     try:
         partial_result = AgentLaunchResult(

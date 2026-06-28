@@ -45,7 +45,13 @@ def _terminate_process_group(pid: int) -> bool:
         return False
     try:
         pgid = os.getpgid(pid)
-        os.killpg(pgid, signal.SIGTERM)
+        if pgid == os.getpgrp():
+            # The target shares our own process group (e.g. it was not
+            # started in its own session). Signal only the process so we
+            # never deliver SIGTERM to our own launcher's process group.
+            os.kill(pid, signal.SIGTERM)
+        else:
+            os.killpg(pgid, signal.SIGTERM)
         return True
     except ProcessLookupError:
         return False

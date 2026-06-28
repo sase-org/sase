@@ -66,6 +66,15 @@ def test_load_all_agents_dedup_preserves_workspace_num() -> None:
             "sase.ace.tui.models.agent_loader.is_process_running",
             return_value=True,
         ),
+        # The running-claim loader imports its own ``is_process_running``
+        # reference and uses it to gate claims by liveness. Without patching
+        # it too, the fake claim PID is checked against the real ``/proc``,
+        # which makes the claim (and its workspace_num) appear/disappear
+        # depending on whether that PID happens to exist — flaky under xdist.
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
         patch(
             "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
             return_value=[],
