@@ -6,6 +6,7 @@ import io
 import subprocess
 import sys
 import threading
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -388,6 +389,36 @@ def test_stream_subprocess_timeout_raises_with_captured_output() -> None:
     output = exc_info.value.output
     assert isinstance(output, str)
     assert "started" in output
+
+
+def test_stream_subprocess_cancel_escalates_sigterm_resistant_process() -> None:
+    cancel_event = threading.Event()
+    seen: list[str] = []
+
+    def on_line(line: str) -> None:
+        seen.append(line)
+        cancel_event.set()
+
+    started = time.monotonic()
+    result = stream_subprocess(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import signal, time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "print('started', flush=True); "
+                "time.sleep(5)"
+            ),
+        ],
+        on_line=on_line,
+        cancel_event=cancel_event,
+    )
+    elapsed = time.monotonic() - started
+
+    assert seen == ["started"]
+    assert result.returncode != 0
+    assert elapsed < 3.0
 
 
 # ---------------------------------------------------------------------------

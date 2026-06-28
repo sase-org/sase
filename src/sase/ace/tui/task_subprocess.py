@@ -44,6 +44,7 @@ def stream_subprocess(
     output_chunks: list[str] = []
     output_lock = threading.Lock()
     timed_out = False
+    cancelled = False
 
     process = subprocess.Popen(
         args,
@@ -75,6 +76,7 @@ def stream_subprocess(
     try:
         while process.poll() is None:
             if cancel_event.is_set():
+                cancelled = True
                 _terminate_process_group(process)
                 break
             if timeout is not None and time.monotonic() - started > timeout:
@@ -83,7 +85,7 @@ def stream_subprocess(
                 break
             time.sleep(0.05)
 
-        if timed_out:
+        if timed_out or cancelled:
             _wait_then_kill(process)
         returncode = process.wait()
     finally:
