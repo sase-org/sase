@@ -19,6 +19,8 @@ class VimNormalModeMixin(VimNormalEditingMixin):
     if TYPE_CHECKING:
 
         def _clear_search_highlights(self, *, refresh: bool = True) -> None: ...
+        def _clear_count_prefix(self) -> None: ...
+        def _preview_token_under_cursor(self) -> None: ...
         def _start_prompt_search(self, direction: SearchDirection) -> None: ...
 
     def _can_start_prompt_search_from_normal_key(self) -> bool:
@@ -49,6 +51,19 @@ class VimNormalModeMixin(VimNormalEditingMixin):
                 "reverse" if key == "?" or event.key == "question_mark" else "forward"
             )
             self._start_prompt_search(direction)
+            return True
+
+        if key == "K" and self._can_start_prompt_search_from_normal_key():
+            self._preview_token_under_cursor()
+            return True
+
+        if (
+            key == "K"
+            and self._count_prefix
+            and not self._pending_keys
+            and not self._pending_operator
+        ):
+            self._clear_count_prefix()
             return True
 
         if not self._replaying_dot:

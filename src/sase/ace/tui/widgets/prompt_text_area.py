@@ -19,6 +19,7 @@ from sase.ace.tui.widgets._prompt_text_area_key_handling import (
     PromptTextAreaKeyHandlingMixin,
 )
 from sase.ace.tui.widgets._prompt_search import PromptSearchMixin
+from sase.ace.tui.widgets._prompt_preview import PromptPreviewMixin
 from sase.ace.tui.widgets._search_highlight import SearchHighlightMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
@@ -62,6 +63,7 @@ class PromptTextArea(
     AltSyntaxHighlightMixin,
     SearchHighlightMixin,
     PromptSearchMixin,
+    PromptPreviewMixin,
     JinjaHighlightMixin,
     VimNormalModeMixin,
     FileCompletionMixin,
@@ -142,6 +144,7 @@ class PromptTextArea(
         self._prompt_completion_generation: int = 0
         self._prompt_completion_timer: Any | None = None
         self._soft_completion: PromptSoftCompletion | None = None
+        self._prompt_preview_request_id: int = 0
 
     @property
     def _ace_app(self) -> AceApp:

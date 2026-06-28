@@ -2304,6 +2304,48 @@ RecursiveFileFinderModal #finder-query {
     color: $text;
 }
 
+/* ===== Preview Panel Modal Styling ===== */
+
+PreviewPanelModal {
+    align: center middle;
+}
+
+PreviewPanelModal > Container {
+    width: 85%;
+    height: 85%;
+    max-width: 150;
+    max-height: 42;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+PreviewPanelModal #preview-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+PreviewPanelModal #preview-scroll {
+    height: 1fr;
+    scrollbar-gutter: stable;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+PreviewPanelModal #preview-content {
+    width: 100%;
+    height: auto;
+}
+
+PreviewPanelModal #preview-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* ===== Activity Modal Styling ===== */
 
 ActivityModal {

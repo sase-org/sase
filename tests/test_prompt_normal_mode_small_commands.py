@@ -40,6 +40,13 @@ async def test_r_replaces_character() -> None:
         assert page.cursor == (0, 2)
 
 
+async def test_r_accepts_upper_k_as_literal_replacement() -> None:
+    async with PromptPage("abcde", cursor=(0, 2)) as page:
+        await page.press("r", "K")
+        assert page.text == "abKde"
+        assert page.cursor == (0, 2)
+
+
 async def test_r_with_count_replaces_multiple_characters() -> None:
     async with PromptPage("abcde") as page:
         await page.press("3", "r", "x")

@@ -3,8 +3,8 @@
 Covers the multi-agent prompt stack focus keymaps: pane focus navigation lives
 on the prompt ``g`` prefix ``gj`` (next/lower) / ``gk`` (prev/higher) and is
 NORMAL-mode-only. Bare normal-mode ``J`` is once again vim's line join and bare
-``K`` is a swallowed no-op. The retired ``Ctrl+H``/``Ctrl+L`` focus chords no
-longer fire.
+``K`` is the prompt preview lookup command. The retired ``Ctrl+H``/``Ctrl+L``
+focus chords no longer fire.
 """
 
 from __future__ import annotations
@@ -215,12 +215,13 @@ async def test_bare_j_join_supports_count() -> None:
         assert bar.active_text() == "one two three\nfour"
 
 
-async def test_bare_k_does_not_focus_pane_or_bubble() -> None:
-    """Bare normal-mode ``K`` is a swallowed prompt-local no-op (no focus move).
+async def test_bare_k_without_previewable_token_does_not_focus_pane_or_bubble() -> None:
+    """Bare normal-mode ``K`` stays prompt-local when no preview token exists.
 
-    With pane focus on ``gj``/``gk``, bare ``K`` has no prompt command, so it is
-    swallowed -- it neither navigates panes, inserts text, nor bubbles to the
-    app-level ``K`` panel-focus binding while the prompt body owns focus.
+    With pane focus on ``gj``/``gk``, bare ``K`` is the preview command. When the
+    cursor is not on a previewable token, it neither navigates panes, inserts
+    text, nor bubbles to the app-level ``K`` panel-focus binding while the
+    prompt body owns focus.
     """
     app = PromptStackKeymapApp("first\n---\nsecond\n---\nthird")
 

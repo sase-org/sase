@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 09:47:57
-status: wip
+status: done
 prompt: sdd/prompts/202606/prompt_preview_keymap.md
 ---
 # Plan: `K` Preview Keymap for the Prompt Input Widget

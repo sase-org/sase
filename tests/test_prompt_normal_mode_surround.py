@@ -77,6 +77,13 @@ async def test_ds_custom_same_character_surround() -> None:
         assert page.text == "say hello now"
 
 
+async def test_ds_accepts_upper_k_as_literal_surround_target() -> None:
+    async with PromptPage("say KhelloK now", cursor=(0, 6)) as page:
+        await page.press("d", "s", "K")
+
+        assert page.text == "say hello now"
+
+
 async def test_ds_double_quote_doubled_removes_nearest_pair() -> None:
     async with PromptPage('""foobar""', cursor=(0, 5)) as page:
         await page.press("d", "s", '"')

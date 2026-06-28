@@ -29,6 +29,13 @@ async def test_f_no_match_stays() -> None:
         assert page.cursor == (0, 3)
 
 
+async def test_f_accepts_upper_k_as_literal_target() -> None:
+    """fK treats K as the character-search target, not a preview command."""
+    async with PromptPage("abKcd") as page:
+        await page.press("f", "K")
+        assert page.cursor == (0, 2)
+
+
 # =============================================================================
 # F — find char backward (inclusive)
 # =============================================================================
@@ -126,6 +133,14 @@ async def test_dt_deletes_up_to_char() -> None:
         await page.press("d", "t", ")")
         assert page.text == "foo) baz"
         assert page.cursor == (0, 3)
+
+
+async def test_dt_accepts_upper_k_as_literal_target() -> None:
+    """dtK deletes up to literal K, not via the bare-K preview command."""
+    async with PromptPage("abKcd") as page:
+        await page.press("d", "t", "K")
+        assert page.text == "Kcd"
+        assert page.cursor == (0, 0)
 
 
 async def test_dF_deletes_backward_through_char() -> None:

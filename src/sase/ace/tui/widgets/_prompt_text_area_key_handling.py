@@ -215,25 +215,9 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         # ``gK`` reorder the active pane (dispatched through the vim ``g``
         # pending state in ``_handle_normal_pending_key``). Bare normal-mode
         # ``J`` is therefore free again for vim's line join, and normal-mode
-        # ``Up`` / ``Down`` fall through to the TextArea's own cursor movement in
-        # both single- and multi-pane stacks.
-        #
-        # Bare normal-mode ``K`` has no vim command of its own here, so it is
-        # swallowed as a prompt-local no-op -- without this it would bubble to
-        # the app-level Agents-tab ``K`` panel-focus binding while the prompt
-        # body owns focus. A pending normal-mode prefix (``g``, an operator, or
-        # a count) lets ``K`` fall through so ``gK`` / ``dK`` / ``2K`` keep
-        # reaching their own handling.
-        if (
-            self._vim_mode == "normal"
-            and (event.character or event.key) == "K"
-            and not self._pending_keys
-            and not self._pending_operator
-            and not self._count_prefix
-        ):
-            event.stop()
-            event.prevent_default()
-            return
+        # ``K`` is handled by the vim dispatcher as a preview lookup command.
+        # Normal-mode ``Up`` / ``Down`` fall through to the TextArea's own cursor
+        # movement in both single- and multi-pane stacks.
 
         # Prompt-stack add-pane and the xprompt properties panel toggle both
         # migrated to the prompt ``g`` prefix: ``g-`` appends a new empty bottom

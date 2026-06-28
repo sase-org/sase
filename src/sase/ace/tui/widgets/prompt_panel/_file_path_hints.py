@@ -9,7 +9,7 @@ from rich.text import Text
 # Regex to match file paths in text.
 # Group 1: optional @ prefix (sase file reference convention)
 # Group 2: the actual file path
-_FILE_PATH_RE = re.compile(
+FILE_PATH_RE = re.compile(
     r"(?<![/\w@.])"  # Not preceded by word char, /, @, or .
     r"(@?)"  # Group 1: optional @ prefix
     r"("  # Group 2: the file path
@@ -26,6 +26,7 @@ _FILE_PATH_RE = re.compile(
     r"(?:[\w\-]+/[\w.+\-/]*\.[\w]+)"
     r")"
 )
+_FILE_PATH_RE = FILE_PATH_RE
 
 
 def resolve_agent_workspace_dir(
@@ -80,7 +81,7 @@ def resolve_agent_workspace_dir(
     return explicit_dir
 
 
-def _resolve_file_path(path: str, workspace_dir: str | None) -> str:
+def resolve_file_path(path: str, workspace_dir: str | None) -> str:
     """Resolve a file path to absolute.
 
     For relative paths, prepends the workspace directory.
@@ -119,7 +120,7 @@ def append_text_with_file_hints(
         Updated hint counter.
     """
     last_end = 0
-    for match in _FILE_PATH_RE.finditer(content):
+    for match in FILE_PATH_RE.finditer(content):
         at_prefix = match.group(1)
         path = match.group(2)
         # Include @ prefix in display range
@@ -131,7 +132,7 @@ def append_text_with_file_hints(
             text.append(content[last_end:full_match_start], style=style)
 
         # Resolve the path (using group 2, without @ prefix)
-        resolved_path = _resolve_file_path(path, workspace_dir)
+        resolved_path = resolve_file_path(path, workspace_dir)
 
         # Add hint marker and styled file path
         text.append(f"[{hint_counter}] ", style="bold #FFFF00")
