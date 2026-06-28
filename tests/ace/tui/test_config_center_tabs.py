@@ -6,6 +6,7 @@ import pytest
 from rich.text import Text
 from textual.widgets import ContentSwitcher, Static
 
+from sase.ace.admin_center_tab import load_admin_center_tab, save_admin_center_tab
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import (
     _ConfigCenterTabStrip,
@@ -155,6 +156,8 @@ async def test_admin_center_remembers_active_tab_across_escape_and_q(
         await page.press("4")
         await page.wait_for(lambda _s: first._active_tab == "tasks")
         assert page.app._admin_center_tab == "tasks"
+        # The in-memory field is mirrored to disk off-thread.
+        await page.wait_for(lambda _s: load_admin_center_tab(_TAB_ORDER) == "tasks")
 
         await page.press("escape")
         await page.expect_no_modal()
@@ -168,6 +171,7 @@ async def test_admin_center_remembers_active_tab_across_escape_and_q(
         await page.press("3")
         await page.wait_for(lambda _s: second._active_tab == "projects")
         assert page.app._admin_center_tab == "projects"
+        await page.wait_for(lambda _s: load_admin_center_tab(_TAB_ORDER) == "projects")
 
         await page.press("q")
         await page.expect_no_modal()
@@ -196,6 +200,82 @@ async def test_fast_path_open_updates_plain_hash_memory(
         await page.press("escape")
         await page.expect_no_modal()
 
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        reopened = page.app.screen
+        assert isinstance(reopened, ConfigCenterModal)
+        assert reopened._active_tab == "logs"
+
+
+async def test_open_config_center_seeds_initial_tab_from_persisted_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A persisted tab seeds the app field and the plain ``#`` reopen target."""
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    assert save_admin_center_tab("updates", _TAB_ORDER) is True
+
+    async with AcePage() as page:
+        assert page.app._admin_center_tab == "updates"
+
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        assert modal._active_tab == "updates"
+
+
+async def test_active_tab_persists_across_fresh_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Switching tabs then restarting the TUI reopens on the persisted tab."""
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+
+    async with AcePage() as page:
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+
+        await page.press("4")
+        await page.wait_for(lambda _s: modal._active_tab == "tasks")
+        await page.wait_for(lambda _s: load_admin_center_tab(_TAB_ORDER) == "tasks")
+
+        await page.press("escape")
+        await page.expect_no_modal()
+
+    # Fresh app/session reusing the same isolated SASE_HOME.
+    async with AcePage() as page:
+        assert page.app._admin_center_tab == "tasks"
+        await page.press("number_sign")
+        await page.expect_modal("ConfigCenterModal")
+        reopened = page.app.screen
+        assert isinstance(reopened, ConfigCenterModal)
+        assert reopened._active_tab == "tasks"
+
+
+async def test_fast_path_tab_persists_across_fresh_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fast-path open (Logs) persists so a fresh ``#`` reopens on it."""
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+
+    async with AcePage() as page:
+        page.app.action_open_log_panel()
+        await page.expect_modal("ConfigCenterModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        assert modal._active_tab == "logs"
+        await page.wait_for(lambda _s: load_admin_center_tab(_TAB_ORDER) == "logs")
+
+        await page.press("escape")
+        await page.expect_no_modal()
+
+    # Fresh app/session reusing the same isolated SASE_HOME.
+    async with AcePage() as page:
+        assert page.app._admin_center_tab == "logs"
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         reopened = page.app.screen

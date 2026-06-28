@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -34,6 +35,10 @@ class BaseActionsMixin:
     current_tab: TabName
     query_string: str
     parsed_query: Any
+    # Latest-value coalescing state for off-thread Admin Center tab persistence
+    # (initialized in ``StateInitMixin._init_app_state``).
+    _admin_center_tab_save_pending: str | None
+    _admin_center_tab_save_inflight: bool
 
     # --- Workflow Actions ---
 
@@ -519,6 +524,44 @@ class BaseActionsMixin:
 
         initial_tab: Any = getattr(self, "_admin_center_tab", "config")
         self.push_screen(ConfigCenterModal(initial_tab=initial_tab))  # type: ignore[attr-defined]
+
+    def _persist_admin_center_tab(self, tab: str) -> None:
+        """Mirror the active Admin Center *tab* to disk, off the event loop.
+
+        The in-memory ``_admin_center_tab`` field is the source of truth for
+        in-session behavior and is updated synchronously by the modal; this
+        only persists the latest value so a fresh TUI reopens on the same tab.
+        Writes are best-effort and coalesced to the latest pending value: a
+        single off-thread write runs at a time, and rapid tab switches (mount,
+        ``[``/``]`` autorepeat) collapse to a last-write-wins persist.
+        """
+        # Defensive init so direct-mixin tests that bypass ``_init_app_state``
+        # still behave (they just won't have ``call_later`` and no-op below).
+        if not hasattr(self, "_admin_center_tab_save_inflight"):
+            self._admin_center_tab_save_inflight = False  # type: ignore[attr-defined]
+        self._admin_center_tab_save_pending = tab  # type: ignore[attr-defined]
+        if self._admin_center_tab_save_inflight:  # type: ignore[attr-defined]
+            return
+        call_later = getattr(self, "call_later", None)
+        if not callable(call_later):
+            return
+        self._admin_center_tab_save_inflight = True  # type: ignore[attr-defined]
+
+        async def _runner() -> None:
+            from ...admin_center_tab import save_admin_center_tab
+            from ..modals.config_center_modal import _TAB_ORDER
+
+            try:
+                while True:
+                    pending = self._admin_center_tab_save_pending  # type: ignore[attr-defined]
+                    self._admin_center_tab_save_pending = None  # type: ignore[attr-defined]
+                    if pending is None:
+                        break
+                    await asyncio.to_thread(save_admin_center_tab, pending, _TAB_ORDER)
+            finally:
+                self._admin_center_tab_save_inflight = False  # type: ignore[attr-defined]
+
+        call_later(_runner)
 
     def action_open_command_palette(self) -> None:
         """Open the context-aware command palette modal (bound to ``:``)."""

@@ -298,11 +298,22 @@ class ConfigCenterModal(ModalScreen[None]):
             focus_default()
 
     def _remember_active_tab(self) -> None:
-        """Persist the active Admin Center tab on the long-lived app."""
+        """Remember the active Admin Center tab for later reopens.
+
+        Updates the long-lived in-memory app field synchronously (so a plain
+        ``#`` in this session reopens here) and delegates disk persistence off
+        the Textual event loop so a fresh TUI also reopens on this tab.
+        """
         try:
             self.app._admin_center_tab = self._active_tab  # type: ignore[attr-defined]
         except Exception:
             pass
+        persist = getattr(self.app, "_persist_admin_center_tab", None)
+        if callable(persist):
+            try:
+                persist(self._active_tab)
+            except Exception:
+                pass
 
     def _switch_to(self, tab: CenterTab) -> None:
         if tab == self._active_tab:

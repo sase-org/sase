@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 15:26:32
-status: wip
+status: done
 prompt: sdd/prompts/202606/persist_admin_center_tab.md
 ---
 # Persist Admin Center Tab Selection
