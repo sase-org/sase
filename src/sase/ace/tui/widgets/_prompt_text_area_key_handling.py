@@ -248,15 +248,12 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                 event.prevent_default()
             return
 
-        # INSERT mode: Escape enters NORMAL mode.
+        # INSERT mode: Escape dismisses any active completion UI and enters
+        # NORMAL mode. ``_enter_normal_mode`` already clears file completion,
+        # soft completion, and xprompt arg hints, so an open completion menu and
+        # the no-completion path both land in NORMAL mode through the same
+        # transition helper -- matching plain insert-mode ``Escape``.
         if event.key == "escape":
-            if self._file_completion_active:
-                event.stop()
-                event.prevent_default()
-                self._clear_file_completion()
-                self._clear_soft_completion(cancel_timer=True)
-                self._clear_xprompt_arg_hint()
-                return
             event.stop()
             event.prevent_default()
             self._enter_normal_mode()

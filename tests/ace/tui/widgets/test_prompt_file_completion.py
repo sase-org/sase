@@ -127,7 +127,7 @@ class TestPromptFileCompletion:
             assert ta.text == selected
             assert ta._file_completion_active is False
 
-    async def test_escape_dismisses_completion_panel(
+    async def test_escape_dismisses_completion_panel_and_enters_normal_mode(
         self,
         tmp_path: Path,
         monkeypatch: MonkeyPatch,
@@ -146,9 +146,14 @@ class TestPromptFileCompletion:
                 await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 await pilot.press("escape")
+            # The completion panel is dismissed, completion state is inactive,
+            # and the prompt text is unchanged ...
             assert ta._file_completion_active is False
             assert bar._completion_visible is False
-            assert ta._vim_mode == "insert"
+            assert ta.text == "~/"
+            # ... but Escape now lands in NORMAL mode, matching plain
+            # insert-mode Escape.
+            assert ta._vim_mode == "normal"
 
     async def test_non_path_tab_still_expands_snippet(self) -> None:
         app = CompletionTestApp(snippets={"foo": "BAR"})

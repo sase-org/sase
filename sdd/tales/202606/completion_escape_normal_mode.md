@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 14:45:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/completion_escape_normal_mode.md
 ---
 # Plan: Leave Prompt Completion Escape In Normal Mode
