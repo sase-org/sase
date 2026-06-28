@@ -244,6 +244,22 @@ def test_single_keeps_separators_verbatim() -> None:
     assert state.selected_index == 0
 
 
+def test_single_lifts_frontmatter_when_requested() -> None:
+    state = PromptStackState.single(
+        "---\ndescription: hi\n---\nbody", lift_frontmatter=True
+    )
+    assert state.texts == ["body"]
+    assert state.frontmatter == "---\ndescription: hi\n---"
+    assert state.join() == "---\ndescription: hi\n---\nbody"
+
+
+def test_single_lift_frontmatter_preserves_plain_body_verbatim() -> None:
+    text = "  \nbody with whitespace  \n"
+    state = PromptStackState.single(text, lift_frontmatter=True)
+    assert state.texts == [text]
+    assert state.frontmatter == ""
+
+
 # --- focus / navigation ---------------------------------------------------
 
 

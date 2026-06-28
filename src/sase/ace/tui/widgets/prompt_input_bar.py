@@ -121,8 +121,9 @@ class PromptInputBar(
             # shared stack frontmatter and split real ``---`` body separators
             # into one pane per agent segment. Used when a ` @`-review-marker
             # editor return remounts the bar for review (frontmatter auto-shows
-            # on mount). Distinct from ``initial_value`` history-load semantics,
-            # which keep a single frontmatter prompt as one verbatim pane.
+            # on mount). Compared with ``initial_value`` history-load semantics,
+            # this path also normalizes a lone body pane through the canonical
+            # splitter instead of keeping the body text verbatim.
             self._stack = PromptStackState.from_text(initial_xprompt_markdown)
         else:
             self._stack = self._state_from_text(initial_value)

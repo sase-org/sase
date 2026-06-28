@@ -97,8 +97,19 @@ class PromptStackState:
     # -- construction ---------------------------------------------------------
 
     @classmethod
-    def single(cls, text: str = "") -> PromptStackState:
-        """Create a one-item stack from *text* verbatim (no splitting)."""
+    def single(
+        cls, text: str = "", *, lift_frontmatter: bool = False
+    ) -> PromptStackState:
+        """Create a one-item stack from *text* without splitting.
+
+        By default *text* is stored verbatim.  When *lift_frontmatter* is set,
+        any leading YAML frontmatter block is stored on the stack and the
+        remaining body becomes the lone pane, preserving the body text returned
+        by the shared launch parser.
+        """
+        if lift_frontmatter:
+            frontmatter, body = _extract_frontmatter(text)
+            return cls._from_texts([body], frontmatter=frontmatter)
         return cls._from_texts([text])
 
     @classmethod

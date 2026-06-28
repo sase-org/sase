@@ -86,12 +86,7 @@ async def test_load_stack_from_xprompt_markdown_lifts_frontmatter_and_splits() -
 
 
 async def test_load_stack_from_xprompt_markdown_lifts_single_body_pane() -> None:
-    """Unlike history load, the all-editor reload lifts a lone body's frontmatter.
-
-    ``load_stack_from_text`` keeps a single prompt with frontmatter verbatim (see
-    ``test_single_prompt_with_frontmatter_stays_verbatim``); the all-editor path
-    must instead treat the file as xprompt markdown and lift the frontmatter.
-    """
+    """The all-editor reload lifts frontmatter from a lone body pane."""
     app = _PromptBarApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -135,11 +130,9 @@ async def test_initial_xprompt_markdown_lifts_frontmatter_and_splits() -> None:
     """Constructor seeding with editor-file semantics lifts frontmatter + splits.
 
     The ` @`-review-marker editor-return remount path mounts a fresh bar via
-    ``initial_xprompt_markdown=...``.  Unlike ``initial_value`` history-load
-    semantics - where a single frontmatter prompt stays one verbatim pane (see
-    ``test_single_prompt_with_frontmatter_stays_verbatim``) - this lifts leading
-    frontmatter onto the stack, splits real ``---`` separators into panes, and
-    auto-shows the frontmatter panel on mount.
+    ``initial_xprompt_markdown=...``.  This lifts leading frontmatter onto the
+    stack, splits real ``---`` separators into panes, and auto-shows the
+    frontmatter panel on mount.
     """
     markdown = (
         "---\n"

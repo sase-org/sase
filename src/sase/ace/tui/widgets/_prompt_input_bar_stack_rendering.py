@@ -105,14 +105,15 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         Feedback / approve-prompt modes are never multi-agent surfaces, so they
         stay single-pane.  In prompt mode the canonical parser decides: text
         with real ``---`` separators (outside fences/frontmatter) splits into
-        panes; anything else stays a single verbatim pane so single-prompt
-        rendering — including leading YAML frontmatter — is unchanged.
+        panes; anything else stays a single pane.  A leading YAML frontmatter
+        block is lifted onto the stack in prompt mode so the structured panel
+        and launch payload share the same source of truth.
         """
         if self._mode in ("feedback", "approve_prompt"):
             return PromptStackState.single(text)
         if len(split_prompt_text(text)) > 1:
             return PromptStackState.from_text(text)
-        return PromptStackState.single(text)
+        return PromptStackState.single(text, lift_frontmatter=True)
 
     def _pane_id(self, item: PromptStackItem) -> str:
         """Stable, generation-scoped widget id for *item*'s text area."""
@@ -264,8 +265,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
 
         Mirrors the whole-stack submit contract: empty panes are dropped and
         non-empty panes are joined with ``\\n---\\n`` (re-attaching
-        frontmatter).  For a single pane this is just that pane's stripped text,
-        so existing single-prompt submit/cancel behavior is unchanged.
+        frontmatter).  A single pane without frontmatter remains just that
+        pane's stripped text.
         """
         self._sync_state_from_widgets()
         return self._stack.join()
@@ -285,9 +286,9 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         scoped to the buffer multi-pane ``^G`` opens; the launch payload from
         :meth:`current_prompt_text` keeps the compact ``\\n---\\n`` form.  The
         edited result is reloaded via :meth:`load_stack_from_xprompt_markdown`,
-        whose splitter drops the surrounding blank segments.
-        Single-pane prompts that carry inline leading frontmatter are preserved
-        as authored, since that text lives verbatim in the pane.
+        whose splitter drops the surrounding blank segments.  Leading
+        frontmatter lives on the stack and is re-attached here, not kept inside
+        a body pane.
         """
         self._sync_state_from_widgets()
         return self._stack.editor_markdown()
@@ -295,13 +296,14 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
     def load_stack_from_xprompt_markdown(self, text: str) -> None:
         """Reload the whole bar from edited xprompt markdown (the multi-pane ``^G`` return).
 
-        Unlike :meth:`load_stack_from_text` — which intentionally keeps a single
-        prompt with frontmatter as one verbatim pane for history loads — this
-        always treats *text* as xprompt markdown via
+        This always treats *text* as xprompt markdown via
         :meth:`PromptStackState.from_text`, lifting leading frontmatter into the
-        shared stack frontmatter even for a single body pane and splitting real
-        ``---`` separators into panes.  The frontmatter panel is re-synced so the
-        lifted frontmatter shows in the structured panel state.
+        shared stack frontmatter and splitting real ``---`` separators into
+        panes.  The frontmatter panel is re-synced so the lifted frontmatter
+        shows in the structured panel state.  Compared with
+        :meth:`load_stack_from_text`, this path also normalizes a lone body
+        pane through the canonical splitter instead of keeping the body text
+        verbatim.
         """
         self._stack = PromptStackState.from_text(text)
         self._rebuild_stack()
@@ -311,12 +313,15 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         """Replace the whole stack with panes parsed from *text*.
 
         Real ``---`` separators render as stacked panes; anything else loads as
-        a single pane.  Used by deliberate whole-bar loads (history load, or an
+        a single pane with leading YAML frontmatter lifted onto the shared stack
+        frontmatter.  Used by deliberate whole-bar loads (history load, or an
         editor return when the bar is a single pane) rather than active-pane
-        edits.
+        edits.  The frontmatter panel is re-synced so the latest load can show
+        or hide it.
         """
         self._stack = self._state_from_text(text)
         self._rebuild_stack()
+        self.refresh_frontmatter_panel_from_stack()
 
     def update_active_pane(self, text: str) -> None:
         """Replace only the active pane's text with *text* (the ``^G`` path).

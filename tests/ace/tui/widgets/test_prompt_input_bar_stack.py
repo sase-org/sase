@@ -1,10 +1,10 @@
 """Widget-level tests for core multi-agent prompt stack rendering (Phase 2).
 
 Covers the Phase 2 deliverable of ``PromptInputBar``: initial text containing
-``---`` separators renders as stacked panes, single prompts (including ones with
-YAML frontmatter) stay a single verbatim pane, the stack-aware helper APIs read
-the live panes, and the stack height stays within the terminal with the active
-pane growing while inactive panes compact.
+``---`` separators renders as stacked panes, leading YAML frontmatter is lifted
+onto the structured panel, the stack-aware helper APIs read the live panes, and
+the stack height stays within the terminal with the active pane growing while
+inactive panes compact.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from ._prompt_input_bar_stack_helpers import _PromptBarApp, _height, _pane_heights
 
 
-# --- single-pane rendering is unchanged -----------------------------------
+# --- single-pane rendering ------------------------------------------------
 
 
 async def test_single_prompt_renders_one_solo_pane() -> None:
@@ -34,8 +34,9 @@ async def test_single_prompt_renders_one_solo_pane() -> None:
         assert app.focused is pane
 
 
-async def test_single_prompt_with_frontmatter_stays_verbatim() -> None:
-    initial = "---\nmodel: opus\n---\ndo the thing"
+async def test_single_prompt_with_frontmatter_lifts_to_panel() -> None:
+    frontmatter = "---\ndescription: do the thing\n---"
+    initial = f"{frontmatter}\nbody text"
     app = _PromptBarApp(initial)
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -43,8 +44,26 @@ async def test_single_prompt_with_frontmatter_stays_verbatim() -> None:
 
         assert len(app.query(".prompt-input")) == 1
         bar = app.query_one(PromptInputBar)
-        # Frontmatter is NOT stripped for a single prompt; the pane is verbatim.
+        assert bar.active_text() == "body text"
+        assert bar._stack.frontmatter == frontmatter
+        assert bar.current_prompt_text() == initial
+
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        assert not panel.has_class("hidden")
+        assert bar._stack.frontmatter_model.description == "do the thing"
+
+
+async def test_single_plain_prompt_keeps_surrounding_whitespace_verbatim() -> None:
+    initial = "  \n  just one prompt  \n  "
+    app = _PromptBarApp(initial)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert len(app.query(".prompt-input")) == 1
         assert bar.active_text() == initial
+        assert bar._stack.frontmatter == ""
 
 
 # --- multi-pane rendering --------------------------------------------------
@@ -262,6 +281,68 @@ async def test_load_stack_from_text_rebuilds_panes() -> None:
         assert len(app.query(".prompt-input")) == 1
         assert "solo" in app.query_one(".prompt-input", PromptTextArea).classes
         assert bar.active_text() == "collapsed"
+
+
+async def test_load_stack_from_text_lifts_single_frontmatter_and_shows_panel() -> None:
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        frontmatter = "---\ndescription: loaded from history\n---"
+        bar.load_stack_from_text(f"{frontmatter}\ndo the thing")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.query(".prompt-input")) == 1
+        assert bar.active_text() == "do the thing"
+        assert bar._stack.frontmatter == frontmatter
+        assert bar.current_prompt_text() == f"{frontmatter}\ndo the thing"
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        assert not panel.has_class("hidden")
+
+
+async def test_load_stack_from_text_lifts_multi_frontmatter_and_shows_panel() -> None:
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        frontmatter = "---\ndescription: loaded multi\n---"
+        bar.load_stack_from_text(f"{frontmatter}\nalpha\n---\nbeta")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert len(app.query(".prompt-input")) == 2
+        assert bar.all_prompt_texts() == ["alpha", "beta"]
+        assert bar._stack.frontmatter == frontmatter
+        assert bar.current_prompt_text() == f"{frontmatter}\nalpha\n---\nbeta"
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        assert not panel.has_class("hidden")
+
+
+async def test_load_stack_from_text_plain_prompt_hides_frontmatter_panel() -> None:
+    app = _PromptBarApp("only one")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        bar.load_stack_from_text("---\ndescription: loaded\n---\nbody")
+        await pilot.pause()
+        await pilot.pause()
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        assert not panel.has_class("hidden")
+
+        bar.load_stack_from_text("plain body")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar._stack.frontmatter == ""
+        assert bar.active_text() == "plain body"
+        assert panel.has_class("hidden")
 
 
 async def test_load_multi_agent_xprompt_invocation_stays_single_pane() -> None:
