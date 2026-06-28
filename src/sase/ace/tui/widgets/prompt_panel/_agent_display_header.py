@@ -50,6 +50,18 @@ def _append_major_section_divider(text: Text) -> None:
     text.append("\n")
 
 
+def _append_auto_approve_field(text: Text, agent: Agent) -> None:
+    """Append the ``Auto:`` auto-approve kind field for autonomous agents."""
+    if not agent.approve:
+        return
+    kind = agent.auto_approve_plan_action or "plan"
+    token, style = _AUTO_APPROVE_KIND_STYLES.get(
+        kind, (f"\u26a1 {kind.upper()}", "bold #BCBCBC")
+    )
+    text.append("Auto: ", style="bold #87D7FF")
+    text.append(f"{token}\n", style=style)
+
+
 def _append_output_variables_section(
     text: Text,
     output_variables: dict[str, str],
@@ -192,6 +204,11 @@ def build_header_text(
         header_text.append("Workflow: ", style="bold #87D7FF")
         header_text.append(f"{agent.workflow}\n")
 
+    # Auto-approve kind (autonomous agents). Rendered immediately before the
+    # Xprompts section so an auto-approved agent shows ``Auto:`` ahead of
+    # ``Xprompts:`` rather than after it.
+    _append_auto_approve_field(header_text, agent)
+
     # Xprompts (if available) - only for agent/prompt steps.
     # Skipped on the cheap path: load_xprompts_used touches disk, and
     # the debounced full update will populate this field shortly after.
@@ -210,15 +227,6 @@ def build_header_text(
     if agent.vcs_provider:
         header_text.append("VCS: ", style="bold #87D7FF")
         header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
-
-    # Auto-approve kind (autonomous agents)
-    if agent.approve:
-        kind = agent.auto_approve_plan_action or "plan"
-        token, style = _AUTO_APPROVE_KIND_STYLES.get(
-            kind, (f"\u26a1 {kind.upper()}", "bold #BCBCBC")
-        )
-        header_text.append("Auto: ", style="bold #87D7FF")
-        header_text.append(f"{token}\n", style=style)
 
     # PID (if available)
     if agent.pid:

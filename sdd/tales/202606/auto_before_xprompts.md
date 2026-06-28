@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-28 09:07:36
-status: wip
+status: done
 prompt: sdd/prompts/202606/auto_before_xprompts.md
 ---
 # Move Auto Metadata Before XPrompts

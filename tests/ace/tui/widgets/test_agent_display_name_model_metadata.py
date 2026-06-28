@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from sase.ace.tui.models.agent import AgentType
-from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    DetailHeaderSummary,
+    build_header_text,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_metadata_prefix,
@@ -134,5 +137,24 @@ class TestAgentAutoApproveMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Auto:" not in header.plain
+        assert "Mode:" not in header.plain
+        assert "Auto-Approve" not in header.plain
+
+    def test_auto_field_renders_before_xprompts(self) -> None:
+        agent = make_agent(approve=True)
+        summary = DetailHeaderSummary(
+            xprompts_used=[{"kind": "part", "name": "plan"}],
+        )
+
+        header, _ = build_header_text(agent, cheap=False, summary=summary)
+
+        assert "Auto: ⚡ PLAN\n" in header.plain
+        assert "Xprompts:" in header.plain
+        auto_index = header.plain.index("Auto:")
+        xprompts_index = header.plain.index("Xprompts:")
+        assert auto_index < xprompts_index
+        # Nothing renders between the Auto field and the Xprompts section.
+        between = header.plain[auto_index:xprompts_index]
+        assert between == "Auto: ⚡ PLAN\n"
         assert "Mode:" not in header.plain
         assert "Auto-Approve" not in header.plain

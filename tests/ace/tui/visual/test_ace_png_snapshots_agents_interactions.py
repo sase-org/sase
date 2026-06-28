@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -287,6 +289,64 @@ async def test_agents_auto_approve_metadata_png_snapshots(
                 title=f"ACE agents auto-approve metadata {title}",
                 max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
             )
+
+
+def _auto_approve_xprompts_agent(artifacts_dir: Path) -> Agent:
+    """One approved agent whose artifacts dir carries ``xprompts.json``.
+
+    Exercises the combined metadata layout where the ``Auto:`` field renders
+    immediately before the disk-enriched ``Xprompts:`` section.
+    """
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "xprompts.json").write_text(
+        json.dumps(
+            [
+                {"kind": "workflow", "name": "auto_before_xprompts"},
+                {"kind": "part", "name": "plan_part"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-plan",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 9, 10, 0, 0),
+        raw_suffix="20260509-100000-plan",
+        agent_name="planner",
+        approve=True,
+        artifacts_dir=str(artifacts_dir),
+    )
+
+
+async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    agent = _auto_approve_xprompts_agent(tmp_path / "xprompt-artifacts")
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        svg = page.export_svg(title="ACE auto/xprompts metadata")
+        svg_plain = svg.replace("&#160;", " ")
+        assert "Auto:" in svg_plain
+        assert "Xprompts:" in svg_plain
+        assert svg_plain.index("Auto:") < svg_plain.index("Xprompts:")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_auto_approve_xprompts_metadata_120x40",
+            title="ACE agents auto-approve xprompts metadata",
+            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
+        )
 
 
 async def test_auto_approve_modal_png_snapshot(
