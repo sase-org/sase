@@ -7,8 +7,6 @@ modules under the per-file line budget. Inherited by ``StartupMixin``.
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import signal
 import threading
 from collections import OrderedDict
@@ -26,6 +24,7 @@ from ..exit_action import AceExitAction
 from ..models.fold_state import FoldStateManager
 from ..util.fs_watcher import ArtifactWatcher
 from ..util.nav_gate import NavigationGate
+from ._state_init_late import init_late_startup_state
 
 if TYPE_CHECKING:
     from ...agent_query import QueryExpr as AgentQueryExpr
@@ -33,13 +32,9 @@ if TYPE_CHECKING:
     from ..models import Agent
     from ..models.agent import AgentType
     from ..models.agent_loader import AgentLoadState
-    from ..prompt_catalog import PromptCatalogSnapshot
-    from .axe_display._loaders import AxeItemKey
     from .navigation._types import JumpAllResult
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
     from sase.core.query_corpus_facade import QueryCorpus
-
-log = logging.getLogger(__name__)
 
 __all__ = ["StateInitMixin"]
 
@@ -497,166 +492,4 @@ class StateInitMixin:
 
         self._agent_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
 
-        # Axe state
-        from sase.axe.state import (
-            AxeMetrics,
-            AxeStatus,
-            LumberjackMetrics,
-            LumberjackStatus,
-        )
-
-        self._axe_status: AxeStatus | None = None
-        self._axe_metrics: AxeMetrics | None = None
-        self._axe_output: str = ""
-        self._axe_pinned_to_bottom: bool = True
-        self._axe_cmds_hidden: bool = False
-
-        # Background command state
-        from ..bgcmd import BackgroundCommandInfo
-
-        self._axe_current_view: Literal["axe"] | int = "axe"
-        # Set when a chop child row is selected; the render layer uses
-        # this to pick the chop-run-detail view rather than the
-        # lumberjack overview.
-        self._axe_chop_selection: tuple[str, str] | None = None
-        self._bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
-
-        # Axe navigation caches: populated by the async collector so that
-        # Ctrl+N / Ctrl+P render without touching disk. Empty until the
-        # first async load completes (first-paint shows empty placeholders).
-        from .axe_display import BgCmdSnapshot
-        from .axe_display._data import ChopSnapshot, LumberjackSnapshot
-
-        self._axe_lumberjack_statuses: dict[str, LumberjackStatus | None] = {}
-        self._axe_lumberjack_metrics: dict[str, LumberjackMetrics | None] = {}
-        self._axe_lumberjack_log_tails: dict[str, str] = {}
-        self._axe_bgcmd_details: dict[int, BgCmdSnapshot] = {}
-        # Per-lumberjack ordered chop-name lists and per-chop snapshots
-        # (config metadata + bounded run history) populated by the same
-        # async collector so navigation paints chop rows from memory.
-        self._axe_lumberjack_chop_names: dict[str, list[str]] = {}
-        self._axe_chop_snapshots: dict[tuple[str, str], ChopSnapshot] = {}
-        self._axe_lumberjack_snapshots: dict[str, LumberjackSnapshot] = {}
-
-        # Per-chop run-history view offset for Ctrl+N / Ctrl+P navigation.
-        # 0 == newest. Absent entry means "follow newest" — a newer recorded
-        # run keeps the view pinned to offset 0. Once the user moves off the
-        # newest (offset > 0), the entry sticks; subsequent newer runs shift
-        # what the offset points to but the offset itself is preserved until
-        # the user steps back to 0, at which point the entry is removed and
-        # the chop returns to auto-following the newest run.
-        self._axe_chop_run_offsets: dict[tuple[str, str], int] = {}
-
-        # Debouncer for axe j/k navigation detail updates.
-        self._axe_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
-        self._axe_loading_placeholder_shown: bool = False
-
-        # Debouncer for changespecs j/k navigation detail updates.
-        self._changespec_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
-
-        # Lumberjack cycling state (new axe architecture)
-        self._axe_lumberjack_names: list[str] = []
-        self._axe_lumberjack_idx: int | None = None
-
-        # AXE side-panel item list and saved position
-        from ..widgets.bgcmd_list import AxeItem
-
-        self._axe_items: list[AxeItem] = []
-        self._axe_last_idx: int = 0
-        self._axe_last_item_key: AxeItemKey | None = None
-        # Per-lumberjack fold keys ("lumberjack:<name>") are initialized
-        # to EXPANDED lazily in ``_build_axe_items`` the first time each
-        # lumberjack is seen.
-        self._axe_fold_manager = FoldStateManager()
-
-        # Query history stacks for prev/next navigation
-        from ...query_history import load_query_history
-
-        self._query_history = load_query_history()
-
-        # Per-query ChangeSpec selection persistence
-        from ...query_selection import load_query_selections
-
-        self._query_selections = load_query_selections()
-
-        # Saved-query slots cached in memory.  ``SearchQueryPanel`` reads
-        # this on every render so we keep it disk-free; the cache is
-        # refreshed by :meth:`_invalidate_saved_queries_cache` on explicit
-        # save/delete.
-        from ...saved_queries import load_saved_queries
-
-        self._saved_queries: dict[str, str] = load_saved_queries()
-
-        # Load inactive_seconds from merged config
-        from sase.config import load_merged_config
-
-        merged = load_merged_config()
-        ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
-        self._inactive_seconds: int = int(
-            ace_cfg.get("inactive_seconds", 600) if isinstance(ace_cfg, dict) else 600
-        )
-        self._agents_repro_output_dir = (
-            str(ace_cfg.get("repro_output_dir", ""))
-            if isinstance(ace_cfg, dict)
-            else ""
-        )
-        from ..widgets.prompt_completion import parse_prompt_completion_settings
-
-        self._prompt_completion_settings = parse_prompt_completion_settings(
-            ace_cfg.get("prompt_completion", {}) if isinstance(ace_cfg, dict) else {}
-        )
-        user_snippets: dict[str, str] = (
-            ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
-        )
-        # Defer the xprompt snippet scan (which walks disk-backed xprompt
-        # definitions) until the prompt entry / help modal asks for it.
-        # Cold startup's first paint never needs snippets, so skipping
-        # this on the mount path keeps the stopwatch tight.
-        self._user_snippets = dict(user_snippets)
-        self._snippets_cache: dict[str, str] | None = None
-        self._prompt_catalog: PromptCatalogSnapshot | None = None
-        self._prompt_catalog_generation: int = 0
-        self._prompt_catalog_rebuild_in_flight: bool = False
-        self._prompt_catalog_rebuild_pending: bool = False
-        self._prompt_catalog_rebuild_pending_force: bool = False
-        self._prompt_catalog_projects: set[str | None] = {None}
-        self._prompt_catalog_token_check_last_mono: float = 0.0
-        self._prompt_source_watcher: ArtifactWatcher | None = None
-        self._prompt_source_watcher_active: bool = False
-        self._prompt_source_watched_projects: set[str | None] = set()
-        self._prompt_source_debounce_timer: Timer | None = None
-
-        # Build keymap registry from config
-        from ..keymaps import (
-            BUILTIN_MODE_NAMES,
-            KeymapRegistry,
-            build_app_bindings,
-            key_display_name,
-            load_keymap_registry,
-        )
-
-        self._keymap_registry: KeymapRegistry = load_keymap_registry(
-            ace_cfg if isinstance(ace_cfg, dict) else {}
-        )
-
-        # Build prefix→mode_name lookup for custom (non-builtin) modes.
-        self._custom_mode_prefixes: dict[str, str] = {
-            mode.prefix: name
-            for name, mode in self._keymap_registry.modes.items()
-            if name not in BUILTIN_MODE_NAMES and mode.prefix
-        }
-
-        # Replace instance bindings with registry-driven bindings.
-        from textual.binding import BindingsMap
-
-        _app_bindings = build_app_bindings(self._keymap_registry.app)
-        self._bindings = BindingsMap(_app_bindings)
-        log.debug(
-            "Keymap registry loaded: %d bindings, display=%s",
-            len(_app_bindings),
-            key_display_name(self._keymap_registry.app.next_changespec),
-        )
-
-        # Set global model tier override in environment if specified
-        if model_tier_override:
-            os.environ["SASE_MODEL_TIER_OVERRIDE"] = model_tier_override
+        init_late_startup_state(self, model_tier_override)
