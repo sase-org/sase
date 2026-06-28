@@ -275,7 +275,7 @@ class ConfigPane(Vertical):
         return ""
 
     def _hints(self) -> str:
-        mod = "modified ✓" if self._modified_only else "modified"
+        mod = "mod ✓" if self._modified_only else "mod"
         return (
             f"j/k: move  ctrl+d/u: scroll  ↵/e: edit  /: filter  :: jump  "
             f"m: {mod}  g: migrate  r: refresh  [ / ]: tab  Esc: close"

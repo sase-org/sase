@@ -8,6 +8,7 @@ deterministic fixture view so no real config files are read.
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -32,8 +33,32 @@ def _fixture_view() -> cp.ConfigPaneView:
     return cp.ConfigPaneView.build(field_model, inventory)
 
 
-def _patch_loaders(monkeypatch: pytest.MonkeyPatch) -> cp.ConfigPaneView:
-    view = _fixture_view()
+def _tall_detail_view() -> cp.ConfigPaneView:
+    schema: dict[str, Any] = _fixture_schema()
+    schema["properties"]["long_detail"] = {
+        "type": "string",
+        "default": "builtin",
+        "description": "\n".join(
+            f"Long detail line {index:02d} for config detail scrolling."
+            for index in range(48)
+        ),
+    }
+    layers = _fixture_layers()
+    layers[0].data["long_detail"] = "builtin"
+    layers[1].data["long_detail"] = "user"
+    with patch(
+        "sase.config.inventory.load_config_layers",
+        return_value=layers,
+    ):
+        inventory = build_config_inventory(schema=schema)
+    field_model = config_field_model(schema)
+    return cp.ConfigPaneView.build(field_model, inventory)
+
+
+def _patch_loaders(
+    monkeypatch: pytest.MonkeyPatch, view: cp.ConfigPaneView | None = None
+) -> cp.ConfigPaneView:
+    view = view or _fixture_view()
     result = cp._LoadResult(view=view, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: result)
     # Keep the XPrompts pane cheap and deterministic.
@@ -155,6 +180,59 @@ async def test_config_pane_edit_opens_edit_modal(
         modal = page.app.screen
         assert isinstance(modal, ConfigEditModal)
         assert modal._field is not None and modal._field.path == "timezone"
+
+
+async def test_config_detail_ctrl_d_u_scrolls_without_stealing_focus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch, _tall_detail_view())
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        pane._do_jump("long_detail")
+        await page.wait_for(lambda _s: pane._selected_path == "long_detail")
+        tree = pane.query_one("#config-tree", Tree)
+        tree.focus()
+        await page.pause()
+
+        scroll = pane.query_one("#config-detail-scroll", VerticalScroll)
+        await page.wait_for(lambda _s: scroll.max_scroll_y > 0)
+        selected_before = pane._selected_path
+        assert page.app.focused is tree
+        assert scroll.scroll_y == 0
+
+        await page.press("ctrl+d")
+        await page.pause()
+        down_y = scroll.scroll_y
+        assert down_y > 0
+        assert page.app.focused is tree
+        assert pane._selected_path == selected_before
+
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
+        assert page.app.focused is tree
+        assert pane._selected_path == selected_before
+
+
+async def test_config_detail_ctrl_d_u_on_short_detail_is_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        pane._do_jump("use_chezmoi")
+        await page.wait_for(lambda _s: pane._selected_path == "use_chezmoi")
+        tree = pane.query_one("#config-tree", Tree)
+        tree.focus()
+        await page.pause()
+
+        scroll = pane.query_one("#config-detail-scroll", VerticalScroll)
+        assert scroll.max_scroll_y == 0
+        await page.press("ctrl+d")
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
+        assert page.app.focused is tree
 
 
 async def test_config_pane_migrate_opens_migration_modal(
