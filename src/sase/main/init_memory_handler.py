@@ -9,6 +9,10 @@ from pathlib import Path
 import subprocess
 import sys
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.workflows.commit.precommit_hooks import run_precommit
 
@@ -24,7 +28,19 @@ from .init_memory.config import (
     project_memory_name as _project_memory_name,
     linked_entries_from_config as _linked_entries_from_config,
 )
-from .init_memory.constants import COMMAND_LABEL, PROJECT_COMMIT_MESSAGE
+from .init_memory.commit_message import build_fold_commit_message
+from .init_memory.constants import (
+    COMMAND_LABEL,
+    MEMORY_FOLD_DEFAULT_PREFIX,
+    PROJECT_COMMIT_MESSAGE,
+)
+from .init_memory.git_state import (
+    DirtyPath,
+    PreInitGitState,
+    classify as _classify_git_state,
+    dirty_path_label,
+    parse_status_z,
+)
 from .init_memory.inventory import print_validation_errors as _print_validation_errors
 from .init_memory.models import (
     MemoryRootPlan as _MemoryRootPlan,
@@ -89,6 +105,10 @@ def _unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
     return tuple(unique)
 
 
+def _stdin_is_tty() -> bool:
+    return sys.stdin.isatty()
+
+
 def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     use_chezmoi = get_use_chezmoi()
     project_root = Path.cwd()
@@ -117,40 +137,196 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     )
 
 
-def _deploy_to_project_repo(
-    project_result: _MemoryRootResult, *, no_commit: bool
-) -> int:
-    if no_commit:
-        return 0
-
-    repo_check: subprocess.CompletedProcess[str]
+def _capture_pre_init_git_state(project_root: Path) -> PreInitGitState | None:
     try:
         repo_check = subprocess.run(
-            ["git", "-C", str(project_result.root), "rev-parse", "--show-toplevel"],
+            ["git", "-C", str(project_root), "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
             check=False,
         )
     except FileNotFoundError:
-        print(f"{COMMAND_LABEL}: git not found on PATH", file=sys.stderr)
-        return 1
+        return None
 
     if repo_check.returncode != 0 or not repo_check.stdout.strip():
-        detail = repo_check.stderr.strip()
-        suffix = f": {detail}" if detail else ""
-        print(
-            f"{COMMAND_LABEL}: {project_result.root} is not a git repo{suffix}",
-            file=sys.stderr,
-        )
-        return 1
+        return None
 
     git_root = Path(repo_check.stdout.strip())
+    try:
+        status = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(git_root),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "-z",
+            ],
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+
+    if status.returncode != 0:
+        return None
+
+    entries = parse_status_z(status.stdout)
+    memory_dirty, other_dirty = _classify_git_state(entries, "memory")
+    return PreInitGitState(
+        git_root=git_root,
+        memory_dirty=memory_dirty,
+        other_dirty=other_dirty,
+    )
+
+
+def _display_dirty_path(dirty_path: DirtyPath) -> str:
+    return f"{dirty_path.path} ({dirty_path_label(dirty_path.status)})"
+
+
+def _print_foreign_dirty_refusal(other_dirty: Iterable[DirtyPath]) -> None:
+    print(
+        f"{COMMAND_LABEL}: refusing to commit - uncommitted changes outside "
+        "memory/ would be left behind:",
+        file=sys.stderr,
+    )
+    for dirty_path in other_dirty:
+        print(f"  - {_display_dirty_path(dirty_path)}", file=sys.stderr)
+    print(
+        "Commit or stash these changes and re-run `sase memory init`, or pass "
+        "--no-commit to skip the git commit/push step. The regenerated memory "
+        "files have been written but not committed.",
+        file=sys.stderr,
+    )
+
+
+def _print_fold_prompt(memory_dirty: Iterable[DirtyPath]) -> None:
+    body = Text()
+    body.append(
+        "These memory/ edits will be committed together with the\n"
+        "regenerated AGENTS.md and provider shims:\n\n"
+    )
+    for dirty_path in memory_dirty:
+        body.append(f"  - {_display_dirty_path(dirty_path)}\n")
+    Console(stderr=True).print(
+        Panel(body, title="Uncommitted memory changes", border_style="cyan")
+    )
+    default_tag = MEMORY_FOLD_DEFAULT_PREFIX.strip()
+    print(
+        f"A `{default_tag}` tag is added automatically if you omit one.",
+        file=sys.stderr,
+    )
+
+
+def _resolve_fold_commit_message(
+    memory_dirty: tuple[DirtyPath, ...],
+    message: str | None,
+) -> str | None:
+    raw_subject = message
+    if raw_subject is None:
+        if not _stdin_is_tty():
+            print(
+                f"{COMMAND_LABEL}: memory/ has uncommitted changes to fold into "
+                "the commit, but no commit message was provided and stdin is "
+                'not a TTY. Re-run with --message "<subject>", or --no-commit '
+                "to skip committing.",
+                file=sys.stderr,
+            )
+            return None
+        _print_fold_prompt(memory_dirty)
+        print("Commit message > ", end="", flush=True, file=sys.stderr)
+        try:
+            raw_subject = input()
+        except EOFError:
+            print(
+                f"{COMMAND_LABEL}: commit message entry reached EOF; aborting.",
+                file=sys.stderr,
+            )
+            return None
+        except KeyboardInterrupt:
+            print("", file=sys.stderr)
+            print(
+                f"{COMMAND_LABEL}: commit message entry cancelled; aborting.",
+                file=sys.stderr,
+            )
+            return None
+
+    if raw_subject.strip() == "":
+        print(f"{COMMAND_LABEL}: empty commit message; aborting.", file=sys.stderr)
+        return None
+
+    commit_message = build_fold_commit_message(raw_subject)
+    subject = commit_message.splitlines()[0]
+    print(f"{COMMAND_LABEL}: committing as: {subject}")
+    return commit_message
+
+
+def _deploy_to_project_repo(
+    project_result: _MemoryRootResult,
+    *,
+    no_commit: bool,
+    git_state: PreInitGitState | None = None,
+    message: str | None = None,
+) -> int:
+    if no_commit:
+        return 0
+
+    if git_state is None:
+        repo_check: subprocess.CompletedProcess[str]
+        try:
+            repo_check = subprocess.run(
+                ["git", "-C", str(project_result.root), "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            print(f"{COMMAND_LABEL}: git not found on PATH", file=sys.stderr)
+            return 1
+
+        if repo_check.returncode != 0 or not repo_check.stdout.strip():
+            detail = repo_check.stderr.strip()
+            suffix = f": {detail}" if detail else ""
+            print(
+                f"{COMMAND_LABEL}: {project_result.root} is not a git repo{suffix}",
+                file=sys.stderr,
+            )
+            return 1
+
+        git_root = Path(repo_check.stdout.strip())
+        memory_dirty: tuple[DirtyPath, ...] = ()
+        other_dirty: tuple[DirtyPath, ...] = ()
+    else:
+        git_root = git_state.git_root
+        memory_dirty = git_state.memory_dirty
+        other_dirty = git_state.other_dirty
+
+    init_changed = bool(project_result.written_paths or project_result.deleted_paths)
+    if other_dirty:
+        if init_changed or memory_dirty:
+            _print_foreign_dirty_refusal(other_dirty)
+            return 1
+        print(f"{COMMAND_LABEL}: nothing to commit in {git_root}")
+        return 0
+
+    fold_commit_message: str | None = None
+    if memory_dirty:
+        fold_commit_message = _resolve_fold_commit_message(memory_dirty, message)
+        if fold_commit_message is None:
+            return 1
+
     if not run_precommit(str(git_root)):
         return 1
 
     memory_path = _sase_memory_path(project_result.root)
     stage_paths = _unique_paths(
-        (*project_result.written_paths, *project_result.deleted_paths, memory_path)
+        (
+            *project_result.written_paths,
+            *project_result.deleted_paths,
+            memory_path,
+            *(git_root / dirty_path.path for dirty_path in memory_dirty),
+        )
     )
     for path in stage_paths:
         add = subprocess.run(
@@ -185,7 +361,10 @@ def _deploy_to_project_repo(
     print(f"Committing in {git_root}...")
     from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
-    commit_message = apply_auto_commit_type_tag(PROJECT_COMMIT_MESSAGE, "memory")
+    if fold_commit_message is None:
+        commit_message = apply_auto_commit_type_tag(PROJECT_COMMIT_MESSAGE, "memory")
+    else:
+        commit_message = fold_commit_message
     commit = subprocess.run(
         ["git", "-C", str(git_root), "commit", "-m", commit_message],
         capture_output=True,
@@ -380,6 +559,10 @@ def run_init_memory(args: argparse.Namespace) -> int:
         _print_config_errors(root_plan_blockers)
         return 1
 
+    git_state = None
+    if not inputs.no_commit:
+        git_state = _capture_pre_init_git_state(inputs.project_root)
+
     project_result = _initialize_memory_root(
         inputs.project_root,
         inputs.project_entries,
@@ -408,6 +591,8 @@ def run_init_memory(args: argparse.Namespace) -> int:
     project_exit_code = _deploy_to_project_repo(
         project_result,
         no_commit=inputs.no_commit,
+        git_state=git_state,
+        message=getattr(args, "message", None),
     )
     if project_exit_code != 0:
         exit_code = project_exit_code

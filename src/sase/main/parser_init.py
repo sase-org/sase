@@ -94,6 +94,15 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Report memory initialization drift without writing files",
     )
     memory_parser.add_argument(
+        "-m",
+        "--message",
+        metavar="MESSAGE",
+        help=(
+            "Commit subject for folding uncommitted memory/ changes; a "
+            "`docs(memory):` tag is added if omitted"
+        ),
+    )
+    memory_parser.add_argument(
         "-C",
         "--no-commit",
         action="store_true",

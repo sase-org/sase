@@ -55,15 +55,21 @@ def write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def run_handler(*, no_commit: bool = True, check: bool = False) -> int:
+def run_handler(
+    *, no_commit: bool = True, check: bool = False, message: str | None = None
+) -> int:
     with pytest.raises(SystemExit) as exc:
-        handle_init_memory_command(argparse.Namespace(no_commit=no_commit, check=check))
+        handle_init_memory_command(
+            argparse.Namespace(no_commit=no_commit, check=check, message=message)
+        )
     return int(exc.value.code)
 
 
-def run_memory(*, no_commit: bool = True, check: bool = False) -> int:
+def run_memory(
+    *, no_commit: bool = True, check: bool = False, message: str | None = None
+) -> int:
     return init_memory_handler.run_init_memory(
-        argparse.Namespace(no_commit=no_commit, check=check)
+        argparse.Namespace(no_commit=no_commit, check=check, message=message)
     )
 
 
