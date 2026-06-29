@@ -251,6 +251,31 @@ def test_patch_active_runtime_rows_skips_waiting_without_run_start() -> None:
     assert calls == []
 
 
+def test_patch_active_runtime_rows_includes_waiting_time_floor_without_run_start() -> (
+    None
+):
+    widget = AgentList()
+    waiting_agent = agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        run_start=None,
+    )
+    waiting_agent.wait_until = "2026-04-25T14:05:00"
+    widget._agents = [waiting_agent]
+    calls: list[int] = []
+
+    def patch_agent_row(agent_idx: int, **_: object) -> bool:
+        calls.append(agent_idx)
+        return True
+
+    widget.patch_agent_row = patch_agent_row  # type: ignore[method-assign]
+
+    patched = widget.patch_active_runtime_rows(datetime(2026, 4, 25, 14, 2, 0))
+
+    assert patched == 1
+    assert calls == [0]
+
+
 @pytest.mark.parametrize("status", ["PLAN", "QUESTION", "WAITING INPUT"])
 def test_patch_active_runtime_rows_skips_paused_parent_status(status: str) -> None:
     widget = AgentList()

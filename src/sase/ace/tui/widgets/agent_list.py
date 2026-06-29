@@ -14,7 +14,7 @@ from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
 )
-from ..models.agent_time import runtime_suffix_ticks
+from ..models.agent_time import row_runtime_or_wait_ticks
 from ._agent_list_build import (
     build_list,
     compute_tier_styles,
@@ -393,7 +393,7 @@ class AgentList(OptionList, inherit_bindings=False):
             )
 
     def patch_active_runtime_rows(self, now: datetime) -> int:
-        """Patch visible active rows whose runtime suffix advances with time.
+        """Patch visible rows whose compact time text advances with time.
 
         This is a cosmetic clock-tick path: failed row patches are ignored
         because the next normal agent refresh will rebuild stale rows.
@@ -408,8 +408,8 @@ class AgentList(OptionList, inherit_bindings=False):
 
     @staticmethod
     def _runtime_suffix_ticks(agent: Agent) -> bool:
-        """Return True when *agent* renders a suffix that can change each tick."""
-        return runtime_suffix_ticks(agent)
+        """Return True when *agent* renders time text that can change each tick."""
+        return row_runtime_or_wait_ticks(agent)
 
     def _format_agent_option(
         self,

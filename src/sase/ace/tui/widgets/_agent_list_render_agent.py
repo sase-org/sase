@@ -16,7 +16,13 @@ from sase.agent.status_buckets import (
 )
 
 from ..provider_styles import provider_emoji_badge
-from ..models.agent import Agent, AgentType, format_compact_duration
+from ..models.agent import (
+    Agent,
+    AgentType,
+    format_compact_duration,
+    format_wait_until,
+    wait_remaining_seconds,
+)
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 from ..models.agent_bead import agent_has_confirmed_bead
 from ._agent_list_helpers import (
@@ -77,6 +83,7 @@ def format_agent_option(
     tag_label: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
+    wait_deps_satisfied: bool | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = render_tier_gutter(tier_styles)
@@ -216,32 +223,27 @@ def format_agent_option(
         text.append(agent.status, style="bold #D7AFFF")  # Lavender
     elif agent.status == "WAITING":
         text.append(agent.status, style="bold #AF87FF")  # Amethyst
-        if agent.wait_until:
-            from sase.ace.tui.models.agent import (
-                format_wait_until,
-                wait_until_target_and_reference,
+        deps_satisfied = (
+            not agent.waiting_for
+            if wait_deps_satisfied is None
+            else wait_deps_satisfied
+        )
+        wait_remaining = wait_remaining_seconds(agent, now=now)
+        if wait_remaining is not None and wait_remaining > 0 and deps_satisfied:
+            text.append(
+                f" {format_compact_duration(wait_remaining)}",
+                style="#AF87FF",
             )
-
-            target_label = format_wait_until(agent.wait_until)
-            target, reference = wait_until_target_and_reference(agent.wait_until)
-            remaining = (target - reference).total_seconds()
-            if remaining > 0:
+        elif agent.wait_until:
+            target_label = format_wait_until(agent.wait_until, now=now)
+            if wait_remaining is not None and wait_remaining > 0:
                 text.append(
-                    f" (until {target_label}, {format_compact_duration(remaining)})",
+                    f" (until {target_label}, "
+                    f"{format_compact_duration(wait_remaining)})",
                     style="#AF87FF",
                 )
             else:
                 text.append(f" (until {target_label})", style="#AF87FF")
-        elif agent.wait_duration and agent.start_time and not agent.waiting_for:
-            from datetime import datetime, timedelta
-
-            target = agent.start_time + timedelta(seconds=agent.wait_duration)
-            remaining = (target - datetime.now()).total_seconds()
-            if remaining > 0:
-                text.append(
-                    f" ({format_compact_duration(remaining)})",
-                    style="#AF87FF",
-                )
     elif agent.status == "QUESTION":
         text.append(agent.status, style="bold #FFAF00")  # Amber/orange
     elif agent.status == "ANSWERED":
@@ -332,6 +334,7 @@ def cached_format_agent_option(
     tag_label: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
+    wait_deps_satisfied: bool | None = None,
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -352,6 +355,7 @@ def cached_format_agent_option(
         tag_label=tag_label,
         now=now,
         tier_styles=tier_styles,
+        wait_deps_satisfied=wait_deps_satisfied,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -368,6 +372,7 @@ def cached_format_agent_option(
         tag_label=tag_label,
         now=now,
         tier_styles=tier_styles,
+        wait_deps_satisfied=wait_deps_satisfied,
     )
     cache.put_agent(key, parts)
     return parts

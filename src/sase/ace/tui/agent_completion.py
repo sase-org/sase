@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import re
 from typing import TYPE_CHECKING
@@ -122,6 +122,11 @@ def _collect_agent_status_buckets(agents: Iterable[Agent]) -> dict[str, str]:
     return buckets
 
 
+def collect_agent_status_buckets(agents: Iterable[Agent]) -> dict[str, str]:
+    """Return prompt-referenceable agent names mapped to status buckets."""
+    return _collect_agent_status_buckets(agents)
+
+
 def agent_status_buckets_for_app(app: object | None) -> dict[str, str] | None:
     """Return known prompt-referenceable agent status buckets for a TUI app."""
     if app is None:
@@ -135,6 +140,17 @@ def agent_status_buckets_for_app(app: object | None) -> dict[str, str] | None:
         if agents:
             return _collect_agent_status_buckets(agents)
     return None
+
+
+def wait_dependencies_satisfied(
+    agent: Agent, status_buckets: Mapping[str, str] | None
+) -> bool:
+    """Return whether every waited-for agent is known done."""
+    if not agent.waiting_for:
+        return True
+    if status_buckets is None:
+        return False
+    return all(status_buckets.get(name) == "Done" for name in agent.waiting_for)
 
 
 def build_agent_completion_candidates(

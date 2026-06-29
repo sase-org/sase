@@ -5,6 +5,8 @@ Phase 3 of sdd/tales/202604/instant_jk_navigation.md (bead sase-u.3).
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from sase.ace.tui.widgets._agent_list_rendering import agent_render_key
@@ -265,6 +267,68 @@ def test_render_key_changes_when_confirmed_bead_state_changes(
         assert k_cold != k_confirmed
     finally:
         _BEAD_DISPLAY_CACHE.clear()
+
+
+def test_render_key_changes_each_second_for_waiting_time_floor() -> None:
+    a = _agent(status="WAITING")
+    a.wait_until = "2026-04-25T14:35:00"
+
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 4, 25, 14, 30, 0),
+        wait_deps_satisfied=True,
+    )
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 4, 25, 14, 30, 1),
+        wait_deps_satisfied=True,
+    )
+
+    assert k1 != k2
+
+
+def test_render_key_changes_when_wait_deps_satisfied_flips() -> None:
+    a = _agent(status="WAITING")
+    a.wait_until = "2026-04-25T14:35:00"
+    a.waiting_for = ["dep"]
+    now = datetime(2026, 4, 25, 14, 30, 0)
+
+    pending_key = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=now,
+        wait_deps_satisfied=False,
+    )
+    satisfied_key = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=now,
+        wait_deps_satisfied=True,
+    )
+
+    assert pending_key != satisfied_key
 
 
 def test_render_key_unchanged_when_unconfirmed_candidate_resolves_missing(

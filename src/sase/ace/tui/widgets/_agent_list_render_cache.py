@@ -16,7 +16,7 @@ from textual.widgets.option_list import Option
 from ..models.agent import Agent
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
-from ..models.agent_time import runtime_suffix_ticks
+from ..models.agent_time import row_runtime_or_wait_ticks
 from ._agent_list_helpers import ordered_row_providers
 
 _AGENT_CACHE_MAX = 512
@@ -91,7 +91,7 @@ def _runtime_signature(
         return ("cycle", agent.identity)
     seen = _seen | {agent_id}
 
-    time_sensitive = runtime_suffix_ticks(agent)
+    time_sensitive = row_runtime_or_wait_ticks(agent)
     child_signature = tuple(
         _runtime_signature(child, now, seen)
         for child in getattr(agent, "runtime_children", ())
@@ -128,6 +128,7 @@ def agent_render_key(
     tag_label: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
+    wait_deps_satisfied: bool | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -150,6 +151,8 @@ def agent_render_key(
         agent.auto_approve_plan_action,
         agent.tag,
         agent.agent_name,
+        tuple(agent.waiting_for),
+        wait_deps_satisfied,
         agent_file_change_hint(agent),
         agent.reverted,
         agent_has_confirmed_bead(agent),

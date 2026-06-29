@@ -14,6 +14,11 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.widgets.option_list import Option
 
+from ..agent_completion import (
+    agent_status_buckets_for_app,
+    collect_agent_status_buckets,
+    wait_dependencies_satisfied,
+)
 from ..models.agent import Agent, AgentType
 from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
@@ -179,6 +184,15 @@ def _banner_mark_state(
     return "partial"
 
 
+def _agent_status_buckets_for_build(widget: Any, agents: list[Agent]) -> dict[str, str]:
+    """Return status buckets for wait dependency rendering."""
+    try:
+        app = getattr(widget, "app", None)
+    except Exception:
+        app = None
+    return agent_status_buckets_for_app(app) or collect_agent_status_buckets(agents)
+
+
 def build_list(
     widget: Any,
     agents: list[Agent],
@@ -228,6 +242,7 @@ def build_list(
     agent_tier_styles, banner_tier_styles = compute_tier_styles(
         tree, panel_uses_cs=panel_uses_cs, mode=grouping_mode
     )
+    status_buckets = _agent_status_buckets_for_build(widget, agents)
 
     # Pre-format agent rows so we know their widths before emitting banner
     # rules (banners are stretched to the widest row, and the runtime
@@ -254,6 +269,7 @@ def build_list(
             tag_labels[i] if tag_labels is not None and i < len(tag_labels) else None
         )
         tier_styles = agent_tier_styles.get(i, ())
+        wait_deps_done = wait_dependencies_satisfied(agent, status_buckets)
         left, suffix, option_id = cached_format_agent_option(
             widget._agent_render_cache,
             agent,
@@ -267,6 +283,7 @@ def build_list(
             tag_label=tag_label,
             now=now,
             tier_styles=tier_styles,
+            wait_deps_satisfied=wait_deps_done,
         )
         agent_parts[i] = (left, suffix, option_id)
         widget._row_render_ctx[i] = {
@@ -277,6 +294,7 @@ def build_list(
             "hint_char": hint,
             "tag_label": tag_label,
             "is_selected": is_selected_agent,
+            "wait_deps_satisfied": wait_deps_done,
         }
         widget._row_tier_styles[i] = tier_styles
         max_left = max(max_left, left.cell_len)
@@ -556,6 +574,7 @@ def patch_row(
         tag_label=ctx.get("tag_label"),
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
+        wait_deps_satisfied=ctx.get("wait_deps_satisfied"),
     )
 
     gap = 2 if suffix.cell_len else 0

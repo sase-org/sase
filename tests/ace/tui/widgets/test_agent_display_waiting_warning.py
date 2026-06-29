@@ -11,6 +11,7 @@ from rich.text import Text
 from sase.ace.tui.agent_completion import (
     _collect_agent_status_buckets,
     agent_status_buckets_for_app,
+    wait_dependencies_satisfied,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -203,3 +204,30 @@ def test_agent_status_buckets_for_app_uses_full_agent_set_and_falls_back() -> No
     assert agent_status_buckets_for_app(
         SimpleNamespace(_agents_with_children=[], _agents=[fallback_agent])
     ) == {"fallback": "Done"}
+
+
+def test_wait_dependencies_satisfied_accepts_empty_wait_list() -> None:
+    agent = make_agent(status="WAITING", waiting_for=[])
+
+    assert wait_dependencies_satisfied(agent, None) is True
+
+
+def test_wait_dependencies_satisfied_requires_all_deps_done() -> None:
+    agent = make_agent(status="WAITING", waiting_for=["coder", "reviewer"])
+
+    assert (
+        wait_dependencies_satisfied(
+            agent,
+            {"coder": "Done", "reviewer": "Done"},
+        )
+        is True
+    )
+    assert (
+        wait_dependencies_satisfied(
+            agent,
+            {"coder": "Done", "reviewer": "Running"},
+        )
+        is False
+    )
+    assert wait_dependencies_satisfied(agent, {"coder": "Done"}) is False
+    assert wait_dependencies_satisfied(agent, None) is False

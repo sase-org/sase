@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 10:30:07
-status: wip
+status: done
 prompt: sdd/prompts/202606/wait_time_concise_live_countdown.md
 ---
 # Concise, live countdown for time-floored `%wait` agents

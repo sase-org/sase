@@ -6,7 +6,11 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.tui.models.agent_time import runtime_suffix_ticks
+from sase.ace.tui.models.agent_time import (
+    row_runtime_or_wait_ticks,
+    runtime_suffix_ticks,
+    wait_countdown_ticks,
+)
 
 from .agent_list_runtime_helpers import (
     agent,
@@ -76,3 +80,37 @@ def test_runtime_suffix_ticks_non_agent_workflow_child_does_not_tick(
 ) -> None:
     result = workflow_child(step_type=step_type, status="RUNNING")
     assert runtime_suffix_ticks(result) is False
+
+
+def test_wait_countdown_ticks_waiting_with_wait_until() -> None:
+    result = agent(
+        status="WAITING",
+        run_start=None,
+    )
+    result.wait_until = "2026-04-25T14:35:00"
+
+    assert runtime_suffix_ticks(result) is False
+    assert wait_countdown_ticks(result) is True
+    assert row_runtime_or_wait_ticks(result) is True
+
+
+def test_wait_countdown_ticks_waiting_with_relative_time_floor() -> None:
+    result = agent(
+        status="WAITING",
+        run_start=None,
+    )
+    result.wait_duration = 300.0
+
+    assert runtime_suffix_ticks(result) is False
+    assert wait_countdown_ticks(result) is True
+    assert row_runtime_or_wait_ticks(result) is True
+
+
+def test_wait_countdown_ticks_skips_plain_waiting_and_non_waiting() -> None:
+    plain_waiting = agent(status="WAITING", run_start=None)
+    running = agent(status="RUNNING")
+    running.wait_until = "2026-04-25T14:35:00"
+
+    assert wait_countdown_ticks(plain_waiting) is False
+    assert row_runtime_or_wait_ticks(plain_waiting) is False
+    assert wait_countdown_ticks(running) is False
