@@ -12,6 +12,7 @@ import pytest
 from sase.ace.changespec.models import DeltaEntry
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
+from sase.ace.tui.widgets.file_panel import _display as file_panel_display_mod
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -32,8 +33,8 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_COMMIT_DIFF_FIXTURES = Path("tests/ace/tui/visual/fixtures/commit_diffs")
+_COMMIT_DIFF_DISPLAY_FIXTURES = Path("tests/ace/tui/visual/fixtures/commit_diffs")
+_COMMIT_DIFF_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "commit_diffs"
 _COMMIT_DELTA_SUMMARY_TIMEOUT_SECONDS = 30.0
 
 
@@ -170,6 +171,24 @@ def _seed_linked_repo_visual_delta(
     )
 
 
+def _patch_commit_diff_display_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_read_static_file = file_panel_display_mod._read_static_file
+
+    def read_static_file(request_id: int, path: str, mode: str):
+        result = original_read_static_file(request_id, path, mode)
+        try:
+            relative = (
+                Path(result.expanded_path).resolve().relative_to(_COMMIT_DIFF_FIXTURES)
+            )
+        except ValueError:
+            return result
+
+        result.expanded_path = str(_COMMIT_DIFF_DISPLAY_FIXTURES / relative)
+        return result
+
+    monkeypatch.setattr(file_panel_display_mod, "_read_static_file", read_static_file)
+
+
 async def _wait_for_commit_delta_summary(page: AcePage, agent: Agent) -> None:
     prompt_panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
     deadline = time.monotonic() + _COMMIT_DELTA_SUMMARY_TIMEOUT_SECONDS
@@ -218,7 +237,7 @@ async def test_agents_commit_messages_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.chdir(_REPO_ROOT)
+    _patch_commit_diff_display_paths(monkeypatch)
     agent = _linked_repo_commits_agent()
     patch_startup_loaders(monkeypatch, agents=[agent])
 

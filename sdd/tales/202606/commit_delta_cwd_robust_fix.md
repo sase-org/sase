@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 13:24:48
-status: wip
+status: done
 prompt: sdd/prompts/202606/commit_delta_cwd_robust_fix.md
 ---
 # Make the commit-delta visual test robustly CWD-independent and harden the suite against CWD leaks

@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 import os
 import tempfile
+import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,6 +28,36 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--sase-visual-artifact-dir",
         default=".pytest_cache/sase-visual",
         help="Directory for ACE visual snapshot failure artifacts.",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _restore_working_directory(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Restore the process working directory after tests that leak it."""
+    start_cwd = os.getcwd()
+    yield
+
+    try:
+        current_cwd = os.getcwd()
+    except FileNotFoundError:
+        current_cwd = "<deleted>"
+
+    if current_cwd == start_cwd:
+        return
+
+    monkeypatch = request.node.funcargs.get("monkeypatch")
+    # ``monkeypatch.chdir`` may be restored after this autouse fixture finalizes.
+    if monkeypatch is not None and getattr(monkeypatch, "_cwd", None) is not None:
+        return
+
+    os.chdir(start_cwd)
+    warnings.warn(
+        (
+            f"{request.node.nodeid} changed the process working directory "
+            f"from {start_cwd!r} to {current_cwd!r}; restored it."
+        ),
+        RuntimeWarning,
+        stacklevel=2,
     )
 
 
