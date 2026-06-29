@@ -18,6 +18,7 @@ from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
     append_model_field,
     extract_meta_fields,
+    project_display_label,
     should_render_agent_detail_model,
 )
 
@@ -176,10 +177,14 @@ def build_header_text(
         header_text.append("\n")
     elif meta_project:
         header_text.append("Project: ", style="bold #87D7FF")
-        header_text.append(f"{meta_project}\n", style="#00D7AF")
+        header_text.append(
+            f"{project_display_label(agent, meta_project)}\n", style="#00D7AF"
+        )
     elif agent.is_project_agent:
         header_text.append("Project: ", style="bold #87D7FF")
-        header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
+        header_text.append(
+            f"{project_display_label(agent, agent.cl_name)}\n", style="#00D7AF"
+        )
     else:
         # ChangeSpec name
         header_text.append("ChangeSpec: ", style="bold #87D7FF")

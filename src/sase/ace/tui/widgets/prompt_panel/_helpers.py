@@ -146,6 +146,11 @@ def should_render_agent_detail_model(agent: Agent) -> bool:
     return not (agent.is_workflow_child and not agent.is_agent_entry)
 
 
+def project_display_label(agent: Agent, fallback: object) -> str:
+    """Return the display label for an agent's project field."""
+    return agent.project_display_name or str(fallback)
+
+
 def load_xprompts_used(agent: Agent) -> list[dict[str, Any]] | None:
     """Load xprompt metadata from xprompts.json.
 

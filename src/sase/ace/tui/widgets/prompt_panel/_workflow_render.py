@@ -14,7 +14,11 @@ from sase.agent.status_buckets import (
 
 from ...models.agent import Agent
 from ...util.lazy_syntax import lazy_renderable
-from ._helpers import WORKFLOW_VARIABLES_SECTION_LABEL, append_model_field
+from ._helpers import (
+    WORKFLOW_VARIABLES_SECTION_LABEL,
+    append_model_field,
+    project_display_label,
+)
 from ._workflow_steps import format_workflow_steps_rich
 from ._workflow_types import WorkflowDetailSnapshot
 
@@ -46,7 +50,9 @@ def build_workflow_detail_renderable(
     # Project/ChangeSpec with meta_* priority
     if meta_project:
         header_text.append("Project: ", style="bold #87D7FF")
-        header_text.append(f"{meta_project}\n", style="#00D7AF")
+        header_text.append(
+            f"{project_display_label(agent, meta_project)}\n", style="#00D7AF"
+        )
     elif meta_changespec:
         header_text.append("ChangeSpec: ", style="bold #87D7FF")
         header_text.append(f"{meta_changespec}\n", style="#00D7AF")

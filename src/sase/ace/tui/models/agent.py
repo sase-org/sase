@@ -381,6 +381,8 @@ class Agent:
             and self.workflow
         ):
             return self.workflow
+        if self.is_project_agent and self.project_display_name:
+            return self.project_display_name
         return self.cl_name
 
     @property
