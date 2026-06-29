@@ -277,11 +277,11 @@ class AceApp(
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
             yield TaskIndicator(id="task-indicator")
+            yield UpdatesAvailableIndicator(id="updates-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")
             yield InactiveIndicator(id="inactive-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
-            yield UpdatesAvailableIndicator(id="updates-indicator")
         with Horizontal(id="main-container"):
             with Horizontal(id="changespecs-view", classes=cs_classes):
                 with Vertical(id="list-container"):
