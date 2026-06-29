@@ -27,6 +27,20 @@ class PlanApprovalResult:
     coder_model: str | None = None
 
 
+def _auto_approval_result(auto_action: str, plan_file: str) -> PlanApprovalResult:
+    """Build the runner result for an auto-approved plan.
+
+    Bare ``%auto``/``%a`` plan mode resolves to ``auto_action == "approve"``.
+    That mirrors the interactive "Approve" choice, so it should run the coder
+    without committing an SDD tale. Tale and epic auto modes keep committing.
+    """
+    return PlanApprovalResult(
+        action=auto_action,
+        plan_file=plan_file,
+        commit_plan=auto_action != "approve",
+    )
+
+
 def add_create_time_frontmatter(
     content: str, create_time: datetime | None = None
 ) -> str:
@@ -171,7 +185,7 @@ def handle_plan_approval(
         # this plan must be cleared, so record handled-state and dismiss the
         # matching notification if it exists.
         _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
-        return PlanApprovalResult(action=auto_action, plan_file=plan_file)
+        return _auto_approval_result(auto_action, plan_file)
 
     if not plan_file:
         return None
@@ -299,6 +313,6 @@ def handle_plan_approval(
             if request_path.exists():
                 request_path.unlink()
             _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
-            return PlanApprovalResult(action=auto_action, plan_file=plan_file)
+            return _auto_approval_result(auto_action, plan_file)
 
         time.sleep(_POLL_INTERVAL)

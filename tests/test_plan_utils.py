@@ -94,7 +94,9 @@ def test_handle_plan_approval_auto_approve() -> None:
         return_value="approve",
     ):
         result = handle_plan_approval("/path/to/plan.md", "session-123")
-    assert result == PlanApprovalResult(action="approve", plan_file="/path/to/plan.md")
+    assert result == PlanApprovalResult(
+        action="approve", plan_file="/path/to/plan.md", commit_plan=False
+    )
 
 
 def test_handle_plan_approval_auto_epic_skips_notification() -> None:
@@ -156,7 +158,11 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
             agent_name="planner.agent",
         )
 
-    assert result == PlanApprovalResult(action=auto_action, plan_file=plan_file)
+    assert result == PlanApprovalResult(
+        action=auto_action,
+        plan_file=plan_file,
+        commit_plan=auto_action != "approve",
+    )
     assert get_auto_action.call_count == 3
     sleep.assert_called_once()
 
@@ -260,7 +266,9 @@ def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
     ):
         result = handle_plan_approval(plan_file, "session-xyz", agent_name="plan.agent")
 
-    assert result == PlanApprovalResult(action="approve", plan_file=plan_file)
+    assert result == PlanApprovalResult(
+        action="approve", plan_file=plan_file, commit_plan=False
+    )
     store = pending_actions.read_pending_action_store()
     assert store["actions"]["abcdef01"]["state"] == "already_handled"
     assert store["actions"]["abcdef01"]["handled_action"] == "approve"

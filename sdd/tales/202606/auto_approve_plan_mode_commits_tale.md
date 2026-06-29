@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 08:55:55
-status: wip
+status: done
 prompt: sdd/prompts/202606/auto_approve_plan_mode_commits_tale.md
 ---
 # Fix: `%a` (auto plan mode) wrongly approves a tale instead of a plain plan

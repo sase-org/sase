@@ -223,6 +223,75 @@ class TestPlanFollowupApprovals:
             accept_mod.update_meta_field.call_args_list
         )
 
+    @pytest.mark.parametrize(
+        (
+            "auto_action",
+            "commit_plan",
+            "expected_plan_action",
+            "expected_committed",
+        ),
+        [
+            ("approve", False, "approve", False),
+            ("tale", True, "tale", True),
+        ],
+    )
+    def test_auto_plan_result_classifies_and_commits_by_action(
+        self,
+        tmp_path,
+        auto_action: str,
+        commit_plan: bool,
+        expected_plan_action: str,
+        expected_committed: bool,
+    ) -> None:
+        """Auto plan approval stays plain; auto tale still commits as a tale."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_artifacts_dir = state.current_artifacts_dir
+        plan_file = str(tmp_path / f"{auto_action}.md")
+        sdd_plan = tmp_path / "sdd" / "tales" / "202606" / f"{auto_action}.md"
+        (tmp_path / f"{auto_action}.md").write_text("# Plan")
+        sdd_plan.parent.mkdir(parents=True)
+        sdd_plan.write_text("# Saved Plan")
+
+        approval = PlanApprovalResult(
+            action=auto_action,
+            plan_file=plan_file,
+            commit_plan=commit_plan,
+            run_coder=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", sdd_plan),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files",
+                return_value=True,
+            ) as mock_commit,
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        meta_calls = accept_mod.update_meta_field.call_args_list
+        assert (
+            call(plan_artifacts_dir, "plan_action", expected_plan_action) in meta_calls
+        )
+        assert (
+            call(plan_artifacts_dir, "plan_committed", expected_committed) in meta_calls
+        )
+        relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
+            "relationships"
+        ]
+        assert relationships["plan_committed"] is expected_committed
+        if expected_committed:
+            mock_commit.assert_called_once()
+            assert mock_commit.call_args.kwargs["plan_kind"] == "tales"
+        else:
+            mock_commit.assert_not_called()
+
     def test_approve_followup_propagates_plan_committed_flag(self, tmp_path) -> None:
         """Coder follow-up metadata records whether the SDD plan was committed."""
         ctx = make_ctx(tmp_path)
