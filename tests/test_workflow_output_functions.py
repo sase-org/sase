@@ -2,20 +2,20 @@
 
 from inline_snapshot import snapshot
 
-from sase.xprompt.workflow_output import _format_value, get_substep_suffix
+from sase.xprompt.workflow_output import _format_value, _get_substep_suffix
 
 
 class TestGetSubstepSuffix:
     def test_single_letters(self) -> None:
-        assert get_substep_suffix(0) == snapshot("a")
-        assert get_substep_suffix(1) == snapshot("b")
-        assert get_substep_suffix(25) == snapshot("z")
+        assert _get_substep_suffix(0) == snapshot("a")
+        assert _get_substep_suffix(1) == snapshot("b")
+        assert _get_substep_suffix(25) == snapshot("z")
 
     def test_double_letters(self) -> None:
-        assert get_substep_suffix(26) == snapshot("aa")
-        assert get_substep_suffix(27) == snapshot("ab")
-        assert get_substep_suffix(51) == snapshot("az")
-        assert get_substep_suffix(52) == snapshot("ba")
+        assert _get_substep_suffix(26) == snapshot("aa")
+        assert _get_substep_suffix(27) == snapshot("ab")
+        assert _get_substep_suffix(51) == snapshot("az")
+        assert _get_substep_suffix(52) == snapshot("ba")
 
 
 class TestFormatValue:

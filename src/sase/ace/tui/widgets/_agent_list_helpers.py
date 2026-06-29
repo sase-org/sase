@@ -15,22 +15,6 @@ def short_model_name(model: str) -> str:
     return parts[0] if parts else model
 
 
-def step_role_suffix(agent: Agent) -> str:
-    """Return role suffix to include in step number, or empty string.
-
-    Shows role_suffix (e.g., ".plan", ".code", ".q") as part of the step number
-    only for agent-type workflow steps and follow-up agents.  Other step types
-    (bash, python) and workflow parents do not display it.
-    """
-    if not agent.role_suffix:
-        return ""
-    if not agent.parent_workflow:
-        return agent.role_suffix
-    if agent.step_type == "agent":
-        return agent.role_suffix
-    return ""
-
-
 def _normalized_provider(provider: str | None) -> str | None:
     if provider is None:
         return None

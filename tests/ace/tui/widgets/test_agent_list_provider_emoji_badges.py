@@ -154,7 +154,8 @@ class TestAgentListProviderEmojiBadges:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "1/2 🤖 child-agent (RUNNING)" in left.plain
+        assert "🤖 child-agent (RUNNING)" in left.plain
+        assert "1/2" not in left.plain
 
     def test_non_agent_workflow_child_row_omits_provider_emoji(self) -> None:
         agent = make_agent(
@@ -171,7 +172,8 @@ class TestAgentListProviderEmojiBadges:
 
         left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "1/2 🐚 diff (RUNNING)" in left.plain
+        assert "🐚 diff (RUNNING)" in left.plain
+        assert "1/2" not in left.plain
         assert "🎭" not in left.plain
         assert suffix.plain == "✏️"
 
@@ -199,14 +201,16 @@ class TestWorkflowStepTypeGlyph:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "1/3 \U0001f40d " in left.plain
+        assert "\U0001f40d " in left.plain
+        assert "1/3" not in left.plain
 
     def test_bash_step_renders_shell_glyph(self) -> None:
         agent = self._make_child("bash")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "1/3 \U0001f41a " in left.plain
+        assert "\U0001f41a " in left.plain
+        assert "1/3" not in left.plain
 
     def test_agent_step_has_no_step_type_glyph(self) -> None:
         agent = self._make_child("agent")

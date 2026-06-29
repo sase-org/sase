@@ -575,16 +575,16 @@ class TestOutputTypesPreservation:
 
 
 class TestSubstepSuffix:
-    """Tests for the get_substep_suffix helper function."""
+    """Tests for the substep suffix helper function."""
 
     def test_substep_suffix_double_letters(self) -> None:
         """Test that indices 26+ map to aa, ab, etc."""
-        from sase.xprompt.workflow_output import get_substep_suffix
+        from sase.xprompt.workflow_output import _get_substep_suffix
 
-        assert get_substep_suffix(26) == "aa"
-        assert get_substep_suffix(27) == "ab"
-        assert get_substep_suffix(51) == "az"
-        assert get_substep_suffix(52) == "ba"
+        assert _get_substep_suffix(26) == "aa"
+        assert _get_substep_suffix(27) == "ab"
+        assert _get_substep_suffix(51) == "az"
+        assert _get_substep_suffix(52) == "ba"
 
 
 class TestParentStepContext:

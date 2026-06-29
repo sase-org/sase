@@ -14,7 +14,6 @@ from sase.agent.status_buckets import (
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
 )
-from sase.xprompt.workflow_output import get_substep_suffix
 
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import Agent, AgentType, format_compact_duration
@@ -23,7 +22,6 @@ from ..models.agent_bead import agent_has_confirmed_bead
 from ._agent_list_helpers import (
     ordered_row_providers,
     short_model_name,
-    step_role_suffix,
 )
 from ._agent_list_render_cache import (
     AgentRenderCache,
@@ -109,25 +107,6 @@ def format_agent_option(
     # Indentation for workflow child agents
     if agent.is_workflow_child:
         text.append(_CHILD_INDENT, style="dim #808080")
-        if agent.step_index is not None:
-            if (
-                agent.parent_step_index is not None
-                and agent.parent_total_steps is not None
-            ):
-                # Embedded step: format as "1a/7"
-                parent_num = agent.parent_step_index + 1
-                substep = get_substep_suffix(agent.step_index)
-                text.append(
-                    f"{parent_num}{substep}/{agent.parent_total_steps} ",
-                    style="dim #AAAAAA",
-                )
-            elif agent.total_steps is not None:
-                # Regular step: format as "1/3" or "1/3.plan"
-                step_num = agent.step_index + 1
-                role = step_role_suffix(agent)
-                text.append(
-                    f"{step_num}/{agent.total_steps}{role} ", style="dim #AAAAAA"
-                )
         step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
         if step_glyph is not None:
             glyph_color = _STEP_TYPE_COLORS.get(agent.step_type or "", "#FFFFFF")
