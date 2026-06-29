@@ -88,7 +88,7 @@ class ProcessSelectModal(
                     process_type="bgcmd" if running else "dismiss_bgcmd",
                     slot=slot,
                     display_name=cmd_display,
-                    description=f"{info.project} (ws {info.workspace_num})",
+                    description=f"{info.display_project} (ws {info.workspace_num})",
                 )
             )
 

@@ -26,6 +26,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     append_input_hints,
 )
+from sase.project_display_names import project_display_name_for
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 
 if TYPE_CHECKING:
@@ -382,7 +383,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
             if entry.status:
                 content.append(f"  {entry.status}", style="dim")
             if entry.project:
-                content.append(f"  · {entry.project}", style="dim")
+                content.append(
+                    f"  · {project_display_name_for(entry.project)}",
+                    style="dim",
+                )
         else:
             content.append(f"  {entry.provider_display}", style="dim")
             if entry.description:

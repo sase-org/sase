@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
+
+from sase.project_aliases import humanize_project_refs_in_prompt
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
@@ -56,6 +59,15 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             if cache is not None:
                 cache.clear()
             self._agent_markdown_render_cache_identity = identity
+
+    def _display_raw_xprompt(self, agent: Agent, raw_xprompt: str) -> str:
+        if not agent.project_file or not agent.project_display_name:
+            return raw_xprompt
+        project_key = Path(agent.project_file).parent.name
+        return humanize_project_refs_in_prompt(
+            raw_xprompt,
+            {project_key: agent.project_display_name},
+        )
 
     def _render_markdown(self, content: str) -> object:
         return lazy_renderable(
@@ -109,6 +121,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         # AGENT XPROMPT section
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
+            raw_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
             header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
             header_text.append("\n")
             header_text.append(f"{raw_xprompt}\n")

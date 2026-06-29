@@ -255,7 +255,7 @@ class AxeStatusSection(Static):
             # Project
             text.append("  │  ", style="dim")
             text.append("Project: ", style="bold #87D7FF")
-            text.append(info.project, style="#00D7AF")
+            text.append(info.display_project, style="#00D7AF")
 
             # Workspace
             text.append("  │  ", style="dim")

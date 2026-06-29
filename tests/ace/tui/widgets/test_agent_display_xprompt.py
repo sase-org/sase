@@ -38,6 +38,33 @@ class TestAgentXPromptRendering:
         assert "AGENT PROMPT" in plain
         assert "AGENT CHAT" in plain
 
+    def test_agent_xprompt_body_uses_logical_project_name(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            raw_xprompt=(
+                "#gh:gh_acme__widgets fix\n"
+                "#gh(gh_acme__widgets) inspect\n"
+                "path: /tmp/gh_acme__widgets/file"
+            ),
+        )
+        agent.project_file = "/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase"
+        agent.project_display_name = "widgets"
+
+        panel.update_display(agent)
+
+        plain = plain_of(panel.captured[-1])
+        assert "#gh:widgets fix" in plain
+        assert "#gh(widgets) inspect" in plain
+        assert "path: /tmp/gh_acme__widgets/file" in plain
+        assert "#gh:gh_acme__widgets fix" not in plain
+
     def test_hint_mode_renders_raw_xprompt_for_terminal_agent(
         self,
         tmp_path: Path,

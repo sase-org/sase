@@ -529,6 +529,40 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
     return unprotect_fenced_blocks(canonicalized, fenced_blocks)
 
 
+def humanize_project_refs_in_prompt(
+    prompt: str,
+    display_name_by_project: Mapping[str, str],
+) -> str:
+    """Rewrite canonical project refs in VCS launch tags to display names."""
+    if "#" not in prompt or not display_name_by_project:
+        return prompt
+
+    pattern = _project_alias_ref_pattern()
+    if pattern is None:
+        return prompt
+
+    protected, fenced_blocks = _candidate_prompt(prompt)
+    if pattern.search(protected) is None:
+        return prompt
+
+    def replace(match: re.Match[str]) -> str:
+        ref = match.group("ref") or match.group("paren") or ""
+        display_name = display_name_by_project.get(ref)
+        if not display_name or display_name == ref:
+            return match.group(0)
+
+        prefix = (
+            f"{match.group('context')}#"
+            f"{match.group('workflow')}{match.group('marker') or ''}"
+        )
+        if match.group("paren") is not None:
+            return f"{prefix}({display_name})"
+        return f"{prefix}:{display_name}"
+
+    humanized = pattern.sub(replace, protected)
+    return unprotect_fenced_blocks(humanized, fenced_blocks)
+
+
 __all__ = [
     "ProjectAliasError",
     "add_project_alias_locked",
@@ -537,6 +571,7 @@ __all__ = [
     "clear_project_aliases_locked",
     "ensure_project_name_locked",
     "effective_project_name",
+    "humanize_project_refs_in_prompt",
     "load_project_alias_map",
     "remove_project_alias_locked",
     "resolve_project_alias_ref",

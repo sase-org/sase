@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from rich.text import Text
 
+from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.actions.axe_display._data import ChopRunSnapshot
 from sase.ace.tui.widgets import axe_dashboard
 from sase.ace.tui.widgets.axe_dashboard import AxeDashboard
@@ -206,6 +207,29 @@ def test_status_section_renders_no_wrap_text() -> None:
     for text in captured:
         assert text.no_wrap is True
         assert text.overflow == "ellipsis"
+
+
+def test_bgcmd_status_section_uses_display_project() -> None:
+    """Background-command status shows PROJECT_NAME when available."""
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    captured: list[Text] = []
+    section.update = lambda content: captured.append(content)  # type: ignore[assignment,arg-type]
+    info = BackgroundCommandInfo(
+        command="make test",
+        project="gh_acme__widgets",
+        workspace_num=1,
+        workspace_dir="/path",
+        started_at="2025-01-01T12:00:00",
+        project_display_name="widgets",
+    )
+
+    section.update_bgcmd_display(info=info, is_running=True)
+
+    assert captured
+    plain = captured[-1].plain
+    assert "Project: widgets" in plain
+    assert "gh_acme__widgets" not in plain
 
 
 def test_chop_status_header_colors_names_with_sidebar_taxonomy() -> None:

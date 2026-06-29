@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 10:13:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_display_name_everywhere.md
 ---
 # Show `PROJECT_NAME` (not the directory key) in **all** remaining user-facing surfaces

@@ -5,7 +5,10 @@ from __future__ import annotations
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import grouping_keys_for_agents
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
-from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    DetailHeaderSummary,
+    build_header_text,
+)
 from sase.ace.tui.widgets.prompt_panel._workflow_render import (
     build_workflow_detail_renderable,
 )
@@ -44,6 +47,43 @@ class TestProjectDisplayNameRendering:
 
         assert "Project: widgets" in header.plain
         assert "Project: gh_acme__widgets" not in header.plain
+
+    def test_xprompt_args_use_logical_project_name(self) -> None:
+        agent = _project_agent()
+        summary = DetailHeaderSummary(
+            xprompts_used=[
+                {
+                    "kind": "workflow",
+                    "name": "gh",
+                    "positional": ["gh_acme__widgets", "--flag"],
+                    "named": {"project": "gh_acme__widgets"},
+                }
+            ],
+        )
+
+        header, _ = build_header_text(agent, summary=summary)
+
+        assert "Xprompts:" in header.plain
+        assert "widgets" in header.plain
+        assert "gh_acme__widgets" not in header.plain
+        assert "--flag" in header.plain
+
+    def test_xprompt_args_fall_back_to_directory_key(self) -> None:
+        agent = _project_agent(project_display_name=None)
+        summary = DetailHeaderSummary(
+            xprompts_used=[
+                {
+                    "kind": "workflow",
+                    "name": "gh",
+                    "positional": ["gh_acme__widgets", "literal"],
+                }
+            ],
+        )
+
+        header, _ = build_header_text(agent, summary=summary)
+
+        assert "gh_acme__widgets" in header.plain
+        assert "literal" in header.plain
 
     def test_meta_project_header_uses_logical_project_name(self) -> None:
         agent = _project_agent()

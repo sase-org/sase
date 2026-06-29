@@ -58,6 +58,56 @@ def test_background_command_info_dataclass() -> None:
     assert info.workspace_num == 1
     assert info.workspace_dir == "/path/to/workspace"
     assert info.started_at == "2025-01-01T12:00:00"
+    assert info.display_project == "myproject"
+
+
+def test_get_slot_info_attaches_display_project_without_persisting_it() -> None:
+    """get_slot_info resolves display names but keeps info.json canonical."""
+    import json
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with (
+            patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", Path(tmp_dir)),
+            patch(
+                "sase.ace.tui.bgcmd.project_display_name_for",
+                return_value="widgets",
+            ),
+        ):
+            info = BackgroundCommandInfo(
+                command="make test",
+                project="gh_acme__widgets",
+                workspace_num=1,
+                workspace_dir="/path",
+                started_at="2025-01-01T12:00:00",
+            )
+            _write_info(1, info)
+
+            raw = json.loads((Path(tmp_dir) / "1" / "info.json").read_text())
+            assert "project_display_name" not in raw
+
+            loaded = get_slot_info(1)
+            assert loaded is not None
+            assert loaded.project == "gh_acme__widgets"
+            assert loaded.display_project == "widgets"
+
+
+def test_bgcmd_confirmation_description_uses_display_project() -> None:
+    """Kill/rerun confirmation copy uses the display project label."""
+    from sase.ace.tui.actions.axe_bgcmd import _bgcmd_description
+
+    info = BackgroundCommandInfo(
+        command="make test",
+        project="gh_acme__widgets",
+        workspace_num=2,
+        workspace_dir="/path",
+        started_at="2025-01-01T12:00:00",
+        project_display_name="widgets",
+    )
+
+    description = _bgcmd_description(info)
+
+    assert "(widgets, workspace 2)" in description
+    assert "gh_acme__widgets" not in description
 
 
 def test_read_pid_invalid_content() -> None:

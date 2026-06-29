@@ -194,6 +194,34 @@ async def test_menu_renders_project_and_changespec_badges() -> None:
         assert "· sase" in rendered
 
 
+async def test_menu_renders_changespec_project_display_name() -> None:
+    app = CompletionTestApp()
+    entries = [
+        _entry(
+            "ship-completion",
+            kind="changespec",
+            project="gh_acme__widgets",
+            status="Ready",
+        )
+    ]
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        with (
+            patch(_ENTRIES_PATH, return_value=entries),
+            patch(
+                "sase.ace.tui.widgets._prompt_input_bar_completion.project_display_name_for",
+                side_effect=lambda key: {"gh_acme__widgets": "widgets"}.get(key, key),
+            ),
+        ):
+            await pilot.press("#")
+            await pilot.press("+")
+
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render().plain
+        assert "· widgets" in rendered
+        assert "gh_acme__widgets" not in rendered
+
+
 async def test_bare_plus_after_text_does_not_open() -> None:
     """A bare ``+`` triggers only at offset 0, not after existing text."""
     app = CompletionTestApp()

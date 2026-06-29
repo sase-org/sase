@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 
 from rich.syntax import Syntax
 from rich.text import Text
@@ -229,7 +230,15 @@ def build_header_text(
     if not cheap and summary is not None:
         from ._agent_xprompts import append_agent_xprompts_section
 
-        append_agent_xprompts_section(header_text, summary.xprompts_used)
+        project_key = (
+            Path(agent.project_file).parent.name if agent.project_file else None
+        )
+        append_agent_xprompts_section(
+            header_text,
+            summary.xprompts_used,
+            project_key=project_key,
+            project_display_name=agent.project_display_name,
+        )
 
     # VCS provider
     if agent.vcs_provider:

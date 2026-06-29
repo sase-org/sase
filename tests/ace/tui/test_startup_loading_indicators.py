@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.ace.tui.widgets.axe_info_panel import AxeInfoPanel
 
@@ -69,6 +70,25 @@ def test_axe_info_panel_loading_clears() -> None:
     panel._interval = 10
     plain = _collect_text(panel)
     assert "…" not in plain
+
+
+def test_axe_info_panel_uses_bgcmd_display_project() -> None:
+    """AxeInfoPanel shows PROJECT_NAME for background commands."""
+    panel = AxeInfoPanel()
+    panel._bgcmd_mode = True
+    panel._bgcmd_info = BackgroundCommandInfo(
+        command="make test",
+        project="gh_acme__widgets",
+        workspace_num=1,
+        workspace_dir="/path",
+        started_at="2025-01-01T12:00:00",
+        project_display_name="widgets",
+    )
+
+    plain = _collect_text(panel)
+
+    assert "widgets" in plain
+    assert "gh_acme__widgets" not in plain
 
 
 def test_set_loading_short_circuits_when_unchanged() -> None:

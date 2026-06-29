@@ -102,6 +102,22 @@ def test_process_select_modal_long_command_truncated() -> None:
     assert "..." in modal._processes[1].display_name
 
 
+def test_process_select_modal_uses_bgcmd_display_project() -> None:
+    """The process selector shows PROJECT_NAME instead of the directory key."""
+    info = BackgroundCommandInfo(
+        command="make test",
+        project="gh_acme__widgets",
+        workspace_num=1,
+        workspace_dir="/path",
+        started_at="2025-01-01T12:00:00",
+        project_display_name="widgets",
+    )
+    modal = ProcessSelectModal(axe_running=False, bgcmd_slots=[(5, info)])
+
+    assert "widgets (ws 1)" == modal._processes[1].description
+    assert "gh_acme__widgets" not in modal._processes[1].description
+
+
 def test_process_select_modal_bindings() -> None:
     """Test that ProcessSelectModal has expected bindings."""
 

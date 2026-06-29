@@ -9,12 +9,13 @@ import json
 import os
 import signal
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
+from sase.project_display_names import project_display_name_for
 
 # State directory location
 BGCMD_STATE_DIR = sase_subdir("axe") / "bgcmd"
@@ -34,6 +35,12 @@ class BackgroundCommandInfo:
     started_at: str
     pid: int | None = None
     finished_at: str | None = None  # Set when command completes
+    project_display_name: str | None = field(default=None, compare=False)
+
+    @property
+    def display_project(self) -> str:
+        """User-facing project label for display-only surfaces."""
+        return self.project_display_name or self.project
 
 
 def _get_slot_dir(slot: int) -> Path:
@@ -164,7 +171,9 @@ def get_slot_info(slot: int) -> BackgroundCommandInfo | None:
     try:
         with open(info_file) as f:
             data = json.load(f)
-        return BackgroundCommandInfo(**data)
+        info = BackgroundCommandInfo(**data)
+        info.project_display_name = project_display_name_for(info.project)
+        return info
     except (OSError, json.JSONDecodeError, TypeError):
         return None
 
@@ -178,8 +187,10 @@ def _write_info(slot: int, info: BackgroundCommandInfo) -> None:
     """
     _ensure_slot_dir(slot)
     info_file = _get_slot_dir(slot) / "info.json"
+    data = asdict(info)
+    data.pop("project_display_name", None)
     with open(info_file, "w") as f:
-        json.dump(asdict(info), f, indent=2)
+        json.dump(data, f, indent=2)
 
 
 def mark_slot_finished(slot: int) -> None:

@@ -2,8 +2,9 @@
 
 from dataclasses import dataclass
 
-from sase.history.command import CommandEntry, get_commands_for_display
 from rich.text import Text
+from sase.history.command import CommandEntry, get_commands_for_display
+from sase.project_display_names import project_display_name_for
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
@@ -20,6 +21,7 @@ class _CommandDisplayItem:
     entry: CommandEntry
     marker: str  # "*", "~", or " "
     display_context: str  # Padded project/CL context
+    display_project: str
 
 
 class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
@@ -58,20 +60,20 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if not items:
             return
 
-        # Calculate max context length for alignment
-        max_context_len = max(
-            len(f"{entry.project}/{entry.cl_name}" if entry.cl_name else entry.project)
-            for _, entry in items
-        )
+        display_projects = {
+            entry.project: project_display_name_for(entry.project) for _, entry in items
+        }
+
+        def context_for(entry: CommandEntry) -> str:
+            project = display_projects.get(entry.project, entry.project)
+            return f"{project}/{entry.cl_name}" if entry.cl_name else project
+
+        max_context_len = max(len(context_for(entry)) for _, entry in items)
 
         for display_str, entry in items:
             # Parse marker from display string (first char)
             marker = display_str[0] if display_str else " "
-            # Build context string
-            if entry.cl_name:
-                context = f"{entry.project}/{entry.cl_name}"
-            else:
-                context = entry.project
+            context = context_for(entry)
             display_context = context.ljust(max_context_len)
 
             self._all_items.append(
@@ -79,6 +81,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
                     entry=entry,
                     marker=marker,
                     display_context=display_context,
+                    display_project=display_projects.get(entry.project, entry.project),
                 )
             )
 
@@ -120,10 +123,10 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
             text.append("* ", style="bold green")
             text.append(f"= {self._current_cl}  ")
             text.append("~ ", style="bold yellow")
-            text.append(f"= {self._current_project}")
+            text.append(f"= {project_display_name_for(self._current_project)}")
         elif self._current_project:
             text.append("~ ", style="bold yellow")
-            text.append(f"= {self._current_project}")
+            text.append(f"= {project_display_name_for(self._current_project)}")
         else:
             text.append("Showing all commands")
         return text
@@ -170,6 +173,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
             for item in self._all_items
             if filter_lower in item.entry.command.lower()
             or filter_lower in item.entry.project.lower()
+            or filter_lower in item.display_project.lower()
             or (item.entry.cl_name and filter_lower in item.entry.cl_name.lower())
         ]
 
@@ -247,7 +251,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
             meta_text = Text()
             meta_text.append("\n--- Metadata ---\n", style="dim")
             meta_text.append("Project: ", style="bold")
-            meta_text.append(f"{item.entry.project}\n")
+            meta_text.append(f"{item.display_project}\n")
             if item.entry.cl_name:
                 meta_text.append("CL: ", style="bold")
                 meta_text.append(f"{item.entry.cl_name}\n")

@@ -30,6 +30,11 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
+def _bgcmd_description(info: BackgroundCommandInfo) -> str:
+    """Return display-only bgcmd confirmation text."""
+    return f"{info.command}\n({info.display_project}, workspace {info.workspace_num})"
+
+
 def _bgcmd_launch_task(
     slot: int,
     command: str,
@@ -295,9 +300,7 @@ class AxeBgCmdMixin:
         # Running command - show confirmation dialog
         from ..modals import ConfirmKillModal
 
-        description = (
-            f"{info.command}\n({info.project}, workspace {info.workspace_num})"
-        )
+        description = _bgcmd_description(info)
 
         def on_confirmed(confirmed: bool) -> None:
             if confirmed:
@@ -345,9 +348,7 @@ class AxeBgCmdMixin:
 
         from ..modals import ConfirmRerunModal
 
-        description = (
-            f"{info.command}\n({info.project}, workspace {info.workspace_num})"
-        )
+        description = _bgcmd_description(info)
 
         original_info = info
 

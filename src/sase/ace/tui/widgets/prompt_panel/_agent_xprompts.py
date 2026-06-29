@@ -21,6 +21,9 @@ _ARG_VALUE_LIMIT = 40
 def append_agent_xprompts_section(
     text: Text,
     xprompts_used: list[dict[str, Any]] | None,
+    *,
+    project_key: str | None = None,
+    project_display_name: str | None = None,
 ) -> None:
     """Append the selected agent's xprompt reference summary when available."""
     xprompts = xprompts_used or []
@@ -44,7 +47,11 @@ def append_agent_xprompts_section(
         text.append(f"  {glyph} ", style=style)
         text.append(f"#{name}", style=style)
 
-        args_display = _format_args(item)
+        args_display = _format_args(
+            item,
+            project_key=project_key,
+            project_display_name=project_display_name,
+        )
         if args_display:
             text.append("  ")
             text.append(args_display, style=_COLOR_ARGS)
@@ -62,17 +69,70 @@ def _summary(xprompts: list[dict[str, Any]]) -> str:
     return " · ".join(parts) if parts else count_phrase(len(xprompts), "xprompt")
 
 
-def _format_args(item: dict[str, Any]) -> str:
+def _format_args(
+    item: dict[str, Any],
+    *,
+    project_key: str | None = None,
+    project_display_name: str | None = None,
+) -> str:
     positional = item.get("positional")
     named = item.get("named")
     pieces: list[str] = []
 
     if isinstance(positional, list):
-        pieces.extend(_truncate_value(value) for value in positional)
+        pieces.extend(
+            _truncate_value(
+                _display_arg_value(
+                    value,
+                    project_key=project_key,
+                    project_display_name=project_display_name,
+                )
+            )
+            for value in positional
+        )
     if isinstance(named, dict):
-        pieces.extend(f"{key}={_truncate_value(value)}" for key, value in named.items())
+        pieces.extend(
+            _format_named_arg(
+                key,
+                value,
+                project_key=project_key,
+                project_display_name=project_display_name,
+            )
+            for key, value in named.items()
+        )
 
     return ", ".join(piece for piece in pieces if piece)
+
+
+def _format_named_arg(
+    key: Any,
+    value: Any,
+    *,
+    project_key: str | None,
+    project_display_name: str | None,
+) -> str:
+    display_value = _display_arg_value(
+        value,
+        project_key=project_key,
+        project_display_name=project_display_name,
+    )
+    return f"{key}={_truncate_value(display_value)}"
+
+
+def _display_arg_value(
+    value: Any,
+    *,
+    project_key: str | None,
+    project_display_name: str | None,
+) -> Any:
+    if (
+        project_key
+        and project_display_name
+        and isinstance(value, str)
+        and value == project_key
+    ):
+        return project_display_name
+    return value
 
 
 def _truncate_value(value: Any) -> str:

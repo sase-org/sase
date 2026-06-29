@@ -162,7 +162,7 @@ class AxeInfoPanel(Static):
         elif self._bgcmd_mode:
             # Show bgcmd info (just project name)
             if self._bgcmd_info:
-                text.append(self._bgcmd_info.project, style="#87D7FF")
+                text.append(self._bgcmd_info.display_project, style="#87D7FF")
             text.append("  ", style="")
         else:
             # Show axe info (just the countdown for now)
