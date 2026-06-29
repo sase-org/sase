@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 12:46:09
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_axe_daemon_sigterm_handler_race.md
 ---
 # Fix CI red: `test_stop_axe_daemon_targets_inherited_lock_daemon` SIGTERM-handler race

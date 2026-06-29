@@ -453,8 +453,8 @@ def test_stop_axe_daemon_targets_inherited_lock_daemon(
             "os.ftruncate(fd, 0)",
             "os.write(fd, (str(pid) + '\\n').encode())",
             "os.fsync(fd)",
-            "print(pid, flush=True)",
             "signal.signal(signal.SIGTERM, lambda _signum, _frame: sys.exit(0))",
+            "print(pid, flush=True)",
             "time.sleep(30)",
         ]
     )
