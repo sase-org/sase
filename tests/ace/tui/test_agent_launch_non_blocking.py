@@ -11,8 +11,9 @@ The direct compatibility wrapper still routes the body through
 central Textual task queue, which runs it in a worker thread and makes the
 launch visible in the task indicator and Task Queue modal.
 
-Dispatch routing and VCS-ref resolution paths through the body live in
-``test_agent_launch_dispatch.py`` and ``test_agent_launch_vcs.py``.
+Dispatch routing paths through the body live in
+``test_agent_launch_dispatch.py``; VCS-ref resolution paths live under
+``agent_launch_vcs/``.
 """
 
 from __future__ import annotations

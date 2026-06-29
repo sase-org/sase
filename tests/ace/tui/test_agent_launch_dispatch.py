@@ -7,7 +7,7 @@ to the fanout worker, and the post-launch refresh schedule.
 
 The non-blocking event-loop guarantees live in
 ``test_agent_launch_non_blocking.py``; the VCS-ref resolution paths live
-in ``test_agent_launch_vcs.py``.
+under ``agent_launch_vcs/``.
 """
 
 from __future__ import annotations

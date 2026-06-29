@@ -1,8 +1,8 @@
 """Shared harnesses and fixtures for the ``_run_agent_launch_body*`` tests.
 
 These helpers were extracted from ``test_agent_launch_non_blocking.py`` when
-that file was split per concern (non-blocking wrapper, dispatch routing,
-VCS ref resolution).
+that file was split per concern: non-blocking wrapper, dispatch routing,
+and VCS ref resolution.
 """
 
 from __future__ import annotations
