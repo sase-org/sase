@@ -30,6 +30,7 @@ class _StopQuitApp(AxeMixin):
         self.kill_task_calls = 0
         self.submitted_workers: list[Any] = []
         self.pushed: list[tuple[Any, Any]] = []
+        self.notifications: list[tuple[str, str | None]] = []
 
     def run_worker(self, work: Any) -> Any:
         self.submitted_workers.append(work)
@@ -37,6 +38,9 @@ class _StopQuitApp(AxeMixin):
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         self.pushed.append((modal, callback))
+
+    def notify(self, msg: str, *, severity: str | None = None) -> None:
+        self.notifications.append((msg, severity))
 
     def _count_running_tasks(self) -> int:
         return self._running_task_count
@@ -228,3 +232,44 @@ def test_restart_tui_still_quits_when_task_kill_raises() -> None:
     assert app.exit_action == AceExitAction.RESTART_TUI
     assert app.kill_task_calls == 1
     assert app.did_quit is True
+
+
+class _RestartStashApp(_StopQuitApp):
+    def __init__(self, *, stash_raises: bool = False) -> None:
+        super().__init__()
+        self._stash_raises = stash_raises
+        self.stash_calls = 0
+
+    def _stash_prompt_bar_before_restart(self) -> bool:
+        self.stash_calls += 1
+        self.order.append("stash")
+        if self._stash_raises:
+            raise RuntimeError("stash failed")
+        return True
+
+
+def test_restart_tui_stashes_prompt_before_killing_tasks() -> None:
+    app = _RestartStashApp()
+
+    app._restart_tui(restart_axe=False)
+
+    assert app.stash_calls == 1
+    assert app.exit_action == AceExitAction.RESTART_TUI
+    assert app.did_quit is True
+    assert app.order == ["watchdog", "stash", "kill-tasks", "quit"]
+    assert app.notifications == [
+        ("Prompt draft stashed; press @ to restore after restart", None)
+    ]
+
+
+def test_restart_tui_still_quits_when_restart_stash_raises() -> None:
+    app = _RestartStashApp(stash_raises=True)
+
+    app._restart_tui(restart_axe=False)
+
+    assert app.stash_calls == 1
+    assert app.exit_action == AceExitAction.RESTART_TUI
+    assert app.kill_task_calls == 1
+    assert app.did_quit is True
+    assert app.order == ["watchdog", "stash", "kill-tasks", "quit"]
+    assert app.notifications == []

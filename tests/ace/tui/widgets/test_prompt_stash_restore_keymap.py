@@ -220,3 +220,54 @@ async def test_restore_is_noop_in_feedback_mode() -> None:
         await pilot.pause()
 
         assert bar.all_prompt_texts() == ["plan note"]
+
+
+# --- restart capture helper ------------------------------------------------
+
+
+async def test_capture_stashable_panes_returns_multi_pane_draft() -> None:
+    app = _RestoreApp("alpha\n---\nbeta")
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar._stack.frontmatter = "---\ndescription: draft\n---"
+
+        panes = bar.capture_stashable_panes()
+
+        assert [(pane.text, pane.frontmatter, pane.pane_index) for pane in panes] == [
+            ("alpha", "---\ndescription: draft\n---", 0),
+            ("beta", "---\ndescription: draft\n---", 1),
+        ]
+        assert bar.all_prompt_texts() == ["alpha", "beta"]
+
+
+async def test_capture_stashable_panes_keeps_frontmatter_only_draft() -> None:
+    app = _RestoreApp("")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar._stack.frontmatter = "---\ndescription: draft\n---"
+
+        panes = bar.capture_stashable_panes()
+
+        assert [(pane.text, pane.frontmatter, pane.pane_index) for pane in panes] == [
+            ("", "---\ndescription: draft\n---", 0)
+        ]
+
+
+async def test_capture_stashable_panes_empty_prompt_returns_empty() -> None:
+    app = _RestoreApp("   ")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        assert bar.capture_stashable_panes() == []
+
+
+async def test_capture_stashable_panes_is_noop_in_feedback_mode() -> None:
+    app = _RestoreApp("plan note", mode="feedback")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        assert bar.capture_stashable_panes() == []

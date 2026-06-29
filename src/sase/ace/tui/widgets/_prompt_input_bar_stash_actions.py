@@ -31,6 +31,32 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         def _sync_state_from_widgets(self) -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
 
+    def capture_stashable_panes(
+        self, *, include_frontmatter_only: bool = True
+    ) -> list[StashedPromptPane]:
+        """Return the current prompt draft as stash panes without side effects."""
+        if self._mode != "prompt":
+            return []
+        self._sync_state_from_widgets()
+        panes = [
+            StashedPromptPane(
+                text=stripped,
+                frontmatter=self._stack.frontmatter,
+                pane_index=index,
+            )
+            for index, item in enumerate(self._stack.items)
+            if (stripped := item.text.strip())
+        ]
+        if panes or not include_frontmatter_only or not self._stack.frontmatter.strip():
+            return panes
+        return [
+            StashedPromptPane(
+                text="",
+                frontmatter=self._stack.frontmatter,
+                pane_index=self._stack.selected_index,
+            )
+        ]
+
     def stash_active_pane(self) -> None:
         """Stash the active pane's draft for later (the ``<Ctrl+S>`` keymap).
 
@@ -71,23 +97,15 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         Reached by the ``gs`` / ``<Ctrl+G> s`` keymap.
 
         Prompt mode only.  Each non-empty pane becomes its own stash entry —
-        order preserved, original ``pane_index`` recorded — and all of them
-        carry the bar's shared frontmatter, then the whole bar is dismissed
-        (``dismiss_bar``).  When no pane has text it is a no-op and an empty
-        ``Stashed`` is posted so the app can toast.
+        order preserved, original ``pane_index`` recorded — and all of them carry
+        the bar's shared frontmatter. A frontmatter-only draft is captured as an
+        empty pane carrying that frontmatter. The whole bar is dismissed
+        (``dismiss_bar``). When there is nothing stashable, an empty ``Stashed``
+        is posted so the app can toast.
         """
         if self._mode != "prompt":
             return
-        self._sync_state_from_widgets()
-        panes = [
-            StashedPromptPane(
-                text=stripped,
-                frontmatter=self._stack.frontmatter,
-                pane_index=index,
-            )
-            for index, item in enumerate(self._stack.items)
-            if (stripped := item.text.strip())
-        ]
+        panes = self.capture_stashable_panes()
         if not panes:
             self.post_message(self.Stashed([], source="all", dismiss_bar=False))
             return
@@ -98,24 +116,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         """Stash the whole bar as one bundle, then load *markdown* in its place."""
         if self._mode != "prompt":
             return
-        self._sync_state_from_widgets()
-        panes = [
-            StashedPromptPane(
-                text=stripped,
-                frontmatter=self._stack.frontmatter,
-                pane_index=index,
-            )
-            for index, item in enumerate(self._stack.items)
-            if (stripped := item.text.strip())
-        ]
-        if not panes and self._stack.frontmatter.strip():
-            panes = [
-                StashedPromptPane(
-                    text="",
-                    frontmatter=self._stack.frontmatter,
-                    pane_index=self._stack.selected_index,
-                )
-            ]
+        panes = self.capture_stashable_panes()
         if panes:
             self._clear_active_completion_state()
             self.post_message(self.Stashed(panes, source="all", dismiss_bar=False))
@@ -125,16 +126,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         """Ask the app to update a pinned stash from the current prompt stack."""
         if self._mode != "prompt":
             return
-        self._sync_state_from_widgets()
-        panes = [
-            StashedPromptPane(
-                text=stripped,
-                frontmatter=self._stack.frontmatter,
-                pane_index=index,
-            )
-            for index, item in enumerate(self._stack.items)
-            if (stripped := item.text.strip())
-        ]
+        panes = self.capture_stashable_panes()
         if panes:
             self._clear_active_completion_state()
         self.post_message(self.UpdatePinnedRequested(panes))
@@ -151,23 +143,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         # ``panes`` remains the full xprompt-save source.
         single_pane = len(self._stack) == 1
         snippet_body = self._stack.selected_item.text.strip()
-        panes = [
-            StashedPromptPane(
-                text=stripped,
-                frontmatter=self._stack.frontmatter,
-                pane_index=index,
-            )
-            for index, item in enumerate(self._stack.items)
-            if (stripped := item.text.strip())
-        ]
-        if not panes and self._stack.frontmatter.strip():
-            panes = [
-                StashedPromptPane(
-                    text="",
-                    frontmatter=self._stack.frontmatter,
-                    pane_index=self._stack.selected_index,
-                )
-            ]
+        panes = self.capture_stashable_panes()
         if panes:
             self._clear_active_completion_state()
         self.post_message(

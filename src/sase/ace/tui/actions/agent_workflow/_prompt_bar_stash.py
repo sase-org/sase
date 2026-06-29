@@ -10,9 +10,13 @@ fronts the Rust ``sase_core_rs`` store), shows a toast, and refreshes the
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from ._types import PromptContext
+
+log = logging.getLogger(__name__)
+_RESTART_STASH_SOURCE = "restart"
 
 if TYPE_CHECKING:
     from asyncio import Lock
@@ -32,6 +36,21 @@ class PromptBarStashMixin:
     """Persist stashed prompt panes and keep the top-bar badge in sync."""
 
     _prompt_context: PromptContext | None
+
+    def _stash_prompt_bar_before_restart(self) -> bool:
+        """Synchronously stash the mounted agent prompt before a TUI restart."""
+        try:
+            bar = self._mounted_prompt_bar()
+            if bar is None or bar._mode != "prompt":
+                return False
+            panes = bar.capture_stashable_panes()
+            if not panes:
+                return False
+            self._persist_stashed_panes(panes, source=_RESTART_STASH_SOURCE)
+        except Exception:
+            log.exception("Failed to stash prompt draft before TUI restart")
+            return False
+        return True
 
     def on_prompt_input_bar_stashed(self, event: object) -> None:
         """Persist stashed panes, toast, and refresh the indicator badge."""

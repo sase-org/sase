@@ -228,6 +228,21 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         if callable(stop_watchdog):
             stop_watchdog()
 
+        draft_stashed = False
+        stash_before_restart = getattr(self, "_stash_prompt_bar_before_restart", None)
+        if callable(stash_before_restart):
+            try:
+                draft_stashed = bool(stash_before_restart())
+            except Exception:
+                draft_stashed = False
+        if draft_stashed:
+            try:
+                self.notify(  # type: ignore[attr-defined]
+                    "Prompt draft stashed; press @ to restore after restart"
+                )
+            except Exception:
+                pass
+
         try:
             self._kill_all_running_tasks()  # type: ignore[attr-defined]
         except Exception:

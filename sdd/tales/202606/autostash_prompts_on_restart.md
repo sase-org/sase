@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 06:58:00
-status: wip
+status: done
 prompt: sdd/prompts/202606/autostash_prompts_on_restart.md
 ---
 # Plan: Auto-stash prompt drafts before a TUI restart
