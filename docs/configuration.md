@@ -95,22 +95,21 @@ summary line (`N plugins · M installed · K updates available · cached <age>`)
 **Built-in** and **Community** (third-party, shown with a warning) sections, and a detail panel mirroring
 `sase plugin show`. Status glyphs match the CLI exactly: `●` installed, `○` available, `↑` update available. Editable /
 dev installs (both the core packages and plugins) carry a lowercase `dev` source marker and are compared against their
-git upstream instead of PyPI, so a local checkout can surface an `↑ dev update available` hint. Full update actions
-(`u`) route through the [dev-update](plugins.md#dev-editable-installs) planner — git fast-forward plus in-place
-reconcile — instead of the `uv` path for editable packages, and after a successful changed editable update the modal
-restarts ACE and the axe daemon so the new code is picked up immediately. Blocked editable checkout states are shown as
-dim reasons instead of update arrows, such as `dev · local changes`, `dev · diverged`, `dev · detached HEAD`,
-`dev · no upstream`, or `dev · offline`.
+git upstream instead of PyPI, so a local checkout can surface an `↑ dev update available` hint. Update actions route
+editable packages through the [dev-update](plugins.md#dev-editable-installs) planner — git fast-forward plus in-place
+reconcile — and route managed packages through the `uv` path. Blocked editable checkout states are shown as dim reasons
+instead of update arrows, such as `dev · local changes`, `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`,
+or `dev · offline`.
 
-Every mutation **previews first**: install and managed update actions open a confirm-preview modal showing the exact
-`uv` command and resolved package set; editable-checkout dev updates preview the git fetch/fast-forward and reconcile
-steps. The confirmation _is_ the dry-run. Mutations run as tracked background tasks so a multi-second `uv`, git, or Rust
-rebuild never blocks the UI. A successful update that changed code automatically restarts ACE and axe through the same
-restart path as the `Q` restart action; no-op and failed updates leave the current UI running and refresh the catalog
-when appropriate. When `sase` is not a managed `uv tool install`, browsing still works but install/update are disabled
-with the same actionable message the CLI gives. When incoming commit previews are enabled, the SASE Core panel and
-plugin detail panes can show the newest upstream commit subjects for repositories with update metadata; offline mode
-skips those remote checks. The context-sensitive keymaps are:
+Every mutation **previews first**: install and managed update actions open a confirm-preview modal showing the
+underlying `uv` command and resolved package set; editable-checkout dev updates preview the git fetch/fast-forward and
+reconcile steps. The confirmation _is_ the dry-run. Mutations run as tracked background tasks so a multi-second `uv`,
+git, or Rust rebuild never blocks the UI. A successful update that changed code automatically restarts ACE and axe
+through the same restart path as the `Q` restart action; no-op and failed updates leave the current UI running and
+refresh the catalog when appropriate. When `sase` is not a managed `uv tool install`, browsing still works but
+install/update are disabled with the same actionable message the CLI gives. When incoming commit previews are enabled,
+the SASE Core panel and plugin detail panes can show the newest upstream commit subjects for repositories with update
+metadata; offline mode skips those remote checks. The context-sensitive keymaps are:
 
 | Key       | Action                                                                                      |
 | --------- | ------------------------------------------------------------------------------------------- |
@@ -118,7 +117,7 @@ skips those remote checks. The context-sensitive keymaps are:
 | `i`       | Install the highlighted plugin (only when not installed); toggle index vs. git in the modal |
 | `x`       | Uninstall the highlighted plugin (only when installed)                                      |
 | `u`       | Run `sase update` for SASE core plus all installed plugins                                  |
-| `U`       | Update the highlighted installed plugin                                                     |
+| `U`       | Update the highlighted installed plugin when that row has an update available               |
 | `r`       | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)               |
 | `Ctrl+D`  | Scroll the detail panel down                                                                |
 | `Ctrl+U`  | Scroll the detail panel up                                                                  |

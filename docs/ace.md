@@ -288,9 +288,10 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 > vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
 On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. It can jump among
-visible ancestors, descendants, and neighbors in the same immediate namespace, such as `foo.bar` and `foo.baz`. If there
-is only one related visible row ACE jumps directly; otherwise it opens a chooser that can also revive same-session
-dismissed descendants.
+visible ancestors, descendants, and neighbors in the same immediate namespace, such as `foo.bar` and `foo.baz`. Dotless
+names can still have descendants (`foo.child`) but do not have same-namespace peer neighbors. If there is only one
+related visible row ACE jumps directly; otherwise it opens a chooser that can also revive same-session dismissed
+descendants.
 
 ### Agent Actions
 
@@ -1417,9 +1418,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
 - **Wait state**: For an agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view shows a
-  `Wait:` line. Dependency names include per-name status badges, dismissed descendants still appear when they keep a
-  family blocked, and timed waits include compact target/countdown text when available. A `%wait` target that does not
-  match a currently known agent is flagged with an unknown-agent indicator, so typos and stale references are obvious.
+  `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
+  known agents or agent-family roots, and marks unknown names with `?` so typos and stale references are obvious. Timed
+  waits add compact duration, target time, and countdown text when available.
 - **OUTPUT VARIABLES**: Small string values written by the agent with `sase var set KEY=VALUE`. Keys are sorted for
   stable display, multi-line values are indented, and the section is omitted when the agent has not published variables.
   These values are stored in `agent_meta.json`, so they are visible metadata rather than secret storage.
@@ -2029,8 +2030,11 @@ Text objects compose with `d`, `c`, and `y`.
 | `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                              |
 | `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count        |
 | `J`        | Join current line with next (supports count: `5J`)                                        |
-| `K`        | Preview the xprompt, skill, or file under the cursor in a scrollable modal                |
-| `Ctrl+]`   | Jump to the definition or file under the cursor; choose an action when several apply      |
+| `K`        | Preview the xprompt, workflow, skill, or file under the cursor in a scrollable modal      |
+| `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                    |
+
+For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one available action. Inside tmux, or for
+loadable Markdown xprompt definitions, it can show a small chooser for editor, tmux-pane, or load-into-prompt actions.
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
 
@@ -2139,12 +2143,12 @@ output every second while the Tasks tab is visible.
 Open the SASE Admin Center with `#`, then press `5` (or `]` until you reach **Updates**). The Updates tab keeps SASE
 itself and its installed plugins current without leaving the TUI: a **SASE Core** panel shows the installed and latest
 versions of the `sase` and `sase-core` packages, and below it the full plugin catalog lets you browse, inspect, install,
-update, or uninstall a plugin. Press `u` to run `sase update` for core plus all installed plugins, `U` to update the
-highlighted installed plugin, `i` to install, `x` to uninstall, and `r` to refresh the catalog and latest versions.
-Editable / dev installs are labeled with a lowercase `dev` source marker and compared against their git upstream rather
-than PyPI, so a local checkout can surface an `↑ dev update available` hint. The SASE Core panel and plugin details can
-show incoming commit subjects when update metadata is available. Every mutation previews the exact `uv` command or
-editable-checkout plan first and then runs as a tracked background task. See the
+update, or uninstall a plugin. Press `u` to run the full SASE update for core plus installed plugins, `U` to update the
+highlighted installed plugin when that row has an update available, `i` to install, `x` to uninstall, and `r` to refresh
+the catalog and latest versions. Editable / dev installs are labeled with a lowercase `dev` source marker and compared
+against their git upstream rather than PyPI, so a local checkout can surface an `↑ dev update available` hint. The SASE
+Core panel and plugin details can show incoming commit subjects when update metadata is available. Every mutation
+previews the underlying `uv` command or editable-checkout plan first and then runs as a tracked background task. See the
 [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and [Plugins](plugins.md) for
 the equivalent `sase plugin` CLI.
 
