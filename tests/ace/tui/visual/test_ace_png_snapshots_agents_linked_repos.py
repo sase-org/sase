@@ -32,6 +32,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _COMMIT_DIFF_FIXTURES = Path("tests/ace/tui/visual/fixtures/commit_diffs")
 _COMMIT_DELTA_SUMMARY_TIMEOUT_SECONDS = 30.0
 
@@ -217,6 +218,7 @@ async def test_agents_commit_messages_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.chdir(_REPO_ROOT)
     agent = _linked_repo_commits_agent()
     patch_startup_loaders(monkeypatch, agents=[agent])
 

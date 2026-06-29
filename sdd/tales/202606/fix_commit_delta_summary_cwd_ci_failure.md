@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 12:02:21
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_commit_delta_summary_cwd_ci_failure.md
 ---
 # Fix CI failure: `test_agents_commit_messages_panel_png_snapshot` times out
