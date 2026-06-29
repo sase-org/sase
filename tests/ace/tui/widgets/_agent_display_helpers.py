@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_bead import _BEAD_DISPLAY_CACHE, resolve_bead_display
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
     AgentHintsDisplayMixin,
 )
+from sase.bead.model import Issue
 
 
 def make_agent(**overrides: object) -> Agent:
@@ -27,6 +31,22 @@ def make_agent(**overrides: object) -> Agent:
     }
     defaults.update(overrides)
     return Agent(**defaults)  # type: ignore[arg-type]
+
+
+@pytest.fixture
+def clear_bead_display_cache() -> Iterator[None]:
+    _BEAD_DISPLAY_CACHE.clear()
+    yield
+    _BEAD_DISPLAY_CACHE.clear()
+
+
+def confirm_bead(agent: Agent, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Warm the confirmation cache so rows render the bead glyph."""
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue",
+        lambda candidate_id, **_: Issue(id=candidate_id, title="", description=""),
+    )
+    resolve_bead_display(agent)
 
 
 class FakePromptPanel(AgentDisplayMixin, AgentHintsDisplayMixin):
