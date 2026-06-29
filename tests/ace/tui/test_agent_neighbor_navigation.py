@@ -274,6 +274,67 @@ def test_agent_neighbor_navigation_fast_jumps_to_single_visible_descendant() -> 
     assert app.acknowledged == [agents[1]]
 
 
+def test_agent_neighbor_navigation_fast_jumps_to_single_visible_ancestor() -> None:
+    agents = [
+        _agent("foo", status="DONE"),
+        _agent("foo.bar", status="RUNNING"),
+    ]
+    app = _NeighborApp(agents, current_idx=1)
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 0
+    assert app.pushed_screens == []
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 0)]
+    assert app.armed_departures == [agents[1]]
+    assert app.acknowledged == [agents[0]]
+
+
+def test_agent_neighbor_navigation_opens_modal_with_ancestors_first() -> None:
+    agents = [
+        _agent("foo"),
+        _agent("foo.bar"),
+        _agent("foo.bar.baz"),
+        _agent("foo.qux"),
+    ]
+    app = _NeighborApp(agents, current_idx=1)
+
+    app.action_start_sibling_mode()
+
+    assert app.current_idx == 1
+    assert len(app.pushed_screens) == 1
+    modal = app.pushed_screens[0]
+    assert isinstance(modal, AgentNeighborModal)
+    assert [choice.group for choice in modal._choices] == [
+        "ancestor",
+        "descendant",
+        "neighbor",
+    ]
+    assert [choice.global_idx for choice in modal._choices] == [0, 2, 3]
+    assert modal._title_text() == (
+        "Neighbors of foo.bar  [1 ancestor - 1 descendant - 1 neighbor]"
+    )
+    assert [
+        str(option.id) for option in modal._create_options() if option.disabled
+    ] == [
+        "header-ancestors",
+        "header-descendants",
+        "header-neighbors",
+    ]
+
+    app.pushed_callbacks[0](0)
+
+    assert app.current_idx == 0
+    assert app.acknowledged == [agents[0]]
+
+
+def test_selected_agent_neighbor_count_includes_ancestors() -> None:
+    agents = [_agent("foo"), _agent("foo.bar")]
+    app = _NeighborApp(agents, current_idx=1)
+
+    assert app._selected_agent_neighbor_count(agents[1]) == 1
+
+
 def test_agent_neighbor_navigation_jumps_within_a_sub_hood() -> None:
     agents = [_agent("foo.bar.baz"), _agent("foo.bar.qux")]
     app = _NeighborApp(agents)

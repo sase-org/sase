@@ -64,7 +64,7 @@ def test_agents_help_lists_neighbor_navigation() -> None:
         for key, label in bindings
     }
 
-    assert ("~", "Jump to neighbor / descendant agent") in agent_pairs
+    assert ("~", "Jump ancestor/neighbor/desc") in agent_pairs
     assert ("< / > / ~", "Navigate to ancestor / child / sibling") in cls_pairs
 
 

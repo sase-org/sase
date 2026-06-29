@@ -179,8 +179,40 @@ def test_agent_neighbor_modal_title_summarizes_two_groups() -> None:
     assert modal._title_text() == "Neighbors of foo  [1 descendant - 2 neighbors]"
 
 
+def test_agent_neighbor_modal_title_summarizes_ancestors_first() -> None:
+    choices = [
+        AgentNeighborChoice(
+            agent_name="foo",
+            display_name="parent",
+            status="DONE",
+            panel_label="#api",
+            group="ancestor",
+        ),
+        AgentNeighborChoice(
+            agent_name="foo.bar.child",
+            display_name="child",
+            status="RUNNING",
+            panel_label="#api",
+            group="descendant",
+        ),
+        *_choices(1),
+    ]
+    modal = AgentNeighborModal("foo.bar", choices, hood_label="foo")
+
+    assert modal._title_text() == (
+        "Neighbors of foo.bar  [1 ancestor - 1 descendant - 1 neighbor]"
+    )
+
+
 async def test_agent_neighbor_modal_headers_are_non_selectable() -> None:
     choices = [
+        AgentNeighborChoice(
+            agent_name="foo",
+            display_name="parent",
+            status="DONE",
+            panel_label="#api",
+            group="ancestor",
+        ),
         AgentNeighborChoice(
             agent_name="foo.child",
             display_name="child",
@@ -199,8 +231,11 @@ async def test_agent_neighbor_modal_headers_are_non_selectable() -> None:
         option_list = modal.query_one("#agent-neighbor-list", OptionList)
         first = option_list.get_option_at_index(0)
         second_header = option_list.get_option_at_index(2)
+        third_header = option_list.get_option_at_index(4)
 
     assert first.disabled is True
-    assert "Descendants" in first.prompt.plain
+    assert "Ancestors" in first.prompt.plain
     assert second_header.disabled is True
-    assert "Neighbors - foo hood" in second_header.prompt.plain
+    assert "Descendants" in second_header.prompt.plain
+    assert third_header.disabled is True
+    assert "Neighbors - foo hood" in third_header.prompt.plain

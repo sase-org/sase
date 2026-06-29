@@ -39,7 +39,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Jump stack back / forward",
                 ),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
-                (d(a.start_sibling_mode), "Jump to neighbor / descendant agent"),
+                (d(a.start_sibling_mode), "Jump ancestor/neighbor/desc"),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
                     "Scroll file panel to top / bottom",

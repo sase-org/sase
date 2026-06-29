@@ -159,19 +159,36 @@ class AgentNeighborMixin:
             return
 
         index = self._agent_neighbor_index()
+        ancestors = index.ancestors_for(self.current_idx)
         neighbors = index.neighbors_for(self.current_idx)
         descendants = index.descendants_for(self.current_idx)
         dismissed_descendants = self._dismissed_descendant_agents(selected)
-        if not neighbors and not descendants and not dismissed_descendants:
+        if (
+            not ancestors
+            and not neighbors
+            and not descendants
+            and not dismissed_descendants
+        ):
             return
 
         guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
         if callable(guard) and guard():
             return
 
-        related_count = len(neighbors) + len(descendants) + len(dismissed_descendants)
+        related_count = (
+            len(ancestors)
+            + len(neighbors)
+            + len(descendants)
+            + len(dismissed_descendants)
+        )
         if related_count == 1 and not dismissed_descendants:
-            target_idx = descendants[0] if descendants else neighbors[0]
+            target_idx = (
+                ancestors[0]
+                if ancestors
+                else descendants[0]
+                if descendants
+                else neighbors[0]
+            )
             self._focus_agent_neighbor_by_global_index(
                 target_idx,
                 neighbor_index=index,
@@ -179,6 +196,7 @@ class AgentNeighborMixin:
             return
 
         choices, payloads = self._agent_neighbor_choices(
+            ancestors,
             descendants,
             dismissed_descendants,
             neighbors,
@@ -320,6 +338,7 @@ class AgentNeighborMixin:
 
     def _agent_neighbor_choices(
         self,
+        ancestors: tuple[int, ...],
         descendants: tuple[int, ...],
         dismissed_descendants: tuple[Agent, ...],
         neighbors: tuple[int, ...],
@@ -331,6 +350,26 @@ class AgentNeighborMixin:
 
         choices: list[AgentNeighborChoice] = []
         payloads: list[_AgentNeighborPayload] = []
+
+        for global_idx in ancestors:
+            if not (0 <= global_idx < len(self._agents)):
+                continue
+            agent = self._agents[global_idx]
+            choices.append(
+                AgentNeighborChoice(
+                    agent_name=agent.agent_name or agent.display_name,
+                    display_name=agent.display_name,
+                    status=agent.status,
+                    panel_label=self._agent_neighbor_panel_label(
+                        index.panel_idx_for(global_idx)
+                    ),
+                    time_hint=self._agent_neighbor_time_hint(agent),
+                    group="ancestor",
+                    dismissed=False,
+                    global_idx=global_idx,
+                )
+            )
+            payloads.append(_AgentNeighborPayload(global_idx=global_idx))
 
         descendant_items: list[tuple[str, bool, Agent, int | None]] = []
         for global_idx in descendants:

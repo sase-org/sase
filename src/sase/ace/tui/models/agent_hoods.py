@@ -72,6 +72,7 @@ class AgentNeighborIndex:
     """Render-order neighbor lookup for currently visible Agents-tab rows."""
 
     _neighbors_by_global_idx: dict[int, tuple[int, ...]] = field(default_factory=dict)
+    _ancestors_by_global_idx: dict[int, tuple[int, ...]] = field(default_factory=dict)
     _descendants_by_global_idx: dict[int, tuple[int, ...]] = field(default_factory=dict)
     _descendant_count_by_global_idx: dict[int, int] = field(default_factory=dict)
     _panel_idx_by_global_idx: dict[int, int] = field(default_factory=dict)
@@ -85,6 +86,7 @@ class AgentNeighborIndex:
         """Build an index from visible rows in actual render order."""
         panel_idx_by_global_idx: dict[int, int] = {}
         name_by_global_idx: dict[int, str] = {}
+        visible_indices_by_name: dict[str, list[int]] = {}
         hood_by_global_idx: dict[int, str] = {}
         members_by_hood: dict[str, list[int]] = {}
 
@@ -96,6 +98,7 @@ class AgentNeighborIndex:
             if name is None:
                 continue
             name_by_global_idx[row.global_idx] = name
+            visible_indices_by_name.setdefault(name, []).append(row.global_idx)
             hood = row.hood if row.hood is not None else agent_hood(row.agent)
             if hood is None:
                 continue
@@ -133,8 +136,21 @@ class AgentNeighborIndex:
             if descendants:
                 descendants_by_global_idx[global_idx] = descendants
 
+        ancestors_by_global_idx: dict[int, tuple[int, ...]] = {}
+        for global_idx, name in name_by_global_idx.items():
+            parts = name.split(".")
+            ancestors: list[int] = []
+            for depth in range(len(parts) - 1, 0, -1):
+                prefix = ".".join(parts[:depth])
+                ancestors.extend(visible_indices_by_name.get(prefix, ()))
+            if ancestors:
+                ancestors_by_global_idx[global_idx] = tuple(
+                    idx for idx in ancestors if idx != global_idx
+                )
+
         return cls(
             _neighbors_by_global_idx=neighbors_by_global_idx,
+            _ancestors_by_global_idx=ancestors_by_global_idx,
             _descendants_by_global_idx=descendants_by_global_idx,
             _descendant_count_by_global_idx=descendant_count_by_global_idx,
             _panel_idx_by_global_idx=panel_idx_by_global_idx,
@@ -144,6 +160,10 @@ class AgentNeighborIndex:
         """Return visible neighbor global indices for ``global_idx``."""
         return self._neighbors_by_global_idx.get(global_idx, ())
 
+    def ancestors_for(self, global_idx: int) -> tuple[int, ...]:
+        """Return visible ancestor global indices for ``global_idx``."""
+        return self._ancestors_by_global_idx.get(global_idx, ())
+
     def descendants_for(self, global_idx: int) -> tuple[int, ...]:
         """Return visible descendant global indices for ``global_idx``."""
         return self._descendants_by_global_idx.get(global_idx, ())
@@ -151,6 +171,10 @@ class AgentNeighborIndex:
     def neighbor_count(self, global_idx: int) -> int:
         """Return the number of visible neighbors for ``global_idx``."""
         return len(self.neighbors_for(global_idx))
+
+    def ancestor_count(self, global_idx: int) -> int:
+        """Return the number of visible ancestors for ``global_idx``."""
+        return len(self.ancestors_for(global_idx))
 
     def descendant_count(self, global_idx: int) -> int:
         """Return visible plus dismissed descendant count for ``global_idx``."""

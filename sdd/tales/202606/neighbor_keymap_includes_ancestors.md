@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 12:59:10
-status: wip
+status: done
 prompt: sdd/prompts/202606/neighbor_keymap_includes_ancestors.md
 ---
 # Plan: Make the `~` (neighbors) keymap include ancestors of the selected agent

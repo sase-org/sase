@@ -156,6 +156,9 @@ class AgentNeighborModal(
             yield Static(self._hint_text(), id="agent-neighbor-hints")
 
     def _title_text(self) -> str:
+        ancestor_count = sum(
+            1 for choice in self._choices if choice.group == "ancestor"
+        )
         descendant_count = sum(
             1 for choice in self._choices if choice.group == "descendant"
         )
@@ -163,6 +166,9 @@ class AgentNeighborModal(
             1 for choice in self._choices if choice.group == "neighbor"
         )
         summary_parts: list[str] = []
+        if ancestor_count:
+            plural = "" if ancestor_count == 1 else "s"
+            summary_parts.append(f"{ancestor_count} ancestor{plural}")
         if descendant_count:
             plural = "" if descendant_count == 1 else "s"
             summary_parts.append(f"{descendant_count} descendant{plural}")
@@ -178,6 +184,11 @@ class AgentNeighborModal(
 
     def _create_options(self) -> list[Option]:
         options: list[Option] = []
+        ancestor_choices = [
+            (index, choice)
+            for index, choice in enumerate(self._choices)
+            if choice.group == "ancestor"
+        ]
         descendant_choices = [
             (index, choice)
             for index, choice in enumerate(self._choices)
@@ -189,6 +200,15 @@ class AgentNeighborModal(
             if choice.group == "neighbor"
         ]
 
+        if ancestor_choices:
+            options.append(
+                Option(
+                    _agent_neighbor_header_text("Ancestors"),
+                    id="header-ancestors",
+                    disabled=True,
+                )
+            )
+            self._append_choice_options(options, ancestor_choices)
         if descendant_choices:
             options.append(
                 Option(

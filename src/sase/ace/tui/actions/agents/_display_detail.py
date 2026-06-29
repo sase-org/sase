@@ -366,6 +366,7 @@ class DetailMixin:
         index = index_getter()
         return int(
             index.neighbor_count(self.current_idx)
+            + index.ancestor_count(self.current_idx)
             + index.descendant_count(self.current_idx)
         )
 

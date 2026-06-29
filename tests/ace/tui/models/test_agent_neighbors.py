@@ -184,6 +184,68 @@ def test_index_tracks_visible_descendants_for_dotless_and_dotted_agents() -> Non
     assert index.descendant_count(1) == 1
 
 
+def test_index_tracks_visible_ancestors_nearest_first() -> None:
+    rows = [
+        AgentNeighborRow(0, 0, _agent("0aa")),
+        AgentNeighborRow(1, 0, _agent("0aa.cld")),
+        AgentNeighborRow(2, 0, _agent("0aa.cld.f1")),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows)
+
+    assert index.ancestors_for(2) == (1, 0)
+    assert index.ancestor_count(2) == 2
+    assert index.ancestors_for(1) == (0,)
+    assert index.ancestors_for(0) == ()
+
+
+def test_index_tracks_ancestors_case_insensitively() -> None:
+    rows = [
+        AgentNeighborRow(0, 0, _agent("Foo")),
+        AgentNeighborRow(1, 0, _agent("foo.Bar")),
+        AgentNeighborRow(2, 0, _agent("FOO.BAR.Baz")),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows)
+
+    assert index.ancestors_for(2) == (1, 0)
+
+
+def test_index_does_not_report_agent_as_its_own_ancestor() -> None:
+    rows = [
+        AgentNeighborRow(0, 0, _agent("foo")),
+        AgentNeighborRow(1, 0, _agent("foo.bar")),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows)
+
+    assert index.ancestors_for(0) == ()
+    assert 1 not in index.ancestors_for(1)
+
+
+def test_index_ancestor_lookup_excludes_non_rendered_rows() -> None:
+    rows = [
+        AgentNeighborRow(0, 0, _agent("foo", status="STARTING")),
+        AgentNeighborRow(1, 0, _agent("foo.bar")),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows)
+
+    assert index.ancestors_for(1) == ()
+    assert index.ancestor_count(1) == 0
+
+
+def test_index_ancestor_lookup_ignores_non_visible_prefix_rows() -> None:
+    rows = [
+        AgentNeighborRow(1, 0, _agent("foo.bar")),
+        AgentNeighborRow(2, 0, _agent("foo.bar.baz")),
+    ]
+
+    index = AgentNeighborIndex.from_visible_rows(rows)
+
+    assert index.ancestors_for(2) == (1,)
+
+
 def test_index_descendant_count_includes_dismissed_kin() -> None:
     rows = [
         AgentNeighborRow(0, 0, _agent("foo.bar")),
