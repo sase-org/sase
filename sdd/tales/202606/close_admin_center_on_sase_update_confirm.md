@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 07:17:36
-status: wip
+status: done
 prompt: sdd/prompts/202606/close_admin_center_on_sase_update_confirm.md
 ---
 # Close Admin Center After Full SASE Update Confirmation

@@ -230,14 +230,16 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         assert any("2 background tasks" in message for message, _severity in messages)
 
 
-async def test_updates_pane_sase_update_noop_refreshes_without_restart(
+async def test_updates_pane_sase_update_noop_closes_without_restart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
-    calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    _patch_catalog(monkeypatch, catalog=_catalog())
     _patch_sase_update_managed_fallback(monkeypatch)
+    executed: list[int] = []
 
     def _fake_run(_install: object | None) -> tuple[UpdateSummary, float]:
+        executed.append(1)
         return (UpdateSummary(outcomes=()), 0.1)
 
     monkeypatch.setattr(pbp, "run_sase_update_summary", _fake_run)
@@ -249,14 +251,16 @@ async def test_updates_pane_sase_update_noop_refreshes_without_restart(
             "_restart_tui",
             lambda *, restart_axe: restart_calls.append(restart_axe),
         )
-        initial = len(calls)
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
-        await page.wait_for(lambda _s: len(calls) > initial)
+        # Confirming closes the Admin Center immediately; the no-op task then
+        # completes on the main TUI without a restart.
+        await page.wait_for(lambda _s: bool(executed))
+        await page.expect_no_modal()
         assert restart_calls == []
 
 
@@ -298,6 +302,83 @@ async def test_updates_pane_sase_update_dev_preview_and_restart(
         await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
         assert executed == [plan]
         assert restart_calls == [True]
+
+
+async def test_updates_pane_sase_update_managed_confirm_closes_admin_center(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    _patch_sase_update_managed_fallback(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        submitted: list[int] = []
+        monkeypatch.setattr(
+            pane, "_submit_sase_update_task", lambda: submitted.append(1)
+        )
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_confirm()
+
+        # The task is submitted first, then the Admin Center closes immediately.
+        await page.wait_for(lambda _s: bool(submitted))
+        await page.expect_no_modal()
+        assert submitted == [1]
+
+
+async def test_updates_pane_sase_update_dev_confirm_closes_admin_center(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    plan = _dev_plan()
+    monkeypatch.setattr(
+        pbp,
+        "_make_sase_dev_update_preview",
+        lambda _receipt: pbp._DevUpdatePreview(plan=plan, subject="sase"),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        submitted: list[int] = []
+        monkeypatch.setattr(
+            pane,
+            "_submit_dev_update_task",
+            lambda *_a, **_kw: submitted.append(1),
+        )
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_confirm()
+
+        await page.wait_for(lambda _s: bool(submitted))
+        await page.expect_no_modal()
+        assert submitted == [1]
+
+
+async def test_updates_pane_sase_update_cancel_keeps_admin_center_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    _patch_sase_update_managed_fallback(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        submitted: list[int] = []
+        monkeypatch.setattr(
+            pane, "_submit_sase_update_task", lambda: submitted.append(1)
+        )
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_cancel()
+
+        # Cancelling dismisses only the confirm modal; the Admin Center stays.
+        await page.expect_modal("ConfigCenterModal")
+        assert submitted == []
 
 
 async def test_plugins_pane_update_opens_preview_modal(

@@ -139,6 +139,7 @@ class SaseUpdateActionsMixin:
         _uv_tool: object | None
         app: Any
         is_mounted: bool
+        screen: Any
 
         def _notify(
             self,
@@ -215,6 +216,7 @@ class SaseUpdateActionsMixin:
             if result is None:
                 return
             self._submit_sase_update_task()
+            self._close_admin_center_after_sase_update()
 
         self.app.push_screen(modal, _on_confirmed)
 
@@ -248,8 +250,31 @@ class SaseUpdateActionsMixin:
                 dedup_key="sase-update",
                 duplicate_message="A sase update is already running.",
             )
+            self._close_admin_center_after_sase_update()
 
         self.app.push_screen(modal, _on_confirmed)
+
+    def _close_admin_center_after_sase_update(self) -> None:
+        """Dismiss the containing Admin Center after a confirmed full update.
+
+        Once the user accepts a full SASE update the panel is no longer useful
+        in the foreground: the task is already running and a successful code
+        change will restart ACE. This is intentionally defensive -- it no-ops
+        when the pane is detached, when its screen is not the Admin Center, or
+        when dismissal races a teardown that is already in flight.
+        """
+        from .config_center_modal import ConfigCenterModal
+
+        try:
+            screen = self.screen
+        except Exception:  # noqa: BLE001 - closing must never fail the update.
+            return
+        if not isinstance(screen, ConfigCenterModal):
+            return
+        try:
+            screen.dismiss(None)
+        except Exception:  # noqa: BLE001 - app may already be transitioning.
+            pass
 
     def _submit_sase_update_task(self) -> None:
         """Run the self-update engine in the shared tracked-task system."""
