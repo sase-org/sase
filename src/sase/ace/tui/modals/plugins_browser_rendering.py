@@ -289,7 +289,7 @@ class PluginsBrowserRenderingMixin:
             body.append(warning)
         else:
             cta = Text()
-            cta.append("S", style="bold #AF87FF")
+            cta.append("u", style="bold #AF87FF")
             cta.append("  run `sase update`", style="cyan")
             cta.append("  ·  upgrades sase core + all plugins", style="dim")
             body.append(cta)

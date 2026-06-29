@@ -41,6 +41,7 @@ _CORE_DIST_KEYS = {
     normalize_distribution_name("sase"),
     normalize_distribution_name("sase-core-rs"),
 }
+_SASE_UPDATE_NOOP_MESSAGE = "Nothing to update: sase, core, and plugins are current."
 
 
 def installed_version(name: str) -> str | None:
@@ -164,7 +165,13 @@ class SaseUpdateActionsMixin:
         def _start_load(self, *, force: bool) -> None: ...
 
     def action_update_sase(self) -> None:
-        """Preview and run ``sase update`` as a tracked background task."""
+        """Run the ``u`` comprehensive update action.
+
+        Updates the host ``sase`` package, core, and plugins. Dev/editable
+        installs report no-op plans before confirmation; managed installs can
+        only discover a no-op after the confirmed ``uv`` run, and surface it as
+        an error toast.
+        """
         if self._loading or self._sase_update_plan_worker is not None:
             return
         if isinstance(self._uv_tool, NotUvToolInstall):
@@ -192,7 +199,7 @@ class SaseUpdateActionsMixin:
             return
         blocker = dev_update_blocking_reason(preview.plan)
         if blocker is not None:
-            self._notify(blocker, severity="warning")
+            self._notify(blocker, severity="error")
             return
         self._open_sase_dev_update_modal(preview.plan, subject=preview.subject)
 
@@ -405,7 +412,10 @@ class SaseUpdateActionsMixin:
                     write_pending_update_toast(receipt)
                 self._restart_after_update(completion.message)
                 return
-            self._notify(completion.message)
+            if failure_prefix == "sase update failed":
+                self._notify(_SASE_UPDATE_NOOP_MESSAGE, severity="error")
+            else:
+                self._notify(completion.message)
             if self.is_mounted and not self._loading:
                 self._start_load(force=False)
         else:

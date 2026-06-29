@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 11:38:39
-status: wip
+status: done
 prompt: sdd/prompts/202606/updates_tab_keymap_rework.md
 ---
 # Plan: Rework the Updates-tab update keymaps (`S` / `u` / `U`)

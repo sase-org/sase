@@ -164,34 +164,3 @@ async def test_config_center_plugins_uninstall_preview_png_snapshot(
             title="ACE SASE Admin Center — Plugins uninstall (confirm preview)",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
-
-
-async def test_config_center_plugins_update_all_preview_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The update-all confirm-preview modal: upgrades every installed plugin."""
-    patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
-    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
-    _patch_plugins_catalog(monkeypatch)
-    plan = _update_ready(("github", "telegram"), all_plugins=True)
-    monkeypatch.setattr(
-        pbp,
-        "_plan_update_preview",
-        lambda query, *, all_plugins, offline: pbp._UpdatePreview(plan=plan),
-    )
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        _, pane = await _open_plugins_modal(page)
-        pane.action_update_all()
-        await page.expect_modal("PluginActionConfirmModal")
-        await wait_for_visual_idle(page)
-
-        ace_png_visual.assert_page_png(
-            page,
-            "config_center_plugins_update_all_preview_120x40",
-            title="ACE SASE Admin Center — Plugins update-all (confirm preview)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
-        )

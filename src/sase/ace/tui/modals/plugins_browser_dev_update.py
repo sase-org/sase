@@ -8,7 +8,7 @@ from pathlib import Path
 from sase.dev_update.execute import execute_dev_update, run_dev_update_command
 from sase.dev_update.models import DevCommandRunner, DevUpdatePlan, DevUpdateResult
 from sase.dev_update.plan import plan_dev_update
-from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.receipt import ToolReceipt
 from sase.version._models import VersionPackageRecord
@@ -99,14 +99,6 @@ def entry_uses_dev_update(entry: PluginCatalogEntry) -> bool:
     return entry.installed.installed and (
         entry.latest.source == "editable" or entry.latest.install_type == "editable"
     )
-
-
-def catalog_all_installed_plugins_are_editable(catalog: PluginCatalog | None) -> bool:
-    """Whether ``U`` should use dev-update for every installed plugin."""
-    if catalog is None or catalog.installed_count == 0:
-        return False
-    installed = tuple(entry for entry in catalog.entries if entry.installed.installed)
-    return bool(installed) and all(entry_uses_dev_update(entry) for entry in installed)
 
 
 def dev_update_blocking_reason(plan: DevUpdatePlan) -> str | None:
@@ -267,7 +259,6 @@ def _plural(count: int, singular: str) -> str:
 
 __all__ = [
     "DevUpdatePreview",
-    "catalog_all_installed_plugins_are_editable",
     "dev_update_blocking_reason",
     "dev_update_failed",
     "dev_update_failure_message",

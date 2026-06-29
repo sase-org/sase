@@ -76,7 +76,7 @@ async def test_updates_pane_core_panel_shows_versions_and_update_status(
         assert "v0.5.0" in text
         assert "v0.6.0" in text
         assert "update available" in text
-        assert "S  run `sase update`" in text
+        assert "u  run `sase update`" in text
 
 
 async def test_updates_pane_core_panel_shows_incoming_commits(
@@ -120,7 +120,7 @@ async def test_updates_pane_core_panel_drops_cta_when_not_uv_tool(
 
         assert "`sase update` unavailable" in text
         assert "run `sase update`" not in text
-        assert "S sase" not in pane._hints()
+        assert "u update" not in pane._hints()
 
 
 async def test_plugins_pane_shows_update_marker(

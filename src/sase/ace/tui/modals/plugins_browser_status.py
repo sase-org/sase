@@ -120,14 +120,10 @@ class PluginsBrowserStatusMixin:
         parts: list[str] = []
         if self._can_install_highlighted():
             parts.append("i install")
-        if self._can_update_highlighted():
-            entry = self._current_entry()
-            emphasize = entry is not None and entry.update_available
-            parts.append("u upd ↑" if emphasize else "u upd")
-        if self._can_update_all():
-            parts.append("U all")
         if self._can_update_sase():
-            parts.append("S sase")
+            parts.append("u update")
+        if self._can_update_highlighted():
+            parts.append("U upd ↑")
         if self._can_uninstall_highlighted():
             parts.append("x rm")
         parts.extend(
@@ -155,14 +151,9 @@ class PluginsBrowserStatusMixin:
         if isinstance(self._uv_tool, NotUvToolInstall):
             return False
         entry = self._current_entry()
-        return entry is not None and entry.installed.installed
-
-    def _can_update_all(self) -> bool:
-        """Whether ``update --all`` is possible: uv-tool install with plugins."""
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        catalog = self._catalog
-        return catalog is not None and catalog.installed_count > 0
+        return (
+            entry is not None and entry.installed.installed and entry.update_available
+        )
 
     def _can_update_sase(self) -> bool:
         """Whether the top-level ``sase update`` action can be offered."""

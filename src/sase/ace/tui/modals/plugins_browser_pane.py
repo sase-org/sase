@@ -83,7 +83,6 @@ from .plugins_browser_uninstall import (
 from .plugins_browser_update import (
     PluginUpdateActionsMixin,
     UpdatePreview,
-    no_plugins_message,
     not_installed_message,
     plan_update_preview,
     update_subject,
@@ -108,7 +107,6 @@ _execute_tui_dev_update = execute_tui_dev_update
 _make_plugin_dev_update_preview = make_plugin_dev_update_preview
 _make_sase_dev_update_preview = make_sase_dev_update_preview
 _UpdatePreview = UpdatePreview
-_no_plugins_message = no_plugins_message
 _not_installed_message = not_installed_message
 _plan_update_preview = plan_update_preview
 _update_subject = update_subject
@@ -150,9 +148,8 @@ class PluginsBrowserPane(
         ("k", "prev_option", "Previous"),
         ("i", "install", "Install"),
         ("x", "uninstall", "Uninstall"),
-        ("u", "update", "Update"),
-        ("U", "update_all", "Update all"),
-        ("S", "update_sase", "Sase update"),
+        ("u", "update_sase", "Update"),
+        ("U", "update", "Update plugin"),
         ("r", "refresh", "Refresh"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
         ("ctrl+u", "scroll_detail_up", "Scroll Up"),
@@ -183,7 +180,7 @@ class PluginsBrowserPane(
         self._update_plan_worker: Worker[Any] | None = None
         #: Worker computing an uninstall plan/preview before the confirm modal.
         self._uninstall_plan_worker: Worker[Any] | None = None
-        #: Worker computing an editable-install dev update plan/preview for S.
+        #: Worker computing an editable-install dev update plan/preview for u.
         self._sase_update_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.

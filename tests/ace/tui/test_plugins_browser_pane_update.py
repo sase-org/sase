@@ -19,7 +19,7 @@ from sase.dev_update.models import (
 from sase.plugins.catalog import PluginCatalog
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
-from sase.plugins.operations import NoPlugins, UpdateOutcome, UpdateReady, UpdateUnknown
+from sase.plugins.operations import UpdateOutcome, UpdateReady, UpdateUnknown
 from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
@@ -254,6 +254,7 @@ async def test_updates_pane_sase_update_noop_closes_without_restart(
     monkeypatch.setattr(pbp, "run_sase_update_summary", _fake_run)
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
         restart_calls: list[bool] = []
         monkeypatch.setattr(
             page.app,
@@ -268,9 +269,15 @@ async def test_updates_pane_sase_update_noop_closes_without_restart(
 
         # Confirming closes the Admin Center immediately; the no-op task then
         # completes on the main TUI without a restart.
-        await page.wait_for(lambda _s: bool(executed))
+        await page.wait_for(lambda _s: bool(executed) and bool(messages))
         await page.expect_no_modal()
         assert restart_calls == []
+        assert messages == [
+            (
+                "Nothing to update: sase, core, and plugins are current.",
+                "error",
+            )
+        ]
 
 
 async def test_updates_pane_sase_update_dev_preview_and_restart(
@@ -320,6 +327,28 @@ async def test_updates_pane_sase_update_dev_preview_and_restart(
         assert receipt.plugins[0].name == "sase-github"
         assert receipt.plugins[0].old == "0.1.0+1.gabc123def"
         assert receipt.plugins[0].new == "0.1.0+2.gdef456abc"
+
+
+async def test_updates_pane_sase_update_dev_skipped_reason_is_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    plan = _dev_plan(status="skipped")
+    monkeypatch.setattr(
+        pbp,
+        "_make_sase_dev_update_preview",
+        lambda _receipt: pbp._DevUpdatePreview(plan=plan, subject="sase"),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        pane.action_update_sase()
+
+        await page.wait_for(lambda _s: bool(messages))
+        assert page.app.screen.__class__.__name__ == "ConfigCenterModal"
+        assert messages[0][1] == "error"
+        assert "checkout has local changes" in messages[0][0]
 
 
 async def test_updates_pane_sase_update_managed_confirm_closes_admin_center(
@@ -433,24 +462,29 @@ async def test_plugins_pane_update_hint_gated_on_installed(
     _patch_catalog(monkeypatch, catalog=_catalog())
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
-        # Installed + update available: emphasized hint, plus update-all.
+        # Comprehensive update is always offered; selected plugin update is
+        # offered only when the highlighted plugin has an available update.
         _highlight(pane, "github")
         await page.wait_for(lambda _s: pane._highlighted_name() == "github")
-        assert "u upd ↑" in pane._hints()
-        assert "U all" in pane._hints()
-        # Installed but current: hint present, not emphasized.
+        assert "u update" in pane._hints()
+        assert "U upd ↑" in pane._hints()
+        assert "U all" not in pane._hints()
+        assert "S sase" not in pane._hints()
+        # Installed but current: no selected-plugin update hint.
         _highlight(pane, "telegram")
         await page.wait_for(lambda _s: pane._highlighted_name() == "telegram")
         telegram_hints = pane._hints()
-        assert "u upd" in telegram_hints
+        assert "u update" in telegram_hints
+        assert "U upd" not in telegram_hints
         assert "↑" not in telegram_hints
-        # Not installed: no single-update hint (install is offered instead).
+        # Not installed: comprehensive update remains, selected-plugin update is hidden.
         _highlight(pane, "nvim")
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
-        assert "u upd" not in pane._hints()
+        assert "u update" in pane._hints()
+        assert "U upd" not in pane._hints()
 
 
-async def test_plugins_pane_update_not_installed_toasts(
+async def test_plugins_pane_update_not_installed_noops(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -463,9 +497,27 @@ async def test_plugins_pane_update_not_installed_toasts(
         _highlight(pane, "nvim")  # not installed
         pane.action_update()
         await page.pause()
-        assert not planned  # short-circuited before planning
-        assert messages and "not installed" in messages[0][0]
-        assert messages[0][1] == "warning"
+        assert not planned
+        assert pane._update_plan_worker is None
+        assert messages == []
+
+
+async def test_plugins_pane_update_current_plugin_noops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    planned: list[int] = []
+    monkeypatch.setattr(pbp, "_plan_update_preview", lambda *a, **k: planned.append(1))
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        _highlight(pane, "telegram")  # installed but already current
+        pane.action_update()
+        await page.pause()
+        assert not planned
+        assert pane._update_plan_worker is None
+        assert messages == []
 
 
 async def test_plugins_pane_update_disabled_when_not_uv_tool(
@@ -487,30 +539,9 @@ async def test_plugins_pane_update_disabled_when_not_uv_tool(
         assert messages and messages[0][1] == "warning"
         assert "uv tool install" in messages[0][0]
         # Update affordances are dropped from the hints.
-        assert "u upd" not in pane._hints()
-        assert "U all" not in pane._hints()
-        # Update-all is gated too.
-        pane.action_update_all()
-        await page.pause()
+        assert "u update" not in pane._hints()
+        assert "U upd" not in pane._hints()
         assert not planned
-
-
-async def test_plugins_pane_update_all_no_plugins_toasts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog())
-    monkeypatch.setattr(
-        pbp,
-        "_plan_update_preview",
-        lambda query, *, all_plugins, offline: pbp._UpdatePreview(plan=NoPlugins()),
-    )
-    async with AcePage() as page:
-        pane = await _open_plugins_pane(page)
-        messages = _spy_notify(monkeypatch, pane)
-        pane.action_update_all()
-        await page.wait_for(lambda _s: bool(messages))
-        assert "No plugins are installed" in messages[0][0]
 
 
 async def test_plugins_pane_update_unknown_toasts(
@@ -657,36 +688,3 @@ async def test_plugins_pane_editable_update_skipped_reason_toasts(
         await page.wait_for(lambda _s: bool(messages))
         assert messages[0][1] == "warning"
         assert "checkout has local changes" in messages[0][0]
-
-
-async def test_plugins_pane_update_all_executes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog())
-    plan = _update_ready(("github", "telegram"), all_plugins=True)
-    monkeypatch.setattr(
-        pbp,
-        "_plan_update_preview",
-        lambda query, *, all_plugins, offline: pbp._UpdatePreview(plan=plan),
-    )
-    executed: list[UpdateReady] = []
-
-    def _fake_execute(plan_arg: UpdateReady, **_kw: object) -> UpdateOutcome:
-        executed.append(plan_arg)
-        return UpdateOutcome(plan=plan_arg, change_set=UvChangeSet(), elapsed=0.3)
-
-    monkeypatch.setattr(pbp, "execute_update", _fake_execute)
-    async with AcePage() as page:
-        pane = await _open_plugins_pane(page)
-        pane.action_update_all()
-        await page.expect_modal("PluginActionConfirmModal")
-        modal = page.app.screen
-        assert isinstance(modal, PluginActionConfirmModal)
-        # A single variant; the preview names every installed plugin.
-        assert [v.key for v in modal._variants] == ["update"]
-        preview = _render(modal._preview_renderable())
-        assert "every installed plugin" in preview
-        modal.action_confirm()
-        await page.wait_for(lambda _s: bool(executed))
-        assert executed[0].all_plugins
