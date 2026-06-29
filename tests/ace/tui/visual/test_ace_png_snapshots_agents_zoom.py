@@ -332,7 +332,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
         await page.pause()
         await page.pause()
 
-        assert_page_svg_contains(page, "Waiting for:")
+        assert_page_svg_contains(page, "Wait:")
         assert_page_svg_contains(page, "coder")
         assert_page_svg_contains(page, "builder")
         assert_page_svg_contains(page, "reviewer")

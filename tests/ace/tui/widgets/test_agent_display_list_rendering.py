@@ -376,7 +376,7 @@ class TestAwareWaitUntilRendering:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "Waiting for: until " in header.plain
+        assert "Wait: until " in header.plain
         assert " left)" in header.plain
 
 

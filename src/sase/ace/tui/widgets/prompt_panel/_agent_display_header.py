@@ -249,7 +249,7 @@ def build_header_text(
             wait_until_target_and_reference,
         )
 
-        header_text.append("Waiting for: ", style="bold #87D7FF")
+        header_text.append("Wait: ", style="bold #87D7FF")
         appended_dependency_names = False
         if agent.waiting_for:
             for index, name in enumerate(agent.waiting_for):

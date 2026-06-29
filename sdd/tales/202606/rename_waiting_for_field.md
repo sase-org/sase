@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 08:43:37
-status: wip
+status: done
 prompt: sdd/prompts/202606/rename_waiting_for_field.md
 ---
 # Rename Agents Metadata Wait Label

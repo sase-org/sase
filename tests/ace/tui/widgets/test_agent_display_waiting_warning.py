@@ -17,9 +17,7 @@ from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
 def _waiting_line(text: Text) -> str:
-    return next(
-        line for line in text.plain.splitlines() if line.startswith("Waiting for: ")
-    )
+    return next(line for line in text.plain.splitlines() if line.startswith("Wait: "))
 
 
 def _styles_covering(text: Text, substring: str) -> set[str]:
@@ -54,7 +52,7 @@ def test_known_waited_for_agent_gets_status_badge(
         agent_status_buckets={"dep": bucket},
     )
 
-    assert _waiting_line(header) == f"Waiting for: dep {glyph}"
+    assert _waiting_line(header) == f"Wait: dep {glyph}"
     assert style in _styles_covering(header, glyph)
 
 
@@ -67,7 +65,7 @@ def test_unknown_waited_for_agent_gets_unknown_badge() -> None:
         agent_status_buckets={"coder": "Running"},
     )
 
-    assert _waiting_line(header) == "Waiting for: ghost_deploy ?"
+    assert _waiting_line(header) == "Wait: ghost_deploy ?"
     assert "bold #FFAF5F" in _styles_covering(header, "?")
 
 
@@ -83,7 +81,7 @@ def test_mixed_waited_for_agents_badge_each_name_independently() -> None:
         agent_status_buckets={"coder": "Done", "reviewer": "Failed"},
     )
 
-    assert _waiting_line(header) == "Waiting for: coder ✓, ghost_deploy ?, reviewer ✗"
+    assert _waiting_line(header) == "Wait: coder ✓, ghost_deploy ?, reviewer ✗"
     assert header.plain.index("coder ✓") < header.plain.index(", ghost_deploy ?")
     assert header.plain.index("ghost_deploy ?") < header.plain.index(", reviewer ✗")
 
@@ -94,7 +92,7 @@ def test_missing_agent_status_bucket_map_renders_no_badges() -> None:
     header, _ = build_header_text(agent, cheap=True, agent_status_buckets=None)
 
     assert "?" not in _waiting_line(header)
-    assert _waiting_line(header) == "Waiting for: ghost_deploy"
+    assert _waiting_line(header) == "Wait: ghost_deploy"
 
 
 def test_waited_for_status_badges_keep_duration_format() -> None:
@@ -110,7 +108,7 @@ def test_waited_for_status_badges_keep_duration_format() -> None:
         agent_status_buckets={"coder": "Done", "deploy": "Running"},
     )
 
-    assert _waiting_line(header) == "Waiting for: coder ✓, deploy ▶ + 5m"
+    assert _waiting_line(header) == "Wait: coder ✓, deploy ▶ + 5m"
 
 
 def test_waited_for_status_badges_keep_until_countdown_format() -> None:
@@ -128,7 +126,7 @@ def test_waited_for_status_badges_keep_until_countdown_format() -> None:
     )
 
     line = _waiting_line(header)
-    assert line.startswith("Waiting for: coder ✓ + until ")
+    assert line.startswith("Wait: coder ✓ + until ")
     assert line.endswith(" left)")
 
 
