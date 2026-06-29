@@ -20,7 +20,6 @@ from .config_edit_helpers import (
 )
 from .config_edit_types import (
     EditorKind,
-    Mode,
     Stage,
     _ACCENT,
     _ERR_COLOR,
@@ -34,7 +33,6 @@ from .config_edit_types import (
 class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
     """Shared rendering and widget wiring for ``ConfigEditModal``."""
 
-    _mode: Mode
     _field: ConfigField | None
     _stage: Stage
     _editor_kind: EditorKind
@@ -58,9 +56,9 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             yield Static("", id="config-edit-scope", markup=False)
             yield Static("", id="config-edit-banner", markup=False)
             yield Static("", id="config-edit-value", markup=False)
-            if self._mode == "field" and self._uses_input():
+            if self._uses_input():
                 yield Input(value=seed, id="config-edit-input")
-            elif self._mode == "field" and self._uses_textarea():
+            elif self._uses_textarea():
                 yield TextArea(seed, id="config-edit-textarea", show_line_numbers=False)
             yield Static("", id="config-edit-error", markup=False)
             with VerticalScroll(id="config-edit-preview-scroll"):
@@ -75,7 +73,7 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
 
     def _focus_editor(self) -> None:
         """Focus the editor widget, or blur so the screen handles key bindings."""
-        if self._stage != "edit" or self._mode == "migration" or self._op_unset:
+        if self._stage != "edit" or self._op_unset:
             self.set_focus(None)
             return
         try:
@@ -130,10 +128,6 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
 
     def _title(self) -> Text:
         text = Text()
-        if self._mode == "migration":
-            text.append("Migrate  ", style="bold")
-            text.append("sibling_repos → linked_repos", style=f"bold {_ACCENT}")
-            return text
         text.append("Edit  ", style="bold")
         if self._field is not None:
             text.append(self._field.path, style=f"bold {_ACCENT}")
@@ -141,13 +135,6 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
 
     def _info_text(self) -> Text:
         text = Text()
-        if self._mode == "migration":
-            text.append(
-                "Fold the deprecated sibling_repos list into linked_repos and "
-                "remove it.",
-                style=_MUTED,
-            )
-            return text
         field = self._field
         if field is None:
             return text
@@ -205,8 +192,6 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
 
     def _value_text(self) -> Text:
         text = Text()
-        if self._mode == "migration":
-            return text
         if self._op_unset:
             text.append("reset to default", style=f"bold {_MOD_COLOR}")
             field = self._field
@@ -312,8 +297,6 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             if self._busy:
                 return "writing…"
             return "enter / ctrl+s: write   esc: back   "
-        if self._mode == "migration":
-            return "enter / ctrl+s: preview   esc: cancel"
         toggle = ""
         if self._editor_kind in ("bool", "enum"):
             toggle = "space: change  "

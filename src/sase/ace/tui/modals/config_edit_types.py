@@ -7,7 +7,6 @@ from typing import Literal
 
 EditorKind = Literal["bool", "enum", "int", "number", "string", "string_list", "yaml"]
 Stage = Literal["edit", "preview"]
-Mode = Literal["field", "migration"]
 
 _OK_COLOR = "#5FAF5F"
 _ERR_COLOR = "#FF8787"

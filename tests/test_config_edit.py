@@ -23,7 +23,6 @@ from sase.config.edit import (
     ConfigEditOp,
     apply_config_edit,
     plan_config_edit,
-    plan_repo_key_migration,
     set_key,
     unset_key,
 )
@@ -492,54 +491,3 @@ def test_inventory_with_new_overlay_is_idempotent_for_existing_name(
     same, layer_name = inventory_with_new_overlay(inventory, "extra")
     assert layer_name == "overlay:sase_extra.yml"
     assert same is inventory  # unchanged: the overlay already exists
-
-
-# --- sibling_repos -> linked_repos migration ------------------------------
-
-
-_MIGRATION_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "linked_repos": {
-            "type": "array",
-            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
-            "default": [],
-        },
-        "sibling_repos": {
-            "type": "array",
-            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
-        },
-    },
-}
-
-
-def _migration_inventory(tmp_path: Path, user_text: str) -> tuple[Any, Path]:
-    user_file = tmp_path / "sase.yml"
-    user_file.write_text(user_text, encoding="utf-8")
-    user_data = yaml.safe_load(user_text) if user_text.strip() else {}
-    layers = [
-        _layer("default", data={"linked_repos": []}),
-        _layer("user", path=str(user_file), strategy="replace", data=user_data or {}),
-    ]
-    return _inventory(layers, _MIGRATION_SCHEMA), user_file
-
-
-def test_plan_repo_key_migration_folds_and_removes(tmp_path: Path) -> None:
-    """Migration concatenates sibling_repos into linked_repos and removes it."""
-    inventory, user_file = _migration_inventory(
-        tmp_path,
-        "linked_repos:\n  - name: core\nsibling_repos:\n  - name: legacy\n",
-    )
-    plan = plan_repo_key_migration(inventory, use_chezmoi=False)
-    assert plan is not None
-    assert plan.is_valid
-    apply_config_edit(plan)
-    written = yaml.safe_load(user_file.read_text(encoding="utf-8"))
-    assert "sibling_repos" not in written
-    assert written["linked_repos"] == [{"name": "core"}, {"name": "legacy"}]
-
-
-def test_plan_repo_key_migration_none_when_not_set(tmp_path: Path) -> None:
-    inventory, _ = _migration_inventory(tmp_path, "linked_repos:\n  - name: core\n")
-    assert plan_repo_key_migration(inventory, use_chezmoi=False) is None

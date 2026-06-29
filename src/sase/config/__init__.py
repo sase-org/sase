@@ -25,7 +25,6 @@ from sase.config.edit import (
     EditPlanResult,
     apply_config_edit,
     plan_config_edit,
-    plan_repo_key_migration,
     set_key,
     unset_key,
 )
@@ -91,7 +90,6 @@ __all__ = [
     "overlay_config_path",
     "overlay_layer_input",
     "plan_config_edit",
-    "plan_repo_key_migration",
     "resolve_write_path",
     "set_key",
     "unset_key",

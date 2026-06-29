@@ -25,7 +25,6 @@ from sase.config import (
     apply_config_edit,
     inventory_with_new_overlay,
     plan_config_edit,
-    plan_repo_key_migration,
 )
 
 from .config_edit_helpers import (
@@ -46,7 +45,7 @@ from .config_edit_helpers import (
 )
 from .config_edit_overlay_modal import OverlayNameModal
 from .config_edit_rendering import ConfigEditModalBase
-from .config_edit_types import EditorKind, Mode, Stage
+from .config_edit_types import EditorKind, Stage
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals.config_pane import ConfigPaneView
@@ -70,7 +69,7 @@ _yaml_loads = yaml_loads
 
 
 class ConfigEditModal(ConfigEditModalBase):
-    """Edit a single config field (or run the repo-key migration) and write it."""
+    """Edit a single config field and write it."""
 
     # Focus is managed explicitly (``_focus_editor``); hidden Input/TextArea
     # widgets must not steal focus from key-driven bool/enum editors.
@@ -91,12 +90,10 @@ class ConfigEditModal(ConfigEditModalBase):
         view: ConfigPaneView,
         *,
         field: ConfigField | None = None,
-        mode: Mode = "field",
     ) -> None:
         super().__init__()
         self._view = view
         self._inventory: ConfigInventory = view.inventory
-        self._mode: Mode = mode
         self._field = field
         self._stage: Stage = "edit"
         self._editor_kind: EditorKind = "string"
@@ -111,14 +108,8 @@ class ConfigEditModal(ConfigEditModalBase):
         self._enum_index = 0
         self._bool_value = False
         self._initial_value: Any = None
-        if mode == "field" and field is not None:
+        if field is not None:
             self._init_field_state(field)
-
-    @classmethod
-    def for_migration(cls, view: ConfigPaneView) -> ConfigEditModal:
-        """Build the modal for the ``sibling_repos`` → ``linked_repos`` migration."""
-        field = view.fields_by_path.get("linked_repos")
-        return cls(view, field=field, mode="migration")
 
     def _init_field_state(self, field: ConfigField) -> None:
         state = self._view.state_by_path.get(field.path)
@@ -142,8 +133,6 @@ class ConfigEditModal(ConfigEditModalBase):
         self.call_after_refresh(self._initialize)
 
     def _initialize(self) -> None:
-        if self._mode == "migration":
-            self._begin_migration()
         self._render_all()
         self._focus_editor()
 
@@ -193,7 +182,7 @@ class ConfigEditModal(ConfigEditModalBase):
         self.app.push_screen(OverlayNameModal(), _on_name)
 
     def action_toggle_reset(self) -> None:
-        if self._stage != "edit" or self._mode == "migration" or self._busy:
+        if self._stage != "edit" or self._busy:
             return
         self._op_unset = not self._op_unset
         self._error = None
@@ -216,7 +205,7 @@ class ConfigEditModal(ConfigEditModalBase):
     def action_back(self) -> None:
         if self._busy:
             return
-        if self._stage == "preview" and self._mode == "field":
+        if self._stage == "preview":
             self._stage = "edit"
             self._plan = None
             self._error = None
@@ -263,8 +252,6 @@ class ConfigEditModal(ConfigEditModalBase):
         return ConfigEditOp.set_value(value), None
 
     def _start_plan(self) -> None:
-        if self._mode == "migration":
-            return
         if self._target is None:
             self._error = "no writable target — create an overlay (ctrl+n)"
             self._render_all()
@@ -287,17 +274,6 @@ class ConfigEditModal(ConfigEditModalBase):
 
         def task() -> EditPlanResult:
             return plan_config_edit(inventory, path, target, op)
-
-        self._plan_worker = self.run_worker(task, thread=True, exclusive=True)
-
-    def _begin_migration(self) -> None:
-        self._stage = "preview"
-        self._busy = True
-        self._plan = None
-        inventory = self._inventory
-
-        def task() -> EditPlanResult | None:
-            return plan_repo_key_migration(inventory)
 
         self._plan_worker = self.run_worker(task, thread=True, exclusive=True)
 
@@ -338,28 +314,14 @@ class ConfigEditModal(ConfigEditModalBase):
     def _on_plan_worker(self, event: Worker.StateChanged) -> None:
         if event.state == WorkerState.SUCCESS:
             self._busy = False
-            result = event.worker.result
-            if result is None:
-                self._error = "nothing to migrate (sibling_repos is not set)"
-                self._plan = None
-                if self._mode == "migration":
-                    self.dismiss(None)
-                    return
-                self._stage = "edit"
-                self._render_all()
-                self._focus_editor()
-                return
-            self._plan = result
+            self._plan = event.worker.result
             self._render_all()
         elif event.state == WorkerState.ERROR:
             self._busy = False
             self._error = self._worker_error(event, "could not plan edit")
-            if self._mode == "migration":
-                self._render_all()
-            else:
-                self._stage = "edit"
-                self._render_all()
-                self._focus_editor()
+            self._stage = "edit"
+            self._render_all()
+            self._focus_editor()
 
     def _on_apply_worker(self, event: Worker.StateChanged) -> None:
         if event.state == WorkerState.SUCCESS:

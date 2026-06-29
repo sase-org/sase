@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 12:56:23
-status: wip
+status: done
 prompt: sdd/prompts/202606/remove_config_repo_migration.md
 ---
 # Remove the Config-tab `g` "Migrate repos" keymap and its migration logic

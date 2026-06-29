@@ -71,7 +71,6 @@ class ConfigPane(Vertical):
         ("colon", "jump_to_path", "Jump to path"),
         ("r", "refresh", "Refresh"),
         ("e", "edit_field", "Edit"),
-        ("g", "migrate", "Migrate repos"),
     ]
 
     def __init__(
@@ -278,7 +277,7 @@ class ConfigPane(Vertical):
         mod = "mod ✓" if self._modified_only else "mod"
         return (
             f"j/k: move  ctrl+d/u: scroll  ↵/e: edit  /: filter  :: jump  "
-            f"m: {mod}  g: migrate  r: refresh  [ / ]: tab  Esc: close"
+            f"m: {mod}  r: refresh  [ / ]: tab  Esc: close"
         )
 
     # -- tree selection events --
@@ -360,7 +359,7 @@ class ConfigPane(Vertical):
         self._start_load(force=True)
 
     def action_edit_field(self) -> None:
-        """Edit the selected leaf (or migrate, if it is the deprecated key)."""
+        """Edit the selected leaf."""
         path = self._selected_path
         view = self._view
         if path is None or view is None:
@@ -368,23 +367,7 @@ class ConfigPane(Vertical):
         field = view.fields_by_path.get(path)
         if field is None or not field.leaf:
             return
-        if path == "sibling_repos" and view.is_modified("sibling_repos"):
-            self._open_migration()
-            return
         self._open_editor(path)
-
-    def action_migrate(self) -> None:
-        """One-key ``sibling_repos`` → ``linked_repos`` migration."""
-        view = self._view
-        if view is None:
-            return
-        if "sibling_repos" not in view.fields_by_path or not view.is_modified(
-            "sibling_repos"
-        ):
-            self._error = None
-            self._update_static("#config-pane-hints", "no sibling_repos set to migrate")
-            return
-        self._open_migration()
 
     def _open_editor(self, path: str) -> None:
         view = self._view
@@ -397,16 +380,6 @@ class ConfigPane(Vertical):
 
         self.app.push_screen(
             ConfigEditModal(view, field=field), self._on_edit_dismissed
-        )
-
-    def _open_migration(self) -> None:
-        view = self._view
-        if view is None:
-            return
-        from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
-
-        self.app.push_screen(
-            ConfigEditModal.for_migration(view), self._on_edit_dismissed
         )
 
     def _on_edit_dismissed(self, result: Any) -> None:

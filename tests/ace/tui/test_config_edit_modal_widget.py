@@ -3,9 +3,8 @@
 These stand up the modal inside a real Textual app and drive the full
 edit → preview → write flow that the pure helpers cannot reach: the worker-backed
 plan, the typed editors (string / bool), scope cycling, reset-to-default,
-validation blocking the write, and the ``sibling_repos`` → ``linked_repos``
-migration. Writes land in a temporary ``sase.yml`` (chezmoi remapping is patched
-off) so the on-disk result can be asserted.
+and validation blocking the write. Writes land in a temporary ``sase.yml``
+(chezmoi remapping is patched off) so the on-disk result can be asserted.
 """
 
 from __future__ import annotations
@@ -278,24 +277,3 @@ async def test_schema_validation_blocks_write(tmp_path: Path) -> None:
     assert yaml.safe_load(user_file.read_text(encoding="utf-8")) == {
         "linked_repos": [{"name": "core"}]
     }
-
-
-# --- migration -------------------------------------------------------------
-
-
-async def test_migration_writes_linked_and_removes_sibling(tmp_path: Path) -> None:
-    view, user_file = _view(
-        tmp_path,
-        {"linked_repos": [{"name": "core"}], "sibling_repos": [{"name": "legacy"}]},
-    )
-    async with AcePage() as page:
-        modal = ConfigEditModal.for_migration(view)
-        result = await _open(page, modal)
-        # Migration opens straight into the preview stage with a plan.
-        await page.wait_for(lambda _s: modal._plan is not None)
-        assert modal._stage == "preview"
-        modal.action_confirm()  # write
-        await page.wait_for(lambda _s: bool(result))
-    written = yaml.safe_load(user_file.read_text(encoding="utf-8"))
-    assert "sibling_repos" not in written
-    assert written["linked_repos"] == [{"name": "core"}, {"name": "legacy"}]

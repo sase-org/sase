@@ -235,7 +235,7 @@ async def test_config_detail_ctrl_d_u_on_short_detail_is_noop(
         assert page.app.focused is tree
 
 
-async def test_config_pane_migrate_opens_migration_modal(
+async def test_config_pane_edit_sibling_repos_opens_normal_editor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
@@ -243,18 +243,21 @@ async def test_config_pane_migrate_opens_migration_modal(
     _patch_loaders(monkeypatch)
     async with AcePage() as page:
         pane = await _open_config_pane(page)
-        # The fixture user layer sets sibling_repos, so migration is available.
-        pane.action_migrate()
+        pane._do_jump("sibling_repos")
+        await page.wait_for(lambda _s: pane._selected_path == "sibling_repos")
+        pane.action_edit_field()
         await page.expect_modal("ConfigEditModal")
         modal = page.app.screen
         assert isinstance(modal, ConfigEditModal)
-        assert modal._mode == "migration"
+        assert modal._field is not None and modal._field.path == "sibling_repos"
 
 
 def test_config_pane_binds_ctrl_d_and_ctrl_u_to_detail_scroll() -> None:
     assert _binding_action("ctrl+d") == "scroll_detail_down"
     assert _binding_action("ctrl+u") == "scroll_detail_up"
+    assert _binding_action("g") is None
     assert "ctrl+d/u: scroll" in ConfigPane(auto_load=False)._hints()
+    assert "g: migrate" not in ConfigPane(auto_load=False)._hints()
 
 
 async def test_config_pane_ctrl_d_and_ctrl_u_scroll_detail_only(
