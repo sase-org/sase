@@ -1,7 +1,6 @@
 """Static file and diff display mixin for the file panel."""
 
 import os
-from dataclasses import dataclass
 from datetime import datetime
 
 from rich.console import Group, RenderableType
@@ -24,83 +23,15 @@ from ..prompt_panel._agent_context_common import (
     WORKSPACE_GLYPH,
 )
 from ._messages import (
-    _EXTENSION_TO_LEXER,
     _LIVE_DIFF_SENTINEL,
     is_commit_slot,
     is_linked_slot,
 )
-
-
-@dataclass
-class StaticReadResult:
-    """Result of an off-thread static file/diff read.
-
-    ``request_id`` lets the UI thread drop superseded results when the user
-    navigates between files faster than reads complete. ``path`` is the
-    original path passed in (used for path-match stale checks against the
-    current file list); ``expanded_path`` is the user-expanded form actually
-    opened.
-    """
-
-    request_id: int
-    mode: str  # "file" or "diff"
-    path: str
-    expanded_path: str
-    status: str  # "ok" | "missing" | "empty" | "image"
-    content: str | None = None
-    lexer: str = "text"
-
-
-def _read_static_file(request_id: int, path: str, mode: str) -> StaticReadResult:
-    """Worker-thread entry point that reads a static file or diff from disk."""
-    expanded_path = os.path.expanduser(path)
-    if mode == "file" and is_supported_image_path(expanded_path):
-        return StaticReadResult(
-            request_id=request_id,
-            mode=mode,
-            path=path,
-            expanded_path=expanded_path,
-            status="image",
-        )
-    try:
-        with open(expanded_path, encoding="utf-8") as f:
-            content = f.read()
-    except Exception:
-        return StaticReadResult(
-            request_id=request_id,
-            mode=mode,
-            path=path,
-            expanded_path=expanded_path,
-            status="missing",
-        )
-    if not content.strip():
-        return StaticReadResult(
-            request_id=request_id,
-            mode=mode,
-            path=path,
-            expanded_path=expanded_path,
-            status="empty",
-        )
-    if mode == "file":
-        _, ext = os.path.splitext(expanded_path)
-        lexer = _EXTENSION_TO_LEXER.get(ext.lower(), "text")
-    else:
-        lexer = "diff"
-    return StaticReadResult(
-        request_id=request_id,
-        mode=mode,
-        path=path,
-        expanded_path=expanded_path,
-        status="ok",
-        content=content,
-        lexer=lexer,
-    )
-
-
-def _normalized_static_path(path: str | None) -> str | None:
-    if not path:
-        return None
-    return os.path.normcase(os.path.abspath(os.path.expanduser(path)))
+from ._static_read import (
+    StaticReadResult,
+    normalized_static_path as _normalized_static_path,
+    read_static_file as _read_static_file,
+)
 
 
 class FilePanelDisplayMixin:
@@ -565,22 +496,3 @@ class FilePanelDisplayMixin:
     def _consume_image_cleanup_segments(self) -> list[RenderableType]:
         """Compatibility no-op for surfaces that used image cleanup state."""
         return []
-
-    def _show_loading(self) -> None:
-        """Display loading indicator only if panel was previously visible."""
-        if not self._has_displayed_content:
-            return
-        text = Text()
-        text.append("Loading file...\n", style="bold #87D7FF")
-        text.append("Please wait while fetching changes.", style="dim")
-        self.update(text)  # type: ignore[attr-defined]
-
-    def show_empty(self) -> None:
-        """Show empty state."""
-        self._reset_trim_state()  # type: ignore[attr-defined]
-        self._has_displayed_content = False
-        # Drop any pending static read so its result can't paint over us.
-        self._cancel_static_worker()
-        self._static_request_id += 1
-        text = Text("No agent selected", style="dim italic")
-        self.update(text)  # type: ignore[attr-defined]
