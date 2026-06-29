@@ -189,6 +189,11 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 ```yaml
 ace:
   inactive_seconds: 600 # seconds before showing IDLE indicator (default: 600)
+  updates:
+    startup_toast: true # show update-available toast on startup
+    post_update_toast: true # confirm the version transition after self-update restart
+    indicator: true # show the top-bar update badge
+    check_ttl_minutes: 10 # refresh latest-version checks at most this often
   keymaps:
     app:
       next_changespec: "j"
@@ -223,9 +228,19 @@ ace:
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
+| `updates`           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
 
 The app-level `I` keybinding marks temporary idle until the next keypress. Leader-mode `,I` toggles pinned idle, which
 regular keypresses do not clear. External tools can query idle status via `sase.ace.tui_activity.is_idle()`.
+
+#### `ace.updates`
+
+| Field               | Type | Default | Description                                                                                 |
+| ------------------- | ---- | ------- | ------------------------------------------------------------------------------------------- |
+| `startup_toast`     | bool | `true`  | Show the startup toast when cached update status says SASE or installed plugins are behind. |
+| `post_update_toast` | bool | `true`  | Show a one-shot toast after a full SASE self-update restarts ACE into the new code.         |
+| `indicator`         | bool | `true`  | Show the top-bar Updates badge when cached update status reports available updates.         |
+| `check_ttl_minutes` | int  | `10`    | Minimum age before startup update checks revalidate latest-version status.                  |
 
 #### `ace.keymaps`
 

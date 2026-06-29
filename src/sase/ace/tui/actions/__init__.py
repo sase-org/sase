@@ -12,6 +12,7 @@ from .hints import HintActionsMixin
 from .lifecycle import LifecycleMixin
 from .marking import MarkingMixin
 from .navigation import NavigationMixin
+from .post_update_toast import PostUpdateToastMixin
 from .proposal_rebase import ProposalRebaseMixin
 from .rename import RenameMixin
 from .repro import ReproActionsMixin
@@ -36,6 +37,7 @@ __all__ = [
     "LifecycleMixin",
     "MarkingMixin",
     "NavigationMixin",
+    "PostUpdateToastMixin",
     "ProposalRebaseMixin",
     "RenameMixin",
     "ReproActionsMixin",

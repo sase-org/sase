@@ -6,6 +6,7 @@ import importlib.metadata as importlib_metadata
 import time
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
@@ -399,6 +400,9 @@ class SaseUpdateActionsMixin:
             if completion.payload is not None and managed_update_changed(
                 completion.payload
             ):
+                receipt = build_update_receipt(completion.payload)
+                if receipt is not None:
+                    write_pending_update_toast(receipt)
                 self._restart_after_update(completion.message)
                 return
             self._notify(completion.message)

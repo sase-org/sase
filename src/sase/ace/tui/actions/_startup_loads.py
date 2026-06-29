@@ -74,6 +74,10 @@ class StartupLoadsMixin:
             except Exception:
                 log.exception("Failed to schedule prompt catalog warm")
         try:
+            self._maybe_show_post_update_toast()
+        except Exception:
+            log.debug("Failed to show post-update toast", exc_info=True)
+        try:
             self._schedule_startup_update_toast_check()
         except Exception:
             log.debug("Failed to schedule startup update toast", exc_info=True)

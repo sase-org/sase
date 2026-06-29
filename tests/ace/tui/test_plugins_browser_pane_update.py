@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
@@ -183,10 +184,13 @@ async def test_updates_pane_sase_update_disabled_when_not_uv_tool(
 
 async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     _patch_other_panes(monkeypatch)
     calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
     _patch_sase_update_managed_fallback(monkeypatch)
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
     executed: list[object | None] = []
 
     def _fake_run(install: object | None) -> tuple[UpdateSummary, float]:
@@ -228,6 +232,11 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         assert calls  # initial load happened; changed update does not need a reload
         assert any("restarting ACE" in message for message, _severity in messages)
         assert any("2 background tasks" in message for message, _severity in messages)
+        receipt = update_receipt.read_and_clear_pending_update_toast()
+        assert receipt is not None
+        assert receipt.primary is not None
+        assert receipt.primary.old == "0.5.0"
+        assert receipt.primary.new == "0.6.0"
 
 
 async def test_updates_pane_sase_update_noop_closes_without_restart(
@@ -266,9 +275,12 @@ async def test_updates_pane_sase_update_noop_closes_without_restart(
 
 async def test_updates_pane_sase_update_dev_preview_and_restart(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     _patch_other_panes(monkeypatch)
     _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
     plan = _dev_plan()
     monkeypatch.setattr(
         pbp,
@@ -302,6 +314,12 @@ async def test_updates_pane_sase_update_dev_preview_and_restart(
         await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
         assert executed == [plan]
         assert restart_calls == [True]
+        receipt = update_receipt.read_and_clear_pending_update_toast()
+        assert receipt is not None
+        assert receipt.plugins
+        assert receipt.plugins[0].name == "sase-github"
+        assert receipt.plugins[0].old == "0.1.0+1.gabc123def"
+        assert receipt.plugins[0].new == "0.1.0+2.gdef456abc"
 
 
 async def test_updates_pane_sase_update_managed_confirm_closes_admin_center(

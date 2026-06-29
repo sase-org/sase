@@ -142,6 +142,11 @@
               "description": "Show an informational toast on ACE startup when SASE core or installed plugins have updates available",
               "default": true
             },
+            "post_update_toast": {
+              "type": "boolean",
+              "description": "Show a one-shot confirmation toast after a full SASE self-update restarts ACE into the new version",
+              "default": true
+            },
             "indicator": {
               "type": "boolean",
               "description": "Show a persistent top-bar badge while SASE core or installed plugins have updates available",

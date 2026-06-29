@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 10:53:50
-status: wip
+status: done
 prompt: sdd/prompts/202606/post_update_version_toast.md
 ---
 # Plan: "You just updated" version toast after a SASE self-update + TUI restart
