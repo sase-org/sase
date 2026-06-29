@@ -20,6 +20,7 @@ from sase.core.project_lifecycle_facade import (
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_STATES,
     ProjectRecordWire,
+    effective_project_name,
     is_inactive_project_lifecycle_state,
     normalize_project_lifecycle_state,
     normalize_project_lifecycle_state_filter,
@@ -30,6 +31,7 @@ from sase.project_aliases import (
     add_project_alias_locked as _add_project_alias_locked,
     clear_project_aliases_locked as _clear_project_aliases_locked,
     remove_project_alias_locked as _remove_project_alias_locked,
+    resolve_project_alias_ref,
     set_project_aliases_locked,
 )
 
@@ -88,6 +90,7 @@ def _record_to_json_dict(record: ProjectRecordWire) -> dict[str, object]:
     data = project_lifecycle_wire_to_json_dict(record)
     if isinstance(data, dict):
         data["state_source"] = "explicit" if record.state_explicit else "defaulted"
+        data["effective_project_name"] = effective_project_name(record)
         return data
     raise TypeError(f"unexpected project lifecycle record: {type(data)!r}")
 
@@ -100,6 +103,13 @@ def _archive_display(record: ProjectRecordWire) -> str:
     return record.archive_file or "-"
 
 
+def _project_display_label(record: ProjectRecordWire) -> str:
+    display = effective_project_name(record)
+    if display == record.project_name:
+        return display
+    return f"{display} ({record.project_name})"
+
+
 def _print_records_table(records: list[ProjectRecordWire], state_filter: str) -> None:
     if not records:
         print(f"No {state_filter} projects.")
@@ -109,8 +119,9 @@ def _print_records_table(records: list[ProjectRecordWire], state_filter: str) ->
     for record in records:
         state = record.state + ("*" if record.state_explicit else "")
         launch = "yes" if record.launchable and record.state == "active" else "no"
+        project_label = _project_display_label(record)
         print(
-            f"{record.project_name:<24} "
+            f"{project_label:<24.24} "
             f"{state:<10} "
             f"{record.active_claim_count:>6} "
             f"{launch:<7} "
@@ -122,7 +133,10 @@ def _print_record_detail(record: ProjectRecordWire) -> None:
     source = "explicit" if record.state_explicit else "defaulted"
     launch = "yes" if record.launchable and record.state == "active" else "no"
     aliases = ", ".join(record.aliases) if record.aliases else "-"
-    print(f"Project: {record.project_name}")
+    display = effective_project_name(record)
+    print(f"Project: {display}")
+    if display != record.project_name:
+        print(f"Directory key: {record.project_name}")
     print(f"State: {record.state} ({source})")
     print(f"Aliases: {aliases}")
     print(f"Project file: {record.project_file}")
@@ -136,15 +150,26 @@ def _print_record_detail(record: ProjectRecordWire) -> None:
         for warning in warnings:
             print(f"  - {warning}")
     if is_inactive_project_lifecycle_state(record.state):
-        print(
-            f"Hint: run 'sase project activate {record.project_name}' "
-            "before launching work."
-        )
+        print(f"Hint: run 'sase project activate {display}' before launching work.")
+
+
+def _canonical_project_ref(
+    project: str,
+    projects_root: Path | None = None,
+) -> str:
+    if not is_valid_sase_project_name(project):
+        raise _ProjectLifecycleError(f"invalid project name: {project!r}")
+    root = (
+        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
+    )
+    try:
+        return resolve_project_alias_ref(project, root)
+    except (ProjectAliasError, ValueError) as exc:
+        raise _ProjectLifecycleError(str(exc)) from exc
 
 
 def _get_project_record(project: str) -> ProjectRecordWire:
-    if not is_valid_sase_project_name(project):
-        raise _ProjectLifecycleError(f"invalid project name: {project!r}")
+    canonical_project = _canonical_project_ref(project)
 
     records = list_project_records(
         sase_projects_dir(),
@@ -152,7 +177,7 @@ def _get_project_record(project: str) -> ProjectRecordWire:
         include_home=True,
     )
     for record in records:
-        if record.project_name == project:
+        if record.project_name == canonical_project:
             return record
     raise _ProjectLifecycleNotFoundError(f"project '{project}' was not found")
 
@@ -161,14 +186,14 @@ def _resolve_mutable_project_file(
     project: str,
     projects_root: Path | None = None,
 ) -> Path:
+    root = (
+        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
+    )
+    project = _canonical_project_ref(project, root)
     if project == "home":
         raise _ProjectLifecycleError("project 'home' is system-managed")
     if not is_valid_sase_project_name(project):
         raise _ProjectLifecycleError(f"invalid project name: {project!r}")
-
-    root = (
-        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
-    )
     project_dir = root / project
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
     if not project_file.is_file():
@@ -177,6 +202,7 @@ def _resolve_mutable_project_file(
 
 
 def _resolve_deletable_project_dir(project: str, projects_root: Path) -> Path:
+    project = _canonical_project_ref(project, projects_root)
     if project == "home":
         raise _ProjectLifecycleError("project 'home' is system-managed")
     if not is_valid_sase_project_name(project):
@@ -203,6 +229,7 @@ def _resolve_deletable_project_dir(project: str, projects_root: Path) -> Path:
 
 
 def _reject_system_managed_project(project: str, projects_root: Path) -> None:
+    project = _canonical_project_ref(project, projects_root)
     if project == "home":
         raise _ProjectLifecycleError("project 'home' is system-managed")
 
@@ -241,6 +268,7 @@ def set_project_state_locked(
     except ValueError as exc:
         raise _ProjectLifecycleError(f"invalid project state: {state}") from exc
 
+    project = _canonical_project_ref(project)
     project_file = _resolve_mutable_project_file(project)
     with changespec_lock(str(project_file)):
         content = project_file.read_text(encoding="utf-8")
@@ -272,6 +300,7 @@ def delete_project_locked(
     root = (
         projects_root.expanduser() if projects_root is not None else sase_projects_dir()
     )
+    project = _canonical_project_ref(project, root)
     project_dir = _resolve_deletable_project_dir(project, root)
     _reject_system_managed_project(project, root)
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
@@ -296,6 +325,8 @@ def delete_project_locked(
 def _alias_json_payload(record: ProjectRecordWire) -> dict[str, object]:
     return {
         "project_name": record.project_name,
+        "effective_project_name": effective_project_name(record),
+        "display_name": record.display_name,
         "aliases": list(record.aliases),
     }
 
@@ -305,12 +336,12 @@ def _print_alias_records(records: list[ProjectRecordWire]) -> None:
         print("No project aliases.")
         return
     for record in records:
-        print(f"{record.project_name}: {', '.join(record.aliases)}")
+        print(f"{_project_display_label(record)}: {', '.join(record.aliases)}")
 
 
 def _print_alias_result(record: ProjectRecordWire) -> None:
     aliases = ", ".join(record.aliases) if record.aliases else "-"
-    print(f"Project '{record.project_name}' aliases: {aliases}")
+    print(f"Project '{effective_project_name(record)}' aliases: {aliases}")
 
 
 def _handle_alias_list(args: argparse.Namespace) -> int:
@@ -467,12 +498,10 @@ def _set_and_print(args: argparse.Namespace, state: str) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
-    print(f"Project '{record.project_name}' state is now {record.state}.")
+    display = effective_project_name(record)
+    print(f"Project '{display}' state is now {record.state}.")
     if is_inactive_project_lifecycle_state(record.state):
-        print(
-            f"Run 'sase project activate {record.project_name}' before "
-            "launching new work."
-        )
+        print(f"Run 'sase project activate {display}' before launching new work.")
     return 0
 
 

@@ -45,7 +45,40 @@ class TestAliasCommands:
         assert exc.value.code == 0
         assert json.loads(capsys.readouterr().out) == {
             "project_name": "alpha",
+            "effective_project_name": "alpha",
+            "display_name": None,
             "aliases": ["bob", "docs"],
+        }
+
+    def test_alias_list_accepts_project_name(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+        _write_project(
+            projects_root,
+            "gh_acme__widgets",
+            "PROJECT_NAME: widgets\nPROJECT_ALIASES: docs\n"
+            "WORKSPACE_DIR: /tmp/widgets\nNAME: a\n",
+        )
+
+        args = make_args(
+            project_subcommand="alias",
+            alias_subcommand="list",
+            project="widgets",
+            json=True,
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        assert json.loads(capsys.readouterr().out) == {
+            "project_name": "gh_acme__widgets",
+            "effective_project_name": "widgets",
+            "display_name": "widgets",
+            "aliases": ["docs"],
         }
 
     def test_alias_list_all_text_only_projects_with_aliases(

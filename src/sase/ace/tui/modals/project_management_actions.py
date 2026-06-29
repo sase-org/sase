@@ -13,7 +13,7 @@ from textual.app import SuspendNotSupported
 from sase.ace.changespec.locking import acquire_edit_lock, release_edit_lock
 from sase.ace.hints import build_editor_args
 from sase.core.paths import sase_projects_dir
-from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.main.project_handler import ProjectLifecycleBlockedError
 
 from .confirm_action_modal import ConfirmActionModal
@@ -86,7 +86,7 @@ class ProjectManagementActionsMixin:
 
         project_file_text = (record.project_file or "").strip()
         if not project_file_text:
-            message = f"ProjectSpec path missing for {record.project_name}"
+            message = f"ProjectSpec path missing for {effective_project_name(record)}"
             self._set_status(message)
             self.notify(message, severity="error")
             return
@@ -110,14 +110,14 @@ class ProjectManagementActionsMixin:
             finally:
                 release_edit_lock(str(project_file))
         except (OSError, SuspendNotSupported) as exc:
-            message = f"Editor failed for {record.project_name}: {exc}"
+            message = f"Editor failed for {effective_project_name(record)}: {exc}"
             self._set_status(message)
             self.notify(message, severity="error")
             return
 
         self._pending_force = None
         self._load_records()
-        self._set_status(f"Editor closed for {record.project_name}")
+        self._set_status(f"Editor closed for {effective_project_name(record)}")
         self._refresh_options(preferred_project=record.project_name)
         self._notify_lifecycle_changed()
 
@@ -137,7 +137,9 @@ class ProjectManagementActionsMixin:
 
             normalized = _normalize_alias_input(aliases)
             if normalized == current_aliases:
-                self._set_status(f"Aliases unchanged for {record.project_name}")
+                self._set_status(
+                    f"Aliases unchanged for {effective_project_name(record)}"
+                )
                 return
 
             if not normalized and current_aliases:
@@ -151,7 +153,9 @@ class ProjectManagementActionsMixin:
                 self.app.push_screen(
                     ConfirmActionModal(
                         title="Clear Project Aliases",
-                        message=(f"Clear all aliases for '{record.project_name}'?"),
+                        message=(
+                            f"Clear all aliases for '{effective_project_name(record)}'?"
+                        ),
                         confirm_label="Clear",
                         cancel_label="Cancel",
                     ),
@@ -162,7 +166,7 @@ class ProjectManagementActionsMixin:
             self._replace_project_aliases(record.project_name, normalized)
 
         self.app.push_screen(
-            ProjectAliasEditorModal(record.project_name, record.aliases),
+            ProjectAliasEditorModal(effective_project_name(record), record.aliases),
             _on_alias_editor_dismiss,
         )
 
@@ -201,7 +205,7 @@ class ProjectManagementActionsMixin:
             self._set_status("No project selected")
             return
         if record.project_name == "home" or record.system_managed:
-            message = f"Project '{record.project_name}' is system-managed"
+            message = f"Project '{effective_project_name(record)}' is system-managed"
             self._set_status(message)
             self.notify(message, severity="error")
             return
@@ -218,7 +222,8 @@ class ProjectManagementActionsMixin:
             ConfirmActionModal(
                 title="Delete Project Directory",
                 message=(
-                    f"Delete SASE project directory for '{record.project_name}'?\n\n"
+                    "Delete SASE project directory for "
+                    f"'{effective_project_name(record)}'?\n\n"
                     f"{project_dir}\n\n"
                     "This removes project specs, project-local config, artifacts, "
                     "and other SASE state. It cannot be undone.\n\n"
@@ -238,7 +243,7 @@ class ProjectManagementActionsMixin:
         if record.state != "active":
             self._set_project_state_for_records([record], "active")
         else:
-            self._set_status(f"{record.project_name} is already active")
+            self._set_status(f"{effective_project_name(record)} is already active")
 
     def action_force_current_state_change(self) -> None:
         if self._pending_force is None:
@@ -354,7 +359,8 @@ class ProjectManagementActionsMixin:
             else:
                 updated = successes[0]
                 self.notify(
-                    f"Project '{updated.project_name}' state is now {updated.state}"
+                    "Project "
+                    f"'{effective_project_name(updated)}' state is now {updated.state}"
                 )
         if blocked:
             self.notify(status, severity="warning")
@@ -378,10 +384,12 @@ class ProjectManagementActionsMixin:
             return
 
         aliases_text = ", ".join(updated.aliases) if updated.aliases else "none"
-        self._status_message = f"{updated.project_name} aliases: {aliases_text}"
+        self._status_message = (
+            f"{effective_project_name(updated)} aliases: {aliases_text}"
+        )
         self._refresh_options(preferred_project=updated.project_name)
         self._notify_lifecycle_changed()
-        self.notify(f"Updated aliases for '{updated.project_name}'")
+        self.notify(f"Updated aliases for '{effective_project_name(updated)}'")
 
     def _state_change_status(
         self,

@@ -51,6 +51,8 @@ class TestListAndShow:
             "core",
         ]
         assert payload[0]["aliases"] == []
+        assert payload[0]["display_name"] is None
+        assert payload[0]["effective_project_name"] == "alpha"
         assert payload[0]["state"] == "active"
         assert payload[0]["state_source"] == "defaulted"
         assert payload[1]["state"] == "inactive"
@@ -121,6 +123,8 @@ class TestListAndShow:
         assert payload["state_explicit"] is False
         assert payload["state_source"] == "defaulted"
         assert payload["aliases"] == []
+        assert payload["display_name"] is None
+        assert payload["effective_project_name"] == "alpha"
 
     def test_show_text_reports_aliases(
         self,
@@ -142,6 +146,49 @@ class TestListAndShow:
         assert exc.value.code == 0
         out = capsys.readouterr().out
         assert "Aliases: bob, docs" in out
+
+    def test_show_accepts_project_name_and_reports_directory_key(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+        _write_project(
+            projects_root,
+            "gh_x__widgets",
+            "PROJECT_NAME: widgets\nWORKSPACE_DIR: /tmp/widgets\nNAME: a\n",
+        )
+
+        args = make_args(project_subcommand="show", project="widgets", json=False)
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert "Project: widgets" in out
+        assert "Directory key: gh_x__widgets" in out
+
+    def test_list_text_shows_project_name_with_directory_key(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+        _write_project(
+            projects_root,
+            "gh_x__widgets",
+            "PROJECT_NAME: widgets\nWORKSPACE_DIR: /tmp/widgets\nNAME: a\n",
+        )
+
+        args = make_args(project_subcommand="list", state="active", json=False)
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert "widgets (gh_x__widgets)" in out
 
     def test_show_missing_project_exits_one(
         self,

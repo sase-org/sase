@@ -7,7 +7,11 @@ from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import normalize_project_lifecycle_state_filter
+from sase.core.project_lifecycle_wire import (
+    effective_project_name,
+    normalize_project_lifecycle_state_filter,
+)
+from sase.project_aliases import resolve_project_alias_ref
 from sase.workspace_provider import detect_workflow_type
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -37,7 +41,7 @@ def list_launchable_projects(
         if not record.project_file:
             continue
         if _is_launchable_project_file(Path(record.project_file)):
-            projects.append(record.project_name)
+            projects.append(effective_project_name(record))
 
     return projects
 
@@ -57,8 +61,12 @@ def is_launchable_project(
         _states_for_project_records(include_states),
         include_home=True,
     )
+    try:
+        canonical_name = resolve_project_alias_ref(project_name, projects_base)
+    except ValueError:
+        return False
     for record in records:
-        if record.project_name != project_name or record.state != "active":
+        if record.project_name != canonical_name or record.state != "active":
             continue
         if not record.project_file:
             return False

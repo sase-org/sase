@@ -9,11 +9,13 @@ from pathlib import Path
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.core.project_lifecycle_facade import (
     apply_project_aliases_update,
+    apply_project_name_update,
     list_project_records,
 )
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_STATES,
     ProjectRecordWire,
+    effective_project_name,
 )
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 
@@ -90,6 +92,14 @@ def _normalize_project_aliases(aliases: Iterable[str]) -> list[str]:
     return sorted({alias.strip() for alias in aliases if alias.strip()})
 
 
+def _normalize_project_name(name: str | None) -> str | None:
+    """Return a trimmed display name, or ``None`` when blank/unset."""
+    if name is None:
+        return None
+    value = name.strip()
+    return value or None
+
+
 def _non_system_project_records(
     records: Sequence[ProjectRecordWire],
 ) -> list[ProjectRecordWire]:
@@ -118,40 +128,66 @@ def _project_alias_map_from_records(
     records: Sequence[ProjectRecordWire],
     *,
     overrides: Mapping[str, Sequence[str]] | None = None,
+    display_name_overrides: Mapping[str, str | None] | None = None,
 ) -> dict[str, str]:
     spec_backed_records = _spec_backed_project_records(records)
     project_names = {record.project_name for record in spec_backed_records}
     alias_map: dict[str, str] = {}
+    ref_kinds: dict[tuple[str, str], str] = {}
+
+    def add_ref(ref: str, project_name: str, kind: str) -> None:
+        if not is_valid_sase_project_name(ref):
+            raise ValueError(f"invalid {kind} {ref!r} for project {project_name!r}")
+        if ref == project_name:
+            if kind == "PROJECT_NAME":
+                return
+            raise ValueError(
+                f"project alias {ref!r} cannot equal project {project_name!r}"
+            )
+        if ref in project_names:
+            if kind == "PROJECT_NAME":
+                raise ValueError(
+                    f"PROJECT_NAME {ref!r} for project {project_name!r} "
+                    "conflicts with a real project name"
+                )
+            raise ValueError(
+                f"project alias {ref!r} for project {project_name!r} "
+                "conflicts with a real project name"
+            )
+        existing = alias_map.get(ref)
+        if existing is not None and existing != project_name:
+            raise ValueError(
+                f"project reference {ref!r} is assigned to both "
+                f"{existing!r} and {project_name!r}"
+            )
+        if existing == project_name:
+            existing_kind = ref_kinds.get((project_name, ref), "project reference")
+            if existing_kind != kind:
+                raise ValueError(
+                    f"{kind} {ref!r} for project {project_name!r} conflicts "
+                    f"with {existing_kind}"
+                )
+            return
+        alias_map[ref] = project_name
+        ref_kinds[(project_name, ref)] = kind
 
     for record in spec_backed_records:
+        display_name = (
+            _normalize_project_name(display_name_overrides[record.project_name])
+            if display_name_overrides is not None
+            and record.project_name in display_name_overrides
+            else record.display_name
+        )
+        if display_name is not None:
+            add_ref(display_name, record.project_name, "PROJECT_NAME")
+
         aliases = (
             overrides[record.project_name]
             if overrides is not None and record.project_name in overrides
             else record.aliases
         )
         for alias in _normalize_project_aliases(aliases):
-            if not is_valid_sase_project_name(alias):
-                raise ValueError(
-                    f"invalid project alias {alias!r} for project "
-                    f"{record.project_name!r}"
-                )
-            if alias == record.project_name:
-                raise ValueError(
-                    f"project alias {alias!r} cannot equal project "
-                    f"{record.project_name!r}"
-                )
-            if alias in project_names:
-                raise ValueError(
-                    f"project alias {alias!r} for project {record.project_name!r} "
-                    "conflicts with a real project name"
-                )
-            existing = alias_map.get(alias)
-            if existing is not None and existing != record.project_name:
-                raise ValueError(
-                    f"project alias {alias!r} is assigned to both "
-                    f"{existing!r} and {record.project_name!r}"
-                )
-            alias_map[alias] = record.project_name
+            add_ref(alias, record.project_name, "project alias")
 
     return alias_map
 
@@ -168,6 +204,40 @@ def _validate_project_aliases(
         overrides={project_name: normalized},
     )
     return normalized
+
+
+def _validate_project_name(
+    project_name: str,
+    name: str | None,
+    records: Sequence[ProjectRecordWire],
+) -> str | None:
+    """Validate a proposed ``PROJECT_NAME`` for one project."""
+    normalized = _normalize_project_name(name)
+    if normalized is not None and not is_valid_sase_project_name(normalized):
+        raise ValueError(f"invalid project name: {name!r}")
+    _project_alias_map_from_records(
+        records,
+        display_name_overrides={project_name: normalized},
+    )
+    return normalized
+
+
+def _occupied_project_refs(
+    records: Sequence[ProjectRecordWire],
+    *,
+    project_name: str | None = None,
+    include_current_aliases: bool = True,
+    include_current_display_name: bool = True,
+) -> set[str]:
+    occupied = {record.project_name for record in _non_system_project_records(records)}
+    for record in _non_system_project_records(records):
+        is_current = project_name is not None and record.project_name == project_name
+        if not is_current or include_current_aliases:
+            occupied.update(_normalize_project_aliases(record.aliases))
+        if not is_current or include_current_display_name:
+            if record.display_name:
+                occupied.add(record.display_name)
+    return occupied
 
 
 # pyvision: https://github.com/sase-org/sase-github.git
@@ -188,16 +258,48 @@ def allocate_project_alias(
     if not is_valid_sase_project_name(base):
         raise ValueError(f"invalid project alias: {desired_base_alias!r}")
 
-    occupied = {record.project_name for record in _non_system_project_records(records)}
-    for record in _non_system_project_records(records):
-        if project_name is not None and record.project_name == project_name:
-            continue
-        occupied.update(_normalize_project_aliases(record.aliases))
+    occupied = _occupied_project_refs(
+        records,
+        project_name=project_name,
+        include_current_aliases=False,
+        include_current_display_name=True,
+    )
 
     candidate = base
     suffix = 2
     while candidate in occupied:
         candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
+
+
+# pyvision: sdd/tales/202606/project_name_field.md
+def allocate_project_name(
+    desired_base_name: str,
+    records: Sequence[ProjectRecordWire],
+    *,
+    project_name: str | None = None,
+) -> str:
+    """Return the first available logical project name for *desired_base_name*.
+
+    Occupancy includes directory keys, aliases, and ``PROJECT_NAME`` values.
+    Suffix allocation uses ``_<N>`` starting at ``_1``.
+    """
+    base = desired_base_name.strip()
+    if not is_valid_sase_project_name(base):
+        raise ValueError(f"invalid project name: {desired_base_name!r}")
+
+    occupied = _occupied_project_refs(
+        records,
+        project_name=project_name,
+        include_current_aliases=True,
+        include_current_display_name=False,
+    )
+
+    candidate = base
+    suffix = 1
+    while candidate in occupied:
+        candidate = f"{base}_{suffix}"
         suffix += 1
     return candidate
 
@@ -226,6 +328,7 @@ def _resolve_mutable_project_file(
     root = (
         projects_root.expanduser() if projects_root is not None else sase_projects_dir()
     )
+    project = resolve_project_alias_ref(project, root)
     project_dir = root / project
     project_file = Path(preferred_project_spec_path(str(project_dir), project))
     if not project_file.is_file():
@@ -255,6 +358,7 @@ def _mutate_project_aliases_locked(
     root = (
         projects_root.expanduser() if projects_root is not None else sase_projects_dir()
     )
+    project = resolve_project_alias_ref(project, root)
     project_file = _resolve_mutable_project_file(project, root)
     with changespec_lock(str(project_file)):
         records = list_project_records(
@@ -271,6 +375,43 @@ def _mutate_project_aliases_locked(
         )
         content = project_file.read_text(encoding="utf-8")
         updated = apply_project_aliases_update(content, aliases)
+        write_changespec_atomic(str(project_file), updated, commit_msg)
+
+    return _get_project_record_from_records(
+        list_project_records(root, list(_ALL_STATES), include_home=True),
+        project,
+    )
+
+
+def _mutate_project_name_locked(
+    project: str,
+    update_name: Callable[[str | None], str | None],
+    commit_msg: str,
+    *,
+    projects_root: Path | None = None,
+) -> ProjectRecordWire:
+    from sase.ace.changespec import changespec_lock, write_changespec_atomic
+
+    root = (
+        projects_root.expanduser() if projects_root is not None else sase_projects_dir()
+    )
+    project = resolve_project_alias_ref(project, root)
+    project_file = _resolve_mutable_project_file(project, root)
+    with changespec_lock(str(project_file)):
+        records = list_project_records(
+            root,
+            list(_ALL_STATES),
+            include_home=True,
+        )
+        record = _get_project_record_from_records(records, project)
+        _reject_system_managed_record(record)
+        name = _validate_project_name(
+            record.project_name,
+            update_name(record.display_name),
+            records,
+        )
+        content = project_file.read_text(encoding="utf-8")
+        updated = apply_project_name_update(content, name)
         write_changespec_atomic(str(project_file), updated, commit_msg)
 
     return _get_project_record_from_records(
@@ -352,6 +493,38 @@ def ensure_project_alias_locked(
     )
 
 
+# pyvision: sdd/tales/202606/project_name_field.md
+def set_project_name_locked(
+    project: str,
+    name: str | None,
+    *,
+    projects_root: Path | None = None,
+) -> ProjectRecordWire:
+    """Replace ``PROJECT_NAME`` for *project* while holding the ProjectSpec lock."""
+    return _mutate_project_name_locked(
+        project,
+        lambda _current: name,
+        "Set project name",
+        projects_root=projects_root,
+    )
+
+
+# pyvision: sdd/tales/202606/project_name_field.md
+def ensure_project_name_locked(
+    project: str,
+    name: str,
+    *,
+    projects_root: Path | None = None,
+) -> ProjectRecordWire:
+    """Ensure ``PROJECT_NAME`` is set to *name* while holding the ProjectSpec lock."""
+    return _mutate_project_name_locked(
+        project,
+        lambda current: current if current == _normalize_project_name(name) else name,
+        f"Ensure project name {name}",
+        projects_root=projects_root,
+    )
+
+
 # pyvision: sdd/epics/202606/project_aliases.md
 def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str, str]:
     """Return ``alias -> canonical project`` for all non-system projects.
@@ -410,11 +583,15 @@ __all__ = [
     "ProjectAliasError",
     "add_project_alias_locked",
     "allocate_project_alias",
+    "allocate_project_name",
     "canonicalize_project_aliases_in_prompt",
     "clear_project_aliases_locked",
     "ensure_project_alias_locked",
+    "ensure_project_name_locked",
+    "effective_project_name",
     "load_project_alias_map",
     "remove_project_alias_locked",
     "resolve_project_alias_ref",
     "set_project_aliases_locked",
+    "set_project_name_locked",
 ]

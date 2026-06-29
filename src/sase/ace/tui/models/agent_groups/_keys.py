@@ -60,7 +60,7 @@ class _GroupingKeys:
 def _project_name(agent: Agent) -> str:
     if not agent.project_file:
         return NO_PROJECT
-    return Path(agent.project_file).parent.name
+    return agent.project_display_name or Path(agent.project_file).parent.name
 
 
 def _name_root(agent: Agent) -> str:

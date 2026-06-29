@@ -34,6 +34,7 @@ from sase.ace.changespec import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
+from sase.core.project_lifecycle_wire import effective_project_name
 from sase.status_state_machine import remove_workspace_suffix
 from sase.workspace_provider import (
     detect_workflow_type,
@@ -169,14 +170,18 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
         if not vcs_prefix:
             continue
         provider_display = get_display_name(vcs_prefix) or vcs_prefix
-        # Dedupe by project name (last record wins).
+        display_name = effective_project_name(record)
+        aliases = tuple(record.aliases)
+        if display_name != record.project_name:
+            aliases = (*aliases, record.project_name)
+        # Dedupe by storage project name (last record wins).
         project_entries[record.project_name] = VcsProjectEntry(
-            name=record.project_name,
+            name=display_name,
             vcs_prefix=vcs_prefix,
-            display_tag=f"#{vcs_prefix}:{record.project_name}",
+            display_tag=f"#{vcs_prefix}:{display_name}",
             provider_display=provider_display,
             description="",
-            aliases=tuple(record.aliases),
+            aliases=aliases,
             kind="project",
             project=record.project_name,
             status="",

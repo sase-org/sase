@@ -23,6 +23,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "attempt_history",
             "diff_has_real_edits",
             "live_file_change_hint",
+            "project_display_name",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",
         ):

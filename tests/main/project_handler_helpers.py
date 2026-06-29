@@ -11,6 +11,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
     normalize_project_lifecycle_state,
+    normalize_project_lifecycle_state_filter,
 )
 from sase import project_aliases
 from sase.main import project_handler
@@ -65,6 +66,29 @@ def _fake_apply_project_aliases_update(content: str, aliases: list[str]) -> str:
     return "".join(lines)
 
 
+def _fake_apply_project_name_update(content: str, name: str | None) -> str:
+    lines = content.splitlines(keepends=True)
+    normalized = (name or "").strip()
+    for index, line in enumerate(lines):
+        if line.startswith("PROJECT_NAME:"):
+            if normalized:
+                lines[index] = f"PROJECT_NAME: {normalized}\n"
+            else:
+                del lines[index]
+            return "".join(lines)
+
+    if not normalized:
+        return content
+
+    insert_index = len(lines)
+    for index, line in enumerate(lines):
+        if line.startswith(("RUNNING:", "NAME:")):
+            insert_index = index
+            break
+    lines.insert(insert_index, f"PROJECT_NAME: {normalized}\n")
+    return "".join(lines)
+
+
 def _fake_list_workspace_claims_from_content(content: str) -> list[WorkspaceClaim]:
     claims: list[WorkspaceClaim] = []
     for line in content.splitlines():
@@ -74,11 +98,14 @@ def _fake_list_workspace_claims_from_content(content: str) -> list[WorkspaceClai
     return claims
 
 
-def _parse_header(content: str) -> tuple[str, bool, str | None, list[str], int]:
+def _parse_header(
+    content: str,
+) -> tuple[str, bool, str | None, list[str], str | None, int]:
     state = "active"
     explicit = False
     workspace_dir: str | None = None
     aliases: list[str] = []
+    display_name: str | None = None
     active_claim_count = 0
     before_changespec = True
     in_running = False
@@ -102,22 +129,24 @@ def _parse_header(content: str) -> tuple[str, bool, str | None, list[str], int]:
                     if alias.strip()
                 }
             )
+        elif line.startswith("PROJECT_NAME:"):
+            display_name = line.split(":", 1)[1].strip() or None
         elif line.startswith("RUNNING:"):
             in_running = True
         elif in_running and WorkspaceClaim.from_line(line) is not None:
             active_claim_count += 1
         elif in_running and line and not line.startswith(" "):
             in_running = False
-    return state, explicit, workspace_dir, aliases, active_claim_count
+    return state, explicit, workspace_dir, aliases, display_name, active_claim_count
 
 
 def _disk_project_records(
     root: str | Path,
-    include_states: list[str],
+    include_states: list[str] | str,
     include_home: bool = False,
 ) -> list[ProjectRecordWire]:
     projects_root = Path(root)
-    state_set = set(include_states)
+    state_set = set(normalize_project_lifecycle_state_filter(include_states))
     records: list[ProjectRecordWire] = []
     if not projects_root.is_dir():
         return records
@@ -132,9 +161,14 @@ def _disk_project_records(
         if not project_file.is_file():
             continue
         content = project_file.read_text(encoding="utf-8")
-        state, explicit, workspace_dir, aliases, active_claim_count = _parse_header(
-            content
-        )
+        (
+            state,
+            explicit,
+            workspace_dir,
+            aliases,
+            display_name,
+            active_claim_count,
+        ) = _parse_header(content)
         if state not in state_set:
             continue
         archive_file = project_dir / f"{project_name}-archive.sase"
@@ -154,6 +188,7 @@ def _disk_project_records(
                 aliases=aliases,
                 warnings=[],
                 parse_warnings=[],
+                display_name=display_name,
             )
         )
     return records
@@ -196,6 +231,11 @@ def lifecycle_stubs(
             project_aliases,
             "apply_project_aliases_update",
             _fake_apply_project_aliases_update,
+        )
+        monkeypatch.setattr(
+            project_aliases,
+            "apply_project_name_update",
+            _fake_apply_project_name_update,
         )
         monkeypatch.setattr(
             project_handler,

@@ -26,7 +26,7 @@ from textual.widgets.option_list import Option
 
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.main.project_handler import (
     ProjectLifecycleBlockedError,
     delete_project_locked,
@@ -219,6 +219,7 @@ class ProjectsPane(
                 haystack = " ".join(
                     (
                         record.project_name,
+                        effective_project_name(record),
                         " ".join(record.aliases),
                         record.state,
                         record.workspace_dir or "",

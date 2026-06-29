@@ -12,6 +12,7 @@ import pytest
 from sase.core import project_lifecycle_facade
 from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+    effective_project_name,
     normalize_project_lifecycle_state,
     normalize_project_lifecycle_state_filter,
     project_lifecycle_from_dict,
@@ -50,6 +51,7 @@ def _record_payload(**overrides: Any) -> dict[str, Any]:
         "aliases": [],
         "warnings": [],
         "parse_warnings": [],
+        "display_name": None,
     }
     payload.update(overrides)
     return payload
@@ -72,11 +74,14 @@ def test_project_record_wire_dict_conversion() -> None:
             archive_file="/tmp/projects/alpha/alpha-archive.sase",
             active_claim_count=2,
             aliases=["docs", "bob"],
+            display_name="widgets",
             parse_warnings=["invalid state"],
         )
     )
 
     assert record.project_name == "alpha"
+    assert record.display_name == "widgets"
+    assert effective_project_name(record) == "widgets"
     assert record.archive_file == "/tmp/projects/alpha/alpha-archive.sase"
     assert record.active_claim_count == 2
     assert record.aliases == ["docs", "bob"]
@@ -86,10 +91,13 @@ def test_project_record_wire_dict_conversion() -> None:
 def test_project_record_wire_missing_aliases_is_backward_compatible() -> None:
     payload = _record_payload()
     del payload["aliases"]
+    del payload["display_name"]
 
     record = project_record_from_dict(payload)
 
     assert record.aliases == []
+    assert record.display_name is None
+    assert effective_project_name(record) == "alpha"
 
 
 def test_project_lifecycle_wire_accepts_sibling_state() -> None:
@@ -122,6 +130,8 @@ def test_lifecycle_facade_missing_extension_raises(
     with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
         project_lifecycle_facade.apply_project_aliases_update("", ["bob"])
     with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
+        project_lifecycle_facade.apply_project_name_update("", "bob")
+    with pytest.raises(ImportError, match=RUST_EXTENSION_MODULE_NAME):
         project_lifecycle_facade.list_project_records("/tmp/projects")
 
 
@@ -137,6 +147,8 @@ def test_lifecycle_facade_stale_binding_raises(
         project_lifecycle_facade.apply_project_lifecycle_update("", "active")
     with pytest.raises(AttributeError, match="apply_project_aliases_update"):
         project_lifecycle_facade.apply_project_aliases_update("", ["bob"])
+    with pytest.raises(AttributeError, match="apply_project_name_update"):
+        project_lifecycle_facade.apply_project_name_update("", "bob")
     with pytest.raises(AttributeError, match="list_project_records"):
         project_lifecycle_facade.list_project_records("/tmp/projects")
 
@@ -158,6 +170,10 @@ def test_lifecycle_facade_calls_rust_bindings(
         calls.append(("apply_aliases", (content, aliases)))
         return f"{content}PROJECT_ALIASES: {', '.join(sorted(aliases))}\n"
 
+    def fake_apply_name(content: str, name: str | None) -> str:
+        calls.append(("apply_name", (content, name)))
+        return f"{content}PROJECT_NAME: {name or ''}\n"
+
     def fake_list(
         projects_root: str, include_states: list[str], include_home: bool
     ) -> list[dict[str, Any]]:
@@ -168,6 +184,7 @@ def test_lifecycle_facade_calls_rust_bindings(
     fake.read_project_lifecycle_from_content = fake_read  # type: ignore[attr-defined]
     fake.apply_project_lifecycle_update = fake_apply  # type: ignore[attr-defined]
     fake.apply_project_aliases_update = fake_apply_aliases  # type: ignore[attr-defined]
+    fake.apply_project_name_update = fake_apply_name  # type: ignore[attr-defined]
     fake.list_project_records = fake_list  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
 
@@ -180,6 +197,9 @@ def test_lifecycle_facade_calls_rust_bindings(
     aliases_updated = project_lifecycle_facade.apply_project_aliases_update(
         "NAME: x\n", ("docs", "bob")
     )
+    name_updated = project_lifecycle_facade.apply_project_name_update(
+        "NAME: x\n", "widgets"
+    )
     records = project_lifecycle_facade.list_project_records(
         "/tmp/projects", "active", include_home=True
     )
@@ -187,11 +207,13 @@ def test_lifecycle_facade_calls_rust_bindings(
     assert lifecycle.state == "inactive"
     assert updated.endswith("PROJECT_STATE: inactive\n")
     assert aliases_updated.endswith("PROJECT_ALIASES: bob, docs\n")
+    assert name_updated.endswith("PROJECT_NAME: widgets\n")
     assert records[0].project_name == "beta"
     assert calls == [
         ("read", ("NAME: x\n",)),
         ("apply", ("NAME: x\n", "inactive")),
         ("apply_aliases", ("NAME: x\n", ["docs", "bob"])),
+        ("apply_name", ("NAME: x\n", "widgets")),
         ("list", ("/tmp/projects", ["active"], True)),
     ]
 
@@ -222,6 +244,8 @@ def test_lifecycle_facade_real_extension_content_helpers() -> None:
         pytest.skip("sase_core_rs is too old (no project lifecycle bindings).")
     if not hasattr(rust_module, "apply_project_aliases_update"):
         pytest.skip("sase_core_rs is too old (no project alias bindings).")
+    if not hasattr(rust_module, "apply_project_name_update"):
+        pytest.skip("sase_core_rs is too old (no project name bindings).")
 
     lifecycle = project_lifecycle_facade.read_project_lifecycle_from_content(
         "PROJECT_STATE: archived\nNAME: demo\n"
@@ -241,6 +265,12 @@ def test_lifecycle_facade_real_extension_content_helpers() -> None:
     aliases_cleared = project_lifecycle_facade.apply_project_aliases_update(
         "WORKSPACE_DIR: /tmp\nPROJECT_ALIASES: bob\nNAME: demo\n", []
     )
+    name_updated = project_lifecycle_facade.apply_project_name_update(
+        "WORKSPACE_DIR: /tmp\nRUNNING:\n\nNAME: demo\n", "widgets"
+    )
+    name_cleared = project_lifecycle_facade.apply_project_name_update(
+        "WORKSPACE_DIR: /tmp\nPROJECT_NAME: widgets\nNAME: demo\n", None
+    )
 
     assert lifecycle.state == "inactive"
     assert lifecycle.explicit is True
@@ -256,6 +286,11 @@ def test_lifecycle_facade_real_extension_content_helpers() -> None:
         == "WORKSPACE_DIR: /tmp\nPROJECT_ALIASES: bob, docs\nRUNNING:\n\nNAME: demo\n"
     )
     assert aliases_cleared == "WORKSPACE_DIR: /tmp\nNAME: demo\n"
+    assert (
+        name_updated
+        == "WORKSPACE_DIR: /tmp\nPROJECT_NAME: widgets\nRUNNING:\n\nNAME: demo\n"
+    )
+    assert name_cleared == "WORKSPACE_DIR: /tmp\nNAME: demo\n"
 
 
 def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None:
@@ -269,7 +304,7 @@ def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None
     project_dir = projects / "alpha"
     project_dir.mkdir(parents=True)
     (project_dir / "alpha.sase").write_text(
-        f"PROJECT_ALIASES: bob, docs\nWORKSPACE_DIR: {workspace}\nRUNNING:\n  #1 | 123 | run | demo\n\nNAME: demo\n",
+        f"PROJECT_NAME: widgets\nPROJECT_ALIASES: bob, docs\nWORKSPACE_DIR: {workspace}\nRUNNING:\n  #1 | 123 | run | demo\n\nNAME: demo\n",
         encoding="utf-8",
     )
     sibling_dir = projects / "sibling"
@@ -286,6 +321,8 @@ def test_lifecycle_facade_real_extension_project_records(tmp_path: Path) -> None
 
     assert len(records) == 1
     assert records[0].project_name == "alpha"
+    assert records[0].display_name == "widgets"
+    assert effective_project_name(records[0]) == "widgets"
     assert records[0].aliases == ["bob", "docs"]
     assert records[0].state == "active"
     assert records[0].active_claim_count == 1

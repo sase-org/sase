@@ -91,6 +91,7 @@ class ProjectRecordWire:
     aliases: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     parse_warnings: list[str] = field(default_factory=list)
+    display_name: str | None = None
 
 
 def _str_list(value: Any) -> list[str]:
@@ -135,7 +136,22 @@ def project_record_from_dict(data: dict[str, Any]) -> ProjectRecordWire:
         aliases=_str_list(data.get("aliases")),
         warnings=_str_list(data.get("warnings")),
         parse_warnings=_str_list(data.get("parse_warnings")),
+        display_name=_optional_str(data.get("display_name")),
     )
+
+
+def effective_project_name(record: ProjectRecordWire) -> str:
+    """Return the user-facing project name for *record*."""
+
+    return record.display_name or record.project_name
+
+
+def project_display_name_map(
+    records: Sequence[ProjectRecordWire],
+) -> dict[str, str]:
+    """Return ``directory key -> user-facing name`` for project records."""
+
+    return {record.project_name: effective_project_name(record) for record in records}
 
 
 def project_lifecycle_wire_to_json_dict(record: Any) -> Any:
@@ -160,9 +176,11 @@ __all__ = [
     "PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION",
     "ProjectLifecycleWire",
     "ProjectRecordWire",
+    "effective_project_name",
     "is_inactive_project_lifecycle_state",
     "normalize_project_lifecycle_state",
     "normalize_project_lifecycle_state_filter",
+    "project_display_name_map",
     "project_lifecycle_from_dict",
     "project_lifecycle_wire_to_json_dict",
     "project_record_from_dict",

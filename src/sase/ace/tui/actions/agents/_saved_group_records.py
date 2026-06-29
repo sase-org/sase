@@ -114,6 +114,8 @@ def _agent_start_time_wire(agent: Agent) -> str | None:
 
 
 def _agent_project_name(agent: Agent) -> str | None:
+    if agent.project_display_name:
+        return agent.project_display_name
     if not agent.project_file:
         return None
     parent = Path(agent.project_file).parent.name

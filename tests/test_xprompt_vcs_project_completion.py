@@ -57,6 +57,7 @@ def _record(
     project_name: str,
     *,
     aliases: list[str] | None = None,
+    display_name: str | None = None,
     state: str = "active",
     system_managed: bool = False,
     launchable: bool = True,
@@ -76,6 +77,7 @@ def _record(
         aliases=list(aliases or []),
         warnings=[],
         parse_warnings=[],
+        display_name=display_name,
     )
 
 
@@ -287,6 +289,33 @@ def test_builder_basic_entries_sorted_by_name() -> None:
     )
     assert sase.display_tag == "#gh:sase"
     assert sase.provider_display == "GitHub"
+
+
+def test_builder_uses_project_name_as_completion_display() -> None:
+    records = [
+        _record("gh_acme__widgets", aliases=["legacy"], display_name="widgets"),
+    ]
+    workflow_types = {"gh_acme__widgets": "gh"}
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
+
+    with list_p, detect_p, display_p:
+        entries = build_vcs_project_completion_entries(
+            projects_dir="/tmp/projects", use_cache=False
+        )
+
+    assert entries == [
+        VcsProjectEntry(
+            name="widgets",
+            vcs_prefix="gh",
+            display_tag="#gh:widgets",
+            provider_display="gh",
+            description="",
+            aliases=("legacy", "gh_acme__widgets"),
+            kind="project",
+            project="gh_acme__widgets",
+            status="",
+        )
+    ]
 
 
 def test_builder_excludes_system_managed_and_non_launchable() -> None:

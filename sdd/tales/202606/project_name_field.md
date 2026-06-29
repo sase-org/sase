@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 07:24:25
-status: wip
+status: done
 prompt: sdd/prompts/202606/project_name_field.md
 ---
 # Configurable `PROJECT_NAME` Field for Project Specs

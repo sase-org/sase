@@ -310,6 +310,10 @@ class Agent:
     # load time, not serialized in bundle dicts).
     attempt_history: list[AttemptRecord] = field(default_factory=list)
 
+    # Display-only logical project name resolved from ProjectSpec PROJECT_NAME.
+    # The project_file path remains the storage identity for grouping/actions.
+    project_display_name: str | None = field(default=None, compare=False)
+
     # Internal source marker for dismissed bundles loaded only for revive.
     _loaded_from_dismissed_bundle: bool = field(
         default=False, compare=False, repr=False

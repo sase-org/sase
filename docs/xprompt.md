@@ -16,7 +16,7 @@ There are two related paths to keep separate:
 launch setup:
   multi-agent xprompt fan-out check
   -> default workspace ref insertion when needed (#git:home)
-  -> project alias canonicalization (#gh:bob -> #gh:bob-cli)
+  -> project name/alias canonicalization (#gh:bob -> #gh_bbugyi200__bob)
   -> workspace ref resolution (#cd/#git/#gh/#hg and known-project fallbacks)
   -> prompt/workflow execution
 
@@ -324,18 +324,19 @@ workspace plugin is not loaded in the current process. Known projects come from 
 registered `sase` project, allocates a numbered workspace for non-wait runs, and lets dispatch surfaces strip the
 wrapper ref when identifying an embedded workflow body.
 
-Known projects may also declare `PROJECT_ALIASES` in their ProjectSpec. Alias refs in VCS workspace tags are
-canonicalized before workspace resolution and xprompt expansion, so `#gh:bob #p` is processed as `#gh:bob-cli #p` when
-the `bob-cli` project declares alias `bob`. The rewrite is exact and applies to colon, underscore, and parenthesized
-workspace-ref forms; it does not rewrite owner/repo paths such as `#gh:bbugyi200/bob`, partial project names, prose, or
-fenced code examples. See [Project Aliases](project_spec.md#project-aliases) for validation and management commands.
+Known projects may also declare `PROJECT_NAME` and `PROJECT_ALIASES` in their ProjectSpec. Friendly refs in VCS
+workspace tags are canonicalized before workspace resolution and xprompt expansion, so `#gh:bob #p` is processed as a
+ref to the directory-key project when that project declares `PROJECT_NAME: bob` or alias `bob`. The rewrite is exact and
+applies to colon, underscore, and parenthesized workspace-ref forms; it does not rewrite owner/repo paths such as
+`#gh:bbugyi200/bob`, partial project names, prose, or fenced code examples. See
+[Project Names and Aliases](project_spec.md#project-names-and-aliases) for validation and management commands.
 
-GitHub `owner/repo` refs use aliases after first use. Resolving `#gh:foo-org/foo` creates or reuses the canonical
-project whose `WORKSPACE_DIR` is `~/projects/github/foo-org/foo/`; for a new repo that canonical name is typically
-`gh_foo-org__foo`, with generated alias `foo`. A second repo with the same basename, such as `#gh:bar-org/foo`, gets a
-different canonical project such as `gh_bar-org__foo` and the next available alias, for example `foo-2`. Future launches
-can use `#gh:foo` and `#gh:foo-2`, and those refs canonicalize before prompt history, metadata, and artifacts are
-written.
+GitHub `owner/repo` refs use `PROJECT_NAME` after first use. Resolving `#gh:foo-org/foo` creates or reuses the canonical
+project whose `WORKSPACE_DIR` is `~/projects/github/foo-org/foo/`; for a new repo that canonical directory key is
+typically `gh_foo-org__foo`, with `PROJECT_NAME: foo`. A second repo with the same basename, such as `#gh:bar-org/foo`,
+gets a different canonical project such as `gh_bar-org__foo` and the next available display name, for example `foo_1`.
+Future launches can use `#gh:foo` and `#gh:foo_1`, and those refs canonicalize before prompt history, metadata, and
+artifacts are written.
 
 For compatibility, existing basename ProjectSpecs are reused when their `WORKSPACE_DIR` already matches the GitHub repo.
 Owner/repo fallback avoids basename routing when duplicate GitHub basenames would make that ambiguous; direct
@@ -344,9 +345,9 @@ Owner/repo fallback avoids basename routing when duplicate GitHub basenames woul
 ACE and the xprompt LSP provide a project/ChangeSpec completion helper for these references. Type `#+` at a token
 boundary, or type `+` as the first character in the prompt, to open a picker of active launchable projects and active
 PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status. Accepting a project row inserts a tag such as
-`#gh:sase`; accepting a ChangeSpec row inserts a tag such as `#gh:my_change`. The helper filters by project name,
-project alias, or ChangeSpec name prefix, and it ignores system-managed `home`, inactive projects, sibling records, and
-non-launchable projects.
+`#gh:sase`; accepting a ChangeSpec row inserts a tag such as `#gh:my_change`. The helper filters by `PROJECT_NAME`,
+directory-key project name, project alias, or ChangeSpec name prefix, and it ignores system-managed `home`, inactive
+projects, sibling records, and non-launchable projects.
 
 Known-project lookup defaults to active ProjectSpecs. Inactive and sibling projects are omitted from broad project-local
 xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
@@ -1514,10 +1515,10 @@ And expansion resumes here.
 XPrompt aliases provide raw text-level substitution that runs _before_ any other xprompt processing. They are defined in
 the `xprompt_aliases` config field in `sase.yml`.
 
-These are global shorthand aliases for xprompt names and raw refs. They are separate from ProjectSpec `PROJECT_ALIASES`,
-which map alternate project names such as `bob` to canonical known projects such as `bob-cli` at the launch boundary.
-Project aliases are canonicalized before xprompt expansion so launch artifacts and history store the canonical project
-name.
+These are global shorthand aliases for xprompt names and raw refs. They are separate from ProjectSpec `PROJECT_NAME` and
+`PROJECT_ALIASES`, which map friendly project refs such as `bob` to canonical directory-key projects such as
+`gh_bbugyi200__bob` at the launch boundary. Project names and aliases are canonicalized before xprompt expansion so
+launch artifacts and history store the canonical directory-key project name.
 
 The built-in defaults provide two shorthand aliases:
 

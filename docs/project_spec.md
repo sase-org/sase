@@ -22,6 +22,7 @@ stay before the first ChangeSpec.
 BARE_REPO_DIR: ~/.sase/repos/my_project.git
 WORKSPACE_DIR: ~/projects/git/my_project/
 PROJECT_STATE: active
+PROJECT_NAME: my_project
 PROJECT_ALIASES: docs
 RUNNING:
   #10 | 12345 | run | my_project_add_config_parser_1 | 260509_121314
@@ -71,8 +72,11 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
 - **PROJECT_STATE**: Project lifecycle state. Valid values are `active`, `inactive`, and `sibling`. Missing
   `PROJECT_STATE` means `active`, so existing projects do not need a migration. Legacy `archived` and `closed` values
   are read as `inactive`.
+- **PROJECT_NAME**: Optional user-facing project name. The storage key remains the directory name
+  `~/.sase/projects/<project>/`; `PROJECT_NAME` is surfaced in project lists, launch pickers, agent grouping labels, and
+  VCS workspace references.
 - **PROJECT_ALIASES**: Comma-separated alternate project names accepted in VCS workspace references. Aliases are
-  canonicalized to the real project name before launch state, prompt history, and agent artifacts are written.
+  canonicalized to the directory-key project name before launch state, prompt history, and agent artifacts are written.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
 
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by first-use `#git:<project>` initialization or `#git:<bare-repo-path>`
@@ -81,42 +85,50 @@ registration. They are parsed only before the first ChangeSpec.
 `PROJECT_STATE` is managed by `sase project`. If you edit this field by hand, keep it before `RUNNING:` or the first
 `NAME:` line and use one of the valid lowercase values.
 
+`PROJECT_NAME` is written by workspace providers such as `sase-github` and may be edited by hand. If you edit it
+manually, keep it before `RUNNING:` or the first `NAME:` line and use the same syntax as SASE project names.
+
 `PROJECT_ALIASES` is managed by `sase project alias` and ACE's Projects tab (in the SASE Admin Center). If you edit it
 by hand, keep it before `RUNNING:` or the first `NAME:` line and use the same comma-separated form SASE writes.
 
-### Project Aliases
+### Project Names and Aliases
 
-Project aliases let a known project expose short names without changing the canonical project record. For example,
-`PROJECT_ALIASES: bob` in `~/.sase/projects/bob-cli/bob-cli.sase` makes launch-bound VCS refs such as `#gh:bob`,
-`#gh_bob`, and `#gh(bob)` behave like `#gh:bob-cli`, `#gh:bob-cli`, and `#gh(bob-cli)`.
+The directory name remains the canonical storage key. `PROJECT_NAME` lets a known project expose a primary user-facing
+name without renaming its project directory. `PROJECT_ALIASES` adds secondary names. For example, `PROJECT_NAME: bob` in
+`~/.sase/projects/gh_bbugyi200__bob/gh_bbugyi200__bob.sase` makes launch-bound VCS refs such as `#gh:bob`, `#gh_bob`,
+and `#gh(bob)` behave like refs to the `gh_bbugyi200__bob` directory-key project.
 
-Workspace providers can also create aliases automatically. The GitHub provider uses this for first-use `owner/repo`
+Workspace providers can create display names automatically. The GitHub provider uses this for first-use `owner/repo`
 refs: `#gh:foo-org/foo` can create a canonical SASE project such as `gh_foo-org__foo` with `WORKSPACE_DIR` set to
-`~/projects/github/foo-org/foo/` and `PROJECT_ALIASES: foo`. If another GitHub repo has the same basename, such as
+`~/projects/github/foo-org/foo/` and `PROJECT_NAME: foo`. If another GitHub repo has the same basename, such as
 `#gh:bar-org/foo`, the provider keeps a distinct canonical project such as `gh_bar-org__foo` and allocates the first
-available short alias, starting with `foo-2`, then `foo-3`, and so on.
+available display name, starting with `foo_1`, then `foo_2`, and so on.
 
 Existing basename projects are compatibility anchors. If `~/.sase/projects/foo/foo.sase` already points at
-`~/projects/github/foo-org/foo/`, the GitHub provider reuses `foo` instead of migrating or renaming it. No automatic
-ProjectSpec rename is required; generated aliases can be inspected or adjusted with `sase project alias`.
+`~/projects/github/foo-org/foo/`, the GitHub provider reuses `foo` instead of migrating or renaming it. Existing
+auto-aliased GitHub projects also keep their aliases; no automatic migration from `PROJECT_ALIASES` to `PROJECT_NAME` is
+performed.
 
-Aliases are resolved at the launch/xprompt boundary before workspace resolution, xprompt expansion, prompt history
-writes, and agent artifact writes. The alias should not persist in `submitted_xprompt.md`, `raw_xprompt.md`,
-`agent_meta.json`, prompt history, display names, history sort keys, or VCS refs. Normal launch and history surfaces
-show the canonical project name; project-management surfaces show the configured aliases.
+`PROJECT_NAME` and aliases are resolved at the launch/xprompt boundary before workspace resolution, xprompt expansion,
+prompt history writes, and agent artifact writes. These friendly refs should not persist in `submitted_xprompt.md`,
+`raw_xprompt.md`, `agent_meta.json`, prompt history, history sort keys, or VCS refs. Storage paths and metadata keep
+using the directory key, while display surfaces prefer `PROJECT_NAME` when present.
 
 Validation rules:
 
+- Missing `PROJECT_NAME` means the user-facing name is the directory-key project name.
 - Missing `PROJECT_ALIASES` means the project has no aliases.
-- Values are comma-separated, trimmed, deduplicated, and stored in sorted order.
-- Alias names use the same syntax as SASE project names.
+- Alias values are comma-separated, trimmed, deduplicated, and stored in sorted order.
+- `PROJECT_NAME` and alias names use the same syntax as SASE project names.
+- `PROJECT_NAME` allocation tries the requested short name first, then appends `_1`, `_2`, and higher suffixes until it
+  finds a value that does not collide.
 - Automatic alias allocation tries the requested short name first, then appends `-2`, `-3`, and higher suffixes until it
   finds a value that does not collide.
-- An alias cannot equal its canonical project name.
-- An alias cannot collide with a real project name or with another project's alias across non-system projects in any
-  lifecycle state.
-- Invalid or duplicate manually edited aliases are reported as parse warnings; CLI and TUI mutation helpers reject
-  invalid writes.
+- An alias cannot equal its directory-key project name or the same project's `PROJECT_NAME`.
+- A directory key, `PROJECT_NAME`, or alias cannot collide with another project's directory key, `PROJECT_NAME`, or
+  alias across non-system projects in any lifecycle state.
+- Invalid or duplicate manually edited names and aliases are reported as parse warnings; CLI and TUI mutation helpers
+  reject invalid writes.
 
 CLI commands:
 
@@ -131,8 +143,9 @@ Alias mutation uses the normal ProjectSpec lock and can target active, inactive,
 `home` project cannot be mutated.
 
 ACE exposes aliases in the Projects tab of the SASE Admin Center (press `#`). Rows show compact alias information, the
-detail pane shows the full list, the text filter matches aliases, and `A` opens the alias editor for the highlighted
-project. Alias edits replace the selected project's alias set; marked bulk operations remain lifecycle-only.
+detail pane shows the full list, the text filter matches `PROJECT_NAME` and aliases, and `A` opens the alias editor for
+the highlighted project. Alias edits replace the selected project's alias set; marked bulk operations remain
+lifecycle-only.
 
 ### Project Lifecycle
 
@@ -221,6 +234,7 @@ Common optional fields include:
 ```text
 WORKSPACE_DIR: ~/projects/git/my_project/
 PROJECT_STATE: active
+PROJECT_NAME: my_project
 PROJECT_ALIASES: docs
 
 
@@ -261,8 +275,8 @@ STATUS: WIP
 
 - **Project file path**: Use `~/.sase/projects/<project>/<project>.sase` for active ChangeSpecs and
   `~/.sase/projects/<project>/<project>-archive.sase` for terminal history.
-- **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, `PROJECT_STATE`, and `RUNNING` before the first `NAME:`
-  line. `PROJECT_ALIASES` is also project metadata and belongs in the same header area.
+- **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, `PROJECT_STATE`, `PROJECT_NAME`, `PROJECT_ALIASES`, and
+  `RUNNING` before the first `NAME:` line.
 - **Blank lines between ChangeSpecs**: Separate ChangeSpecs with exactly two blank lines.
 - **NAME field**: Prefer SASE-generated names, which use the project prefix and a numeric suffix.
 - **PARENT field**: Set it only to another ChangeSpec `NAME`; omit it when there is no dependency.

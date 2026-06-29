@@ -7,7 +7,7 @@ from pathlib import Path
 
 from rich.text import Text
 
-from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.main.project_handler import ProjectLifecycleBlockedError
 
 # Shared column widths so the column header and every row stay perfectly
@@ -66,6 +66,13 @@ def _aliases_label(record: ProjectRecordWire) -> str:
     return joined[: _ALIASES_WIDTH - 3] + "..."
 
 
+def _project_label(record: ProjectRecordWire) -> str:
+    display = effective_project_name(record)
+    if display == record.project_name:
+        return display
+    return f"{display} ({record.project_name})"
+
+
 def column_header_text() -> Text:
     """Dim/bold header row labeling the project columns.
 
@@ -94,7 +101,8 @@ def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
         text.append("!   ", style="bold #FFD700")
     else:
         text.append(" " * _MARK_WIDTH)
-    text.append(f"{record.project_name:<{_NAME_WIDTH}.{_NAME_WIDTH}}", style="bold")
+    label = _project_label(record)
+    text.append(f"{label:<{_NAME_WIDTH}.{_NAME_WIDTH}}", style="bold")
     badge = f"● {record.state}"
     text.append(
         f"{badge:<{_STATE_WIDTH}.{_STATE_WIDTH}}",
@@ -213,7 +221,10 @@ def detail_text(
 
     source = "explicit" if record.state_explicit else "defaulted"
     launch = "yes" if record.launchable and record.state == "active" else "no"
-    text.append(record.project_name, style="bold")
+    display = effective_project_name(record)
+    text.append(display, style="bold")
+    if display != record.project_name:
+        text.append(f" ({record.project_name})", style="dim")
     text.append("   ")
     text.append(f"● {record.state}", style=_state_style(record.state))
     text.append(f" ({source})", style="dim")
@@ -244,7 +255,7 @@ def detail_text(
             text.append(f"\n  - {warning}", style="red")
     if record.state != "active":
         text.append(
-            f"\nHint: press a or Enter to reactivate {record.project_name}.",
+            f"\nHint: press a or Enter to reactivate {display}.",
             style="#87D7FF",
         )
     return text
@@ -281,7 +292,7 @@ def bulk_delete_message(
     ]
     limit = 8
     for record in records[:limit]:
-        lines.append(f"  - {record.project_name}: {project_dir_for(record)}")
+        lines.append(f"  - {_project_label(record)}: {project_dir_for(record)}")
     remaining = len(records) - limit
     if remaining > 0:
         lines.append(f"  ... and {remaining} more")
@@ -310,9 +321,9 @@ def state_change_status(
     if not bulk:
         if successes:
             updated = successes[0]
-            return f"{updated.project_name} -> {updated.state}"
+            return f"{effective_project_name(updated)} -> {updated.state}"
         if skipped:
-            return f"{records[0].project_name} is already {state}"
+            return f"{effective_project_name(records[0])} is already {state}"
         if blocked:
             return f"Blocked: {blocked[0][1]}. Press F to force."
         if failed:

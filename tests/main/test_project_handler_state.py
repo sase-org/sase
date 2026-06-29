@@ -100,6 +100,29 @@ class TestMutation:
             "PROJECT_STATE: active\n"
         )
 
+    def test_set_state_accepts_project_name(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+    ) -> None:
+        lifecycle_stubs()
+        project_file = _write_project(
+            projects_root,
+            "gh_acme__widgets",
+            "PROJECT_NAME: widgets\nWORKSPACE_DIR: /tmp/widgets\nNAME: a\n",
+        )
+
+        args = make_args(
+            project_subcommand="deactivate",
+            project="widgets",
+            force=False,
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
+
     def test_set_state_accepts_sibling(
         self,
         projects_root: Path,
