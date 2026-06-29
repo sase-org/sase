@@ -268,6 +268,57 @@ def test_dependency_wait_updates_index_for_waiting_marker_only(
     assert not (tmp_path / "ready.json").exists()
 
 
+def test_named_duration_wait_starts_after_dependencies_are_ready(
+    tmp_path: Path,
+) -> None:
+    """A relative duration is not consumed by time spent waiting on deps."""
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 123}))
+    ready_path = tmp_path / "ready.json"
+    sleep_calls: list[float] = []
+    marker_snapshots: list[dict[str, object]] = []
+
+    def update_index(artifacts_dir: str) -> None:
+        waiting_path = Path(artifacts_dir) / "waiting.json"
+        if waiting_path.exists():
+            marker_snapshots.append(json.loads(waiting_path.read_text()))
+
+    def sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+        if len(sleep_calls) == 2:
+            ready_path.write_text("{}", encoding="utf-8")
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_wait.update_agent_artifact_index_for_marker_mutation",
+            side_effect=update_index,
+        ),
+        patch("sase.axe.run_agent_wait.time.sleep", side_effect=sleep),
+        patch(
+            "sase.axe.run_agent_wait.remaining_until",
+            side_effect=[3.0, 1.0, 0.0],
+        ),
+    ):
+        wait_for_dependencies(
+            ["dep"],
+            str(tmp_path),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+            duration=3,
+        )
+
+    assert sleep_calls == [2, 2, 2, 1]
+    assert len(marker_snapshots) == 2
+    assert marker_snapshots[0]["waiting_for"] == ["dep"]
+    assert marker_snapshots[0]["wait_duration"] == 3
+    assert "wait_until" not in marker_snapshots[0]
+    assert marker_snapshots[1]["wait_duration"] == 3
+    assert isinstance(marker_snapshots[1].get("wait_until"), str)
+    assert not (tmp_path / "waiting.json").exists()
+    assert not ready_path.exists()
+
+
 def test_killed_wait_does_not_record_completion(tmp_path: Path) -> None:
     """A kill during the wait does not mark the wait as successfully crossed."""
     meta_path = tmp_path / "agent_meta.json"

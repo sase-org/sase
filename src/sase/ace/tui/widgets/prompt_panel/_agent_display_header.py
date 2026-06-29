@@ -296,7 +296,7 @@ def build_header_text(
                     style="dim #AF87FF",
                 )
         # Show live countdown for duration waits
-        elif agent.wait_duration and agent.start_time:
+        elif agent.wait_duration and agent.start_time and not agent.waiting_for:
             from datetime import datetime, timedelta
 
             target = agent.start_time + timedelta(seconds=agent.wait_duration)

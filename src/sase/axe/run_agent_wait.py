@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sase.axe.run_agent_markers import write_agent_meta
@@ -23,7 +23,18 @@ def remaining_until(wait_until: str) -> float:
     from datetime import datetime as dt_cls
 
     target = dt_cls.fromisoformat(wait_until)
-    return max(0.0, (target - dt_cls.now()).total_seconds())
+    now = dt_cls.now(target.tzinfo) if target.tzinfo is not None else dt_cls.now()
+    return max(0.0, (target - now).total_seconds())
+
+
+def _write_waiting_marker(
+    artifacts_dir: str,
+    waiting_data: dict[str, Any],
+) -> None:
+    waiting_path = os.path.join(artifacts_dir, "waiting.json")
+    with open(waiting_path, "w", encoding="utf-8") as f:
+        json.dump(waiting_data, f, indent=2)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 
 def _record_wait_completed_at(
@@ -82,10 +93,10 @@ def wait_for_dependencies(
     """Wait for named agent dependencies, a duration, or an absolute time.
 
     When *wait_names* is non-empty, writes waiting.json, polls for ready.json,
-    then returns once the agent can proceed.  When *duration* is set, the agent
-    won't start before that many seconds have elapsed — even if all named
-    dependencies finish earlier.  When *wait_until* is set (ISO 8601 timestamp),
-    the agent won't start before that wall-clock time.
+    then returns once the agent can proceed.  When *duration* is set alongside
+    named dependencies, the duration starts after ready.json appears; without
+    named dependencies, the duration starts immediately.  When *wait_until* is
+    set (ISO 8601 timestamp), the agent won't start before that wall-clock time.
 
     Exits with SIGTERM code if killed during wait.
     """
@@ -116,9 +127,7 @@ def wait_for_dependencies(
             waiting_data["wait_duration"] = duration
         if wait_until is not None:
             waiting_data["wait_until"] = wait_until
-        with open(waiting_path, "w", encoding="utf-8") as f:
-            json.dump(waiting_data, f, indent=2)
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        _write_waiting_marker(artifacts_dir, waiting_data)
 
         parts = [f"agents: {', '.join(wait_names)}"]
         if duration is not None:
@@ -142,26 +151,31 @@ def wait_for_dependencies(
             time.sleep(_WAIT_POLL_INTERVAL)
             wait_elapsed += _WAIT_POLL_INTERVAL
 
-        # If a duration floor is set and we finished early, sleep the remainder.
-        if duration is not None and wait_elapsed < duration and not was_killed():
-            remaining = duration - wait_elapsed
-            print(
-                f"Dependencies satisfied, sleeping {remaining:.0f}s for duration floor"
-            )
-            while remaining > 0 and not was_killed():
-                sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
-                time.sleep(sleep_time)
-                remaining -= sleep_time
+        ready_observed = os.path.exists(ready_path)
+        post_dependency_wait_until = wait_until
+        if (
+            duration is not None
+            and duration > 0
+            and ready_observed
+            and not was_killed()
+        ):
+            deadline = datetime.now(UTC) + timedelta(seconds=duration)
+            post_dependency_wait_until = deadline.isoformat()
+            waiting_data["wait_until"] = post_dependency_wait_until
+            _write_waiting_marker(artifacts_dir, waiting_data)
 
-        # If an absolute-time floor is set, sleep until the target.
-        if wait_until is not None and not was_killed():
-            remaining = remaining_until(wait_until)
+        # If a post-dependency time floor is set, sleep until the target.
+        if post_dependency_wait_until is not None and not was_killed():
+            remaining = remaining_until(post_dependency_wait_until)
             if remaining > 0:
-                print(f"Dependencies satisfied, waiting until {wait_until}")
+                print(
+                    "Dependencies satisfied, waiting until "
+                    f"{post_dependency_wait_until}"
+                )
                 while remaining > 0 and not was_killed():
                     sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
                     time.sleep(sleep_time)
-                    remaining = remaining_until(wait_until)
+                    remaining = remaining_until(post_dependency_wait_until)
 
         if not was_killed():
             _record_wait_completed_at(artifacts_dir, agent_meta)

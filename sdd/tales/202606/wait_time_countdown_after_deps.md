@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 09:23:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/wait_time_countdown_after_deps.md
 ---
 # Plan: `%wait` relative-time countdown must start only after agent dependencies complete

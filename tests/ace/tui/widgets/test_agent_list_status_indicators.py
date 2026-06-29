@@ -120,6 +120,51 @@ class TestAwareWaitUntilRendering:
         assert " left)" in header.plain
 
 
+class TestRelativeWaitDurationRendering:
+    def test_header_omits_duration_countdown_while_agent_deps_pending(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["dep"],
+            wait_duration=300,
+            start_time=datetime.now() + timedelta(minutes=5),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        wait_line = next(
+            line for line in header.plain.splitlines() if line.startswith("Wait: ")
+        )
+        assert wait_line == "Wait: dep + 5m"
+
+    def test_agent_row_omits_duration_countdown_while_agent_deps_pending(
+        self,
+    ) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["dep"],
+            wait_duration=300,
+            start_time=datetime.now() + timedelta(minutes=5),
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert left.plain.endswith("test_cl (WAITING)")
+
+    def test_pure_duration_wait_still_renders_countdown(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            wait_duration=300,
+            start_time=datetime.now(),
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "WAITING (" in left.plain
+        assert "Wait: 5m (" in header.plain
+        assert " left)" in header.plain
+
+
 class TestStartingStatusRendering:
     def test_agent_row_renders_starting_status_with_distinct_style(self) -> None:
         agent = make_agent(status="STARTING")

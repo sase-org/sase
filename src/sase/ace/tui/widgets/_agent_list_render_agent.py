@@ -253,7 +253,7 @@ def format_agent_option(
                 )
             else:
                 text.append(f" (until {target_label})", style="#AF87FF")
-        elif agent.wait_duration and agent.start_time:
+        elif agent.wait_duration and agent.start_time and not agent.waiting_for:
             from datetime import datetime, timedelta
 
             target = agent.start_time + timedelta(seconds=agent.wait_duration)
