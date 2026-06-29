@@ -91,7 +91,7 @@ def detect_dev_latest(record: VersionPackageRecord, *, offline: bool) -> DevLate
             "checkout has diverged from upstream",
             latest_version=latest_version,
         )
-    if status.strictly_behind:
+    if git_status_has_update(status):
         return _from_status(
             record,
             status,
@@ -111,6 +111,11 @@ def detect_dev_latest(record: VersionPackageRecord, *, offline: bool) -> DevLate
         reason,
         latest_version=latest_version,
     )
+
+
+def git_status_has_update(status: GitUpstreamStatus) -> bool:
+    """Return whether a local git status means an editable install is outdated."""
+    return not status.dirty and status.strictly_behind
 
 
 def _record_unavailable_reason(record: VersionPackageRecord) -> str | None:

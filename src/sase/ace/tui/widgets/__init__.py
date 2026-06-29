@@ -22,6 +22,7 @@ from .prompt_input_bar import PromptInputBar
 from .stashed_prompts_indicator import StashedPromptsIndicator
 from .tab_bar import TabBar
 from .task_indicator import TaskIndicator
+from .updates_indicator import UpdatesAvailableIndicator
 from .xprompt_arg_assist import (
     ActiveXPromptArgHint,
     XPromptAssistEntry,
@@ -63,6 +64,7 @@ __all__ = [
     "TabBar",
     "TaskIndicator",
     "ToolsVisibilityChanged",
+    "UpdatesAvailableIndicator",
     "XPromptAssistEntry",
     "XPromptInputHint",
     "append_input_hints",

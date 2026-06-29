@@ -31,6 +31,7 @@ ace:
   snippets: {}
   updates:
     startup_toast: true
+    indicator: true
     check_ttl_minutes: 10
     incoming_commits:
       enabled: true

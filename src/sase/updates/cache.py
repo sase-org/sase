@@ -5,13 +5,16 @@ from __future__ import annotations
 import importlib.metadata as importlib_metadata
 import json
 import os
+import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from sase.core.paths import ensure_sase_directory, sase_subdir
+from sase.dev_update.detect import git_status_has_update
 from sase.plugins.latest import is_newer
+from sase.version._git import GitUpstreamStatus, classify_git_upstream
 
 from .status import (
     OutdatedComponent,
@@ -19,7 +22,7 @@ from .status import (
     compute_update_status,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 CACHE_SUBDIR = "updates"
 CACHE_FILENAME = "status_snapshot.json"
 DEFAULT_UPDATE_STATUS_TTL_SECONDS = 10 * 60
@@ -27,6 +30,7 @@ DEFAULT_UPDATE_STATUS_TTL_SECONDS = 10 * 60
 VersionFn = Callable[[str], str | None]
 IsNewerFn = Callable[[str | None, str | None], bool]
 ComputeStatusFn = Callable[..., UpdateStatus]
+GitClassifierFn = Callable[[Path], GitUpstreamStatus]
 
 
 def _cache_path() -> Path:
@@ -85,6 +89,9 @@ def write_update_status_snapshot(
                 "installed_version": component.installed_version,
                 "latest_version": component.latest_version,
                 "distribution_name": component.distribution_name,
+                "install_type": component.install_type,
+                "source_root": component.source_root,
+                "upstream_ref": component.upstream_ref,
             }
             for component in status.components
         ],
@@ -112,6 +119,7 @@ def revalidate_update_status(
     *,
     version_fn: VersionFn = importlib_metadata.version,
     is_newer_fn: IsNewerFn = is_newer,
+    git_classifier_fn: GitClassifierFn = classify_git_upstream,
 ) -> UpdateStatus:
     """Drop cached components that no longer look outdated locally."""
     components = tuple(
@@ -121,6 +129,7 @@ def revalidate_update_status(
             component,
             version_fn=version_fn,
             is_newer_fn=is_newer_fn,
+            git_classifier_fn=git_classifier_fn,
         )
     )
     if components == status.components:
@@ -138,6 +147,7 @@ def get_cached_update_status(
     compute_fn: ComputeStatusFn = compute_update_status,
     version_fn: VersionFn = importlib_metadata.version,
     is_newer_fn: IsNewerFn = is_newer,
+    git_classifier_fn: GitClassifierFn = classify_git_upstream,
 ) -> UpdateStatus | None:
     """Return a TTL-gated update status, using a snapshot fallback on failure."""
     check_now = time.time() if now is None else now
@@ -155,6 +165,7 @@ def get_cached_update_status(
             cached,
             version_fn=version_fn,
             is_newer_fn=is_newer_fn,
+            git_classifier_fn=git_classifier_fn,
         )
 
     try:
@@ -165,6 +176,7 @@ def get_cached_update_status(
                 cached,
                 version_fn=version_fn,
                 is_newer_fn=is_newer_fn,
+                git_classifier_fn=git_classifier_fn,
             )
         return None
 
@@ -176,6 +188,7 @@ def get_cached_update_status(
         status,
         version_fn=version_fn,
         is_newer_fn=is_newer_fn,
+        git_classifier_fn=git_classifier_fn,
     )
 
 
@@ -187,6 +200,9 @@ def _component_from_json(raw: object) -> OutdatedComponent | None:
     installed_version = raw.get("installed_version")
     latest_version = raw.get("latest_version")
     distribution_name = raw.get("distribution_name")
+    install_type = raw.get("install_type")
+    source_root = raw.get("source_root")
+    upstream_ref = raw.get("upstream_ref")
     if not isinstance(display_name, str) or not display_name:
         return None
     if role not in {"host", "core", "plugin"}:
@@ -197,12 +213,21 @@ def _component_from_json(raw: object) -> OutdatedComponent | None:
         return None
     if not isinstance(distribution_name, str) or not distribution_name:
         return None
+    if install_type is not None and not isinstance(install_type, str):
+        return None
+    if source_root is not None and not isinstance(source_root, str):
+        return None
+    if upstream_ref is not None and not isinstance(upstream_ref, str):
+        return None
     return OutdatedComponent(
         display_name=display_name,
         role=role,
         installed_version=installed_version,
         latest_version=latest_version,
         distribution_name=distribution_name,
+        install_type=install_type,
+        source_root=source_root,
+        upstream_ref=upstream_ref,
     )
 
 
@@ -211,7 +236,13 @@ def _component_still_outdated(
     *,
     version_fn: VersionFn,
     is_newer_fn: IsNewerFn,
+    git_classifier_fn: GitClassifierFn,
 ) -> bool:
+    if component.install_type == "editable" and component.source_root:
+        return _editable_component_still_outdated(
+            component,
+            git_classifier_fn=git_classifier_fn,
+        )
     try:
         live_version = version_fn(component.distribution_name)
     except importlib_metadata.PackageNotFoundError:
@@ -219,6 +250,25 @@ def _component_still_outdated(
     except Exception:  # noqa: BLE001 - broken metadata suppresses stale toast rows.
         return False
     return is_newer_fn(component.latest_version, live_version)
+
+
+def _editable_component_still_outdated(
+    component: OutdatedComponent,
+    *,
+    git_classifier_fn: GitClassifierFn,
+) -> bool:
+    try:
+        status = git_classifier_fn(Path(component.source_root or ""))
+    except (
+        FileNotFoundError,
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ):
+        return True
+    except Exception:  # noqa: BLE001 - conservative cache revalidation.
+        return True
+    return git_status_has_update(status)
 
 
 __all__ = [

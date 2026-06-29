@@ -35,6 +35,9 @@ class OutdatedComponent:
     installed_version: str | None
     latest_version: str | None
     distribution_name: str
+    install_type: str | None = None
+    source_root: str | None = None
+    upstream_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,9 @@ def _core_component(package: CorePackageVersion) -> OutdatedComponent:
         installed_version=package.installed_version,
         latest_version=package.latest_version,
         distribution_name=str(distribution_name),
+        install_type=package.install_type,
+        source_root=package.git_root,
+        upstream_ref=package.upstream_ref,
     )
 
 
@@ -199,6 +205,9 @@ def _plugin_component(entry: PluginCatalogEntry) -> OutdatedComponent:
         installed_version=installed_version,
         latest_version=latest.version,
         distribution_name=str(distribution_name),
+        install_type=latest.install_type,
+        source_root=latest.git_root,
+        upstream_ref=latest.upstream_ref,
     )
 
 

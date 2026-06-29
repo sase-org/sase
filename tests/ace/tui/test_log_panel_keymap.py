@@ -120,6 +120,17 @@ def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
     assert modal._active_tab == "tasks"
 
 
+def test_open_updates_panel_action_pushes_admin_center_on_updates() -> None:
+    app = _ActionApp()
+
+    app.action_open_updates_panel()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._active_tab == "updates"
+
+
 def test_open_config_center_action_uses_remembered_admin_center_tab() -> None:
     app = _ActionApp()
     app._admin_center_tab = "updates"

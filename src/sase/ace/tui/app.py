@@ -65,6 +65,7 @@ from .widgets import (
     StashedPromptsIndicator,
     TabBar,
     TaskIndicator,
+    UpdatesAvailableIndicator,
 )
 
 log = logging.getLogger(__name__)
@@ -280,6 +281,7 @@ class AceApp(
             yield InactiveIndicator(id="inactive-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
+            yield UpdatesAvailableIndicator(id="updates-indicator")
         with Horizontal(id="main-container"):
             with Horizontal(id="changespecs-view", classes=cs_classes):
                 with Vertical(id="list-container"):

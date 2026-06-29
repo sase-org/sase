@@ -102,7 +102,10 @@ def test_startup_update_check_respects_disabled_config(
     monkeypatch.setattr(
         update_toast,
         "_load_update_toast_config",
-        lambda: update_toast._UpdateToastConfig(startup_toast=False),
+        lambda: update_toast._UpdateToastConfig(
+            startup_toast=False,
+            indicator=False,
+        ),
     )
     monkeypatch.setattr(
         update_toast,
@@ -116,6 +119,51 @@ def test_startup_update_check_respects_disabled_config(
     assert app.called is False
 
 
+def test_startup_update_check_updates_indicator_when_toast_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Indicator:
+        def __init__(self) -> None:
+            self.count = 0
+
+        def set_available(self, count: int) -> None:
+            self.count = count
+
+    class _App(UpdateToastMixin):
+        def __init__(self) -> None:
+            self.indicator = _Indicator()
+            self.toast_calls = 0
+
+        def call_from_thread(self, callback: Any, *args: object) -> None:
+            callback(*args)
+
+        def query_one(self, *_args: object) -> _Indicator:
+            return self.indicator
+
+        def notify(self, *_args: object, **_kwargs: object) -> None:
+            self.toast_calls += 1
+
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(
+            startup_toast=False,
+            indicator=True,
+        ),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: _status(count=2),
+    )
+    app = _App()
+
+    app._run_startup_update_toast_check()
+
+    assert app.indicator.count == 2
+    assert app.toast_calls == 0
+
+
 def test_load_update_toast_config_defaults_to_ten_minutes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -124,7 +172,22 @@ def test_load_update_toast_config_defaults_to_ten_minutes(
     config = update_toast._load_update_toast_config()
 
     assert config.startup_toast is True
+    assert config.indicator is True
     assert config.check_ttl_seconds == 600.0
+
+
+def test_load_update_toast_config_indicator_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: {"ace": {"updates": {"indicator": False}}},
+    )
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.indicator is False
 
 
 def test_load_update_toast_config_minutes_override(

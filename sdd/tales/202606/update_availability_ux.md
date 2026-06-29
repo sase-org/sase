@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 06:53:51
-status: wip
+status: done
 prompt: sdd/prompts/202606/update_availability_ux.md
 ---
 # Plan: Reliable, Beautiful "Updates Available" UX (dev + published)

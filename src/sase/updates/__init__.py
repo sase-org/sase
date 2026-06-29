@@ -2,6 +2,7 @@
 
 from .cache import (
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
+    SCHEMA_VERSION,
     get_cached_update_status,
     read_update_status_snapshot,
     revalidate_update_status,
@@ -30,6 +31,7 @@ __all__ = [
     "IncomingCommits",
     "IncomingCommitsCacheKey",
     "OutdatedComponent",
+    "SCHEMA_VERSION",
     "UpdateStatus",
     "compute_update_status",
     "core_package_commit_spec",

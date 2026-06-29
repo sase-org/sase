@@ -126,21 +126,19 @@ class BaseActionsMixin:
         project lifecycle manager now lives in the Admin Center's Projects
         tab, so this fast path opens that modal pre-focused on Projects.
         """
-        from ..modals import ConfigCenterModal
-
-        self.push_screen(ConfigCenterModal(initial_tab="projects"))  # type: ignore[attr-defined]
+        self._open_config_center("projects")
 
     def action_open_log_panel(self) -> None:
         """Open the SASE Admin Center on the Logs tab."""
-        from ..modals import ConfigCenterModal
-
-        self.push_screen(ConfigCenterModal(initial_tab="logs"))  # type: ignore[attr-defined]
+        self._open_config_center("logs")
 
     def action_open_tasks_panel(self) -> None:
         """Open the SASE Admin Center on the Tasks tab."""
-        from ..modals import ConfigCenterModal
+        self._open_config_center("tasks")
 
-        self.push_screen(ConfigCenterModal(initial_tab="tasks"))  # type: ignore[attr-defined]
+    def action_open_updates_panel(self) -> None:
+        """Open the SASE Admin Center on the Updates tab."""
+        self._open_config_center("updates")
 
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""
@@ -520,10 +518,22 @@ class BaseActionsMixin:
 
     def action_open_config_center(self) -> None:
         """Open the SASE Admin Center modal on the last session tab."""
+        initial_tab: Any = getattr(self, "_admin_center_tab", "config")
+        self._open_config_center(initial_tab)
+
+    def _open_config_center(self, initial_tab: Any) -> None:
+        """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals import ConfigCenterModal
 
-        initial_tab: Any = getattr(self, "_admin_center_tab", "config")
-        self.push_screen(ConfigCenterModal(initial_tab=initial_tab))  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfigCenterModal(initial_tab=initial_tab),
+            self._on_config_center_dismissed,
+        )
+
+    def _on_config_center_dismissed(self, _result: object | None = None) -> None:
+        refresh = getattr(self, "_schedule_updates_indicator_revalidation", None)
+        if callable(refresh):
+            refresh()
 
     def _persist_admin_center_tab(self, tab: str) -> None:
         """Mirror the active Admin Center *tab* to disk, off the event loop.

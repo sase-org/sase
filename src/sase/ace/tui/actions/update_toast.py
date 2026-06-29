@@ -13,6 +13,8 @@ from sase.updates import (
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     UpdateStatus,
     get_cached_update_status,
+    read_update_status_snapshot,
+    revalidate_update_status,
 )
 
 from ..modals.config_center_modal import (
@@ -40,6 +42,7 @@ class _UpdateToastConfig:
     """Config values controlling the startup update toast."""
 
     startup_toast: bool = True
+    indicator: bool = True
     check_ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS
 
 
@@ -64,17 +67,29 @@ class UpdateToastMixin:
         """Run the cached update-status check in a worker thread."""
         try:
             config = _load_update_toast_config()
-            if not config.startup_toast:
+            if not config.startup_toast and not config.indicator:
                 return
             status = get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
-            if status is None or not status.has_updates:
+            if status is None:
                 return
             self.call_from_thread(  # type: ignore[attr-defined]
-                self._show_startup_update_toast,
+                self._apply_startup_update_status,
                 status,
+                config,
             )
         except Exception:
             log.debug("Startup update-status check failed", exc_info=True)
+
+    def _apply_startup_update_status(
+        self,
+        status: UpdateStatus,
+        config: _UpdateToastConfig,
+    ) -> None:
+        """Apply startup update status to all UI surfaces."""
+        if config.indicator:
+            self._refresh_updates_indicator(status)
+        if config.startup_toast:
+            self._show_startup_update_toast(status)
 
     def _show_startup_update_toast(self, status: UpdateStatus) -> None:
         """Show the startup update toast once per TUI session."""
@@ -91,6 +106,55 @@ class UpdateToastMixin:
             markup=True,
         )
 
+    def _schedule_updates_indicator_revalidation(self) -> None:
+        """Refresh the updates badge from the cached snapshot off-thread."""
+        try:
+            self.run_worker(  # type: ignore[attr-defined]
+                cast(Any, self._run_updates_indicator_revalidation),
+                thread=True,
+                exclusive=False,
+                group="startup-loads",
+            )
+        except Exception:
+            log.debug("Failed to schedule updates-indicator refresh", exc_info=True)
+
+    def _run_updates_indicator_revalidation(self) -> None:
+        """Revalidate the cached update snapshot without network or git fetches."""
+        try:
+            config = _load_update_toast_config()
+            if not config.indicator:
+                self.call_from_thread(  # type: ignore[attr-defined]
+                    self._set_updates_indicator_count,
+                    0,
+                )
+                return
+            status = read_update_status_snapshot()
+            if status is not None:
+                status = revalidate_update_status(status)
+            self.call_from_thread(  # type: ignore[attr-defined]
+                self._set_updates_indicator_count,
+                0 if status is None else status.count,
+            )
+        except Exception:
+            log.debug("Updates-indicator refresh failed", exc_info=True)
+
+    def _refresh_updates_indicator(self, status: UpdateStatus) -> None:
+        """Set the top-bar updates badge from a status object."""
+        self._set_updates_indicator_count(status.count)
+
+    def _set_updates_indicator_count(self, count: int) -> None:
+        """Set the top-bar updates badge count if the widget is mounted."""
+        from ..widgets import UpdatesAvailableIndicator
+
+        try:
+            indicator = self.query_one(  # type: ignore[attr-defined]
+                "#updates-indicator",
+                UpdatesAvailableIndicator,
+            )
+        except Exception:
+            return
+        indicator.set_available(count)
+
 
 def _load_update_toast_config() -> _UpdateToastConfig:
     """Load the startup update-toast config from merged SASE config."""
@@ -103,6 +167,7 @@ def _load_update_toast_config() -> _UpdateToastConfig:
         return _UpdateToastConfig()
     return _UpdateToastConfig(
         startup_toast=_coerce_bool(updates.get("startup_toast"), default=True),
+        indicator=_coerce_bool(updates.get("indicator"), default=True),
         check_ttl_seconds=_resolve_check_ttl_seconds(updates),
     )
 

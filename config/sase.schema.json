@@ -142,6 +142,11 @@
               "description": "Show an informational toast on ACE startup when SASE core or installed plugins have updates available",
               "default": true
             },
+            "indicator": {
+              "type": "boolean",
+              "description": "Show a persistent top-bar badge while SASE core or installed plugins have updates available",
+              "default": true
+            },
             "check_ttl_minutes": {
               "type": "number",
               "description": "Minimum minutes between background latest-version checks for the startup update toast. Takes precedence over check_ttl_hours when both are set.",

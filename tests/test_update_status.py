@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.metadata as importlib_metadata
+import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,7 @@ from sase.plugins.latest_cache import CachedLatest
 from sase.updates import (
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     OutdatedComponent,
+    SCHEMA_VERSION,
     UpdateStatus,
     compute_update_status,
     get_cached_update_status,
@@ -23,6 +26,7 @@ from sase.updates import (
     write_update_status_snapshot,
 )
 from sase.uv_tool.versions import CorePackageVersion, CoreVersions
+from sase.version._git import GitUpstreamStatus
 
 
 def _core_versions(*, update: bool = True) -> CoreVersions:
@@ -96,6 +100,26 @@ def _catalog(*, plugin_update: bool = True) -> PluginCatalog:
     )
 
 
+def _git_status(
+    *,
+    ahead: int | None,
+    behind: int | None,
+    dirty: bool = False,
+    detached: bool = False,
+    upstream: str | None = "origin/main",
+) -> GitUpstreamStatus:
+    return GitUpstreamStatus(
+        root="/repo",
+        upstream=upstream,
+        remote="origin" if upstream else None,
+        remote_branch="main" if upstream else None,
+        detached=detached,
+        dirty=dirty,
+        ahead=ahead,
+        behind=behind,
+    )
+
+
 def test_compute_update_status_reports_core_and_installed_plugins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -130,6 +154,80 @@ def test_compute_update_status_reports_core_and_installed_plugins(
         ("github", "plugin"),
     ]
     assert result.count == 2
+
+
+def test_compute_update_status_carries_install_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.updates.status as status_module
+
+    core_versions = CoreVersions(
+        packages=(
+            CorePackageVersion(
+                name="sase",
+                distribution_name="sase",
+                installed_version="1.0.0+local",
+                latest_version="1.0.0+abc123",
+                latest_checked=True,
+                update_available=True,
+                install_type="editable",
+                git_root="/src/sase",
+                upstream_ref="origin/main",
+            ),
+        )
+    )
+    plugin_catalog = PluginCatalog(
+        fetched_at=1_700_000_000.0,
+        entries=(
+            _entry(
+                "github",
+                installed=InstalledInfo(installed=True, version="0.5.0"),
+                latest=LatestInfo(
+                    checked=True,
+                    version="0.5.0+abc123",
+                    source="editable",
+                    install_type="editable",
+                    current_version="0.5.0+local",
+                    update_available=True,
+                    git_root="/src/sase-github",
+                    upstream_ref="origin/main",
+                ),
+            ),
+        ),
+        from_cache=True,
+        stale=False,
+    )
+
+    monkeypatch.setattr(
+        status_module,
+        "_collect_installed_core_versions",
+        lambda: core_versions,
+    )
+    monkeypatch.setattr(
+        status_module,
+        "_enrich_core_versions_latest",
+        lambda versions, **_kwargs: versions,
+    )
+    monkeypatch.setattr(
+        status_module,
+        "_load_plugin_catalog",
+        lambda **_kwargs: plugin_catalog,
+    )
+    monkeypatch.setattr(
+        status_module,
+        "_enrich_with_latest",
+        lambda catalog, **_kwargs: catalog,
+    )
+
+    result = compute_update_status(now=123.0)
+
+    by_name = {component.display_name: component for component in result.components}
+    assert by_name["sase"].install_type == "editable"
+    assert by_name["sase"].source_root == "/src/sase"
+    assert by_name["sase"].upstream_ref == "origin/main"
+    assert by_name["github"].install_type == "editable"
+    assert by_name["github"].source_root == "/src/sase-github"
+    assert by_name["github"].upstream_ref == "origin/main"
 
 
 def test_compute_update_status_sources_degrade_independently(
@@ -170,6 +268,9 @@ def test_update_status_snapshot_round_trip_and_freshness(tmp_path: Path) -> None
                 installed_version="1.0.0",
                 latest_version="1.1.0",
                 distribution_name="sase",
+                install_type="editable",
+                source_root="/src/sase",
+                upstream_ref="origin/main",
             ),
         ),
     )
@@ -177,8 +278,33 @@ def test_update_status_snapshot_round_trip_and_freshness(tmp_path: Path) -> None
     write_update_status_snapshot(status, path=path)
 
     assert read_update_status_snapshot(path=path) == status
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 2
     assert update_status_snapshot_is_fresh(status, now=110.0, ttl_seconds=20)
     assert not update_status_snapshot_is_fresh(status, now=130.0, ttl_seconds=20)
+
+
+def test_update_status_snapshot_v1_is_treated_as_cache_miss(tmp_path: Path) -> None:
+    path = tmp_path / "status.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION - 1,
+                "checked_at": 100.0,
+                "components": [
+                    {
+                        "display_name": "sase",
+                        "role": "host",
+                        "installed_version": "1.0.0",
+                        "latest_version": "1.1.0",
+                        "distribution_name": "sase",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert read_update_status_snapshot(path=path) is None
 
 
 def test_revalidate_update_status_drops_components_updated_locally() -> None:
@@ -212,6 +338,89 @@ def test_revalidate_update_status_drops_components_updated_locally() -> None:
     result = revalidate_update_status(status, version_fn=_version)
 
     assert [component.display_name for component in result.components] == ["github"]
+
+
+@pytest.mark.parametrize(
+    ("git_status", "expected_names"),
+    [
+        (_git_status(ahead=0, behind=2), ["sase", "github"]),
+        (_git_status(ahead=0, behind=0), ["github"]),
+        (_git_status(ahead=2, behind=0), ["github"]),
+        (_git_status(ahead=1, behind=2), ["github"]),
+        (_git_status(ahead=0, behind=2, dirty=True), ["github"]),
+    ],
+)
+def test_revalidate_update_status_uses_git_for_editable_components(
+    git_status: GitUpstreamStatus,
+    expected_names: list[str],
+) -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(
+            OutdatedComponent(
+                display_name="sase",
+                role="host",
+                installed_version="1.0.0+local",
+                latest_version="1.0.0+abc123",
+                distribution_name="sase",
+                install_type="editable",
+                source_root="/src/sase",
+                upstream_ref="origin/main",
+            ),
+            OutdatedComponent(
+                display_name="github",
+                role="plugin",
+                installed_version="0.5.0",
+                latest_version="0.6.0",
+                distribution_name="sase-github",
+                install_type="wheel",
+            ),
+        ),
+    )
+
+    def _version(dist_name: str) -> str:
+        if dist_name == "sase":
+            raise AssertionError("editable revalidation must not compare versions")
+        if dist_name == "sase-github":
+            return "0.5.0"
+        raise importlib_metadata.PackageNotFoundError(dist_name)
+
+    result = revalidate_update_status(
+        status,
+        version_fn=_version,
+        git_classifier_fn=lambda _path: git_status,
+    )
+
+    assert [component.display_name for component in result.components] == expected_names
+
+
+def test_revalidate_update_status_keeps_editable_component_on_git_error() -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=(
+            OutdatedComponent(
+                display_name="sase",
+                role="host",
+                installed_version="1.0.0+local",
+                latest_version="1.0.0+abc123",
+                distribution_name="sase",
+                install_type="editable",
+                source_root="/src/sase",
+                upstream_ref="origin/main",
+            ),
+        ),
+    )
+
+    def _raise(_path: Path) -> GitUpstreamStatus:
+        raise subprocess.TimeoutExpired(["git"], timeout=1.0)
+
+    result = revalidate_update_status(
+        status,
+        version_fn=lambda _dist: "1.0.0",
+        git_classifier_fn=_raise,
+    )
+
+    assert result == status
 
 
 def test_get_cached_update_status_uses_fresh_snapshot_without_compute(
