@@ -2,66 +2,46 @@
 
 This widget hosts the **Updates** tab of :class:`ConfigCenterModal`: a compact
 SASE core update surface plus the plugin master/detail browser mirroring the
-``sase plugin list`` and ``sase plugin show`` experience in the TUI. Catalog
-loading, render helpers, and mutation actions live in sibling modules so this
-file stays focused on widget composition, worker coordination, and
-input/navigation glue.
+``sase plugin list`` and ``sase plugin show`` experience in the TUI.
 """
 
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
-from dataclasses import dataclass
-from inspect import Parameter, signature
-from typing import Any, Literal
+from typing import Any
 
-from rich.console import RenderableType
-from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Input, OptionList, Static
-from textual.widgets.option_list import Option
+from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.config.core import load_merged_config
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.operations import (
-    InstallOutcome,
-    InstallReady,
-    UninstallOutcome,
-    UninstallReady,
-    UpdateOutcome,
-    UpdateReady,
-    execute_install,
-    execute_uninstall,
-    execute_update,
+    execute_install as execute_install,
+    execute_uninstall as execute_uninstall,
+    execute_update as execute_update,
 )
 from sase.updates.incoming_commits import (
-    CommitSourceSpec,
     IncomingCommits,
     IncomingCommitsCacheKey,
     fetch_incoming_commits,
-    plugin_entry_commit_spec,
 )
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
-from sase.uv_tool.receipt import ToolReceipt
-from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.versions import CoreVersions, collect_installed_core_versions
 
-from .plugins_browser_constants import (
-    _BUILTIN_GROUP,
-    _COMMUNITY_GROUP,
-    _DETAIL_PLACEHOLDER,
-    _HEADER_PREFIX,
-    _ITEM_PREFIX,
-)
+from .plugins_browser_constants import _DETAIL_PLACEHOLDER
+from .plugins_browser_controls import PluginsBrowserControlsMixin
 from .plugins_browser_dev_update import (
     DevUpdatePreview,
     execute_tui_dev_update,
     make_plugin_dev_update_preview,
     make_sase_dev_update_preview,
+)
+from .plugins_browser_incoming import (
+    IncomingCommitsConfig,
+    PluginsBrowserIncomingCommitsMixin,
+    load_incoming_commits_config,
 )
 from .plugins_browser_input import PluginsFilterInput
 from .plugins_browser_install import (
@@ -73,19 +53,25 @@ from .plugins_browser_install import (
     missing_plugin_message,
     plan_install_preview,
 )
+from .plugins_browser_list import PluginsBrowserList
 from .plugins_browser_loading import (
     PluginsLoadResult,
     load_plugins_catalog_for_pane,
     probe_uv_tool,
+)
+from .plugins_browser_operations import (
+    PluginsBrowserOperationsMixin,
+    callable_accepts_keyword,
 )
 from .plugins_browser_rendering import PluginsBrowserRenderingMixin
 from .plugins_browser_sase_update import (
     SaseUpdateActionsMixin,
     installed_version,
     load_receipt_for_summary,
-    run_sase_update_summary,
+    run_sase_update_summary as run_sase_update_summary,
     sase_update_success_message,
 )
+from .plugins_browser_status import PluginsBrowserStatusMixin
 from .plugins_browser_uninstall import (
     PluginUninstallActionsMixin,
     UninstallPreview,
@@ -106,6 +92,7 @@ from .plugins_browser_update import (
 )
 
 _PluginsFilterInput = PluginsFilterInput
+_PluginList = PluginsBrowserList
 _InstallPreview = InstallPreview
 _install_success_message = install_success_message
 _install_summary = install_summary
@@ -136,82 +123,10 @@ _installed_version = installed_version
 _load_receipt_for_summary = load_receipt_for_summary
 _run_sase_update_summary = run_sase_update_summary
 _sase_update_success_message = sase_update_success_message
+_IncomingCommitsConfig = IncomingCommitsConfig
 _fetch_incoming_commits = fetch_incoming_commits
-
-
-@dataclass(frozen=True)
-class _IncomingCommitsConfig:
-    """Config for Updates-tab incoming commit previews."""
-
-    enabled: bool = True
-    max_per_repo: int = 7
-
-
-class _PluginList(OptionList):
-    """Plugin list that reserves vim top/bottom keys for the detail pane."""
-
-    BINDINGS = [
-        ("ctrl+d", "scroll_detail_down", "Scroll Down"),
-        ("ctrl+u", "scroll_detail_up", "Scroll Up"),
-        ("g", "scroll_detail_top", "Top"),
-        ("G", "scroll_detail_bottom", "Bottom"),
-        ("shift+g", "scroll_detail_bottom", "Bottom"),
-        *OptionList.BINDINGS,
-    ]
-
-    async def handle_key(self, event: events.Key) -> bool:
-        if self._handle_detail_scroll_key(event):
-            return True
-        return await super().handle_key(event)
-
-    def on_key(self, event: events.Key) -> None:
-        self._handle_detail_scroll_key(event)
-
-    def _handle_detail_scroll_key(self, event: events.Key) -> bool:
-        character = getattr(event, "character", None)
-        if event.key in ("G", "shift+g") or character == "G":
-            event.prevent_default()
-            event.stop()
-            pane = self._pane()
-            if pane is not None:
-                pane.action_scroll_to_bottom()
-            return True
-        if event.key == "g":
-            event.prevent_default()
-            event.stop()
-            pane = self._pane()
-            if pane is not None:
-                pane.action_scroll_to_top()
-            return True
-        return False
-
-    def action_scroll_detail_top(self) -> None:
-        pane = self._pane()
-        if pane is not None:
-            pane.action_scroll_to_top()
-
-    def action_scroll_detail_bottom(self) -> None:
-        pane = self._pane()
-        if pane is not None:
-            pane.action_scroll_to_bottom()
-
-    def action_scroll_detail_down(self) -> None:
-        pane = self._pane()
-        if pane is not None:
-            pane.action_scroll_detail_down()
-
-    def action_scroll_detail_up(self) -> None:
-        pane = self._pane()
-        if pane is not None:
-            pane.action_scroll_detail_up()
-
-    def _pane(self) -> PluginsBrowserPane | None:
-        node: object | None = self.parent
-        while node is not None:
-            if isinstance(node, PluginsBrowserPane):
-                return node
-            node = getattr(node, "parent", None)
-        return None
+_load_incoming_commits_config = load_incoming_commits_config
+_callable_accepts_keyword = callable_accepts_keyword
 
 
 class PluginsBrowserPane(
@@ -219,6 +134,10 @@ class PluginsBrowserPane(
     PluginInstallActionsMixin,
     PluginUninstallActionsMixin,
     PluginUpdateActionsMixin,
+    PluginsBrowserOperationsMixin,
+    PluginsBrowserIncomingCommitsMixin,
+    PluginsBrowserControlsMixin,
+    PluginsBrowserStatusMixin,
     PluginsBrowserRenderingMixin,
     Vertical,
 ):
@@ -304,12 +223,6 @@ class PluginsBrowserPane(
         self._sync_state_visibility()
         if self._auto_load:
             self._start_load(force=False)
-
-    def focus_default(self) -> None:
-        """Focus the list (browse-first) when the Updates tab activates."""
-        option_list = self._option_list()
-        if option_list is not None:
-            option_list.focus()
 
     def _start_load(self, *, force: bool) -> None:
         self._loading = True
@@ -410,376 +323,3 @@ class PluginsBrowserPane(
             )
             self._core_incoming_commits = {}
             self._render_all()
-
-    @staticmethod
-    def _worker_error_text(worker: Worker[Any], *, kind: str = "install") -> str:
-        if worker.error:
-            return str(worker.error)
-        return f"Could not plan the {kind}."
-
-    def _make_install_preview(self, name: str, *, offline: bool) -> _InstallPreview:
-        return _plan_install_preview(name, offline=offline)
-
-    @staticmethod
-    def _execute_install(plan: InstallReady, *, run_fn: Any = None) -> InstallOutcome:
-        if run_fn is None:
-            return execute_install(plan)
-        return execute_install(plan, run_fn=run_fn)
-
-    def _make_update_preview(
-        self, query: str | None, *, all_plugins: bool, offline: bool
-    ) -> _UpdatePreview:
-        return _plan_update_preview(query, all_plugins=all_plugins, offline=offline)
-
-    @staticmethod
-    def _execute_update(plan: UpdateReady, *, run_fn: Any = None) -> UpdateOutcome:
-        if run_fn is None:
-            return execute_update(plan)
-        return execute_update(plan, run_fn=run_fn)
-
-    @staticmethod
-    def _make_plugin_dev_update_preview(
-        query: str | None,
-        *,
-        all_plugins: bool,
-        receipt: object | None,
-    ) -> _DevUpdatePreview:
-        return _make_plugin_dev_update_preview(
-            query,
-            all_plugins=all_plugins,
-            receipt=receipt if isinstance(receipt, ToolReceipt) else None,
-        )
-
-    @staticmethod
-    def _execute_dev_update(plan: Any, *, run: Any = None) -> Any:
-        if run is None or not _callable_accepts_keyword(_execute_tui_dev_update, "run"):
-            return _execute_tui_dev_update(plan)
-        return _execute_tui_dev_update(plan, run=run)
-
-    def _make_uninstall_preview(
-        self, query: str, *, offline: bool
-    ) -> _UninstallPreview:
-        return _plan_uninstall_preview(query, offline=offline)
-
-    @staticmethod
-    def _execute_uninstall(
-        plan: UninstallReady, *, run_fn: Any = None
-    ) -> UninstallOutcome:
-        if run_fn is None:
-            return execute_uninstall(plan)
-        return execute_uninstall(plan, run_fn=run_fn)
-
-    def _ensure_plugin_incoming_commits(self, entry: PluginCatalogEntry) -> None:
-        spec = self._plugin_incoming_commit_spec(entry)
-        if spec is None:
-            return
-        key = spec.cache_key
-        if key in self._incoming_commit_cache or key in self._incoming_commit_loading:
-            return
-        self._incoming_commit_loading.add(key)
-        offline = self._offline
-        limit = self._incoming_commits_limit
-
-        def task() -> IncomingCommits:
-            return _fetch_incoming_commits(spec, limit=limit, offline=offline)
-
-        worker = self.run_worker(
-            task,
-            thread=True,
-            exclusive=False,
-            group="updates-incoming-commits",
-        )
-        self._incoming_commit_workers[id(worker)] = key
-
-    def _plugin_incoming_commit_spec(
-        self, entry: PluginCatalogEntry
-    ) -> CommitSourceSpec | None:
-        if not self._incoming_commits_enabled or self._offline:
-            return None
-        return plugin_entry_commit_spec(entry)
-
-    def _plugin_incoming_commits_state(
-        self, entry: PluginCatalogEntry
-    ) -> tuple[IncomingCommits | None, bool]:
-        spec = self._plugin_incoming_commit_spec(entry)
-        if spec is None:
-            return None, False
-        key = spec.cache_key
-        return (
-            self._incoming_commit_cache.get(key),
-            key in self._incoming_commit_loading,
-        )
-
-    def _on_incoming_commits_worker_state(
-        self,
-        event: Worker.StateChanged,
-        key: IncomingCommitsCacheKey,
-    ) -> None:
-        terminal_states = {
-            WorkerState.SUCCESS,
-            WorkerState.ERROR,
-            WorkerState.CANCELLED,
-        }
-        if event.state not in terminal_states:
-            return
-        self._incoming_commit_workers.pop(id(event.worker), None)
-        self._incoming_commit_loading.discard(key)
-        if event.state == WorkerState.SUCCESS:
-            result = event.worker.result
-            if isinstance(result, IncomingCommits):
-                self._incoming_commit_cache[key] = result
-        elif event.state == WorkerState.ERROR:
-            error = self._worker_error_text(event.worker, kind="incoming commits")
-            self._incoming_commit_cache[key] = IncomingCommits(
-                total=0,
-                commits=(),
-                source="unavailable",
-                error=error,
-            )
-        entry = self._current_entry()
-        if entry is None:
-            return
-        spec = self._plugin_incoming_commit_spec(entry)
-        if spec is not None and spec.cache_key == key:
-            self._render_detail_now(force=True)
-
-    @staticmethod
-    def _run_sase_update_summary(
-        install: object | None, *, run_fn: Any = None
-    ) -> tuple[UpdateSummary, float]:
-        if run_fn is None:
-            return run_sase_update_summary(install)
-        if _callable_accepts_keyword(run_sase_update_summary, "run_fn"):
-            return run_sase_update_summary(install, run_fn=run_fn)
-        return run_sase_update_summary(install)
-
-    @staticmethod
-    def _make_sase_update_preview(receipt: object | None) -> _DevUpdatePreview:
-        return _make_sase_dev_update_preview(
-            receipt if isinstance(receipt, ToolReceipt) else None
-        )
-
-    def action_next_option(self) -> None:
-        """Move to the next non-header option."""
-        option_list = self._option_list()
-        if option_list is None:
-            return
-        current = option_list.highlighted
-        start = 0 if current is None else current + 1
-        for index in range(start, option_list.option_count):
-            if self._is_item(option_list, index):
-                option_list.highlighted = index
-                return
-
-    def action_prev_option(self) -> None:
-        """Move to the previous non-header option."""
-        option_list = self._option_list()
-        if option_list is None or option_list.highlighted is None:
-            return
-        for index in range(option_list.highlighted - 1, -1, -1):
-            if self._is_item(option_list, index):
-                option_list.highlighted = index
-                return
-
-    def action_focus_filter(self) -> None:
-        try:
-            self.query_one("#plugins-filter-input", _PluginsFilterInput).focus()
-        except Exception:
-            pass
-
-    def action_refresh(self) -> None:
-        """Refetch the catalog and latest versions (the ``-r/--refresh`` analog)."""
-        if self._loading:
-            return
-        self._start_load(force=True)
-
-    def action_toggle_offline(self) -> None:
-        """Toggle offline (cache-only) mode and reload (the ``-o`` analog)."""
-        if self._loading:
-            return
-        self._offline = not self._offline
-        self._start_load(force=False)
-
-    def action_toggle_verbose(self) -> None:
-        """Toggle the list rows' verbose columns (stars / updated)."""
-        self._verbose = not self._verbose
-        self._rebuild_options()
-        self._update_static("#plugins-hints", self._hints())
-        self._render_detail_now(force=True)
-
-    def action_scroll_detail_down(self) -> None:
-        """Scroll the plugin detail pane down by half a page."""
-        scroll = self._detail_scroll()
-        if scroll is None:
-            return
-        height = scroll.scrollable_content_region.height
-        self._force_scroll_detail_to(scroll.scroll_y + height // 2, scroll=scroll)
-
-    def action_scroll_detail_up(self) -> None:
-        """Scroll the plugin detail pane up by half a page."""
-        scroll = self._detail_scroll()
-        if scroll is None:
-            return
-        height = scroll.scrollable_content_region.height
-        self._force_scroll_detail_to(scroll.scroll_y - height // 2, scroll=scroll)
-
-    def action_scroll_to_top(self) -> None:
-        """Scroll the plugin detail pane to the top (highlight unchanged)."""
-        scroll = self._detail_scroll()
-        if scroll is not None:
-            self._force_scroll_detail_to(0, scroll=scroll)
-
-    def action_scroll_to_bottom(self) -> None:
-        """Scroll the plugin detail pane to the bottom (highlight unchanged)."""
-        scroll = self._detail_scroll()
-        if scroll is not None:
-            self._force_scroll_detail_to(scroll.max_scroll_y, scroll=scroll)
-
-    def _detail_scroll(self) -> VerticalScroll | None:
-        try:
-            return self.query_one("#plugins-detail-scroll", VerticalScroll)
-        except Exception:
-            return None
-
-    def _force_scroll_detail_to(
-        self, y: float, *, scroll: VerticalScroll | None = None
-    ) -> None:
-        scroll = scroll or self._detail_scroll()
-        if scroll is None:
-            return
-        target = max(0, min(int(y), int(scroll.max_scroll_y)))
-        scroll._scroll_to(y=target, animate=False, force=True)  # noqa: SLF001
-
-    def _notify(
-        self,
-        message: str,
-        *,
-        severity: Literal["information", "warning", "error"] = "information",
-    ) -> None:
-        """Toast *message*, tolerating an already-unmounted pane/app."""
-        try:
-            self.app.notify(message, severity=severity)
-        except Exception:
-            pass
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id != "plugins-filter-input":
-            return
-        self._filter_text = event.value
-        self._rebuild_groups()
-        self._rebuild_options()
-        self._sync_state_visibility()
-        self._render_detail_now(force=True)
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "plugins-filter-input":
-            # Keep the filter applied; hand control back to the list.
-            self.focus_default()
-
-    def cancel_input(self) -> None:
-        """Drop any in-progress filter and return focus to the list."""
-        if self._filter_text:
-            self._filter_text = ""
-            self._set_filter_value("")
-            self._rebuild_groups()
-            self._rebuild_options()
-            self._sync_state_visibility()
-            self._render_detail_now(force=True)
-        self.focus_default()
-
-    def _option_list(self) -> OptionList | None:
-        try:
-            return self.query_one("#plugins-list", OptionList)
-        except Exception:
-            return None
-
-    def _detail_widget(self) -> Static | None:
-        try:
-            return self.query_one("#plugins-detail", Static)
-        except Exception:
-            return None
-
-    @staticmethod
-    def _is_item(option_list: OptionList, index: int) -> bool:
-        try:
-            opt = option_list.get_option_at_index(index)
-        except Exception:
-            return False
-        return bool(opt.id) and not str(opt.id).startswith(_HEADER_PREFIX)
-
-    def _set_filter_value(self, value: str) -> None:
-        try:
-            self.query_one("#plugins-filter-input", _PluginsFilterInput).value = value
-        except Exception:
-            pass
-
-    def _update_static(self, selector: str, content: RenderableType) -> None:
-        try:
-            self.query_one(selector, Static).update(content)
-        except Exception:
-            pass
-
-
-def _callable_accepts_keyword(fn: Any, name: str) -> bool:
-    try:
-        params = signature(fn).parameters.values()
-    except (TypeError, ValueError):
-        return False
-    for param in params:
-        if param.kind is Parameter.VAR_KEYWORD:
-            return True
-        if param.name == name and param.kind in (
-            Parameter.KEYWORD_ONLY,
-            Parameter.POSITIONAL_OR_KEYWORD,
-        ):
-            return True
-    return False
-
-
-def _load_incoming_commits_config(
-    load_fn: Callable[[], dict[str, Any]] = load_merged_config,
-) -> _IncomingCommitsConfig:
-    try:
-        data = load_fn()
-    except Exception:  # noqa: BLE001 - config failures should not break the pane.
-        return _IncomingCommitsConfig()
-    ace = data.get("ace") if isinstance(data, dict) else None
-    updates = ace.get("updates") if isinstance(ace, dict) else None
-    incoming = updates.get("incoming_commits") if isinstance(updates, dict) else None
-    if not isinstance(incoming, dict):
-        return _IncomingCommitsConfig()
-    return _IncomingCommitsConfig(
-        enabled=_coerce_bool(incoming.get("enabled"), default=True),
-        max_per_repo=_coerce_nonnegative_int(
-            incoming.get("max_per_repo"),
-            default=7,
-        ),
-    )
-
-
-def _coerce_bool(value: object, *, default: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().casefold()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off", "none", "disabled"}:
-            return False
-    return default
-
-
-def _coerce_nonnegative_int(value: object, *, default: int) -> int:
-    if isinstance(value, bool):
-        return default
-    if isinstance(value, int):
-        return value if value >= 0 else default
-    if isinstance(value, float) and value.is_integer():
-        return int(value) if value >= 0 else default
-    if isinstance(value, str):
-        try:
-            parsed = int(value)
-        except ValueError:
-            return default
-        return parsed if parsed >= 0 else default
-    return default

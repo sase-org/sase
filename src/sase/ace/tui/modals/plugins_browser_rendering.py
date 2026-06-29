@@ -20,7 +20,6 @@ from sase.plugins.render_common import (
     _INSTALLED_GLYPH,
     _UPDATE_GLYPH,
     build_incoming_commits_renderable,
-    humanize_age,
 )
 from sase.updates.incoming_commits import IncomingCommits
 from sase.uv_tool.detect import NotUvToolInstall
@@ -68,6 +67,14 @@ class PluginsBrowserRenderingMixin:
         def _is_item(self, option_list: OptionList, index: int) -> bool: ...
 
         def _option_list(self) -> OptionList | None: ...
+
+        def _hints(self) -> str: ...
+
+        def _status_message(self) -> str: ...
+
+        def _summary_text(self) -> Text: ...
+
+        def _sync_state_visibility(self) -> None: ...
 
         def _update_static(self, selector: str, content: RenderableType) -> None: ...
 
@@ -402,163 +409,3 @@ class PluginsBrowserRenderingMixin:
     def _highlighted_name(self) -> str | None:
         entry = self._current_entry()
         return entry.name if entry is not None else None
-
-    def _sync_state_visibility(self) -> None:
-        """Show the list when populated, else the status placeholder.
-
-        A *reload* (refresh / offline toggle) keeps the already-painted rows
-        visible — the header reports "loading…" instead — so the list never
-        flashes away and the focused highlight is preserved. The status
-        placeholder is reserved for the initial load, the error state, and the
-        genuinely empty / no-match cases.
-        """
-        has_rows = any(entries for _, _, entries in self._grouped)
-        try:
-            status = self.query_one(  # type: ignore[attr-defined]
-                "#plugins-status", Static
-            )
-            option_list = self.query_one(  # type: ignore[attr-defined]
-                "#plugins-list", OptionList
-            )
-        except Exception:
-            return
-        status.update(self._status_message())
-        show_status = self._error is not None or not has_rows
-        status.display = show_status
-        option_list.display = not show_status
-
-    def _summary_text(self) -> Text:
-        """Header summary: counts line + offline badge + warning/stale hint."""
-        text = Text(self._summary_line())
-        if self._offline:
-            text.append("   ")
-            text.append("⚠ OFFLINE", style="bold yellow")
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            text.append("\n")
-            text.append("⚠ ", style="yellow")
-            text.append(
-                "Plugin changes unavailable — sase is not a `uv tool` install.",
-                style="yellow",
-            )
-        hint = self._summary_hint()
-        if hint is not None:
-            text.append("\n")
-            text.append("⚠ ", style="yellow")
-            text.append(hint, style="yellow")
-        return text
-
-    def _summary_line(self) -> str:
-        if self._loading:
-            return "Plugins · loading…"
-        catalog = self._catalog
-        if catalog is None:
-            return "Plugins · unavailable"
-        total = len(catalog.entries)
-        installed = catalog.installed_count
-        updates = catalog.updates_available
-        age = humanize_age(catalog.age_seconds(self._now))
-        return (
-            f"{total} plugins · {installed} installed · "
-            f"{updates} updates available · cached {age}"
-        )
-
-    def _summary_hint(self) -> str | None:
-        """A warning / stale-cache line to surface under the counts, if any."""
-        catalog = self._catalog
-        if self._loading or catalog is None:
-            return None
-        if catalog.warnings:
-            return catalog.warnings[0]
-        if catalog.stale:
-            age = humanize_age(catalog.age_seconds(self._now))
-            return f"cache is stale (last updated {age}) — press r to refresh"
-        return None
-
-    def _status_message(self) -> str:
-        if self._loading:
-            return "Loading plugins…"
-        if self._error is not None:
-            return f"Could not load plugins:\n{self._error}"
-        if self._catalog is None:
-            return "Plugin catalog unavailable."
-        if not self._catalog.entries:
-            return "No SASE plugins found."
-        if not any(entries for _, _, entries in self._grouped):
-            return "No plugins match the current filter."
-        return ""
-
-    def _hints(self) -> str:
-        offline = " (on)" if self._offline else " off"
-        verbose = " (on)" if self._verbose else " verb"
-        parts: list[str] = []
-        if self._can_install_highlighted():
-            parts.append("i install")
-        if self._can_update_highlighted():
-            entry = self._current_entry()
-            emphasize = entry is not None and entry.update_available
-            parts.append("u upd ↑" if emphasize else "u upd")
-        if self._can_update_all():
-            parts.append("U all")
-        if self._can_update_sase():
-            parts.append("S sase")
-        if self._can_uninstall_highlighted():
-            parts.append("x rm")
-        parts.extend(
-            [
-                "r reload",
-                "ctrl+d/u scroll",
-                f"o{offline}",
-                f"v{verbose}",
-                "/ filter",
-                "[ ] tab",
-                "esc",
-            ]
-        )
-        return " · ".join(parts)
-
-    def _can_install_highlighted(self) -> bool:
-        """Whether the highlighted plugin can be installed right now.
-
-        False when sase is not a managed ``uv tool`` install (mutations are
-        impossible) or the highlighted row is absent / already installed.
-        """
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        entry = self._current_entry()
-        return entry is not None and not entry.installed.installed
-
-    def _can_update_highlighted(self) -> bool:
-        """Whether the highlighted plugin can be updated right now.
-
-        True only when sase is a managed ``uv tool`` install and the highlighted
-        row is already installed (an update is *emphasized* in the hint when one
-        is available, but the action is offered for any installed plugin so a
-        forced re-check stays discoverable).
-        """
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        entry = self._current_entry()
-        return entry is not None and entry.installed.installed
-
-    def _can_update_all(self) -> bool:
-        """Whether ``update --all`` is possible: uv-tool install with plugins."""
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        catalog = self._catalog
-        return catalog is not None and catalog.installed_count > 0
-
-    def _can_update_sase(self) -> bool:
-        """Whether the top-level ``sase update`` action can be offered."""
-        return not isinstance(self._uv_tool, NotUvToolInstall)
-
-    def _can_uninstall_highlighted(self) -> bool:
-        """Whether the highlighted plugin can be uninstalled right now.
-
-        True only when sase is a managed ``uv tool`` install and the highlighted
-        row is already installed (mirrors update's installed-only gate; an
-        already-absent plugin has nothing to remove).
-        """
-        if isinstance(self._uv_tool, NotUvToolInstall):
-            return False
-        entry = self._current_entry()
-        return entry is not None and entry.installed.installed
