@@ -272,10 +272,12 @@ def test_default_update_status_ttl_is_ten_minutes() -> None:
 
 def test_update_status_snapshot_freshness_uses_default_ttl() -> None:
     status = UpdateStatus(checked_at=0.0, components=())
+    future_status = UpdateStatus(checked_at=601.0, components=())
 
     assert update_status_snapshot_is_fresh(status, now=599.0)
     assert not update_status_snapshot_is_fresh(status, now=600.0)
     assert not update_status_snapshot_is_fresh(status, now=601.0)
+    assert not update_status_snapshot_is_fresh(future_status, now=600.0)
 
 
 def test_cached_core_fetch_uses_fresh_latest_cache(

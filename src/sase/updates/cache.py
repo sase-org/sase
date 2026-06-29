@@ -103,7 +103,8 @@ def update_status_snapshot_is_fresh(
 ) -> bool:
     """Return whether *status* is inside the startup-check TTL."""
     check_now = time.time() if now is None else now
-    return check_now - status.checked_at < ttl_seconds
+    age = check_now - status.checked_at
+    return 0 <= age < ttl_seconds
 
 
 def revalidate_update_status(
