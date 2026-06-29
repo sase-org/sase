@@ -1,6 +1,8 @@
 """Tests for sase.output module."""
 
+import threading
 from io import StringIO
+from unittest.mock import patch
 
 from rich.console import Console
 
@@ -42,12 +44,31 @@ def test_print_decision_counts_empty() -> None:
 
 def test_provider_timer_long_duration() -> None:
     """Test the provider_timer formatting with hours."""
-    from unittest.mock import patch
 
     # Mock time to simulate > 1 hour duration
     with patch("time.perf_counter", side_effect=[0, 3665]):  # 1 hour, 1 min, 5 sec
         with provider_timer("Long operation"):
             pass  # Timer will calculate elapsed time from the mocked values
+
+
+def test_provider_timer_stops_background_thread() -> None:
+    """Stops the timer thread when the context exits."""
+    existing_thread_ids = {thread.ident for thread in threading.enumerate()}
+    timer_thread: threading.Thread | None = None
+
+    with patch("sase.output.time.sleep", return_value=None):
+        with provider_timer("Short operation"):
+            timer_threads = [
+                thread
+                for thread in threading.enumerate()
+                if thread.name == "sase-provider-timer"
+                and thread.ident not in existing_thread_ids
+            ]
+            assert len(timer_threads) == 1
+            timer_thread = timer_threads[0]
+
+    assert timer_thread is not None
+    assert not timer_thread.is_alive()
 
 
 # Additional edge case tests

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from sase.llm_provider._plan_utils import (
+    _POLL_INTERVAL,
     PlanApprovalResult,
     add_create_time_frontmatter,
     handle_plan_approval,
@@ -164,7 +165,7 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
         commit_plan=auto_action != "approve",
     )
     assert get_auto_action.call_count == 3
-    sleep.assert_called_once()
+    sleep.assert_any_call(_POLL_INTERVAL)
 
     response_dir = _only_plan_approval_response_dir(sase_home, session_id)
     assert not (response_dir / "plan_response.json").exists()

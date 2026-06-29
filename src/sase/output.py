@@ -5,6 +5,7 @@ This module provides utilities for creating visually appealing command-line outp
 using the Rich library for status messages, progress indicators, and structured data display.
 """
 
+import threading
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -22,6 +23,10 @@ __all__ = ["escape_markup"]
 
 # Global console instance for consistent styling
 console = Console()
+
+_PROVIDER_TIMER_INTERVAL_SECONDS = 0.5
+_PROVIDER_TIMER_JOIN_TIMEOUT_SECONDS = 1.0
+_PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS = 0.3
 
 
 def print_workflow_header(workflow_name: str, tag: str = "") -> None:
@@ -202,23 +207,26 @@ def provider_timer(
 
     # Use Rich Live to update the timer in place
     with Live(_get_timer_text(), refresh_per_second=2, console=console) as live:
+        stop_event = threading.Event()
+
+        def _update_timer() -> None:
+            while not stop_event.wait(_PROVIDER_TIMER_INTERVAL_SECONDS):
+                live.update(_get_timer_text())
+
+        timer_thread = threading.Thread(
+            target=_update_timer,
+            name="sase-provider-timer",
+            daemon=True,
+        )
+        timer_thread.start()
+
         try:
-            # Update the timer while the code block runs
-            def _update_timer() -> None:
-                while True:
-                    live.update(_get_timer_text())
-                    time.sleep(0.5)
-
-            # Start the timer in the background (it will stop when we exit the context)
-            import threading
-
-            timer_thread = threading.Thread(target=_update_timer, daemon=True)
-            timer_thread.start()
-
             # Yield control back to the caller
             yield
 
         finally:
+            stop_event.set()
+            timer_thread.join(timeout=_PROVIDER_TIMER_JOIN_TIMEOUT_SECONDS)
             # Final update with the total elapsed time
             elapsed = time.time() - start_time
             elapsed_str = _format_elapsed(elapsed)
@@ -228,4 +236,4 @@ def provider_timer(
             final_text.append(f" completed in {elapsed_str}", style="green")
             live.update(final_text)
             # Give a moment to show the final message
-            time.sleep(0.3)
+            time.sleep(_PROVIDER_TIMER_COMPLETION_DISPLAY_SECONDS)

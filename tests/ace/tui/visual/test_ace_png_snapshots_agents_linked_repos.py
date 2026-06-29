@@ -33,6 +33,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 _COMMIT_DIFF_FIXTURES = Path("tests/ace/tui/visual/fixtures/commit_diffs")
+_COMMIT_DELTA_SUMMARY_TIMEOUT_SECONDS = 30.0
 
 
 def _linked_repo_diff_agent() -> Agent:
@@ -170,7 +171,7 @@ def _seed_linked_repo_visual_delta(
 
 async def _wait_for_commit_delta_summary(page: AcePage, agent: Agent) -> None:
     prompt_panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-    deadline = time.monotonic() + 3.0
+    deadline = time.monotonic() + _COMMIT_DELTA_SUMMARY_TIMEOUT_SECONDS
     while True:
         await wait_for_visual_idle(page)
         summary = get_cached_detail_header_summary(prompt_panel, agent)

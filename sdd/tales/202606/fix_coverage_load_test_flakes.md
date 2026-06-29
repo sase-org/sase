@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 10:10:56
-status: wip
+status: done
 prompt: sdd/prompts/202606/fix_coverage_load_test_flakes.md
 ---
 # Fix two CI test failures caused by load-sensitive flakes
