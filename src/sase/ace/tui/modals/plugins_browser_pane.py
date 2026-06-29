@@ -17,6 +17,7 @@ from inspect import Parameter, signature
 from typing import Any, Literal
 
 from rich.console import RenderableType
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, OptionList, Static
@@ -146,6 +147,73 @@ class _IncomingCommitsConfig:
     max_per_repo: int = 7
 
 
+class _PluginList(OptionList):
+    """Plugin list that reserves vim top/bottom keys for the detail pane."""
+
+    BINDINGS = [
+        ("ctrl+d", "scroll_detail_down", "Scroll Down"),
+        ("ctrl+u", "scroll_detail_up", "Scroll Up"),
+        ("g", "scroll_detail_top", "Top"),
+        ("G", "scroll_detail_bottom", "Bottom"),
+        ("shift+g", "scroll_detail_bottom", "Bottom"),
+        *OptionList.BINDINGS,
+    ]
+
+    async def handle_key(self, event: events.Key) -> bool:
+        if self._handle_detail_scroll_key(event):
+            return True
+        return await super().handle_key(event)
+
+    def on_key(self, event: events.Key) -> None:
+        self._handle_detail_scroll_key(event)
+
+    def _handle_detail_scroll_key(self, event: events.Key) -> bool:
+        character = getattr(event, "character", None)
+        if event.key in ("G", "shift+g") or character == "G":
+            event.prevent_default()
+            event.stop()
+            pane = self._pane()
+            if pane is not None:
+                pane.action_scroll_to_bottom()
+            return True
+        if event.key == "g":
+            event.prevent_default()
+            event.stop()
+            pane = self._pane()
+            if pane is not None:
+                pane.action_scroll_to_top()
+            return True
+        return False
+
+    def action_scroll_detail_top(self) -> None:
+        pane = self._pane()
+        if pane is not None:
+            pane.action_scroll_to_top()
+
+    def action_scroll_detail_bottom(self) -> None:
+        pane = self._pane()
+        if pane is not None:
+            pane.action_scroll_to_bottom()
+
+    def action_scroll_detail_down(self) -> None:
+        pane = self._pane()
+        if pane is not None:
+            pane.action_scroll_detail_down()
+
+    def action_scroll_detail_up(self) -> None:
+        pane = self._pane()
+        if pane is not None:
+            pane.action_scroll_detail_up()
+
+    def _pane(self) -> PluginsBrowserPane | None:
+        node: object | None = self.parent
+        while node is not None:
+            if isinstance(node, PluginsBrowserPane):
+                return node
+            node = getattr(node, "parent", None)
+        return None
+
+
 class PluginsBrowserPane(
     SaseUpdateActionsMixin,
     PluginInstallActionsMixin,
@@ -167,6 +235,11 @@ class PluginsBrowserPane(
         ("U", "update_all", "Update all"),
         ("S", "update_sase", "Sase update"),
         ("r", "refresh", "Refresh"),
+        ("ctrl+d", "scroll_detail_down", "Scroll Down"),
+        ("ctrl+u", "scroll_detail_up", "Scroll Up"),
+        ("g", "scroll_to_top", "Top"),
+        ("G", "scroll_to_bottom", "Bottom"),
+        ("shift+g", "scroll_to_bottom", "Bottom"),
         ("o", "toggle_offline", "Offline"),
         ("v", "toggle_verbose", "Verbose"),
         ("slash", "focus_filter", "Filter"),
@@ -220,7 +293,7 @@ class PluginsBrowserPane(
         with Horizontal(id="plugins-panels"):
             with Vertical(id="plugins-list-panel"):
                 yield Static(self._status_message(), id="plugins-status", markup=False)
-                yield OptionList(*self._create_options(), id="plugins-list")
+                yield _PluginList(*self._create_options(), id="plugins-list")
             with Vertical(id="plugins-detail-panel"):
                 with VerticalScroll(id="plugins-detail-scroll"):
                     yield Static(_DETAIL_PLACEHOLDER, id="plugins-detail", markup=False)
@@ -533,6 +606,49 @@ class PluginsBrowserPane(
         self._rebuild_options()
         self._update_static("#plugins-hints", self._hints())
         self._render_detail_now(force=True)
+
+    def action_scroll_detail_down(self) -> None:
+        """Scroll the plugin detail pane down by half a page."""
+        scroll = self._detail_scroll()
+        if scroll is None:
+            return
+        height = scroll.scrollable_content_region.height
+        self._force_scroll_detail_to(scroll.scroll_y + height // 2, scroll=scroll)
+
+    def action_scroll_detail_up(self) -> None:
+        """Scroll the plugin detail pane up by half a page."""
+        scroll = self._detail_scroll()
+        if scroll is None:
+            return
+        height = scroll.scrollable_content_region.height
+        self._force_scroll_detail_to(scroll.scroll_y - height // 2, scroll=scroll)
+
+    def action_scroll_to_top(self) -> None:
+        """Scroll the plugin detail pane to the top (highlight unchanged)."""
+        scroll = self._detail_scroll()
+        if scroll is not None:
+            self._force_scroll_detail_to(0, scroll=scroll)
+
+    def action_scroll_to_bottom(self) -> None:
+        """Scroll the plugin detail pane to the bottom (highlight unchanged)."""
+        scroll = self._detail_scroll()
+        if scroll is not None:
+            self._force_scroll_detail_to(scroll.max_scroll_y, scroll=scroll)
+
+    def _detail_scroll(self) -> VerticalScroll | None:
+        try:
+            return self.query_one("#plugins-detail-scroll", VerticalScroll)
+        except Exception:
+            return None
+
+    def _force_scroll_detail_to(
+        self, y: float, *, scroll: VerticalScroll | None = None
+    ) -> None:
+        scroll = scroll or self._detail_scroll()
+        if scroll is None:
+            return
+        target = max(0, min(int(y), int(scroll.max_scroll_y)))
+        scroll._scroll_to(y=target, animate=False, force=True)  # noqa: SLF001
 
     def _notify(
         self,

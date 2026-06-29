@@ -488,29 +488,30 @@ class PluginsBrowserRenderingMixin:
         return ""
 
     def _hints(self) -> str:
-        offline = " (on)" if self._offline else ""
-        verbose = " (on)" if self._verbose else ""
+        offline = " (on)" if self._offline else " off"
+        verbose = " (on)" if self._verbose else " verb"
         parts: list[str] = []
         if self._can_install_highlighted():
             parts.append("i install")
         if self._can_update_highlighted():
             entry = self._current_entry()
             emphasize = entry is not None and entry.update_available
-            parts.append("u update ↑" if emphasize else "u update")
+            parts.append("u upd ↑" if emphasize else "u upd")
         if self._can_update_all():
-            parts.append("U update-all")
+            parts.append("U all")
         if self._can_update_sase():
-            parts.append("S sase-update")
+            parts.append("S sase")
         if self._can_uninstall_highlighted():
-            parts.append("x uninstall")
+            parts.append("x rm")
         parts.extend(
             [
-                "r refresh",
-                f"o offline{offline}",
-                f"v verbose{verbose}",
+                "r reload",
+                "ctrl+d/u scroll",
+                f"o{offline}",
+                f"v{verbose}",
                 "/ filter",
-                "[ / ] tab",
-                "esc close",
+                "[ ] tab",
+                "esc",
             ]
         )
         return " · ".join(parts)

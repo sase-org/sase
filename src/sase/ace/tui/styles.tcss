@@ -3519,14 +3519,12 @@ _OverlayNameModal #overlay-name-hints {
 PluginsBrowserPane #sase-core-versions {
     width: 100%;
     height: auto;
-    margin-bottom: 1;
 }
 
 PluginsBrowserPane #plugins-summary {
     width: 100%;
     height: auto;
     text-style: bold;
-    margin-bottom: 1;
 }
 
 PluginsBrowserPane #plugins-filter-input {
@@ -3563,8 +3561,6 @@ PluginsBrowserPane #plugins-detail-panel {
 
 PluginsBrowserPane #plugins-detail-scroll {
     height: 1fr;
-    border: solid $secondary;
-    padding: 0 1;
 }
 
 PluginsBrowserPane #plugins-detail {
@@ -3577,7 +3573,6 @@ PluginsBrowserPane #plugins-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
-    margin-top: 1;
 }
 
 /* Plugins install/update confirm-preview modal (Phase 4, reused Phase 5) */

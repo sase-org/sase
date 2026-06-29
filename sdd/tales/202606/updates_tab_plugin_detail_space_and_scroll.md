@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 09:23:43
-status: wip
+status: done
 prompt: sdd/prompts/202606/updates_tab_plugin_detail_space_and_scroll.md
 ---
 # Plan: Updates tab — reclaim plugin-detail space and add `ctrl+d/u` scrolling

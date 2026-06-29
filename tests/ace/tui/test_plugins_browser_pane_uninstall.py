@@ -65,14 +65,14 @@ async def test_plugins_pane_uninstall_hint_gated_on_installed(
         # Installed: uninstall offered.
         _highlight(pane, "github")
         await page.wait_for(lambda _s: pane._highlighted_name() == "github")
-        assert "x uninstall" in pane._hints()
+        assert "x rm" in pane._hints()
         _highlight(pane, "telegram")
         await page.wait_for(lambda _s: pane._highlighted_name() == "telegram")
-        assert "x uninstall" in pane._hints()
+        assert "x rm" in pane._hints()
         # Not installed: no uninstall hint (install is offered instead).
         _highlight(pane, "nvim")
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
-        assert "x uninstall" not in pane._hints()
+        assert "x rm" not in pane._hints()
 
 
 async def test_plugins_pane_uninstall_not_installed_toasts(
@@ -116,7 +116,7 @@ async def test_plugins_pane_uninstall_disabled_when_not_uv_tool(
         assert messages and messages[0][1] == "warning"
         assert "uv tool install" in messages[0][0]
         # Uninstall affordance is dropped from the hints.
-        assert "x uninstall" not in pane._hints()
+        assert "x rm" not in pane._hints()
         # The summary banner reports the broader unavailable state.
         assert "unavailable" in pane._summary_text().plain
 

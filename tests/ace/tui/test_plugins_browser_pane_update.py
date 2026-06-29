@@ -418,18 +418,18 @@ async def test_plugins_pane_update_hint_gated_on_installed(
         # Installed + update available: emphasized hint, plus update-all.
         _highlight(pane, "github")
         await page.wait_for(lambda _s: pane._highlighted_name() == "github")
-        assert "u update ↑" in pane._hints()
-        assert "U update-all" in pane._hints()
+        assert "u upd ↑" in pane._hints()
+        assert "U all" in pane._hints()
         # Installed but current: hint present, not emphasized.
         _highlight(pane, "telegram")
         await page.wait_for(lambda _s: pane._highlighted_name() == "telegram")
         telegram_hints = pane._hints()
-        assert "u update" in telegram_hints
+        assert "u upd" in telegram_hints
         assert "↑" not in telegram_hints
         # Not installed: no single-update hint (install is offered instead).
         _highlight(pane, "nvim")
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
-        assert "u update" not in pane._hints()
+        assert "u upd" not in pane._hints()
 
 
 async def test_plugins_pane_update_not_installed_toasts(
@@ -469,8 +469,8 @@ async def test_plugins_pane_update_disabled_when_not_uv_tool(
         assert messages and messages[0][1] == "warning"
         assert "uv tool install" in messages[0][0]
         # Update affordances are dropped from the hints.
-        assert "u update" not in pane._hints()
-        assert "U update-all" not in pane._hints()
+        assert "u upd" not in pane._hints()
+        assert "U all" not in pane._hints()
         # Update-all is gated too.
         pane.action_update_all()
         await page.pause()

@@ -120,7 +120,7 @@ async def test_updates_pane_core_panel_drops_cta_when_not_uv_tool(
 
         assert "`sase update` unavailable" in text
         assert "run `sase update`" not in text
-        assert "S sase-update" not in pane._hints()
+        assert "S sase" not in pane._hints()
 
 
 async def test_plugins_pane_shows_update_marker(
