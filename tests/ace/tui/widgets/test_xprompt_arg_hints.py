@@ -245,6 +245,22 @@ async def test_snippet_modal_smart_insertion_adds_trailing_space_without_args() 
         assert ta._active_xprompt_arg_hint is None
 
 
+async def test_snippet_modal_smart_insertion_skips_space_before_punctuation() -> None:
+    entry = _entry("plain")
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#)")
+        ta.cursor_location = (0, 1)
+
+        bar.insert_snippet("plain", entry)
+
+        assert ta.text == "#plain)"
+        assert ta.cursor_location == (0, len("#plain"))
+        assert ta._active_xprompt_arg_hint is None
+
+
 async def test_snippet_modal_smart_insertion_adds_path_colon_hint() -> None:
     entry = _entry("review", inputs=(_input("path", "path"),))
     app = CompletionTestApp()

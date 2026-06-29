@@ -232,6 +232,47 @@ def test_completion_skeletons_match_required_input_shapes() -> None:
     )
 
 
+def test_completion_skeleton_suppresses_no_required_space_before_punctuation() -> None:
+    none_entry = _entry("none")
+    optional_entry = _entry("optional", _optional_input_hint("count"))
+
+    for next_char in (")", ".", "!"):
+        assert xprompt_completion_skeleton(none_entry, next_char=next_char) == "#none"
+
+    assert xprompt_completion_skeleton(none_entry, next_char="a") == "#none "
+    assert xprompt_completion_skeleton(none_entry, next_char=None) == "#none "
+    assert xprompt_completion_skeleton(none_entry) == "#none "
+
+    assert xprompt_completion_skeleton(optional_entry, next_char="]") == "#optional"
+    assert xprompt_completion_skeleton(optional_entry, next_char="a") == "#optional "
+    assert xprompt_completion_skeleton(optional_entry, next_char=None) == "#optional "
+
+
+def test_completion_skeleton_next_char_does_not_affect_required_inputs() -> None:
+    assert (
+        xprompt_completion_skeleton(
+            _entry("path", _input_hint("path", "path")),
+            next_char=")",
+        )
+        == "#path:"
+    )
+    assert (
+        xprompt_completion_skeleton(
+            _entry("text", _input_hint("body", "text")),
+            append_text_arg_space=True,
+            next_char=")",
+        )
+        == "#text:: "
+    )
+    assert (
+        xprompt_completion_skeleton(
+            _entry("many", _input_hint("path", "path"), _input_hint("body", "text")),
+            next_char=")",
+        )
+        == "#many($0)"
+    )
+
+
 def test_completion_skeleton_appends_text_arg_space_only_for_single_required_text() -> (
     None
 ):
@@ -280,6 +321,8 @@ def test_completion_skeleton_appends_text_arg_space_only_for_single_required_tex
 
 def test_completion_suffix_skeleton_strips_existing_hash_trigger() -> None:
     assert xprompt_completion_suffix_skeleton(_entry("none")) == "none "
+    assert xprompt_completion_suffix_skeleton(_entry("none"), next_char=")") == "none"
+    assert xprompt_completion_suffix_skeleton(_entry("none"), next_char="a") == "none "
     assert (
         xprompt_completion_suffix_skeleton(
             _entry("run", _input_hint("target"), prefix="#!")

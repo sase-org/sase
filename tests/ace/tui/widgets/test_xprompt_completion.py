@@ -293,6 +293,23 @@ async def test_single_candidate_xprompt_without_inputs_adds_trailing_space() -> 
     assert ta._active_xprompt_arg_hint is None
 
 
+async def test_single_candidate_xprompt_without_inputs_skips_space_before_punctuation() -> (
+    None
+):
+    entries = [_entry("none")]
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("(#n)")
+        ta.cursor_location = (0, len("(#n"))
+        _seed_entries(ta, entries)
+        assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "(#none)"
+    assert ta.cursor_location == (0, len("(#none"))
+    assert ta._active_xprompt_arg_hint is None
+
+
 async def test_single_candidate_xprompt_required_path_inserts_colon() -> None:
     entries = [_entry("review", inputs=(_input("path", "path"),))]
     app = CompletionTestApp()

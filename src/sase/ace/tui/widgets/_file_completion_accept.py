@@ -61,11 +61,14 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         # A required-text ``::`` skeleton becomes ``:: `` only when the accepted
         # token ends the line; an inline accept keeps ``::`` so the following text
         # supplies the single delimiter instead of doubling the space.
-        append_text_arg_space = end == len(self.document.get_line(row))
+        line = self.document.get_line(row)
+        append_text_arg_space = end == len(line)
+        next_char = line[end] if end < len(line) else None
         expanded = self._expand_snippet_template_at_range(
             xprompt_completion_skeleton(
                 selected.metadata,
                 append_text_arg_space=append_text_arg_space,
+                next_char=next_char,
             ),
             (row, start),
             (row, end),

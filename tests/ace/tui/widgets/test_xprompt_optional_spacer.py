@@ -140,6 +140,25 @@ async def test_optional_only_ctrl_t_single_candidate_then_colon() -> None:
     assert ta._pending_optional_spacer is None
 
 
+async def test_optional_only_ctrl_t_before_punctuation_records_no_spacer() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("(#o)")
+        ta.cursor_location = (0, len("(#o"))
+        _seed_entries(ta, [_optional_entry()])
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "(#optional)"
+        assert ta.cursor_location == (0, len("(#optional"))
+        assert ta._pending_optional_spacer is None
+
+        await pilot.press(":")
+
+    assert ta.text == "(#optional:)"
+    assert ta._pending_optional_spacer is None
+
+
 async def test_optional_only_panel_accept_then_colon() -> None:
     entries = [_optional_entry(), _entry("ship")]
     app = CompletionTestApp()

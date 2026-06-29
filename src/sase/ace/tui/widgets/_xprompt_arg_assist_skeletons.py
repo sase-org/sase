@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+from string import punctuation
+
 from ._xprompt_arg_assist_inputs import required_inputs
 from ._xprompt_arg_assist_models import XPromptAssistEntry
+
+_NO_ARG_SPACE_SUPPRESSING_CHARS = frozenset(punctuation)
+
+
+def _suppresses_no_arg_space(next_char: str | None) -> bool:
+    """Return True when a following character should hug a no-arg xprompt."""
+    return next_char is not None and next_char in _NO_ARG_SPACE_SUPPRESSING_CHARS
 
 
 def named_args_skeleton(entry: XPromptAssistEntry) -> str:
@@ -24,6 +33,7 @@ def xprompt_completion_skeleton(
     entry: XPromptAssistEntry,
     *,
     append_text_arg_space: bool = False,
+    next_char: str | None = None,
 ) -> str:
     """Return the Ctrl+T accept skeleton for an xprompt completion entry.
 
@@ -36,6 +46,8 @@ def xprompt_completion_skeleton(
     """
     inputs = required_inputs(entry)
     if not inputs:
+        if _suppresses_no_arg_space(next_char):
+            return entry.insertion
         return f"{entry.insertion} "
     if len(inputs) > 1:
         return f"{entry.insertion}($0)"
@@ -49,10 +61,13 @@ def xprompt_completion_suffix_skeleton(
     entry: XPromptAssistEntry,
     *,
     append_text_arg_space: bool = False,
+    next_char: str | None = None,
 ) -> str:
     """Return a completion skeleton inserted after an existing ``#`` trigger."""
     skeleton = xprompt_completion_skeleton(
-        entry, append_text_arg_space=append_text_arg_space
+        entry,
+        append_text_arg_space=append_text_arg_space,
+        next_char=next_char,
     )
     if skeleton.startswith("#"):
         return skeleton[1:]
