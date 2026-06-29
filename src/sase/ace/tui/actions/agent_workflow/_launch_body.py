@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from ._launch_history import (
     record_prompt_file_references,
+    record_launched_vcs_xprompt_usage,
     record_resolved_vcs_xprompt_usage,
     save_replayable_vcs_selection,
 )
@@ -275,6 +276,12 @@ class AgentLaunchBodyMixin:
                     allow_short=True,
                 )
                 record_prompt_file_references(submitted_xprompt)
+            if mp_vcs_ref is not None:
+                record_launched_vcs_xprompt_usage(
+                    mp_vcs_ref,
+                    prompt=_vcs_prompt,
+                    resolve_vcs_from_prompt=self._resolve_vcs_from_prompt,  # type: ignore[attr-defined]
+                )
             if owns_context:
                 self._prompt_context = None
             timer.finish(dispatch="multi_prompt", segment_count=len(multi.segments))
@@ -315,6 +322,7 @@ class AgentLaunchBodyMixin:
         # Resolve @name agent references in VCS tags (e.g. #gh:@d -> #gh:sase)
         # so the VCS ref pattern can match the resolved name for display_name.
         _vcs_prompt = prompt
+        recorded_vcs_xprompt_usage = False
         with timer.stage("vcs_resolution", launch_kind="single_or_fanout"):
             try:
                 from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
@@ -390,6 +398,7 @@ class AgentLaunchBodyMixin:
 
             if vcs_ref is not None:
                 record_resolved_vcs_xprompt_usage(vcs_ref, ctx.project_name)
+                recorded_vcs_xprompt_usage = True
 
         from sase.history.prompt import (
             add_or_update_prompt,
@@ -456,6 +465,13 @@ class AgentLaunchBodyMixin:
                 from sase.xprompt._parsing import extract_known_project_vcs_ref
 
                 known_project_vcs_ref = extract_known_project_vcs_ref(_vcs_prompt)
+        if vcs_ref is not None and not recorded_vcs_xprompt_usage:
+            record_launched_vcs_xprompt_usage(
+                vcs_ref,
+                prompt=_vcs_prompt,
+                resolve_vcs_from_prompt=self._resolve_vcs_from_prompt,  # type: ignore[attr-defined]
+            )
+            recorded_vcs_xprompt_usage = True
 
         # Ensure %wait agents have a valid CWD when the VCS provider
         # doesn't provide a primary_workspace_dir (e.g. hg).

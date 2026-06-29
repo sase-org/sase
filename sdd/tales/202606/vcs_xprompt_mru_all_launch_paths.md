@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 10:39:23
-status: wip
+status: done
 prompt: sdd/prompts/202606/vcs_xprompt_mru_all_launch_paths.md
 ---
 # Plan: Record the submitted VCS xprompt workflow to the MRU on every launch path

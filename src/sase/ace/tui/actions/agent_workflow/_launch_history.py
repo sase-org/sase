@@ -18,6 +18,16 @@ class _ReplaySelectionHost(Protocol):
     _last_custom_agent_selection: SelectionItem | None
 
 
+class _VcsPromptResolver(Protocol):
+    def __call__(
+        self,
+        prompt: str,
+        workflow_type: str,
+        *,
+        skip_workspace: bool = False,
+    ) -> tuple[str, str, str, int, str] | None: ...
+
+
 def record_prompt_file_references(prompt: str) -> None:
     """Extract and record file references from *prompt* into history."""
     from sase.history.file_references import (
@@ -45,15 +55,57 @@ def record_resolved_vcs_xprompt_usage(
     project_name: str,
 ) -> None:
     """Record a VCS MRU prefix only after resolution proves it is reusable."""
+    record_launched_vcs_xprompt_usage(vcs_ref, project_name=project_name)
+
+
+def record_launched_vcs_xprompt_usage(
+    vcs_ref: tuple[str, str],
+    *,
+    project_name: str | None = None,
+    prompt: str | None = None,
+    resolve_vcs_from_prompt: _VcsPromptResolver | None = None,
+) -> None:
+    """Record the VCS MRU prefix for a submitted launch path.
+
+    Workspace workflows need the owning project name for the launchability
+    guard. Paths that only detected a raw ref can provide the submitted prompt
+    and resolver; resolution is run with workspace allocation skipped.
+    """
     workflow_type, ref = vcs_ref
-    if not is_non_workspace_workflow(
-        workflow_type
-    ) and not _is_launchable_replay_project(project_name):
+    prefix = f"#{workflow_type}:{ref}"
+
+    from sase.history.vcs_xprompt_mru import (
+        is_default_vcs_xprompt_prefix,
+        record_vcs_xprompt_usage,
+    )
+
+    if is_default_vcs_xprompt_prefix(prefix):
+        record_vcs_xprompt_usage(prefix)
         return
 
-    from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
+    owner_project_name = project_name
+    if prompt is not None and resolve_vcs_from_prompt is not None:
+        try:
+            resolved = resolve_vcs_from_prompt(
+                prompt,
+                workflow_type,
+                skip_workspace=True,
+            )
+        except Exception:
+            log.debug("Failed to resolve VCS MRU owner for %r", prefix, exc_info=True)
+        else:
+            if resolved is not None:
+                owner_project_name = resolved[1]
+            elif is_non_workspace_workflow(workflow_type):
+                return
 
-    record_vcs_xprompt_usage(f"#{workflow_type}:{ref}")
+    if not is_non_workspace_workflow(workflow_type):
+        if owner_project_name is None:
+            return
+        if not _is_launchable_replay_project(owner_project_name):
+            return
+
+    record_vcs_xprompt_usage(prefix)
 
 
 def save_replayable_vcs_selection(

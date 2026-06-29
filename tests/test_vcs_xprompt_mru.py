@@ -119,6 +119,23 @@ def test_record_moves_existing_to_front(tmp_path: Path) -> None:
         assert result == ["#gh:c", "#gh:a", "#gh:b"]
 
 
+def test_record_moves_existing_prefix_to_launchable_mru_front(tmp_path: Path) -> None:
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(json.dumps({"entries": ["#gh:a", "#gh:b", "#gh:c"]}))
+    projects_dir = tmp_path / "projects"
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        record_vcs_xprompt_usage("#gh:c")
+        result = load_launchable_vcs_xprompt_mru(projects_dir)
+
+    assert result[0] == "#gh:c"
+    assert result == ["#gh:c", "#gh:a", "#gh:b"]
+
+
 def test_record_caps_at_max(tmp_path: Path) -> None:
     """List is capped at _MAX_ENTRIES after recording."""
     fake = tmp_path / "vcs_xprompt_mru.json"
