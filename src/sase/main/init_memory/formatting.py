@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import textwrap
 
 _MARKDOWN_WRAP_WIDTH = 120
 _FENCE_MARKERS = ("```", "~~~")
+_STANDALONE_STRONG_LABEL_RE = re.compile(r"^\*\*[^*].*?\*\*[ \t]*$")
 
 
 def _is_fence_line(line: str) -> bool:
@@ -20,6 +22,10 @@ def _is_heading(line: str) -> bool:
 
 def _is_list_item(line: str) -> bool:
     return line.startswith("- ")
+
+
+def _is_standalone_strong_label(line: str) -> bool:
+    return _STANDALONE_STRONG_LABEL_RE.match(line) is not None
 
 
 def _wrap_text(
@@ -39,7 +45,12 @@ def _wrap_text(
 
 
 def _starts_block(line: str) -> bool:
-    return _is_heading(line) or _is_fence_line(line) or _is_list_item(line)
+    return (
+        _is_heading(line)
+        or _is_fence_line(line)
+        or _is_list_item(line)
+        or _is_standalone_strong_label(line)
+    )
 
 
 def format_generated_memory_markdown(content: str) -> str:
@@ -49,7 +60,8 @@ def format_generated_memory_markdown(content: str) -> str:
     index = 0
 
     while index < len(source_lines):
-        line = source_lines[index].rstrip()
+        raw_line = source_lines[index]
+        line = raw_line.rstrip()
 
         if not line.strip():
             if formatted and formatted[-1] != "":
@@ -71,6 +83,11 @@ def format_generated_memory_markdown(content: str) -> str:
 
         if _is_heading(line):
             formatted.append(line)
+            index += 1
+            continue
+
+        if _is_standalone_strong_label(raw_line):
+            formatted.append(f"{line}  ")
             index += 1
             continue
 

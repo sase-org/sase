@@ -159,7 +159,7 @@ def _minimal_agents_content(generated_sase_body: str) -> str:
         generated_sase_body,
         number=1,
     )
-    return f"# Agent Instructions\n\n{section}"
+    return format_generated_memory_markdown(f"# Agent Instructions\n\n{section}")
 
 
 def _render_expected_memory_files(
@@ -203,7 +203,7 @@ def _render_expected_memory_files(
         expected.append(
             MemoryExpectedFile(
                 path=root / "AGENTS.md",
-                content=amd_sync.agents_content,
+                content=format_generated_memory_markdown(amd_sync.agents_content),
                 detail="managed AGENTS.md",
                 stale_operation="overwrite",
             )
