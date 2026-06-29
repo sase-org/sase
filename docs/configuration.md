@@ -77,8 +77,9 @@ will go, and whether it validates:
 - **Preview / write** (`ctrl+s`): before anything is written you see the exact per-file text diff, the resulting
   effective merged value, and schema validation of the candidate config. The write is source-preserving (comments, key
   order, and quoting are kept) and is remapped to the chezmoi source tree when `use_chezmoi` is enabled.
-- **Migrate** (`g`, or `e` on the deprecated `sibling_repos` field): folds `sibling_repos` into
-  [`linked_repos`](#linked_repos) and removes the deprecated key in one step.
+
+The deprecated `sibling_repos` key remains readable as a compatibility alias for [`linked_repos`](#linked_repos), but
+the Config tab no longer offers a one-key migration action. Prefer editing the config to use `linked_repos` directly.
 
 SASE Admin Center never writes without showing the diff and validation first, and never edits a built-in or plugin
 default (those layers are read-only).
@@ -87,20 +88,19 @@ default (those layers are read-only).
 
 The Updates tab keeps SASE itself and its plugins current without leaving the TUI. It leads with a **SASE Core** panel
 showing the installed and latest versions of the `sase` and `sase-core` packages (with an `↑` marker when a newer
-version is available and an `S` action that runs `sase update` for core plus all installed plugins), then brings the
-full [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience into the TUI — browse the
-catalog, inspect a plugin, install, update, or uninstall one — staying visually consistent with the CLI by reusing the
-same catalog loader and Rich renderables. It is a master/detail layout: a header summary line
-(`N plugins · M installed · K updates available · cached <age>`), a filter, a grouped list split into **Built-in** and
-**Community** (third-party, shown with a warning) sections, and a detail panel mirroring `sase plugin show`. Status
-glyphs match the CLI exactly: `●` installed, `○` available, `↑` update available. Editable / dev installs (both the core
-packages and plugins) carry a lowercase `dev` source marker and are compared against their git upstream instead of PyPI,
-so a local checkout can surface an `↑ dev update available` hint that points at `sase update` rather than
-`sase plugin update`. Update actions (`u` / `U` / `S`) on those editable rows route through the
-[dev-update](plugins.md#dev-editable-installs) planner — git fast-forward plus in-place reconcile — instead of the `uv`
-path, and after a successful changed editable update the modal restarts ACE and the axe daemon so the new code is picked
-up immediately. Blocked editable checkout states are shown as dim reasons instead of update arrows, such as
-`dev · local changes`, `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`, or `dev · offline`.
+version is available), then brings the full [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show)
+experience into the TUI — browse the catalog, inspect a plugin, install, update, or uninstall one — staying visually
+consistent with the CLI by reusing the same catalog loader and Rich renderables. It is a master/detail layout: a header
+summary line (`N plugins · M installed · K updates available · cached <age>`), a filter, a grouped list split into
+**Built-in** and **Community** (third-party, shown with a warning) sections, and a detail panel mirroring
+`sase plugin show`. Status glyphs match the CLI exactly: `●` installed, `○` available, `↑` update available. Editable /
+dev installs (both the core packages and plugins) carry a lowercase `dev` source marker and are compared against their
+git upstream instead of PyPI, so a local checkout can surface an `↑ dev update available` hint. Full update actions
+(`u`) route through the [dev-update](plugins.md#dev-editable-installs) planner — git fast-forward plus in-place
+reconcile — instead of the `uv` path for editable packages, and after a successful changed editable update the modal
+restarts ACE and the axe daemon so the new code is picked up immediately. Blocked editable checkout states are shown as
+dim reasons instead of update arrows, such as `dev · local changes`, `dev · diverged`, `dev · detached HEAD`,
+`dev · no upstream`, or `dev · offline`.
 
 Every mutation **previews first**: install and managed update actions open a confirm-preview modal showing the exact
 `uv` command and resolved package set; editable-checkout dev updates preview the git fetch/fast-forward and reconcile
@@ -108,17 +108,22 @@ steps. The confirmation _is_ the dry-run. Mutations run as tracked background ta
 rebuild never blocks the UI. A successful update that changed code automatically restarts ACE and axe through the same
 restart path as the `Q` restart action; no-op and failed updates leave the current UI running and refresh the catalog
 when appropriate. When `sase` is not a managed `uv tool install`, browsing still works but install/update are disabled
-with the same actionable message the CLI gives. The context-sensitive keymaps are:
+with the same actionable message the CLI gives. When incoming commit previews are enabled, the SASE Core panel and
+plugin detail panes can show the newest upstream commit subjects for repositories with update metadata; offline mode
+skips those remote checks. The context-sensitive keymaps are:
 
 | Key       | Action                                                                                      |
 | --------- | ------------------------------------------------------------------------------------------- |
 | `j` / `k` | Move the highlight down / up                                                                |
 | `i`       | Install the highlighted plugin (only when not installed); toggle index vs. git in the modal |
 | `x`       | Uninstall the highlighted plugin (only when installed)                                      |
-| `u`       | Update the highlighted plugin (only when installed; emphasized when an update is available) |
-| `U`       | Update all installed plugins                                                                |
-| `S`       | Run `sase update` for SASE core plus all installed plugins                                  |
+| `u`       | Run `sase update` for SASE core plus all installed plugins                                  |
+| `U`       | Update the highlighted installed plugin                                                     |
 | `r`       | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)               |
+| `Ctrl+D`  | Scroll the detail panel down                                                                |
+| `Ctrl+U`  | Scroll the detail panel up                                                                  |
+| `g`       | Scroll the detail panel to the top                                                          |
+| `G`       | Scroll the detail panel to the bottom                                                       |
 | `o`       | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)           |
 | `v`       | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)              |
 | `/`       | Focus the filter input (matches name / description / topics)                                |
@@ -193,6 +198,9 @@ ace:
     startup_toast: true # show update-available toast on startup
     post_update_toast: true # confirm the version transition after self-update restart
     indicator: true # show the top-bar update badge
+    incoming_commits:
+      enabled: true # show incoming commit subjects in the Updates tab
+      max_per_repo: 7 # cap subjects per repository
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
   keymaps:
     app:
@@ -235,12 +243,14 @@ regular keypresses do not clear. External tools can query idle status via `sase.
 
 #### `ace.updates`
 
-| Field               | Type | Default | Description                                                                                 |
-| ------------------- | ---- | ------- | ------------------------------------------------------------------------------------------- |
-| `startup_toast`     | bool | `true`  | Show the startup toast when cached update status says SASE or installed plugins are behind. |
-| `post_update_toast` | bool | `true`  | Show a one-shot toast after a full SASE self-update restarts ACE into the new code.         |
-| `indicator`         | bool | `true`  | Show the top-bar Updates badge when cached update status reports available updates.         |
-| `check_ttl_minutes` | int  | `10`    | Minimum age before startup update checks revalidate latest-version status.                  |
+| Field                           | Type | Default | Description                                                                                 |
+| ------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------- |
+| `startup_toast`                 | bool | `true`  | Show the startup toast when cached update status says SASE or installed plugins are behind. |
+| `post_update_toast`             | bool | `true`  | Show a one-shot toast after a full SASE self-update restarts ACE into the new code.         |
+| `indicator`                     | bool | `true`  | Show the top-bar Updates badge when cached update status reports available updates.         |
+| `incoming_commits.enabled`      | bool | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.              |
+| `incoming_commits.max_per_repo` | int  | `7`     | Maximum incoming commit subjects to show per repository.                                    |
+| `check_ttl_minutes`             | int  | `10`    | Minimum age before startup update checks revalidate latest-version status.                  |
 
 #### `ace.keymaps`
 
@@ -1707,6 +1717,10 @@ help; deep mode adds slower read-only checks.
 | `-L`, `--list-checks` | flag     | -       | List registered default and deep check ids without running them.        |
 | `-C`, `--check`       | id/group | repeat  | Run only the selected check id or group; may be passed multiple times.  |
 | `-p`, `--project`     | string   | infer   | Inspect a named project when doctor cannot infer one from the checkout. |
+
+Use `sase doctor -L` to list targeted check IDs. Useful focused checks include `runtime`, `llm.default`,
+`plugins.resources`, and `config.model_xprompts`; the model-xprompt check warns when configured model preset xprompts
+expand to bare model tokens that would fall back to the default provider.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach `sase doctor -v` or
 `sase doctor -j` when asking for help.

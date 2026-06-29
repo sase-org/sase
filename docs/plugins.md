@@ -199,6 +199,8 @@ Axe restarted (pid 12345) to load the updated code.
 - **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts axe when it is running so the
   daemon loads the new code. In the Admin Center Updates tab, SASE restarts ACE and axe through the same restart path as
   the `Q` restart action. No-op and failed updates do not restart anything.
+- **The Admin Center mirrors the split.** In the Updates tab, `u` runs the full `sase update` plan and `U` updates the
+  highlighted installed plugin.
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would run and exits `0` without
   changing anything. uv itself has no dry-run, so sase resolves and prints the managed plan itself.
 - **`-j|--json`** emits `schema_version: 2` with a stable, sorted payload. Managed outcomes are reported under

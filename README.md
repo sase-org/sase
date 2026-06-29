@@ -98,7 +98,7 @@ sase agent list          # inspect running agents
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
 sase plugin list         # browse built-in/community plugins and update indicators
-sase update -n           # preview a uv tool upgrade of sase plus installed plugins
+sase update -n           # preview a SASE core + installed-plugin update
 sase workspace list       # inspect numbered workspaces for the current project
 ```
 
@@ -123,6 +123,11 @@ SASE keeps durable state outside any one chat session:
   SASE Admin Center to manage lifecycle state, edit ProjectSpecs, mark projects for bulk lifecycle actions, or delete an
   obsolete SASE project directory. Deleting from that tab removes `~/.sase/projects/<project>/`, not the workspace
   checkout.
+- **Update workflow** - ACE caches latest-version checks by default, shows startup and top-bar update signals when SASE
+  or installed plugins are behind, and uses the Admin Center **Updates** tab for review. That tab shows SASE core/plugin
+  versions, optional incoming commit previews, and dry-run confirmation modals; press `u` for full `sase update` or `U`
+  for the highlighted plugin. Successful changed self-updates restart ACE and axe and can show a one-shot post-update
+  confirmation toast.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed

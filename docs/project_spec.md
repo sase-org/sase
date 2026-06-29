@@ -122,8 +122,8 @@ Validation rules:
 - `PROJECT_NAME` and alias names use the same syntax as SASE project names.
 - `PROJECT_NAME` allocation tries the requested short name first, then appends `_1`, `_2`, and higher suffixes until it
   finds a value that does not collide.
-- Automatic alias allocation tries the requested short name first, then appends `-2`, `-3`, and higher suffixes until it
-  finds a value that does not collide.
+- Project alias mutation validates the exact aliases provided by the caller; it does not allocate alternate spellings
+  automatically.
 - An alias cannot equal its directory-key project name or the same project's `PROJECT_NAME`.
 - A directory key, `PROJECT_NAME`, or alias cannot collide with another project's directory key, `PROJECT_NAME`, or
   alias across non-system projects in any lifecycle state.

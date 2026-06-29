@@ -277,6 +277,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                        |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
 | `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
+| `~`                 | Jump among related agent rows: dotted-name ancestors, descendants, and same-namespace neighbors       |
 | `g`                 | Scroll to top (file, tools, or metadata panel)                                                        |
 | `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                     |
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
@@ -285,6 +286,11 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 > **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and PRs tabs (each tab keeps
 > its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
 > vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
+
+On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. It can jump among
+visible ancestors, descendants, and neighbors in the same immediate namespace, such as `foo.bar` and `foo.baz`. If there
+is only one related visible row ACE jumps directly; otherwise it opens a chooser that can also revive same-session
+dismissed descendants.
 
 ### Agent Actions
 
@@ -1410,8 +1416,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **Waiting dependencies**: For an agent gated by `%wait`, the detail view shows a `Waiting for:` line that lists each
-  dependency name with a per-name status badge reflecting that dependency's live status. A `%wait` target that does not
+- **Wait state**: For an agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view shows a
+  `Wait:` line. Dependency names include per-name status badges, dismissed descendants still appear when they keep a
+  family blocked, and timed waits include compact target/countdown text when available. A `%wait` target that does not
   match a currently known agent is flagged with an unknown-agent indicator, so typos and stale references are obvious.
 - **OUTPUT VARIABLES**: Small string values written by the agent with `sase var set KEY=VALUE`. Keys are sorted for
   stable display, multi-line values are indented, and the section is omitted when the agent has not published variables.
@@ -1854,6 +1861,9 @@ possible, falls back to a bounded filesystem walk, and inserts the selected path
 the finder opened. Inside the finder, type to filter, use `Ctrl+N` / `Ctrl+P` or arrows to move, `Ctrl+U` to clear the
 query, `Enter` to insert, and `Esc` to cancel.
 
+In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor, and `Ctrl+]` jumps to its
+definition or opens an action picker when several jump targets are available.
+
 ACE also computes a non-disruptive live suggestion after a short debounce while the prompt input is in INSERT mode. The
 suggestion appears in the prompt bar subtitle as `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits
 the prompt as typed, so live suggestions cannot accidentally replace text on send.
@@ -2019,6 +2029,8 @@ Text objects compose with `d`, `c`, and `y`.
 | `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                              |
 | `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count        |
 | `J`        | Join current line with next (supports count: `5J`)                                        |
+| `K`        | Preview the xprompt, skill, or file under the cursor in a scrollable modal                |
+| `Ctrl+]`   | Jump to the definition or file under the cursor; choose an action when several apply      |
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
 
@@ -2127,12 +2139,14 @@ output every second while the Tasks tab is visible.
 Open the SASE Admin Center with `#`, then press `5` (or `]` until you reach **Updates**). The Updates tab keeps SASE
 itself and its installed plugins current without leaving the TUI: a **SASE Core** panel shows the installed and latest
 versions of the `sase` and `sase-core` packages, and below it the full plugin catalog lets you browse, inspect, install,
-update, or uninstall a plugin. Press `S` to run `sase update` for core plus all installed plugins, `i` to install, `x`
-to uninstall, `u` / `U` to update one or all, and `r` to refresh the catalog and latest versions. Editable / dev
-installs are labeled with a lowercase `dev` source marker and compared against their git upstream rather than PyPI, so a
-local checkout can surface an `↑ dev update available` hint. Every mutation previews the exact `uv` command first and
-then runs as a tracked background task. See the [Updates tab reference](configuration.md#updates-tab) for the full
-keymap and behavior, and [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
+update, or uninstall a plugin. Press `u` to run `sase update` for core plus all installed plugins, `U` to update the
+highlighted installed plugin, `i` to install, `x` to uninstall, and `r` to refresh the catalog and latest versions.
+Editable / dev installs are labeled with a lowercase `dev` source marker and compared against their git upstream rather
+than PyPI, so a local checkout can surface an `↑ dev update available` hint. The SASE Core panel and plugin details can
+show incoming commit subjects when update metadata is available. Every mutation previews the exact `uv` command or
+editable-checkout plan first and then runs as a tracked background task. See the
+[Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and [Plugins](plugins.md) for
+the equivalent `sase plugin` CLI.
 
 ## Snippets
 
