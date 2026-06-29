@@ -240,39 +240,6 @@ def _occupied_project_refs(
     return occupied
 
 
-# pyvision: https://github.com/sase-org/sase-github.git
-def allocate_project_alias(
-    desired_base_alias: str,
-    records: Sequence[ProjectRecordWire],
-    *,
-    project_name: str | None = None,
-) -> str:
-    """Return the first available project alias for *desired_base_alias*.
-
-    Occupancy includes every non-system project name and every non-system
-    project alias across active, inactive, and sibling records. Aliases already
-    owned by *project_name* are reusable so callers can allocate idempotently
-    while updating an existing project.
-    """
-    base = desired_base_alias.strip()
-    if not is_valid_sase_project_name(base):
-        raise ValueError(f"invalid project alias: {desired_base_alias!r}")
-
-    occupied = _occupied_project_refs(
-        records,
-        project_name=project_name,
-        include_current_aliases=False,
-        include_current_display_name=True,
-    )
-
-    candidate = base
-    suffix = 2
-    while candidate in occupied:
-        candidate = f"{base}-{suffix}"
-        suffix += 1
-    return candidate
-
-
 # pyvision: sdd/tales/202606/project_name_field.md
 def allocate_project_name(
     desired_base_name: str,
@@ -476,23 +443,6 @@ def clear_project_aliases_locked(
     return set_project_aliases_locked(project, [], projects_root=projects_root)
 
 
-# pyvision: https://github.com/sase-org/sase-github.git
-def ensure_project_alias_locked(
-    project: str,
-    alias: str,
-    *,
-    projects_root: Path | None = None,
-) -> ProjectRecordWire:
-    """Ensure *alias* is present on *project* while preserving existing aliases."""
-    _validate_alias_arg(alias)
-    return _mutate_project_aliases_locked(
-        project,
-        lambda aliases: aliases if alias in aliases else [*aliases, alias],
-        f"Ensure project alias {alias}",
-        projects_root=projects_root,
-    )
-
-
 # pyvision: sdd/tales/202606/project_name_field.md
 def set_project_name_locked(
     project: str,
@@ -582,11 +532,9 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
 __all__ = [
     "ProjectAliasError",
     "add_project_alias_locked",
-    "allocate_project_alias",
     "allocate_project_name",
     "canonicalize_project_aliases_in_prompt",
     "clear_project_aliases_locked",
-    "ensure_project_alias_locked",
     "ensure_project_name_locked",
     "effective_project_name",
     "load_project_alias_map",

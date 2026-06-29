@@ -13,10 +13,8 @@ from sase.core.project_lifecycle_wire import (
     effective_project_name,
 )
 from sase.project_aliases import (
-    allocate_project_alias,
     allocate_project_name,
     canonicalize_project_aliases_in_prompt,
-    ensure_project_alias_locked,
     ensure_project_name_locked,
     load_project_alias_map,
     set_project_name_locked,
@@ -60,59 +58,6 @@ def _record(
         parse_warnings=[],
         display_name=display_name,
     )
-
-
-def test_allocate_project_alias_uses_available_base() -> None:
-    assert allocate_project_alias("foo", [_record("alpha")]) == "foo"
-
-
-def test_allocate_project_alias_skips_real_project_name_collision() -> None:
-    assert allocate_project_alias("foo", [_record("foo")]) == "foo-2"
-
-
-def test_allocate_project_alias_skips_alias_collision() -> None:
-    assert allocate_project_alias("foo", [_record("alpha", aliases=["foo"])]) == (
-        "foo-2"
-    )
-
-
-def test_allocate_project_alias_skips_display_name_collision() -> None:
-    assert (
-        allocate_project_alias("foo", [_record("alpha", display_name="foo")]) == "foo-2"
-    )
-
-
-def test_allocate_project_alias_uses_inactive_and_sibling_records() -> None:
-    records = [
-        _record("alpha", aliases=["foo"], state="inactive"),
-        _record("foo-2", state="sibling"),
-    ]
-
-    assert allocate_project_alias("foo", records) == "foo-3"
-
-
-def test_allocate_project_alias_walks_hyphenated_suffixes() -> None:
-    records = [
-        _record("foo"),
-        _record("alpha", aliases=["foo-2"]),
-        _record("beta", aliases=["foo-3"]),
-    ]
-
-    assert allocate_project_alias("foo", records) == "foo-4"
-
-
-def test_allocate_project_alias_reuses_current_project_alias() -> None:
-    records = [
-        _record("alpha", aliases=["foo"]),
-        _record("foo-2"),
-    ]
-
-    assert allocate_project_alias("foo", records, project_name="alpha") == "foo"
-
-
-def test_allocate_project_alias_rejects_invalid_base() -> None:
-    with pytest.raises(ValueError, match="invalid project alias"):
-        allocate_project_alias(".hidden", [])
 
 
 def test_allocate_project_name_uses_available_base() -> None:
@@ -301,64 +246,6 @@ def test_load_project_alias_map_rejects_display_name_collision(
 
     with pytest.raises(ValueError, match="assigned to both"):
         load_project_alias_map(projects_root)
-
-
-def test_ensure_project_alias_locked_preserves_existing_aliases_and_sorts(
-    projects_root: Path,
-    lifecycle_stubs: Callable[[], None],
-) -> None:
-    lifecycle_stubs()
-    project_file = _write_project(
-        projects_root,
-        "alpha",
-        "PROJECT_ALIASES: zed\nWORKSPACE_DIR: /tmp/alpha\nNAME: a\n",
-    )
-
-    record = ensure_project_alias_locked("alpha", "bob", projects_root=projects_root)
-
-    assert record.aliases == ["bob", "zed"]
-    assert "PROJECT_ALIASES: bob, zed\n" in project_file.read_text(encoding="utf-8")
-
-
-def test_ensure_project_alias_locked_is_idempotent(
-    projects_root: Path,
-    lifecycle_stubs: Callable[[], None],
-) -> None:
-    lifecycle_stubs()
-    project_file = _write_project(
-        projects_root,
-        "alpha",
-        "PROJECT_ALIASES: bob, zed\nWORKSPACE_DIR: /tmp/alpha\nNAME: a\n",
-    )
-
-    record = ensure_project_alias_locked("alpha", "bob", projects_root=projects_root)
-
-    content = project_file.read_text(encoding="utf-8")
-    assert record.aliases == ["bob", "zed"]
-    assert content.count("bob") == 1
-
-
-def test_ensure_project_alias_locked_rejects_sibling_alias_collision(
-    projects_root: Path,
-    lifecycle_stubs: Callable[[], None],
-) -> None:
-    lifecycle_stubs()
-    project_file = _write_project(
-        projects_root,
-        "alpha",
-        "WORKSPACE_DIR: /tmp/alpha\nNAME: a\n",
-    )
-    _write_project(
-        projects_root,
-        "beta",
-        "PROJECT_STATE: sibling\nPROJECT_ALIASES: bob\n"
-        "WORKSPACE_DIR: /tmp/beta\nNAME: b\n",
-    )
-
-    with pytest.raises(ValueError, match="assigned to both"):
-        ensure_project_alias_locked("alpha", "bob", projects_root=projects_root)
-
-    assert "PROJECT_ALIASES" not in project_file.read_text(encoding="utf-8")
 
 
 def test_set_project_name_locked_writes_replaces_and_removes_name(

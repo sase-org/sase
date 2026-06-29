@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 10:02:52
-status: wip
+status: done
 prompt: sdd/prompts/202606/pyvision_stale_github_alias_pragmas_1.md
 ---
 # Plan: Fix cross-repo CI failures from the project display-name migration
