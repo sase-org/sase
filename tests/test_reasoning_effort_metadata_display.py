@@ -214,6 +214,47 @@ def test_append_model_field_effort_default_arg_is_none() -> None:
     assert " @ " not in text.plain
 
 
+def test_append_model_field_explicit_provider_skips_model_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit provider metadata is enough to render common model labels."""
+
+    def _unexpected_resolution(model: str) -> tuple[str | None, str]:
+        raise AssertionError(model)
+
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.resolve_model_provider", _unexpected_resolution
+    )
+
+    text = Text()
+    append_model_field(text, "gpt-5", "codex")
+
+    assert text.plain == "Model: CODEX(gpt-5)\n"
+
+
+def test_append_model_field_explicit_provider_resolves_matching_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit-provider labels still honor configured model aliases."""
+
+    def _unexpected_resolution(model: str) -> tuple[str | None, str]:
+        raise AssertionError(model)
+
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"model_aliases": {"large": "codex/gpt-5"}},
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.resolve_model_provider",
+        _unexpected_resolution,
+    )
+
+    text = Text()
+    append_model_field(text, "large", "codex")
+
+    assert text.plain == "Model: CODEX(gpt-5)\n"
+
+
 # --- live Rust scanner projection ------------------------------------------
 
 

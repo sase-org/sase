@@ -23,7 +23,12 @@ from ..prompt_panel._agent_context_common import (
     COLOR_WORKSPACE_PATH,
     WORKSPACE_GLYPH,
 )
-from ._messages import _EXTENSION_TO_LEXER, _LIVE_DIFF_SENTINEL, is_linked_slot
+from ._messages import (
+    _EXTENSION_TO_LEXER,
+    _LIVE_DIFF_SENTINEL,
+    is_commit_slot,
+    is_linked_slot,
+)
 
 
 @dataclass
@@ -90,6 +95,12 @@ def _read_static_file(request_id: int, path: str, mode: str) -> StaticReadResult
         content=content,
         lexer=lexer,
     )
+
+
+def _normalized_static_path(path: str | None) -> str | None:
+    if not path:
+        return None
+    return os.path.normcase(os.path.abspath(os.path.expanduser(path)))
 
 
 class FilePanelDisplayMixin:
@@ -365,10 +376,14 @@ class FilePanelDisplayMixin:
         file_list = getattr(self, "_file_list", None)
         if file_list:
             current = file_list[self._current_file_index]  # type: ignore[attr-defined]
-            if (
-                current == _LIVE_DIFF_SENTINEL
-                or is_linked_slot(current)
-                or current != result.path
+            if current == _LIVE_DIFF_SENTINEL or is_linked_slot(current):
+                return
+            expected_path = current
+            if is_commit_slot(current):
+                resolver = getattr(self, "_commit_diff_path_for_slot", None)
+                expected_path = resolver(current) if callable(resolver) else None
+            if _normalized_static_path(expected_path) != _normalized_static_path(
+                result.path
             ):
                 return
         if result.status == "image":

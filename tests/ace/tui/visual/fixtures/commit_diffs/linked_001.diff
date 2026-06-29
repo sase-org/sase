@@ -1,0 +1,11 @@
+diff --git a/crates/core/src/lib.rs b/crates/core/src/lib.rs
+index 5555555..6666666 100644
+--- a/crates/core/src/lib.rs
++++ b/crates/core/src/lib.rs
+@@ -8,6 +8,8 @@ pub fn build_agent_summary() -> AgentSummary {
+     let mut summary = AgentSummary::default();
+     summary.include_commits = true;
++    summary.include_commit_diffs = true;
++    summary.include_linked_repo_deltas = true;
+     summary
+ }

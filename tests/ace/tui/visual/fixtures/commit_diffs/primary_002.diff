@@ -1,0 +1,12 @@
+diff --git a/src/agent_deltas.py b/src/agent_deltas.py
+index 3333333..4444444 100644
+--- a/src/agent_deltas.py
++++ b/src/agent_deltas.py
+@@ -130,7 +130,9 @@ def agent_delta_entries(agent: Agent) -> list[DeltaEntry]:
+     diff_text = get_agent_diff(agent)
+     if not diff_text:
+         return []
+-    return parse_unified_diff_deltas(diff_text)
++    entries = parse_unified_diff_deltas(diff_text)
++    entries.sort(key=lambda entry: entry.path)
++    return entries

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.ace.tui.models.agent import LinkedRepoMetadata
+from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_diffs
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
@@ -152,6 +153,65 @@ class TestWorkflowVariablesHeader:
         assert header.plain.count("  ▣ test\n") == 1
         assert "    aaaaaaaaaaa1 feat: first primary\n" in header.plain
         assert "    bbbbbbbbbbb2 fix: second primary\n" in header.plain
+
+    def test_agent_commit_diffs_order_primary_first_and_dedups_legacy_paths(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        primary = tmp_path / "sase_7"
+        linked = tmp_path / "sase-core_7"
+        shared_legacy_diff = tmp_path / "commit_diff.diff"
+        primary_diff = tmp_path / "001.diff"
+        linked_diff = tmp_path / "002.diff"
+        agent = make_agent(
+            workspace_dir=str(primary),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "feat: linked core",
+                        "sha": "222222222222bbbb",
+                        "cwd": str(linked),
+                        "diff_path": str(linked_diff),
+                    },
+                    {
+                        "message": "feat: primary workspace",
+                        "sha": "111111111111aaaa",
+                        "cwd": str(primary / "src"),
+                        "diff_path": str(primary_diff),
+                    },
+                    {
+                        "message": "fix: legacy first",
+                        "sha": "333333333333cccc",
+                        "cwd": str(primary),
+                        "diff_path": str(shared_legacy_diff),
+                    },
+                    {
+                        "message": "fix: legacy duplicate",
+                        "sha": "444444444444dddd",
+                        "cwd": str(primary),
+                        "diff_path": str(shared_legacy_diff),
+                    },
+                ],
+            },
+            linked_repos=(
+                LinkedRepoMetadata(
+                    name="sase-core",
+                    workspace_dir=str(linked),
+                    workspace_strategy="suffix",
+                ),
+            ),
+        )
+
+        commit_diffs = agent_commit_diffs(agent)
+
+        assert [
+            (info.repo_name, info.short_sha, info.diff_path, info.is_primary)
+            for info in commit_diffs
+        ] == [
+            ("test", "111111111111", str(primary_diff), True),
+            ("test", "333333333333", str(shared_legacy_diff), True),
+            ("sase-core", "222222222222", str(linked_diff), False),
+        ]
 
     def test_commit_cwd_unmatched_renders_basename_group(
         self,

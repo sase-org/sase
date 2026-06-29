@@ -532,7 +532,7 @@ def test_capture_pre_commit_diff_fallback_to_sase_diffs(
 def test_capture_pre_commit_diff_prefers_untracked_diff(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """New-file diffs are captured before the commit workflow stages files."""
+    """New-file diffs are captured to a per-commit file plus legacy copy."""
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
@@ -550,10 +550,40 @@ def test_capture_pre_commit_diff_prefers_untracked_diff(
 
     diff_path = capture_pre_commit_diff(mock_provider, str(tmp_path), "my_branch")
 
-    assert diff_path == str(artifacts_dir / "commit_diff.diff")
+    assert diff_path == str(artifacts_dir / "commit_diffs" / "001.diff")
     assert Path(diff_path).read_text() == untracked_diff
+    assert (artifacts_dir / "commit_diff.diff").read_text() == untracked_diff
     mock_provider.diff_with_untracked.assert_called_once_with(str(tmp_path))
     mock_provider.diff.assert_not_called()
+
+
+def test_capture_pre_commit_diff_agent_context_uses_distinct_commit_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sequential agent commits keep distinct persisted diff files."""
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    first_diff = "diff --git a/one.py b/one.py\n+one\n"
+    second_diff = "diff --git a/two.py b/two.py\n+two\n"
+    mock_provider = MagicMock()
+    mock_provider.diff_with_untracked.side_effect = [
+        (True, first_diff),
+        (True, second_diff),
+    ]
+
+    first_path = capture_pre_commit_diff(mock_provider, str(tmp_path), "my_branch")
+    second_path = capture_pre_commit_diff(mock_provider, str(tmp_path), "my_branch")
+
+    assert first_path is not None
+    assert second_path is not None
+    assert first_path == str(artifacts_dir / "commit_diffs" / "001.diff")
+    assert second_path == str(artifacts_dir / "commit_diffs" / "002.diff")
+    assert Path(first_path).read_text() == first_diff
+    assert Path(second_path).read_text() == second_diff
+    assert (artifacts_dir / "commit_diff.diff").read_text() == second_diff
 
 
 def test_capture_pre_commit_diff_skips_without_cl_name(

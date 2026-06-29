@@ -85,7 +85,25 @@ file_cache: dict[str, FileCacheEntry] = {}
 # Sentinel value used in file-panel page lists to represent the
 # auto-refreshing primary live diff slot.
 _LIVE_DIFF_SENTINEL = "__live_diff__"
+COMMIT_DIFF_PREFIX = "__commit_diff__:"
 LINKED_DIFF_PREFIX = "__linked_diff__:"
+
+
+def commit_slot_id(index: int) -> str:
+    """Return the file-list slot id for a persisted commit diff page."""
+    return f"{COMMIT_DIFF_PREFIX}{index}"
+
+
+def is_commit_slot(value: str) -> bool:
+    """Return whether *value* is a persisted commit diff page slot id."""
+    return value.startswith(COMMIT_DIFF_PREFIX)
+
+
+def commit_slot_index(value: str) -> int:
+    """Return the commit index encoded in a commit diff page slot id."""
+    if not is_commit_slot(value):
+        raise ValueError(f"not a commit diff slot: {value!r}")
+    return int(value[len(COMMIT_DIFF_PREFIX) :])
 
 
 def linked_slot_id(repo_name: str) -> str:

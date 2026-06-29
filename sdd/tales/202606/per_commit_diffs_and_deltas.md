@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-29 08:27:19
-status: wip
+status: done
 prompt: sdd/prompts/202606/per_commit_diffs_and_deltas.md
 ---
 # Plan: Per-commit diffs in the file panel + all-commit Deltas

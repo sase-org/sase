@@ -8,6 +8,7 @@ from rich.text import Text
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
+from sase.agent.status_buckets import status_bucket_for_values
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
 from ...models.agent import Agent
@@ -23,14 +24,18 @@ from ._messages import (
     FileCacheEntry,
     _EXTENSION_TO_LEXER,
     _LIVE_DIFF_SENTINEL,
+    commit_slot_id,
+    commit_slot_index,
     file_cache,
     get_cache_key,
+    is_commit_slot,
     is_linked_slot,
     linked_slot_id,
     linked_slot_repo_name,
 )
 from ._trim import FilePanelTrimMixin
 from ..prompt_panel._agent_context_common import WORKSPACE_GLYPH
+from ..prompt_panel._agent_commits import CommitDiffInfo, agent_commit_diffs
 
 InflightDiffKey = tuple[tuple[object, ...], int | None, str | None, str | None]
 
@@ -266,7 +271,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
     def _display_file_at_current_index(self) -> None:
         """Display the file at the current index.
 
-        Handles live diff, linked diff, and static file page slots.
+        Handles live diff, commit diff, linked diff, and static file page slots.
         """
         if not self._file_list:
             return
@@ -280,6 +285,13 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
                     self._display_file_with_timestamp(
                         cache_entry.diff_output, cache_entry.fetch_time
                     )
+            return
+        if is_commit_slot(path):
+            info = self._commit_diff_info_for_slot(path)
+            if info is None:
+                self._display_commit_diff_unavailable()
+                return
+            self.display_static_diff(info.diff_path)
             return
         if is_linked_slot(path):
             repo_name = linked_slot_repo_name(path)
@@ -300,8 +312,16 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         """Return the current canonical file-panel page list and default page."""
         pages: list[str] = []
 
+        commit_diffs = agent_commit_diffs(agent)
+        pages.extend(commit_slot_id(index) for index, _ in enumerate(commit_diffs))
+
         cache_entry = file_cache.get(get_cache_key(agent))
-        if cache_entry is not None and bool(cache_entry.diff_output):
+        suppress_live_diff = bool(commit_diffs) and _is_terminal_agent(agent)
+        if (
+            cache_entry is not None
+            and bool(cache_entry.diff_output)
+            and not suppress_live_diff
+        ):
             pages.append(_LIVE_DIFF_SENTINEL)
 
         linked_groups = get_cached_linked_delta_groups(agent)
@@ -351,6 +371,30 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             if group.repo_name == repo_name:
                 return group
         return None
+
+    def _commit_diff_info_for_slot(self, slot: str) -> CommitDiffInfo | None:
+        agent = self._current_agent
+        if agent is None:
+            return None
+        try:
+            index = commit_slot_index(slot)
+        except (TypeError, ValueError):
+            return None
+        commit_diffs = agent_commit_diffs(agent)
+        if index < 0 or index >= len(commit_diffs):
+            return None
+        return commit_diffs[index]
+
+    def _commit_diff_path_for_slot(self, slot: str) -> str | None:
+        info = self._commit_diff_info_for_slot(slot)
+        return info.diff_path if info is not None else None
+
+    def _display_commit_diff_unavailable(self) -> None:
+        text = Text("Commit diff is unavailable.\n", style="dim italic")
+        self.update(text)
+        self._has_displayed_content = True
+        self._post_file_visibility(has_file=False)
+        self._post_trim_changed()
 
     def _current_linked_diff_changed(self) -> bool:
         current = self._current_file_value()
@@ -443,7 +487,7 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
         """
         self._current_agent = agent
         current = self._current_file_value()
-        if current is not None and is_linked_slot(current):
+        if current is not None and (is_commit_slot(current) or is_linked_slot(current)):
             self._reconcile_file_list(agent, allow_initial_display=True)
             self._start_background_fetch(agent)
             return
@@ -629,6 +673,9 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             path = self._file_list[self._current_file_index]
             if path == _LIVE_DIFF_SENTINEL or is_linked_slot(path):
                 return None
+            if is_commit_slot(path):
+                diff_path = self._commit_diff_path_for_slot(path)
+                return os.path.expanduser(diff_path) if diff_path else None
             return os.path.expanduser(path)
         return None
 
@@ -639,6 +686,14 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
             return None
         if current == _LIVE_DIFF_SENTINEL:
             return "diff"
+        if is_commit_slot(current):
+            info = self._commit_diff_info_for_slot(current)
+            if info is None:
+                return "commit diff"
+            label = " ".join(part for part in (info.repo_name, info.short_sha) if part)
+            if not label:
+                label = "commit diff"
+            return label if info.is_primary else f"{WORKSPACE_GLYPH} {label}"
         if is_linked_slot(current):
             return f"{WORKSPACE_GLYPH} {linked_slot_repo_name(current)}"
         expanded = os.path.expanduser(current)
@@ -668,3 +723,7 @@ __all__ = [
     "_EXTENSION_TO_LEXER",
     "_LIVE_DIFF_SENTINEL",
 ]
+
+
+def _is_terminal_agent(agent: Agent) -> bool:
+    return status_bucket_for_values(agent.status) in {"Done", "Failed"}

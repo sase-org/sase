@@ -31,6 +31,17 @@ class _CommitInfo:
     subject: str
 
 
+@dataclass(frozen=True)
+class CommitDiffInfo:
+    """Per-commit diff metadata used by TUI diff/delta surfaces."""
+
+    repo_name: str
+    short_sha: str
+    subject: str
+    diff_path: str
+    is_primary: bool
+
+
 def _append_major_section_divider(text: Text) -> None:
     text.append("\n")
     text.append(f"{_MAJOR_SECTION_RULE}\n", style="dim")
@@ -92,6 +103,13 @@ def _commit_info_from_record(record: dict[str, Any]) -> _CommitInfo | None:
     return _CommitInfo(short_sha=sha, subject=subject)
 
 
+def _commit_diff_path_from_record(record: dict[str, Any]) -> str | None:
+    raw_path = record.get("diff_path") or record.get("commit_diff_path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+    return os.path.expanduser(raw_path.strip())
+
+
 def _norm_path(value: object) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -132,6 +150,13 @@ def _repo_name_for_commit_cwd(
             return repo.name
 
     return _repo_name_from_cwd(str(cwd_raw))
+
+
+def _commit_cwd_is_primary(agent: Agent, cwd_raw: object) -> bool:
+    cwd = _norm_path(cwd_raw)
+    if cwd is None:
+        return True
+    return _path_is_same_or_inside(cwd, _norm_path(agent.workspace_dir))
 
 
 def _persisted_commit_repo_name(
@@ -184,6 +209,67 @@ def _persisted_commit_groups(
     if not persisted_commits:
         return ()
     return ((_persisted_commit_repo_name(agent, step_output), persisted_commits),)
+
+
+def agent_commit_diffs(agent: Agent) -> list[CommitDiffInfo]:
+    """Return ordered persisted per-commit diff descriptors for ``agent``.
+
+    This accessor only parses in-memory metadata. It deliberately avoids
+    checking file existence so render paths can call it without disk I/O.
+    """
+    step_output = agent.step_output if isinstance(agent.step_output, dict) else None
+    if step_output is None:
+        return []
+
+    raw_commits = step_output.get("meta_commits")
+    if not isinstance(raw_commits, list) or not raw_commits:
+        return []
+
+    primary_name = _primary_repo_name(agent, step_output)
+    grouped: dict[str, list[CommitDiffInfo]] = {}
+    group_order: list[str] = []
+    seen_paths: set[str] = set()
+    for raw_record in raw_commits:
+        if not isinstance(raw_record, dict):
+            continue
+
+        diff_path = _commit_diff_path_from_record(raw_record)
+        path_key = _norm_path(diff_path)
+        if diff_path is None or path_key is None or path_key in seen_paths:
+            continue
+
+        commit = _commit_info_from_record(raw_record)
+        if commit is None:
+            continue
+        seen_paths.add(path_key)
+
+        repo_name = _repo_name_for_commit_cwd(
+            agent,
+            step_output,
+            raw_record.get("cwd"),
+        )
+        if repo_name not in grouped:
+            grouped[repo_name] = []
+            group_order.append(repo_name)
+        grouped[repo_name].append(
+            CommitDiffInfo(
+                repo_name=repo_name,
+                short_sha=commit.short_sha,
+                subject=commit.subject,
+                diff_path=diff_path,
+                is_primary=repo_name == primary_name
+                or _commit_cwd_is_primary(agent, raw_record.get("cwd")),
+            )
+        )
+
+    ordered: list[CommitDiffInfo] = []
+    if primary_name in grouped:
+        ordered.extend(grouped[primary_name])
+    for repo_name in group_order:
+        if repo_name == primary_name:
+            continue
+        ordered.extend(grouped[repo_name])
+    return ordered
 
 
 def _append_commit_group(

@@ -235,8 +235,13 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             )
         else:
             # DONE, FAILED, etc.
-            files = agent.all_files
-            if files:
+            from .prompt_panel._agent_commits import agent_commit_diffs
+
+            if agent_commit_diffs(agent):
+                file_panel.update_display(
+                    agent, stale_threshold_seconds=stale_threshold_seconds
+                )
+            elif files := agent.all_files:
                 file_panel.set_file_list(files, start_index=0)
             elif agent.workspace_num is not None:
                 # No saved diff file — try fetching committed diff from workspace

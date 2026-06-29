@@ -1,0 +1,11 @@
+diff --git a/src/file_panel.py b/src/file_panel.py
+index 1111111..2222222 100644
+--- a/src/file_panel.py
++++ b/src/file_panel.py
+@@ -40,6 +40,8 @@ class AgentFilePanel(FilePanelTrimMixin, FilePanelDisplayMixin, Static):
+         self._file_list: list[str] = []
+         self._current_file_index: int = 0
++        self._commit_pages_enabled = True
++        self._commit_page_count = 0
+         self._total_line_count: int = 0
+         self._visible_line_count: int = 0

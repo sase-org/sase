@@ -16,8 +16,10 @@ from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.ace.tui.widgets.file_panel import _LIVE_DIFF_SENTINEL, AgentFilePanel
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
+from sase.ace.tui.widgets.file_panel._display import StaticReadResult
 from sase.ace.tui.widgets.file_panel._messages import (
     FileCacheEntry,
+    commit_slot_id,
     file_cache,
     get_cache_key,
     linked_slot_id,
@@ -30,6 +32,9 @@ def _make_agent(
     extra_files: list[str] | None = None,
     status: str = "RUNNING",
     linked_repos: tuple[LinkedRepoMetadata, ...] = (),
+    workspace_dir: str | None = None,
+    diff_path: str | None = None,
+    step_output: dict[str, object] | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -40,6 +45,9 @@ def _make_agent(
         raw_suffix=raw_suffix,
         extra_files=list(extra_files) if extra_files else [],
         linked_repos=linked_repos,
+        workspace_dir=workspace_dir,
+        diff_path=diff_path,
+        step_output=step_output,
     )
 
 
@@ -87,6 +95,12 @@ def _make_panel() -> MagicMock:
     )
     panel._linked_group_for_repo = types.MethodType(
         AgentFilePanel._linked_group_for_repo, panel
+    )
+    panel._commit_diff_info_for_slot = types.MethodType(
+        AgentFilePanel._commit_diff_info_for_slot, panel
+    )
+    panel._commit_diff_path_for_slot = types.MethodType(
+        AgentFilePanel._commit_diff_path_for_slot, panel
     )
     panel._current_linked_diff_changed = types.MethodType(
         AgentFilePanel._current_linked_diff_changed, panel
@@ -418,6 +432,141 @@ def test_completed_agents_do_not_get_linked_pages() -> None:
         _clear_cache_for(agent)
 
     assert pages == []
+
+
+def test_terminal_commit_pages_precede_files_and_suppress_live_diff() -> None:
+    panel = _make_panel()
+    agent = _make_agent(
+        status="DONE",
+        workspace_dir="/tmp/sase_7",
+        diff_path="/tmp/latest.diff",
+        extra_files=["/tmp/plan.md"],
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat: first",
+                    "sha": "111111111111aaaa",
+                    "cwd": "/tmp/sase_7",
+                    "diff_path": "/tmp/001.diff",
+                },
+                {
+                    "message": "fix: second",
+                    "sha": "222222222222bbbb",
+                    "cwd": "/tmp/sase_7/src",
+                    "diff_path": "/tmp/002.diff",
+                },
+            ],
+        },
+    )
+    file_cache[get_cache_key(agent)] = FileCacheEntry(
+        diff_output="diff --git a/latest b/latest\n+latest\n",
+        fetch_time=datetime.now(),
+    )
+
+    try:
+        pages, default_value = panel._desired_file_list(agent)
+    finally:
+        _clear_cache_for(agent)
+
+    assert pages == [commit_slot_id(0), commit_slot_id(1), "/tmp/plan.md"]
+    assert default_value == commit_slot_id(0)
+
+
+def test_commit_slot_label_path_and_display_resolution() -> None:
+    panel = _make_panel()
+    panel._display_file_at_current_index = types.MethodType(
+        AgentFilePanel._display_file_at_current_index, panel
+    )
+    linked_repo = LinkedRepoMetadata(
+        name="sase-core",
+        workspace_dir="/tmp/sase-core_7",
+        workspace_strategy="suffix",
+    )
+    agent = _make_agent(
+        status="DONE",
+        workspace_dir="/tmp/sase_7",
+        linked_repos=(linked_repo,),
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat: primary",
+                    "sha": "111111111111aaaa",
+                    "cwd": "/tmp/sase_7/src",
+                    "diff_path": "/tmp/001.diff",
+                },
+                {
+                    "message": "feat: linked",
+                    "sha": "222222222222bbbb",
+                    "cwd": "/tmp/sase-core_7",
+                    "diff_path": "/tmp/002.diff",
+                },
+            ],
+        },
+    )
+    panel._current_agent = agent
+    panel._file_list = [commit_slot_id(0), commit_slot_id(1)]
+    panel._current_file_index = 0
+    panel.display_static_diff = MagicMock()
+
+    assert panel.get_current_file_path() == "/tmp/001.diff"
+    assert panel.current_source_label() == "test 111111111111"
+    panel._display_file_at_current_index()
+    panel.display_static_diff.assert_called_once_with("/tmp/001.diff")
+
+    panel._current_file_index = 1
+    assert panel.get_current_file_path() == "/tmp/002.diff"
+    assert panel.current_source_label() == "▣ sase-core 222222222222"
+
+
+def test_commit_slot_static_read_result_matches_resolved_diff_path() -> None:
+    panel = _make_panel()
+    panel._handle_static_read_result = types.MethodType(
+        AgentFilePanel._handle_static_read_result, panel
+    )
+    agent = _make_agent(
+        status="DONE",
+        workspace_dir="/tmp/sase_7",
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat: primary",
+                    "sha": "111111111111aaaa",
+                    "cwd": "/tmp/sase_7",
+                    "diff_path": "/tmp/001.diff",
+                },
+            ],
+        },
+    )
+    panel._current_agent = agent
+    panel._file_list = [commit_slot_id(0)]
+    panel._current_file_index = 0
+    panel._static_request_id = 7
+    panel._render_static_diff_result = MagicMock()
+
+    matching = StaticReadResult(
+        request_id=7,
+        mode="diff",
+        path="/tmp/001.diff",
+        expanded_path="/tmp/001.diff",
+        status="ok",
+        content="diff --git a/a b/a\n+a\n",
+        lexer="diff",
+    )
+    panel._handle_static_read_result(matching)
+    panel._render_static_diff_result.assert_called_once_with(matching)
+
+    panel._render_static_diff_result.reset_mock()
+    stale = StaticReadResult(
+        request_id=7,
+        mode="diff",
+        path="/tmp/other.diff",
+        expanded_path="/tmp/other.diff",
+        status="ok",
+        content="diff --git a/b b/b\n+b\n",
+        lexer="diff",
+    )
+    panel._handle_static_read_result(stale)
+    panel._render_static_diff_result.assert_not_called()
 
 
 def test_current_source_label_and_path_guard_for_linked_slot() -> None:

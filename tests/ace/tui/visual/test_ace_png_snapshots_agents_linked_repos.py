@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +14,10 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
+    get_cached_detail_header_summary,
+)
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
@@ -25,6 +31,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+_COMMIT_DIFF_FIXTURES = Path("tests/ace/tui/visual/fixtures/commit_diffs")
 
 
 def _linked_repo_diff_agent() -> Agent:
@@ -49,6 +57,9 @@ def _linked_repo_diff_agent() -> Agent:
 
 
 def _linked_repo_commits_agent() -> Agent:
+    primary_diff_1 = _COMMIT_DIFF_FIXTURES / "primary_001.diff"
+    primary_diff_2 = _COMMIT_DIFF_FIXTURES / "primary_002.diff"
+    linked_diff = _COMMIT_DIFF_FIXTURES / "linked_001.diff"
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-commits",
@@ -59,7 +70,7 @@ def _linked_repo_commits_agent() -> Agent:
         raw_suffix="20260623-160000-linked-commits",
         agent_name="commits",
         llm_provider="codex",
-        model="gpt-5",
+        diff_path=str(primary_diff_2),
         workspace_dir="/workspace/sase_18",
         step_output={
             "meta_commit_message": (
@@ -74,6 +85,14 @@ def _linked_repo_commits_agent() -> Agent:
                     "Persist all commit results for the selected run.",
                     "sha": "1234567890abcdef",
                     "cwd": "/workspace/sase_18/src",
+                    "diff_path": str(primary_diff_1),
+                },
+                {
+                    "message": "fix: aggregate deltas\n\n"
+                    "Show all primary commit deltas in the metadata panel.",
+                    "sha": "abcdef1234567890",
+                    "cwd": "/workspace/sase_18/src",
+                    "diff_path": str(primary_diff_2),
                 },
                 {
                     "message": (
@@ -82,6 +101,7 @@ def _linked_repo_commits_agent() -> Agent:
                     ),
                     "sha": "9f8e7d6c5b4a3",
                     "cwd": "/workspace/sase-core_18",
+                    "diff_path": str(linked_diff),
                 },
             ],
         },
@@ -148,6 +168,24 @@ def _seed_linked_repo_visual_delta(
     )
 
 
+async def _wait_for_commit_delta_summary(page: AcePage, agent: Agent) -> None:
+    prompt_panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+    deadline = time.monotonic() + 3.0
+    while True:
+        await wait_for_visual_idle(page)
+        summary = get_cached_detail_header_summary(prompt_panel, agent)
+        if (
+            summary is not None
+            and summary.delta_entries
+            and summary.linked_delta_groups
+        ):
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError("Timed out waiting for commit delta summary")
+        await page.pause()
+        await asyncio.sleep(0.05)
+
+
 async def test_agents_linked_repo_diff_file_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -187,17 +225,22 @@ async def test_agents_commit_messages_panel_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
+        await _wait_for_commit_delta_summary(page, agent)
+        for _ in range(6):
+            await page.press("ctrl+f")
+            await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "COMMITS:")
-        assert_page_svg_contains(page, "feat: primary")
-        assert_page_svg_contains(page, "1234567890ab")
-        assert_page_svg_contains(page, "visual_project")
-        assert_page_svg_contains(page, "feat: linked core")
-        assert_page_svg_contains(page, "9f8e7d6c5b4a")
+        assert_page_svg_contains(page, "Deltas:")
+        assert_page_svg_contains(page, "agent_deltas.py")
+        assert_page_svg_contains(page, "file_panel.py")
         assert_page_svg_contains(page, "sase-core")
+        assert_page_svg_contains(page, "lib.rs")
+        assert_page_svg_contains(page, "files [1/3]")
+        assert_page_svg_contains(page, "visual_project 1234567890ab")
+        assert_page_svg_contains(page, "primary_001.diff")
         ace_png_visual.assert_page_png(
             page,
             "agents_commit_messages_panel_120x40",
-            title="ACE agents commit messages panel",
+            title="ACE agents commit deltas and file panel",
             max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

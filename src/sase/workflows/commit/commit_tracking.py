@@ -64,8 +64,25 @@ def capture_pre_commit_diff(
     Returns the path to the saved diff file, or ``None`` on failure.
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    legacy_diff_path: str | None = None
     if artifacts_dir:
-        diff_path = os.path.join(artifacts_dir, "commit_diff.diff")
+        diff_dir = os.path.join(artifacts_dir, "commit_diffs")
+        try:
+            os.makedirs(diff_dir, exist_ok=True)
+            existing_count = sum(
+                1
+                for name in os.listdir(diff_dir)
+                if name.endswith(".diff")
+                and os.path.isfile(os.path.join(diff_dir, name))
+            )
+        except OSError:
+            return None
+        next_index = existing_count + 1
+        diff_path = os.path.join(diff_dir, f"{next_index:03d}.diff")
+        while os.path.exists(diff_path):
+            next_index += 1
+            diff_path = os.path.join(diff_dir, f"{next_index:03d}.diff")
+        legacy_diff_path = os.path.join(artifacts_dir, "commit_diff.diff")
     else:
         if not cl_name:
             return None
@@ -95,9 +112,16 @@ def capture_pre_commit_diff(
     try:
         with open(diff_path, "w", encoding="utf-8") as f:
             f.write(diff_text)
-        return diff_path
     except Exception:
         return None
+
+    if legacy_diff_path:
+        try:
+            with open(legacy_diff_path, "w", encoding="utf-8") as f:
+                f.write(diff_text)
+        except OSError:
+            pass
+    return diff_path
 
 
 def _commits_drawer_has_entry_id(

@@ -35,22 +35,23 @@ def append_model_field(
     if not model:
         return
 
-    from sase.llm_provider.registry import (
-        format_provider_model_label,
-        provider_cli_status_color_map,
-        resolve_model_provider,
-    )
-
     # Infer provider from model name if not explicitly stored
     provider = llm_provider
     if not provider:
+        from sase.llm_provider.registry import resolve_model_provider
+
         resolved_provider, resolved_model = resolve_model_provider(model)
         if resolved_provider:
             provider = resolved_provider
             model = resolved_model
-    elif model:
-        resolved_provider, resolved_model = resolve_model_provider(model)
-        if resolved_provider == provider:
+    else:
+        from sase.llm_provider.config import resolve_model_alias
+
+        resolved_model = resolve_model_alias(model)
+        prefix, sep, rest = resolved_model.partition("/")
+        if sep and prefix == provider:
+            model = rest
+        elif not sep:
             model = resolved_model
 
     header_text.append("Model: ", style="bold #87D7FF")
@@ -68,12 +69,16 @@ def append_model_field(
         header_text.append(model, style="#AFFF5F")
         header_text.append(")", style="#5FAF00")
     elif provider:
+        from sase.llm_provider.registry import provider_cli_status_color_map
+
         color = provider_cli_status_color_map().get(provider, "#AF87D7")
         header_text.append(provider.upper(), style=f"bold {color}")
         header_text.append("(", style=color)
         header_text.append(model, style=color)
         header_text.append(")", style=color)
     else:
+        from sase.llm_provider.registry import format_provider_model_label
+
         header_text.append(
             format_provider_model_label(provider, model), style="#AF87D7"
         )

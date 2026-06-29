@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from rich.text import Text
@@ -16,6 +18,7 @@ from ..deltas_builder import build_delta_entries_section
 from ..file_panel._diff import get_agent_diff
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ..hint_tracker import HintTracker
+from ._agent_commits import CommitDiffInfo, agent_commit_diffs
 
 if TYPE_CHECKING:
     from ._agent_display_state import HeaderHintState
@@ -145,14 +148,122 @@ def parse_unified_diff_deltas(diff_text: str) -> list[DeltaEntry]:
 _parse_unified_diff_deltas = parse_unified_diff_deltas
 
 
+def _merge_line_stats(
+    left: DeltaLineStats | None,
+    right: DeltaLineStats | None,
+) -> DeltaLineStats | None:
+    if left is None and right is None:
+        return None
+    return DeltaLineStats(
+        added=(left.added if left else 0) + (right.added if right else 0),
+        modified=(left.modified if left else 0) + (right.modified if right else 0),
+        removed=(left.removed if left else 0) + (right.removed if right else 0),
+        binary=(left.binary if left else False) or (right.binary if right else False),
+    )
+
+
+def _merge_delta_entries(entries: Iterable[DeltaEntry]) -> list[DeltaEntry]:
+    """Union per-commit delta entries by path, summing line stats.
+
+    This is an approximation of the net diff: when a file has multiple change
+    types across commits, the merged entry is marked modified. The exact
+    base-to-head delta is unavailable after a terminal agent workspace is
+    released, so persisted per-commit diffs are the reliable source.
+    """
+    merged: dict[str, DeltaEntry] = {}
+    change_types: dict[str, set[str]] = {}
+    for entry in entries:
+        existing = merged.get(entry.path)
+        if existing is None:
+            merged[entry.path] = DeltaEntry(
+                path=entry.path,
+                change_type=entry.change_type,
+                line_stats=entry.line_stats,
+            )
+            change_types[entry.path] = {entry.change_type}
+            continue
+
+        change_types[entry.path].add(entry.change_type)
+        existing.line_stats = _merge_line_stats(existing.line_stats, entry.line_stats)
+        if len(change_types[entry.path]) > 1:
+            existing.change_type = "M"
+
+    return sorted(merged.values(), key=lambda e: e.path)
+
+
+def _read_commit_diff_text(diff_path: str) -> str | None:
+    try:
+        with open(os.path.expanduser(diff_path), encoding="utf-8") as f:
+            diff_text = f.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return diff_text if diff_text.strip() else None
+
+
+def _commit_diff_delta_entries(
+    commit_diffs: Iterable[CommitDiffInfo],
+) -> tuple[list[DeltaEntry], str]:
+    entries: list[DeltaEntry] = []
+    diff_texts: list[str] = []
+    for commit_diff in commit_diffs:
+        diff_text = _read_commit_diff_text(commit_diff.diff_path)
+        if not diff_text:
+            continue
+        diff_texts.append(diff_text)
+        entries.extend(parse_unified_diff_deltas(diff_text))
+    return _merge_delta_entries(entries), "\n".join(diff_texts)
+
+
 def agent_delta_entries(agent: Agent) -> list[DeltaEntry]:
     """Return the selected agent's own DELTAS entries when available."""
+    commit_diffs = agent_commit_diffs(agent)
+    if commit_diffs:
+        entries, _diff_text = _commit_diff_delta_entries(
+            commit_diff for commit_diff in commit_diffs if commit_diff.is_primary
+        )
+        return entries
+
     diff_text = get_agent_diff(agent)
     if not diff_text:
         return []
 
     deltas = parse_unified_diff_deltas(diff_text)
     return deltas
+
+
+def _linked_workspace_dir_for_repo(agent: Agent, repo_name: str) -> str:
+    for repo in agent.linked_repos:
+        if repo.name == repo_name and repo.workspace_dir:
+            return repo.workspace_dir
+    return ""
+
+
+def agent_commit_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
+    """Build linked-repo DELTAS groups from persisted per-commit diff files."""
+    grouped: dict[str, list[CommitDiffInfo]] = {}
+    group_order: list[str] = []
+    for commit_diff in agent_commit_diffs(agent):
+        if commit_diff.is_primary:
+            continue
+        if commit_diff.repo_name not in grouped:
+            grouped[commit_diff.repo_name] = []
+            group_order.append(commit_diff.repo_name)
+        grouped[commit_diff.repo_name].append(commit_diff)
+
+    groups: list[LinkedDeltaGroup] = []
+    for repo_name in group_order:
+        entries, diff_text = _commit_diff_delta_entries(grouped[repo_name])
+        if not entries:
+            continue
+        groups.append(
+            LinkedDeltaGroup(
+                repo_name=repo_name,
+                workspace_dir=_linked_workspace_dir_for_repo(agent, repo_name),
+                entries=tuple(entries),
+                diff_text=diff_text,
+            )
+        )
+    return tuple(groups)
 
 
 def append_agent_deltas_section(

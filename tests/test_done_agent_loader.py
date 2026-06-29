@@ -104,12 +104,14 @@ def test_extract_step_output_surfaces_commit_results_list(
                     "message": "fix: primary",
                     "result": "abc123",
                     "cwd": "/workspace/sase_7",
+                    "diff_path": "/tmp/primary.diff",
                     "entry_id": "1",
                 },
                 {
                     "message": "fix: linked",
                     "result": "def456",
                     "cwd": "/workspace/sase-core_7",
+                    "commit_diff_path": "/tmp/linked.diff",
                     "entry_id": "2",
                 },
             ]
@@ -128,11 +130,13 @@ def test_extract_step_output_surfaces_commit_results_list(
             "message": "fix: primary",
             "sha": "abc123",
             "cwd": "/workspace/sase_7",
+            "diff_path": "/tmp/primary.diff",
         },
         {
             "message": "fix: linked",
             "sha": "def456",
             "cwd": "/workspace/sase-core_7",
+            "diff_path": "/tmp/linked.diff",
         },
     ]
     assert diff_path == "/tmp/linked.diff"
