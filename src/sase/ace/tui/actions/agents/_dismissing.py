@@ -168,6 +168,17 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         # Defer the heavy in-memory refilter so the toast widget can paint
         # before the agents list rebuild blocks the UI tick.
         self.call_later(self._apply_dismissal_in_memory, list(agents))  # type: ignore[attr-defined]
+        related_agents = _unique_related_agents_for_dismissal(
+            agents,
+            agents_with_children_snapshot,
+        )
+        clear_completion_notifications = getattr(
+            self,
+            "_dismiss_agent_completion_notifications_for_dismissed_agents",
+            None,
+        )
+        if callable(clear_completion_notifications):
+            clear_completion_notifications(related_agents)
 
         from ....dismissed_agents import snapshot_dismissed_agents
 
@@ -289,6 +300,15 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         else:
             self._notify_after_refresh(f"Dismissed agent for {agent.cl_name}")
         self._apply_dismissal_in_memory([agent])
+        clear_completion_notifications = getattr(
+            self,
+            "_dismiss_agent_completion_notifications_for_dismissed_agents",
+            None,
+        )
+        if callable(clear_completion_notifications):
+            clear_completion_notifications(
+                agents_related_to_dismissal(agent, agents_with_children_snapshot)
+            )
 
         from ....dismissed_agents import snapshot_dismissed_agents
 
@@ -405,6 +425,22 @@ def _persist_single_dismiss_transaction(
             sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
         except Exception:
             pass
+
+
+def _unique_related_agents_for_dismissal(
+    agents: list[Agent],
+    agents_with_children_snapshot: list[Agent],
+) -> list[Agent]:
+    """Return each agent affected by a batch dismissal once, in display order."""
+    related: list[Agent] = []
+    seen: set[AgentIdentity] = set()
+    for agent in agents:
+        for rel in agents_related_to_dismissal(agent, agents_with_children_snapshot):
+            if rel.identity in seen:
+                continue
+            seen.add(rel.identity)
+            related.append(rel)
+    return related
 
 
 def _persist_bulk_dismiss_transaction(

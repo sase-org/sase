@@ -252,3 +252,65 @@ def test_acknowledge_agent_unread_does_not_dismiss_manual_guard(
     assert agent.identity in app._unread_completed_agent_ids
     notification_dismiss.assert_not_called()
     assert app.notification_count_refresh_calls == 0
+
+
+def test_dismissed_agent_helper_clears_manual_unread_and_cache(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = make_agent(status="DONE")
+    app = _SelectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            SimpleNamespace(
+                id="n-agent",
+                sender="user-agent",
+                action="JumpToAgent",
+                action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+                dismissed=False,
+            )
+        ]
+    )
+    app._last_unread_ids = {"n-agent"}
+
+    count = app._dismiss_agent_completion_notifications_for_dismissed_agents([agent])
+
+    assert count == 1
+    assert app._unread_completed_agent_ids == set()
+    assert app._manual_unread_agent_ids == set()
+    assert app._notification_snapshot_cache.notifications == []
+    assert app._last_unread_ids == set()
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
+
+
+def test_dismissed_agent_helper_is_idempotent(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.side_effect = [1, 0]
+    agent = make_agent(status="DONE")
+    app = _SelectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            SimpleNamespace(
+                id="n-agent",
+                sender="user-agent",
+                action="JumpToAgent",
+                action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+                dismissed=False,
+            )
+        ]
+    )
+
+    assert app._dismiss_agent_completion_notifications_for_dismissed_agents([agent])
+    assert not app._dismiss_agent_completion_notifications_for_dismissed_agents([agent])
+
+    assert app._unread_completed_agent_ids == set()
+    assert app._notification_snapshot_cache.notifications == []
+    assert notification_dismiss.call_count == 2
+    assert app.notification_count_refresh_calls == 1

@@ -39,6 +39,7 @@ from sase.notifications import (
 )
 
 from ._agent_unread_helpers import make_agent
+from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
 
 
 @pytest.fixture()
@@ -75,25 +76,84 @@ def _completion_notification(
     )
 
 
-class _E2EApp(AgentsMixinCore):
+def _interactive_notification(
+    agent: Agent,
+    *,
+    n_id: str,
+    action: str = "PlanApproval",
+) -> Notification:
+    return Notification(
+        id=n_id,
+        timestamp="2026-05-11T12:01:00-04:00",
+        sender="user-agent",
+        action=action,
+        action_data={
+            "agent_cl_name": agent.cl_name,
+            "agent_timestamp": agent.raw_suffix or "",
+        },
+    )
+
+
+class _E2EApp(TrackedTaskRecorderMixin, AgentsMixinCore):
     """Minimal stand-in app exercising the per-row helpers and finalize sync."""
 
     def __init__(self, agents: list[Agent]) -> None:
+        self._init_tracked_task_recorder()
         self._agents = agents
+        self._agents_with_children = list(agents)
         self.current_idx = 0
         self.current_tab = "agents"
         self._current_group_key: tuple[str, ...] | None = None
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
+        self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._dismissed_agent_objects: list[Agent] = []
+        self._recent_dismissed_agent_groups = []
+        self._revived_agent_raw_suffixes: set[str] = set()
+        self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._marked_agent_order: list[tuple[AgentType, str, str | None]] = []
+        self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
+        self._agent_pre_question_status: dict[
+            tuple[AgentType, str, str | None], str | None
+        ] = {}
+        self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
+            set()
+        )
         self._agent_display_status_by_identity: dict[
             tuple[AgentType, str, str | None], str
         ] = {}
         self.refresh_count_calls = 0
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, object]] = []
+        self.notifications: list[tuple[str, str]] = []
+        self.refilter_calls = 0
+        self.async_refreshes = 0
+        self.notification_refreshes_async = 0
+        self._scheduled: list[tuple[object, tuple[object, ...]]] = []
+
+    def notify(self, message: str, *, severity: str = "information") -> None:
+        self.notifications.append((message, severity))
+
+    def call_later(self, callback: object, *args: object) -> None:
+        self._scheduled.append((callback, args))
+
+    def call_after_refresh(self, callback: object, *args: object) -> None:
+        callback(*args)  # type: ignore[operator]
 
     def _refresh_notification_count(self) -> None:
         self.refresh_count_calls += 1
+
+    async def _refresh_notification_count_async(self) -> None:
+        self.notification_refreshes_async += 1
+
+    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+        del source
+        self.async_refreshes += 1
+
+    def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
+        del prior_pos
+        self.refilter_calls += 1
+        self._agents = list(self._agents_with_children)
 
     def _try_patch_agent_row(self, agent: Agent) -> bool:
         self.patch_calls.append(agent)
@@ -110,6 +170,11 @@ def _active_completion_ids() -> set[str]:
         for n in load_notifications()
         if n.sender == "user-agent" and n.action in ("JumpToAgent", "ViewErrorReport")
     }
+
+
+def _active_ids() -> set[str]:
+    """Return ids of all active notifications still in the store."""
+    return {n.id for n in load_notifications()}
 
 
 def _modal_visible_ids(modal: NotificationModal) -> list[str]:
@@ -241,6 +306,135 @@ def test_reading_one_agent_dismisses_only_its_notification(
 
     assert app._unread_completed_agent_ids == {second.identity}
     assert _active_completion_ids() == {"n-beta"}
+    assert app.refresh_count_calls == 1
+
+
+def test_dismissing_single_agent_removes_only_its_completion_notification(
+    temp_notifications_dir: Path,
+) -> None:
+    """Dismissing one row clears only its completion notification immediately."""
+    assert temp_notifications_dir.is_dir()
+    first = make_agent(name="alpha", status="DONE", raw_suffix="20260507090000")
+    second = make_agent(name="beta", status="DONE", raw_suffix="20260507100000")
+    app = _E2EApp([first, second])
+    append_notification(_completion_notification(first, n_id="n-alpha"))
+    append_notification(_completion_notification(second, n_id="n-beta"))
+    append_notification(_interactive_notification(first, n_id="n-plan"))
+    append_notification(
+        _interactive_notification(second, n_id="n-question", action="UserQuestion")
+    )
+    _sync_from_store(app, on_agents_tab=False)
+    assert app._unread_completed_agent_ids == {first.identity, second.identity}
+
+    app._dismiss_done_agent(first)
+
+    assert app._unread_completed_agent_ids == {second.identity}
+    assert _active_completion_ids() == {"n-beta"}
+    assert {"n-plan", "n-question"}.issubset(_active_ids())
+    assert app.refresh_count_calls == 1
+
+
+def test_bulk_dismiss_all_done_removes_completion_notifications(
+    temp_notifications_dir: Path,
+) -> None:
+    """Bulk dismiss clears every selected row's completion notification."""
+    assert temp_notifications_dir.is_dir()
+    first = make_agent(name="alpha", status="DONE", raw_suffix="20260507090000")
+    second = make_agent(name="beta", status="FAILED", raw_suffix="20260507100000")
+    app = _E2EApp([first, second])
+    append_notification(_completion_notification(first, n_id="n-alpha"))
+    append_notification(
+        _completion_notification(second, n_id="n-beta", action="ViewErrorReport")
+    )
+    _sync_from_store(app, on_agents_tab=False)
+    assert app._unread_completed_agent_ids == {first.identity, second.identity}
+
+    app._do_dismiss_all([first, second])
+
+    assert app._unread_completed_agent_ids == set()
+    assert _active_completion_ids() == set()
+    assert app.refresh_count_calls == 1
+
+
+def test_marked_group_save_dismiss_removes_completion_not_interactive_notifications(
+    temp_notifications_dir: Path,
+) -> None:
+    """Save-and-dismiss clears completions while preserving HITL notifications."""
+    assert temp_notifications_dir.is_dir()
+    first = make_agent(name="alpha", status="DONE", raw_suffix="20260507090000")
+    second = make_agent(name="beta", status="DONE", raw_suffix="20260507100000")
+    app = _E2EApp([first, second])
+    app._marked_agents = {first.identity, second.identity}
+    append_notification(_completion_notification(first, n_id="n-alpha"))
+    append_notification(_completion_notification(second, n_id="n-beta"))
+    append_notification(_interactive_notification(first, n_id="n-plan"))
+    append_notification(
+        _interactive_notification(second, n_id="n-question", action="UserQuestion")
+    )
+    _sync_from_store(app, on_agents_tab=False)
+
+    app._save_marked_agent_group(group_name="done batch")
+
+    assert app._unread_completed_agent_ids == set()
+    assert _active_completion_ids() == set()
+    assert {"n-plan", "n-question"}.issubset(_active_ids())
+    assert app._marked_agents == set()
+    assert app.refresh_count_calls == 1
+
+
+def test_dismiss_agent_raw_suffix_disambiguates_same_cl_name(
+    temp_notifications_dir: Path,
+) -> None:
+    """Dismissing one run leaves a same-cl_name run's notification active."""
+    assert temp_notifications_dir.is_dir()
+    first_run = make_agent(name="alpha", status="DONE", raw_suffix="20260507090000")
+    second_run = make_agent(name="alpha", status="DONE", raw_suffix="20260507100000")
+    app = _E2EApp([first_run, second_run])
+    append_notification(_completion_notification(first_run, n_id="n-first"))
+    append_notification(_completion_notification(second_run, n_id="n-second"))
+    _sync_from_store(app, on_agents_tab=False)
+
+    app._dismiss_done_agent(second_run)
+
+    assert app._unread_completed_agent_ids == {first_run.identity}
+    assert _active_completion_ids() == {"n-first"}
+    assert app.refresh_count_calls == 1
+
+
+def test_dismiss_workflow_parent_removes_child_completion_notifications(
+    temp_notifications_dir: Path,
+) -> None:
+    """Dismissing a workflow parent also clears child completion notifications."""
+    assert temp_notifications_dir.is_dir()
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="workflow-cl",
+        project_file="/tmp/projects/demo/demo.sase",
+        status="DONE",
+        start_time=None,
+        raw_suffix="20260507090000",
+        workflow="wf",
+    )
+    child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="workflow-cl",
+        project_file="/tmp/projects/demo/demo.sase",
+        status="DONE",
+        start_time=None,
+        raw_suffix="20260507090100",
+        parent_workflow="wf",
+        parent_timestamp="20260507090000",
+    )
+    app = _E2EApp([parent, child])
+    append_notification(_completion_notification(parent, n_id="n-parent"))
+    append_notification(_completion_notification(child, n_id="n-child"))
+    _sync_from_store(app, on_agents_tab=False)
+    assert app._unread_completed_agent_ids == {parent.identity, child.identity}
+
+    app._dismiss_done_agent(parent)
+
+    assert app._unread_completed_agent_ids == set()
+    assert _active_completion_ids() == set()
     assert app.refresh_count_calls == 1
 
 

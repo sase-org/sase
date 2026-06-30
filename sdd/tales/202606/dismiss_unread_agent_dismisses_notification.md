@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 07:21:02
-status: wip
+status: done
 prompt: sdd/prompts/202606/dismiss_unread_agent_dismisses_notification.md
 ---
 # Dismiss the completion notification when an unread agent is dismissed

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
@@ -238,12 +238,12 @@ class AgentUnreadMixin:
     def _remove_agent_completion_notifications_from_cache(
         self,
         agents: list[Agent],
-    ) -> None:
+    ) -> int:
         """Drop acknowledged completion notifications from the cached snapshot."""
         snapshot = getattr(self, "_notification_snapshot_cache", None)
         notifications = getattr(snapshot, "notifications", None)
         if snapshot is None or notifications is None or not agents:
-            return
+            return 0
 
         from dataclasses import is_dataclass, replace
 
@@ -267,18 +267,21 @@ class AgentUnreadMixin:
                 continue
             filtered.append(notification)
         if len(filtered) == len(notifications):
-            return
+            return 0
 
         if isinstance(notifications, list):
+            removed_count = len(notifications) - len(filtered)
             notifications[:] = filtered
             updated_snapshot = snapshot
         elif is_dataclass(snapshot):
+            removed_count = len(notifications) - len(filtered)
             updated_snapshot = replace(cast(Any, snapshot), notifications=filtered)
         else:
             try:
+                removed_count = len(notifications) - len(filtered)
                 snapshot.notifications = filtered
             except Exception:
-                return
+                return 0
             updated_snapshot = snapshot
 
         set_cache = getattr(self, "_set_notification_snapshot_cache", None)
@@ -290,6 +293,57 @@ class AgentUnreadMixin:
         last_unread_ids = getattr(self, "_last_unread_ids", None)
         if isinstance(last_unread_ids, set):
             last_unread_ids.difference_update(removed_ids)
+        return removed_count
+
+    def _dismiss_agent_completion_notifications_for_dismissed_agents(
+        self,
+        agents: Iterable[Agent],
+    ) -> int:
+        """Clear unread state and active completion notifications for dismisses.
+
+        Unlike read-side acknowledgment, explicit dismissal removes any manual
+        unread guard because the row is leaving the Agents tab.
+        """
+        dismissed_agents = list(agents)
+        if not dismissed_agents:
+            return 0
+
+        identities = {agent.identity for agent in dismissed_agents}
+        changed_unread_state = False
+
+        unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+        if isinstance(unread_ids, set):
+            before = set(unread_ids)
+            unread_ids.difference_update(identities)
+            changed_unread_state = changed_unread_state or unread_ids != before
+
+        manual_ids = getattr(self, "_manual_unread_agent_ids", None)
+        if isinstance(manual_ids, set):
+            before = set(manual_ids)
+            manual_ids.difference_update(identities)
+            changed_unread_state = changed_unread_state or manual_ids != before
+
+        if changed_unread_state and hasattr(self, "_agent_info_metrics_cache"):
+            self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
+
+        from sase.notifications import (
+            dismiss_agent_completion_notifications_matching_agents,
+        )
+
+        dismissed_count = dismiss_agent_completion_notifications_matching_agents(
+            [
+                {"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}
+                for agent in dismissed_agents
+            ]
+        )
+        removed_count = self._remove_agent_completion_notifications_from_cache(
+            dismissed_agents
+        )
+        if dismissed_count or removed_count or changed_unread_state:
+            refresh_count = getattr(self, "_refresh_notification_count", None)
+            if callable(refresh_count):
+                refresh_count()
+        return dismissed_count
 
     def _clear_agent_unread_and_dismiss_notification(self, agent: Agent) -> bool:
         """Clear unread state for *agent* and dismiss its matching notification.

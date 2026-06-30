@@ -6,6 +6,8 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.commands import build_command_catalog, execute_command
+from sase.ace.tui.actions.agents._marking import _persist_marked_agent_group_save
+from sase.ace.tui.actions.agents._saved_group_records import build_saved_agent_group
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.save_agent_group_modal import SaveAgentGroupModal
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -253,6 +255,32 @@ def test_blank_save_preserves_generated_group_title() -> None:
     assert len(saved_groups) == 1
     assert saved_groups[0].title == "1 agent in test_cl"
     assert saved_groups[0].name is None
+
+
+def test_marked_group_persistence_dismisses_completion_notifications() -> None:
+    a1 = _make_agent(cl_name="one", raw_suffix="20240101120000", pid=None)
+    a2 = _make_agent(cl_name="two", raw_suffix="20240101130000", pid=None)
+    agents = [a1, a2]
+    identities = {a1.identity, a2.identity}
+    group = build_saved_agent_group(agents, resolve_bundle_paths=False)
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=False),
+        patch("sase.ace.dismissed_agents.save_dismissed_agent_group"),
+        patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
+        patch(
+            "sase.notifications.dismiss_agent_completion_notifications_matching_agents"
+        ) as dismiss_completions,
+    ):
+        _persist_marked_agent_group_save(agents, identities, identities, group)
+
+    dismiss_completions.assert_called_once_with(
+        [
+            {"cl_name": a1.cl_name, "raw_suffix": a1.raw_suffix},
+            {"cl_name": a2.cl_name, "raw_suffix": a2.raw_suffix},
+        ]
+    )
 
 
 def test_command_palette_save_marked_agents_opens_group_name_modal() -> None:

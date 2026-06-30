@@ -53,6 +53,14 @@ def _persist_marked_agent_group_save(
     save_dismissed_agent_group(group)
     record_recent_dismissed_agent_group(group)
 
+    from sase.notifications import (
+        dismiss_agent_completion_notifications_matching_agents,
+    )
+
+    dismiss_agent_completion_notifications_matching_agents(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix} for agent in agents]
+    )
+
     if save_dismissed_agents(dismissed_snapshot):
         try:
             sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
@@ -603,6 +611,13 @@ class AgentMarkingMixin:
         self._dismissed_agents.update(identities)
         self._reset_marked_agents()
         self._apply_dismissal_in_memory(agents)  # type: ignore[attr-defined]
+        clear_completion_notifications = getattr(
+            self,
+            "_dismiss_agent_completion_notifications_for_dismissed_agents",
+            None,
+        )
+        if callable(clear_completion_notifications):
+            clear_completion_notifications(agents)
 
         count = len(agents)
         message = f"Saved and dismissed {count} {plural_agent(count)}"
