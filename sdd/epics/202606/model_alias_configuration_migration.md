@@ -2,6 +2,8 @@
 create_time: 2026-06-30 09:22:59
 status: wip
 prompt: sdd/prompts/202606/model_alias_configuration_migration.md
+bead_id: sase-5d
+tier: epic
 ---
 # Model Alias Configuration Migration Plan
 
