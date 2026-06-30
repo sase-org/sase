@@ -7,13 +7,15 @@ from sase.ace.testing import AcePage
 # Expected left-to-right order of widgets inside ``#top-bar``. The ``#tab-bar``
 # spacer (``width: 1fr``) anchors the right-aligned indicator cluster, so every
 # widget after it forms that cluster. The updates badge must sit immediately to
-# the left of the model (LLM override) indicator; pinning the whole order keeps
-# future reorders intentional.
+# the left of the model (LLM override) indicator; the non-default override pill
+# sits just right of it so the two override indicators read as a pair. Pinning
+# the whole order keeps future reorders intentional.
 EXPECTED_TOP_BAR_ORDER = [
     "tab-bar",
     "task-indicator",
     "updates-indicator",
     "llm-override-indicator",
+    "alias-overrides-indicator",
     "inactive-indicator",
     "stashed-prompts-indicator",
     "notification-indicator",

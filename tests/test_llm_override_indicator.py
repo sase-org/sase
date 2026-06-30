@@ -11,7 +11,7 @@ from rich.text import Text
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.llm_override_indicator import (
     LLMOverrideIndicator,
-    _format_remaining_until,
+    format_remaining_until,
 )
 from sase.llm_provider.temporary_override import (
     TemporaryLLMOverride,
@@ -156,7 +156,7 @@ def test_default_resolution_failure_renders_fallback(
 
 
 def test_remaining_subminute_rounds_up_to_one_minute() -> None:
-    assert _format_remaining_until(130.0, now=100.0) == "1m"
+    assert format_remaining_until(130.0, now=100.0) == "1m"
 
 
 async def test_llm_override_indicator_is_mounted() -> None:

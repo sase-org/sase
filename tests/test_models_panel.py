@@ -9,7 +9,7 @@ back-compat with the old ``temporary_llm_override`` action id).
 from __future__ import annotations
 
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 from textual.app import App, ComposeResult
 
@@ -27,7 +27,7 @@ from sase.ace.tui.modals.models_panel import (
     _state_tag,
     _render_alias_row,
 )
-from sase.ace.tui.widgets import LLMOverrideIndicator
+from sase.ace.tui.widgets import AliasOverridesIndicator, LLMOverrideIndicator
 from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
 from tests._temporary_llm_override_helpers import full_registry
 
@@ -379,20 +379,27 @@ def test_leader_handler_honors_legacy_action_id() -> None:
     mixin._open_models_panel.assert_called_once()
 
 
-def test_open_models_panel_refreshes_indicator_when_changed() -> None:
+def test_open_models_panel_refreshes_indicators_when_changed() -> None:
     mixin = MagicMock()
-    indicator = MagicMock(spec=LLMOverrideIndicator)
-    mixin.query_one.return_value = indicator
+    default_indicator = MagicMock(spec=LLMOverrideIndicator)
+    alias_indicator = MagicMock(spec=AliasOverridesIndicator)
+    indicators = {
+        "#llm-override-indicator": default_indicator,
+        "#alias-overrides-indicator": alias_indicator,
+    }
+    mixin.query_one.side_effect = lambda selector, _type: indicators[selector]
 
     LeaderModeMixin._open_models_panel(cast(LeaderModeMixin, mixin))
 
     callback = mixin.push_screen.call_args.kwargs["callback"]
     callback(ModelsPanelResult(changed=True))
 
-    mixin.query_one.assert_called_once_with(
-        "#llm-override-indicator", LLMOverrideIndicator
-    )
-    indicator.refresh.assert_called_once()
+    assert mixin.query_one.call_args_list == [
+        call("#llm-override-indicator", LLMOverrideIndicator),
+        call("#alias-overrides-indicator", AliasOverridesIndicator),
+    ]
+    default_indicator.refresh.assert_called_once()
+    alias_indicator.refresh.assert_called_once()
 
 
 def test_open_models_panel_no_refresh_when_unchanged() -> None:

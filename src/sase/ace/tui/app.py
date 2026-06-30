@@ -52,6 +52,7 @@ from .widgets import (
     AgentList,
     AgentOnboarding,
     AncestorsChildrenPanel,
+    AliasOverridesIndicator,
     AxeDashboard,
     AxeInfoPanel,
     BgCmdList,
@@ -281,6 +282,7 @@ class AceApp(
             yield TaskIndicator(id="task-indicator")
             yield UpdatesAvailableIndicator(id="updates-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")
+            yield AliasOverridesIndicator(id="alias-overrides-indicator")
             yield InactiveIndicator(id="inactive-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")

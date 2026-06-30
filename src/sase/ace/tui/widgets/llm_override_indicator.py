@@ -24,7 +24,7 @@ _UNAVAILABLE_TEXT = " unavailable "
 _DEFAULT_WORKER_GROUP = "llm-indicator-default"
 
 
-def _format_remaining_until(expires_at: float | None, now: float | None = None) -> str:
+def format_remaining_until(expires_at: float | None, now: float | None = None) -> str:
     """Render an expiry timestamp as a compact remaining-time label."""
     if expires_at is None:
         return "until cleared"
@@ -151,7 +151,7 @@ class LLMOverrideIndicator(Static):
         now: float | None = None,
     ) -> Text | None:
         """Build the high-signal content for an active temporary override."""
-        remaining = _format_remaining_until(override.expires_at, now)
+        remaining = format_remaining_until(override.expires_at, now)
         if not remaining:
             return None
 

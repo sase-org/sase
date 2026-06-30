@@ -270,25 +270,31 @@ class LeaderModeMixin:
     def _open_models_panel(self) -> None:
         """Open the Models panel (leader ``,m`` by default)."""
         from ...modals import ModelsPanel, ModelsPanelResult
-        from ...widgets import LLMOverrideIndicator
+        from ...widgets import AliasOverridesIndicator, LLMOverrideIndicator
 
-        def _refresh_indicator() -> None:
-            try:
-                indicator = self.query_one(  # type: ignore[attr-defined]
-                    "#llm-override-indicator", LLMOverrideIndicator
-                )
-            except Exception:
-                return
-            indicator.refresh()
+        def _refresh_indicators() -> None:
+            # Refresh both top-bar override pills: the gold ``default`` pill and
+            # the violet non-``default`` pill. A single override action may touch
+            # either lane, so both are refreshed (each is independently skipped
+            # if not mounted).
+            for selector, widget_type in (
+                ("#llm-override-indicator", LLMOverrideIndicator),
+                ("#alias-overrides-indicator", AliasOverridesIndicator),
+            ):
+                try:
+                    indicator = self.query_one(selector, widget_type)  # type: ignore[attr-defined]
+                except Exception:
+                    continue
+                indicator.refresh()
 
         def _on_dismissed(result: ModelsPanelResult | None) -> None:
             # The panel emits its own per-action toasts; here we only refresh
-            # the gold default-override pill when an override changed while the
+            # the top-bar override pills when an override changed while the
             # panel was open.
             if result is None:
                 return
             if result.changed:
-                _refresh_indicator()
+                _refresh_indicators()
 
         self.push_screen(  # type: ignore[attr-defined]
             ModelsPanel(),
