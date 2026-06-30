@@ -664,14 +664,6 @@
           "enum": ["", "none", "minimal", "low", "medium", "high", "xhigh", "max"],
           "default": ""
         },
-        "worker_models": {
-          "type": "object",
-          "description": "Mapping from effective primary provider/model keys to worker-lane model targets. Keys are matched as provider/model, then bare model, then provider. Values accept bare known models, aliases, or explicit provider/model syntax.",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {}
-        },
         "model_tier_map": {
           "type": "object",
           "description": "Mapping from model tiers to specific model identifiers",
@@ -688,7 +680,7 @@
         },
         "model_aliases": {
           "type": "object",
-          "description": "Configurable model aliases usable from %model/%m directives",
+          "description": "Configurable model aliases usable from %model/%m directives. Each value is a bare known model, an explicit provider/model target, or an '@<alias>' reference to another alias (e.g. 'coder: \"@default\"'). The 'default' alias sets the model used when a prompt has no %model directive.",
           "additionalProperties": {
             "type": "string"
           }

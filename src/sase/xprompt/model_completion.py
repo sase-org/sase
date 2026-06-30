@@ -10,12 +10,35 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from sase.llm_provider.config import RESERVED_MODEL_ALIASES, get_model_aliases
+from sase.llm_provider.config import (
+    CODER_MODEL_ALIAS_NAME,
+    DEFAULT_MODEL_ALIAS_NAME,
+    EPIC_CREATOR_MODEL_ALIAS_NAME,
+    EPIC_LANDER_MODEL_ALIAS_NAME,
+    PHASE_WORKER_MODEL_ALIAS_NAME,
+    coder_model_alias_for_provider,
+    get_model_aliases,
+)
 from sase.llm_provider.registry import get_llm_metadata_payload
 
 MODEL_COMPLETION_CATALOG_SCHEMA_VERSION = 1
 
 _INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
+
+# Implicit role aliases surfaced as ``%model`` completions, in display order.
+# The ``<provider>_coder`` aliases are generated per registered provider and slot
+# in between ``@coder`` and the epic/phase roles (see the catalog builder). These
+# are the migration replacements for the retired reserved ``@worker``/``@other``
+# aliases (epic sase-5d phase 2).
+_LEADING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
+    (DEFAULT_MODEL_ALIAS_NAME, "default model when a prompt has no %model"),
+    (CODER_MODEL_ALIAS_NAME, "coder follow-up model"),
+)
+_TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
+    (EPIC_CREATOR_MODEL_ALIAS_NAME, "new-epic follow-up model"),
+    (EPIC_LANDER_MODEL_ALIAS_NAME, "epic land follow-up model"),
+    (PHASE_WORKER_MODEL_ALIAS_NAME, "bead phase agent model"),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,8 +63,10 @@ def build_model_completion_catalog(
 
     Canonical model names come from the cached LLM metadata payload. Short
     aliases are kept as match/display hints only; they are not inserted as
-    completion values. Reserved and user-configured aliases are inserted as
-    aliases because those values resolve through the normal ``%model`` path.
+    completion values. The implicit role aliases (``@default``, ``@coder``, each
+    registered ``@<provider>_coder``, ``@epic_creator``, ``@epic_lander``,
+    ``@phase_worker``) and user-configured aliases are inserted with their ``@``
+    form because those values resolve through the normal ``%model`` path.
     """
     global _CATALOG_CACHE  # noqa: PLW0603
 
@@ -129,16 +154,16 @@ def _build_model_completion_catalog() -> list[_ModelCompletionEntry]:
             short_alias=short_aliases.get(model, ""),
         )
 
-    for value, description in RESERVED_MODEL_ALIASES:
-        _append_alias_entry(
-            entries,
-            seen,
-            value=value,
-            description=description,
-            kind="reserved_alias",
-        )
+    user_aliases = get_model_aliases()
+    _append_implicit_alias_entries(
+        entries,
+        seen,
+        provider_order=provider_order,
+        providers=providers,
+        user_aliases=user_aliases,
+    )
 
-    for alias, target in sorted(get_model_aliases().items()):
+    for alias, target in sorted(user_aliases.items()):
         if alias in seen:
             continue
         _append_alias_entry(
@@ -150,6 +175,45 @@ def _build_model_completion_catalog() -> list[_ModelCompletionEntry]:
         )
 
     return entries
+
+
+def _append_implicit_alias_entries(
+    entries: list[_ModelCompletionEntry],
+    seen: set[str],
+    *,
+    provider_order: list[str],
+    providers: dict[str, object],
+    user_aliases: dict[str, str],
+) -> None:
+    """Append the implicit role aliases (``@default``, ``@coder``, etc.).
+
+    Provider-specific ``@<provider>_coder`` aliases are generated for every
+    registered provider, slotted between ``@coder`` and the epic/phase roles.
+    An implicit alias the user has shadowed via ``model_aliases`` is skipped
+    here so the user-configured target is surfaced once, with its real
+    description, by the caller's user-alias loop.
+    """
+    implicit: list[tuple[str, str]] = [*_LEADING_IMPLICIT_ALIASES]
+    for provider in provider_order:
+        provider_display = _provider_display(provider, _dict(providers.get(provider)))
+        implicit.append(
+            (
+                coder_model_alias_for_provider(provider),
+                f"{provider_display} coder follow-up model",
+            )
+        )
+    implicit.extend(_TRAILING_IMPLICIT_ALIASES)
+
+    for value, description in implicit:
+        if value in user_aliases:
+            continue
+        _append_alias_entry(
+            entries,
+            seen,
+            value=value,
+            description=description,
+            kind="implicit_alias",
+        )
 
 
 def _append_model_entry(

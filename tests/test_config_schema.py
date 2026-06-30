@@ -97,13 +97,58 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
         assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
-def test_config_schema_accepts_worker_models_mapping() -> None:
+def test_config_schema_rejects_worker_models_mapping() -> None:
+    """``worker_models`` was removed by the model-alias migration (epic sase-5d)."""
     schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
     config = {
         "llm_provider": {
             "worker_models": {
                 "claude": "codex/gpt-5.5",
                 "codex/o3": "claude/opus",
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path) == ["llm_provider"]
+        and "Additional properties are not allowed" in error.message
+        and "worker_models" in error.message
+        for error in errors
+    )
+
+
+def test_config_schema_rejects_obsolete_default_model_field() -> None:
+    """A stale ``llm_provider.default_model`` is rejected (use model_aliases.default)."""
+    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    config = {"llm_provider": {"default_model": "claude/opus"}}
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path) == ["llm_provider"]
+        and "Additional properties are not allowed" in error.message
+        and "default_model" in error.message
+        for error in errors
+    )
+
+
+def test_config_schema_accepts_model_aliases_with_at_references() -> None:
+    """``model_aliases`` stays a string map so ``@alias`` references validate."""
+    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    config = {
+        "llm_provider": {
+            "model_aliases": {
+                "default": "claude/opus",
+                "coder": "@default",
+                "codex_coder": "claude/opus",
             }
         }
     }

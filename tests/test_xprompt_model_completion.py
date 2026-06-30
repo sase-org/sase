@@ -16,7 +16,7 @@ def clear_model_completion_cache() -> Iterator[None]:
     model_completion._CATALOG_CACHE = None
 
 
-def test_model_completion_catalog_includes_models_reserved_and_user_aliases(
+def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -37,16 +37,27 @@ def test_model_completion_catalog_includes_models_reserved_and_user_aliases(
     entries = model_completion.build_model_completion_catalog()
     values = [entry.value for entry in entries]
 
+    # Models, then the implicit role aliases (one @<provider>_coder per provider
+    # in provider order), then user-configured aliases. A user-configured
+    # ``worker`` is now an ordinary alias (no retired @worker/@other entries).
     assert values == [
         "claude-fable-5",
         "opus",
         "gpt-5.5",
         "o4-mini",
         "anthropic/claude-sonnet-4-5",
-        "@worker",
-        "@other",
+        "@default",
+        "@coder",
+        "@claude_coder",
+        "@codex_coder",
+        "@opencode_coder",
+        "@epic_creator",
+        "@epic_lander",
+        "@phase_worker",
         "@fast",
+        "@worker",
     ]
+    assert "@other" not in values
     assert "Gemini 3.5 Flash (High)" not in values
     assert "bad alias" not in values
     assert "fable" not in values
@@ -55,10 +66,38 @@ def test_model_completion_catalog_includes_models_reserved_and_user_aliases(
     assert fable.aliases == ("fable",)
     assert fable.description == "Claude (fable)"
 
-    fast = entries[-1]
+    by_value = {entry.value: entry for entry in entries}
+    default_entry = by_value["@default"]
+    assert default_entry.kind == "implicit_alias"
+    assert default_entry.description == "default model when a prompt has no %model"
+    assert default_entry.aliases == ("default",)
+
+    codex_coder = by_value["@codex_coder"]
+    assert codex_coder.kind == "implicit_alias"
+    assert codex_coder.description == "Codex coder follow-up model"
+    assert codex_coder.aliases == ("codex_coder",)
+
+    fast = by_value["@fast"]
     assert fast.kind == "user_alias"
     assert fast.description == "alias for codex/o4-mini"
     assert fast.aliases == ("fast",)
+
+
+def test_model_completion_user_alias_shadows_implicit_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A configured ``coder`` alias surfaces once, with its real target."""
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
+    monkeypatch.setattr(
+        model_completion, "get_model_aliases", lambda: {"coder": "claude/opus"}
+    )
+
+    entries = model_completion.build_model_completion_catalog()
+    coder_entries = [entry for entry in entries if entry.value == "@coder"]
+
+    assert len(coder_entries) == 1
+    assert coder_entries[0].kind == "user_alias"
+    assert coder_entries[0].description == "alias for claude/opus"
 
 
 def test_model_completion_filter_matches_values_and_short_aliases(
@@ -79,12 +118,14 @@ def test_model_completion_filter_matches_values_and_short_aliases(
     ] == ["claude-fable-5"]
     assert [
         entry.value
-        for entry in model_completion.filter_model_completion_entries(entries, "oth")
-    ] == ["@other"]
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "default"
+        )
+    ] == ["@default"]
     assert [
         entry.value
-        for entry in model_completion.filter_model_completion_entries(entries, "@oth")
-    ] == ["@other"]
+        for entry in model_completion.filter_model_completion_entries(entries, "@def")
+    ] == ["@default"]
 
 
 def test_model_completion_catalog_payload_round_trips_entries(

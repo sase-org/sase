@@ -11,6 +11,7 @@ import yaml
 from sase.config.core import load_config_layers
 from sase.doctor.checks_config import (
     _check_config_layers,
+    _check_config_model_aliases,
     _check_config_model_xprompts,
 )
 from sase.doctor.runner import DoctorContext
@@ -183,6 +184,96 @@ def test_model_xprompts_ignores_explicit_provider_model_token(
     )
 
     check = _check_config_model_xprompts(_doctor_context(tmp_path))
+
+    assert check.status == "OK"
+    assert not check.data["problems"]
+
+
+def test_model_xprompts_flags_retired_worker_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A preset still emitting ``%model:@worker`` is surfaced with migration help."""
+    xprompts = {
+        "m_worker": XPrompt(name="m_worker", content="%model:@worker"),
+    }
+    _patch_model_xprompt_env(
+        monkeypatch, xprompts, {"provider": "codex", "model_aliases": {}}
+    )
+
+    check = _check_config_model_xprompts(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        row["xprompt"] == "m_worker"
+        and row["token"] == "worker"
+        and "retired" in row["message"]
+        and "@phase_worker" in row["message"]
+        for row in check.data["problems"]
+    )
+
+
+# --- config.model_aliases ---
+
+
+def test_model_aliases_warns_on_worker_models_and_default_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Removed ``worker_models`` / ``default_model`` keys get migration warnings."""
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "worker_models": {"claude": "codex/gpt-5.5"},
+            "default_model": "claude/opus",
+        },
+    )
+
+    check = _check_config_model_aliases()
+
+    assert check.status == "WARN"
+    keys = {row["key"] for row in check.data["problems"]}
+    assert keys == {"worker_models", "default_model"}
+    detail_text = " ".join(check.details)
+    assert "model_aliases" in detail_text
+    assert "model_aliases.default" in detail_text
+
+
+def test_model_aliases_warns_on_retired_and_unknown_alias_references(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Alias values pointing at retired/unknown ``@alias`` names are flagged."""
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "legacy": "@worker",
+                "typo": "@nope",
+                "ok_ref": "@default",
+                "ok_target": "claude/opus",
+            }
+        },
+    )
+
+    check = _check_config_model_aliases()
+
+    assert check.status == "WARN"
+    by_key = {row["key"]: row["message"] for row in check.data["problems"]}
+    assert "model_aliases.legacy" in by_key
+    assert "retired" in by_key["model_aliases.legacy"]
+    assert "model_aliases.typo" in by_key
+    assert "unknown alias '@nope'" in by_key["model_aliases.typo"]
+    assert "model_aliases.ok_ref" not in by_key
+    assert "model_aliases.ok_target" not in by_key
+
+
+def test_model_aliases_ok_when_config_is_clean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"model_aliases": {"coder": "@default", "big": "claude/opus"}},
+    )
+
+    check = _check_config_model_aliases()
 
     assert check.status == "OK"
     assert not check.data["problems"]

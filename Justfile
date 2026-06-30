@@ -143,7 +143,6 @@ _lint-pyscripts: _setup
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
         --epic-symbol "sase-5d(special_model_alias_names)" \
-        --epic-symbol "sase-5d(coder_model_alias_for_provider)" \
         --epic-symbol "sase-5d(role_model_directive_value)"
 
 # Auto-fix all code (format + keep-sorted)

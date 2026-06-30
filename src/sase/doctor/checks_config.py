@@ -47,6 +47,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_config_sdd(context),
         ),
         CheckSpec(
+            id="config.model_aliases",
+            group="config",
+            title="Model alias migration",
+            runner=_check_config_model_aliases,
+        ),
+        CheckSpec(
             id="config.model_xprompts",
             group="config",
             title="Model xprompt routing",
@@ -251,6 +257,115 @@ def _check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
+#: Implicit aliases retired by the model-alias migration (epic sase-5d), mapped
+#: to the guidance doctor surfaces for each. ``worker``/``other`` still resolve
+#: as legacy stubs until the worker lane is fully retired, but they are no longer
+#: documented, completed, or shipped, so configs referencing them should migrate.
+_REMOVED_IMPLICIT_ALIAS_GUIDANCE: dict[str, str] = {
+    "worker": "use a role alias such as @coder/@phase_worker or an explicit model",
+    "other": "use @default or an explicit provider/model",
+}
+
+
+def _check_config_model_aliases() -> DiagnosticCheck:
+    """Surface model-alias config that needs migrating (epic sase-5d).
+
+    Three classes of stale config are reported as actionable warnings:
+
+    - the removed ``llm_provider.worker_models`` and ``llm_provider.default_model``
+      keys (the former is replaced by ``<provider>_coder`` aliases, the latter by
+      ``model_aliases.default``);
+    - ``model_aliases`` values that reference a retired implicit ``@worker`` /
+      ``@other`` alias;
+    - ``model_aliases`` values that reference an ``@<alias>`` name that resolves
+      to nothing, which would silently fall through at launch.
+    """
+    from sase.llm_provider.config import (
+        get_llm_provider_config,
+        get_model_aliases,
+        model_alias_names,
+        strip_model_alias_prefix,
+    )
+
+    config = get_llm_provider_config()
+    known_aliases = model_alias_names()
+    problems: list[dict[str, str]] = []
+
+    if config.get("worker_models"):
+        problems.append(
+            {
+                "key": "worker_models",
+                "message": (
+                    "llm_provider.worker_models is no longer supported; migrate "
+                    "each entry to a `<provider>_coder` alias under "
+                    "llm_provider.model_aliases"
+                ),
+            }
+        )
+    if "default_model" in config:
+        problems.append(
+            {
+                "key": "default_model",
+                "message": (
+                    "llm_provider.default_model is not a supported key; move its "
+                    "value to llm_provider.model_aliases.default"
+                ),
+            }
+        )
+
+    for alias, target in sorted(get_model_aliases().items()):
+        if not target.startswith("@"):
+            continue
+        referenced = strip_model_alias_prefix(target).strip()
+        if referenced in _REMOVED_IMPLICIT_ALIAS_GUIDANCE:
+            guidance = _REMOVED_IMPLICIT_ALIAS_GUIDANCE[referenced]
+            problems.append(
+                {
+                    "key": f"model_aliases.{alias}",
+                    "message": (
+                        f"model_aliases.{alias} -> {target} references the retired "
+                        f"'@{referenced}' alias; {guidance}"
+                    ),
+                }
+            )
+        elif referenced and referenced not in known_aliases:
+            problems.append(
+                {
+                    "key": f"model_aliases.{alias}",
+                    "message": (
+                        f"model_aliases.{alias} -> {target} references unknown alias "
+                        f"'@{referenced}'"
+                    ),
+                }
+            )
+
+    status: CheckStatus = "WARN" if problems else "OK"
+    summary = (
+        "model alias config is current"
+        if not problems
+        else f"{len(problems)} model alias migration issue(s) found"
+    )
+    next_steps = (
+        (
+            "Migrate the reported `llm_provider` config to model aliases "
+            "(see `docs/llms.md`), then rerun `sase doctor -C config.model_aliases`.",
+        )
+        if problems
+        else ()
+    )
+
+    return DiagnosticCheck(
+        id="config.model_aliases",
+        group="config",
+        status=status,
+        title="Model alias migration",
+        summary=summary,
+        details=tuple(row["message"] for row in problems[:_MAX_DETAIL_ROWS]),
+        next_steps=next_steps,
+        data={"problems": problems},
+    )
+
+
 def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     """Warn when a model-preset xprompt expands to an unroutable model token.
 
@@ -289,6 +404,19 @@ def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
                 }
             )
         for token in scan.tokens:
+            if token in _REMOVED_IMPLICIT_ALIAS_GUIDANCE:
+                guidance = _REMOVED_IMPLICIT_ALIAS_GUIDANCE[token]
+                problems.append(
+                    {
+                        "xprompt": name,
+                        "token": token,
+                        "message": (
+                            f"{name} -> %model:@{token} uses the retired "
+                            f"'@{token}' alias; {guidance}"
+                        ),
+                    }
+                )
+                continue
             if _model_token_routes(token, aliases):
                 continue
             problems.append(

@@ -42,13 +42,22 @@ CODER_MODEL_ALIAS_NAME = "coder"
 #: Suffix that turns a provider name into its ``<provider>_coder`` alias.
 PROVIDER_CODER_ALIAS_SUFFIX = "_coder"
 
+#: The implicit "epic_creator" role alias (new-epic follow-up default).
+EPIC_CREATOR_MODEL_ALIAS_NAME = "epic_creator"
+
+#: The implicit "epic_lander" role alias (epic land follow-up default).
+EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
+
+#: The implicit "phase_worker" role alias (bead phase agent default).
+PHASE_WORKER_MODEL_ALIAS_NAME = "phase_worker"
+
 #: Fixed implicit role aliases (besides ``default``) mapped to the alias each
 #: falls back to when the user has not configured it explicitly.
 _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    "epic_creator": f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    "epic_lander": f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    "phase_worker": f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    EPIC_CREATOR_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
 }
 
 # Legacy reserved aliases retained as deprecated stubs until the worker lane is
