@@ -29,6 +29,7 @@ from sase.axe.run_agent_helpers import (
     promote_to_workflow,
     update_meta_field,
 )
+from sase.llm_provider.config import format_model_directive_value
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
@@ -72,7 +73,7 @@ class _FollowupModel:
     """The follow-up agent's model directive prefix and the meta to record.
 
     ``model_prefix`` is prepended to the generated follow-up prompt (e.g.
-    ``"%model:codex/gpt-5.5\n"`` or ``"%model:worker\n"``).  ``meta`` is the
+    ``"%model:codex/gpt-5.5\n"`` or ``"%model:@worker\n"``).  ``meta`` is the
     ``(provider_or_none, model)`` to write into the follow-up's
     ``agent_meta.json`` so the recorded model matches the directive; it is
     ``None`` when the inherited planner metadata is already correct and the
@@ -110,7 +111,7 @@ def _resolve_followup_model(
        the current global worker lane later. The generated prefix is a
        concrete ``%model:<provider>/<model>``.
     3. If the planner is missing provider/model metadata, fall back to the
-       bare ``%model:worker`` alias, resolved from the current effective
+       ``%model:@worker`` alias, resolved from the current effective
        worker lane at launch time.
 
     A ``%model`` directive embedded in a custom coder prompt is handled by the
@@ -118,7 +119,7 @@ def _resolve_followup_model(
     """
     coder_model = plan_result.coder_model
     if coder_model and coder_model.strip() != "worker":
-        prefix = f"%model:{coder_model}\n"
+        prefix = f"%model:{format_model_directive_value(coder_model)}\n"
         if coder_model == ctx.agent_model:
             return _FollowupModel(model_prefix=prefix)
         return _FollowupModel(
@@ -140,7 +141,7 @@ def _resolve_followup_model(
         )
 
     return _FollowupModel(
-        model_prefix="%model:worker\n",
+        model_prefix=f"%model:{format_model_directive_value('worker')}\n",
         meta=_resolve_model_meta("worker"),
     )
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
@@ -16,6 +17,12 @@ if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 _MAX_DETAIL_ROWS = 10
+
+
+@dataclass(frozen=True)
+class _ModelPresetScan:
+    tokens: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
 
 
 def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -248,7 +255,7 @@ def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     """Warn when a model-preset xprompt expands to an unroutable model token.
 
     Configured ``%model``/``%m`` presets (e.g. ``#m_agy_flash`` expands to
-    ``%model:#agy_flash``) resolve their final model token to a provider at
+    ``%model:@#agy_flash``) resolve their final model token to a provider at
     launch time. When that token is a bare name that is neither a configured
     ``llm_provider.model_aliases`` entry, an explicit ``provider/model`` target,
     nor a model a registered provider plugin knows, the launch silently falls
@@ -260,30 +267,43 @@ def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     ``#m_fable``, ``#m_qwen``, or plugin-provided presets whose tokens stop
     resolving.
     """
-    from sase.llm_provider.config import get_model_aliases
+    from sase.llm_provider.config import model_alias_names
     from sase.xprompt.loader import get_all_xprompts
 
-    aliases = set(get_model_aliases())
+    aliases = model_alias_names()
     xprompts = get_all_xprompts(context.project)
 
     problems: list[dict[str, str]] = []
     scanned = 0
     for name in sorted(xprompts):
-        tokens = _model_preset_tokens(xprompts[name].content)
-        if tokens is None:
+        scan = _model_preset_tokens(xprompts[name].content)
+        if scan is None:
             continue
         scanned += 1
-        for token in tokens:
+        for error in scan.errors:
+            problems.append(
+                {
+                    "xprompt": name,
+                    "token": "",
+                    "message": f"{name}: {error}",
+                }
+            )
+        for token in scan.tokens:
             if _model_token_routes(token, aliases):
                 continue
-            problems.append({"xprompt": name, "token": token})
+            problems.append(
+                {
+                    "xprompt": name,
+                    "token": token,
+                    "message": (
+                        f"{name} -> {token} does not resolve to a provider; "
+                        "it will fall back to the default provider"
+                    ),
+                }
+            )
 
     status: CheckStatus = "WARN" if problems else "OK"
-    details = tuple(
-        f"{row['xprompt']} -> {row['token']} does not resolve to a provider; "
-        "it will fall back to the default provider"
-        for row in problems[:_MAX_DETAIL_ROWS]
-    )
+    details = tuple(row["message"] for row in problems[:_MAX_DETAIL_ROWS])
     summary = (
         f"{scanned} model preset xprompt(s) route to a provider"
         if not problems
@@ -311,7 +331,7 @@ def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
-def _model_preset_tokens(content: str) -> list[str] | None:
+def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
     """Return the final model token(s) a model-preset xprompt expands to.
 
     Returns ``None`` when *content* does not expand into any ``%model``/``%m``
@@ -330,8 +350,13 @@ def _model_preset_tokens(content: str) -> list[str] | None:
 
     try:
         expanded = process_xprompt_references(content)
-        if not has_model_directive(expanded):
-            return None
+    except Exception:  # noqa: BLE001 - a malformed preset must not break doctor.
+        return None
+
+    if not has_model_directive(expanded):
+        return None
+
+    try:
         branches = split_prompt_for_models(expanded)
         sources = branches if branches else [expanded]
         tokens: list[str] = []
@@ -339,11 +364,11 @@ def _model_preset_tokens(content: str) -> list[str] | None:
             _, directives = extract_prompt_directives(source)
             if directives.model:
                 tokens.append(directives.model)
-    except DirectiveError:
-        return None
+    except DirectiveError as exc:
+        return _ModelPresetScan(errors=(str(exc),))
     except Exception:  # noqa: BLE001 - a malformed preset must not break doctor.
         return None
-    return tokens
+    return _ModelPresetScan(tokens=tuple(tokens))
 
 
 def _model_token_routes(token: str, aliases: set[str]) -> bool:

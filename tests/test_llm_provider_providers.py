@@ -13,7 +13,9 @@ from sase.llm_provider.claude import ClaudeCodeProvider
 from sase.llm_provider.config import (
     _get_configured_worker_models,
     _get_model_aliases,
+    format_model_directive_value,
     get_configured_worker_model_entry_for_primary,
+    model_alias_names,
     resolve_model_alias,
 )
 from sase.llm_provider.registry import resolve_model_provider
@@ -52,6 +54,34 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
     }
 
     assert _get_model_aliases() == {"other": "claude/opus"}
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_model_alias_names_include_configured_and_reserved(
+    mock_config: MagicMock,
+) -> None:
+    mock_config.return_value = {"model_aliases": {"fast": "codex/o4-mini"}}
+
+    assert model_alias_names() == {"fast", "worker", "other"}
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_format_model_directive_value_adds_alias_prefix(
+    mock_config: MagicMock,
+) -> None:
+    mock_config.return_value = {
+        "model_aliases": {
+            "fast": "codex/o4-mini",
+            "other": "claude/opus",
+        }
+    }
+
+    assert format_model_directive_value("worker") == "@worker"
+    assert format_model_directive_value("other") == "@other"
+    assert format_model_directive_value("fast") == "@fast"
+    assert format_model_directive_value("@worker") == "@worker"
+    assert format_model_directive_value("opus") == "opus"
+    assert format_model_directive_value("claude/opus") == "claude/opus"
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -254,7 +284,7 @@ def _mock_provider_config(
 def test_other_alias_uses_snapshot_when_override_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Active override makes %model:other resolve to the displaced model."""
+    """Active override makes the internal ``other`` alias resolve to the displaced model."""
     from sase.llm_provider.temporary_override import set_temporary_override
 
     # Configured alias says claude/sonnet; configured default is claude → opus.

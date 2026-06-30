@@ -209,7 +209,7 @@ class TestChangeSpecRendering:
             "#git:sase #pr:feature_epic\n"
             "%name:!p1\n"
             "%group:e1\n"
-            "%model:worker\n"
+            "%model:@worker\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
@@ -248,14 +248,14 @@ class TestChangeSpecRendering:
             "#gh:sase #pr:feature_epic\n"
             "%name:!p1\n"
             "%group:e1\n"
-            "%model:worker\n"
+            "%model:@worker\n"
             "%auto\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:!p2\n"
             "%group:e1\n"
-            "%model:worker\n"
+            "%model:@worker\n"
             "%auto\n"
             "%w:p1\n"
             "#custom/work:p2\n"
@@ -263,7 +263,7 @@ class TestChangeSpecRendering:
             "#gh:feature_epic\n"
             "%name:!p3\n"
             "%group:e1\n"
-            "%model:worker\n"
+            "%model:@worker\n"
             "%auto\n"
             "%w:p2\n"
             "#custom/work:p3\n"
@@ -353,7 +353,7 @@ class TestModelDirective:
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
-        assert "%model:worker" in phase_segment
+        assert "%model:@worker" in phase_segment
         assert "%model" not in land_segment
 
     def test_mixed_phase_models_only_decorate_set_phases(
@@ -382,7 +382,7 @@ class TestModelDirective:
         p3_seg = next(s for s in segments if "%name:!p3\n" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.5" in p1_seg
-        assert "%model:worker" in p2_seg
+        assert "%model:@worker" in p2_seg
         assert "%model:#pro" in p3_seg
         assert "%model" not in land_seg
 
@@ -400,7 +400,7 @@ class TestModelDirective:
 
         segments = rendered.split("\n---\n")
         phase_segment, land_segment = segments
-        assert "%model:worker" in phase_segment
+        assert "%model:@worker" in phase_segment
         assert land_segment == (
             "%name:!e1\n%group:e1\n%model:claude/opus\n%auto\n%w:p1\n#bd/land_epic:e1"
         )
@@ -442,7 +442,7 @@ class TestModelDirective:
             "%w:p1,p2\n"
             "#bd/land_epic:e1"
         )
-        assert rendered.replace("%model:worker\n", "") == pre_worker_baseline
+        assert rendered.replace("%model:@worker\n", "") == pre_worker_baseline
         assert resolve_model_provider("worker") == ("claude", "opus")
 
     def test_model_does_not_inject_extra_directives(

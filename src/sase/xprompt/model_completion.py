@@ -10,16 +10,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from sase.llm_provider.config import get_model_aliases
+from sase.llm_provider.config import RESERVED_MODEL_ALIASES, get_model_aliases
 from sase.llm_provider.registry import get_llm_metadata_payload
 
 MODEL_COMPLETION_CATALOG_SCHEMA_VERSION = 1
 
 _INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
-_RESERVED_MODEL_ALIASES: tuple[tuple[str, str], ...] = (
-    ("worker", "reserved alias: current worker-lane model"),
-    ("other", "reserved alias: model active before a temporary override"),
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,7 +129,7 @@ def _build_model_completion_catalog() -> list[_ModelCompletionEntry]:
             short_alias=short_aliases.get(model, ""),
         )
 
-    for value, description in _RESERVED_MODEL_ALIASES:
+    for value, description in RESERVED_MODEL_ALIASES:
         _append_alias_entry(
             entries,
             seen,
@@ -192,19 +188,21 @@ def _append_alias_entry(
     description: str,
     kind: str,
 ) -> None:
-    if value in seen or not _is_inline_completable(value):
+    display_value = f"@{value}" if not value.startswith("@") else value
+    bare_alias = display_value[1:] if display_value.startswith("@") else display_value
+    if display_value in seen or not _is_inline_completable(display_value):
         return
     entries.append(
         _ModelCompletionEntry(
-            value=value,
-            display=value,
+            value=display_value,
+            display=display_value,
             description=description,
             kind=kind,
             provider="",
-            aliases=(),
+            aliases=(bare_alias,),
         )
     )
-    seen.add(value)
+    seen.add(display_value)
 
 
 def _provider_order(

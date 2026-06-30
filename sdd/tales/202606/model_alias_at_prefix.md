@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 08:49:43
-status: wip
+status: done
 prompt: sdd/prompts/202606/model_alias_at_prefix.md
 ---
 # Plan: Require `@` in front of model aliases (`%m:@other`, not `%m:other`)

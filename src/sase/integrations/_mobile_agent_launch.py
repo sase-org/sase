@@ -14,6 +14,7 @@ from typing import Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
+from sase.llm_provider.config import format_model_directive_value
 from sase.xprompt._parsing import normalize_launch_xprompt_at_refs
 
 from ._mobile_agent_common import (
@@ -130,7 +131,7 @@ def mobile_launch_prompt(payload: dict[str, Any]) -> str:
     runtime = optional_str(payload.get("runtime"))
     model_value = mobile_model_directive_value(model, provider, runtime)
     if model_value:
-        directives.append(f"%model:{model_value}")
+        directives.append(f"%model:{format_model_directive_value(model_value)}")
 
     if directives:
         prompt = "\n".join([*directives, prompt])

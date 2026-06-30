@@ -43,9 +43,9 @@ def test_model_completion_catalog_includes_models_reserved_and_user_aliases(
         "gpt-5.5",
         "o4-mini",
         "anthropic/claude-sonnet-4-5",
-        "worker",
-        "other",
-        "fast",
+        "@worker",
+        "@other",
+        "@fast",
     ]
     assert "Gemini 3.5 Flash (High)" not in values
     assert "bad alias" not in values
@@ -58,6 +58,7 @@ def test_model_completion_catalog_includes_models_reserved_and_user_aliases(
     fast = entries[-1]
     assert fast.kind == "user_alias"
     assert fast.description == "alias for codex/o4-mini"
+    assert fast.aliases == ("fast",)
 
 
 def test_model_completion_filter_matches_values_and_short_aliases(
@@ -76,6 +77,14 @@ def test_model_completion_filter_matches_values_and_short_aliases(
         entry.value
         for entry in model_completion.filter_model_completion_entries(entries, "fa")
     ] == ["claude-fable-5"]
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(entries, "oth")
+    ] == ["@other"]
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(entries, "@oth")
+    ] == ["@other"]
 
 
 def test_model_completion_catalog_payload_round_trips_entries(

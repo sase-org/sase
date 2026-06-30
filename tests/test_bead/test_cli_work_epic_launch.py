@@ -299,7 +299,7 @@ def test_work_dry_run_renders_model_directives(
     out = capsys.readouterr().out
     assert f"%name:!{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.5\n%auto" in out
     # Phase without an explicit model opts into the worker lane.
-    assert f"%name:!{p2_id}\n%group:{epic_id}\n%model:worker\n%auto" in out
+    assert f"%name:!{p2_id}\n%group:{epic_id}\n%model:@worker\n%auto" in out
     assert f"%name:!{epic_id}\n%group:{epic_id}\n%model:claude/opus\n%auto" in out
     # Three %model directives: explicit phase, worker phase, and land.
     assert out.count("%model:") == 3

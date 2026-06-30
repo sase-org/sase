@@ -561,7 +561,7 @@ llm_provider:
 | `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets for plan follow-ups and epic phase agents, keyed by the effective primary lane. Values accept aliases, bare models, or explicit `provider/model`.                             |
 | `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                                                      |
 | `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                                                      |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                                                       |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:@<alias>` / `%m:@<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                                                     |
 
 ## Per-Prompt Provider Switching
 
@@ -579,16 +579,17 @@ llm_provider:
     other: claude/opus
 ```
 
-Then prompts can use:
+Then prompts can use the alias with a leading `@`:
 
 ```
-%model:other
-%{%m:other | %m:gpt-5.5}
+%model:@other
+%{%m:@other | %m:gpt-5.5}
 ```
 
 Alias values may point at another alias, a bare known model such as `opus`, an explicit provider/model string such as
 `claude/opus`, or a nested provider-local path such as `opencode/anthropic/claude-sonnet-4-5`. Cycles are ignored and
-fall back to the raw input.
+fall back to the raw input. The `@` marker is only directive surface syntax: `model_aliases` keys and xprompt values
+stay bare. A bare configured/reserved alias raises with a migration hint, and `@` in front of a non-alias raises.
 
 A bare `%model` token that is _not_ a configured alias, an explicit `provider/model` target, or a known provider model
 silently falls back to the default provider rather than erroring. To catch this drift — for example a removed
@@ -600,22 +601,22 @@ provider-neutral and read-only.
 #### Reserved alias: `other`
 
 The literal alias name `other` is reserved as a context-aware key. When a
-[temporary default override](#temporary-default-override) is active, `%model:other` (and `%m:other`) resolves to the
+[temporary default override](#temporary-default-override) is active, `%model:@other` (and `%m:@other`) resolves to the
 `(provider, model)` that was the effective default _immediately before_ the override was set — captured in the
 override's `pre_override_*` snapshot. When no override is active, `other` falls back to whatever the user configured
 under `llm_provider.model_aliases.other` (or the literal model name `other` if no alias is configured).
 
-This makes `%{%m:other | %m:...}` always pair "the alternate model" with the current default, even when the user has
-temporarily switched their default via the ACE `,m` chord. Without the snapshot, `%{%m:other | %m:...}` on an
+This makes `%{%m:@other | %m:...}` always pair "the alternate model" with the current default, even when the user has
+temporarily switched their default via the ACE `,m` chord. Without the snapshot, `%{%m:@other | %m:...}` on an
 override-displaced default could otherwise launch the override's model side-by-side with itself.
 
 #### Reserved alias: `worker`
 
-The literal alias name `worker` is reserved for the worker lane. `%model:worker` and `%m(worker)` resolve to the current
-effective worker provider/model and shadow any `llm_provider.model_aliases.worker` entry.
+The literal alias name `worker` is reserved for the worker lane. `%model:@worker` and `%m(@worker)` resolve to the
+current effective worker provider/model and shadow any `llm_provider.model_aliases.worker` entry.
 
 This alias is how delegated launch sites opt into worker-lane selection without hardcoding a concrete model. For
-example, `sase bead work` emits `%model:worker` for phase agents that do not have an explicit per-bead model.
+example, `sase bead work` emits `%model:@worker` for phase agents that do not have an explicit per-bead model.
 
 ### Explicit Provider/Model Syntax
 
@@ -911,7 +912,7 @@ The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 - ACE chord `,m`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
   config / autodetect.
 - ACE chord `,m`, set worker override to `codex/gpt-5.5` for `1h` → `~/.sase/llm_worker_override.json` is written; new
-  `%model:worker` launches use CODEX(gpt-5.5) until the override expires or is cleared.
+  `%model:@worker` launches use CODEX(gpt-5.5) until the override expires or is cleared.
 
 ## Environment Variables
 

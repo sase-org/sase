@@ -186,7 +186,7 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``%model:#agy_flash`` records agy + the exact display model, not the default.
+    """``%model:@#agy_flash`` records agy + the exact display model, not the default.
 
     This pins the full readable surface end to end: the ``#agy_flash`` xprompt
     expands to the ``agy_flash`` token, the configured ``model_aliases`` entry
@@ -228,7 +228,7 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
         patch("sase.ace.agent_tags.update_agent_tag"),
     ):
         info = extract_directives_and_write_meta(
-            "%model:#agy_flash\nDo work",
+            "%model:@#agy_flash\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )

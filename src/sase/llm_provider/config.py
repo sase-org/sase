@@ -11,6 +11,10 @@ if TYPE_CHECKING:
     from sase.xprompt.directives import PromptDirectives
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
+RESERVED_MODEL_ALIASES: tuple[tuple[str, str], ...] = (
+    ("worker", "reserved alias: current worker-lane model"),
+    ("other", "reserved alias: model active before a temporary override"),
+)
 
 
 def get_llm_provider_config() -> dict[str, Any]:
@@ -94,6 +98,26 @@ def get_model_aliases() -> dict[str, str]:
     return _get_model_aliases()
 
 
+def model_alias_names() -> set[str]:
+    """Return every name that is a user-facing model alias."""
+    return set(get_model_aliases()) | {name for name, _ in RESERVED_MODEL_ALIASES}
+
+
+def strip_model_alias_prefix(value: str) -> str:
+    """Strip the surface ``@`` marker from a model alias token, if present."""
+    if value.startswith("@"):
+        return value[1:]
+    return value
+
+
+def format_model_directive_value(value: str) -> str:
+    """Return *value* formatted for a user-facing ``%model`` directive."""
+    bare_value = strip_model_alias_prefix(value)
+    if bare_value in model_alias_names():
+        return f"@{bare_value}"
+    return value
+
+
 def _clean_string_mapping(value: Any) -> dict[str, str]:
     """Return stripped string-to-string entries from a config mapping."""
     if not isinstance(value, dict):
@@ -152,7 +176,7 @@ def resolve_model_alias(model: str) -> str:
     The literal alias ``"other"`` is reserved: when a temporary LLM override
     is active, ``"other"`` short-circuits to the ``(provider, model)`` that
     was the effective default immediately before the override was set. This
-    lets ``%model:other`` always mean "the model I would have been using
+    lets ``%model:@other`` always mean "the model I would have been using
     if I hadn't taken this temporary detour." When no override is active
     (or the override predates the snapshot field), behavior falls through
     to the normal ``model_aliases.other`` target.

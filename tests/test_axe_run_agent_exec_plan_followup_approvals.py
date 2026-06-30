@@ -428,7 +428,7 @@ class TestPlanFollowupApprovals:
         state.current_artifacts_dir = "/tmp/followup"
 
         accept_mod._write_followup_effort_meta(
-            state, "%model:worker@xhigh\nImplement the approved plan."
+            state, "%model:@worker@xhigh\nImplement the approved plan."
         )
 
         assert call("/tmp/followup", "reasoning_effort", "xhigh") in (
@@ -531,7 +531,7 @@ class TestPlanFollowupApprovals:
         ):
             handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
-        assert state.current_prompt.startswith("%model:worker\n#gh:sase ")
+        assert state.current_prompt.startswith("%model:@worker\n#gh:sase ")
         assert f"@{archived_plan}" in state.current_prompt
         assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
         assert os.environ["SASE_PLAN"] == str(archived_plan)

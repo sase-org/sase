@@ -24,11 +24,11 @@ def test_split_prompt_for_models_alias_uses_resolved_suffix(
     """Fan-out names use the concrete configured model behind an alias."""
     mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
 
-    prompt = "%n:foo\n%{%model:other | %model:gpt-5.5}\nReview this code"
+    prompt = "%n:foo\n%{%model:@other | %model:gpt-5.5}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld\n%model:other\nReview this code"
+    assert result[0] == "%name:foo.cld\n%model:@other\nReview this code"
     assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
 
 
@@ -60,11 +60,11 @@ def test_split_prompt_for_models_other_uses_override_snapshot(
     # names as the disambiguator. Without the override-aware "other",
     # other would also resolve to sonnet (per configured alias) and the
     # split would collapse to a single model.
-    prompt = "%n:foo\n%{%model:other | %model:sonnet}\nReview"
+    prompt = "%n:foo\n%{%model:@other | %model:sonnet}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:foo.cld_opus\n%model:other\nReview"
+    assert result[0] == "%name:foo.cld_opus\n%model:@other\nReview"
     assert result[1] == "%name:foo.cld_sonnet\n%model:sonnet\nReview"
 
 
@@ -276,6 +276,35 @@ def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() 
     assert len(result) == 2
     assert result[0] == "%name:ag.cdx_gpt55\n%model:#flash\nReview"
     assert result[1] == "%name:ag.cdx_gpt41\n%model:#pro\nReview"
+
+
+def test_split_prompt_for_models_alias_shorthand_strips_at_before_expansion(
+    monkeypatch,
+) -> None:
+    """Alias-marked shorthand branches expand and name with resolved aliases."""
+    cfg = {
+        "model_aliases": {
+            "agy_flash": "agy/Gemini 3.5 Flash (High)",
+            "agy_pro": "agy/Gemini 3.1 Pro (High)",
+        }
+    }
+    xprompts = {
+        "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
+        "agy_pro": XPrompt(name="agy_pro", content="agy_pro"),
+    }
+    monkeypatch.setattr("sase.llm_provider.config.get_llm_provider_config", lambda: cfg)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: cfg
+    )
+    monkeypatch.setattr("sase.xprompt.processor.get_all_xprompts", lambda *_: xprompts)
+
+    result = split_prompt_for_models("%n:ag\n%{%m:@#agy_pro | %m:@#agy_flash}\nReview")
+
+    assert result is not None
+    assert result == [
+        "%name:ag.agy_pro31h\n%m:@#agy_pro\nReview",
+        "%name:ag.agy_flash35h\n%m:@#agy_flash\nReview",
+    ]
 
 
 def test_split_prompt_for_models_keeps_raw_and_shorthand_alt_branches() -> None:

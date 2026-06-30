@@ -57,7 +57,7 @@ class TemporaryLLMOverride:
     effective default *immediately before* this override was set. It's
     consumed by the ``"other"`` alias short-circuit in
     :func:`sase.llm_provider.config.resolve_model_alias` so that
-    ``%model:other`` resolves to the displaced model rather than the
+    ``%model:@other`` resolves to the displaced model rather than the
     statically-configured alias target. Legacy state files (written
     before this field existed) leave all three as ``None``.
     """

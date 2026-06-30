@@ -27,7 +27,7 @@ class TestPlanFollowupModelSelection:
 
         The default stub echoes the planner lane (no ``worker_models`` config),
         so the prefix is a concrete ``%model:<provider>/<model>`` carrying the
-        planner's primary context rather than a bare ``%model:worker``.
+        planner's primary context rather than the worker alias.
         """
         state = run_followup_plan(
             tmp_path,
@@ -53,14 +53,14 @@ class TestPlanFollowupModelSelection:
         agent_model: str | None,
         agent_llm_provider: str | None,
     ) -> None:
-        """Missing planner provider/model falls back to the bare worker alias."""
+        """Missing planner provider/model falls back to the worker alias."""
         state = run_followup_plan(
             tmp_path,
             action=action,
             agent_model=agent_model,
             agent_llm_provider=agent_llm_provider,
         )
-        assert state.current_prompt.startswith("%model:worker\n")
+        assert state.current_prompt.startswith("%model:@worker\n")
 
     def test_followup_uses_exact_worker_models_mapping(self, tmp_path) -> None:
         """Planner (claude, opus) + worker_models {claude/opus: codex/gpt-5.5}."""
@@ -132,4 +132,4 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
         )
         assert state.current_prompt.startswith("%model:sonnet\n")
-        assert "%model:worker" not in state.current_prompt
+        assert "%model:@worker" not in state.current_prompt

@@ -363,17 +363,18 @@ llm_provider:
     other: claude/opus
 ```
 
-| Field                               | Type   | Default     | Description                                                                                                                                                  |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                     |
-| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets keyed by the effective primary lane. Values accept bare known models, aliases, or explicit `provider/model`.                    |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                       |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                       |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases usable from `%model:<alias>` / `%m:<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths. |
+| Field                               | Type   | Default     | Description                                                                                                                                                    |
+| ----------------------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                       |
+| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets keyed by the effective primary lane. Values accept bare known models, aliases, or explicit `provider/model`.                      |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                         |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                         |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases usable from `%model:@<alias>` / `%m:@<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths. |
 
-Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:other` while
-each user's `sase.yml` controls the concrete provider/model. Unknown aliases and unknown model values keep the existing
-fallback behavior and run on the default provider.
+Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@other` while
+each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the `@` marker is only used in
+`%model`/`%m` directive values. Unknown non-alias model values keep the existing fallback behavior and run on the
+default provider.
 
 The optional `worker_models` config defines the worker lane used by delegated work, currently including `sase bead work`
 phase agents that do not have an explicit per-bead model. Entries are selected from the current effective primary lane
@@ -383,11 +384,11 @@ override, configured provider/tier, then provider auto-detection. See [Worker Mo
 precedence order and TUI behavior.
 
 The alias name `other` is reserved: when a temporary LLM override is active (see
-[Temporary Default Override](llms.md#temporary-default-override)), `%model:other` resolves to the `(provider, model)`
+[Temporary Default Override](llms.md#temporary-default-override)), `%model:@other` resolves to the `(provider, model)`
 that was the effective default _immediately before_ the override was set, rather than to the static
 `model_aliases.other` target. When no override is active, `other` falls back to the configured alias as usual.
 
-The alias name `worker` is also reserved: `%model:worker` resolves through the worker lane and shadows any
+The alias name `worker` is also reserved: `%model:@worker` resolves through the worker lane and shadows any
 `model_aliases.worker` entry.
 
 The TUI also supports **temporary** session-level provider/model overrides that do **not** edit this config. Primary

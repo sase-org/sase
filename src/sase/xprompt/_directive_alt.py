@@ -57,6 +57,12 @@ class _NamedFanoutPrompt:
     name_generated: bool
 
 
+def _strip_model_alias_prefix(value: str) -> str:
+    from sase.llm_provider.config import strip_model_alias_prefix
+
+    return strip_model_alias_prefix(value)
+
+
 def has_alt_directive(prompt: str) -> bool:
     """Quick check whether a prompt contains a ``%alt(``, ``%(`` or ``%{`` directive.
 
@@ -311,13 +317,13 @@ def _extract_first_model_value(prompt: str) -> str | None:
             if not args:
                 return None
             clean_model, _ = split_model_effort(args[0])
-            return clean_model
+            return _strip_model_alias_prefix(clean_model)
         colon_arg = match.group(3)
         if colon_arg is not None:
             if colon_arg.startswith("`") and colon_arg.endswith("`"):
                 return colon_arg[1:-1]
             clean_model, _ = split_model_effort(colon_arg)
-            return clean_model
+            return _strip_model_alias_prefix(clean_model)
         return None
     return None
 
@@ -402,7 +408,7 @@ def _runtime_label_for_model(model: str) -> str:
         resolve_model_provider,
     )
 
-    provider, _ = resolve_model_provider(model)
+    provider, _ = resolve_model_provider(_strip_model_alias_prefix(model))
     name = provider or get_default_provider_name()
     return provider_short_name_map().get(name, name)
 
@@ -415,6 +421,7 @@ def _model_value_for_naming(
     """Resolve xprompt shorthand and configured aliases for naming only."""
     from sase.llm_provider.config import resolve_model_alias
 
+    model = _strip_model_alias_prefix(model)
     if "#" not in model:
         return resolve_model_alias(model)
 
@@ -440,7 +447,7 @@ def _model_suffix_value(model: str) -> str:
     """Return the provider-local model value used for alias/fallback suffixes."""
     from sase.llm_provider.registry import resolve_model_provider
 
-    _, resolved_model = resolve_model_provider(model)
+    _, resolved_model = resolve_model_provider(_strip_model_alias_prefix(model))
     return resolved_model
 
 
@@ -544,7 +551,7 @@ def _apply_fanout_naming(
 
 def _slot_model_value(slot: LaunchFanoutSlotWire) -> str | None:
     if slot.model is not None:
-        return slot.model
+        return _strip_model_alias_prefix(slot.model)
     return _extract_first_model_value(slot.prompt)
 
 

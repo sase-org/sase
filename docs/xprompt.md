@@ -1244,8 +1244,8 @@ is resolved **at handoff time from the planner agent's concrete provider/model**
 `llm_provider.worker_models` entry for the planner's primary lane, then the planner's own provider/model as the
 fallback. The generated prefix is a concrete `%model:<provider>/<model>` so the planner's primary context is preserved
 even if the global worker lane changes before launch (when the planner is missing provider/model metadata the follow-up
-falls back to a bare `%model:worker`). Ordinary `%model:worker` directives written elsewhere still resolve from the
-current effective worker lane.
+falls back to `%model:@worker`). Ordinary `%model:@worker` directives written elsewhere still resolve from the current
+effective worker lane.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected archived plans. Use the `id_prefix` from a Proposed row with

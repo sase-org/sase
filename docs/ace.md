@@ -1007,7 +1007,7 @@ Permanent `llm_provider.worker_models` config is visible in the modal, not the t
 ### Behavior
 
 - The overrides apply only to default lane selection. Explicit prompt directives (`%model:codex/o3`,
-  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win. `%model:worker`
+  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win. `%model:@worker`
   explicitly opts into the worker lane.
 - Already-running agents keep their current provider/model. Only **new** launches use the override.
 - The primary override is persisted to `~/.sase/llm_override.json`; the worker override is persisted to
@@ -1022,7 +1022,7 @@ Permanent `llm_provider.worker_models` config is visible in the modal, not the t
 - `codex/o3` for `1h` — switch to Codex `o3` for the next hour, then revert to the configured default.
 - `opencode/anthropic/claude-sonnet-4-5` for `1h` — switch to an OpenCode provider/model pair.
 - `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
-- Worker `codex/gpt-5.5` for `1h` — route `%model:worker` launches through Codex for the next hour.
+- Worker `codex/gpt-5.5` for `1h` — route `%model:@worker` launches through Codex for the next hour.
 - `Until cleared` — leave the override active across sessions; clear it later from the same `,m` modal.
 
 See [docs/llms.md](llms.md#temporary-default-override) for the resolution order and state-file format.

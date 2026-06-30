@@ -11,7 +11,7 @@ import pytest
 
 def _bead_segments() -> tuple[list[str], list[dict[str, str]], set[str]]:
     segments = [
-        "#git:proj\n%name:proj-epic.1\n%group:proj-epic\n%model:worker\n"
+        "#git:proj\n%name:proj-epic.1\n%group:proj-epic\n%model:@worker\n"
         "%auto\n#bd/work_phase_bead:proj-epic.1",
         "#git:proj\n%name:proj-epic\n%group:proj-epic\n%auto\n"
         "%w:proj-epic.1\n#bd/land_epic:proj-epic",

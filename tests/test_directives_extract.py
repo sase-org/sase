@@ -1,5 +1,6 @@
 """Tests for extract_prompt_directives() core behavior, edge cases, and protection."""
 
+import re
 from unittest.mock import patch
 
 import pytest
@@ -88,6 +89,95 @@ def test_xprompt_ref_in_directive_arg() -> None:
     assert cleaned == "Review this code"
     assert directives.model == "gemini-2.5-flash"
     mock_process.assert_called_once_with("#gemini_small_model")
+
+
+def test_model_alias_requires_at_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"model_aliases": {"other": "claude/opus"}},
+    )
+
+    _, directives = extract_prompt_directives("%m:@other\nReview")
+
+    assert directives.model == "other"
+
+
+def test_model_bare_alias_raises_with_migration_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"model_aliases": {"other": "claude/opus"}},
+    )
+
+    with pytest.raises(
+        DirectiveError,
+        match=r"Model aliases must be prefixed with @ .* did you mean @other",
+    ):
+        extract_prompt_directives("%m:other\nReview")
+
+
+def test_model_worker_alias_requires_at_prefix() -> None:
+    _, directives = extract_prompt_directives("%m:@worker\nReview")
+    assert directives.model == "worker"
+
+    with pytest.raises(
+        DirectiveError,
+        match=r"Model aliases must be prefixed with @ .* did you mean @worker",
+    ):
+        extract_prompt_directives("%m:worker\nReview")
+
+
+@pytest.mark.parametrize("model", ["opus", "claude/opus"])
+def test_model_at_prefix_on_non_alias_raises(model: str) -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=rf"'@{re.escape(model)}' is not a known model alias",
+    ):
+        extract_prompt_directives(f"%m:@{model}\nReview")
+
+
+def test_model_alias_prefix_composes_with_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"model_aliases": {"other": "claude/opus"}},
+    )
+
+    _, directives = extract_prompt_directives("%m:@other@xhigh\nReview")
+
+    assert directives.model == "other"
+    assert directives.reasoning_effort == "xhigh"
+
+
+def test_model_literal_bypasses_alias_prefix_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"model_aliases": {"other": "claude/opus"}},
+    )
+
+    _, directives = extract_prompt_directives("%model:`@other`\nReview")
+
+    assert directives.model == "@other"
+
+
+def test_model_alias_prefix_strips_before_xprompt_expansion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"model_aliases": {"agy_flash": "agy/Gemini 3.5 Flash (High)"}},
+    )
+
+    with patch("sase.xprompt.directives.process_xprompt_references") as mock_process:
+        mock_process.return_value = "agy_flash"
+        _, directives = extract_prompt_directives("%m:@#agy\nReview")
+
+    assert directives.model == "agy_flash"
+    mock_process.assert_called_once_with("#agy")
 
 
 # --- Unknown directives ---

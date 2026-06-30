@@ -17,6 +17,7 @@ from sase.bead import db
 from sase.bead.model import Dependency, Issue
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.rust import require_rust_binding
+from sase.llm_provider.config import format_model_directive_value
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
@@ -339,9 +340,10 @@ def render_multi_prompt(
             lines.append(f"%name:!{assignment.agent_name}")
             lines.append(_group_directive(plan.launch_tag_id))
             if assignment.model:
-                lines.append(f"%model:{assignment.model}")
+                model_value = format_model_directive_value(assignment.model)
+                lines.append(f"%model:{model_value}")
             else:
-                lines.append("%model:worker")
+                lines.append(f"%model:{format_model_directive_value('worker')}")
             lines.append("%auto")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
@@ -352,7 +354,8 @@ def render_multi_prompt(
     land_lines.append(f"%name:!{plan.land_agent_name}")
     land_lines.append(_group_directive(plan.launch_tag_id))
     if plan.land_model:
-        land_lines.append(f"%model:{plan.land_model}")
+        land_model = format_model_directive_value(plan.land_model)
+        land_lines.append(f"%model:{land_model}")
     land_lines.append("%auto")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
@@ -415,7 +418,8 @@ def render_legend_multi_prompt(
     land_lines.append(f"%name:!{plan.land_agent_name}")
     land_lines.append(_group_directive(plan.legend_id))
     if plan.land_model:
-        land_lines.append(f"%model:{plan.land_model}")
+        land_model = format_model_directive_value(plan.land_model)
+        land_lines.append(f"%model:{land_model}")
     land_lines.append("%auto")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")

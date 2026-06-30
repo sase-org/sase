@@ -92,19 +92,14 @@ def _patch_model_xprompt_env(
     )
 
 
-def test_model_xprompts_warns_when_alias_token_is_unrouted(
+def test_model_xprompts_warns_when_prefixed_alias_is_unknown(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A ``%model:#agy_flash`` preset warns when its alias token is missing.
-
-    This is the regression guard for the bug where a removed ``model_aliases``
-    entry silently degraded ``#m_agy_flash`` to the default provider.
-    """
+    """A migrated ``%model:@#agy_flash`` preset warns if the alias is missing."""
     xprompts = {
         "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
-        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:#agy_flash"),
+        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:@#agy_flash"),
     }
-    # Codex default, no agy_flash alias -> the bare token cannot route.
     _patch_model_xprompt_env(
         monkeypatch, xprompts, {"provider": "codex", "model_aliases": {}}
     )
@@ -113,10 +108,11 @@ def test_model_xprompts_warns_when_alias_token_is_unrouted(
 
     assert check.status == "WARN"
     assert any(
-        row["xprompt"] == "m_agy_flash" and row["token"] == "agy_flash"
+        row["xprompt"] == "m_agy_flash"
+        and "'@agy_flash' is not a known model alias" in row["message"]
         for row in check.data["problems"]
     )
-    assert "m_agy_flash -> agy_flash does not resolve to a provider" in check.details[0]
+    assert "'@agy_flash' is not a known model alias" in check.details[0]
 
 
 def test_model_xprompts_ok_when_alias_routes_to_provider(
@@ -125,7 +121,7 @@ def test_model_xprompts_ok_when_alias_routes_to_provider(
     """With the alias restored, the same preset routes cleanly with no warning."""
     xprompts = {
         "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
-        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:#agy_flash"),
+        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:@#agy_flash"),
     }
     _patch_model_xprompt_env(
         monkeypatch,
@@ -141,6 +137,33 @@ def test_model_xprompts_ok_when_alias_routes_to_provider(
     assert check.status == "OK"
     assert not check.data["problems"]
     assert check.data["scanned"] == 1
+
+
+def test_model_xprompts_flags_bare_alias_with_migration_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A legacy bare alias preset is surfaced instead of silently skipped."""
+    xprompts = {
+        "agy_flash": XPrompt(name="agy_flash", content="agy_flash"),
+        "m_agy_flash": XPrompt(name="m_agy_flash", content="%model:#agy_flash"),
+    }
+    _patch_model_xprompt_env(
+        monkeypatch,
+        xprompts,
+        {
+            "provider": "codex",
+            "model_aliases": {"agy_flash": "agy/Gemini 3.5 Flash (High)"},
+        },
+    )
+
+    check = _check_config_model_xprompts(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        row["xprompt"] == "m_agy_flash" and "did you mean @agy_flash" in row["message"]
+        for row in check.data["problems"]
+    )
+    assert "did you mean @agy_flash" in check.details[0]
 
 
 def test_model_xprompts_ignores_explicit_provider_model_token(

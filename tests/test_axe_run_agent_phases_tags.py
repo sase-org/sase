@@ -235,7 +235,7 @@ def _extract_worker_model_meta(tmp_path: Path) -> dict[str, object]:
         patch("sase.agent.names.claim_agent_name"),
     ):
         extract_directives_and_write_meta(
-            "%name:phase-worker\n%model:worker\nDo work",
+            "%name:phase-worker\n%model:@worker\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )

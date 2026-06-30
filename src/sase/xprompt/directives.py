@@ -233,6 +233,27 @@ def _resolve_reasoning_effort(
     return directive_effort or model_effort
 
 
+def _validate_model_alias_prefix(model: str, *, had_alias_prefix: bool) -> str:
+    """Enforce the user-facing ``@`` spelling rule for model aliases."""
+    if not model:
+        return model
+
+    from sase.llm_provider.config import model_alias_names
+
+    aliases = model_alias_names()
+    if had_alias_prefix:
+        if model not in aliases:
+            raise DirectiveError(
+                f"'@{model}' is not a known model alias; @ may only prefix a "
+                "configured alias or the reserved 'worker'/'other'."
+            )
+    elif model in aliases:
+        raise DirectiveError(
+            f"Model aliases must be prefixed with @ — did you mean @{model}?"
+        )
+    return model
+
+
 def extract_prompt_directives(
     prompt: str, *, strip_disabled_markers: bool = True
 ) -> tuple[str, PromptDirectives]:
@@ -491,8 +512,14 @@ def extract_prompt_directives(
     # expansion so directives.model stays a clean model string. Backtick-literal
     # models (``%model:`literal@id` ``) bypass the split to preserve their ``@``.
     model_effort: str | None = None
+    model_had_alias_prefix = False
     if "model" in seen and "model" not in literal_directives:
+        from sase.llm_provider.config import strip_model_alias_prefix
+
         clean_model, model_effort = split_model_effort(seen["model"])
+        model_had_alias_prefix = clean_model.startswith("@")
+        if model_had_alias_prefix:
+            clean_model = strip_model_alias_prefix(clean_model)
         seen["model"] = clean_model
 
     # Expand xprompt references in directive argument values
@@ -502,6 +529,12 @@ def extract_prompt_directives(
             expanded_args[directive_name] = process_xprompt_references(raw_arg).strip()
         else:
             expanded_args[directive_name] = raw_arg
+
+    if "model" in expanded_args and "model" not in literal_directives:
+        expanded_args["model"] = _validate_model_alias_prefix(
+            expanded_args["model"],
+            had_alias_prefix=model_had_alias_prefix,
+        )
 
     # Expand xprompt references in multi-value directive arguments
     expanded_multi: dict[str, list[str]] = {}
