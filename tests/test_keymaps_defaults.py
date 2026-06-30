@@ -12,7 +12,11 @@ from sase.ace.tui.keymaps import (
     load_builtin_app_defaults,
     load_keymap_registry,
 )
-from sase.ace.tui.modals.help_modal.bindings import agents_bindings
+from sase.ace.tui.modals.help_modal.bindings import (
+    agents_bindings,
+    axe_bindings,
+    cls_bindings,
+)
 from tests._keymaps_helpers import default_app_keymaps
 
 
@@ -92,6 +96,13 @@ def test_leader_mode_marks_all_unread_done_agents_read_with_u() -> None:
     assert reg.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
 
 
+def test_leader_mode_updates_sase_with_uppercase_u() -> None:
+    """LeaderModeKeymaps default binds the comprehensive update to ``,U``."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["update_sase"] == "U"
+    assert LeaderModeKeymaps().keys["update_sase"] == "U"
+
+
 def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
     tmp_path: Path,
 ) -> None:
@@ -118,6 +129,17 @@ def test_merged_default_config_marks_all_unread_done_agents_read_with_u(
     }
     assert (",u", "Mark all unread done agents read") in agent_pairs
     assert (",U", "Mark all unread done agents read") not in agent_pairs
+
+
+def test_help_advertises_update_sase_on_all_tabs() -> None:
+    """The global ``,U`` update shortcut appears in every help binding list."""
+    reg = load_keymap_registry({})
+    expected = (",U", "Update sase, core & plugins")
+    for bindings in (cls_bindings, agents_bindings, axe_bindings):
+        pairs = {
+            (key, label) for _section, rows in bindings(reg) for key, label in rows
+        }
+        assert expected in pairs
 
 
 def test_leader_mode_includes_prompt_history_edit_first() -> None:

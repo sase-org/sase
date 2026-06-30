@@ -213,6 +213,7 @@ ace:
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
           temporary_llm_override: "m"
+          update_sase: "U"
           full_history_refresh: "y"
       fold_mode:
         prefix: "z"

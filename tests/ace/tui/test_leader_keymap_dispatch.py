@@ -365,6 +365,18 @@ def test_leader_u_notifies_when_no_unread_done_agents() -> None:
     assert app.refresh_count == 1
 
 
+def test_leader_uppercase_u_opens_sase_update_shortcut() -> None:
+    app = _FakeApp(current_tab="axe")
+
+    handled = app._handle_leader_key("U")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.update_sase_shortcut_count == 1
+    assert app._last_leader_key == "U"
+    assert app.refresh_count == 1
+
+
 def test_leader_ctrl_g_edits_first_prompt_history_entry() -> None:
     app = _FakeApp()
 

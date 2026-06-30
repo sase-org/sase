@@ -161,9 +161,16 @@ class PluginsBrowserPane(
         ("slash", "focus_filter", "Filter"),
     ]
 
-    def __init__(self, *, auto_load: bool = True, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        auto_load: bool = True,
+        auto_update_on_load: bool = False,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._auto_load = auto_load
+        self._auto_update_on_load = auto_update_on_load
         self._catalog: PluginCatalog | None = None
         self._core_versions: CoreVersions = _collect_installed_core_versions()
         self._error: str | None = None
@@ -245,7 +252,9 @@ class PluginsBrowserPane(
                 incoming_commits_limit=incoming_commits_limit,
             )
 
-        self._worker = self.run_worker(task, thread=True, exclusive=True)
+        self._worker = self.run_worker(
+            task, thread=True, exclusive=True, exit_on_error=False
+        )
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         incoming_key = self._incoming_commit_workers.get(id(event.worker))
@@ -313,7 +322,11 @@ class PluginsBrowserPane(
                 getattr(result, "core_incoming_commits", {}) or {}
             )
             self._render_all()
+            if self._auto_update_on_load:
+                self._auto_update_on_load = False
+                self.app.call_later(self.action_update_sase)
         elif event.state == WorkerState.ERROR:
+            self._auto_update_on_load = False
             self._loading = False
             self._error = (
                 str(event.worker.error) if event.worker.error else "load failed"

@@ -483,6 +483,17 @@ def test_temporary_llm_override_leader_command_uses_m() -> None:
     assert spec.executor.subkey == "m"
 
 
+def test_update_sase_leader_command_uses_uppercase_u() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.update_sase")
+
+    assert spec.label == "Update sase, core, and plugins"
+    assert spec.key_display == ",U"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "U"
+
+
 def test_review_mentors_leader_command_uses_uppercase_c() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.review_mentors")

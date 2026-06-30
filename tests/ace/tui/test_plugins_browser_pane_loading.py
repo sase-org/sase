@@ -6,7 +6,9 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.plugins.catalog import PluginCatalog
 from sase.updates.incoming_commits import CommitSummary, IncomingCommits
 from tests.ace.tui._plugins_browser_pane_helpers import (
@@ -204,6 +206,63 @@ async def test_plugins_pane_error_state(
         assert pane._error == "gh not found"
         assert pane.query_one("#plugins-status").display is True
         assert "gh not found" in pane._status_message()
+
+
+async def test_updates_pane_auto_update_fires_once_after_initial_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    calls: list[PluginsBrowserPane] = []
+    monkeypatch.setattr(
+        PluginsBrowserPane,
+        "action_update_sase",
+        lambda self: calls.append(self),
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#updates")))
+        pane = modal.query_one("#updates", PluginsBrowserPane)
+        await page.wait_for(lambda _s: not pane._loading)
+        await page.wait_for(lambda _s: calls == [pane])
+        await page.pause()
+
+        assert calls == [pane]
+        assert pane._auto_update_on_load is False
+
+
+async def test_updates_pane_auto_update_clears_on_initial_load_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    monkeypatch.setattr(
+        pbp,
+        "_load_plugins_catalog",
+        lambda **_kw: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    calls: list[PluginsBrowserPane] = []
+    monkeypatch.setattr(
+        PluginsBrowserPane,
+        "action_update_sase",
+        lambda self: calls.append(self),
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#updates")))
+        pane = modal.query_one("#updates", PluginsBrowserPane)
+        await page.wait_for(lambda _s: not pane._loading)
+        await page.pause()
+
+        assert calls == []
+        assert pane._auto_update_on_load is False
+        assert pane._error == "boom"
 
 
 async def test_config_center_cycles_six_tabs(

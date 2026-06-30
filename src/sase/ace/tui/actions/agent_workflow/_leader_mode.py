@@ -252,6 +252,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["update_sase"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self.action_update_sase_shortcut()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True

@@ -88,6 +88,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
                     "Model overrides",
                 ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'update_sase'))}",
+                    "Update sase, core & plugins",
+                ),
             ],
         ),
         (

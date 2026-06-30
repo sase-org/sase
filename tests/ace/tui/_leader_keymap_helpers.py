@@ -51,6 +51,7 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.quick_changespec_agent_count = 0
         self.quick_selected_agent_count = 0
         self.marked_agent_run_count = 0
+        self.update_sase_shortcut_count = 0
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
@@ -116,6 +117,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def _bulk_kill_marked_agents_and_edit(self) -> None:
         self.bulk_kill_and_edit_count += 1
+
+    def action_update_sase_shortcut(self) -> None:
+        self.update_sase_shortcut_count += 1
 
 
 class _FakeEntryPoints(EntryPointsMixin):

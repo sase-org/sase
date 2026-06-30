@@ -80,6 +80,7 @@ _LEADER_LABELS: dict[str, str] = {
     "agent_run_log": "Agent run log",
     "jump_to_notification": "Jump to notification",
     "temporary_llm_override": "Model overrides",
+    "update_sase": "Update sase, core, and plugins",
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
 }

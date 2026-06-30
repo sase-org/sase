@@ -129,6 +129,19 @@ def test_open_updates_panel_action_pushes_admin_center_on_updates() -> None:
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
     assert modal._active_tab == "updates"
+    assert modal._auto_update is False
+
+
+def test_update_sase_shortcut_opens_updates_with_auto_update() -> None:
+    app = _ActionApp()
+
+    app.action_update_sase_shortcut()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._active_tab == "updates"
+    assert modal._auto_update is True
 
 
 def test_open_config_center_action_uses_remembered_admin_center_tab() -> None:

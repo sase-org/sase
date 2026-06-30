@@ -209,6 +209,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,C`       | Review mentors (opens Mentor Review modal)                              |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home` |
 | `,m`       | Open model overrides (global; see [Model Overrides](#model-overrides))  |
+| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)      |
 | `,M`       | Kill running mentors                                                    |
 | `,R`       | Show runners info                                                       |
 | `,<space>` | Run agent from current PR (skips project selection)                     |
@@ -652,8 +653,8 @@ cached by raw query string so re-renders skip the parse.
 ### Leader Mode (`,` prefix)
 
 Leader mode is available on every tab. In the Agents tab it also exposes layout and notification shortcuts for the
-currently loaded agent list; global entries such as `,I` and `,m` behave the same from other tabs. Unread-completed
-actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
+currently loaded agent list; global entries such as `,I`, `,m`, and `,U` behave the same from other tabs.
+Unread-completed actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
 
 | Key        | Action                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------- |
@@ -667,6 +668,7 @@ actions operate on terminal rows that are loaded in the Agents tab; `,j` only ta
 | `,u`       | Mark all loaded unread completed agents as read                                              |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                        |
 | `,m`       | Open model overrides (global; see [Model Overrides](#model-overrides))                       |
+| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                           |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation            |
 | `,r`       | Revert focused or marked agent commits, including recorded suffix-strategy linked repos      |
@@ -822,6 +824,7 @@ numerical identity.
 | `,,` | Repeat the last leader command                                          |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home` |
 | `,m` | Open model overrides (global; see [Model Overrides](#model-overrides))  |
+| `,U` | Update sase, core, and plugins (opens Updates confirmation prompt)      |
 | `,R` | Show runners info                                                       |
 
 ### Bang Mode (`!` prefix)

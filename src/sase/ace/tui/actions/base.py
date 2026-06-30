@@ -140,6 +140,10 @@ class BaseActionsMixin:
         """Open the SASE Admin Center on the Updates tab."""
         self._open_config_center("updates")
 
+    def action_update_sase_shortcut(self) -> None:
+        """Open Updates and prompt for the comprehensive SASE update."""
+        self._open_config_center("updates", auto_update=True)
+
     def action_show_diff(self) -> None:
         """Show diff for the current ChangeSpec."""
         if not self.changespecs:
@@ -521,12 +525,14 @@ class BaseActionsMixin:
         initial_tab: Any = getattr(self, "_admin_center_tab", "config")
         self._open_config_center(initial_tab)
 
-    def _open_config_center(self, initial_tab: Any) -> None:
+    def _open_config_center(
+        self, initial_tab: Any, *, auto_update: bool = False
+    ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals import ConfigCenterModal
 
         self.push_screen(  # type: ignore[attr-defined]
-            ConfigCenterModal(initial_tab=initial_tab),
+            ConfigCenterModal(initial_tab=initial_tab, auto_update=auto_update),
             self._on_config_center_dismissed,
         )
 
