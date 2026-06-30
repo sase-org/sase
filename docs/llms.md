@@ -20,7 +20,7 @@ plugins) behind a shared orchestration layer that handles preprocessing, invocat
 - [Reasoning Effort](#reasoning-effort)
 - [Model Tier System](#model-tier-system)
 - [Role Aliases for Delegated Work](#role-aliases-for-delegated-work)
-- [Temporary Default Override](#temporary-default-override)
+- [Temporary Model Overrides](#temporary-model-overrides)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 - [Retry and Fallback](#retry-and-fallback)
@@ -791,18 +791,20 @@ choices, and per-bead/land model metadata always win over the role-alias default
 > The previous `llm_provider.worker_models` map and the `~/.sase/llm_worker_override.json` worker temporary override
 > were removed in epic sase-5d. See the [migration note](#implicit-role-aliases) above.
 
-## Temporary Default Override
+## Temporary Model Overrides
 
-In addition to the tier-based global override, sase supports a **concrete** provider/model override that acts as a
-temporary session-level default. The ACE `,m` chord opens the Model Overrides panel for setting, changing, and clearing
-this override (see [docs/ace.md](ace.md#model-overrides) for the TUI flow).
+In addition to the tier-based global override, sase supports **concrete** provider/model overrides that act as
+temporary, time-bound overrides of a model alias. The ACE `,m` chord opens the [**Models** panel](ace.md#models-panel)
+for setting, changing, and clearing these overrides — for the `default` alias or any role/user alias.
 
-The temporary override only changes the _default_ provider/model selection for new agent launches. It does **not**
-override:
+Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
+for new agent launches; an override on any other alias takes effect wherever that alias is resolved (e.g. `@coder`,
+`@phase_worker`). No override ever changes:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
 - Explicit `%model` prompt directives — they still take precedence.
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
+- An explicit `@default` reference — it always resolves to the configured default and ignores the `default` override.
 
 `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for tier-based launches. A concrete
 temporary override supplies a provider and model directly, so it is used only when no explicit model/provider was
@@ -812,9 +814,14 @@ requested.
 
 When no `%model` directive and no explicit `provider_name` are present, the default is resolved as:
 
-1. **Active primary temporary override** at `~/.sase/llm_override.json` (if not expired).
+1. **Active `default` temporary override** at `~/.sase/llm_override.json` (if not expired).
 2. `llm_provider.provider` from the merged `sase.yml` config.
 3. Auto-detection by plugin-declared priority (built-ins: claude, codex, qwen, opencode, then agy).
+
+For any **non-`default`** alias, `resolve_model_alias()` consults that alias's active override _before_ its
+configured/implicit value, so an override on `@coder` / `@phase_worker` / a user alias changes what that alias resolves
+to. The `default` alias keeps the two-path behavior above, and an explicit `@default` reference is never
+short-circuited.
 
 A concrete temporary override sets both the default provider and a concrete `model_override` for the next launch — so
 the agent metadata (running marker, plan review badge, agent rows) reflects the actual model that will run, not just the
@@ -822,16 +829,25 @@ configured default.
 
 ### State File
 
+Override state is keyed by alias under a versioned envelope:
+
 ```json
 {
-  "provider": "opencode",
-  "model": "anthropic/claude-sonnet-4-5",
-  "raw_model": "opencode/anthropic/claude-sonnet-4-5",
-  "created_at": 1777470000.0,
-  "expires_at": 1777473600.0,
-  "source": "ace"
+  "version": 2,
+  "overrides": {
+    "default": {
+      "provider": "opencode",
+      "model": "anthropic/claude-sonnet-4-5",
+      "raw_model": "opencode/anthropic/claude-sonnet-4-5",
+      "created_at": 1777470000.0,
+      "expires_at": 1777473600.0,
+      "source": "ace"
+    }
+  }
 }
 ```
+
+Each entry under `overrides` has these fields:
 
 | Field        | Type            | Description                                                             |
 | ------------ | --------------- | ----------------------------------------------------------------------- |
@@ -842,8 +858,12 @@ configured default.
 | `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared". |
 | `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).           |
 
-Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning: an expired or unparseable file is
-deleted on next access, so a forgotten override never lingers past its `expires_at`, even with no TUI running.
+A legacy **v1** file (a single flat override object with top-level `provider` / `model` / ... keys) is migrated on read
+into `overrides.default`, so an override set by an older build keeps working after upgrade.
+
+Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning: expired or unparseable entries are
+pruned and the file is deleted once no override remains, so a forgotten override never lingers past its `expires_at`,
+even with no TUI running.
 
 ### Model Resolution
 
@@ -861,25 +881,31 @@ persists until the user clears it from the TUI or another sase process clears th
 
 ### Public API
 
-The override primitives live in `src/sase/llm_provider/temporary_override.py`:
+The override primitives live in `src/sase/llm_provider/temporary_override.py`. The alias-keyed functions are the primary
+API; the `*_temporary_override` wrappers are back-compat shims that operate on the `default` alias:
 
-| Function                                     | Purpose                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------ |
-| `get_active_temporary_override(now=None)`    | Read the active override (auto-deletes expired/malformed files).               |
-| `set_temporary_override(raw, dur, source=)`  | Write a new override, replacing any existing one.                              |
-| `clear_temporary_override()`                 | Remove the override file. Safe to call when nothing is active.                 |
-| `parse_override_duration(value)`             | Parse a user-facing duration string into seconds (or `None`).                  |
-| `resolve_effective_default_provider_model()` | Resolve the default launch target: active override, else the `@default` alias. |
+| Function                                       | Purpose                                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| `get_active_alias_overrides(now=None)`         | Read every active override, keyed by alias (auto-prunes expired/malformed).    |
+| `get_active_alias_override(alias, now=None)`   | Read the active override for one alias, or `None`.                             |
+| `set_alias_override(alias, raw, dur, source=)` | Set/replace one alias's override; other aliases' overrides are preserved.      |
+| `clear_alias_override(alias)`                  | Remove one alias's override; returns whether an entry was present.             |
+| `get_active_temporary_override(now=None)`      | Back-compat wrapper: the active `default` override.                            |
+| `set_temporary_override(raw, dur, source=)`    | Back-compat wrapper: set the `default` override.                               |
+| `clear_temporary_override()`                   | Back-compat wrapper: clear the `default` override.                             |
+| `parse_override_duration(value)`               | Parse a user-facing duration string into seconds (or `None`).                  |
+| `resolve_effective_default_provider_model()`   | Resolve the default launch target: active override, else the `@default` alias. |
 
 ### Examples
 
-- ACE chord `,m`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` is written; new launches default to
-  CODEX(o3) for the next hour.
-- ACE chord `,m`, pick `opencode/anthropic/claude-sonnet-4-5`, duration `1h` → new launches default to
-  OPENCODE(anthropic/claude-sonnet-4-5).
-- ACE chord `,m`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
-- ACE chord `,m`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
-  config / autodetect.
+- Models panel (`,m`), highlight `default`, `o`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` gains a
+  `default` entry; new launches default to CODEX(o3) for the next hour.
+- Models panel, highlight `phase_worker`, `o`, pick `opencode/anthropic/claude-sonnet-4-5`, `Until cleared` →
+  `@phase_worker` resolves to OPENCODE(anthropic/claude-sonnet-4-5) until cleared.
+- Models panel, highlight `default`, `o`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude
+  via plugin metadata.
+- Models panel, highlight an alias, `x` → that alias's override is cleared; when the last override is removed the state
+  file is deleted and defaults revert to permanent config / autodetect.
 
 ## Environment Variables
 

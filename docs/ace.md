@@ -200,21 +200,21 @@ The modal supports live filtering as you type in the search box and displays las
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                                  |
-| ---------- | ----------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                          |
-| `,!`       | Run command using current PR context                                    |
-| `,A`       | Open the Agent Run Log modal for the current PR                         |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)          |
-| `,C`       | Review mentors (opens Mentor Review modal)                              |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home` |
-| `,m`       | Open model overrides (global; see [Model Overrides](#model-overrides))  |
-| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)      |
-| `,M`       | Kill running mentors                                                    |
-| `,R`       | Show runners info                                                       |
-| `,<space>` | Run agent from current PR (skips project selection)                     |
-| `,.`       | Open prompt history modal                                               |
-| `,>`       | Open prompt history modal with cancelled prompts visible                |
+| Key        | Action                                                                               |
+| ---------- | ------------------------------------------------------------------------------------ |
+| `,,`       | Repeat the last leader command                                                       |
+| `,!`       | Run command using current PR context                                                 |
+| `,A`       | Open the Agent Run Log modal for the current PR                                      |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                       |
+| `,C`       | Review mentors (opens Mentor Review modal)                                           |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`              |
+| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
+| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                   |
+| `,M`       | Kill running mentors                                                                 |
+| `,R`       | Show runners info                                                                    |
+| `,<space>` | Run agent from current PR (skips project selection)                                  |
+| `,.`       | Open prompt history modal                                                            |
+| `,>`       | Open prompt history modal with cancelled prompts visible                             |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
 project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; PR
@@ -667,7 +667,7 @@ Unread-completed actions operate on terminal rows that are loaded in the Agents 
 | `,y`       | Refresh the Agents tab from full artifact history                                            |
 | `,u`       | Mark all loaded unread completed agents as read                                              |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                        |
-| `,m`       | Open model overrides (global; see [Model Overrides](#model-overrides))                       |
+| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))         |
 | `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                           |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation            |
@@ -819,13 +819,13 @@ numerical identity.
 
 ### Leader Mode (`,` prefix)
 
-| Key  | Action                                                                  |
-| ---- | ----------------------------------------------------------------------- |
-| `,,` | Repeat the last leader command                                          |
-| `,h` | Run agent from home prompt context; bare prompts default to `#git:home` |
-| `,m` | Open model overrides (global; see [Model Overrides](#model-overrides))  |
-| `,U` | Update sase, core, and plugins (opens Updates confirmation prompt)      |
-| `,R` | Show runners info                                                       |
+| Key  | Action                                                                               |
+| ---- | ------------------------------------------------------------------------------------ |
+| `,,` | Repeat the last leader command                                                       |
+| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`              |
+| `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
+| `,U` | Update sase, core, and plugins (opens Updates confirmation prompt)                   |
+| `,R` | Show runners info                                                                    |
 
 ### Bang Mode (`!` prefix)
 
@@ -987,40 +987,73 @@ entire SASE project directory: ProjectSpecs, project-local config, artifacts, an
 `~/.sase/projects/<project>/`. Deletion is refused while the project still has `RUNNING` claims or live artifact
 markers. It does not delete workspace checkouts, and system-managed projects such as `home` are excluded from the panel.
 
-## Model Overrides
+## Models Panel
 
-Press `,m` from any tab to open the **Model Override** modal. It manages a temporary default provider/model override for
-new agent launches without editing `~/.config/sase/sase.yml`.
+Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model
+alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`)
+and any user-defined `llm_provider.model_aliases` entry.
 
-The modal shows a single `DEFAULT` row — the model used for launches without an explicit `%model` directive — and its
-source: `default` when no override is active, or `override · <time> left` / `override · until cleared` when one is set.
-Set the override with `s`, change it with `c`, and clear it with `x`. The picker is provider-grouped and the duration
-choices are `15m`, `30m`, `1h`, `2h`, `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`.
+Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
+provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @default`, or an
+`override · <time> left` / `override · until cleared` chip when a temporary override is active. Rows are sorted
+deterministically: `default` first, then the other role aliases, then `<provider>_coder` aliases, then user-defined
+aliases alphabetically.
 
-Delegated launches (plan coder follow-ups, `sase bead work` phase/land agents, epic-creation follow-ups) no longer have
-a separate "worker" override lane. They resolve through [role aliases](llms.md#role-aliases-for-delegated-work)
-configured under `llm_provider.model_aliases`, all of which fall back to `@default`, so the temporary default override
-also moves delegated work unless a role alias pins it elsewhere.
+Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted alias:
 
-### Behavior
+| Key         | Action                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| `o`         | **Override** — set/change a time-bound temporary override (model picker → duration picker) |
+| `x`         | **Clear** — remove the temporary override on this alias                                    |
+| `e`         | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
+| `r`         | **Reset** — unset the configured value back to its implicit fallback                       |
+| `Esc` / `q` | Close the panel                                                                            |
 
-- The override applies only to default selection. Explicit prompt directives (`%model:codex/o3`,
-  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win.
-- Already-running agents keep their current provider/model. Only **new** launches use the override.
-- The override is persisted to `~/.sase/llm_override.json`. All sase processes on the same machine see that file. Reads
-  are best-effort self-cleaning: expired or malformed state files are deleted on next access.
-- `Until cleared` is a no-expiry mode — convenient, but still a _temporary_ state, not a permanent config edit.
-- The temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`. A concrete temporary model override takes the
-  full provider/model path; the tier override only applies when no concrete override is active.
+### Temporary overrides
+
+`Override` reuses the shared, provider-grouped model picker and the duration picker (`15m`, `30m`, `1h`, `2h`, `4h`,
+`Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`). Overrides are per-alias and independent:
+
+- An override on **`default`** drives the no-`%model` launch default and renders in the existing gold top-bar pill — its
+  behavior is unchanged.
+- An override on **any other alias** takes effect wherever that alias is resolved (e.g. `@coder`, `@phase_worker`), and
+  is surfaced by a distinct, concise violet top-bar pill summarizing how many non-default overrides are active.
+
+Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
+`%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win, already-running
+agents keep their current provider/model, and an explicit `@default` reference always resolves to the configured default
+(ignoring the `default` override). Override state is persisted to `~/.sase/llm_override.json` — shared across all sase
+processes on the machine — and is best-effort self-cleaning: expired or malformed entries are pruned on next read.
+`Until cleared` is a no-expiry mode — convenient, but still a _temporary_ state, not a permanent config edit. The
+temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete override takes the full provider/model path,
+while the tier override only applies when no concrete override is active.
+
+Delegated launches (plan coder follow-ups, `sase bead work` phase/land agents, epic-creation follow-ups) resolve through
+[role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases`, all of which fall
+back to `@default`, so a `default` override also moves delegated work unless a role alias pins it elsewhere.
+
+### Persistent edits
+
+`Edit` and `Reset` change the alias's value in `sase.yml` itself, written through the Rust-backed, source-preserving
+config-edit path (comments and key order are preserved). The change is shown in a preview/confirm step before it is
+written, and after a successful write the panel offers to **commit and push** it (`y`/`n`). With `use_chezmoi: true` the
+edit targets the chezmoi source and the commit/push runs against the chezmoi repo followed by `chezmoi apply`; when the
+target file is not in a git repo the commit offer is skipped and the file is simply written. An active temporary
+override visually "wins" the effective-target column even after a persistent edit; the state tag distinguishes the
+_configured_ value from the _currently effective (overridden)_ one.
 
 ### Examples
 
-- `codex/o3` for `1h` — switch to Codex `o3` for the next hour, then revert to the configured default.
-- `opencode/anthropic/claude-sonnet-4-5` for `1h` — switch to an OpenCode provider/model pair.
-- `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
-- `Until cleared` — leave the override active across sessions; clear it later from the same `,m` modal.
+- Highlight `default`, `o`, pick `codex/o3`, duration `1h` — default launches use Codex `o3` for the next hour, then
+  revert to the configured default.
+- Highlight `phase_worker`, `o`, pick `claude/opus`, `Until cleared` — `@phase_worker` resolves to CLAUDE(opus) until
+  you clear it; the violet non-default pill appears in the top bar.
+- Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured
+  `llm_provider.model_aliases.coder` value is updated and committed (and pushed / `chezmoi apply`-ed when `use_chezmoi`
+  is set).
+- Highlight an alias, `x` — clear its temporary override; `r` — unset its configured value back to `@default`.
 
-See [docs/llms.md](llms.md#temporary-default-override) for the resolution order and state-file format.
+See [docs/llms.md](llms.md#temporary-model-overrides) for the resolution order and state-file format.
 
 ## Notifications Modal
 

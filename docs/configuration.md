@@ -212,7 +212,7 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
-          temporary_llm_override: "m"
+          models_panel: "m"
           update_sase: "U"
           full_history_refresh: "y"
       fold_mode:
@@ -387,9 +387,10 @@ configuring an alias of the same name. See [Implicit role aliases](llms.md#impli
 > the role aliases above (`@coder` / `@phase_worker`) or an explicit model instead of `@worker`, and `@default` instead
 > of `@other`. `sase doctor` reports configs that still reference the removed keys or aliases.
 
-The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. It is
-persisted to `~/.sase/llm_override.json` and expired entries are deleted on next read. See
-[docs/llms.md](llms.md#temporary-default-override) for the resolution order, state-file format, and precedence relative
+The TUI also supports **temporary**, per-alias session-level provider/model overrides (set from the
+[Models panel](ace.md#models-panel), `,m`) that do **not** edit this config. They are persisted to
+`~/.sase/llm_override.json` and expired entries are deleted on next read. See
+[docs/llms.md](llms.md#temporary-model-overrides) for the resolution order, state-file format, and precedence relative
 to `SASE_MODEL_TIER_OVERRIDE`.
 
 #### `llm_provider.retry`
@@ -1350,7 +1351,7 @@ used by `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
 ACE exposes the same lifecycle mutations through the **Projects** tab of the SASE Admin Center (press `#`). That tab
 also supports marks for bulk lifecycle operations, alias editing with `A`, an active-filter inactive-row overlay with
 `Ctrl+X`, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project directories under
-`~/.sase/projects/` without deleting workspace checkouts. The temporary model override uses `,m` by default.
+`~/.sase/projects/` without deleting workspace checkouts. The Models panel uses `,m` by default.
 
 ### `sase revert`
 
