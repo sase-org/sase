@@ -34,7 +34,7 @@ async def test_agents_onboarding_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 0)
         await wait_for_visual_idle(page)

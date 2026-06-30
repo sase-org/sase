@@ -111,6 +111,12 @@ def test_tab_bar_changespec_tab_label_is_prs() -> None:
     assert " CLs " not in plain
 
 
+def test_tab_bar_label_order_is_agents_prs_axe() -> None:
+    tab_bar = TabBar()
+    plain = tab_bar._build_content().plain
+    assert plain.index("Agents") < plain.index("PRs") < plain.index("AXE")
+
+
 def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:
     """No fold indicator when all sections are collapsed (default)."""
     panel = ChangeSpecInfoPanel()
@@ -422,13 +428,13 @@ async def test_tab_bar_integration_tab_key() -> None:
             # Initial state - changespecs tab
             await page.expect_state("tab", "changespecs")
 
+            # Press TAB to switch to axe (PRs -> AXE in the new order)
+            await page.press("tab")
+            await page.expect_state("tab", "axe")
+
             # Press TAB to switch to agents
             await page.press("tab")
             await page.expect_state("tab", "agents")
-
-            # Press TAB to switch to axe
-            await page.press("tab")
-            await page.expect_state("tab", "axe")
 
             # Press TAB to cycle back to changespecs
             await page.press("tab")

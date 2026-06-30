@@ -38,7 +38,7 @@ async def test_agent_list_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
@@ -61,7 +61,7 @@ async def test_agent_reverted_indicator_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
@@ -83,7 +83,7 @@ async def test_agent_stopped_status_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
@@ -146,7 +146,7 @@ async def test_agent_plan_handoff_status_colors_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
@@ -174,7 +174,7 @@ async def test_agents_selected_row_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         initial_idx = page.app.current_idx

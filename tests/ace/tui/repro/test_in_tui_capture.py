@@ -58,7 +58,8 @@ async def test_leader_capture_action_writes_valid_bundle(tmp_path: Path) -> None
         return_value=_empty_load_result(),
     ):
         async with AcePage() as page:
-            await page.press("tab")
+            # Agents-first order: Shift+Tab moves PRs -> Agents.
+            await page.press("shift+tab")
             page.app._agents_repro_output_dir = str(tmp_path)
 
             leader = page.app._keymap_registry.leader_mode

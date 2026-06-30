@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from textual.containers import VerticalScroll
 
+from ...tab_order import TabName, adjacent_tab
 from ._types import NavigationMixinBase
 
 
@@ -351,37 +352,34 @@ class BasicNavigationMixin(NavigationMixinBase):
             return key_idx
         return min(self._axe_last_idx, len(self._axe_items) - 1)  # type: ignore[attr-defined]
 
+    def _clamped_idx_for_tab(self, tab: TabName) -> int:
+        """Return the restored selection index for ``tab``."""
+        if tab == "changespecs":
+            return self._get_clamped_changespecs_idx()
+        if tab == "agents":
+            return self._get_clamped_agents_idx()
+        return self._get_clamped_axe_idx()
+
+    def _switch_to_tab(self, tab: TabName) -> None:
+        """Activate ``tab`` and restore its last selection index."""
+        self.current_tab = tab
+        self.current_idx = self._clamped_idx_for_tab(tab)
+
     def action_next_tab(self) -> None:
-        """Switch to the next tab (cycling: CLs -> Agents -> Axe -> CLs)."""
+        """Switch to the next tab (cycling: Agents -> CLs -> Axe -> Agents)."""
         self._record_user_activity()  # type: ignore[attr-defined]
         if self.current_tab == "agents":
             focus_artifact = getattr(self, "_focus_tracked_artifact_tmux_pane", None)
             if callable(focus_artifact) and focus_artifact():
                 return
         self._save_current_tab_position()
-        if self.current_tab == "changespecs":
-            self.current_tab = "agents"  # type: ignore[assignment]
-            self.current_idx = self._get_clamped_agents_idx()
-        elif self.current_tab == "agents":
-            self.current_tab = "axe"  # type: ignore[assignment]
-            self.current_idx = self._get_clamped_axe_idx()
-        else:  # axe
-            self.current_tab = "changespecs"  # type: ignore[assignment]
-            self.current_idx = self._get_clamped_changespecs_idx()
+        self._switch_to_tab(adjacent_tab(self.current_tab, 1))
 
     def action_prev_tab(self) -> None:
-        """Switch to the previous tab (cycling: CLs <- Agents <- Axe <- CLs)."""
+        """Switch to the previous tab (cycling: Agents <- CLs <- Axe <- Agents)."""
         self._record_user_activity()  # type: ignore[attr-defined]
         self._save_current_tab_position()
-        if self.current_tab == "changespecs":
-            self.current_tab = "axe"  # type: ignore[assignment]
-            self.current_idx = self._get_clamped_axe_idx()
-        elif self.current_tab == "agents":
-            self.current_tab = "changespecs"  # type: ignore[assignment]
-            self.current_idx = self._get_clamped_changespecs_idx()
-        else:  # axe
-            self.current_tab = "agents"  # type: ignore[assignment]
-            self.current_idx = self._get_clamped_agents_idx()
+        self._switch_to_tab(adjacent_tab(self.current_tab, -1))
 
     def _save_current_tab_position(self) -> None:
         """Save the current position before switching tabs.

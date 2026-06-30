@@ -261,7 +261,7 @@ async def test_agents_tools_panel_populated_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         # Wait for the debounced detail panel update so AgentDetail._current_agent

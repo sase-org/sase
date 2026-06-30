@@ -520,9 +520,7 @@ async def test_palette_context_uses_current_tab_badge() -> None:
             query="test_feature",
             changespecs=[make_changespec()],
         ) as page:
-            # Tab to agents, then to axe.
-            await page.press("tab")
-            await page.expect_state("tab", "agents")
+            # Tab to axe (Agents-first order: PRs -> AXE).
             await page.press("tab")
             await page.expect_state("tab", "axe")
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 08:55:46
-status: wip
+status: done
 prompt: sdd/prompts/202606/agents_first_tab_1.md
 ---
 # Agents First Tab Plan

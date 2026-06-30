@@ -1,6 +1,6 @@
 """Tab bar widget for switching between views."""
 
-from typing import Any, Literal
+from typing import Any
 
 from rich.text import Text
 from textual.events import Click
@@ -8,8 +8,7 @@ from textual.message import Message
 from textual.widgets import Static
 
 from ..keymaps import KeymapRegistry, load_keymap_registry
-
-TabName = Literal["changespecs", "agents", "axe"]
+from ..tab_order import TAB_ORDER, TabName
 
 _TAB_COLORS: dict[TabName, str] = {
     "changespecs": "#00D7AF",
@@ -17,10 +16,16 @@ _TAB_COLORS: dict[TabName, str] = {
     "axe": "#FF5F5F",
 }
 
+_TAB_DISPLAY_NAMES: dict[TabName, str] = {
+    "changespecs": "PRs",
+    "agents": "Agents",
+    "axe": "AXE",
+}
+
+# Rendered left-to-right in TAB_ORDER so the visible labels track the
+# shared tab order used by keyboard cycling.
 _TAB_LABELS: list[tuple[TabName, str]] = [
-    ("changespecs", "PRs"),
-    ("agents", "Agents"),
-    ("axe", "AXE"),
+    (tab, _TAB_DISPLAY_NAMES[tab]) for tab in TAB_ORDER
 ]
 
 
@@ -36,12 +41,10 @@ class TabBar(Static):
 
     def __init__(self, **kwargs: Any) -> None:
         self._registry = load_keymap_registry({})
-        self._current_tab: TabName = "changespecs"
-        self._tab_ranges: dict[TabName, tuple[int, int]] = {
-            "changespecs": (0, 0),
-            "agents": (0, 0),
-            "axe": (0, 0),
-        }
+        self._current_tab: TabName = TAB_ORDER[0]
+        self._tab_ranges: dict[TabName, tuple[int, int]] = dict.fromkeys(
+            TAB_ORDER, (0, 0)
+        )
         super().__init__(self._build_content(), **kwargs)
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:

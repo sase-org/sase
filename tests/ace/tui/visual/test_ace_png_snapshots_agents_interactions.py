@@ -85,7 +85,7 @@ async def test_agents_unread_highlight_png_snapshot(
         identities = {agent.identity for agent in done}
         page.app._unread_completed_agent_ids = set(identities)
         page.app._manual_unread_agent_ids = set(identities)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         page.app._update_agents_info_panel()
@@ -111,7 +111,7 @@ async def test_agents_neighbor_badge_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
@@ -137,7 +137,7 @@ async def test_agent_neighbor_modal_narrow_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(60, 30)
     ) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         page.app.action_start_sibling_mode()
@@ -200,7 +200,7 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(60, 30)
     ) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 2)
         page.app._dismissed_agent_objects = [dismissed]
@@ -303,7 +303,7 @@ async def test_agents_auto_approve_icons_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
@@ -329,7 +329,7 @@ async def test_agents_auto_approve_metadata_png_snapshots(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
@@ -398,7 +398,7 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
@@ -432,7 +432,7 @@ async def test_auto_approve_modal_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(60, 30)
     ) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
@@ -468,7 +468,7 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(100, 28)
     ) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
@@ -505,7 +505,7 @@ async def test_wait_modal_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(100, 32)
     ) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)

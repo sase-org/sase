@@ -51,15 +51,56 @@ def test_next_tab_switches_from_agents_when_no_live_artifact_pane() -> None:
 
     app.action_next_tab()
 
-    assert app.current_tab == "axe"
+    assert app.current_tab == "changespecs"
     assert app.focus_calls == 1
     assert app.activity_calls == 1
 
 
-def test_next_tab_keeps_normal_behavior_on_non_agents_tabs() -> None:
+def test_next_tab_changespecs_moves_to_axe() -> None:
     app = _TabNavigationApp(current_tab="changespecs", focus_result=True)
 
     app.action_next_tab()
+
+    assert app.current_tab == "axe"
+    assert app.focus_calls == 0
+    assert app.activity_calls == 1
+
+
+def test_next_tab_axe_cycles_back_to_agents() -> None:
+    app = _TabNavigationApp(current_tab="axe", focus_result=True)
+
+    app.action_next_tab()
+
+    assert app.current_tab == "agents"
+    assert app.focus_calls == 0
+    assert app.activity_calls == 1
+
+
+def test_prev_tab_from_agents_goes_to_axe() -> None:
+    app = _TabNavigationApp(current_tab="agents", focus_result=True)
+
+    app.action_prev_tab()
+
+    assert app.current_tab == "axe"
+    # prev_tab never consults the artifact pane, even on the agents tab.
+    assert app.focus_calls == 0
+    assert app.activity_calls == 1
+
+
+def test_prev_tab_from_axe_goes_to_changespecs() -> None:
+    app = _TabNavigationApp(current_tab="axe", focus_result=True)
+
+    app.action_prev_tab()
+
+    assert app.current_tab == "changespecs"
+    assert app.focus_calls == 0
+    assert app.activity_calls == 1
+
+
+def test_prev_tab_from_changespecs_cycles_back_to_agents() -> None:
+    app = _TabNavigationApp(current_tab="changespecs", focus_result=True)
+
+    app.action_prev_tab()
 
     assert app.current_tab == "agents"
     assert app.focus_calls == 0

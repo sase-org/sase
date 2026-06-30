@@ -152,7 +152,7 @@ async def test_agents_onboarding_visible_after_empty_load_tab_switch(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 0)
 
@@ -280,7 +280,7 @@ async def test_agents_onboarding_hidden_when_agents_exist(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
 
@@ -324,7 +324,7 @@ async def test_agents_onboarding_hides_after_first_agent_arrives(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
 

@@ -68,7 +68,6 @@ async def test_axe_selected_row_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await page.press("tab")
-        await page.press("tab")
         await page.expect_state("tab", "axe")
         await page.press("j")
         await wait_for_visual_idle(page)
@@ -217,7 +216,6 @@ async def test_axe_lumberjack_tree_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await page.press("tab")
-        await page.press("tab")
         await page.expect_state("tab", "axe")
         await wait_for_visual_idle(page)
 
@@ -237,7 +235,6 @@ async def test_axe_empty_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
         await wait_for_visual_idle(page)
@@ -261,7 +258,6 @@ async def test_axe_chop_run_info_panel_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
         # Items are: [hooks LJ, hooks/fast_lint chop, hooks/slow_typecheck chop,
@@ -355,7 +351,6 @@ async def test_axe_lumberjack_error_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await page.press("tab")
-        await page.press("tab")
         await page.expect_state("tab", "axe")
         await wait_for_visual_idle(page)
 
@@ -431,7 +426,6 @@ async def test_axe_chop_run_info_panel_running_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
         # Items: [hooks LJ, hooks/slow_typecheck chop]. j lands on the chop.
@@ -525,7 +519,6 @@ async def test_axe_long_label_widening_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
 
@@ -621,7 +614,6 @@ async def test_axe_controlled_chop_output_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await page.press("tab")
-        await page.press("tab")
         await page.expect_state("tab", "axe")
         # Items: [hooks LJ, hooks/agent_review chop]. One j press lands on the chop.
         await page.press("j")
@@ -656,7 +648,6 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
         query='"visual"', changespecs=changespecs(), size=(60, 30)
     ) as page:
         await wait_for_startup(page)
-        await page.press("tab")
         await page.press("tab")
         await page.expect_state("tab", "axe")
         await page.expect_screen_not_contains("IDLE")

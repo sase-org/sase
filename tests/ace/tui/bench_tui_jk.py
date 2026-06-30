@@ -164,9 +164,9 @@ async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
     app = AceApp(query="!!!", auto_start_axe=False)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("ctrl+l")  # next_tab → agents
+        await pilot.press("ctrl+l")  # next_tab: agents → changespecs
         await pilot.pause()
-        await pilot.press("ctrl+l")  # next_tab → axe
+        await pilot.press("ctrl+l")  # next_tab: changespecs → axe
         await pilot.pause()
         for _ in range(_KEYS_PER_SCENARIO):
             await pilot.press("j")

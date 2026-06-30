@@ -27,7 +27,7 @@ async def test_colon_opens_command_palette_from_agents_tab() -> None:
             query="test_feature",
             changespecs=[make_changespec()],
         ) as page:
-            await page.press("tab")
+            await page.press("shift+tab")
             await page.expect_state("tab", "agents")
 
             await page.press("colon")
@@ -50,8 +50,6 @@ async def test_colon_opens_command_palette_from_axe_tab() -> None:
             changespecs=[make_changespec()],
         ) as page:
             await page.press("tab")
-            await page.expect_state("tab", "agents")
-            await page.press("tab")
             await page.expect_state("tab", "axe")
 
             await page.press("colon")
@@ -73,7 +71,7 @@ async def test_semicolon_opens_command_palette_from_agents_and_axe_tabs() -> Non
             query="test_feature",
             changespecs=[make_changespec()],
         ) as page:
-            await page.press("tab")
+            await page.press("shift+tab")
             await page.expect_state("tab", "agents")
 
             await page.press("semicolon")
@@ -84,7 +82,7 @@ async def test_semicolon_opens_command_palette_from_agents_and_axe_tabs() -> Non
             await page.press("escape")
             await page.expect_no_modal()
 
-            await page.press("tab")
+            await page.press("shift+tab")
             await page.expect_state("tab", "axe")
 
             await page.press("semicolon")
@@ -105,7 +103,7 @@ async def test_palette_executes_refresh_from_agents_tab() -> None:
             query="test_feature",
             changespecs=[make_changespec()],
         ) as page:
-            await page.press("tab")
+            await page.press("shift+tab")
             await page.expect_state("tab", "agents")
 
             await page.press("colon")
@@ -130,7 +128,6 @@ async def test_palette_executes_refresh_from_axe_tab() -> None:
             changespecs=[make_changespec()],
         ) as page:
             await page.press("tab")
-            await page.press("tab")
             await page.expect_state("tab", "axe")
 
             await page.press("colon")
@@ -153,7 +150,8 @@ async def test_palette_escape_dismisses_from_each_tab() -> None:
             query="test_feature",
             changespecs=[make_changespec()],
         ) as page:
-            for expected_tab in ("changespecs", "agents", "axe"):
+            # Agents-first order: pressing Tab cycles PRs -> AXE -> Agents.
+            for expected_tab in ("changespecs", "axe", "agents"):
                 if expected_tab != "changespecs":
                     await page.press("tab")
                 await page.expect_state("tab", expected_tab)

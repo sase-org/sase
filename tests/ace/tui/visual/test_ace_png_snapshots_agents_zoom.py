@@ -224,7 +224,7 @@ async def test_agents_file_zoom_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
@@ -256,7 +256,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
@@ -293,7 +293,7 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
@@ -322,7 +322,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
 
     async with AcePage(query='"wait-unknown"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        await page.press("tab")
+        await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
