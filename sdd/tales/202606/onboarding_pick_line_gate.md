@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 07:21:12
-status: wip
+status: done
 prompt: sdd/prompts/202606/onboarding_pick_line_gate.md
 ---
 # Plan: Gate the onboarding "pick a project or CL first" line on having launch targets

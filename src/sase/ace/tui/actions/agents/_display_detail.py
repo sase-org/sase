@@ -8,6 +8,7 @@ the bottom-bar info panel update.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -47,6 +48,10 @@ class DetailMixin:
     _current_group_key: tuple[str, ...] | None
     _countdown_remaining: int
     _agent_info_metrics_cache: tuple[Any, ...] | None
+    _agents_onboarding_launch_targets_available: bool
+    _agents_onboarding_launch_targets_refresh_scheduled: bool
+    _agents_onboarding_launch_targets_refresh_running: bool
+    _agents_onboarding_launch_targets_refresh_pending: bool
 
     def _apply_agent_detail_immediate(self) -> None:
         """Update the agent detail prompt header without spawning workers."""
@@ -155,6 +160,74 @@ class DetailMixin:
         else:
             agents_view.remove_class("-onboarding-active")
 
+    def _schedule_agents_onboarding_launch_targets_refresh(self) -> None:
+        """Queue a coalesced off-thread refresh of launch-target availability."""
+        if getattr(
+            self,
+            "_agents_onboarding_launch_targets_refresh_running",
+            False,
+        ):
+            self._agents_onboarding_launch_targets_refresh_pending = True
+            return
+        if getattr(
+            self,
+            "_agents_onboarding_launch_targets_refresh_scheduled",
+            False,
+        ):
+            return
+        call_later = getattr(self, "call_later", None)
+        if not callable(call_later):
+            return
+        self._agents_onboarding_launch_targets_refresh_scheduled = True
+        call_later(self._run_agents_onboarding_launch_targets_refresh)
+
+    async def _run_agents_onboarding_launch_targets_refresh(self) -> None:
+        """Compute launch-target availability off-thread and update the card."""
+        self._agents_onboarding_launch_targets_refresh_scheduled = False
+        self._agents_onboarding_launch_targets_refresh_running = True
+        try:
+            from ._onboarding_launch_targets import (
+                discover_agents_onboarding_launch_targets_available,
+            )
+
+            available = await asyncio.to_thread(
+                discover_agents_onboarding_launch_targets_available
+            )
+            self._apply_agents_onboarding_launch_targets_available(available)
+        except Exception:
+            log.exception("Agents onboarding launch-target refresh failed")
+        finally:
+            self._agents_onboarding_launch_targets_refresh_running = False
+            if self._agents_onboarding_launch_targets_refresh_pending:
+                self._agents_onboarding_launch_targets_refresh_pending = False
+                self._schedule_agents_onboarding_launch_targets_refresh()
+
+    def _apply_agents_onboarding_launch_targets_available(
+        self, available: bool
+    ) -> None:
+        """Store and, if visible, apply launch-target availability to the card."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentOnboarding
+
+        changed = (
+            getattr(
+                self,
+                "_agents_onboarding_launch_targets_available",
+                False,
+            )
+            != available
+        )
+        self._agents_onboarding_launch_targets_available = available
+        if not changed or not self._should_show_agents_onboarding():
+            return
+
+        try:
+            onboarding = self.query_one("#agent-onboarding-panel", AgentOnboarding)  # type: ignore[attr-defined]
+        except (NoMatches, LookupError):
+            return
+        onboarding.set_launch_targets_available(available)
+
     def _sync_agents_onboarding(
         self,
         *,
@@ -192,10 +265,19 @@ class DetailMixin:
             return False
 
         registry = getattr(self, "_keymap_registry", None)
+        onboarding.set_launch_targets_available(
+            getattr(
+                self,
+                "_agents_onboarding_launch_targets_available",
+                False,
+            ),
+            refresh=False,
+        )
         if registry is not None:
             onboarding.set_keymap_registry(registry)
         else:
             onboarding.refresh_content()
+        self._schedule_agents_onboarding_launch_targets_refresh()
         if footer_widget is not None:
             self._apply_agent_footer_update(agent_detail, footer_widget, None)
         return True

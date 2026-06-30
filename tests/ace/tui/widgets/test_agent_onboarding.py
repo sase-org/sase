@@ -33,3 +33,29 @@ def test_agent_onboarding_uses_active_keymap_registry() -> None:
 
     assert "f1" in help_text
     assert "?" not in help_text
+
+
+def test_launch_card_includes_project_cl_hint_when_targets_exist() -> None:
+    widget = AgentOnboarding()
+    sections = widget.render_content(
+        load_keymap_registry({}),
+        launch_targets_available=True,
+    )
+    launch_text = _section_plain(sections, "#agent-onboarding-launch")
+
+    assert "open the prompt bar in your home workspace." in launch_text
+    assert "pick a project or CL first." in launch_text
+    assert "Works from any tab; shell: sase ace." in launch_text
+
+
+def test_launch_card_omits_project_cl_hint_without_targets() -> None:
+    widget = AgentOnboarding()
+    sections = widget.render_content(
+        load_keymap_registry({}),
+        launch_targets_available=False,
+    )
+    launch_text = _section_plain(sections, "#agent-onboarding-launch")
+
+    assert "open the prompt bar in your home workspace." in launch_text
+    assert "pick a project or CL first." not in launch_text
+    assert "Works from any tab; shell: sase ace." in launch_text

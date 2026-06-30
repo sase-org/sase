@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents import _onboarding_launch_targets
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
@@ -25,6 +26,11 @@ async def test_agents_onboarding_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
+    monkeypatch.setattr(
+        _onboarding_launch_targets,
+        "discover_agents_onboarding_launch_targets_available",
+        lambda: False,
+    )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
@@ -35,6 +41,7 @@ async def test_agents_onboarding_png_snapshot(
 
         assert_page_svg_contains(page, "Welcome to sase ace")
         assert_page_svg_contains(page, "https://sase.sh")
+        assert "pick a project or CL first." not in page.screen
         ace_png_visual.assert_page_png(
             page,
             "agents_onboarding_120x40",

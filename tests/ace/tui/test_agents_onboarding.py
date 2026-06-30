@@ -8,6 +8,7 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents import _onboarding_launch_targets
 from sase.ace.tui.actions.agents._display_detail import DetailMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -34,6 +35,20 @@ def _assert_agents_onboarding_layout(page: AcePage, *, active: bool) -> None:
     assert agents_view.has_class("-onboarding-active") is active
     assert list_container.display is expected_chrome_display
     assert info_panel.display is expected_chrome_display
+
+
+async def _wait_for_onboarding_launch_target_refresh(
+    page: AcePage,
+    calls: list[bool],
+) -> None:
+    await page.wait_for(
+        lambda _state: (
+            bool(calls)
+            and not page.app._agents_onboarding_launch_targets_refresh_scheduled
+            and not page.app._agents_onboarding_launch_targets_refresh_running
+        )
+    )
+    await page.pause()
 
 
 def _onboarding_agent() -> Agent:
@@ -169,6 +184,70 @@ async def test_agents_onboarding_visible_after_empty_load_direct_agents_tab(
         assert detail.has_class("hidden")
         _assert_agents_onboarding_layout(page, active=True)
         assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
+
+
+async def test_agents_onboarding_project_cl_hint_visible_when_targets_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[bool] = []
+
+    def _has_launch_targets() -> bool:
+        calls.append(True)
+        return True
+
+    patch_startup_loaders(monkeypatch, agents=[])
+    monkeypatch.setattr(
+        _onboarding_launch_targets,
+        "discover_agents_onboarding_launch_targets_available",
+        _has_launch_targets,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 0)
+        await _wait_for_onboarding_launch_target_refresh(page, calls)
+
+        plain = _mounted_onboarding_plain(page)
+        assert "Welcome to sase ace" in plain
+        assert "pick a project or CL first." in plain
+
+
+async def test_agents_onboarding_project_cl_hint_hidden_without_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[bool] = []
+
+    def _has_launch_targets() -> bool:
+        calls.append(True)
+        return False
+
+    patch_startup_loaders(monkeypatch, agents=[])
+    monkeypatch.setattr(
+        _onboarding_launch_targets,
+        "discover_agents_onboarding_launch_targets_available",
+        _has_launch_targets,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 0)
+        await _wait_for_onboarding_launch_target_refresh(page, calls)
+
+        plain = _mounted_onboarding_plain(page)
+        assert "Welcome to sase ace" in plain
+        assert "open the prompt bar in your home workspace." in plain
+        assert "Works from any tab; shell: sase ace." in plain
+        assert "pick a project or CL first." not in plain
 
 
 async def test_agents_onboarding_visible_for_hidden_only_workflow(

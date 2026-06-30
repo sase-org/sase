@@ -90,6 +90,10 @@ class StateInitMixin:
         # in the TUI's agents and axe surfaces.
         self._agents_first_load_done = False
         self._axe_first_load_done = False
+        self._agents_onboarding_launch_targets_available = False
+        self._agents_onboarding_launch_targets_refresh_scheduled = False
+        self._agents_onboarding_launch_targets_refresh_running = False
+        self._agents_onboarding_launch_targets_refresh_pending = False
         self._update_toast_shown = False
         # Deferred live-workspace pencil-hint scan coalescing. The expensive
         # per-agent live VCS diff is computed in a background worker after the

@@ -31,6 +31,7 @@ class AgentOnboarding(VerticalScroll):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._registry: KeymapRegistry = load_keymap_registry({})
+        self._launch_targets_available = False
 
     def compose(self) -> ComposeResult:
         """Compose the fixed onboarding sections."""
@@ -41,7 +42,10 @@ class AgentOnboarding(VerticalScroll):
         )
 
         launch = Static(
-            self._build_launch_card(self._registry),
+            self._build_launch_card(
+                self._registry,
+                launch_targets_available=self._launch_targets_available,
+            ),
             id="agent-onboarding-launch",
             classes="agent-onboarding-card",
         )
@@ -79,6 +83,26 @@ class AgentOnboarding(VerticalScroll):
         self._registry = registry
         self.refresh_content()
 
+    def set_launch_targets_available(
+        self, available: bool, *, refresh: bool = True
+    ) -> None:
+        """Control whether the project/CL launch-target hint is rendered."""
+        changed = self._launch_targets_available != available
+        self._launch_targets_available = available
+        if changed and refresh:
+            self.refresh_launch_card()
+
+    def refresh_launch_card(self) -> None:
+        """Refresh only the launch card from current state."""
+        if not self.is_mounted:
+            return
+        self.query_one("#agent-onboarding-launch", Static).update(
+            self._build_launch_card(
+                self._registry,
+                launch_targets_available=self._launch_targets_available,
+            )
+        )
+
     def refresh_content(self) -> None:
         """Refresh static sections from the current keymap registry."""
         if not self.is_mounted:
@@ -87,15 +111,25 @@ class AgentOnboarding(VerticalScroll):
         for selector, content in sections.items():
             self.query_one(selector, Static).update(content)
 
-    def render_content(self, registry: KeymapRegistry) -> dict[str, Text]:
+    def render_content(
+        self,
+        registry: KeymapRegistry,
+        *,
+        launch_targets_available: bool | None = None,
+    ) -> dict[str, Text]:
         """Build all renderable sections for *registry*.
 
         Tests call this method directly to verify keybinding-driven copy
         without needing a mounted Textual app.
         """
+        if launch_targets_available is None:
+            launch_targets_available = self._launch_targets_available
         return {
             "#agent-onboarding-hero": self._build_hero(),
-            "#agent-onboarding-launch": self._build_launch_card(registry),
+            "#agent-onboarding-launch": self._build_launch_card(
+                registry,
+                launch_targets_available=launch_targets_available,
+            ),
             "#agent-onboarding-tabs": self._build_tabs_card(registry),
             "#agent-onboarding-help": self._build_help_card(registry),
             "#agent-onboarding-footer": self._build_footer(),
@@ -111,16 +145,19 @@ class AgentOnboarding(VerticalScroll):
         return text
 
     @staticmethod
-    def _build_launch_card(registry: KeymapRegistry) -> Text:
+    def _build_launch_card(
+        registry: KeymapRegistry, *, launch_targets_available: bool = False
+    ) -> Text:
         app = registry.app
         text = Text()
         _append_section_heading(text, "Start from the prompt")
         _append_keycap(text, key_display_name(app.start_agent_home))
         text.append("open the prompt bar in your home workspace.")
         text.append("\n")
-        _append_keycap(text, key_display_name(app.start_custom_agent))
-        text.append("pick a project or CL first.")
-        text.append("\n")
+        if launch_targets_available:
+            _append_keycap(text, key_display_name(app.start_custom_agent))
+            text.append("pick a project or CL first.")
+            text.append("\n")
         text.append("Works from any tab; shell: ", style="dim")
         text.append("sase ace", style="bold #FFD700")
         text.append(".", style="dim")
