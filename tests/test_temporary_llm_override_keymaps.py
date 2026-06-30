@@ -23,19 +23,19 @@ from tests._temporary_llm_override_helpers import flatten_help_keys, full_regist
 def test_help_modal_includes_temporary_override_on_main_tabs(
     build_sections,
 ) -> None:
-    """``,o`` "Model overrides" appears in changespecs and agents help."""
+    """``,m`` "Model overrides" appears in changespecs and agents help."""
     reg = full_registry()
     sections = build_sections(reg)
     flat = flatten_help_keys(sections)
-    assert ",o|Model overrides" in flat
+    assert ",m|Model overrides" in flat
 
 
 def test_help_modal_axe_tab_includes_temporary_override() -> None:
-    """The axe tab also surfaces ``,o`` in its leader-mode block."""
+    """The axe tab also surfaces ``,m`` in its leader-mode block."""
     reg = full_registry()
     sections = axe_bindings(reg)
     flat = flatten_help_keys(sections)
-    assert ",o|Model overrides" in flat
+    assert ",m|Model overrides" in flat
 
 
 def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
@@ -45,7 +45,7 @@ def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
     )
     sections = cls_bindings(reg)
     flat = flatten_help_keys(sections)
-    assert ";o|Model overrides" in flat
+    assert ";m|Model overrides" in flat
 
 
 def test_help_modal_keybinding_uses_configured_temporary_key() -> None:

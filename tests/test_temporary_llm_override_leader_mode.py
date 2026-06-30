@@ -20,7 +20,7 @@ def test_leader_handler_dispatches_temporary_llm_override() -> None:
     mixin.marked_indices = []
     mixin._leader_mode_active = True
 
-    handled = LeaderModeMixin._handle_leader_key(cast(LeaderModeMixin, mixin), "o")
+    handled = LeaderModeMixin._handle_leader_key(cast(LeaderModeMixin, mixin), "m")
 
     assert handled is True
     mixin._open_temporary_llm_override_modal.assert_called_once()

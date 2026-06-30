@@ -257,7 +257,7 @@ class LeaderModeMixin:
         return True
 
     def _open_temporary_llm_override_modal(self) -> None:
-        """Open the Model Overrides modal (leader ``,o`` by default)."""
+        """Open the Model Overrides modal (leader ``,m`` by default)."""
         from ...modals import TemporaryLLMOverrideModal, TemporaryOverrideResult
         from ...widgets import LLMOverrideIndicator
 

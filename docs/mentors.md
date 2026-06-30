@@ -198,9 +198,9 @@ Status lines show timestamp, `profile:mentor`, status, and duration for complete
 
 ## ACE TUI Integration
 
-### Review Mentors (`,m`)
+### Review Mentors (`,C`)
 
-Press `,m` on the PRs tab to open the Mentor Review modal for the current ChangeSpec. The modal shows all mentor
+Press `,C` on the PRs tab to open the Mentor Review modal for the current ChangeSpec. The modal shows all mentor
 comments and lets you accept or reject individual suggestions.
 
 | Key                 | Action                                                   |

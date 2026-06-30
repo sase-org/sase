@@ -45,7 +45,7 @@ def test_leader_mode_drops_project_management_key() -> None:
     """The ``,p`` project panel leader key was retired in the Projects-tab cutover."""
     reg = load_keymap_registry({})
     assert "projects" not in reg.leader_mode.keys
-    assert reg.leader_mode.keys["temporary_llm_override"] == "o"
+    assert reg.leader_mode.keys["temporary_llm_override"] == "m"
 
 
 def test_leader_mode_drops_log_panel_key() -> None:
@@ -142,16 +142,16 @@ def test_leader_mode_omits_retry_edit() -> None:
 def test_leader_mode_reserves_r_for_revert_and_moves_runners_to_uppercase_r() -> None:
     """Leader ``,r`` reverts the selected agent; runners moves to ``,R``.
 
-    Repro capture moves off ``,R`` to ``,C`` so it no longer collides with
-    the runners panel.
+    Repro capture lives on ``,B`` (for "bundle") so it no longer collides
+    with the runners panel.
     """
     reg = load_keymap_registry({})
     assert LeaderModeKeymaps().keys["revert_agent"] == "r"
     assert LeaderModeKeymaps().keys["runners"] == "R"
-    assert LeaderModeKeymaps().keys["capture_agents_repro"] == "C"
+    assert LeaderModeKeymaps().keys["capture_agents_repro"] == "B"
     assert reg.leader_mode.keys["revert_agent"] == "r"
     assert reg.leader_mode.keys["runners"] == "R"
-    assert reg.leader_mode.keys["capture_agents_repro"] == "C"
+    assert reg.leader_mode.keys["capture_agents_repro"] == "B"
 
 
 def test_leader_mode_kill_and_edit_is_contextual_x_only() -> None:
@@ -194,10 +194,10 @@ def test_leader_mode_default_subkeys_are_unique() -> None:
 
 
 def test_agents_help_advertises_runners_and_capture_on_new_keys() -> None:
-    """Agents help shows ``,R`` for runners and ``,C`` for repro capture.
+    """Agents help shows ``,R`` for runners and ``,B`` for repro capture.
 
-    ``,R`` must no longer advertise the repro-capture action now that it
-    has moved to ``,C``.
+    Neither ``,R`` nor ``,C`` may advertise the repro-capture action now
+    that it has moved to ``,B``.
     """
     reg = load_keymap_registry({})
     agent_pairs = {
@@ -206,8 +206,9 @@ def test_agents_help_advertises_runners_and_capture_on_new_keys() -> None:
         for key, label in bindings
     }
     assert (",R", "Show runners info") in agent_pairs
-    assert (",C", "Capture repro bundle") in agent_pairs
+    assert (",B", "Capture repro bundle") in agent_pairs
     assert (",R", "Capture repro bundle") not in agent_pairs
+    assert (",C", "Capture repro bundle") not in agent_pairs
 
 
 def test_open_command_palette_default_binding() -> None:

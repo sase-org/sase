@@ -462,12 +462,33 @@ def test_runners_leader_command_uses_uppercase_r() -> None:
     assert spec.executor.subkey == "R"
 
 
-def test_capture_agents_repro_leader_command_uses_uppercase_c() -> None:
+def test_capture_agents_repro_leader_command_uses_uppercase_b() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.capture_agents_repro")
 
-    assert spec.key_display == ",C"
+    assert spec.key_display == ",B"
     assert spec.tabs == ("agents",)
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "B"
+
+
+def test_temporary_llm_override_leader_command_uses_m() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.temporary_llm_override")
+
+    assert spec.label == "Model overrides"
+    assert spec.key_display == ",m"
+    assert spec.tabs == ("changespecs", "agents", "axe")
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "m"
+
+
+def test_review_mentors_leader_command_uses_uppercase_c() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.review_mentors")
+
+    assert spec.key_display == ",C"
+    assert spec.tabs == ("changespecs",)
     assert spec.executor.kind == "leader_mode_key"
     assert spec.executor.subkey == "C"
 

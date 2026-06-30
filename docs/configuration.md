@@ -212,7 +212,7 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
-          temporary_llm_override: "o"
+          temporary_llm_override: "m"
           full_history_refresh: "y"
       fold_mode:
         prefix: "z"
@@ -739,7 +739,7 @@ mentor_profiles:
 
 Mentors run automatically on ChangeSpecs with Ready or Mailed status when their matching criteria are met. Mentor
 comments are structured JSON with severity levels (error, warning, suggestion) that can be reviewed and applied through
-the ACE TUI's Mentor Review modal (`,m`).
+the ACE TUI's Mentor Review modal (`,C`).
 
 Source: `src/sase/config/mentor.py`
 
@@ -1354,7 +1354,7 @@ used by `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
 ACE exposes the same lifecycle mutations through the **Projects** tab of the SASE Admin Center (press `#`). That tab
 also supports marks for bulk lifecycle operations, alias editing with `A`, an active-filter inactive-row overlay with
 `Ctrl+X`, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project directories under
-`~/.sase/projects/` without deleting workspace checkouts. The temporary model override uses `,o` by default.
+`~/.sase/projects/` without deleting workspace checkouts. The temporary model override uses `,m` by default.
 
 ### `sase revert`
 
@@ -1392,7 +1392,7 @@ Agents-tab loader/apply sequence used to diagnose row disappearance, reappearanc
 | `sase repro replay <path>`      | `--assert-stable`, `--json`, `--write-artifacts <dir>`, `--size`          | Replay a bundle JSON file or bundle directory through the headless TUI harness.                    |
 | `sase repro capture agents-tab` | `--output <dir>`, `--commit-safe`, `--no-commit-safe`, `--size`, `--json` | Capture a baseline bundle from current filesystem state. `--commit-safe` redaction is the default. |
 
-Use the in-TUI `,C` capture when a transient row-list bug has just happened in a live ACE session. The CLI capture path
+Use the in-TUI `,B` capture when a transient row-list bug has just happened in a live ACE session. The CLI capture path
 is out-of-band: it loads current filesystem state and cannot reconstruct refreshes that already passed through the
 running TUI.
 

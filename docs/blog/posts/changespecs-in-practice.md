@@ -153,7 +153,7 @@ The PRs tab in [ACE](../../ace.md) is built around ChangeSpec navigation. The hi
   `M` mail, `m` mark, `n` rename, `R` rewind, `s` status, `Y` sync.
 - **Fold modes** (`z` prefix): `z c` cycles COMMITS, `z h` cycles HOOKS, `z m` cycles MENTORS, `z t` cycles TIMESTAMPS;
   uppercase variants toggle between collapsed and fully expanded. `z z` cycles every section at once.
-- **Mentor review** (`,m`) opens the modal. `Space` toggles acceptance, `a` applies accepted comments and proposes
+- **Mentor review** (`,C`) opens the modal. `Space` toggles acceptance, `a` applies accepted comments and proposes
   (amend), `A` applies accepted comments and commits, `r` re-runs a profile, `K` kills the selected running mentor.
 
 The full reference lives in [`ace.md`](../../ace.md). The point is that everything you would normally do in a code

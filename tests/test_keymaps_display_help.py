@@ -36,6 +36,24 @@ def test_leader_prefix_override_updates_repeat_last_help_display() -> None:
         assert ("Space,", "Repeat last leader command") in pairs
 
 
+def test_prs_help_pins_review_mentors_to_uppercase_c() -> None:
+    """PRs help advertises Mentor Review on ``,C`` and keeps it PRs-only."""
+    reg = load_keymap_registry({})
+    cls_pairs = {
+        (key, label)
+        for _section, bindings in cls_bindings(reg)
+        for key, label in bindings
+    }
+    assert (",C", "Review mentor comments") in cls_pairs
+
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    assert not any(label == "Review mentor comments" for _key, label in agent_pairs)
+
+
 def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {

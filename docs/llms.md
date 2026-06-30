@@ -606,7 +606,7 @@ override's `pre_override_*` snapshot. When no override is active, `other` falls 
 under `llm_provider.model_aliases.other` (or the literal model name `other` if no alias is configured).
 
 This makes `%{%m:other | %m:...}` always pair "the alternate model" with the current default, even when the user has
-temporarily switched their default via the ACE `,o` chord. Without the snapshot, `%{%m:other | %m:...}` on an
+temporarily switched their default via the ACE `,m` chord. Without the snapshot, `%{%m:other | %m:...}` on an
 override-displaced default could otherwise launch the override's model side-by-side with itself.
 
 #### Reserved alias: `worker`
@@ -806,7 +806,7 @@ which mapping key is selected, so a primary override to `codex/o3` can match `co
 
 ### TUI Controls
 
-Press `,o` in ACE to open the **Model Overrides** panel. The panel shows both lanes, their current effective model, and
+Press `,m` in ACE to open the **Model Overrides** panel. The panel shows both lanes, their current effective model, and
 the source of that model (`override`, `config`, `follows primary`, or `default`). Use `s`/`c`/`x` for primary override
 set/change/clear and `w`/`W` for worker override set/change/clear. Active temporary worker overrides also appear as a
 compact `W ...` chip in the top bar; permanent `worker_models` config is visible in the modal instead.
@@ -817,7 +817,7 @@ atomic writes as the primary override file.
 ## Temporary Default Override
 
 In addition to the tier-based global override, sase supports a **concrete** provider/model override that acts as a
-temporary session-level default. The ACE `,o` chord opens the dual-lane Model Overrides panel for primary and worker
+temporary session-level default. The ACE `,m` chord opens the dual-lane Model Overrides panel for primary and worker
 overrides (see [docs/ace.md](ace.md#model-overrides) for the TUI flow).
 
 The temporary override only changes the _default_ provider/model selection for new agent launches. It does **not**
@@ -903,14 +903,14 @@ The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 
 ### Examples
 
-- ACE chord `,o`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` is written; new launches default to
+- ACE chord `,m`, pick `codex/o3`, duration `1h` → `~/.sase/llm_override.json` is written; new launches default to
   CODEX(o3) for the next hour.
-- ACE chord `,o`, pick `opencode/anthropic/claude-sonnet-4-5`, duration `1h` → new launches default to
+- ACE chord `,m`, pick `opencode/anthropic/claude-sonnet-4-5`, duration `1h` → new launches default to
   OPENCODE(anthropic/claude-sonnet-4-5).
-- ACE chord `,o`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
-- ACE chord `,o`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
+- ACE chord `,m`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
+- ACE chord `,m`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
   config / autodetect.
-- ACE chord `,o`, set worker override to `codex/gpt-5.5` for `1h` → `~/.sase/llm_worker_override.json` is written; new
+- ACE chord `,m`, set worker override to `codex/gpt-5.5` for `1h` → `~/.sase/llm_worker_override.json` is written; new
   `%model:worker` launches use CODEX(gpt-5.5) until the override expires or is cleared.
 
 ## Environment Variables

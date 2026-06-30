@@ -206,10 +206,10 @@ The modal supports live filtering as you type in the search box and displays las
 | `,!`       | Run command using current PR context                                    |
 | `,A`       | Open the Agent Run Log modal for the current PR                         |
 | `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)          |
+| `,C`       | Review mentors (opens Mentor Review modal)                              |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home` |
-| `,m`       | Review mentors (opens Mentor Review modal)                              |
+| `,m`       | Open model overrides (global; see [Model Overrides](#model-overrides))  |
 | `,M`       | Kill running mentors                                                    |
-| `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))  |
 | `,R`       | Show runners info                                                       |
 | `,<space>` | Run agent from current PR (skips project selection)                     |
 | `,.`       | Open prompt history modal                                               |
@@ -235,7 +235,7 @@ yet, ACE shows a toast and does nothing.
 
 ### Mentor Review Modal
 
-Press `,m` to open the Mentor Review modal, which lets you navigate mentor comments, accept or reject suggestions, and
+Press `,C` to open the Mentor Review modal, which lets you navigate mentor comments, accept or reject suggestions, and
 apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor system reference.
 
 | Key                 | Action                                                   |
@@ -652,7 +652,7 @@ cached by raw query string so re-renders skip the parse.
 ### Leader Mode (`,` prefix)
 
 Leader mode is available on every tab. In the Agents tab it also exposes layout and notification shortcuts for the
-currently loaded agent list; global entries such as `,I` and `,o` behave the same from other tabs. Unread-completed
+currently loaded agent list; global entries such as `,I` and `,m` behave the same from other tabs. Unread-completed
 actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
 
 | Key        | Action                                                                                       |
@@ -666,8 +666,8 @@ actions operate on terminal rows that are loaded in the Agents tab; `,j` only ta
 | `,y`       | Refresh the Agents tab from full artifact history                                            |
 | `,u`       | Mark all loaded unread completed agents as read                                              |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                        |
-| `,o`       | Open model overrides (global; see [Model Overrides](#model-overrides))                       |
-| `,C`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
+| `,m`       | Open model overrides (global; see [Model Overrides](#model-overrides))                       |
+| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation            |
 | `,r`       | Revert focused or marked agent commits, including recorded suffix-strategy linked repos      |
 | `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                     |
@@ -702,7 +702,7 @@ matches, skips marked rows with no matching commits, and reports partial linked-
 Agents-tab reproduction bundles capture the loader/apply sequence that determines which rows are visible. Use them when
 the Agents tab briefly drops historical rows, re-adds them, or shows duplicate workflow parents.
 
-When you see one of these bugs in a live ACE session, switch to the Agents tab and press `,C` before refreshing again.
+When you see one of these bugs in a live ACE session, switch to the Agents tab and press `,B` before refreshing again.
 ACE writes a commit-safe bundle to `~/.sase/repros/<timestamp>-manual-.../agents_tab_repro.json` and shows a toast with
 the path. "Commit-safe" means local names and paths are redacted, and prompt, response, chat, and diff bodies are
 omitted. The bundle keeps the row identities, loader state, app projection state, screen text, and an SVG screenshot
@@ -821,7 +821,7 @@ numerical identity.
 | ---- | ----------------------------------------------------------------------- |
 | `,,` | Repeat the last leader command                                          |
 | `,h` | Run agent from home prompt context; bare prompts default to `#git:home` |
-| `,o` | Open model overrides (global; see [Model Overrides](#model-overrides))  |
+| `,m` | Open model overrides (global; see [Model Overrides](#model-overrides))  |
 | `,R` | Show runners info                                                       |
 
 ### Bang Mode (`!` prefix)
@@ -986,7 +986,7 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 ## Model Overrides
 
-Press `,o` from any tab to open the **Model Overrides** modal. It manages temporary primary and worker provider/model
+Press `,m` from any tab to open the **Model Overrides** modal. It manages temporary primary and worker provider/model
 overrides for new agent launches without editing `~/.config/sase/sase.yml`.
 
 The modal shows two lanes:
@@ -1023,7 +1023,7 @@ Permanent `llm_provider.worker_models` config is visible in the modal, not the t
 - `opencode/anthropic/claude-sonnet-4-5` for `1h` — switch to an OpenCode provider/model pair.
 - `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
 - Worker `codex/gpt-5.5` for `1h` — route `%model:worker` launches through Codex for the next hour.
-- `Until cleared` — leave the override active across sessions; clear it later from the same `,o` modal.
+- `Until cleared` — leave the override active across sessions; clear it later from the same `,m` modal.
 
 See [docs/llms.md](llms.md#temporary-default-override) for the resolution order and state-file format.
 
