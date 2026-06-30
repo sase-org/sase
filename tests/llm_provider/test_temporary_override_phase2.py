@@ -59,7 +59,7 @@ def test_get_default_provider_name_ignores_expired_override(
     set_temporary_override("codex/o3", 60.0, source="test")
     path = _state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["expires_at"] = time.time() - 1
+    data["overrides"]["default"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
 
     assert get_default_provider_name() == "claude"
@@ -185,7 +185,7 @@ def test_invoke_agent_expired_override_ignored(
     set_temporary_override("codex/o3", 60.0, source="test")
     path = _state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["expires_at"] = time.time() - 1
+    data["overrides"]["default"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
 
     invoke_agent("prompt", agent_type="test", suppress_output=True)

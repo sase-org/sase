@@ -174,6 +174,22 @@ def _registered_provider_names() -> list[str]:
         return []
 
 
+def _active_alias_overrides() -> dict[str, Any]:
+    """Return active per-alias temporary overrides, keyed by alias name.
+
+    Looked up lazily to avoid an import cycle: :mod:`temporary_override` imports
+    the registry, which imports this module. Any failure (missing/locked/corrupt
+    state file) falls back to *no overrides* so a bad override file can never
+    crash alias resolution.
+    """
+    try:
+        from .temporary_override import get_active_alias_overrides
+
+        return get_active_alias_overrides()
+    except Exception:
+        return {}
+
+
 def _is_provider_coder_alias(name: str) -> bool:
     """Return ``True`` if *name* is a ``<provider>_coder`` alias for a provider."""
     if not name.endswith(PROVIDER_CODER_ALIAS_SUFFIX):
@@ -282,6 +298,15 @@ def resolve_model_alias(model: str) -> str:
     Unknown tokens return *model* unchanged. Cycles and overly deep chains fall
     back to the original input so a bad config cannot crash launches.
 
+    An active *temporary override* (see
+    :mod:`sase.llm_provider.temporary_override`) on any non-``default`` alias
+    wins over the configured/implicit lookup for that alias: the override target
+    is returned as soon as the alias is encountered in a chain. The ``default``
+    name is deliberately *not* short-circuited here — its override applies only
+    on the no-``%model`` launch lane, and an explicit ``@default`` keeps
+    resolving to the configured default (see
+    :func:`sase.llm_provider.temporary_override.resolve_effective_default_provider_model`).
+
     The literal aliases ``"worker"`` and ``"other"`` are no longer special: the
     worker lane was retired in epic sase-5d phase 4, so they resolve only when a
     user defines them as ordinary configured aliases.
@@ -291,11 +316,24 @@ def resolve_model_alias(model: str) -> str:
     original = model
     current = cleaned_model
     seen: set[str] = set()
+    # Active per-alias temporary overrides, loaded lazily (and at most once) the
+    # first time a non-``default`` alias token is seen, so a pure ``default``
+    # resolution never touches the override state file.
+    overrides: dict[str, Any] | None = None
     for _ in range(_ALIAS_RESOLUTION_DEPTH_LIMIT):
         # An ``@`` marker on a value means "reference this alias by name".
         bare = current[1:].strip() if current.startswith("@") else current
         if not bare:
             return original
+
+        # A temporary override on a non-``default`` alias beats the configured
+        # and implicit lookups for that alias.
+        if bare != DEFAULT_MODEL_ALIAS_NAME:
+            if overrides is None:
+                overrides = _active_alias_overrides()
+            override = overrides.get(bare)
+            if override is not None:
+                return f"{override.provider}/{override.model}"
 
         if bare in aliases:
             if bare in seen:

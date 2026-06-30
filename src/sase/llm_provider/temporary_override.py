@@ -1,17 +1,24 @@
-"""Temporary default LLM provider/model override.
+"""Temporary, per-alias LLM provider/model overrides.
 
-A small, process-shared state file that lets the user set a temporary
-default provider/model for new agent launches without editing
-``~/.config/sase/sase.yml``.
+A small, process-shared state file that lets the user set time-bound
+temporary overrides for model aliases (the ``default`` alias plus any
+role/user alias) without editing ``~/.config/sase/sase.yml``.
 
 The state lives at ``~/.sase/llm_override.json`` so all sase processes
-on the same machine see the same active override. Writes are atomic
-(temp file + ``os.replace``); reads are best-effort self-cleaning —
-expired or malformed files are deleted on next access.
+on the same machine see the same active overrides. The on-disk schema is
+versioned: ``{"version": 2, "overrides": {"<alias>": {...}}}``. A legacy
+v1 flat object (a single, top-level override) is migrated on read into
+``overrides.default`` so an override set by an older build keeps working.
+Writes are atomic (temp file + ``os.replace``); reads are best-effort
+self-cleaning — expired or malformed entries are pruned and the file is
+removed once no override remains.
 
-The override only changes the *default* provider/model. Explicit
-``%model`` prompt directives and an explicit ``provider_name`` argument
-to :func:`invoke_agent` continue to win.
+The ``default`` override keeps its existing behavior: it only changes the
+no-``%model`` launch default (explicit ``%model`` directives and an
+explicit ``provider_name`` argument to :func:`invoke_agent` still win, and
+an explicit ``@default`` reference ignores it). Overrides on any other
+alias take effect wherever that alias is resolved (see
+:func:`sase.llm_provider.config.resolve_model_alias`).
 """
 
 from __future__ import annotations
@@ -23,12 +30,17 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.core.paths import sase_home
 
+from .config import DEFAULT_MODEL_ALIAS_NAME
 from .types import ModelTier
 
 _STATE_FILENAME = "llm_override.json"
+
+#: On-disk schema version for the per-alias override state file.
+_STATE_VERSION = 2
 
 
 def _state_path() -> Path:
@@ -127,12 +139,12 @@ def _delete_state_best_effort() -> None:
         pass
 
 
-def _load_state() -> dict | None:
-    """Load and validate the state file.
+def _read_state_dict() -> dict | None:
+    """Read and JSON-parse the state file's top-level object.
 
-    Returns the parsed dict on success, or ``None`` if the file is
-    missing, unreadable, malformed, or missing required fields.
-    Malformed files are deleted best-effort.
+    Returns the parsed dict, or ``None`` when the file is missing, unreadable,
+    not valid JSON, or not a JSON object. Unparseable / non-object files are
+    deleted best-effort so a corrupt file never wedges future launches.
     """
     path = _state_path()
     try:
@@ -151,82 +163,171 @@ def _load_state() -> dict | None:
     if not isinstance(data, dict):
         _delete_state_best_effort()
         return None
-
-    required = ("provider", "model", "raw_model", "created_at", "source")
-    if not all(k in data for k in required):
-        _delete_state_best_effort()
-        return None
-    if not all(
-        isinstance(data[k], str) for k in ("provider", "model", "raw_model", "source")
-    ):
-        _delete_state_best_effort()
-        return None
-    if not isinstance(data["created_at"], (int, float)):
-        _delete_state_best_effort()
-        return None
-
-    expires_at = data.get("expires_at")
-    if expires_at is not None and not isinstance(expires_at, (int, float)):
-        _delete_state_best_effort()
-        return None
-
     return data
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+def _extract_raw_entries(data: dict) -> tuple[dict[str, Any] | None, bool]:
+    """Split a parsed state dict into ``{alias: entry_dict}`` + a canonical flag.
 
+    Handles both schema versions:
 
-def get_active_temporary_override(
-    now: float | None = None,
-) -> TemporaryLLMOverride | None:
-    """Return the active override, or ``None`` if none/expired.
+    * **v2** (``{"version": 2, "overrides": {...}}``) — the ``overrides`` map is
+      returned directly. ``canonical`` is ``True`` only when the file is already
+      in fully canonical v2 form (correct version, a dict of string-keyed
+      entries, and no stray top-level keys), so a steady-state read never
+      rewrites the file.
+    * **v1** (a flat, top-level single override) — migrated in-memory into
+      ``{"default": data}`` with ``canonical=False`` so the next write upgrades
+      the file to v2.
 
-    Expired or malformed state files are deleted best-effort so callers
-    don't need to wait for a TUI session to clean them up.
+    Returns ``(None, True)`` when the structure is unrecoverable (a v2 file whose
+    ``overrides`` is not a dict), signalling the caller to delete the file.
     """
-    data = _load_state()
-    if data is None:
+    if data.get("version") == _STATE_VERSION or "overrides" in data:
+        overrides = data.get("overrides")
+        if not isinstance(overrides, dict):
+            return None, True
+        cleaned = {k: v for k, v in overrides.items() if isinstance(k, str)}
+        canonical = (
+            data.get("version") == _STATE_VERSION
+            and len(cleaned) == len(overrides)
+            and set(data.keys()) <= {"version", "overrides"}
+        )
+        return cleaned, canonical
+
+    # Legacy v1 flat object: a single top-level override → overrides.default.
+    return {DEFAULT_MODEL_ALIAS_NAME: data}, False
+
+
+def _entry_from_dict(entry: object) -> TemporaryLLMOverride | None:
+    """Validate one raw override entry into a :class:`TemporaryLLMOverride`.
+
+    Returns ``None`` for any structurally invalid entry (missing or wrong-typed
+    fields) so a single bad entry never crashes a launch. Unknown extra keys
+    (for example retired ``pre_override_*`` snapshot keys) are ignored.
+    """
+    if not isinstance(entry, dict):
         return None
-
-    expires_at = data.get("expires_at")
-    if expires_at is not None:
-        current = time.time() if now is None else now
-        if current >= expires_at:
-            _delete_state_best_effort()
-            return None
-
+    required = ("provider", "model", "raw_model", "created_at", "source")
+    if not all(k in entry for k in required):
+        return None
+    if not all(
+        isinstance(entry[k], str) for k in ("provider", "model", "raw_model", "source")
+    ):
+        return None
+    if not isinstance(entry["created_at"], (int, float)):
+        return None
+    expires_at = entry.get("expires_at")
+    if expires_at is not None and not isinstance(expires_at, (int, float)):
+        return None
     return TemporaryLLMOverride(
-        provider=data["provider"],
-        model=data["model"],
-        raw_model=data["raw_model"],
-        created_at=float(data["created_at"]),
+        provider=entry["provider"],
+        model=entry["model"],
+        raw_model=entry["raw_model"],
+        created_at=float(entry["created_at"]),
         expires_at=float(expires_at) if expires_at is not None else None,
-        source=data["source"],
+        source=entry["source"],
     )
 
 
-def set_temporary_override(
+def _serialize_overrides(overrides: dict[str, TemporaryLLMOverride]) -> dict:
+    """Render the active override map as the canonical v2 state dict."""
+    return {
+        "version": _STATE_VERSION,
+        "overrides": {alias: asdict(o) for alias, o in overrides.items()},
+    }
+
+
+def _load_active_overrides(
+    now: float | None = None,
+) -> dict[str, TemporaryLLMOverride]:
+    """Return the active (non-expired) per-alias overrides, self-cleaning state.
+
+    Performs the v1→v2 read migration, drops invalid/expired entries, and keeps
+    the file honest: it deletes the file when no active override remains and
+    rewrites it (atomically) whenever the on-disk contents differ from the
+    pruned/migrated result. A steady-state read of a canonical file with only
+    active entries performs no write.
+    """
+    data = _read_state_dict()
+    if data is None:
+        return {}
+
+    raw_entries, canonical = _extract_raw_entries(data)
+    if raw_entries is None:
+        _delete_state_best_effort()
+        return {}
+
+    current = time.time() if now is None else now
+    active: dict[str, TemporaryLLMOverride] = {}
+    changed = not canonical
+    for alias, entry in raw_entries.items():
+        override = _entry_from_dict(entry)
+        if override is None:
+            changed = True
+            continue
+        if override.expires_at is not None and current >= override.expires_at:
+            changed = True
+            continue
+        active[alias] = override
+
+    if not active:
+        _delete_state_best_effort()
+        return {}
+    if changed:
+        _atomic_write_json(_state_path(), _serialize_overrides(active))
+    return active
+
+
+# ---------------------------------------------------------------------------
+# Public API — per-alias overrides
+# ---------------------------------------------------------------------------
+
+
+def get_active_alias_overrides(
+    now: float | None = None,
+) -> dict[str, TemporaryLLMOverride]:
+    """Return every currently-active override, keyed by alias name.
+
+    Expired or malformed entries are pruned and the state file is removed once
+    no active override remains (best-effort self-cleaning), so callers never
+    observe stale overrides.
+    """
+    return _load_active_overrides(now)
+
+
+def get_active_alias_override(
+    alias: str,
+    now: float | None = None,
+) -> TemporaryLLMOverride | None:
+    """Return the active override for *alias*, or ``None`` if none/expired."""
+    return _load_active_overrides(now).get(alias)
+
+
+def set_alias_override(
+    alias: str,
     raw_model: str,
     duration_seconds: float | None,
     *,
     source: str,
 ) -> TemporaryLLMOverride:
-    """Write a temporary override for *raw_model* lasting *duration_seconds*.
+    """Set a temporary override on *alias* for *raw_model* lasting *duration_seconds*.
 
-    *raw_model* is resolved via the existing ``resolve_model_provider()``
-    rules: ``"codex/o3"`` selects codex explicitly, ``"opus"`` infers
-    claude from plugin metadata, and an unknown bare model is accepted
-    but runs on the current default provider (mirroring ``%model``).
+    Overrides on other aliases are preserved (and any expired ones pruned).
+    *raw_model* is resolved via the existing ``resolve_model_provider()`` rules:
+    ``"codex/o3"`` selects codex explicitly, ``"opus"`` infers claude from
+    plugin metadata, and an unknown bare model is accepted but runs on the
+    current effective default provider (mirroring ``%model``).
 
     *duration_seconds=None* writes an override with no expiry (the
     "until cleared" case).
 
     Raises:
-        ValueError: If *raw_model* is empty/whitespace, *duration_seconds*
-            is non-positive, or *source* is empty.
+        ValueError: If *alias*, *raw_model*, or *source* is empty/whitespace, or
+            *duration_seconds* is non-positive.
     """
+    if not alias or not alias.strip():
+        raise ValueError("alias is empty")
     if not raw_model or not raw_model.strip():
         raise ValueError("raw_model is empty")
     if duration_seconds is not None and duration_seconds <= 0:
@@ -234,6 +335,7 @@ def set_temporary_override(
     if not source or not source.strip():
         raise ValueError("source is empty")
 
+    cleaned_alias = alias.strip()
     cleaned = raw_model.strip()
 
     # Lazy import to avoid an import cycle (registry imports from this
@@ -255,23 +357,80 @@ def set_temporary_override(
         expires_at=expires_at,
         source=source.strip(),
     )
-    _atomic_write_json(_state_path(), asdict(override))
+
+    overrides = _load_active_overrides()
+    overrides[cleaned_alias] = override
+    _atomic_write_json(_state_path(), _serialize_overrides(overrides))
     return override
 
 
-def clear_temporary_override() -> bool:
-    """Remove the override state file.
+def clear_alias_override(alias: str) -> bool:
+    """Clear the temporary override on *alias*.
 
-    Returns ``True`` if a file was removed, ``False`` if none existed.
+    Returns ``True`` if an entry for *alias* was present and removed (whether or
+    not it had already expired), ``False`` if no such entry existed. Other
+    aliases' overrides are preserved; the file is deleted once empty.
     """
-    path = _state_path()
-    try:
-        path.unlink()
-    except FileNotFoundError:
+    cleaned_alias = (alias or "").strip()
+    if not cleaned_alias:
         return False
-    except OSError:
+
+    data = _read_state_dict()
+    if data is None:
         return False
+    raw_entries, _ = _extract_raw_entries(data)
+    if raw_entries is None:
+        _delete_state_best_effort()
+        return False
+    if cleaned_alias not in raw_entries:
+        return False
+
+    rebuilt: dict[str, TemporaryLLMOverride] = {}
+    for key, entry in raw_entries.items():
+        if key == cleaned_alias:
+            continue
+        override = _entry_from_dict(entry)
+        if override is not None:
+            rebuilt[key] = override
+    if rebuilt:
+        _atomic_write_json(_state_path(), _serialize_overrides(rebuilt))
+    else:
+        _delete_state_best_effort()
     return True
+
+
+# ---------------------------------------------------------------------------
+# Public API — back-compat ``default`` wrappers
+# ---------------------------------------------------------------------------
+#
+# The no-``%model`` default launch lane and the existing TUI override indicator
+# operate on a single global override. These wrappers keep that surface working
+# by targeting the ``default`` key in the per-alias map, so default behavior is
+# unchanged.
+
+
+def get_active_temporary_override(
+    now: float | None = None,
+) -> TemporaryLLMOverride | None:
+    """Return the active ``default`` override, or ``None`` if none/expired."""
+    return get_active_alias_override(DEFAULT_MODEL_ALIAS_NAME, now)
+
+
+def set_temporary_override(
+    raw_model: str,
+    duration_seconds: float | None,
+    *,
+    source: str,
+) -> TemporaryLLMOverride:
+    """Set the ``default`` temporary override (back-compat wrapper)."""
+    return set_alias_override(
+        DEFAULT_MODEL_ALIAS_NAME, raw_model, duration_seconds, source=source
+    )
+
+
+def clear_temporary_override() -> bool:
+    """Clear the ``default`` temporary override (back-compat wrapper)."""
+    return clear_alias_override(DEFAULT_MODEL_ALIAS_NAME)
 
 
 def resolve_effective_default_provider_model(

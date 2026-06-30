@@ -239,17 +239,20 @@ def test_set_empty_source_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_state_file_contains_expected_keys() -> None:
+def test_state_file_uses_v2_keyed_schema() -> None:
+    """The default override is written under the v2 ``overrides.default`` key."""
     set_temporary_override("codex/o3", 3600.0, source="ace")
     raw = _state_path().read_text(encoding="utf-8")
     data = json.loads(raw)
 
-    assert data["provider"] == "codex"
-    assert data["model"] == "o3"
-    assert data["raw_model"] == "codex/o3"
-    assert data["source"] == "ace"
-    assert isinstance(data["created_at"], float)
-    assert isinstance(data["expires_at"], float)
+    assert data["version"] == 2
+    entry = data["overrides"]["default"]
+    assert entry["provider"] == "codex"
+    assert entry["model"] == "o3"
+    assert entry["raw_model"] == "codex/o3"
+    assert entry["source"] == "ace"
+    assert isinstance(entry["created_at"], float)
+    assert isinstance(entry["expires_at"], float)
 
 
 def test_state_file_lives_under_sase_home() -> None:

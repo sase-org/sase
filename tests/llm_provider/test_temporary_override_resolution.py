@@ -32,10 +32,10 @@ def test_resolve_effective_default_with_override() -> None:
 
 def test_resolve_effective_default_ignores_expired_override() -> None:
     set_temporary_override("codex/o3", 60.0, source="ace")
-    # Force the override to be in the past by rewriting state.
+    # Force the override to be in the past by rewriting the v2 state entry.
     path = _state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["expires_at"] = time.time() - 1
+    data["overrides"]["default"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
 
     provider, _ = resolve_effective_default_provider_model()

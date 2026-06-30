@@ -26,10 +26,14 @@ from .retry_config import (
 )
 from .temporary_override import (
     TemporaryLLMOverride,
+    clear_alias_override,
     clear_temporary_override,
+    get_active_alias_override,
+    get_active_alias_overrides,
     get_active_temporary_override,
     parse_override_duration,
     resolve_effective_default_provider_model,
+    set_alias_override,
     set_temporary_override,
 )
 from .types import LLMInvocationError, LoggingContext, ModelTier
@@ -48,7 +52,10 @@ __all__ = [
     "ProviderRetryConfig",
     "RetryState",
     "TemporaryLLMOverride",
+    "clear_alias_override",
     "clear_temporary_override",
+    "get_active_alias_override",
+    "get_active_alias_overrides",
     "get_active_temporary_override",
     "get_provider",
     "get_retry_config",
@@ -62,6 +69,7 @@ __all__ = [
     "preprocess_prompt_late",
     "resolve_effective_default_provider_model",
     "save_prompt_to_file",
+    "set_alias_override",
     "set_temporary_override",
     "stream_process_output",
 ]
