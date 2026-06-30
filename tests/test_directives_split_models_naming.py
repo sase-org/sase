@@ -32,34 +32,36 @@ def test_split_prompt_for_models_alias_uses_resolved_suffix(
     assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
 
 
-def test_split_prompt_for_models_other_uses_override_snapshot(
+def test_split_prompt_for_models_other_resolves_to_configured_alias(
     monkeypatch,
 ) -> None:
-    """While an override is active, "other" resolves to the displaced model.
+    """The "other" alias is ordinary config with no displaced-model behavior.
 
-    The configured alias points at claude/sonnet, but the override snapshot
-    captures claude/opus (the default at the time the override was set).
-    The fan-out disambiguator must use the snapshot's "opus" - pairing
-    "other" against the actual displaced model - not the static alias.
+    The worker lane was retired in epic sase-5d phase 4, so "other" is no
+    longer override-aware: it resolves purely to its configured target
+    (claude/opus here). An active temporary default override must not give
+    "other" any displaced-model behavior - the fan-out disambiguator follows
+    the configured alias target, not the override.
     """
     from sase.llm_provider.temporary_override import set_temporary_override
 
     cfg = {
         "provider": "claude",
-        "model_aliases": {"other": "claude/sonnet"},
+        "model_aliases": {"other": "claude/opus"},
     }
     # Patch both modules: registry imports the symbol at load time,
-    # config defines it. Snapshot capture goes through registry.
+    # config defines it. Alias resolution goes through registry.
     monkeypatch.setattr("sase.llm_provider.config.get_llm_provider_config", lambda: cfg)
     monkeypatch.setattr(
         "sase.llm_provider.registry.get_llm_provider_config", lambda: cfg
     )
+    # An active override (to a different runtime/model) must NOT change how
+    # "other" resolves for fan-out naming.
     set_temporary_override("codex/o3", 3600.0, source="test")
 
-    # other + sonnet are both claude; same-runtime collision uses model
-    # names as the disambiguator. Without the override-aware "other",
-    # other would also resolve to sonnet (per configured alias) and the
-    # split would collapse to a single model.
+    # other + sonnet are both claude; the same-runtime collision uses model
+    # names as the disambiguator. "other" follows its configured alias target
+    # (opus), so the two branches stay distinct.
     prompt = "%n:foo\n%{%model:@other | %model:sonnet}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None

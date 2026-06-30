@@ -256,11 +256,11 @@ def test_worker_and_other_no_longer_special_aliases(
     role aliases remain. ``worker``/``other`` resolve now only when a user
     defines them as ordinary configured aliases.
     """
-    from sase.llm_provider.config import special_model_alias_names
+    from sase.llm_provider.config import _special_model_alias_names
 
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
-    names = special_model_alias_names()
+    names = _special_model_alias_names()
     assert "worker" not in names
     assert "other" not in names
     # The role aliases are the implicit policy now.

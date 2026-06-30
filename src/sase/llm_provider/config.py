@@ -195,7 +195,7 @@ def _provider_coder_model_alias_names() -> set[str]:
     }
 
 
-def special_model_alias_names() -> set[str]:
+def _special_model_alias_names() -> set[str]:
     """Return every implicit (non-user-configured) model alias name.
 
     This is the centralized alias policy that is the source of truth for which
@@ -211,7 +211,7 @@ def special_model_alias_names() -> set[str]:
 
 def model_alias_names() -> set[str]:
     """Return every name that is a user-facing model alias."""
-    return set(get_model_aliases()) | special_model_alias_names()
+    return set(get_model_aliases()) | _special_model_alias_names()
 
 
 def strip_model_alias_prefix(value: str) -> str:
