@@ -173,7 +173,7 @@ def fetch_git_upstream(
     """Fetch the resolved upstream for ``status``."""
     runner = run_git if run_git_fn is None else run_git_fn
     root = Path(status.root)
-    args = ["fetch", "--quiet"]
+    args = ["fetch", "--quiet", "--tags", "--force"]
     if status.remote and status.remote_branch:
         args.extend([status.remote, status.remote_branch])
     elif status.remote:

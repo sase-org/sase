@@ -139,5 +139,46 @@ def test_fetch_and_merge_git_ops_use_resolved_upstream(
     _git.merge_git_ff_only(Path("/repo"), "origin/main")
 
     assert calls[0][0] == Path("/repo")
-    assert calls[0][1] == ("fetch", "--quiet", "origin", "main")
+    assert calls[0][1] == (
+        "fetch",
+        "--quiet",
+        "--tags",
+        "--force",
+        "origin",
+        "main",
+    )
     assert calls[1][1] == ("merge", "--ff-only", "origin/main")
+
+
+def test_fetch_git_upstream_fetches_tags_without_tracking_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Path, tuple[str, ...], float | None]] = []
+
+    def fake_run_git(
+        root: Path, *args: str, timeout: float | None = None, **_kwargs: object
+    ) -> str:
+        calls.append((root, args, timeout))
+        return ""
+
+    monkeypatch.setattr(_git, "run_git", fake_run_git)
+    status = _git.GitUpstreamStatus(
+        root="/repo",
+        upstream="origin/main",
+        remote="origin",
+        remote_branch=None,
+        detached=False,
+        dirty=False,
+        ahead=0,
+        behind=1,
+    )
+
+    _git.fetch_git_upstream(status)
+
+    assert calls == [
+        (
+            Path("/repo"),
+            ("fetch", "--quiet", "--tags", "--force", "origin"),
+            _git._GIT_MUTATE_TIMEOUT_SECONDS,
+        )
+    ]

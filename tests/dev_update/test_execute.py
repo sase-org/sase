@@ -117,7 +117,20 @@ def test_execute_dev_update_fetches_preflights_merges_and_reconciles() -> None:
         ("sase", "updated")
     ]
     assert runner.calls == [
-        (("git", "-C", "/repo", "fetch", "--quiet", "origin", "main"), None),
+        (
+            (
+                "git",
+                "-C",
+                "/repo",
+                "fetch",
+                "--quiet",
+                "--tags",
+                "--force",
+                "origin",
+                "main",
+            ),
+            None,
+        ),
         (("git", "-C", "/repo", "status", "--porcelain"), None),
         (
             (
@@ -204,6 +217,8 @@ def test_execute_dev_update_fetch_failure_aborts_before_preflight() -> None:
                 "/repo",
                 "fetch",
                 "--quiet",
+                "--tags",
+                "--force",
                 "origin",
                 "main",
             ): DevCommandResult(1, stderr="network down")
