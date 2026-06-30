@@ -989,33 +989,26 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 ## Model Overrides
 
-Press `,m` from any tab to open the **Model Overrides** modal. It manages temporary primary and worker provider/model
-overrides for new agent launches without editing `~/.config/sase/sase.yml`.
+Press `,m` from any tab to open the **Model Override** modal. It manages a temporary default provider/model override for
+new agent launches without editing `~/.config/sase/sase.yml`.
 
-The modal shows two lanes:
+The modal shows a single `DEFAULT` row — the model used for launches without an explicit `%model` directive — and its
+source: `default` when no override is active, or `override · <time> left` / `override · until cleared` when one is set.
+Set the override with `s`, change it with `c`, and clear it with `x`. The picker is provider-grouped and the duration
+choices are `15m`, `30m`, `1h`, `2h`, `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`.
 
-- **Primary** — the normal default lane for launches without an explicit `%model` directive.
-- **Worker** — the secondary lane used by delegated work such as `sase bead work` phase agents that do not have an
-  explicit per-bead model.
-
-Each row shows the current effective model and its source: `override`, `config <key>` (the matched
-`llm_provider.worker_models` key, e.g. `config claude/opus` or `config codex`), `follows primary`, or `default`. Set or
-change the primary override with `s`/`c`, clear it with `x`, set or change the worker override with `w`, and clear the
-worker override with `W`. Both lanes use the same provider-grouped picker and duration choices: `15m`, `30m`, `1h`,
-`2h`, `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`.
-
-When a worker override is active, the top bar includes a compact `W ...` chip next to the primary override indicator.
-Permanent `llm_provider.worker_models` config is visible in the modal, not the top bar.
+Delegated launches (plan coder follow-ups, `sase bead work` phase/land agents, epic-creation follow-ups) no longer have
+a separate "worker" override lane. They resolve through [role aliases](llms.md#role-aliases-for-delegated-work)
+configured under `llm_provider.model_aliases`, all of which fall back to `@default`, so the temporary default override
+also moves delegated work unless a role alias pins it elsewhere.
 
 ### Behavior
 
-- The overrides apply only to default lane selection. Explicit prompt directives (`%model:codex/o3`,
-  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win. `%model:@worker`
-  explicitly opts into the worker lane.
+- The override applies only to default selection. Explicit prompt directives (`%model:codex/o3`,
+  `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win.
 - Already-running agents keep their current provider/model. Only **new** launches use the override.
-- The primary override is persisted to `~/.sase/llm_override.json`; the worker override is persisted to
-  `~/.sase/llm_worker_override.json`. All sase processes on the same machine see those files. Reads are best-effort
-  self-cleaning: expired or malformed state files are deleted on next access.
+- The override is persisted to `~/.sase/llm_override.json`. All sase processes on the same machine see that file. Reads
+  are best-effort self-cleaning: expired or malformed state files are deleted on next access.
 - `Until cleared` is a no-expiry mode — convenient, but still a _temporary_ state, not a permanent config edit.
 - The temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`. A concrete temporary model override takes the
   full provider/model path; the tier override only applies when no concrete override is active.
@@ -1025,7 +1018,6 @@ Permanent `llm_provider.worker_models` config is visible in the modal, not the t
 - `codex/o3` for `1h` — switch to Codex `o3` for the next hour, then revert to the configured default.
 - `opencode/anthropic/claude-sonnet-4-5` for `1h` — switch to an OpenCode provider/model pair.
 - `sonnet` for `30m` — known bare model name; the provider is inferred from plugin metadata.
-- Worker `codex/gpt-5.5` for `1h` — route `%model:@worker` launches through Codex for the next hour.
 - `Until cleared` — leave the override active across sessions; clear it later from the same `,m` modal.
 
 See [docs/llms.md](llms.md#temporary-default-override) for the resolution order and state-file format.
@@ -1583,9 +1575,9 @@ The dialog keeps the custom coder prompt and follow-up model controls:
   filter or cancel, and `'` for jump hints over the visible selectable rows. The displayed default resolves to the model
   the handoff will actually use: for Approve and Tale it is the planner provider's coder alias
   (`@<planner_provider>_coder`, e.g. `@claude_coder`, falling back to `@coder` when planner provider metadata is
-  missing); for Epic and Legend it is the contextual worker lane resolved from the **planner's** concrete
-  provider/model. Selecting a specific model and then re-opening the picker and choosing "Follow-up default" resets the
-  follow-up back to that role default (distinct from pressing `Esc`, which keeps the current selection).
+  missing); for Epic it is the `@epic_creator` role alias and for Legend it is the `@default` launch alias. Selecting a
+  specific model and then re-opening the picker and choosing "Follow-up default" resets the follow-up back to that role
+  default (distinct from pressing `Esc`, which keeps the current selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.

@@ -354,47 +354,41 @@ full LLM provider architecture, preprocessing pipeline, and invocation lifecycle
 ```yaml
 llm_provider:
   provider: claude # or "qwen", "opencode", "agy" (default: auto-detect)
-  worker_models:
-    claude: codex/gpt-5.5 # worker default when primary is on Claude
-    codex: claude/opus # worker default when primary is on Codex
   model_tier_map:
     large: opus
     small: sonnet
   model_aliases:
-    other: claude/opus
+    default: opus # model used when a prompt has no %model directive
+    claude_coder: codex/gpt-5.5 # coder follow-ups from Claude-authored plans
+    codex_coder: claude/opus # coder follow-ups from Codex-authored plans
 ```
 
-| Field                               | Type   | Default     | Description                                                                                                                                                    |
-| ----------------------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                       |
-| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets keyed by the effective primary lane. Values accept bare known models, aliases, or explicit `provider/model`.                      |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                         |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                         |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases usable from `%model:@<alias>` / `%m:@<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths. |
+| Field                               | Type   | Default     | Description                                                                                                                                                                                                                         |
+| ----------------------------------- | ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                                            |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                                                                                              |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                              |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases usable from `%model:@<alias>` / `%m:@<alias>`, plus overrides for the implicit role aliases. Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
 
-Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@other` while
-each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the `@` marker is only used in
-`%model`/`%m` directive values. Unknown non-alias model values keep the existing fallback behavior and run on the
-default provider.
+Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@default`
+while each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the `@` marker is only
+used in `%model`/`%m` directive values. Alias values may reference another alias with `@<alias>` (chains are followed
+with cycle/depth protection). Unknown non-alias model values keep the existing fallback behavior and run on the default
+provider.
 
-The optional `worker_models` config defines the worker lane used by delegated work, currently including `sase bead work`
-phase agents that do not have an explicit per-bead model. Entries are selected from the current effective primary lane
-in this order: exact `provider/model`, bare model, then provider. Provider entries are defaults only and do not override
-model-specific entries. When no entry matches, the worker lane follows the primary default lane: active primary
-override, configured provider/tier, then provider auto-detection. See [Worker Model](llms.md#worker-model) for the full
-precedence order and TUI behavior.
+On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
+`@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
+`@epic_creator`, `@epic_lander`, and `@phase_worker` (bead/epic role launches). Each falls back through other aliases to
+`@default`, so configuring `model_aliases.default` is enough to drive every role; override an individual role by
+configuring an alias of the same name. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 
-The alias name `other` is reserved: when a temporary LLM override is active (see
-[Temporary Default Override](llms.md#temporary-default-override)), `%model:@other` resolves to the `(provider, model)`
-that was the effective default _immediately before_ the override was set, rather than to the static
-`model_aliases.other` target. When no override is active, `other` falls back to the configured alias as usual.
+> The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases were removed in epic sase-5d. Use
+> the role aliases above (`@coder` / `@phase_worker`) or an explicit model instead of `@worker`, and `@default` instead
+> of `@other`. `sase doctor` reports configs that still reference the removed keys or aliases.
 
-The alias name `worker` is also reserved: `%model:@worker` resolves through the worker lane and shadows any
-`model_aliases.worker` entry.
-
-The TUI also supports **temporary** session-level provider/model overrides that do **not** edit this config. Primary
-overrides are persisted to `~/.sase/llm_override.json`; worker overrides are persisted to
-`~/.sase/llm_worker_override.json`. Expired entries are deleted on next read. See
+The TUI also supports a **temporary** session-level provider/model override that does **not** edit this config. It is
+persisted to `~/.sase/llm_override.json` and expired entries are deleted on next read. See
 [docs/llms.md](llms.md#temporary-default-override) for the resolution order, state-file format, and precedence relative
 to `SASE_MODEL_TIER_OVERRIDE`.
 

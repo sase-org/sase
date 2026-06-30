@@ -10,7 +10,7 @@ input:
 
 ---
 
-%w %g:research #fork #research/more %m:@other
+%w %g:research #fork #research/more %m:@default
 
 ---
 

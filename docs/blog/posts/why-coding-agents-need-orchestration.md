@@ -492,18 +492,18 @@ and its "token scarcity" framing: the era of infinite-feeling subsidized inferen
 provider tiers, routing decisions, and pricing details that matter.
 
 SASE is an answer to that world because it assumes agent work should be schedulable, inspectable, and routable across
-providers. The `worker_models` config field is a small example:
+providers. The `model_aliases` config map is a small example:
 
 ```yaml
 llm_provider:
   provider: codex
-  worker_models:
-    claude: codex/gpt-5.5
-    codex: claude/opus
+  model_aliases:
+    codex_coder: claude/opus
+    claude_coder: codex/gpt-5.5
 ```
 
-That means delegated worker-lane jobs can use a different provider/model than the primary lane. If the primary planner
-is Claude, workers can go to Codex. If the primary planner is Codex, workers can go to Claude Opus. The goal is not
+That means delegated coder follow-ups can use a different provider/model than the planner that handed them off. If the
+planner is Codex, its coder can go to Claude Opus. If the planner is Claude, its coder can go to Codex. The goal is not
 "always use the biggest model." The goal is "put scarce reasoning where it matters and route routine follow-up work
 somewhere sensible."
 
@@ -589,7 +589,7 @@ Shape: split-panel cartoon.
 Left panel: Gas Town as city hall. A Mayor at a desk dispatches beads to rigs, with polecats in hard hats running to
 worktrees. Label it "autonomous town experiments".
 Right panel: SASE as a terminal cockpit. A developer sits at ACE with levers labeled XPrompts, Beads, AXE, VCS, and
-worker_models; several agent planes are queued on a runway.
+model_aliases; several agent planes are queued on a runway.
 Caption: "Both believe agents can do work. SASE obsesses over the control surface."
 Keep it affectionate and clearly respectful of Gas Town/Beads.
 -->

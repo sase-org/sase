@@ -19,7 +19,7 @@ plugins) behind a shared orchestration layer that handles preprocessing, invocat
 - [Per-Prompt Provider Switching](#per-prompt-provider-switching)
 - [Reasoning Effort](#reasoning-effort)
 - [Model Tier System](#model-tier-system)
-- [Worker Model](#worker-model)
+- [Role Aliases for Delegated Work](#role-aliases-for-delegated-work)
 - [Temporary Default Override](#temporary-default-override)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
@@ -542,26 +542,24 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 llm_provider:
   provider: claude # or "qwen", "opencode", "agy" (default: auto-detect)
   default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
-  worker_models:
-    claude: codex/gpt-5.5 # worker default when primary is on Claude
-    codex: claude/opus # worker default when primary is on Codex
   model_tier_map:
     large: opus
     small: sonnet
   model_aliases:
-    other: claude/opus
+    default: opus # model used when a prompt has no %model directive
+    claude_coder: codex/gpt-5.5 # coder follow-ups from Claude-authored plans
+    codex_coder: claude/opus # coder follow-ups from Codex-authored plans
 ```
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                                                                                                                |
-| ----------------------------------- | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                   |
-| `llm_provider.default_effort`       | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort. |
-| `llm_provider.worker_models`        | dict   | unset       | Optional worker-lane targets for plan follow-ups and epic phase agents, keyed by the effective primary lane. Values accept aliases, bare models, or explicit `provider/model`.                             |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                                                      |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                                                      |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:@<alias>` / `%m:@<alias>`. Values can be bare known models, explicit `provider/model`, or nested provider-local model paths.                                                     |
+| Field                               | Type   | Default     | Description                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                                                                                                                            |
+| `llm_provider.default_effort`       | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                          |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                               |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                               |
+| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:@<alias>` / `%m:@<alias>`, plus overrides for the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`). Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
 
 ## Per-Prompt Provider Switching
 
@@ -571,25 +569,29 @@ model metadata.
 
 ### Configured Model Aliases
 
-Use `llm_provider.model_aliases` to define launch-time aliases for reusable prompts:
+Use `llm_provider.model_aliases` to define launch-time aliases for reusable prompts and to override the implicit role
+aliases (see below):
 
 ```yaml
 llm_provider:
   model_aliases:
-    other: claude/opus
+    fast: claude/sonnet
+    default: opus
 ```
 
 Then prompts can use the alias with a leading `@`:
 
 ```
-%model:@other
-%{%m:@other | %m:gpt-5.5}
+%model:@fast
+%{%m:@default | %m:gpt-5.5}
 ```
 
-Alias values may point at another alias, a bare known model such as `opus`, an explicit provider/model string such as
-`claude/opus`, or a nested provider-local path such as `opencode/anthropic/claude-sonnet-4-5`. Cycles are ignored and
-fall back to the raw input. The `@` marker is only directive surface syntax: `model_aliases` keys and xprompt values
-stay bare. A bare configured/reserved alias raises with a migration hint, and `@` in front of a non-alias raises.
+Alias values may point at another alias (for example `@default` or `@coder`), a bare known model such as `opus`, an
+explicit provider/model string such as `claude/opus`, or a nested provider-local path such as
+`opencode/anthropic/claude-sonnet-4-5`. Alias-to-alias chains are followed with cycle and depth protection; a cyclic or
+unresolved reference falls back to the raw input rather than crashing a launch. The `@` marker is only directive surface
+syntax: `model_aliases` keys and xprompt values stay bare. A bare configured/implicit alias raises with a migration
+hint, and `@` in front of a non-alias raises.
 
 A bare `%model` token that is _not_ a configured alias, an explicit `provider/model` target, or a known provider model
 silently falls back to the default provider rather than erroring. To catch this drift — for example a removed
@@ -598,25 +600,36 @@ silently falls back to the default provider rather than erroring. To catch this 
 `<xprompt> -> <token> does not resolve to a provider; it will fall back to the default provider`. The check is
 provider-neutral and read-only.
 
-#### Reserved alias: `other`
+#### Implicit role aliases
 
-The literal alias name `other` is reserved as a context-aware key. When a
-[temporary default override](#temporary-default-override) is active, `%model:@other` (and `%m:@other`) resolves to the
-`(provider, model)` that was the effective default _immediately before_ the override was set — captured in the
-override's `pre_override_*` snapshot. When no override is active, `other` falls back to whatever the user configured
-under `llm_provider.model_aliases.other` (or the literal model name `other` if no alias is configured).
+On top of any aliases you configure, SASE always exposes a fixed set of **implicit role aliases** that resolve even when
+you have not defined them. Each one falls back through other aliases to `@default`, so configuring just
+`model_aliases.default` (or leaving it implicit) is enough to drive every role:
 
-This makes `%{%m:@other | %m:...}` always pair "the alternate model" with the current default, even when the user has
-temporarily switched their default via the ACE `,m` chord. Without the snapshot, `%{%m:@other | %m:...}` on an
-override-displaced default could otherwise launch the override's model side-by-side with itself.
+| Alias               | Role                                                                                                    | Fallback when not configured                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `@default`          | Model used when a prompt has no `%model` directive.                                                     | Configured `model_aliases.default`, else the provider's requested-tier default. |
+| `@coder`            | Coder follow-up launched from an accepted plan.                                                         | `@default`                                                                      |
+| `@<provider>_coder` | Coder follow-up for a plan authored by `<provider>` (`@claude_coder`, `@codex_coder`, `@agy_coder`, …). | `@coder`                                                                        |
+| `@epic_creator`     | `#bd/new_epic` follow-up launched from an accepted epic plan.                                           | `@default`                                                                      |
+| `@epic_lander`      | Epic land agent with no explicit land model.                                                            | `@default`                                                                      |
+| `@phase_worker`     | Bead phase agent with no explicit per-bead model.                                                       | `@default`                                                                      |
 
-#### Reserved alias: `worker`
+Override any role by configuring an alias of the same name. A common setup routes coder follow-ups to a second provider
+while everything else tracks `@default`:
 
-The literal alias name `worker` is reserved for the worker lane. `%model:@worker` and `%m(@worker)` resolve to the
-current effective worker provider/model and shadow any `llm_provider.model_aliases.worker` entry.
+```yaml
+llm_provider:
+  model_aliases:
+    default: opus
+    claude_coder: codex/gpt-5.5 # Claude-authored plans hand coding to Codex
+    codex_coder: claude/opus # Codex-authored plans hand coding to Claude
+```
 
-This alias is how delegated launch sites opt into worker-lane selection without hardcoding a concrete model. For
-example, `sase bead work` emits `%model:@worker` for phase agents that do not have an explicit per-bead model.
+> **Migration note:** the previously reserved `@worker` and `@other` aliases were removed (epic sase-5d). Route
+> delegated work through the role aliases above (`@coder` / `@phase_worker`) or an explicit model instead of `@worker`,
+> and use `@default` instead of `@other`. `sase doctor` flags configs that still reference the removed aliases or
+> `llm_provider.worker_models`.
 
 ### Explicit Provider/Model Syntax
 
@@ -747,79 +760,42 @@ use the specified tier regardless of what the caller requests.
 3. `--model-tier` / `--model-size` CLI flag (sets the env var)
 4. Caller's `model_tier` parameter (default: `"large"`)
 
-## Worker Model
+## Role Aliases for Delegated Work
 
-The worker model is an optional secondary default for delegated execution work. It is used by plan follow-up agents when
-the approval does not pick a specific follow-up model, and by `sase bead work` phase agents that do not have an explicit
-per-bead model. Planning and landing agents stay on the primary default unless their prompt or bead explicitly asks for
-a different model.
+Delegated launches do not use a separate "worker lane". Instead, each delegated role resolves through an
+[implicit role alias](#implicit-role-aliases) that ultimately falls back to `@default`:
 
-Configure it under `llm_provider.worker_models`:
+- **Coder follow-ups** from an accepted plan use `@<provider>_coder` for the planner's provider (for example
+  `@claude_coder`), falling back to `@coder` and then `@default`.
+- **`sase bead work` phase agents** without an explicit per-bead model use `@phase_worker`.
+- **Epic land agents** without an explicit land model use `@epic_lander`.
+- **`#bd/new_epic` follow-ups** from an accepted epic plan use `@epic_creator`.
+
+Planning agents stay on `@default` unless their prompt explicitly asks for a different model. To send delegated work to
+a second provider, configure the matching role alias under `llm_provider.model_aliases`:
 
 ```yaml
 llm_provider:
   provider: claude
-  worker_models:
-    claude: codex/gpt-5.5
-    codex: claude/opus
+  model_aliases:
+    default: opus
+    claude_coder: codex/gpt-5.5 # Claude-authored plans hand coding to Codex
+    codex_coder: claude/opus # Codex-authored plans hand coding to Claude
+    phase_worker: codex/gpt-5.5 # bead phase agents run on Codex
 ```
 
-Each key selects which worker target to use for the current effective primary lane. Keys are matched in this order:
-exact `provider/model` first, bare model next, and provider last. Provider keys are defaults only, so `claude/opus` or
-`opus` beats `claude` when both are present. Values accept the same syntax as `%model`: a bare known model (`gpt-5.5`),
-a configured alias, an explicit `provider/model` pair (`codex/gpt-5.5`), or a nested provider-local model path.
+Because every role falls back to `@default`, leaving these aliases unset preserves the old behavior: delegated launches
+use the same effective default a normal launch would have used. Explicit `%model` directives, approval-picker model
+choices, and per-bead/land model metadata always win over the role-alias default.
 
-For example:
-
-```yaml
-llm_provider:
-  worker_models:
-    claude/opus: codex/gpt-5.5
-    sonnet: codex/o3
-    claude: agy/flash35h
-```
-
-With that config, primary `claude/opus` uses `codex/gpt-5.5`, primary `claude/sonnet` uses `codex/o3`, and other Claude
-primary models use `agy/flash35h`.
-
-### Lane Precedence
-
-Primary launches and worker launches resolve through separate lanes. The worker lane falls through to the primary lane
-only when no worker-specific setting exists:
-
-```text
-Primary lane:
-1. explicit %model directive
-2. active primary temporary override (~/.sase/llm_override.json)
-3. llm_provider.provider + requested model tier
-4. provider auto-detection
-
-Worker lane:
-1. explicit %model directive or per-bead model
-2. active worker temporary override (~/.sase/llm_worker_override.json)
-3. matching llm_provider.worker_models entry
-4. primary lane steps 2-4
-```
-
-Because of that fallthrough, leaving `worker_models` unset, empty, or unmatched preserves the old behavior: worker
-launches use the same effective default that a normal launch would have used. Active primary temporary overrides affect
-which mapping key is selected, so a primary override to `codex/o3` can match `codex/o3`, `o3`, or `codex`.
-
-### TUI Controls
-
-Press `,m` in ACE to open the **Model Overrides** panel. The panel shows both lanes, their current effective model, and
-the source of that model (`override`, `config`, `follows primary`, or `default`). Use `s`/`c`/`x` for primary override
-set/change/clear and `w`/`W` for worker override set/change/clear. Active temporary worker overrides also appear as a
-compact `W ...` chip in the top bar; permanent `worker_models` config is visible in the modal instead.
-
-The worker override state file is `~/.sase/llm_worker_override.json`. It uses the same JSON format, expiry behavior, and
-atomic writes as the primary override file.
+> The previous `llm_provider.worker_models` map and the `~/.sase/llm_worker_override.json` worker temporary override
+> were removed in epic sase-5d. See the [migration note](#implicit-role-aliases) above.
 
 ## Temporary Default Override
 
 In addition to the tier-based global override, sase supports a **concrete** provider/model override that acts as a
-temporary session-level default. The ACE `,m` chord opens the dual-lane Model Overrides panel for primary and worker
-overrides (see [docs/ace.md](ace.md#model-overrides) for the TUI flow).
+temporary session-level default. The ACE `,m` chord opens the Model Overrides panel for setting, changing, and clearing
+this override (see [docs/ace.md](ace.md#model-overrides) for the TUI flow).
 
 The temporary override only changes the _default_ provider/model selection for new agent launches. It does **not**
 override:
@@ -853,24 +829,18 @@ configured default.
   "raw_model": "opencode/anthropic/claude-sonnet-4-5",
   "created_at": 1777470000.0,
   "expires_at": 1777473600.0,
-  "source": "ace",
-  "pre_override_provider": "claude",
-  "pre_override_model": "opus",
-  "pre_override_raw_model": "opus"
+  "source": "ace"
 }
 ```
 
-| Field                    | Type            | Description                                                                                                                 |
-| ------------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `provider`               | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).                                                          |
-| `model`                  | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).                                                              |
-| `raw_model`              | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).                                                        |
-| `created_at`             | `float`         | Unix timestamp when the override was set.                                                                                   |
-| `expires_at`             | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared".                                                     |
-| `source`                 | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).                                                               |
-| `pre_override_provider`  | `str \| None`   | Snapshot of the effective provider _before_ the override was set. Used to resolve the reserved `"other"` alias dynamically. |
-| `pre_override_model`     | `str \| None`   | Snapshot of the effective model _before_ the override. Pairs with `pre_override_provider` to form the `"other"` target.     |
-| `pre_override_raw_model` | `str \| None`   | Cosmetic copy of the displaced model's raw user-input form. May be `None` on legacy state files written before this field.  |
+| Field        | Type            | Description                                                             |
+| ------------ | --------------- | ----------------------------------------------------------------------- |
+| `provider`   | `str`           | Resolved provider name (e.g. `"claude"`, `"codex"`, `"opencode"`).      |
+| `model`      | `str`           | Concrete model passed to the provider (e.g. `"o3"`, `"opus"`).          |
+| `raw_model`  | `str`           | Original user input (e.g. `"codex/o3"`, `"opencode/anthropic/..."`).    |
+| `created_at` | `float`         | Unix timestamp when the override was set.                               |
+| `expires_at` | `float \| None` | Unix timestamp when the override expires; `null` means "until cleared". |
+| `source`     | `str`           | Free-form tag indicating who set the override (e.g. `"ace"`).           |
 
 Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleaning: an expired or unparseable file is
 deleted on next access, so a forgotten override never lingers past its `expires_at`, even with no TUI running.
@@ -893,14 +863,13 @@ persists until the user clears it from the TUI or another sase process clears th
 
 The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 
-| Function                                              | Purpose                                                                            |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `get_active_temporary_override(now=None, role=...)`   | Read the active primary or worker override (auto-deletes expired/malformed files). |
-| `set_temporary_override(raw, dur, source=, role=...)` | Write a new primary or worker override, replacing any existing one for that lane.  |
-| `clear_temporary_override(role=...)`                  | Remove the lane's override file. Safe to call when nothing is active.              |
-| `parse_override_duration(value)`                      | Parse a user-facing duration string into seconds (or `None`).                      |
-| `resolve_effective_default_provider_model()`          | Centralized helper used by metadata pre-resolution paths.                          |
-| `resolve_effective_worker_provider_model()`           | Resolve the worker lane: worker override, matching `worker_models`, then fallback. |
+| Function                                     | Purpose                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------ |
+| `get_active_temporary_override(now=None)`    | Read the active override (auto-deletes expired/malformed files).               |
+| `set_temporary_override(raw, dur, source=)`  | Write a new override, replacing any existing one.                              |
+| `clear_temporary_override()`                 | Remove the override file. Safe to call when nothing is active.                 |
+| `parse_override_duration(value)`             | Parse a user-facing duration string into seconds (or `None`).                  |
+| `resolve_effective_default_provider_model()` | Resolve the default launch target: active override, else the `@default` alias. |
 
 ### Examples
 
@@ -911,8 +880,6 @@ The override primitives live in `src/sase/llm_provider/temporary_override.py`:
 - ACE chord `,m`, pick `sonnet`, duration `30m` → known bare model; provider resolves to claude via plugin metadata.
 - ACE chord `,m`, choose **Clear override** → `~/.sase/llm_override.json` is removed; defaults revert to permanent
   config / autodetect.
-- ACE chord `,m`, set worker override to `codex/gpt-5.5` for `1h` → `~/.sase/llm_worker_override.json` is written; new
-  `%model:@worker` launches use CODEX(gpt-5.5) until the override expires or is cleared.
 
 ## Environment Variables
 
