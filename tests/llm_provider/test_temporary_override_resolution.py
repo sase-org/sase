@@ -14,7 +14,7 @@ from sase.llm_provider.temporary_override import (
     resolve_worker_provider_model_for_primary,
     set_temporary_override,
 )
-from tests.llm_provider._temporary_override_helpers import mock_provider_config
+from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
 # ---------------------------------------------------------------------------

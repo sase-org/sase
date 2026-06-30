@@ -1,4 +1,4 @@
-"""Shared helpers for temporary override tests."""
+"""Shared helpers for LLM provider config tests."""
 
 from __future__ import annotations
 
