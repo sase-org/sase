@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/sase-org/sase/compare/v0.6.0...v0.6.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* require sase-core-rs 0.3 ([5474f44](https://github.com/sase-org/sase/commit/5474f4491032de750e1f1ee2a524cf7dd0deb066))
+
 ## [0.6.0](https://github.com/sase-org/sase/compare/v0.5.0...v0.6.0) (2026-06-29)
 
 
