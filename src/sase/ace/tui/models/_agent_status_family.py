@@ -359,6 +359,39 @@ def feedback_child_progressed_past_review(
     )
 
 
+def has_later_family_continuation(
+    agent: Agent,
+    children_by_parent: dict[str, list[Agent]],
+) -> bool:
+    """Return True when a non-workflow sibling launched after this row."""
+    if not agent.parent_timestamp:
+        return False
+    launched_at = child_launch_time(agent)
+    return any(
+        sibling is not agent
+        and sibling.parent_timestamp == agent.parent_timestamp
+        and not sibling.parent_workflow
+        and child_launch_time(sibling) > launched_at
+        for sibling in children_by_parent.get(agent.parent_timestamp, [])
+    )
+
+
+def is_answered_continuation_asker(
+    agent: Agent,
+    children_by_parent: dict[str, list[Agent]],
+) -> bool:
+    """Return True for a question continuation whose answer handed off."""
+    if agent.status != "DONE":
+        return False
+    if not agent.parent_timestamp or agent.parent_workflow:
+        return False
+    if agent_family_role(agent) != "q":
+        return False
+    if not agent.questions_times or not agent.question_response_path:
+        return False
+    return has_later_family_continuation(agent, children_by_parent)
+
+
 def planner_child_status(
     parent: Agent,
     all_agents: list[Agent] | None = None,

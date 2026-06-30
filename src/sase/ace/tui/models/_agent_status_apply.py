@@ -20,17 +20,18 @@ from ._agent_status_family import (
     has_inherited_family_question,
     has_unanswered_completed_question,
     has_unreviewed_submitted_plan,
+    is_answered_continuation_asker,
     is_awaiting_plan_review,
     is_completed_epic_followup_child,
     is_completed_plan_handoff_child,
     is_family_child,
     is_main_workflow_agent_step,
+    is_root_plan_workflow,
     latest_non_workflow_child_launch_by_parent,
     merge_feedback_plan_paths,
     root_child_suffix,
     superseded_by_feedback_round,
     sync_planner_child_from_parent,
-    is_root_plan_workflow,
 )
 from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
 from .agent import Agent
@@ -212,6 +213,13 @@ def apply_status_overrides(
             agent, parents_with_followup
         ) and not has_inherited_family_question(agent, parent_by_suffix):
             agent.status = "QUESTION"
+
+    # A completed question continuation with a persisted response and a newer
+    # sibling already handed off to the next continuation.
+    for agent in all_agents:
+        if is_answered_continuation_asker(agent, children_by_parent):
+            agent.status = "ANSWERED"
+            agent.stop_time = max(agent.questions_times)
 
     # Override DONE -> PLAN for rows whose submitted plan still awaits manual
     # review. This mirrors the QUESTION catch-all and covers planner entries
