@@ -315,11 +315,12 @@ For epic-tier plans, the command:
    `<epic_id>` references the [`land_epic`](xprompt.md#available-tags) xprompt. Phase dependencies become `%w` waits on
    blocker phase-agent names, and the land agent waits on every launched phase agent. Because `%w` requires a successful
    `done.json` outcome, a failed or killed phase keeps dependent phases and the land agent parked until the phase name
-   is retried successfully. Phase beads with a stored `model` emit `%model:<value>`; phase beads without one emit
-   `%model:@worker`, which resolves through the worker-lane order: active worker override, matching
-   `llm_provider.worker_models` entry, then the primary model lane. A stored model on the epic plan bead still applies
-   only to the land agent. Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work`
-   after a killed or failed run wipes the stale name owners before the relaunch — the command is safe to retry.
+   is retried successfully. Phase beads with a stored `model` emit `%model:<value>`; phase beads without one default to
+   the `%model:@phase_worker` role alias. The land agent emits `%model:<value>` when the epic plan bead has a stored
+   `model`, and otherwise defaults to the `%model:@epic_lander` role alias. Both `@phase_worker` and `@epic_lander` are
+   role aliases that fall through to `@default` unless explicitly configured under `llm_provider.model_aliases`. Each
+   segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work` after a killed or failed run
+   wipes the stale name owners before the relaunch — the command is safe to retry.
 
 For legend-tier plans, the command:
 

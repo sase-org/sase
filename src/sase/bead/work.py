@@ -17,7 +17,10 @@ from sase.bead import db
 from sase.bead.model import Dependency, Issue
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.rust import require_rust_binding
+from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
+from sase.llm_provider.config import PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
+from sase.llm_provider.config import role_model_directive_value
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
@@ -343,7 +346,8 @@ def render_multi_prompt(
                 model_value = format_model_directive_value(assignment.model)
                 lines.append(f"%model:{model_value}")
             else:
-                lines.append(f"%model:{format_model_directive_value('worker')}")
+                phase_alias = role_model_directive_value(PHASE_WORKER_MODEL_ALIAS_NAME)
+                lines.append(f"%model:{phase_alias}")
             lines.append("%auto")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
@@ -356,6 +360,9 @@ def render_multi_prompt(
     if plan.land_model:
         land_model = format_model_directive_value(plan.land_model)
         land_lines.append(f"%model:{land_model}")
+    else:
+        land_alias = role_model_directive_value(EPIC_LANDER_MODEL_ALIAS_NAME)
+        land_lines.append(f"%model:{land_alias}")
     land_lines.append("%auto")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")

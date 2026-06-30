@@ -60,15 +60,6 @@ _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
 }
 
-# Legacy reserved aliases retained as deprecated stubs until the worker lane is
-# retired (epic sase-5d phase 4) and the plan/bead emit sites stop producing
-# them (phases 3-4). New configs should use the role aliases above instead.
-# ``model_completion`` still surfaces these until phase 2 reworks the catalog.
-RESERVED_MODEL_ALIASES: tuple[tuple[str, str], ...] = (
-    ("worker", "reserved alias: current worker-lane model"),
-    ("other", "reserved alias: model active before a temporary override"),
-)
-
 
 def get_llm_provider_config() -> dict[str, Any]:
     """Read the ``llm_provider`` section from ``sase.yml``.
@@ -207,14 +198,15 @@ def _provider_coder_model_alias_names() -> set[str]:
 def special_model_alias_names() -> set[str]:
     """Return every implicit (non-user-configured) model alias name.
 
-    This is the centralized alias policy that replaces the old
-    ``RESERVED_MODEL_ALIASES`` constant as the source of truth for which alias
-    names always resolve: the fixed role aliases, a ``<provider>_coder`` alias
-    per registered provider, and (temporarily, until epic sase-5d phases 3-4
-    retire them) the legacy ``worker``/``other`` reserved aliases.
+    This is the centralized alias policy that is the source of truth for which
+    alias names always resolve: the fixed role aliases (``default`` plus
+    ``coder``/``epic_creator``/``epic_lander``/``phase_worker``) and a
+    ``<provider>_coder`` alias per registered provider. The legacy
+    ``worker``/``other`` reserved aliases were retired with the worker lane
+    (epic sase-5d phase 4); they only resolve now if a user defines them as
+    ordinary configured aliases.
     """
-    legacy = {name for name, _ in RESERVED_MODEL_ALIASES}
-    return _role_model_alias_names() | _provider_coder_model_alias_names() | legacy
+    return _role_model_alias_names() | _provider_coder_model_alias_names()
 
 
 def model_alias_names() -> set[str]:
@@ -251,36 +243,6 @@ def _clean_string_mapping(value: Any) -> dict[str, str]:
         if alias and target:
             cleaned[alias] = target
     return cleaned
-
-
-def _get_configured_worker_models() -> dict[str, str]:
-    """Return cleaned ``llm_provider.worker_models`` mapping entries."""
-    return _clean_string_mapping(get_llm_provider_config().get("worker_models", {}))
-
-
-def get_configured_worker_model_entry_for_primary(
-    primary_provider: str,
-    primary_model: str,
-) -> tuple[str, str] | None:
-    """Return ``(matched_key, configured_target)`` for an effective primary lane.
-
-    Resolves the most specific ``worker_models`` key that matches the supplied
-    primary lane — exact ``provider/model``, then bare model, then provider —
-    and reports both the matched key (so callers can surface the provenance of
-    a worker choice) and its configured target. Returns ``None`` when no key
-    matches or the lane is incomplete.
-    """
-    provider = primary_provider.strip()
-    model = primary_model.strip()
-    if not provider or not model:
-        return None
-
-    worker_models = _get_configured_worker_models()
-    for key in (f"{provider}/{model}", model, provider):
-        configured = worker_models.get(key)
-        if configured is not None:
-            return key, configured
-    return None
 
 
 def _resolve_default_alias_target() -> str:
@@ -320,37 +282,11 @@ def resolve_model_alias(model: str) -> str:
     Unknown tokens return *model* unchanged. Cycles and overly deep chains fall
     back to the original input so a bad config cannot crash launches.
 
-    The literal aliases ``"worker"`` and ``"other"`` are legacy reserved stubs
-    retained until epic sase-5d phases 3-4 retire the worker lane:
-
-    - ``"worker"`` short-circuits to the effective worker-lane model and shadows
-      ``model_aliases.worker``.
-    - ``"other"`` short-circuits to the ``(provider, model)`` that was the
-      effective default immediately before an active temporary override was set,
-      falling through to ``model_aliases.other`` when no override is active.
+    The literal aliases ``"worker"`` and ``"other"`` are no longer special: the
+    worker lane was retired in epic sase-5d phase 4, so they resolve only when a
+    user defines them as ordinary configured aliases.
     """
     cleaned_model = model.strip()
-    if cleaned_model == "worker":
-        # Lazy import to avoid an import cycle: temporary_override imports
-        # resolve_model_provider from registry, which imports this module.
-        from .temporary_override import resolve_effective_worker_provider_model
-
-        provider, worker_model = resolve_effective_worker_provider_model()
-        return f"{provider}/{worker_model}"
-
-    if cleaned_model == "other":
-        # Lazy import to avoid an import cycle: temporary_override imports
-        # resolve_model_provider from registry, which imports this module.
-        from .temporary_override import get_active_temporary_override
-
-        override = get_active_temporary_override()
-        if (
-            override is not None
-            and override.pre_override_provider
-            and override.pre_override_model
-        ):
-            return f"{override.pre_override_provider}/{override.pre_override_model}"
-
     aliases = _get_model_aliases()
     original = model
     current = cleaned_model

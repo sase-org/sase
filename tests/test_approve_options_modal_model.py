@@ -114,7 +114,6 @@ async def test_default_model_uses_planner_coder_alias() -> None:
         async with ApproveOptionsApp().run_test() as pilot:
             modal = ApproveOptionsModal(
                 planner_llm_provider="claude",
-                planner_model="opus",
             )
             pilot.app.push_screen(modal)
             await pilot.pause()
@@ -125,12 +124,12 @@ async def test_default_model_uses_planner_coder_alias() -> None:
     resolve_mock.assert_any_call("@claude_coder")
 
 
-async def test_default_model_shows_worker_lane_for_epic() -> None:
-    """Epic follow-ups keep the worker-lane default until phase 4 retires it."""
+async def test_default_model_shows_epic_creator_alias_for_epic() -> None:
+    """Epic follow-ups resolve the ``@epic_creator`` role alias for their default."""
     with patch(
-        "sase.llm_provider.resolve_effective_worker_provider_model",
+        "sase.llm_provider.registry.resolve_model_provider",
         return_value=("claude", "opus"),
-    ):
+    ) as resolve_mock:
         async with ApproveOptionsApp().run_test() as pilot:
             modal = ApproveOptionsModal(choice="epic")
             pilot.app.push_screen(modal)
@@ -138,7 +137,25 @@ async def test_default_model_shows_worker_lane_for_epic() -> None:
 
             model_display = modal.query_one("#coder-model-display", Static)
             display_text = str(model_display.render())
-            assert "Worker — CLAUDE(opus)" in display_text
+            assert "Follow-up — CLAUDE(opus)" in display_text
+    resolve_mock.assert_any_call("@epic_creator")
+
+
+async def test_default_model_shows_default_alias_for_legend() -> None:
+    """Legend follow-ups resolve the generic ``@default`` role alias."""
+    with patch(
+        "sase.llm_provider.registry.resolve_model_provider",
+        return_value=("claude", "opus"),
+    ) as resolve_mock:
+        async with ApproveOptionsApp().run_test() as pilot:
+            modal = ApproveOptionsModal(choice="legend")
+            pilot.app.push_screen(modal)
+            await pilot.pause()
+
+            model_display = modal.query_one("#coder-model-display", Static)
+            display_text = str(model_display.render())
+            assert "Follow-up — CLAUDE(opus)" in display_text
+    resolve_mock.assert_any_call("@default")
 
 
 async def test_model_picker_resets_coder_model_to_followup_default() -> None:

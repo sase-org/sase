@@ -258,9 +258,10 @@ def _check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
 
 
 #: Implicit aliases retired by the model-alias migration (epic sase-5d), mapped
-#: to the guidance doctor surfaces for each. ``worker``/``other`` still resolve
-#: as legacy stubs until the worker lane is fully retired, but they are no longer
-#: documented, completed, or shipped, so configs referencing them should migrate.
+#: to the guidance doctor surfaces for each. ``worker``/``other`` no longer
+#: resolve as implicit aliases (the worker lane was retired in phase 4); they are
+#: no longer documented, completed, or shipped, so configs referencing them
+#: should migrate.
 _REMOVED_IMPLICIT_ALIAS_GUIDANCE: dict[str, str] = {
     "worker": "use a role alias such as @coder/@phase_worker or an explicit model",
     "other": "use @default or an explicit provider/model",

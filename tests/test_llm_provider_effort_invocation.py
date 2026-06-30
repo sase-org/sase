@@ -360,14 +360,10 @@ def test_invoke_agent_threads_config_default_effort(
     assert mock_provider.invoke.call_args.kwargs["options"] == expected
 
 
-def test_worker_default_effort_reaches_codex_cli() -> None:
-    """A worker-lane launch with no explicit effort passes the default to Codex."""
+def test_default_effort_reaches_codex_cli() -> None:
+    """A launch with no explicit effort passes the config default to Codex."""
     with (
         patch("sase.llm_provider.config._get_default_effort", return_value="xhigh"),
-        patch(
-            "sase.llm_provider.temporary_override.resolve_effective_worker_provider_model",
-            return_value=("codex", "gpt-5"),
-        ),
         patch("sase.llm_provider.registry._provider_names", return_value=["codex"]),
         patch(
             "sase.llm_provider._invoke.get_provider",
@@ -388,7 +384,7 @@ def test_worker_default_effort_reaches_codex_cli() -> None:
             agent_type="test",
             suppress_output=True,
             skip_preprocessing=True,
-            directives=PromptDirectives(model="worker"),
+            directives=PromptDirectives(model="codex/gpt-5"),
         )
 
     cmd = mock_popen.call_args.args[0]

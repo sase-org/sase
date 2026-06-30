@@ -18,7 +18,6 @@ from sase.llm_provider.temporary_override import (
 )
 
 _ACTIVE_STYLE = "bold #1a1a1a on #D7AF5F"
-_WORKER_STYLE = "bold #1a1a1a on #87D7FF"
 _DEFAULT_STYLE = "dim cyan"
 _PLACEHOLDER_TEXT = " ... "
 _UNAVAILABLE_TEXT = " unavailable "
@@ -108,20 +107,11 @@ class LLMOverrideIndicator(Static):
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render content from cached state without cold provider resolution."""
         override = get_active_temporary_override()
-        worker_override = get_active_temporary_override(role="worker")
         if override is not None:
             override_content = self._build_override_content(override, now=now)
             if override_content is not None:
-                return self._append_worker_chip(
-                    override_content,
-                    worker_override,
-                    now=now,
-                )
-        return self._append_worker_chip(
-            self._build_cached_default_content(),
-            worker_override,
-            now=now,
-        )
+                return override_content
+        return self._build_cached_default_content()
 
     def _build_cached_default_content(self) -> Text:
         """Render the default-model line using already-resolved values."""
@@ -136,7 +126,6 @@ class LLMOverrideIndicator(Static):
     def _build_content(
         override: TemporaryLLMOverride | None = None,
         *,
-        worker_override: TemporaryLLMOverride | None = None,
         now: float | None = None,
     ) -> Text:
         """Build the indicator content synchronously (default-resolve path).
@@ -145,28 +134,15 @@ class LLMOverrideIndicator(Static):
         snapshot. Live widget instances use the cached/async path instead.
         """
         override = override if override is not None else get_active_temporary_override()
-        worker_override = (
-            worker_override
-            if worker_override is not None
-            else get_active_temporary_override(role="worker")
-        )
         if override is not None:
             override_content = LLMOverrideIndicator._build_override_content(
                 override,
                 now=now,
             )
             if override_content is not None:
-                return LLMOverrideIndicator._append_worker_chip(
-                    override_content,
-                    worker_override,
-                    now=now,
-                )
+                return override_content
 
-        return LLMOverrideIndicator._append_worker_chip(
-            LLMOverrideIndicator._build_default_content(),
-            worker_override,
-            now=now,
-        )
+        return LLMOverrideIndicator._build_default_content()
 
     @staticmethod
     def _build_override_content(
@@ -181,45 +157,6 @@ class LLMOverrideIndicator(Static):
 
         label = format_provider_model_label(override.provider, override.model)
         return Text(f" Override {label} {remaining} ", style=_ACTIVE_STYLE)
-
-    @staticmethod
-    def _build_worker_chip_content(
-        override: TemporaryLLMOverride | None,
-        *,
-        now: float | None = None,
-    ) -> Text | None:
-        """Build the compact worker override chip, when active."""
-        if override is None:
-            return None
-
-        remaining = _format_remaining_until(override.expires_at, now)
-        if not remaining:
-            return None
-
-        return Text(f"W {override.model} {remaining}", style=_WORKER_STYLE)
-
-    @staticmethod
-    def _append_worker_chip(
-        base: Text,
-        worker_override: TemporaryLLMOverride | None,
-        *,
-        now: float | None = None,
-    ) -> Text:
-        """Append active worker override state to the primary/default display."""
-        worker_chip = LLMOverrideIndicator._build_worker_chip_content(
-            worker_override,
-            now=now,
-        )
-        if worker_chip is None:
-            return base
-
-        text = base.copy()
-        if text.plain.endswith(" "):
-            text.rstrip()
-        text.append(" · ", style=_DEFAULT_STYLE)
-        text.append_text(worker_chip)
-        text.append(" ")
-        return text
 
     @staticmethod
     def _build_default_content() -> Text:

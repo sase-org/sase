@@ -32,10 +32,7 @@ from sase.llm_provider.registry import (
     resolve_model_provider,
 )
 from sase.llm_provider.retry_config import get_retry_config, is_retryable_error
-from sase.llm_provider.temporary_override import (
-    resolve_worker_provider_model_for_primary,
-    set_temporary_override,
-)
+from sase.llm_provider.temporary_override import set_temporary_override
 from sase.main import init_skills_handler
 from sase.main.init_skills_handler import _get_target_path
 from sase.main.parser import create_parser
@@ -128,25 +125,6 @@ def test_temporary_override_accepts_agy_model_with_spaces(
     assert override.provider == "agy"
     assert override.model == _AGY_LARGE
     assert override.raw_model == f"agy/{_AGY_LARGE}"
-
-
-def test_worker_model_override_resolves_agy_target_with_spaces(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A worker_models entry targeting a space-laden agy model resolves cleanly."""
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(
-        "sase.llm_provider.config.get_configured_worker_model_entry_for_primary",
-        lambda _provider, _model: ("claude", f"agy/{_AGY_LARGE}"),
-    )
-
-    resolution = resolve_worker_provider_model_for_primary("claude", "opus")
-
-    assert resolution.source == "config"
-    assert resolution.provider == "agy"
-    assert resolution.model == _AGY_LARGE
-    assert resolution.configured_target == f"agy/{_AGY_LARGE}"
 
 
 def test_agent_metadata_records_agy_provider_directive(

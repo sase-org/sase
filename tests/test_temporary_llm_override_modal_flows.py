@@ -23,7 +23,7 @@ from tests._temporary_llm_override_helpers import TemporaryOverrideTestApp
 
 
 def test_override_modal_picker_options_omit_same_as_planner() -> None:
-    """The override flow does not include the worker-default option id."""
+    """The override flow does not include the default option id."""
     items = _build_model_options(include_default_option=False)
     ids = {opt.id for opt in items if opt is not None}
     assert "__default__" not in ids
@@ -79,7 +79,7 @@ async def test_top_modal_x_with_no_active_dismisses_cancelled() -> None:
 
 
 async def test_top_modal_s_pushes_model_picker_when_inactive() -> None:
-    """Pressing ``s`` from the inactive state pushes the primary picker."""
+    """Pressing ``s`` from the inactive state pushes the override picker."""
     async with TemporaryOverrideTestApp().run_test() as pilot:
         modal = TemporaryLLMOverrideModal()
         pilot.app.push_screen(modal)
@@ -91,7 +91,7 @@ async def test_top_modal_s_pushes_model_picker_when_inactive() -> None:
         top = pilot.app.screen
         assert isinstance(top, ModelPickerModal)
         assert top._include_default_option is False
-        assert top._title == "Pick Primary Model"
+        assert top._title == "Pick Override Model"
 
 
 async def test_top_modal_c_pushes_model_picker_when_active() -> None:
@@ -107,11 +107,11 @@ async def test_top_modal_c_pushes_model_picker_when_active() -> None:
 
         top = pilot.app.screen
         assert isinstance(top, ModelPickerModal)
-        assert top._title == "Pick Primary Model"
+        assert top._title == "Pick Override Model"
 
 
 async def test_full_set_flow_writes_state_and_dismisses_with_set() -> None:
-    """Set primary override through picker and duration modals."""
+    """Set override through picker and duration modals."""
     assert get_active_temporary_override() is None
     result: TemporaryOverrideResult | None = None
 
@@ -142,7 +142,6 @@ async def test_full_set_flow_writes_state_and_dismisses_with_set() -> None:
 
     assert result is not None
     assert result.action == "set"
-    assert result.role == "primary"
     assert result.override is not None
     assert result.override.provider == "codex"
     assert result.override.model == "o3"
@@ -185,100 +184,11 @@ async def test_full_change_flow_overwrites_existing_state() -> None:
 
     assert result is not None
     assert result.action == "set"
-    assert result.role == "primary"
     fetched = get_active_temporary_override()
     assert fetched is not None
     assert fetched.provider == "codex"
     assert fetched.model == "o3"
     assert fetched.expires_at is None
-
-
-async def test_top_modal_w_pushes_worker_model_picker() -> None:
-    """Pressing ``w`` opens the worker-lane picker."""
-    async with TemporaryOverrideTestApp().run_test() as pilot:
-        modal = TemporaryLLMOverrideModal()
-        pilot.app.push_screen(modal)
-        await pilot.pause()
-
-        await pilot.press("w")
-        await pilot.pause()
-
-        top = pilot.app.screen
-        assert isinstance(top, ModelPickerModal)
-        assert top._include_default_option is False
-        assert top._title == "Pick Worker Model"
-
-
-async def test_full_worker_set_flow_writes_worker_state_only() -> None:
-    """The worker flow writes worker state and leaves primary untouched."""
-    assert get_active_temporary_override() is None
-    assert get_active_temporary_override(role="worker") is None
-    result: TemporaryOverrideResult | None = None
-
-    async with TemporaryOverrideTestApp().run_test() as pilot:
-
-        def on_dismiss(value: TemporaryOverrideResult | None) -> None:
-            nonlocal result
-            result = value
-
-        pilot.app.push_screen(TemporaryLLMOverrideModal(), callback=on_dismiss)
-        await pilot.pause()
-
-        await pilot.press("w")
-        await pilot.pause()
-
-        picker = pilot.app.screen
-        assert isinstance(picker, ModelPickerModal)
-        option_list = picker.query_one("#model-picker-list", OptionList)
-        option_list.highlighted = option_list.get_option_index("o3")
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-
-        assert isinstance(pilot.app.screen, _DurationPickerModal)
-        await pilot.press("3")
-        await pilot.pause()
-
-    assert result is not None
-    assert result.action == "set"
-    assert result.role == "worker"
-    assert result.override is not None
-    assert result.override.provider == "codex"
-    assert result.override.model == "o3"
-
-    assert get_active_temporary_override() is None
-    fetched = get_active_temporary_override(role="worker")
-    assert fetched is not None
-    assert fetched.provider == "codex"
-    assert fetched.model == "o3"
-
-
-async def test_worker_clear_flow_removes_worker_state_only() -> None:
-    """``W`` clears the worker override without touching primary state."""
-    set_temporary_override("claude/opus", 3600.0, source="seed")
-    set_temporary_override("codex/o3", 3600.0, source="seed", role="worker")
-    result: TemporaryOverrideResult | None = None
-
-    async with TemporaryOverrideTestApp().run_test() as pilot:
-
-        def on_dismiss(value: TemporaryOverrideResult | None) -> None:
-            nonlocal result
-            result = value
-
-        pilot.app.push_screen(TemporaryLLMOverrideModal(), callback=on_dismiss)
-        await pilot.pause()
-        await pilot.press("W")
-        await pilot.pause()
-
-    assert result is not None
-    assert result.action == "cleared"
-    assert result.role == "worker"
-    assert get_active_temporary_override(role="worker") is None
-
-    primary = get_active_temporary_override()
-    assert primary is not None
-    assert primary.provider == "claude"
-    assert primary.model == "opus"
 
 
 async def test_set_flow_picker_cancel_keeps_modal_open() -> None:

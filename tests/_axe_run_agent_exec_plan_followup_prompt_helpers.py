@@ -6,7 +6,6 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.run_agent_exec_plan import handle_plan_marker
-from sase.llm_provider import WorkerModelResolution
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
@@ -19,34 +18,6 @@ from tests._axe_run_agent_exec_plan_helpers import (
 def patch_plan_deps():
     with patched_plan_deps() as mocks:
         yield mocks
-
-
-def _primary_lane_resolution(
-    primary_provider: str, primary_model: str, *_args, **_kwargs
-) -> WorkerModelResolution:
-    """Stub worker resolution that echoes the planner lane (no config match)."""
-    return WorkerModelResolution(
-        provider=primary_provider,
-        model=primary_model,
-        source="primary",
-        primary_provider=primary_provider,
-        primary_model=primary_model,
-    )
-
-
-@pytest.fixture
-def stub_worker_resolution():
-    """Resolve the contextual worker lane to the planner lane by default.
-
-    Individual tests override this patch to simulate ``worker_models`` config
-    mappings; the default keeps prefixes deterministic regardless of the
-    developer's real ``~/.config/sase/sase.yml``.
-    """
-    with patch(
-        "sase.llm_provider.resolve_worker_provider_model_for_primary",
-        side_effect=_primary_lane_resolution,
-    ):
-        yield
 
 
 def write_plan_file(tmp_path, name: str = "plan.md") -> str:
@@ -63,7 +34,6 @@ def run_plan_approval(
     state=None,
     agent_model: str | None = None,
     agent_llm_provider: str | None = "claude",
-    resolution: WorkerModelResolution | None = None,
 ):
     if ctx is None:
         ctx = make_ctx(
@@ -87,13 +57,6 @@ def run_plan_approval(
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             )
         )
-        if resolution is not None:
-            stack.enter_context(
-                patch(
-                    "sase.llm_provider.resolve_worker_provider_model_for_primary",
-                    return_value=resolution,
-                )
-            )
         outcome = handle_plan_marker({"plan_file": approval.plan_file}, ctx, state)
     return ctx, state, outcome
 
@@ -104,7 +67,6 @@ def run_followup_plan(
     action: str = "approve",
     agent_model: str | None,
     agent_llm_provider: str | None = "claude",
-    resolution: WorkerModelResolution | None = None,
 ):
     plan_file = write_plan_file(tmp_path)
     approval = PlanApprovalResult(action=action, plan_file=plan_file)
@@ -113,7 +75,6 @@ def run_followup_plan(
         approval=approval,
         agent_model=agent_model,
         agent_llm_provider=agent_llm_provider,
-        resolution=resolution,
     )
     return state
 
@@ -123,7 +84,6 @@ def approve_followup_plan(
     *,
     agent_model: str | None,
     agent_llm_provider: str = "claude",
-    resolution: WorkerModelResolution | None = None,
 ):
     """Approve a plan and return ``(ctx, state)`` after the code prompt builds.
 
@@ -138,6 +98,5 @@ def approve_followup_plan(
         approval=approval,
         agent_model=agent_model,
         agent_llm_provider=agent_llm_provider,
-        resolution=resolution,
     )
     return ctx, state

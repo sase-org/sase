@@ -224,7 +224,7 @@ def _mock_provider_config(
     )
 
 
-def _extract_worker_model_meta(tmp_path: Path) -> dict[str, object]:
+def _extract_phase_worker_model_meta(tmp_path: Path) -> dict[str, object]:
     workspace_dir = tmp_path / "workspace"
     artifacts_dir = tmp_path / "artifacts"
     workspace_dir.mkdir()
@@ -235,7 +235,7 @@ def _extract_worker_model_meta(tmp_path: Path) -> dict[str, object]:
         patch("sase.agent.names.claim_agent_name"),
     ):
         extract_directives_and_write_meta(
-            "%name:phase-worker\n%model:@worker\nDo work",
+            "%name:phase-worker\n%model:@phase_worker\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )
@@ -243,49 +243,20 @@ def _extract_worker_model_meta(tmp_path: Path) -> dict[str, object]:
     return json.loads((artifacts_dir / "agent_meta.json").read_text())
 
 
-def test_worker_directive_metadata_prefers_worker_override(
+def test_phase_worker_directive_metadata_resolves_default_lane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _mock_provider_config(
-        monkeypatch,
-        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
-    )
-    set_temporary_override("codex/o3", 3600.0, source="test")
-    set_temporary_override(
-        "agy/Gemini 3.5 Flash (High)", 3600.0, source="test", role="worker"
-    )
+    """A ``%model:@phase_worker`` phase records the resolved default-lane model.
 
-    meta = _extract_worker_model_meta(tmp_path)
-
-    assert (meta["llm_provider"], meta["model"]) == (
-        "agy",
-        "Gemini 3.5 Flash (High)",
-    )
-
-
-def test_worker_directive_metadata_uses_configured_worker_model(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _mock_provider_config(
-        monkeypatch,
-        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
-    )
-    set_temporary_override("claude/sonnet", 3600.0, source="test")
-
-    meta = _extract_worker_model_meta(tmp_path)
-
-    assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5.5")
-
-
-def test_worker_directive_metadata_falls_through_to_primary_lane(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+    The worker lane was retired in epic sase-5d phase 4; ``@phase_worker`` now
+    falls through to ``@default``, so the recorded metadata is the configured
+    default provider's large-tier model. As an explicit ``@`` alias reference it
+    resolves to the configured default and is not swayed by a primary override.
+    """
     _mock_provider_config(monkeypatch, {"provider": "claude"})
     set_temporary_override("codex/o3", 3600.0, source="test")
 
-    meta = _extract_worker_model_meta(tmp_path)
+    meta = _extract_phase_worker_model_meta(tmp_path)
 
-    assert (meta["llm_provider"], meta["model"]) == ("codex", "o3")
+    assert (meta["llm_provider"], meta["model"]) == ("claude", "opus")

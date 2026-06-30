@@ -209,13 +209,14 @@ class TestChangeSpecRendering:
             "#git:sase #pr:feature_epic\n"
             "%name:!p1\n"
             "%group:e1\n"
-            "%model:@worker\n"
+            "%model:@phase_worker\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
             "%name:!e1\n"
             "%group:e1\n"
+            "%model:@epic_lander\n"
             "%auto\n"
             "%w:p1\n"
             "#bd/land_epic:e1"
@@ -248,14 +249,14 @@ class TestChangeSpecRendering:
             "#gh:sase #pr:feature_epic\n"
             "%name:!p1\n"
             "%group:e1\n"
-            "%model:@worker\n"
+            "%model:@phase_worker\n"
             "%auto\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:!p2\n"
             "%group:e1\n"
-            "%model:@worker\n"
+            "%model:@phase_worker\n"
             "%auto\n"
             "%w:p1\n"
             "#custom/work:p2\n"
@@ -263,7 +264,7 @@ class TestChangeSpecRendering:
             "#gh:feature_epic\n"
             "%name:!p3\n"
             "%group:e1\n"
-            "%model:@worker\n"
+            "%model:@phase_worker\n"
             "%auto\n"
             "%w:p2\n"
             "#custom/work:p3\n"
@@ -271,6 +272,7 @@ class TestChangeSpecRendering:
             "#gh:feature_epic\n"
             "%name:!e1\n"
             "%group:e1\n"
+            "%model:@epic_lander\n"
             "%auto\n"
             "%w:p1,p2,p3\n"
             "#custom/land:e1"
@@ -338,9 +340,11 @@ class TestModelDirective:
         assert phase_segment == (
             "%name:!p1\n%group:e1\n%model:claude/opus\n%auto\n#bd/work_phase_bead:p1"
         )
-        assert "%model" not in land_segment
+        # The epic has no explicit land model, so the land agent defaults to the
+        # epic-lander role alias.
+        assert "%model:@epic_lander" in land_segment
 
-    def test_phase_model_empty_renders_worker_directive(
+    def test_phase_model_empty_renders_phase_worker_directive(
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
@@ -353,8 +357,8 @@ class TestModelDirective:
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
-        assert "%model:@worker" in phase_segment
-        assert "%model" not in land_segment
+        assert "%model:@phase_worker" in phase_segment
+        assert "%model:@epic_lander" in land_segment
 
     def test_mixed_phase_models_only_decorate_set_phases(
         self, conn: sqlite3.Connection
@@ -382,9 +386,9 @@ class TestModelDirective:
         p3_seg = next(s for s in segments if "%name:!p3\n" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.5" in p1_seg
-        assert "%model:@worker" in p2_seg
+        assert "%model:@phase_worker" in p2_seg
         assert "%model:#pro" in p3_seg
-        assert "%model" not in land_seg
+        assert "%model:@epic_lander" in land_seg
 
     def test_epic_land_model_emits_on_land_segment(
         self, conn: sqlite3.Connection
@@ -400,12 +404,13 @@ class TestModelDirective:
 
         segments = rendered.split("\n---\n")
         phase_segment, land_segment = segments
-        assert "%model:@worker" in phase_segment
+        assert "%model:@phase_worker" in phase_segment
+        # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
             "%name:!e1\n%group:e1\n%model:claude/opus\n%auto\n%w:p1\n#bd/land_epic:e1"
         )
 
-    def test_no_model_renders_byte_identical_to_pre_model_baseline(
+    def test_no_model_only_adds_role_alias_directives_over_baseline(
         self, conn: sqlite3.Connection, monkeypatch
     ) -> None:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
@@ -425,7 +430,7 @@ class TestModelDirective:
             land_epic_xprompt=Workflow(name="bd/land_epic"),
         )
 
-        pre_worker_baseline = (
+        pre_model_baseline = (
             "%name:!p1\n"
             "%group:e1\n"
             "%auto\n"
@@ -442,8 +447,15 @@ class TestModelDirective:
             "%w:p1,p2\n"
             "#bd/land_epic:e1"
         )
-        assert rendered.replace("%model:@worker\n", "") == pre_worker_baseline
-        assert resolve_model_provider("worker") == ("claude", "opus")
+        # The only additions over the baseline are the role-alias model
+        # directives: @phase_worker on each phase and @epic_lander on land.
+        stripped = rendered.replace("%model:@phase_worker\n", "").replace(
+            "%model:@epic_lander\n", ""
+        )
+        assert stripped == pre_model_baseline
+        # The role aliases resolve through @default to the configured provider.
+        assert resolve_model_provider("@phase_worker") == ("claude", "opus")
+        assert resolve_model_provider("@epic_lander") == ("claude", "opus")
 
     def test_model_does_not_inject_extra_directives(
         self, conn: sqlite3.Connection
@@ -460,5 +472,6 @@ class TestModelDirective:
             land_epic_xprompt=Workflow(name="bd/land_epic"),
         )
 
-        assert rendered.count("%model:") == 1
-        assert "%model:provider/some-model" in rendered
+        phase_segment = rendered.split("\n---\n")[0]
+        assert phase_segment.count("%model:") == 1
+        assert "%model:provider/some-model" in phase_segment

@@ -285,8 +285,7 @@ class LeaderModeMixin:
             if result.action in ("set", "cleared"):
                 _refresh_indicator()
             if result.action == "cleared":
-                role_label = "worker" if result.role == "worker" else "primary"
-                self.notify(f"Cleared {role_label} model override")  # type: ignore[attr-defined]
+                self.notify("Cleared model override")  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
             TemporaryLLMOverrideModal(),

@@ -192,7 +192,13 @@ def test_model_xprompts_ignores_explicit_provider_model_token(
 def test_model_xprompts_flags_retired_worker_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A preset still emitting ``%model:@worker`` is surfaced with migration help."""
+    """A preset still emitting ``%model:@worker`` is surfaced as a broken preset.
+
+    The worker lane was retired in epic sase-5d phase 4, so ``@worker`` is no
+    longer a known alias and the directive parser rejects it outright. The
+    doctor still flags the stale preset (WARN) with the parser's message instead
+    of silently routing it to the default provider.
+    """
     xprompts = {
         "m_worker": XPrompt(name="m_worker", content="%model:@worker"),
     }
@@ -205,9 +211,8 @@ def test_model_xprompts_flags_retired_worker_alias(
     assert check.status == "WARN"
     assert any(
         row["xprompt"] == "m_worker"
-        and row["token"] == "worker"
-        and "retired" in row["message"]
-        and "@phase_worker" in row["message"]
+        and "@worker" in row["message"]
+        and "not a known model alias" in row["message"]
         for row in check.data["problems"]
     )
 

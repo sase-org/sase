@@ -77,48 +77,6 @@ def test_active_until_cleared_renders_without_countdown() -> None:
     assert text.plain == " Override CODEX(o3) until cleared "
 
 
-def test_worker_override_chip_appends_to_primary_override() -> None:
-    text = LLMOverrideIndicator._build_content(
-        _override(expires_at=1_000.0),
-        worker_override=_override(model="gpt-5.5", expires_at=1_900.0),
-        now=100.0,
-    )
-
-    assert text.plain == " Override CODEX(o3) 15m · W gpt-5.5 30m "
-
-
-def test_worker_override_chip_appends_to_default_model(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        lambda: ("claude", "opus"),
-    )
-
-    text = LLMOverrideIndicator._build_content(
-        worker_override=_override(model="gpt-5.5", expires_at=1_900.0),
-        now=100.0,
-    )
-
-    assert text.plain == " CLAUDE(opus) · W gpt-5.5 30m "
-
-
-def test_expired_worker_override_chip_is_hidden(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        lambda: ("claude", "opus"),
-    )
-
-    text = LLMOverrideIndicator._build_content(
-        worker_override=_override(model="gpt-5.5", expires_at=99.0),
-        now=100.0,
-    )
-
-    assert text.plain == " CLAUDE(opus) "
-
-
 def test_expired_override_renders_default_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

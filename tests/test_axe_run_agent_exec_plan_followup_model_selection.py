@@ -2,19 +2,16 @@
 
 import pytest
 
-from sase.llm_provider import WorkerModelResolution
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     patch_plan_deps,
     run_followup_plan,
     run_plan_approval,
-    stub_worker_resolution,
     write_plan_file,
 )
 
 pytestmark = pytest.mark.usefixtures(
     patch_plan_deps.__name__,
-    stub_worker_resolution.__name__,
 )
 
 
@@ -62,23 +59,27 @@ class TestPlanFollowupModelSelection:
         )
         assert state.current_prompt.startswith("%model:@codex_coder\n")
 
-    @pytest.mark.parametrize("action", ["epic", "legend"])
-    def test_epic_legend_followup_keeps_contextual_worker_lane(
-        self, tmp_path, action: str
-    ) -> None:
-        """Epic/legend follow-ups keep the contextual worker lane (phase 4 retires it).
-
-        The default stub echoes the planner lane (no ``worker_models`` config),
-        so the prefix is a concrete ``%model:<provider>/<model>`` carrying the
-        planner's primary context rather than a coder alias.
-        """
+    def test_epic_followup_uses_epic_creator_alias(self, tmp_path) -> None:
+        """An epic follow-up (``#bd/new_epic``) defaults to ``%model:@epic_creator``."""
         state = run_followup_plan(
             tmp_path,
-            action=action,
+            action="epic",
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:claude/opus\n")
+        assert state.current_prompt.startswith("%model:@epic_creator\n")
+        assert "%model:@worker" not in state.current_prompt
+
+    def test_legend_followup_uses_default_alias(self, tmp_path) -> None:
+        """A legend follow-up (``#bd/new_legend``) falls through to ``%model:@default``."""
+        state = run_followup_plan(
+            tmp_path,
+            action="legend",
+            agent_model="opus",
+            agent_llm_provider="claude",
+        )
+        assert state.current_prompt.startswith("%model:@default\n")
+        assert "%model:@worker" not in state.current_prompt
 
     @pytest.mark.parametrize(
         ("agent_model", "agent_llm_provider"),
@@ -88,42 +89,20 @@ class TestPlanFollowupModelSelection:
             (None, None),
         ],
     )
-    @pytest.mark.parametrize("action", ["epic", "legend"])
-    def test_epic_legend_falls_back_to_worker_alias_without_planner_metadata(
+    def test_epic_creator_alias_independent_of_planner_metadata(
         self,
         tmp_path,
-        action: str,
         agent_model: str | None,
         agent_llm_provider: str | None,
     ) -> None:
-        """Epic/legend missing planner provider+model falls back to the worker alias."""
-        state = run_followup_plan(
-            tmp_path,
-            action=action,
-            agent_model=agent_model,
-            agent_llm_provider=agent_llm_provider,
-        )
-        assert state.current_prompt.startswith("%model:@worker\n")
-
-    def test_epic_uses_exact_worker_models_mapping(self, tmp_path) -> None:
-        """Epic follow-up honors a ``worker_models {claude/opus: codex/gpt-5.5}`` map."""
-        resolution = WorkerModelResolution(
-            provider="codex",
-            model="gpt-5.5",
-            source="config",
-            primary_provider="claude",
-            primary_model="opus",
-            matched_key="claude/opus",
-            configured_target="codex/gpt-5.5",
-        )
+        """The epic role alias does not depend on planner provider/model metadata."""
         state = run_followup_plan(
             tmp_path,
             action="epic",
-            agent_model="opus",
-            agent_llm_provider="claude",
-            resolution=resolution,
+            agent_model=agent_model,
+            agent_llm_provider=agent_llm_provider,
         )
-        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
+        assert state.current_prompt.startswith("%model:@epic_creator\n")
 
     def test_explicit_coder_model_worker_falls_back_to_coder_alias(
         self, tmp_path

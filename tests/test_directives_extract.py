@@ -117,15 +117,26 @@ def test_model_bare_alias_raises_with_migration_hint(
         extract_prompt_directives("%m:other\nReview")
 
 
-def test_model_worker_alias_requires_at_prefix() -> None:
-    _, directives = extract_prompt_directives("%m:@worker\nReview")
-    assert directives.model == "worker"
+def test_model_role_alias_requires_at_prefix() -> None:
+    # @phase_worker is a built-in role alias accepted with the @ prefix.
+    _, directives = extract_prompt_directives("%m:@phase_worker\nReview")
+    assert directives.model == "phase_worker"
 
+    # The bare form is rejected with a migration hint pointing at @phase_worker.
     with pytest.raises(
         DirectiveError,
-        match=r"Model aliases must be prefixed with @ .* did you mean @worker",
+        match=r"Model aliases must be prefixed with @ .* did you mean @phase_worker",
     ):
-        extract_prompt_directives("%m:worker\nReview")
+        extract_prompt_directives("%m:phase_worker\nReview")
+
+
+def test_model_retired_worker_alias_is_not_known() -> None:
+    """``@worker`` was retired in epic sase-5d phase 4 and no longer resolves."""
+    with pytest.raises(
+        DirectiveError,
+        match=r"'@worker' is not a known model alias",
+    ):
+        extract_prompt_directives("%m:@worker\nReview")
 
 
 @pytest.mark.parametrize("model", ["opus", "claude/opus"])

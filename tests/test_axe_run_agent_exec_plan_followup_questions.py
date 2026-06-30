@@ -13,14 +13,12 @@ from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     approve_followup_plan,
     patch_plan_deps,
     run_plan_approval,
-    stub_worker_resolution,
     write_plan_file,
 )
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
 
 pytestmark = pytest.mark.usefixtures(
     patch_plan_deps.__name__,
-    stub_worker_resolution.__name__,
 )
 
 

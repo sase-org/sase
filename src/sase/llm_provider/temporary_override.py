@@ -26,41 +26,22 @@ from pathlib import Path
 
 from sase.core.paths import sase_home
 
-from .types import ModelRole, ModelTier
+from .types import ModelTier
 
-_STATE_FILENAME_BY_ROLE: dict[ModelRole, str] = {
-    "primary": "llm_override.json",
-    "worker": "llm_worker_override.json",
-}
+_STATE_FILENAME = "llm_override.json"
 
 
-def _state_filename(role: ModelRole) -> str:
-    try:
-        return _STATE_FILENAME_BY_ROLE[role]
-    except KeyError:
-        raise ValueError(f"unknown model role: {role!r}") from None
-
-
-def _state_path(role: ModelRole = "primary") -> Path:
+def _state_path() -> Path:
     """Return the absolute path to the override state file.
 
     Resolved lazily so ``$SASE_HOME`` and test redirection are honored per-call.
     """
-    return sase_home() / _state_filename(role)
+    return sase_home() / _STATE_FILENAME
 
 
 @dataclass(frozen=True)
 class TemporaryLLMOverride:
-    """Active temporary default provider/model override.
-
-    ``pre_override_*`` captures the ``(provider, model)`` that was the
-    effective default *immediately before* this override was set. It's
-    consumed by the ``"other"`` alias short-circuit in
-    :func:`sase.llm_provider.config.resolve_model_alias` so that
-    ``%model:@other`` resolves to the displaced model rather than the
-    statically-configured alias target. Legacy state files (written
-    before this field existed) leave all three as ``None``.
-    """
+    """Active temporary default provider/model override."""
 
     provider: str
     model: str
@@ -68,9 +49,6 @@ class TemporaryLLMOverride:
     created_at: float
     expires_at: float | None
     source: str
-    pre_override_provider: str | None = None
-    pre_override_model: str | None = None
-    pre_override_raw_model: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -140,23 +118,23 @@ def _atomic_write_json(path: Path, data: dict) -> None:
         raise
 
 
-def _delete_state_best_effort(role: ModelRole = "primary") -> None:
+def _delete_state_best_effort() -> None:
     try:
-        _state_path(role).unlink()
+        _state_path().unlink()
     except FileNotFoundError:
         pass
     except OSError:
         pass
 
 
-def _load_state(role: ModelRole = "primary") -> dict | None:
+def _load_state() -> dict | None:
     """Load and validate the state file.
 
     Returns the parsed dict on success, or ``None`` if the file is
     missing, unreadable, malformed, or missing required fields.
     Malformed files are deleted best-effort.
     """
-    path = _state_path(role)
+    path = _state_path()
     try:
         raw = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -167,39 +145,30 @@ def _load_state(role: ModelRole = "primary") -> dict | None:
     try:
         data = json.loads(raw)
     except (ValueError, TypeError):
-        _delete_state_best_effort(role)
+        _delete_state_best_effort()
         return None
 
     if not isinstance(data, dict):
-        _delete_state_best_effort(role)
+        _delete_state_best_effort()
         return None
 
     required = ("provider", "model", "raw_model", "created_at", "source")
     if not all(k in data for k in required):
-        _delete_state_best_effort(role)
+        _delete_state_best_effort()
         return None
     if not all(
         isinstance(data[k], str) for k in ("provider", "model", "raw_model", "source")
     ):
-        _delete_state_best_effort(role)
+        _delete_state_best_effort()
         return None
     if not isinstance(data["created_at"], (int, float)):
-        _delete_state_best_effort(role)
+        _delete_state_best_effort()
         return None
 
     expires_at = data.get("expires_at")
     if expires_at is not None and not isinstance(expires_at, (int, float)):
-        _delete_state_best_effort(role)
+        _delete_state_best_effort()
         return None
-
-    for key in (
-        "pre_override_provider",
-        "pre_override_model",
-        "pre_override_raw_model",
-    ):
-        value = data.get(key)
-        if value is not None and not isinstance(value, str):
-            data[key] = None
 
     return data
 
@@ -211,15 +180,13 @@ def _load_state(role: ModelRole = "primary") -> dict | None:
 
 def get_active_temporary_override(
     now: float | None = None,
-    *,
-    role: ModelRole = "primary",
 ) -> TemporaryLLMOverride | None:
     """Return the active override, or ``None`` if none/expired.
 
     Expired or malformed state files are deleted best-effort so callers
     don't need to wait for a TUI session to clean them up.
     """
-    data = _load_state(role)
+    data = _load_state()
     if data is None:
         return None
 
@@ -227,7 +194,7 @@ def get_active_temporary_override(
     if expires_at is not None:
         current = time.time() if now is None else now
         if current >= expires_at:
-            _delete_state_best_effort(role)
+            _delete_state_best_effort()
             return None
 
     return TemporaryLLMOverride(
@@ -237,9 +204,6 @@ def get_active_temporary_override(
         created_at=float(data["created_at"]),
         expires_at=float(expires_at) if expires_at is not None else None,
         source=data["source"],
-        pre_override_provider=data.get("pre_override_provider"),
-        pre_override_model=data.get("pre_override_model"),
-        pre_override_raw_model=data.get("pre_override_raw_model"),
     )
 
 
@@ -248,7 +212,6 @@ def set_temporary_override(
     duration_seconds: float | None,
     *,
     source: str,
-    role: ModelRole = "primary",
 ) -> TemporaryLLMOverride:
     """Write a temporary override for *raw_model* lasting *duration_seconds*.
 
@@ -277,25 +240,9 @@ def set_temporary_override(
     # module's siblings via __init__.py).
     from .registry import resolve_model_provider
 
-    # Snapshot the model that's effectively active right now, BEFORE we
-    # overwrite the state file. If a prior override is on disk it's
-    # honored (via resolve_effective_default_provider_model); otherwise
-    # the configured default is captured. The "other" alias resolves
-    # against this snapshot for the duration of the new override.
-    prior = get_active_temporary_override(role=role)
-    if role == "worker":
-        snap_provider, snap_model = resolve_effective_worker_provider_model()
-    else:
-        snap_provider, snap_model = resolve_effective_default_provider_model()
-    pre_override_provider: str | None = snap_provider
-    pre_override_model: str | None = snap_model
-    pre_override_raw_model: str | None = (
-        prior.raw_model if prior is not None else snap_model
-    )
-
     resolved_provider, resolved_model = resolve_model_provider(cleaned)
     if resolved_provider is None:
-        resolved_provider = snap_provider
+        resolved_provider, _ = resolve_effective_default_provider_model()
 
     now = time.time()
     expires_at = now + duration_seconds if duration_seconds is not None else None
@@ -307,20 +254,17 @@ def set_temporary_override(
         created_at=now,
         expires_at=expires_at,
         source=source.strip(),
-        pre_override_provider=pre_override_provider,
-        pre_override_model=pre_override_model,
-        pre_override_raw_model=pre_override_raw_model,
     )
-    _atomic_write_json(_state_path(role), asdict(override))
+    _atomic_write_json(_state_path(), asdict(override))
     return override
 
 
-def clear_temporary_override(*, role: ModelRole = "primary") -> bool:
+def clear_temporary_override() -> bool:
     """Remove the override state file.
 
     Returns ``True`` if a file was removed, ``False`` if none existed.
     """
-    path = _state_path(role)
+    path = _state_path()
     try:
         path.unlink()
     except FileNotFoundError:
@@ -353,115 +297,3 @@ def resolve_effective_default_provider_model(
     from .registry import resolve_default_alias_provider_model
 
     return resolve_default_alias_provider_model(model_tier)
-
-
-@dataclass(frozen=True)
-class WorkerModelResolution:
-    """Resolved worker-lane provider/model plus the provenance of the choice.
-
-    ``source`` is one of:
-
-    - ``"override"``: an active worker temporary override supplied the lane.
-    - ``"config"``: a matching ``llm_provider.worker_models`` entry supplied
-      the lane; ``matched_key`` is the key that matched (exact
-      ``provider/model``, bare model, or provider) and ``configured_target``
-      is its raw configured value.
-    - ``"primary"``: no override/config matched, so the worker lane falls
-      through to the supplied primary lane.
-
-    ``primary_provider``/``primary_model`` echo the primary lane the worker
-    was resolved against, regardless of which branch won.
-    """
-
-    provider: str
-    model: str
-    source: str
-    primary_provider: str
-    primary_model: str
-    matched_key: str | None = None
-    configured_target: str | None = None
-
-
-def resolve_worker_provider_model_for_primary(
-    primary_provider: str,
-    primary_model: str,
-    model_tier: ModelTier = "large",
-) -> WorkerModelResolution:
-    """Resolve the worker-lane provider/model for a known primary lane.
-
-    Precedence mirrors :func:`resolve_effective_worker_provider_model`: an
-    active worker temporary override wins first, then a matching
-    ``llm_provider.worker_models`` entry for ``primary_provider``/
-    ``primary_model``, then the supplied primary lane as a fallback.
-
-    Unlike :func:`resolve_effective_worker_provider_model`, the primary lane
-    is supplied by the caller rather than read from the current effective
-    default, so this can resolve the worker lane for a *specific* planner
-    context (e.g. a plan handoff) rather than the global current default.
-
-    ``model_tier`` is accepted for parity with the sibling resolvers; the
-    worker mapping lookup itself does not depend on it.
-    """
-    override = get_active_temporary_override(role="worker")
-    if override is not None:
-        return WorkerModelResolution(
-            provider=override.provider,
-            model=override.model,
-            source="override",
-            primary_provider=primary_provider,
-            primary_model=primary_model,
-        )
-
-    from .config import get_configured_worker_model_entry_for_primary
-    from .registry import (
-        get_configured_default_provider_name,
-        resolve_model_provider,
-    )
-
-    entry = get_configured_worker_model_entry_for_primary(
-        primary_provider,
-        primary_model,
-    )
-    if entry is not None and entry[1].strip() != "worker":
-        matched_key, configured = entry
-        resolved_provider, resolved_model = resolve_model_provider(configured)
-        if resolved_model.strip() != "worker":
-            if resolved_provider is None:
-                resolved_provider = get_configured_default_provider_name()
-            return WorkerModelResolution(
-                provider=resolved_provider,
-                model=resolved_model,
-                source="config",
-                primary_provider=primary_provider,
-                primary_model=primary_model,
-                matched_key=matched_key,
-                configured_target=configured,
-            )
-
-    return WorkerModelResolution(
-        provider=primary_provider,
-        model=primary_model,
-        source="primary",
-        primary_provider=primary_provider,
-        primary_model=primary_model,
-    )
-
-
-def resolve_effective_worker_provider_model(
-    model_tier: ModelTier = "large",
-) -> tuple[str, str]:
-    """Return the ``(provider_name, model_name)`` for worker-lane launches.
-
-    Worker-specific state wins first. If no worker-model mapping matches
-    the current primary lane, the worker lane falls through to that primary
-    lane.
-    """
-    primary_provider, primary_model = resolve_effective_default_provider_model(
-        model_tier
-    )
-    resolution = resolve_worker_provider_model_for_primary(
-        primary_provider,
-        primary_model,
-        model_tier,
-    )
-    return resolution.provider, resolution.model

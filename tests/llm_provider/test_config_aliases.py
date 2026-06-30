@@ -7,12 +7,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.llm_provider.config import (
-    _get_configured_worker_models,
     _get_model_aliases,
     coder_model_alias_for_provider,
     default_model_alias_name,
     format_model_directive_value,
-    get_configured_worker_model_entry_for_primary,
     model_alias_names,
     resolve_model_alias,
     role_model_directive_value,
@@ -38,11 +36,15 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
 
 @patch("sase.llm_provider.config._registered_provider_names")
 @patch("sase.llm_provider.config.get_llm_provider_config")
-def test_model_alias_names_include_configured_special_and_legacy(
+def test_model_alias_names_include_configured_and_special(
     mock_config: MagicMock,
     mock_providers: MagicMock,
 ) -> None:
-    """``model_alias_names`` unions configured, special, and legacy aliases."""
+    """``model_alias_names`` unions configured and special role aliases.
+
+    The legacy ``worker``/``other`` reserved aliases were retired with the
+    worker lane (epic sase-5d phase 4), so they are no longer implicit.
+    """
     mock_config.return_value = {"model_aliases": {"fast": "codex/o4-mini"}}
     mock_providers.return_value = ["claude", "codex"]
 
@@ -58,9 +60,6 @@ def test_model_alias_names_include_configured_special_and_legacy(
         # per-provider coder aliases
         "claude_coder",
         "codex_coder",
-        # legacy reserved (deprecated stubs, retired in epic sase-5d phases 3-4)
-        "worker",
-        "other",
     }
 
 
@@ -75,87 +74,14 @@ def test_format_model_directive_value_adds_alias_prefix(
         }
     }
 
-    assert format_model_directive_value("worker") == "@worker"
+    # ``other`` is only an alias here because it is user-configured; ``worker``
+    # is no longer special and is left bare.
+    assert format_model_directive_value("worker") == "worker"
     assert format_model_directive_value("other") == "@other"
     assert format_model_directive_value("fast") == "@fast"
-    assert format_model_directive_value("@worker") == "@worker"
+    assert format_model_directive_value("@fast") == "@fast"
     assert format_model_directive_value("opus") == "opus"
     assert format_model_directive_value("claude/opus") == "claude/opus"
-
-
-@patch("sase.llm_provider.config.get_llm_provider_config")
-@pytest.mark.parametrize(
-    "cfg",
-    [
-        {},
-        {"worker_model": "codex/gpt-5.5"},
-        {"worker_models": ""},
-        {"worker_models": "   "},
-        {"worker_models": 123},
-        {"worker_models": ["codex/gpt-5.5"]},
-        {
-            "worker_models": {
-                "": "codex/gpt-5.5",
-                "claude": "",
-                "codex": "   ",
-                123: "opus",
-                "bad": ["codex/gpt-5.5"],
-            }
-        },
-    ],
-)
-def test_get_configured_worker_models_tolerates_missing_blank_and_malformed(
-    mock_config: MagicMock,
-    cfg: dict[str, object],
-) -> None:
-    mock_config.return_value = cfg
-
-    assert _get_configured_worker_models() == {}
-
-
-@patch("sase.llm_provider.config.get_llm_provider_config")
-def test_get_configured_worker_models_strips_keys_and_values(
-    mock_config: MagicMock,
-) -> None:
-    mock_config.return_value = {
-        "worker_models": {
-            " claude ": " codex/gpt-5.5 ",
-            " opus ": " claude/sonnet ",
-        }
-    }
-
-    assert _get_configured_worker_models() == {
-        "claude": "codex/gpt-5.5",
-        "opus": "claude/sonnet",
-    }
-
-
-@patch("sase.llm_provider.config.get_llm_provider_config")
-def test_get_configured_worker_model_entry_uses_specificity_order(
-    mock_config: MagicMock,
-) -> None:
-    """The entry helper returns the most specific matched key and its target."""
-    mock_config.return_value = {
-        "worker_models": {
-            "claude": "qwen/qwen3.6-plus",
-            "opus": "agy/flash35h",
-            "claude/opus": "codex/gpt-5.5",
-        }
-    }
-
-    assert get_configured_worker_model_entry_for_primary("claude", "opus") == (
-        "claude/opus",
-        "codex/gpt-5.5",
-    )
-    assert get_configured_worker_model_entry_for_primary("opencode", "opus") == (
-        "opus",
-        "agy/flash35h",
-    )
-    assert get_configured_worker_model_entry_for_primary("claude", "sonnet") == (
-        "claude",
-        "qwen/qwen3.6-plus",
-    )
-    assert get_configured_worker_model_entry_for_primary("codex", "o3") is None
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -320,21 +246,32 @@ def test_unknown_at_reference_resolves_to_bare_token(
     assert resolve_model_alias("@nope") == "nope"
 
 
-def test_worker_and_other_retained_as_legacy_aliases(
+def test_worker_and_other_no_longer_special_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``worker``/``other`` remain valid legacy stubs until phases 3-4 retire them.
+    """``worker``/``other`` are no longer implicit aliases after phase 4.
 
-    Phase 1 keeps the worker lane functional because the plan/bead emit sites
-    and worker-override UI that still produce ``@worker``/``@other`` are owned by
-    epic sase-5d phases 3-4. They stay in the alias-name policy so directive
-    validation does not reject prompts those phases still render.
+    The worker lane was retired in epic sase-5d phase 4, so the legacy reserved
+    ``worker``/``other`` aliases are gone from the implicit policy and only the
+    role aliases remain. ``worker``/``other`` resolve now only when a user
+    defines them as ordinary configured aliases.
     """
     from sase.llm_provider.config import special_model_alias_names
 
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     names = special_model_alias_names()
-    assert {"worker", "other"} <= names
-    # The new role aliases are advertised alongside the legacy ones.
+    assert "worker" not in names
+    assert "other" not in names
+    # The role aliases are the implicit policy now.
     assert {"default", "coder", "epic_creator", "epic_lander", "phase_worker"} <= names
+
+
+def test_unconfigured_worker_and_other_resolve_to_bare_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without explicit config, ``worker``/``other`` are plain unknown tokens."""
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    assert resolve_model_alias("worker") == "worker"
+    assert resolve_model_alias("other") == "other"

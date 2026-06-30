@@ -31,6 +31,8 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.llm_provider.config import (
     CODER_MODEL_ALIAS_NAME,
+    DEFAULT_MODEL_ALIAS_NAME,
+    EPIC_CREATOR_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
     format_model_directive_value,
     role_model_directive_value,
@@ -121,32 +123,24 @@ def _resolve_coder_alias_followup(ctx: AgentExecContext) -> _FollowupModel:
     )
 
 
-def _resolve_worker_lane_followup(ctx: AgentExecContext) -> _FollowupModel:
-    """Resolve the contextual worker lane for an epic/legend follow-up.
+def _resolve_epic_role_followup(action: str) -> _FollowupModel:
+    """Route an epic/legend create follow-up through its role alias.
 
-    Epic and legend role aliases (``@epic_creator`` / ``@epic_lander``) are
-    introduced in epic sase-5d phase 4; until then these follow-ups keep the
-    legacy worker-lane resolution so phase 3 leaves their behavior unchanged.
-    The lane is resolved from the planner's concrete provider/model so the
-    handoff preserves the planner's primary context.
+    Epic-creation (``#bd/new_epic``) follow-ups default to ``%model:@epic_creator``
+    (epic sase-5d phase 4). Legend-creation (``#bd/new_legend``) follow-ups are
+    not one of the migrated bead/epic roles, so they fall through to the generic
+    ``%model:@default`` launch alias rather than inventing a ``legend_*`` alias.
+    The recorded meta resolves the alias chain to the concrete
+    ``(provider, model)`` the launch will actually use so display and behavior
+    stay in sync.
     """
-    primary_provider = (ctx.agent_llm_provider or "").strip()
-    primary_model = (ctx.agent_model or "").strip()
-    if primary_provider and primary_model:
-        from sase.llm_provider import resolve_worker_provider_model_for_primary
-
-        resolution = resolve_worker_provider_model_for_primary(
-            primary_provider,
-            primary_model,
-        )
-        return _FollowupModel(
-            model_prefix=f"%model:{resolution.provider}/{resolution.model}\n",
-            meta=(resolution.provider, resolution.model),
-        )
-
+    alias = (
+        EPIC_CREATOR_MODEL_ALIAS_NAME if action == "epic" else DEFAULT_MODEL_ALIAS_NAME
+    )
+    directive = role_model_directive_value(alias)
     return _FollowupModel(
-        model_prefix=f"%model:{format_model_directive_value('worker')}\n",
-        meta=_resolve_model_meta("worker"),
+        model_prefix=f"%model:{directive}\n",
+        meta=_resolve_model_meta(directive),
     )
 
 
@@ -165,8 +159,9 @@ def _resolve_followup_model(
        - coder follow-ups (``approve`` / ``tale``) route through the planner
          provider's coder alias (``%model:@<planner_provider>_coder``, or
          ``%model:@coder`` when planner provider metadata is missing);
-       - epic / legend follow-ups keep the contextual worker lane until epic
-         sase-5d phase 4 migrates them to ``@epic_creator`` / ``@epic_lander``.
+       - epic follow-ups (``#bd/new_epic``) default to ``%model:@epic_creator``;
+       - legend follow-ups (``#bd/new_legend``) fall through to the generic
+         ``%model:@default`` launch alias.
 
     A ``%model`` directive embedded in a custom coder prompt is handled by the
     caller and supersedes this result.
@@ -181,7 +176,7 @@ def _resolve_followup_model(
         )
 
     if plan_result.action in ("epic", "legend"):
-        return _resolve_worker_lane_followup(ctx)
+        return _resolve_epic_role_followup(plan_result.action)
 
     return _resolve_coder_alias_followup(ctx)
 
@@ -346,7 +341,8 @@ def handle_accepted_plan(
 
     # Decide the follow-up model: an explicit picker model wins; otherwise coder
     # follow-ups route through the planner provider's coder alias
-    # (``@<provider>_coder``) while epic/legend follow-ups keep the worker lane.
+    # (``@<provider>_coder``), epic follow-ups default to ``@epic_creator``, and
+    # legend follow-ups fall through to ``@default``.
     followup_model = _resolve_followup_model(plan_result, ctx)
     model_prefix = followup_model.model_prefix
     followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)

@@ -40,28 +40,27 @@ _CHOICE_CONSEQUENCES: dict[PlanApprovalChoice, str] = {
 }
 
 
-def _contextual_worker_lane(
-    planner_llm_provider: str | None,
-    planner_model: str | None,
-) -> tuple[str, str]:
-    """Resolve the worker lane for a planner's concrete provider/model.
+def _contextual_epic_role_lane(
+    choice: PlanApprovalChoice,
+) -> tuple[str | None, str]:
+    """Resolve the epic/legend follow-up default through its role alias.
 
-    Falls back to the current effective worker lane when the planner's
-    provider/model metadata is missing, so the default display still resolves.
-    Used for epic/legend follow-ups, which keep the worker lane until epic
-    sase-5d phase 4 migrates them to ``@epic_creator`` / ``@epic_lander``.
+    Mirrors the runtime handoff (``_resolve_epic_role_followup``): epic
+    follow-ups default to ``@epic_creator`` and legend follow-ups to the generic
+    ``@default`` launch alias. Resolving the directive here keeps the modal's
+    displayed default equal to the model the follow-up will actually launch with.
     """
-    provider = (planner_llm_provider or "").strip()
-    model = (planner_model or "").strip()
-    if provider and model:
-        from sase.llm_provider import resolve_worker_provider_model_for_primary
+    from sase.llm_provider.config import (
+        DEFAULT_MODEL_ALIAS_NAME,
+        EPIC_CREATOR_MODEL_ALIAS_NAME,
+        role_model_directive_value,
+    )
+    from sase.llm_provider.registry import resolve_model_provider
 
-        resolution = resolve_worker_provider_model_for_primary(provider, model)
-        return resolution.provider, resolution.model
-
-    from sase.llm_provider import resolve_effective_worker_provider_model
-
-    return resolve_effective_worker_provider_model()
+    alias = (
+        EPIC_CREATOR_MODEL_ALIAS_NAME if choice == "epic" else DEFAULT_MODEL_ALIAS_NAME
+    )
+    return resolve_model_provider(role_model_directive_value(alias))
 
 
 def _contextual_coder_lane(planner_llm_provider: str | None) -> tuple[str | None, str]:
@@ -91,14 +90,13 @@ def _model_display_label(
     choice: PlanApprovalChoice,
     *,
     planner_llm_provider: str | None = None,
-    planner_model: str | None = None,
 ) -> str:
     """Format the follow-up model for display in the modal.
 
     When no model is chosen, the displayed default resolves to the model the
     handoff will actually use: coder follow-ups (``approve`` / ``tale``) resolve
-    the planner provider's coder alias, while epic/legend follow-ups resolve the
-    contextual worker lane.
+    the planner provider's coder alias, while epic/legend follow-ups resolve
+    their role alias (``@epic_creator`` / ``@default``).
     """
     from sase.llm_provider.registry import (
         format_provider_model_label,
@@ -107,12 +105,9 @@ def _model_display_label(
 
     if coder_model is None:
         if choice in ("epic", "legend"):
-            worker_provider, worker_model = _contextual_worker_lane(
-                planner_llm_provider,
-                planner_model,
-            )
-            label = format_provider_model_label(worker_provider, worker_model)
-            return f"Worker — {label}"
+            role_provider, role_model = _contextual_epic_role_lane(choice)
+            label = format_provider_model_label(role_provider, role_model)
+            return f"Follow-up — {label}"
         coder_provider, coder_lane_model = _contextual_coder_lane(planner_llm_provider)
         label = format_provider_model_label(coder_provider, coder_lane_model)
         return f"Follow-up — {label}"
@@ -184,14 +179,12 @@ class ApproveOptionsModal(
         choice: PlanApprovalChoice | None = None,
         *,
         planner_llm_provider: str | None = None,
-        planner_model: str | None = None,
     ) -> None:
         super().__init__()
         self._choice = choice or _choice_from_legacy_flags(commit_plan, run_coder)
         self._coder_prompt = coder_prompt
         self._coder_model = coder_model
         self._planner_llm_provider = planner_llm_provider
-        self._planner_model = planner_model
 
     def compose(self) -> ComposeResult:
         with Container(id="approve-options-container"):
@@ -257,8 +250,8 @@ class ApproveOptionsModal(
     def _select_choice(self, choice: PlanApprovalChoice) -> None:
         self._choice = choice
         self._refresh_choice_rows()
-        # The unset default differs by role (coder alias vs worker lane), so the
-        # displayed default must track the selected action.
+        # The unset default differs by role (coder alias vs epic/legend role
+        # alias), so the displayed default must track the selected action.
         self._update_model_display()
 
     def on_key(self, event: events.Key) -> None:
@@ -345,7 +338,8 @@ class ApproveOptionsModal(
                 self.app.push_screen(CustomModelInputModal(), on_custom_dismiss)
             elif result == DEFAULT_SENTINEL:
                 # "Follow-up default" selected: reset any prior coder model back
-                # to the role default (coder alias, or worker lane for epic/legend).
+                # to the role default (coder alias, or @epic_creator/@default for
+                # epic/legend).
                 self._coder_model = None
                 self._update_model_display()
             elif result is not None:
@@ -364,7 +358,6 @@ class ApproveOptionsModal(
             self._coder_model,
             self._choice,
             planner_llm_provider=self._planner_llm_provider,
-            planner_model=self._planner_model,
         )
 
     def _update_model_display(self) -> None:

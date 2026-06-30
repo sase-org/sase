@@ -7,7 +7,6 @@ import pytest
 
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_accept import _accepted_plan_action_for_meta
-from sase.llm_provider import WorkerModelResolution
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.xprompt._exceptions import DirectiveError
 from tests._axe_run_agent_exec_plan_helpers import (
@@ -236,11 +235,20 @@ class TestPlanFollowupMetadata:
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@claude_coder\n")
 
-    @pytest.mark.parametrize("action", ["epic", "legend"])
-    def test_epic_legend_meta_records_contextual_worker_lane(
-        self, tmp_path, action: str
+    @pytest.mark.parametrize(
+        ("action", "directive"),
+        [("epic", "@epic_creator"), ("legend", "@default")],
+    )
+    def test_epic_legend_meta_records_resolved_role_alias(
+        self, tmp_path, action: str, directive: str
     ) -> None:
-        """Epic/legend follow-ups record the same contextual worker default."""
+        """Epic/legend follow-ups record the concrete model their role alias resolves to.
+
+        Epic creation routes through ``@epic_creator`` and legend creation
+        through the generic ``@default`` alias; the recorded meta is the
+        concrete ``(provider, model)`` the alias resolves to so display matches
+        the launch.
+        """
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
@@ -251,15 +259,10 @@ class TestPlanFollowupMetadata:
         def track_meta(artifacts_dir, key, value):
             meta_updates[key] = value
 
-        resolution = WorkerModelResolution(
-            provider="codex",
-            model="gpt-5.5",
-            source="config",
-            primary_provider="claude",
-            primary_model="opus",
-            matched_key="claude/opus",
-            configured_target="codex/gpt-5.5",
-        )
+        def fake_resolve(model):
+            # Both @epic_creator and @default resolve to the configured target.
+            return ("codex", "gpt-5.5")
+
         approval = PlanApprovalResult(action=action, plan_file=plan_file)
         with (
             patch(
@@ -275,14 +278,14 @@ class TestPlanFollowupMetadata:
                 side_effect=track_meta,
             ),
             patch(
-                "sase.llm_provider.resolve_worker_provider_model_for_primary",
-                return_value=resolution,
+                "sase.llm_provider.registry.resolve_model_provider",
+                side_effect=fake_resolve,
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert meta_updates.get("model") == "gpt-5.5"
         assert meta_updates.get("llm_provider") == "codex"
-        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
+        assert state.current_prompt.startswith(f"%model:{directive}\n")
 
     def test_coder_prompt_model_directive_updates_meta(self, tmp_path) -> None:
         """A custom prompt %model directive records the model that launch will use."""

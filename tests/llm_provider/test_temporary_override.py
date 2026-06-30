@@ -14,7 +14,6 @@ from sase.llm_provider.temporary_override import (
     parse_override_duration,
     set_temporary_override,
 )
-from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
 # ---------------------------------------------------------------------------
@@ -130,53 +129,6 @@ def test_clear_when_none_returns_false() -> None:
     assert clear_temporary_override() is False
 
 
-def test_worker_override_uses_separate_state_file() -> None:
-    primary = set_temporary_override("claude/opus", 3600.0, source="test")
-    worker = set_temporary_override(
-        "codex/gpt-5.5", 3600.0, source="test", role="worker"
-    )
-
-    assert _state_path().name == "llm_override.json"
-    assert _state_path(role="worker").name == "llm_worker_override.json"
-    assert _state_path().exists()
-    assert _state_path(role="worker").exists()
-    assert primary.provider == "claude"
-    assert worker.provider == "codex"
-
-    fetched_primary = get_active_temporary_override()
-    fetched_worker = get_active_temporary_override(role="worker")
-    assert fetched_primary is not None
-    assert fetched_worker is not None
-    assert fetched_primary.model == "opus"
-    assert fetched_worker.model == "gpt-5.5"
-
-
-def test_clear_worker_override_does_not_touch_primary() -> None:
-    set_temporary_override("claude/opus", 3600.0, source="test")
-    set_temporary_override("codex/o3", 3600.0, source="test", role="worker")
-
-    assert clear_temporary_override(role="worker") is True
-
-    assert get_active_temporary_override(role="worker") is None
-    primary = get_active_temporary_override()
-    assert primary is not None
-    assert primary.provider == "claude"
-    assert primary.model == "opus"
-
-
-def test_clear_primary_override_does_not_touch_worker() -> None:
-    set_temporary_override("claude/opus", 3600.0, source="test")
-    set_temporary_override("codex/o3", 3600.0, source="test", role="worker")
-
-    assert clear_temporary_override() is True
-
-    assert get_active_temporary_override() is None
-    worker = get_active_temporary_override(role="worker")
-    assert worker is not None
-    assert worker.provider == "codex"
-    assert worker.model == "o3"
-
-
 # ---------------------------------------------------------------------------
 # Expiry
 # ---------------------------------------------------------------------------
@@ -190,17 +142,6 @@ def test_expired_override_returns_none_and_deletes_file() -> None:
     future = time.time() + 3600
     assert get_active_temporary_override(now=future) is None
     assert not path.exists()
-
-
-def test_worker_expiry_deletes_only_worker_file() -> None:
-    set_temporary_override("claude/opus", 3600.0, source="test")
-    worker = set_temporary_override("codex/o3", 60.0, source="test", role="worker")
-
-    assert worker.expires_at is not None
-    assert get_active_temporary_override(now=worker.expires_at, role="worker") is None
-    assert not _state_path(role="worker").exists()
-    assert _state_path().exists()
-    assert get_active_temporary_override() is not None
 
 
 def test_expiry_at_exact_boundary_is_expired() -> None:
@@ -317,62 +258,13 @@ def test_state_file_lives_under_sase_home() -> None:
     assert _state_path().exists()
 
 
-def test_worker_state_file_lives_under_sase_home() -> None:
-    set_temporary_override("codex/o3", 60.0, source="ace", role="worker")
-    assert _state_path(role="worker").name == "llm_worker_override.json"
-    assert _state_path(role="worker").exists()
+def test_legacy_state_file_with_pre_override_keys_still_loads() -> None:
+    """A state file written before the worker lane retirement still loads.
 
-
-def test_worker_override_captures_worker_lane_pre_override_snapshot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mock_provider_config(
-        monkeypatch,
-        {"provider": "claude", "worker_models": {"claude": "codex/gpt-5.5"}},
-    )
-
-    override = set_temporary_override(
-        "claude/sonnet", 3600.0, source="ace", role="worker"
-    )
-
-    assert override.pre_override_provider == "codex"
-    assert override.pre_override_model == "gpt-5.5"
-    assert override.pre_override_raw_model == "gpt-5.5"
-
-
-# ---------------------------------------------------------------------------
-# pre-override snapshot (for the reserved "other" alias)
-# ---------------------------------------------------------------------------
-
-
-def test_set_captures_configured_default_as_pre_override_snapshot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """With no prior override, the snapshot is the configured default."""
-    monkeypatch.setattr(
-        "sase.llm_provider.registry.get_llm_provider_config",
-        lambda: {"provider": "claude"},
-    )
-
-    override = set_temporary_override("codex/o3", 3600.0, source="ace")
-
-    assert override.pre_override_provider == "claude"
-    # ClaudeCodeProvider resolves "large" → "opus".
-    assert override.pre_override_model == "opus"
-
-
-def test_set_on_top_of_existing_captures_prior_override_snapshot() -> None:
-    """A second override snapshots the first override's resolved (provider, model)."""
-    set_temporary_override("opus", 3600.0, source="ace")
-    override = set_temporary_override("codex/o3", 3600.0, source="ace")
-
-    assert override.pre_override_provider == "claude"
-    assert override.pre_override_model == "opus"
-    assert override.pre_override_raw_model == "opus"
-
-
-def test_legacy_state_file_loads_with_none_pre_override_fields() -> None:
-    """A state file written before pre_override_* existed still loads."""
+    Older SASE versions persisted ``pre_override_*`` snapshot keys (used by the
+    now-removed ``@other`` alias). The retired keys must be tolerated/ignored so
+    a stale state file does not break a fresh launch.
+    """
     path = _state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     legacy = {
@@ -382,28 +274,14 @@ def test_legacy_state_file_loads_with_none_pre_override_fields() -> None:
         "created_at": time.time(),
         "expires_at": time.time() + 3600,
         "source": "ace",
+        "pre_override_provider": "claude",
+        "pre_override_model": "opus",
+        "pre_override_raw_model": "opus",
     }
     path.write_text(json.dumps(legacy), encoding="utf-8")
 
     fetched = get_active_temporary_override()
     assert fetched is not None
     assert fetched.provider == "codex"
-    assert fetched.pre_override_provider is None
-    assert fetched.pre_override_model is None
-    assert fetched.pre_override_raw_model is None
-
-
-def test_state_file_persists_pre_override_snapshot(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The new snapshot fields round-trip through the state file."""
-    monkeypatch.setattr(
-        "sase.llm_provider.registry.get_llm_provider_config",
-        lambda: {"provider": "claude"},
-    )
-    set_temporary_override("codex/o3", 3600.0, source="ace")
-    data = json.loads(_state_path().read_text(encoding="utf-8"))
-
-    assert data["pre_override_provider"] == "claude"
-    assert data["pre_override_model"] == "opus"
-    assert data["pre_override_raw_model"] == "opus"
+    assert fetched.model == "o3"
+    assert not hasattr(fetched, "pre_override_provider")

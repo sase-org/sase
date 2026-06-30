@@ -53,28 +53,10 @@ def test_temporary_override_dismiss_clear_refreshes_top_bar_indicator() -> None:
     LeaderModeMixin._open_temporary_llm_override_modal(cast(LeaderModeMixin, mixin))
 
     callback = mixin.push_screen.call_args.kwargs["callback"]
-    callback(TemporaryOverrideResult(action="cleared", role="primary"))
+    callback(TemporaryOverrideResult(action="cleared"))
 
     mixin.query_one.assert_called_once_with(
         "#llm-override-indicator", LLMOverrideIndicator
     )
     indicator.refresh.assert_called_once()
-    mixin.notify.assert_called_once_with("Cleared primary model override")
-
-
-def test_temporary_override_dismiss_worker_clear_toast() -> None:
-    """The leader callback names worker clears distinctly."""
-    mixin = MagicMock()
-    indicator = MagicMock(spec=LLMOverrideIndicator)
-    mixin.query_one.return_value = indicator
-
-    LeaderModeMixin._open_temporary_llm_override_modal(cast(LeaderModeMixin, mixin))
-
-    callback = mixin.push_screen.call_args.kwargs["callback"]
-    callback(TemporaryOverrideResult(action="cleared", role="worker"))
-
-    mixin.query_one.assert_called_once_with(
-        "#llm-override-indicator", LLMOverrideIndicator
-    )
-    indicator.refresh.assert_called_once()
-    mixin.notify.assert_called_once_with("Cleared worker model override")
+    mixin.notify.assert_called_once_with("Cleared model override")
