@@ -19,6 +19,10 @@ from sase.bead.model import (
     Status,
 )
 
+# Closed bead listings can grow without bound, so default to the newest few
+# rows when the user did not request an explicit ``--limit``.
+DEFAULT_CLOSED_LIST_LIMIT = 20
+
 
 def handle_bead_list(args: argparse.Namespace) -> None:
     with get_read_view() as view:
@@ -44,7 +48,10 @@ def handle_bead_list(args: argparse.Namespace) -> None:
             return
         if implicit_closed:
             print("No open beads to show — defaulting to --status closed.")
+        closed_in_scope = implicit_closed or Status.CLOSED in statuses
         limit = getattr(args, "limit", None)
+        if limit is None and closed_in_scope:
+            limit = DEFAULT_CLOSED_LIST_LIMIT
         if limit:
             issues = issues[-limit:]
         for issue in issues:

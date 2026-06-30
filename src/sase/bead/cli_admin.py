@@ -56,6 +56,7 @@ Quick Start:
   sase bead list                                 List open/in-progress issues
   sase bead list --limit=5                       Limit printed issues
   sase bead list --status=open                   List open issues
+  sase bead list --status=closed                 List newest 20 closed issues (-n 0 for all)
   sase bead list --tier=epic                     List epic plan beads
   sase bead ready                                Show issues ready to work
   sase bead show <id>                            View issue details

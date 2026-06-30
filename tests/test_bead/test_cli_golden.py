@@ -61,6 +61,10 @@ def _copy_closed_only_store(root: Path) -> None:
     shutil.copytree(GOLDEN / "stores" / "closed_only", root / "sdd/beads")
 
 
+def _copy_closed_many_store(root: Path) -> None:
+    shutil.copytree(GOLDEN / "stores" / "closed_many", root / "sdd/beads")
+
+
 def _init_empty_store(root: Path, *, prefix: str = "case") -> None:
     with BeadProject.init(root):
         pass
@@ -107,6 +111,9 @@ def _setup_case(tmp_path: Path, setup: str) -> Path:
         return root
     if setup == "closed_only":
         _copy_closed_only_store(root)
+        return root
+    if setup == "closed_many":
+        _copy_closed_many_store(root)
         return root
     _copy_current_store(root)
     if setup == "current_git":
@@ -202,6 +209,30 @@ def _run_cli(
             ["bead", "list", "--type", "plan", "--tier", "epic"],
             "closed_only",
             stdout=_read_expected("list_implicit_closed_filters.stdout"),
+        ),
+        CliCase(
+            "list_status_closed_default_limit",
+            ["bead", "list", "--status", "closed"],
+            "closed_many",
+            stdout=_read_expected("list_closed_default.stdout"),
+        ),
+        CliCase(
+            "list_status_closed_unlimited",
+            ["bead", "list", "--status", "closed", "--limit", "0"],
+            "closed_many",
+            stdout=_read_expected("list_closed_unlimited.stdout"),
+        ),
+        CliCase(
+            "list_mixed_status_closed_default_limit",
+            ["bead", "list", "--status", "open", "--status", "closed"],
+            "closed_many",
+            stdout=_read_expected("list_closed_default.stdout"),
+        ),
+        CliCase(
+            "list_implicit_closed_default_limit",
+            ["bead", "list"],
+            "closed_many",
+            stdout=_read_expected("list_implicit_closed_default.stdout"),
         ),
         CliCase(
             "list_explicit_open_no_fallback",

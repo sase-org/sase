@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 10:07:27
-status: wip
+status: done
 prompt: sdd/prompts/202606/bead_closed_default_limit.md
 ---
 # Plan: Default Closed Bead Listings to 20 Results

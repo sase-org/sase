@@ -91,7 +91,9 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         "--limit",
         type=nonnegative_int,
         default=None,
-        help="Maximum beads to print; 0 means unlimited",
+        help=(
+            "Maximum beads to print; closed listings default to 20, 0 means unlimited"
+        ),
     )
     bead_list_parser.add_argument(
         "-s",
