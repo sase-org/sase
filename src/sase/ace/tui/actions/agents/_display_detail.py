@@ -119,12 +119,12 @@ class DetailMixin:
         self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
 
     def _should_show_agents_onboarding(self) -> bool:
-        """Return True when the Agents tab is in the true first-run empty state."""
+        """Return True when the Agents tab has no visible rows to select."""
         if not getattr(self, "_agents_first_load_done", False):
             return False
         if (getattr(self, "_agent_search_query", "") or "").strip():
             return False
-        return not bool(getattr(self, "_agents_with_children", []))
+        return not bool(getattr(self, "_agents", []))
 
     @staticmethod
     def _set_widget_hidden(widget: object, hidden: bool) -> None:

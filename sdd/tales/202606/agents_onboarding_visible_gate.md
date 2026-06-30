@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 06:01:59
-status: wip
+status: done
 prompt: sdd/prompts/202606/agents_onboarding_visible_gate.md
 ---
 # Fix: Agents-tab onboarding not shown when the visible list is empty
