@@ -11,6 +11,50 @@ if TYPE_CHECKING:
     from sase.xprompt.directives import PromptDirectives
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
+
+# ---------------------------------------------------------------------------
+# Model alias policy (epic sase-5d)
+# ---------------------------------------------------------------------------
+#
+# Model indirection is configured under ``llm_provider.model_aliases``. On top
+# of the user-configured map, SASE exposes a fixed set of *implicit* special
+# aliases that always resolve, even when the user has not defined them:
+#
+#   - ``default``: the model used when a prompt has no explicit ``%model``.
+#   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
+#   - ``epic_creator`` / ``epic_lander`` / ``phase_worker``: bead/epic roles.
+#
+# Each role falls back to another alias (ultimately ``@default``) when it is not
+# explicitly configured. ``default`` itself falls back to the configured or
+# autodetected provider's tier default (see :func:`_resolve_default_alias_target`
+# and :func:`sase.llm_provider.registry.resolve_default_alias_provider_model`).
+#
+# Alias *values* may reference other aliases with an ``@`` marker (for example
+# ``coder: "@default"`` or ``codex_coder: "@coder"``); :func:`resolve_model_alias`
+# follows those references with cycle/depth protection.
+
+#: The implicit "default" alias name (used for no-``%model`` launches).
+DEFAULT_MODEL_ALIAS_NAME = "default"
+
+#: The implicit "coder" alias name (``<provider>_coder`` falls back to this).
+CODER_MODEL_ALIAS_NAME = "coder"
+
+#: Suffix that turns a provider name into its ``<provider>_coder`` alias.
+PROVIDER_CODER_ALIAS_SUFFIX = "_coder"
+
+#: Fixed implicit role aliases (besides ``default``) mapped to the alias each
+#: falls back to when the user has not configured it explicitly.
+_ROLE_ALIAS_FALLBACKS: dict[str, str] = {
+    CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    "epic_creator": f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    "epic_lander": f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    "phase_worker": f"@{DEFAULT_MODEL_ALIAS_NAME}",
+}
+
+# Legacy reserved aliases retained as deprecated stubs until the worker lane is
+# retired (epic sase-5d phase 4) and the plan/bead emit sites stop producing
+# them (phases 3-4). New configs should use the role aliases above instead.
+# ``model_completion`` still surfaces these until phase 2 reworks the catalog.
 RESERVED_MODEL_ALIASES: tuple[tuple[str, str], ...] = (
     ("worker", "reserved alias: current worker-lane model"),
     ("other", "reserved alias: model active before a temporary override"),
@@ -98,9 +142,75 @@ def get_model_aliases() -> dict[str, str]:
     return _get_model_aliases()
 
 
+def default_model_alias_name() -> str:
+    """Return the implicit "default" model alias name."""
+    return DEFAULT_MODEL_ALIAS_NAME
+
+
+def coder_model_alias_for_provider(provider: str) -> str:
+    """Return the ``<provider>_coder`` model alias name for *provider*."""
+    return f"{provider.strip()}{PROVIDER_CODER_ALIAS_SUFFIX}"
+
+
+def role_model_directive_value(role: str) -> str:
+    """Return the ``%model`` directive value (``@<role>``) for a role alias.
+
+    For example ``role_model_directive_value("phase_worker") -> "@phase_worker"``.
+    """
+    return f"@{role}"
+
+
+def _registered_provider_names() -> list[str]:
+    """Return registered LLM provider names, or ``[]`` if discovery fails.
+
+    Looked up lazily to avoid an import cycle: :mod:`registry` imports this
+    module at import time, so this module must not import it at module scope.
+    """
+    try:
+        from .registry import registered_provider_names
+
+        return registered_provider_names()
+    except Exception:
+        return []
+
+
+def _is_provider_coder_alias(name: str) -> bool:
+    """Return ``True`` if *name* is a ``<provider>_coder`` alias for a provider."""
+    if not name.endswith(PROVIDER_CODER_ALIAS_SUFFIX):
+        return False
+    provider = name[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
+    return bool(provider) and provider in _registered_provider_names()
+
+
+def _role_model_alias_names() -> set[str]:
+    """Return the fixed implicit role aliases (``default`` plus role aliases)."""
+    return {DEFAULT_MODEL_ALIAS_NAME, *_ROLE_ALIAS_FALLBACKS}
+
+
+def _provider_coder_model_alias_names() -> set[str]:
+    """Return a ``<provider>_coder`` alias for every registered provider."""
+    return {
+        coder_model_alias_for_provider(provider)
+        for provider in _registered_provider_names()
+    }
+
+
+def special_model_alias_names() -> set[str]:
+    """Return every implicit (non-user-configured) model alias name.
+
+    This is the centralized alias policy that replaces the old
+    ``RESERVED_MODEL_ALIASES`` constant as the source of truth for which alias
+    names always resolve: the fixed role aliases, a ``<provider>_coder`` alias
+    per registered provider, and (temporarily, until epic sase-5d phases 3-4
+    retire them) the legacy ``worker``/``other`` reserved aliases.
+    """
+    legacy = {name for name, _ in RESERVED_MODEL_ALIASES}
+    return _role_model_alias_names() | _provider_coder_model_alias_names() | legacy
+
+
 def model_alias_names() -> set[str]:
     """Return every name that is a user-facing model alias."""
-    return set(get_model_aliases()) | {name for name, _ in RESERVED_MODEL_ALIASES}
+    return set(get_model_aliases()) | special_model_alias_names()
 
 
 def strip_model_alias_prefix(value: str) -> str:
@@ -164,22 +274,51 @@ def get_configured_worker_model_entry_for_primary(
     return None
 
 
+def _resolve_default_alias_target() -> str:
+    """Return the implicit ``@default`` target as a ``provider/model`` string.
+
+    Only reached when ``default`` is *not* user-configured (a configured
+    ``model_aliases.default`` is followed by the normal alias chain in
+    :func:`resolve_model_alias`). Resolves to the configured or autodetected
+    provider's large-tier default. Temporary overrides are intentionally *not*
+    consulted: an explicit ``@default`` reference means "the configured default",
+    while the no-``%model`` launch path applies an active override separately
+    (see :func:`sase.llm_provider.temporary_override.resolve_effective_default_provider_model`).
+    Failures fall back to the bare alias name so a bad config never crashes a
+    launch.
+    """
+    try:
+        # Lazy import to avoid an import cycle: registry imports this module.
+        from .registry import get_configured_default_provider_name, get_provider
+
+        provider_name = get_configured_default_provider_name()
+        model = get_provider(provider_name).resolve_model_name("large")
+        return f"{provider_name}/{model}"
+    except Exception:
+        return DEFAULT_MODEL_ALIAS_NAME
+
+
 def resolve_model_alias(model: str) -> str:
-    """Resolve a configured model alias to its final configured target.
+    """Resolve a model alias to its final target.
 
-    Unknown aliases return *model* unchanged.  Cycles and overly deep chains
-    also fall back to the original input so a bad config cannot crash launches.
+    Resolution follows configured ``llm_provider.model_aliases`` chains and the
+    implicit special aliases (``default``, ``coder``, ``<provider>_coder``,
+    ``epic_creator``, ``epic_lander``, ``phase_worker``). Alias *values* may
+    reference other aliases with an ``@`` marker (e.g. ``coder: "@default"``);
+    those references are followed too. A user-configured alias always shadows
+    the implicit special of the same name.
 
-    The literal alias ``"worker"`` is reserved: it short-circuits to the
-    effective worker-lane model and shadows ``model_aliases.worker``.
+    Unknown tokens return *model* unchanged. Cycles and overly deep chains fall
+    back to the original input so a bad config cannot crash launches.
 
-    The literal alias ``"other"`` is reserved: when a temporary LLM override
-    is active, ``"other"`` short-circuits to the ``(provider, model)`` that
-    was the effective default immediately before the override was set. This
-    lets ``%model:@other`` always mean "the model I would have been using
-    if I hadn't taken this temporary detour." When no override is active
-    (or the override predates the snapshot field), behavior falls through
-    to the normal ``model_aliases.other`` target.
+    The literal aliases ``"worker"`` and ``"other"`` are legacy reserved stubs
+    retained until epic sase-5d phases 3-4 retire the worker lane:
+
+    - ``"worker"`` short-circuits to the effective worker-lane model and shadows
+      ``model_aliases.worker``.
+    - ``"other"`` short-circuits to the ``(provider, model)`` that was the
+      effective default immediately before an active temporary override was set,
+      falling through to ``model_aliases.other`` when no override is active.
     """
     cleaned_model = model.strip()
     if cleaned_model == "worker":
@@ -204,21 +343,39 @@ def resolve_model_alias(model: str) -> str:
             return f"{override.pre_override_provider}/{override.pre_override_model}"
 
     aliases = _get_model_aliases()
-    if not aliases:
-        return model
-
     original = model
-    current = model.strip()
-    if current not in aliases:
-        return model
+    current = cleaned_model
     seen: set[str] = set()
     for _ in range(_ALIAS_RESOLUTION_DEPTH_LIMIT):
-        if current not in aliases:
-            return current
-        if current in seen:
+        # An ``@`` marker on a value means "reference this alias by name".
+        bare = current[1:].strip() if current.startswith("@") else current
+        if not bare:
             return original
-        seen.add(current)
-        current = aliases[current].strip()
-        if not current:
-            return original
+
+        if bare in aliases:
+            if bare in seen:
+                return original
+            seen.add(bare)
+            nxt = aliases[bare].strip()
+            if not nxt:
+                return original
+            current = nxt
+            continue
+
+        # Implicit special aliases (only when not user-configured above).
+        if bare == DEFAULT_MODEL_ALIAS_NAME:
+            return _resolve_default_alias_target()
+
+        fallback = _ROLE_ALIAS_FALLBACKS.get(bare)
+        if fallback is None and _is_provider_coder_alias(bare):
+            fallback = _ROLE_ALIAS_FALLBACKS[CODER_MODEL_ALIAS_NAME]
+        if fallback is not None:
+            if bare in seen:
+                return original
+            seen.add(bare)
+            current = fallback
+            continue
+
+        # A concrete model name (or a dangling ``@`` reference): terminal.
+        return bare if current.startswith("@") else current
     return original

@@ -215,6 +215,44 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
     assert "codex" in caplog.text
 
 
+@patch("sase.llm_provider.registry.get_llm_provider_config")
+@patch("sase.llm_provider.config.get_llm_provider_config")
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.preprocess_prompt")
+@patch("sase.llm_provider._invoke.postprocess_success")
+def test_invoke_agent_no_directive_routes_through_configured_default_alias(
+    mock_postprocess: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_get_provider: MagicMock,
+    mock_config: MagicMock,
+    mock_registry_config: MagicMock,
+) -> None:
+    """A no-%model launch routes through a configured ``@default`` alias.
+
+    With ``model_aliases.default`` set, the no-directive launch must select the
+    configured default's provider/model instead of silently falling back to the
+    autodetected provider's tier default (epic sase-5d phase 1 exit criterion).
+    """
+    cfg = {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}}
+    mock_config.return_value = cfg
+    mock_registry_config.return_value = cfg
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")
+    mock_provider = MagicMock()
+    mock_provider.invoke.return_value = InvokeResult(content="response")
+    mock_get_provider.return_value = mock_provider
+
+    invoke_agent("prompt", agent_type="test", suppress_output=True)
+
+    mock_get_provider.assert_called_once_with("codex")
+    mock_provider.invoke.assert_called_once_with(
+        "preprocessed",
+        model_tier="large",
+        suppress_output=True,
+        model_override="gpt-5.5",
+        options=_NO_EFFORT,
+    )
+
+
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.preprocess_prompt")
 @patch("sase.llm_provider._invoke.postprocess_success")

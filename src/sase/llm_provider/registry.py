@@ -26,6 +26,7 @@ from ._hookspec import LLMHookSpec
 from ._plugin_manager import LLMPluginManager
 from .base import LLMProvider
 from .config import get_llm_provider_config, resolve_model_alias
+from .types import ModelTier
 
 _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "claude": "#D97757",
@@ -166,6 +167,16 @@ def _provider_names() -> list[str]:
     return [str(name) for name in names]
 
 
+def registered_provider_names() -> list[str]:
+    """Return all registered LLM provider names (entry-point keys).
+
+    Public adapter over :func:`_provider_names` for callers outside the
+    registry (e.g. the model alias policy in :mod:`sase.llm_provider.config`)
+    that need the set of providers without reaching into private helpers.
+    """
+    return _provider_names()
+
+
 def _find_plugin_class(name: str) -> type | None:
     """Look up an LLM plugin class by name from ``sase_llm`` entry points.
 
@@ -255,6 +266,34 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
 
     # 3. Unknown model — fall back to default provider
     return None, model_override
+
+
+def resolve_default_alias_provider_model(
+    model_tier: ModelTier = "large",
+) -> tuple[str, str]:
+    """Resolve the implicit ``@default`` alias to ``(provider, model)``.
+
+    Honors a configured ``llm_provider.model_aliases.default`` target (which may
+    itself chain through other aliases via ``@``); otherwise falls back to the
+    configured or autodetected provider's *model_tier* default. This is the
+    no-``%model`` launch default, minus any temporary override — callers that
+    want the override to win (the new-launch default behavior) go through
+    :func:`sase.llm_provider.temporary_override.resolve_effective_default_provider_model`,
+    which applies the override first and then delegates here.
+    """
+    from .config import default_model_alias_name, get_model_aliases
+
+    configured = get_model_aliases().get(default_model_alias_name())
+    if configured:
+        provider, model = resolve_model_provider(configured)
+        if provider is not None:
+            return provider, model
+        # Configured default is a bare/unknown model: run it on the configured
+        # provider rather than silently dropping the user's choice.
+        return get_configured_default_provider_name(), model
+
+    provider_name = get_configured_default_provider_name()
+    return provider_name, get_provider(provider_name).resolve_model_name(model_tier)
 
 
 def format_provider_model_label(

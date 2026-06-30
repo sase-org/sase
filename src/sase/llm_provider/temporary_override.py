@@ -335,19 +335,24 @@ def resolve_effective_default_provider_model(
 ) -> tuple[str, str]:
     """Return the ``(provider_name, model_name)`` to use for new launches.
 
-    If an active temporary override exists, its concrete provider/model
-    is returned. Otherwise resolves via the configured default provider
-    and its ``resolve_model_name(model_tier)``.
+    Precedence for a launch with no explicit ``%model`` directive:
+
+    1. an active primary temporary override (the user's recent explicit choice);
+    2. otherwise the ``@default`` alias — a configured
+       ``llm_provider.model_aliases.default`` target, or the configured/
+       autodetected provider's ``resolve_model_name(model_tier)`` default.
+
+    This keeps the temporary override winning the "new launch default" slot
+    while routing every no-directive launch through the ``@default`` alias so a
+    configured default model is never silently bypassed.
     """
     override = get_active_temporary_override()
     if override is not None:
         return override.provider, override.model
 
-    from .registry import get_default_provider_name, get_provider
+    from .registry import resolve_default_alias_provider_model
 
-    provider_name = get_default_provider_name()
-    provider = get_provider(provider_name)
-    return provider_name, provider.resolve_model_name(model_tier)
+    return resolve_default_alias_provider_model(model_tier)
 
 
 @dataclass(frozen=True)

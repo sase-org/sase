@@ -164,16 +164,30 @@ def invoke_agent(
                 provider_name,
             )
 
-    # Apply active temporary override only when neither an explicit
-    # %model directive nor an explicit provider_name was supplied.
-    # Explicit caller intent always wins over the temporary default.
+    # Resolve the launch default only when neither an explicit %model directive
+    # nor an explicit provider_name was supplied. Explicit caller intent always
+    # wins over the default.
     if not model_override and not provider_name:
-        from .temporary_override import get_active_temporary_override
+        from .config import default_model_alias_name, get_model_aliases
+        from .temporary_override import (
+            get_active_temporary_override,
+            resolve_effective_default_provider_model,
+        )
 
         active = get_active_temporary_override()
         if active is not None:
+            # An active primary temporary override wins the new-launch-default
+            # slot (it is the user's recent explicit choice).
             provider_name = active.provider
             model_override = active.model
+        elif default_model_alias_name() in get_model_aliases():
+            # A configured @default alias routes the no-directive launch through
+            # the alias resolver so a configured default model is never silently
+            # bypassed. With no configured default, @default is just the provider
+            # tier default, so the plain-tier resolution below is left untouched.
+            provider_name, model_override = resolve_effective_default_provider_model(
+                model_tier
+            )
 
     # 2. Build display label
     if model_override:
