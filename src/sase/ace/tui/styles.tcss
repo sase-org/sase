@@ -3481,6 +3481,43 @@ ConfigEditModal #config-edit-hints {
     margin-top: 1;
 }
 
+/* Models panel — persistent alias edit preview/confirm (sase-5e Phase 3) */
+AliasEditPreviewModal {
+    align: center middle;
+}
+
+AliasEditPreviewModal #alias-edit-container {
+    width: 84;
+    height: auto;
+    max-height: 90%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AliasEditPreviewModal #alias-edit-title {
+    text-style: bold;
+    height: 1;
+    margin-bottom: 1;
+}
+
+AliasEditPreviewModal #alias-edit-preview-scroll {
+    width: 100%;
+    height: auto;
+    max-height: 24;
+}
+
+AliasEditPreviewModal #alias-edit-preview {
+    width: 100%;
+    height: auto;
+}
+
+AliasEditPreviewModal #alias-edit-hints {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
 _OverlayNameModal {
     align: center middle;
 }

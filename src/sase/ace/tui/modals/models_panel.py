@@ -12,10 +12,13 @@ custom-model input, and duration picker. The ``default`` alias keeps its existin
 behavior: an override on it drives the no-``%model`` launch default and the gold
 top-bar pill (see :class:`sase.ace.tui.widgets.LLMOverrideIndicator`).
 
-Persistent alias *editing* (writing ``sase.yml``) is intentionally out of scope
-here; it arrives as Edit/Reset actions in a later phase. State for temporary
-overrides lives in ``~/.sase/llm_override.json`` (see
-:mod:`sase.llm_provider.temporary_override`).
+The user can also change an alias's *persistent* configured value with **e**
+(Edit) or unset it back to the implicit fallback with **r** (Reset). Both go
+through the Rust-backed, source-preserving config-edit path
+(:mod:`sase.config.edit`), preview the diff before writing
+(:class:`sase.ace.tui.modals.models_panel_edit.AliasEditPreviewModal`), and then
+offer a ``use_chezmoi``-aware commit+push. Temporary-override state lives in
+``~/.sase/llm_override.json`` (see :mod:`sase.llm_provider.temporary_override`).
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 
 from sase.ace.tui.provider_styles import provider_model_badge_markup
+from sase.config import ConfigEditOp
 from sase.llm_provider import (
     AliasView,
     build_alias_views,
@@ -54,6 +58,12 @@ from .duration_choice_modal import (
     DurationChoiceModal,
 )
 from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
+from .models_panel_edit import AliasEditPreviewModal
+from .models_panel_edit_helpers import (
+    AliasCommitOffer,
+    AliasEditOutcome,
+    build_alias_commit_offer,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +291,8 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         ("ctrl+p", "prev_option", "Previous"),
         ("o", "override", "Override"),
         ("x", "clear", "Clear"),
+        ("e", "edit", "Edit"),
+        ("r", "reset", "Reset"),
     ]
 
     def __init__(self) -> None:
@@ -290,6 +302,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         self._view_by_name: dict[str, AliasView] = {}
         self._pending_alias = ""
         self._pending_raw_model = ""
+        self._pending_edit_alias = ""
 
     # -- compose --------------------------------------------------------
 
@@ -310,6 +323,8 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         return (
             "[green]o[/green]=Override  "
             "[green]x[/green]=Clear  "
+            "[green]e[/green]=Edit  "
+            "[green]r[/green]=Reset  "
             "[dim]j/k[/dim]=Navigate  "
             "[dim]esc[/dim]=Close"
         )
@@ -444,6 +459,152 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         )
         self._changed = True
         self._refresh_rows(keep=alias)
+
+    # -- persistent edit / reset ---------------------------------------
+
+    def action_edit(self) -> None:
+        view = self._selected_view()
+        if view is None:
+            return
+        self._pending_edit_alias = view.name
+        self.app.push_screen(
+            ModelPickerModal(
+                title=f"Edit Model — @{view.name}",
+                include_default_option=False,
+            ),
+            callback=self._on_edit_model_picked,
+        )
+
+    def action_reset(self) -> None:
+        view = self._selected_view()
+        if view is None:
+            return
+        if not view.configured:
+            self.notify(
+                f"@{view.name} has no configured value to reset",
+                severity="warning",
+            )
+            return
+        self._open_alias_preview(view.name, ConfigEditOp.unset())
+
+    def _on_edit_model_picked(self, result: str | None) -> None:
+        if result is None:
+            return
+        if result == CUSTOM_SENTINEL:
+            self.app.push_screen(
+                CustomModelInputModal(
+                    title="Custom Alias Value",
+                    hint="Format: provider/model, model, or @alias",
+                    placeholder="e.g. claude/opus  or  @default",
+                ),
+                callback=self._on_edit_custom_picked,
+            )
+            return
+        self._open_alias_preview(
+            self._pending_edit_alias, ConfigEditOp.set_value(result)
+        )
+
+    def _on_edit_custom_picked(self, result: str | None) -> None:
+        if result is None:
+            return
+        self._open_alias_preview(
+            self._pending_edit_alias, ConfigEditOp.set_value(result)
+        )
+
+    def _open_alias_preview(self, alias: str, op: ConfigEditOp) -> None:
+        self.app.push_screen(
+            AliasEditPreviewModal(alias, op),
+            callback=self._on_alias_edited,
+        )
+
+    def _on_alias_edited(self, outcome: AliasEditOutcome | None) -> None:
+        if outcome is None:
+            return
+        verb = "Reset" if outcome.applied.op == "unset" else "Updated"
+        self.notify(f"{verb} @{outcome.alias}")
+        # A persistent edit does not touch temporary overrides, so ``_changed``
+        # (which drives the override indicators) stays as-is; refresh the rows
+        # so the configured/effective columns reflect the new value.
+        self._refresh_rows(keep=outcome.alias)
+        self._offer_commit_push(outcome)
+
+    def _offer_commit_push(self, outcome: AliasEditOutcome) -> None:
+        offer = build_alias_commit_offer(
+            outcome.applied.path,
+            op=outcome.applied.op,
+            alias=outcome.alias,
+        )
+        if offer is None:
+            # Not in a git repo (or no pending change) — the file is already
+            # written, so just confirm the save without a commit offer.
+            return
+        from .confirm_action_modal import ConfirmActionModal
+
+        def _on_answer(confirmed: bool | None) -> None:
+            if confirmed:
+                self._submit_commit_task(offer)
+
+        self.app.push_screen(
+            ConfirmActionModal(
+                "Commit & Push",
+                "Commit and push your model-alias change?",
+                subject=offer.rel_path,
+                icon="↑",
+                confirm_label="Commit & push",
+                cancel_label="Skip",
+                default="confirm",
+            ),
+            _on_answer,
+        )
+
+    def _submit_commit_task(self, offer: AliasCommitOffer) -> None:
+        from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
+            run_git_commit_push_sync,
+        )
+        from sase.ace.tui.actions.task_actions import (
+            TrackedTaskCompletion,
+            TrackedTaskResult,
+        )
+
+        def _task() -> TrackedTaskResult[None]:
+            success, message = run_git_commit_push_sync(
+                git_root=offer.git_root,
+                file_path=offer.file_path,
+                commit_message=offer.message,
+            )
+            return TrackedTaskResult(
+                success=success,
+                message=message,
+                error=None if success else message,
+            )
+
+        def _on_complete(completion: TrackedTaskCompletion[None]) -> None:
+            self.notify(
+                completion.message,
+                severity="information" if completion.success else "error",
+            )
+
+        submit = getattr(self.app, "_submit_tracked_task", None)
+        if submit is None:
+            self.notify(
+                "Could not commit: background task queue unavailable.",
+                severity="error",
+            )
+            return
+        submit(
+            "config-commit",
+            offer.rel_path,
+            offer.git_root,
+            _task,
+            display_name=f"commit alias {offer.rel_path}",
+            dedup_key=f"config-commit:{offer.git_root}:{offer.rel_path}",
+            duplicate_message=(
+                f"Another config commit is already running for {offer.rel_path}."
+            ),
+            on_complete=_on_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
 
     # -- enter on the list selects override ----------------------------
 

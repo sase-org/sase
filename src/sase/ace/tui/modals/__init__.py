@@ -102,6 +102,7 @@ from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
 from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from .models_panel import ModelsPanel, ModelsPanelResult
+from .models_panel_edit import AliasEditPreviewModal
 from .mentor_profile_select_modal import MentorProfileSelectModal
 from .mentor_review_models import (
     MentorApplyResult,
@@ -239,6 +240,7 @@ __all__ = [
     "StatusModal",
     "TabName",
     "TagInputModal",
+    "AliasEditPreviewModal",
     "ModelsPanel",
     "ModelsPanelResult",
     "UpdatePinnedStashModal",
