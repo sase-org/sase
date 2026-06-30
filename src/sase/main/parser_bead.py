@@ -87,6 +87,13 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead list
     bead_list_parser = bead_subparsers.add_parser("list", help="List issues")
     bead_list_parser.add_argument(
+        "-n",
+        "--limit",
+        type=nonnegative_int,
+        default=None,
+        help="Maximum beads to print; 0 means unlimited",
+    )
+    bead_list_parser.add_argument(
         "-s",
         "--status",
         choices=["open", "in_progress", "closed"],
@@ -94,17 +101,17 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Filter by status (repeatable)",
     )
     bead_list_parser.add_argument(
+        "--tier",
+        choices=["plan", "epic", "legend"],
+        action="append",
+        help="Filter by plan-bead tier (repeatable)",
+    )
+    bead_list_parser.add_argument(
         "-t",
         "--type",
         choices=["plan", "phase"],
         action="append",
         help="Filter by type (repeatable)",
-    )
-    bead_list_parser.add_argument(
-        "--tier",
-        choices=["plan", "epic", "legend"],
-        action="append",
-        help="Filter by plan-bead tier (repeatable)",
     )
 
     # sase bead onboard

@@ -22,9 +22,10 @@ from sase.bead.model import (
 
 def handle_bead_list(args: argparse.Namespace) -> None:
     with get_read_view() as view:
+        explicit_statuses = args.status is not None
         statuses = (
             [Status(s) for s in args.status]
-            if args.status
+            if explicit_statuses
             else [Status.OPEN, Status.IN_PROGRESS]
         )
         issue_types = [IssueType(t) for t in args.type] if args.type else None
@@ -32,9 +33,20 @@ def handle_bead_list(args: argparse.Namespace) -> None:
         issues = view.list_issues(
             statuses=statuses, issue_types=issue_types, tiers=tiers
         )
+        implicit_closed = False
+        if not issues and not explicit_statuses:
+            issues = view.list_issues(
+                statuses=[Status.CLOSED], issue_types=issue_types, tiers=tiers
+            )
+            implicit_closed = bool(issues)
         if not issues:
             print("No issues found.")
             return
+        if implicit_closed:
+            print("No open beads to show — defaulting to --status closed.")
+        limit = getattr(args, "limit", None)
+        if limit:
+            issues = issues[-limit:]
         for issue in issues:
             icon = status_icon(issue.status)
             parent = f" ← {issue.parent_id}" if issue.parent_id else ""

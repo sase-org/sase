@@ -22,6 +22,8 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     """
     if not argv or any(arg in {"-h", "--help"} for arg in argv):
         return None
+    if argv[0] == "list":
+        return None
 
     context = _resolve_fast_path_context(argv)
     if context is None:

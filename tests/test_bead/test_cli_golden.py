@@ -57,6 +57,10 @@ def _copy_current_store(root: Path) -> None:
     shutil.copytree(GOLDEN / "stores" / "current", root / "sdd/beads")
 
 
+def _copy_closed_only_store(root: Path) -> None:
+    shutil.copytree(GOLDEN / "stores" / "closed_only", root / "sdd/beads")
+
+
 def _init_empty_store(root: Path, *, prefix: str = "case") -> None:
     with BeadProject.init(root):
         pass
@@ -100,6 +104,9 @@ def _setup_case(tmp_path: Path, setup: str) -> Path:
         return root
     if setup == "initialized":
         _init_empty_store(root)
+        return root
+    if setup == "closed_only":
+        _copy_closed_only_store(root)
         return root
     _copy_current_store(root)
     if setup == "current_git":
@@ -165,6 +172,48 @@ def _run_cli(
             ["bead", "list"],
             "current",
             stdout=_read_expected("list.stdout"),
+        ),
+        CliCase(
+            "list_limit",
+            ["bead", "list", "--limit", "2"],
+            "current",
+            stdout=_read_expected("list_limit.stdout"),
+        ),
+        CliCase(
+            "list_limit_zero",
+            ["bead", "list", "-n", "0"],
+            "current",
+            stdout=_read_expected("list.stdout"),
+        ),
+        CliCase(
+            "list_implicit_closed",
+            ["bead", "list"],
+            "closed_only",
+            stdout=_read_expected("list_implicit_closed.stdout"),
+        ),
+        CliCase(
+            "list_implicit_closed_limit",
+            ["bead", "list", "-n", "1"],
+            "closed_only",
+            stdout=_read_expected("list_implicit_closed_limit.stdout"),
+        ),
+        CliCase(
+            "list_implicit_closed_filters",
+            ["bead", "list", "--type", "plan", "--tier", "epic"],
+            "closed_only",
+            stdout=_read_expected("list_implicit_closed_filters.stdout"),
+        ),
+        CliCase(
+            "list_explicit_open_no_fallback",
+            ["bead", "list", "--status", "open"],
+            "closed_only",
+            stdout=_read_expected("list_empty.stdout"),
+        ),
+        CliCase(
+            "list_empty_no_fallback",
+            ["bead", "list"],
+            "initialized",
+            stdout=_read_expected("list_empty.stdout"),
         ),
         CliCase(
             "show",

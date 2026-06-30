@@ -53,7 +53,8 @@ Quick Start:
   sase bead create -t "Epic" --type plan(sdd/epics/202605/epic.md) --tier epic
   sase bead create -t "Legend" --type plan(sdd/legends/202605/roadmap.md) --tier legend --epic-count 3
   sase bead create -t "Linked epic" --type plan(sdd/epics/202605/epic.md,<legend-id>) --tier epic
-  sase bead list                                 List all issues
+  sase bead list                                 List open/in-progress issues
+  sase bead list --limit=5                       Limit printed issues
   sase bead list --status=open                   List open issues
   sase bead list --tier=epic                     List epic plan beads
   sase bead ready                                Show issues ready to work

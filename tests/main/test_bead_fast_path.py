@@ -200,6 +200,16 @@ def test_fast_path_routes_search_through_rust_executor(
     ]
 
 
+def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:
+    def fail_context(argv: list[str]):
+        raise AssertionError(f"context should not resolve for list: {argv}")
+
+    monkeypatch.setattr(bead_fast_path, "_resolve_fast_path_context", fail_context)
+
+    assert try_handle_bead_fast_path(["list"]) is None
+    assert try_handle_bead_fast_path(["list", "--status", "closed"]) is None
+
+
 def test_fast_path_defers_search_help_to_argparse(monkeypatch) -> None:
     def fail_context(argv: list[str]):
         raise AssertionError(f"context should not resolve for help: {argv}")

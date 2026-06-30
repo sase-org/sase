@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 09:45:28
-status: wip
+status: done
 prompt: sdd/prompts/202606/bead_list_limit_and_implicit_closed.md
 ---
 # Plan: `sase bead list` — `--limit` option and implicit `--status closed` fallback
