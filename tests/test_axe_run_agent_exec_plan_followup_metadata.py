@@ -1,7 +1,7 @@
 """Tests for approved plan follow-up metadata."""
 
 from datetime import UTC, datetime
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 
@@ -188,14 +188,14 @@ class TestPlanFollowupMetadata:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert "model" not in meta_updates
 
-    def test_coder_meta_records_contextual_worker_lane_when_no_picker_model(
+    def test_coder_meta_records_resolved_coder_alias_when_no_picker_model(
         self, tmp_path
     ) -> None:
-        """Without a picker model, agent_meta.json records the contextual worker lane.
+        """Without a picker model, agent_meta.json records the resolved coder alias.
 
-        The worker lane is resolved from the planner's concrete provider/model,
-        so the recorded meta matches the concrete ``%model`` prefix the handoff
-        generates rather than the bare worker alias.
+        The coder follow-up emits ``%model:@<planner_provider>_coder`` and the
+        recorded meta resolves that alias to the concrete provider/model the
+        launch will actually use, so display and behavior stay in sync.
         """
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
@@ -207,15 +207,6 @@ class TestPlanFollowupMetadata:
         def track_meta(artifacts_dir, key, value):
             meta_updates[key] = value
 
-        resolution = WorkerModelResolution(
-            provider="codex",
-            model="gpt-5.5",
-            source="config",
-            primary_provider="claude",
-            primary_model="opus",
-            matched_key="claude/opus",
-            configured_target="codex/gpt-5.5",
-        )
         approval = PlanApprovalResult(
             action="approve",
             plan_file=plan_file,
@@ -235,15 +226,15 @@ class TestPlanFollowupMetadata:
                 side_effect=track_meta,
             ),
             patch(
-                "sase.llm_provider.resolve_worker_provider_model_for_primary",
-                return_value=resolution,
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("codex", "gpt-5.5"),
             ) as resolve_mock,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        resolve_mock.assert_called_once_with("claude", "opus")
+        resolve_mock.assert_any_call("@claude_coder")
         assert meta_updates.get("model") == "gpt-5.5"
         assert meta_updates.get("llm_provider") == "codex"
-        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
+        assert state.current_prompt.startswith("%model:@claude_coder\n")
 
     @pytest.mark.parametrize("action", ["epic", "legend"])
     def test_epic_legend_meta_records_contextual_worker_lane(
@@ -310,6 +301,14 @@ class TestPlanFollowupMetadata:
             plan_file=plan_file,
             coder_prompt="%m:sonnet\nUse the reviewed plan.",
         )
+
+        def fake_resolve(directive):
+            # The custom prompt's %model directive supersedes the coder-alias
+            # default, so its model — not @claude_coder's — is what gets recorded.
+            if directive == "sonnet":
+                return ("anthropic", "claude-sonnet-4-5")
+            return ("codex", "gpt-5.5")
+
         with (
             patch(
                 "sase.llm_provider._plan_utils.handle_plan_approval",
@@ -323,26 +322,14 @@ class TestPlanFollowupMetadata:
                 "sase.axe.run_agent_exec_plan_accept.update_meta_field",
                 side_effect=track_meta,
             ),
-            # The custom prompt's %model directive supersedes the contextual
-            # worker default, so the worker resolver must not influence meta.
-            patch(
-                "sase.llm_provider.resolve_worker_provider_model_for_primary",
-                return_value=WorkerModelResolution(
-                    provider="anthropic",
-                    model="opus",
-                    source="primary",
-                    primary_provider="anthropic",
-                    primary_model="opus",
-                ),
-            ),
             patch(
                 "sase.llm_provider.registry.resolve_model_provider",
-                return_value=("anthropic", "claude-sonnet-4-5"),
+                side_effect=fake_resolve,
             ) as resolve_mock,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        resolve_mock.assert_called_once_with("sonnet")
+        resolve_mock.assert_any_call("sonnet")
         assert meta_updates.get("model") == "claude-sonnet-4-5"
         assert meta_updates.get("llm_provider") == "anthropic"
 
@@ -379,16 +366,6 @@ class TestPlanFollowupMetadata:
                 side_effect=track_meta,
             ),
             patch(
-                "sase.llm_provider.resolve_worker_provider_model_for_primary",
-                return_value=WorkerModelResolution(
-                    provider="anthropic",
-                    model="opus",
-                    source="primary",
-                    primary_provider="anthropic",
-                    primary_model="opus",
-                ),
-            ),
-            patch(
                 "sase.llm_provider.registry.resolve_model_provider",
                 return_value=("workerprov", "worker-model"),
             ) as resolve_mock,
@@ -396,5 +373,7 @@ class TestPlanFollowupMetadata:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        resolve_mock.assert_not_called()
+        # The broken directive's model must never be resolved or recorded; the
+        # only resolution is the coder-alias meta, which the error discards.
+        assert call("sonnet") not in resolve_mock.call_args_list
         assert "model" not in meta_updates

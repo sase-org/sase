@@ -62,7 +62,7 @@ def run_plan_approval(
     ctx=None,
     state=None,
     agent_model: str | None = None,
-    agent_llm_provider: str | None = "anthropic",
+    agent_llm_provider: str | None = "claude",
     resolution: WorkerModelResolution | None = None,
 ):
     if ctx is None:
@@ -103,7 +103,7 @@ def run_followup_plan(
     *,
     action: str = "approve",
     agent_model: str | None,
-    agent_llm_provider: str | None = "anthropic",
+    agent_llm_provider: str | None = "claude",
     resolution: WorkerModelResolution | None = None,
 ):
     plan_file = write_plan_file(tmp_path)
@@ -122,7 +122,7 @@ def approve_followup_plan(
     tmp_path,
     *,
     agent_model: str | None,
-    agent_llm_provider: str = "anthropic",
+    agent_llm_provider: str = "claude",
     resolution: WorkerModelResolution | None = None,
 ):
     """Approve a plan and return ``(ctx, state)`` after the code prompt builds.

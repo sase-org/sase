@@ -73,7 +73,7 @@ class TestFeedbackRoundChatPath:
         assert captured["agent"] == "test_agent--plan"
         assert captured["metadata_agent"] == "test_agent--plan"
         assert captured["metadata_model"] is None
-        assert captured["metadata_llm_provider"] == "anthropic"
+        assert captured["metadata_llm_provider"] == "claude"
         assert captured["metadata_multi_agent_prompt"] == (
             "~/.sase/multi_prompts/202606/main.md"
         )

@@ -1576,15 +1576,16 @@ The dialog keeps the custom coder prompt and follow-up model controls:
 
 - **Additional prompt** — Optional extra instructions for the coder follow-up. It is used by Approve and Tale; Epic and
   Legend generate their follow-up prompts from the bead xprompts.
-- **Coder model** — Select an LLM model for the next follow-up agent instead of using the worker-lane default. For
-  Approve and Tale that agent is the coder; for Epic and Legend it is the bead follow-up. Shows all registered models
-  grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to
-  filter by provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to
-  clear the filter or cancel, and `'` for jump hints over the visible selectable rows. The displayed default is the
-  worker lane resolved from the **planner's** concrete provider/model — an active worker override, a matching
-  `llm_provider.worker_models` entry for the planner's primary lane, then the planner's own provider/model. Selecting a
-  specific model and then re-opening the picker and choosing "Worker model (default)" resets the follow-up back to that
-  worker default (distinct from pressing `Esc`, which keeps the current selection).
+- **Coder model** — Select an LLM model for the next follow-up agent instead of using the role default. For Approve and
+  Tale that agent is the coder; for Epic and Legend it is the bead follow-up. Shows all registered models grouped by
+  provider (Claude, Codex, Antigravity, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to filter by
+  provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the
+  filter or cancel, and `'` for jump hints over the visible selectable rows. The displayed default resolves to the model
+  the handoff will actually use: for Approve and Tale it is the planner provider's coder alias
+  (`@<planner_provider>_coder`, e.g. `@claude_coder`, falling back to `@coder` when planner provider metadata is
+  missing); for Epic and Legend it is the contextual worker lane resolved from the **planner's** concrete
+  provider/model. Selecting a specific model and then re-opening the picker and choosing "Follow-up default" resets the
+  follow-up back to that role default (distinct from pressing `Esc`, which keeps the current selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.

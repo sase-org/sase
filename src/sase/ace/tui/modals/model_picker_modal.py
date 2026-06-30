@@ -21,9 +21,9 @@ from .base import FilterInput, OptionListNavigationMixin
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
-# Returned when the user selects "Worker model (default)" and the caller opted
+# Returned when the user selects "Follow-up default" and the caller opted
 # into ``distinct_default``. By default this row dismisses with ``None`` (the
-# same as cancel); callers that need to tell "use the worker default" apart
+# same as cancel); callers that need to tell "use the follow-up default" apart
 # from a cancel pass ``distinct_default=True`` to receive this sentinel.
 DEFAULT_SENTINEL = "__default__"
 _EMPTY_SENTINEL = "__empty__"
@@ -78,7 +78,7 @@ def _build_model_rows(*, include_default_option: bool = True) -> list[_ModelPick
         rows.append(
             _ModelPickerRow(
                 kind="default",
-                label="Worker model (default)",
+                label="Follow-up default",
                 option_id=DEFAULT_SENTINEL,
             )
         )
@@ -219,9 +219,9 @@ def _build_model_options(*, include_default_option: bool = True) -> list[Option 
 
     Args:
         include_default_option: If True (default), prepend the
-            ``"Worker model (default)"`` option that returns ``None``.
+            ``"Follow-up default"`` option that returns ``None``.
             Callers like the temporary-override modal that have no
-            "use worker default" semantics pass ``False`` to omit it.
+            "use follow-up default" semantics pass ``False`` to omit it.
     """
     return _rows_to_options(
         _build_model_rows(include_default_option=include_default_option)
@@ -294,10 +294,10 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
     Args:
         title: Heading shown above the list.
         include_default_option: If True (default), include the
-            ``"Worker model (default)"`` option whose selection dismisses
+            ``"Follow-up default"`` option whose selection dismisses
             with ``None``.  Pass ``False`` for callers (e.g. the temporary
             override modal) where ``None`` only ever means *cancel*.
-        distinct_default: If True, selecting ``"Worker model (default)"``
+        distinct_default: If True, selecting ``"Follow-up default"``
             dismisses with :data:`DEFAULT_SENTINEL` instead of ``None`` so the
             caller can tell it apart from a cancel (which always dismisses with
             ``None``). Only meaningful when ``include_default_option`` is True.

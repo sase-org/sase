@@ -1,4 +1,4 @@
-"""Tests for plan follow-up worker model selection."""
+"""Tests for plan follow-up model selection."""
 
 import pytest
 
@@ -21,39 +21,82 @@ pytestmark = pytest.mark.usefixtures(
 class TestPlanFollowupModelSelection:
     """Verify plan approval follow-up model prefixes."""
 
-    @pytest.mark.parametrize("action", ["approve", "epic", "legend"])
-    def test_followup_uses_contextual_worker_lane(self, tmp_path, action: str) -> None:
-        """With planner provider+model, the follow-up uses the concrete worker lane.
+    @pytest.mark.parametrize("provider", ["claude", "codex", "agy"])
+    def test_coder_followup_uses_provider_coder_alias(
+        self, tmp_path, provider: str
+    ) -> None:
+        """An approved plan routes its coder through ``@<planner_provider>_coder``.
+
+        A Claude-authored plan launches its coder with ``%model:@claude_coder``,
+        a Codex plan with ``%model:@codex_coder``, and so on for every registered
+        provider — never the retired ``%model:@worker`` lane.
+        """
+        state = run_followup_plan(
+            tmp_path,
+            action="approve",
+            agent_model="opus",
+            agent_llm_provider=provider,
+        )
+        assert state.current_prompt.startswith(f"%model:@{provider}_coder\n")
+        assert "%model:@worker" not in state.current_prompt
+
+    def test_coder_followup_falls_back_to_coder_alias_without_provider(
+        self, tmp_path
+    ) -> None:
+        """Missing planner provider metadata falls back to the generic ``@coder``."""
+        state = run_followup_plan(
+            tmp_path,
+            action="approve",
+            agent_model="opus",
+            agent_llm_provider=None,
+        )
+        assert state.current_prompt.startswith("%model:@coder\n")
+
+    def test_coder_alias_depends_only_on_planner_provider(self, tmp_path) -> None:
+        """The coder alias is chosen from the provider, ignoring a missing model."""
+        state = run_followup_plan(
+            tmp_path,
+            action="approve",
+            agent_model=None,
+            agent_llm_provider="codex",
+        )
+        assert state.current_prompt.startswith("%model:@codex_coder\n")
+
+    @pytest.mark.parametrize("action", ["epic", "legend"])
+    def test_epic_legend_followup_keeps_contextual_worker_lane(
+        self, tmp_path, action: str
+    ) -> None:
+        """Epic/legend follow-ups keep the contextual worker lane (phase 4 retires it).
 
         The default stub echoes the planner lane (no ``worker_models`` config),
         so the prefix is a concrete ``%model:<provider>/<model>`` carrying the
-        planner's primary context rather than the worker alias.
+        planner's primary context rather than a coder alias.
         """
         state = run_followup_plan(
             tmp_path,
             action=action,
             agent_model="opus",
-            agent_llm_provider="anthropic",
+            agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:claude/opus\n")
 
     @pytest.mark.parametrize(
         ("agent_model", "agent_llm_provider"),
         [
             ("opus", None),
-            (None, "anthropic"),
+            (None, "claude"),
             (None, None),
         ],
     )
-    @pytest.mark.parametrize("action", ["approve", "epic", "legend"])
-    def test_followup_falls_back_to_worker_alias_without_planner_metadata(
+    @pytest.mark.parametrize("action", ["epic", "legend"])
+    def test_epic_legend_falls_back_to_worker_alias_without_planner_metadata(
         self,
         tmp_path,
         action: str,
         agent_model: str | None,
         agent_llm_provider: str | None,
     ) -> None:
-        """Missing planner provider/model falls back to the worker alias."""
+        """Epic/legend missing planner provider+model falls back to the worker alias."""
         state = run_followup_plan(
             tmp_path,
             action=action,
@@ -62,8 +105,8 @@ class TestPlanFollowupModelSelection:
         )
         assert state.current_prompt.startswith("%model:@worker\n")
 
-    def test_followup_uses_exact_worker_models_mapping(self, tmp_path) -> None:
-        """Planner (claude, opus) + worker_models {claude/opus: codex/gpt-5.5}."""
+    def test_epic_uses_exact_worker_models_mapping(self, tmp_path) -> None:
+        """Epic follow-up honors a ``worker_models {claude/opus: codex/gpt-5.5}`` map."""
         resolution = WorkerModelResolution(
             provider="codex",
             model="gpt-5.5",
@@ -75,35 +118,17 @@ class TestPlanFollowupModelSelection:
         )
         state = run_followup_plan(
             tmp_path,
+            action="epic",
             agent_model="opus",
             agent_llm_provider="claude",
             resolution=resolution,
         )
         assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
 
-    def test_followup_uses_provider_level_worker_models_mapping(self, tmp_path) -> None:
-        """Planner (codex, o3) + provider-level worker_models {codex: claude/opus}."""
-        resolution = WorkerModelResolution(
-            provider="claude",
-            model="opus",
-            source="config",
-            primary_provider="codex",
-            primary_model="o3",
-            matched_key="codex",
-            configured_target="claude/opus",
-        )
-        state = run_followup_plan(
-            tmp_path,
-            agent_model="o3",
-            agent_llm_provider="codex",
-            resolution=resolution,
-        )
-        assert state.current_prompt.startswith("%model:claude/opus\n")
-
-    def test_explicit_coder_model_worker_uses_contextual_default(
+    def test_explicit_coder_model_worker_falls_back_to_coder_alias(
         self, tmp_path
     ) -> None:
-        """coder_model='worker' resolves the contextual worker default, not literal."""
+        """coder_model='worker' is treated as no explicit pick, not a literal model."""
         plan_file = write_plan_file(tmp_path)
         approval = PlanApprovalResult(
             action="approve",
@@ -114,12 +139,13 @@ class TestPlanFollowupModelSelection:
             tmp_path,
             approval=approval,
             agent_model="opus",
-            agent_llm_provider="anthropic",
+            agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:@claude_coder\n")
+        assert "%model:@worker" not in state.current_prompt
 
-    def test_coder_prompt_picker_model_wins_over_worker(self, tmp_path) -> None:
-        """An explicit approval-dialog coder model suppresses the worker default."""
+    def test_coder_prompt_picker_model_wins_over_default(self, tmp_path) -> None:
+        """An explicit approval-dialog coder model suppresses the coder-alias default."""
         plan_file = write_plan_file(tmp_path)
         approval = PlanApprovalResult(
             action="approve",
@@ -132,4 +158,5 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
         )
         assert state.current_prompt.startswith("%model:sonnet\n")
+        assert "%model:@claude_coder" not in state.current_prompt
         assert "%model:@worker" not in state.current_prompt

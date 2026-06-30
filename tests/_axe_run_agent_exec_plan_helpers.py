@@ -11,7 +11,7 @@ def make_ctx(
     tmp_path,
     *,
     agent_model: str | None = None,
-    agent_llm_provider: str | None = "anthropic",
+    agent_llm_provider: str | None = "claude",
 ) -> AgentExecContext:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()

@@ -1239,13 +1239,14 @@ built-in xprompt (see [sase/xprompts/coder.md](https://github.com/sase-org/sase/
 implement the plan. By default the coder does _not_ inherit the planner's chat transcript — the plan file is the
 hand-off artifact. Set `SASE_CODER_INHERIT_PLANNER_CHAT=1` to restore the old behavior, in which case a
 `#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the planner's session. The coder prompt
-also carries a `%model:` directive. A model chosen at approval time wins. When no model is chosen, the follow-up default
-is resolved **at handoff time from the planner agent's concrete provider/model**: an active worker override, a matching
-`llm_provider.worker_models` entry for the planner's primary lane, then the planner's own provider/model as the
-fallback. The generated prefix is a concrete `%model:<provider>/<model>` so the planner's primary context is preserved
-even if the global worker lane changes before launch (when the planner is missing provider/model metadata the follow-up
-falls back to `%model:@worker`). Ordinary `%model:@worker` directives written elsewhere still resolve from the current
-effective worker lane.
+also carries a `%model:` directive. A model chosen at approval time (or a `%model:`/`%m` directive inside a custom coder
+prompt) wins. When no model is chosen, the follow-up routes through the planner provider's **coder alias**: a
+Claude-authored plan emits `%model:@claude_coder`, a Codex plan `%model:@codex_coder`, and so on for every registered
+provider. When the planner is missing provider metadata the follow-up falls back to the generic `%model:@coder`. Each
+`<provider>_coder` alias defaults to `@coder`, which defaults to `@default`, so an unconfigured setup lands on the
+default model; configure `llm_provider.model_aliases.<provider>_coder` to route a provider's coder follow-ups elsewhere
+(see [Configured Model Aliases](llms.md#configured-model-aliases)). The recorded follow-up metadata resolves the alias
+to the concrete model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected archived plans. Use the `id_prefix` from a Proposed row with

@@ -29,7 +29,12 @@ from sase.axe.run_agent_helpers import (
     promote_to_workflow,
     update_meta_field,
 )
-from sase.llm_provider.config import format_model_directive_value
+from sase.llm_provider.config import (
+    CODER_MODEL_ALIAS_NAME,
+    coder_model_alias_for_provider,
+    format_model_directive_value,
+    role_model_directive_value,
+)
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
@@ -73,8 +78,8 @@ class _FollowupModel:
     """The follow-up agent's model directive prefix and the meta to record.
 
     ``model_prefix`` is prepended to the generated follow-up prompt (e.g.
-    ``"%model:codex/gpt-5.5\n"`` or ``"%model:@worker\n"``).  ``meta`` is the
-    ``(provider_or_none, model)`` to write into the follow-up's
+    ``"%model:codex/gpt-5.5\n"`` or ``"%model:@claude_coder\n"``).  ``meta`` is
+    the ``(provider_or_none, model)`` to write into the follow-up's
     ``agent_meta.json`` so the recorded model matches the directive; it is
     ``None`` when the inherited planner metadata is already correct and the
     rewrite should be skipped.
@@ -93,39 +98,38 @@ def _resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
     return resolve_model_provider(clean_model)
 
 
-def _resolve_followup_model(
-    plan_result: Any,
-    ctx: AgentExecContext,
-) -> _FollowupModel:
-    """Decide the follow-up agent's ``%model`` prefix and recorded metadata.
+def _resolve_coder_alias_followup(ctx: AgentExecContext) -> _FollowupModel:
+    """Route a coder follow-up through the planner provider's coder alias.
 
-    Precedence:
-
-    1. An explicit approval picker model (``plan_result.coder_model``) other
-       than the literal ``"worker"`` wins; its meta is recorded unless it
-       equals the planner's model (the inherited meta is already correct).
-    2. Otherwise — no picker model, or the picker chose ``"worker"`` — the
-       worker lane is resolved from the planner's *concrete*
-       provider/model (``ctx.agent_llm_provider``/``ctx.agent_model``) so the
-       handoff preserves the planner's primary context rather than re-reading
-       the current global worker lane later. The generated prefix is a
-       concrete ``%model:<provider>/<model>``.
-    3. If the planner is missing provider/model metadata, fall back to the
-       ``%model:@worker`` alias, resolved from the current effective
-       worker lane at launch time.
-
-    A ``%model`` directive embedded in a custom coder prompt is handled by the
-    caller and supersedes this result.
+    Emits ``%model:@<planner_provider>_coder`` when the planner recorded its
+    provider (e.g. ``%model:@claude_coder`` for a Claude-authored plan, or
+    ``%model:@codex_coder`` for a Codex one), and the generic ``%model:@coder``
+    when planner provider metadata is missing. The recorded meta resolves the
+    alias chain to the concrete ``(provider, model)`` the launch will actually
+    use so display and behavior stay in sync.
     """
-    coder_model = plan_result.coder_model
-    if coder_model and coder_model.strip() != "worker":
-        prefix = f"%model:{format_model_directive_value(coder_model)}\n"
-        if coder_model == ctx.agent_model:
-            return _FollowupModel(model_prefix=prefix)
-        return _FollowupModel(
-            model_prefix=prefix, meta=_resolve_model_meta(coder_model)
-        )
+    planner_provider = (ctx.agent_llm_provider or "").strip()
+    alias = (
+        coder_model_alias_for_provider(planner_provider)
+        if planner_provider
+        else CODER_MODEL_ALIAS_NAME
+    )
+    directive = role_model_directive_value(alias)
+    return _FollowupModel(
+        model_prefix=f"%model:{directive}\n",
+        meta=_resolve_model_meta(directive),
+    )
 
+
+def _resolve_worker_lane_followup(ctx: AgentExecContext) -> _FollowupModel:
+    """Resolve the contextual worker lane for an epic/legend follow-up.
+
+    Epic and legend role aliases (``@epic_creator`` / ``@epic_lander``) are
+    introduced in epic sase-5d phase 4; until then these follow-ups keep the
+    legacy worker-lane resolution so phase 3 leaves their behavior unchanged.
+    The lane is resolved from the planner's concrete provider/model so the
+    handoff preserves the planner's primary context.
+    """
     primary_provider = (ctx.agent_llm_provider or "").strip()
     primary_model = (ctx.agent_model or "").strip()
     if primary_provider and primary_model:
@@ -144,6 +148,42 @@ def _resolve_followup_model(
         model_prefix=f"%model:{format_model_directive_value('worker')}\n",
         meta=_resolve_model_meta("worker"),
     )
+
+
+def _resolve_followup_model(
+    plan_result: Any,
+    ctx: AgentExecContext,
+) -> _FollowupModel:
+    """Decide the follow-up agent's ``%model`` prefix and recorded metadata.
+
+    Precedence:
+
+    1. An explicit approval picker model (``plan_result.coder_model``) other
+       than the legacy ``"worker"`` sentinel wins; its meta is recorded unless
+       it equals the planner's model (the inherited meta is already correct).
+    2. Otherwise the default depends on the follow-up role:
+       - coder follow-ups (``approve`` / ``tale``) route through the planner
+         provider's coder alias (``%model:@<planner_provider>_coder``, or
+         ``%model:@coder`` when planner provider metadata is missing);
+       - epic / legend follow-ups keep the contextual worker lane until epic
+         sase-5d phase 4 migrates them to ``@epic_creator`` / ``@epic_lander``.
+
+    A ``%model`` directive embedded in a custom coder prompt is handled by the
+    caller and supersedes this result.
+    """
+    coder_model = plan_result.coder_model
+    if coder_model and coder_model.strip() != "worker":
+        prefix = f"%model:{format_model_directive_value(coder_model)}\n"
+        if coder_model == ctx.agent_model:
+            return _FollowupModel(model_prefix=prefix)
+        return _FollowupModel(
+            model_prefix=prefix, meta=_resolve_model_meta(coder_model)
+        )
+
+    if plan_result.action in ("epic", "legend"):
+        return _resolve_worker_lane_followup(ctx)
+
+    return _resolve_coder_alias_followup(ctx)
 
 
 def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> None:
@@ -304,9 +344,9 @@ def handle_accepted_plan(
     # run after the follow-up agent.
     embedded_refs = get_embedded_workflow_refs(state.current_artifacts_dir, ctx.vcs_tag)
 
-    # Decide the follow-up model: an explicit picker model wins; otherwise the
-    # worker lane is resolved from the planner's concrete provider/model so the
-    # handoff keeps the planner's primary context.
+    # Decide the follow-up model: an explicit picker model wins; otherwise coder
+    # follow-ups route through the planner provider's coder alias
+    # (``@<provider>_coder``) while epic/legend follow-ups keep the worker lane.
     followup_model = _resolve_followup_model(plan_result, ctx)
     model_prefix = followup_model.model_prefix
     followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)

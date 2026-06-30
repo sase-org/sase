@@ -8,7 +8,6 @@ import pytest
 from sase.axe import run_agent_exec_plan as plan_mod
 from sase.axe import run_agent_exec_questions as questions_mod
 from sase.axe.run_agent_exec_questions import handle_questions_marker
-from sase.llm_provider import WorkerModelResolution
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     approve_followup_plan,
@@ -258,30 +257,20 @@ class TestPlanFollowupQuestions:
         assert len(state.qa_rounds) == 2
 
     def test_question_from_code_phase_rebuilds_from_code_prompt(self, tmp_path) -> None:
-        """A code-phase question keeps the code prompt + worker model, not the planner.
+        """A code-phase question keeps the code prompt + coder alias, not the planner.
 
-        Approve a plan with a ``worker_models`` resolution, then simulate
-        ``/sase_questions`` from the resulting code phase. The follow-up prompt
-        must be the code-agent prompt (concrete worker ``%model`` directive,
+        Approve a Claude-authored plan, then simulate ``/sase_questions`` from
+        the resulting code phase. The follow-up prompt must be the code-agent
+        prompt (planner-provider coder ``%model:@claude_coder`` directive,
         ``@plan`` ref, "implement it now") plus the merged Q&A.
         """
-        resolution = WorkerModelResolution(
-            provider="codex",
-            model="gpt-5.5",
-            source="config",
-            primary_provider="claude",
-            primary_model="opus",
-            matched_key="claude/opus",
-            configured_target="codex/gpt-5.5",
-        )
         ctx, state = approve_followup_plan(
             tmp_path,
             agent_model="opus",
             agent_llm_provider="claude",
-            resolution=resolution,
         )
         code_prompt = state.current_prompt
-        assert code_prompt.startswith("%model:codex/gpt-5.5\n")
+        assert code_prompt.startswith("%model:@claude_coder\n")
         assert state.question_base_prompt == code_prompt
 
         # The coder ran in a real (interrupted) phase dir; keep marker writes
@@ -321,7 +310,7 @@ class TestPlanFollowupQuestions:
             ]
             == "code"
         )
-        assert state.current_prompt.startswith("%model:codex/gpt-5.5\n")
+        assert state.current_prompt.startswith("%model:@claude_coder\n")
         assert "@plan.md" in state.current_prompt
         assert "Implement it now." in state.current_prompt
         assert "Which API?" in state.current_prompt
@@ -336,7 +325,7 @@ class TestPlanFollowupQuestions:
         """Repeated code-phase questions rebuild from one code base, one Q&A section."""
         ctx, state = approve_followup_plan(tmp_path, agent_model="opus")
         code_prompt = state.current_prompt
-        assert code_prompt.startswith("%model:anthropic/opus\n")
+        assert code_prompt.startswith("%model:@claude_coder\n")
 
         round1_q = [
             {"question": "Q1 text", "options": [{"label": "A"}], "header": "Repro"}
@@ -363,7 +352,7 @@ class TestPlanFollowupQuestions:
         ):
             handle_questions_marker({"questions": round1_q}, ctx, state)
         assert state.current_role_suffix == "--code-0"
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:@claude_coder\n")
         assert state.current_prompt.count("### Questions and Answers") == 1
         assert state.question_base_prompt == code_prompt
 
@@ -376,7 +365,7 @@ class TestPlanFollowupQuestions:
         ):
             handle_questions_marker({"questions": round2_q}, ctx, state)
         assert state.current_role_suffix == "--code-1"
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:@claude_coder\n")
         assert state.current_prompt.count("### Questions and Answers") == 1
         assert "#### Q1: Repro" in state.current_prompt
         assert "#### Q2: Symptom" in state.current_prompt

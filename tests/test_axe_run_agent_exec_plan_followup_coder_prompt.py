@@ -39,10 +39,10 @@ class TestPlanFollowupCoderPrompt:
         assert not state.current_prompt.startswith("%model:")
         assert "%m:sonnet" in state.current_prompt
 
-    def test_coder_prompt_without_model_directive_uses_contextual_worker(
+    def test_coder_prompt_without_model_directive_uses_coder_alias(
         self, tmp_path
     ) -> None:
-        """Custom prompt without model directive still gets the contextual worker prefix."""
+        """Custom prompt without model directive still gets the coder-alias prefix."""
         plan_file = write_plan_file(tmp_path)
         approval = PlanApprovalResult(
             action="approve",
@@ -53,9 +53,9 @@ class TestPlanFollowupCoderPrompt:
             tmp_path,
             approval=approval,
             agent_model="opus",
-            agent_llm_provider="anthropic",
+            agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:@claude_coder\n")
         assert "be concise" in state.current_prompt
 
     def test_approve_prompt_includes_custom_extra_text(self, tmp_path) -> None:
@@ -76,7 +76,7 @@ class TestPlanFollowupCoderPrompt:
         assert "#fork:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
-        assert state.current_prompt.startswith("%model:anthropic/opus\n")
+        assert state.current_prompt.startswith("%model:@claude_coder\n")
 
     def test_coder_prompt_preserves_resume_when_env_set(
         self, tmp_path, monkeypatch
@@ -86,7 +86,7 @@ class TestPlanFollowupCoderPrompt:
         state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
         assert "#fork:test_agent--plan " in state.current_prompt
         assert state.current_prompt.startswith(
-            "%model:anthropic/opus\n#fork:test_agent--plan "
+            "%model:@claude_coder\n#fork:test_agent--plan "
         )
 
     def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
@@ -133,5 +133,5 @@ class TestPlanFollowupCoderPrompt:
         """handle_accepted_plan records the code prompt as the question base."""
         state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
         assert state.question_base_prompt == state.current_prompt
-        assert state.question_base_prompt.startswith("%model:anthropic/opus\n")
+        assert state.question_base_prompt.startswith("%model:@claude_coder\n")
         assert "@plan.md" in state.question_base_prompt
