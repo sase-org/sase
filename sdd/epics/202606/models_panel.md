@@ -2,7 +2,7 @@
 create_time: 2026-06-30 13:59:25
 bead_id: sase-5e
 tier: epic
-status: wip
+status: done
 prompt: sdd/prompts/202606/models_panel.md
 ---
 # Plan: "Models" Panel — unified model-alias viewing, editing & temporary overrides
