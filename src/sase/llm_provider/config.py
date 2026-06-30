@@ -230,6 +230,24 @@ def model_alias_names() -> set[str]:
     return set(get_model_aliases()) | _special_model_alias_names()
 
 
+def model_alias_kind(name: str) -> str:
+    """Classify *name* into its display kind.
+
+    Returns one of ``"default"``, ``"role"``, ``"provider_coder"``, or
+    ``"user"``. ``default`` and the fixed role aliases keep their semantic kind
+    even when a user has configured them explicitly (provenance is tracked
+    separately). This is the public entry point behind the Models-panel
+    aggregation (:func:`sase.llm_provider.alias_view.build_alias_views`).
+    """
+    if name == DEFAULT_MODEL_ALIAS_NAME:
+        return "default"
+    if name in _ROLE_ALIAS_FALLBACKS:
+        return "role"
+    if _is_provider_coder_alias(name):
+        return "provider_coder"
+    return "user"
+
+
 def strip_model_alias_prefix(value: str) -> str:
     """Strip the surface ``@`` marker from a model alias token, if present."""
     if value.startswith("@"):

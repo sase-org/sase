@@ -815,42 +815,39 @@ AgentWorkspaceTmuxModal {
 }
 
 
-/* Temporary LLM Override Modal styling */
-TemporaryLLMOverrideModal {
+/* Models panel styling */
+ModelsPanel {
     align: center middle;
 }
 
-#override-container {
-    width: 68;
+#models-panel-container {
+    width: 84;
     height: auto;
+    max-height: 30;
     border: double $primary;
     background: $surface;
     padding: 1 2;
 }
 
-#override-title {
+#models-panel-title {
     text-align: center;
     text-style: bold;
     height: auto;
     margin-bottom: 1;
 }
 
-#override-body {
+#models-panel-list {
     height: auto;
+    max-height: 22;
 }
 
-.override-lane-row {
+#models-panel-footer {
+    text-align: center;
+    color: $text-muted;
     height: auto;
-    margin-bottom: 0;
-}
-
-.override-action-row {
-    height: 1;
-    color: $text;
-}
-
-.override-spacer {
-    height: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
 }
 
 ProjectAliasEditorModal {

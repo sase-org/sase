@@ -246,9 +246,14 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["temporary_llm_override"]:
+        # ``models_panel`` (leader ``,m``) replaced the old
+        # ``temporary_llm_override`` action; accept the legacy key too so a
+        # user keymap override referencing the old action id keeps working.
+        if key == leader_keys.get("models_panel") or key == leader_keys.get(
+            "temporary_llm_override"
+        ):
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self._open_temporary_llm_override_modal()  # type: ignore[attr-defined]
+            self._open_models_panel()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -262,9 +267,9 @@ class LeaderModeMixin:
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
 
-    def _open_temporary_llm_override_modal(self) -> None:
-        """Open the Model Overrides modal (leader ``,m`` by default)."""
-        from ...modals import TemporaryLLMOverrideModal, TemporaryOverrideResult
+    def _open_models_panel(self) -> None:
+        """Open the Models panel (leader ``,m`` by default)."""
+        from ...modals import ModelsPanel, ModelsPanelResult
         from ...widgets import LLMOverrideIndicator
 
         def _refresh_indicator() -> None:
@@ -276,19 +281,17 @@ class LeaderModeMixin:
                 return
             indicator.refresh()
 
-        def _on_dismissed(result: TemporaryOverrideResult | None) -> None:
-            # Per-result toasts already happen in the modal for "set"; we
-            # only need to surface the "cleared" / cancelled cases here so
-            # the user gets feedback even though the modal closed.
+        def _on_dismissed(result: ModelsPanelResult | None) -> None:
+            # The panel emits its own per-action toasts; here we only refresh
+            # the gold default-override pill when an override changed while the
+            # panel was open.
             if result is None:
                 return
-            if result.action in ("set", "cleared"):
+            if result.changed:
                 _refresh_indicator()
-            if result.action == "cleared":
-                self.notify("Cleared model override")  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
-            TemporaryLLMOverrideModal(),
+            ModelsPanel(),
             callback=_on_dismissed,
         )
 

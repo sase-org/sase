@@ -243,7 +243,7 @@ class KeybindingModesMixin:
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("activity_info"), "activity"))
-        bindings.append((k("temporary_llm_override"), "model overrides"))
+        bindings.append((k("models_panel"), "models panel"))
         bindings.append((k("update_sase"), "update sase"))
         bindings.append((k("mark_inactive_pinned"), "pin idle"))
         self._update_display(bindings, mode_label="LEADER")

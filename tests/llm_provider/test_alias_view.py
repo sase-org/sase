@@ -1,0 +1,131 @@
+"""Tests for :mod:`sase.llm_provider.alias_view` (the Models-panel data layer).
+
+Phase 2 (epic sase-5e) aggregation helper: covers kind/provenance
+classification, deterministic ordering, and the temporary-override merge for
+both ``default`` and non-``default`` aliases.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from sase.llm_provider import (
+    build_alias_views,
+    clear_alias_override,
+    set_alias_override,
+)
+from tests.llm_provider._provider_config_helpers import mock_provider_config
+
+
+def _patch_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the registered providers so ``<provider>_coder`` rows are stable."""
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.registered_provider_names",
+        lambda: ["claude", "codex"],
+    )
+
+
+def test_includes_default_role_provider_coder_and_user_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {"myalias": "claude/opus"}},
+    )
+    _patch_providers(monkeypatch)
+
+    views = build_alias_views()
+    by_name = {v.name: v for v in views}
+
+    assert by_name["default"].kind == "default"
+    assert by_name["default"].configured is False
+    assert by_name["coder"].kind == "role"
+    assert by_name["phase_worker"].kind == "role"
+    assert by_name["claude_coder"].kind == "provider_coder"
+    assert by_name["codex_coder"].kind == "provider_coder"
+
+    myalias = by_name["myalias"]
+    assert myalias.kind == "user"
+    assert myalias.configured is True
+    assert myalias.configured_value == "claude/opus"
+
+
+def test_default_is_first_and_groups_are_ordered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {"zeta": "claude/opus", "alpha": "codex/o3"},
+        },
+    )
+    _patch_providers(monkeypatch)
+
+    names = [v.name for v in build_alias_views()]
+
+    assert names[0] == "default"
+    # role aliases follow default, in canonical order
+    role_slice = names[1:5]
+    assert role_slice == ["coder", "epic_creator", "epic_lander", "phase_worker"]
+    # provider_coder aliases come next, alphabetically
+    assert names.index("claude_coder") < names.index("codex_coder")
+    assert names.index("codex_coder") < names.index("alpha")
+    # user aliases come last, alphabetically
+    assert names.index("alpha") < names.index("zeta")
+
+
+def test_configured_value_shadows_role_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {"coder": "codex/o3"}},
+    )
+    _patch_providers(monkeypatch)
+
+    coder = {v.name: v for v in build_alias_views()}["coder"]
+    assert coder.kind == "role"
+    assert coder.configured is True
+    assert coder.configured_value == "codex/o3"
+
+
+def test_non_default_override_wins_effective_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {}},
+    )
+    _patch_providers(monkeypatch)
+
+    set_alias_override("coder", "codex/o3", 3600.0, source="test")
+    try:
+        coder = {v.name: v for v in build_alias_views()}["coder"]
+    finally:
+        clear_alias_override("coder")
+
+    assert coder.is_overridden is True
+    assert coder.override is not None
+    assert coder.provider == "codex"
+    assert coder.model == "o3"
+
+
+def test_default_override_is_surfaced_on_default_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {}},
+    )
+    _patch_providers(monkeypatch)
+
+    set_alias_override("default", "opus", None, source="test")
+    try:
+        default = {v.name: v for v in build_alias_views()}["default"]
+    finally:
+        clear_alias_override("default")
+
+    assert default.is_overridden is True
+    assert default.provider == "claude"
+    assert default.model == "opus"

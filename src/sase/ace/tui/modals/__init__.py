@@ -101,10 +101,7 @@ from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .activity_modal import ActivityModal
 from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
-from .temporary_llm_override_modal import (
-    TemporaryLLMOverrideModal,
-    TemporaryOverrideResult,
-)
+from .models_panel import ModelsPanel, ModelsPanelResult
 from .mentor_profile_select_modal import MentorProfileSelectModal
 from .mentor_review_models import (
     MentorApplyResult,
@@ -242,8 +239,8 @@ __all__ = [
     "StatusModal",
     "TabName",
     "TagInputModal",
-    "TemporaryLLMOverrideModal",
-    "TemporaryOverrideResult",
+    "ModelsPanel",
+    "ModelsPanelResult",
     "UpdatePinnedStashModal",
     "WaitModal",
     "WaitAgentCandidate",

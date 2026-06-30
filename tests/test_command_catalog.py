@@ -472,11 +472,11 @@ def test_capture_agents_repro_leader_command_uses_uppercase_b() -> None:
     assert spec.executor.subkey == "B"
 
 
-def test_temporary_llm_override_leader_command_uses_m() -> None:
+def test_models_panel_leader_command_uses_m() -> None:
     catalog = build_command_catalog(_registry())
-    spec = next(c for c in catalog if c.id == "leader.temporary_llm_override")
+    spec = next(c for c in catalog if c.id == "leader.models_panel")
 
-    assert spec.label == "Model overrides"
+    assert spec.label == "Models panel"
     assert spec.key_display == ",m"
     assert spec.tabs == ("changespecs", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"

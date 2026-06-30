@@ -49,7 +49,7 @@ def test_leader_mode_drops_project_management_key() -> None:
     """The ``,p`` project panel leader key was retired in the Projects-tab cutover."""
     reg = load_keymap_registry({})
     assert "projects" not in reg.leader_mode.keys
-    assert reg.leader_mode.keys["temporary_llm_override"] == "m"
+    assert reg.leader_mode.keys["models_panel"] == "m"
 
 
 def test_leader_mode_drops_log_panel_key() -> None:

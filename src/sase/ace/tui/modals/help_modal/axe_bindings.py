@@ -85,8 +85,8 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     "Activity dashboard",
                 ),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'temporary_llm_override'))}",
-                    "Model overrides",
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'models_panel'))}",
+                    "Models panel",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'update_sase'))}",

@@ -6,6 +6,7 @@ with shared preprocessing, postprocessing, and orchestration.
 
 from ._invoke import invoke_agent
 from ._subprocess import stream_process_output
+from .alias_view import AliasKind, AliasView, build_alias_views
 from .base import LLMProvider
 from .messages import AIMessage, BaseMessage, HumanMessage, MessageContent
 from .postprocessing import log_prompt_and_response, save_prompt_to_file
@@ -40,6 +41,8 @@ from .types import LLMInvocationError, LoggingContext, ModelTier
 
 __all__ = [
     "AIMessage",
+    "AliasKind",
+    "AliasView",
     "BaseMessage",
     "FileRefMode",
     "HumanMessage",
@@ -52,6 +55,7 @@ __all__ = [
     "ProviderRetryConfig",
     "RetryState",
     "TemporaryLLMOverride",
+    "build_alias_views",
     "clear_alias_override",
     "clear_temporary_override",
     "get_active_alias_override",
