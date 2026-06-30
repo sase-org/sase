@@ -173,7 +173,22 @@ def test_load_update_toast_config_defaults_to_ten_minutes(
 
     assert config.startup_toast is True
     assert config.indicator is True
+    assert config.post_update_toast_diffstat is True
     assert config.check_ttl_seconds == 600.0
+
+
+def test_load_update_toast_config_post_update_diffstat_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: {"ace": {"updates": {"post_update_toast_diffstat": False}}},
+    )
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.post_update_toast_diffstat is False
 
 
 def test_load_update_toast_config_indicator_override(

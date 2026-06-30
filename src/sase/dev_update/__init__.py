@@ -13,6 +13,7 @@ from sase.dev_update.models import (
     DevUpdatePlan,
     DevUpdateResult,
     DevUpdateRootPlan,
+    RepoDiffStat,
 )
 from sase.dev_update.plan import plan_dev_update
 
@@ -27,6 +28,7 @@ __all__ = [
     "DevUpdatePlan",
     "DevUpdateResult",
     "DevUpdateRootPlan",
+    "RepoDiffStat",
     "detect_dev_latest",
     "execute_dev_update",
     "plan_dev_update",

@@ -6,6 +6,7 @@ import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from sase.dev_update.diffstat import parse_git_numstat
 from sase.dev_update.models import (
     DevCommandResult,
     DevCommandRunner,
@@ -16,6 +17,7 @@ from sase.dev_update.models import (
     DevUpdatePlan,
     DevUpdateResult,
     DevUpdateRootPlan,
+    RepoDiffStat,
 )
 from sase.version._git import GitUpstreamStatus, fetch_git_upstream, merge_git_ff_only
 
@@ -44,7 +46,7 @@ def execute_dev_update(
     if preflight_failure is not None:
         return _failed_result(plan, preflight_failure, commands, changed=False)
 
-    merge_failure, merged_any = _merge_actionable_roots(
+    merge_failure, merged_any, root_diffstats = _merge_actionable_roots(
         plan.actionable_roots, run, commands
     )
     if merge_failure is not None:
@@ -56,7 +58,7 @@ def execute_dev_update(
 
     return DevUpdateResult(
         changed=True,
-        outcomes=_success_outcomes(plan),
+        outcomes=_success_outcomes(plan, root_diffstats),
         commands=tuple(commands),
     )
 
@@ -162,11 +164,17 @@ def _merge_actionable_roots(
     roots: tuple[DevUpdateRootPlan, ...],
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
-) -> tuple[str | None, bool]:
+) -> tuple[str | None, bool, dict[str, RepoDiffStat | None]]:
     merged_any = False
+    root_diffstats: dict[str, RepoDiffStat | None] = {}
     for root in roots:
         if root.upstream is None:
-            return f"{root.git_root}: checkout has no upstream", merged_any
+            return (
+                f"{root.git_root}: checkout has no upstream",
+                merged_any,
+                root_diffstats,
+            )
+        old_head = _best_effort_head(root.git_root, run, commands)
         try:
             merge_git_ff_only(
                 Path(root.git_root),
@@ -174,9 +182,17 @@ def _merge_actionable_roots(
                 run_git_fn=_git_text_runner(run, commands, label="git merge --ff-only"),
             )
         except _GitCommandFailure as exc:
-            return str(exc), merged_any
+            return str(exc), merged_any, root_diffstats
         merged_any = True
-    return None, merged_any
+        new_head = _best_effort_head(root.git_root, run, commands)
+        root_diffstats[root.git_root] = _best_effort_diffstat(
+            root.git_root,
+            old_head,
+            new_head,
+            run,
+            commands,
+        )
+    return None, merged_any, root_diffstats
 
 
 def _run_reconcile_steps(
@@ -259,7 +275,49 @@ def _git_text_runner(
     return runner
 
 
-def _success_outcomes(plan: DevUpdatePlan) -> tuple[DevUpdateOutcome, ...]:
+def _best_effort_head(
+    git_root: str,
+    run: DevCommandRunner,
+    commands: list[DevExecutedCommand],
+) -> str | None:
+    result = _run(
+        run,
+        ("git", "-C", git_root, "rev-parse", "HEAD"),
+        cwd=None,
+        label="git rev-parse HEAD",
+        commands=commands,
+    )
+    if result.returncode != 0:
+        return None
+    head = result.stdout.strip()
+    return head or None
+
+
+def _best_effort_diffstat(
+    git_root: str,
+    old_head: str | None,
+    new_head: str | None,
+    run: DevCommandRunner,
+    commands: list[DevExecutedCommand],
+) -> RepoDiffStat | None:
+    if old_head is None or new_head is None:
+        return None
+    result = _run(
+        run,
+        ("git", "-C", git_root, "diff", "--numstat", old_head, new_head),
+        cwd=None,
+        label="git diff --numstat",
+        commands=commands,
+    )
+    if result.returncode != 0:
+        return None
+    return parse_git_numstat(result.stdout)
+
+
+def _success_outcomes(
+    plan: DevUpdatePlan,
+    root_diffstats: dict[str, RepoDiffStat | None],
+) -> tuple[DevUpdateOutcome, ...]:
     outcomes = [
         DevUpdateOutcome(
             record=pkg.record,
@@ -268,6 +326,7 @@ def _success_outcomes(plan: DevUpdatePlan) -> tuple[DevUpdateOutcome, ...]:
             old_version=pkg.current_version,
             new_version=pkg.latest_version,
             git_root=pkg.git_root,
+            diffstat=root_diffstats.get(pkg.git_root) if pkg.git_root else None,
         )
         for pkg in plan.actionable
     ]

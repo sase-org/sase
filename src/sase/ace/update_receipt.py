@@ -14,12 +14,13 @@ import logging
 import os
 import tempfile
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
 from sase.core.paths import sase_home
-from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult
+from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult, RepoDiffStat
 from sase.uv_tool.render import UpdateOutcome, UpdateSummary
 from sase.version._utils import normalize_distribution_name
 
@@ -44,6 +45,7 @@ class UpdateVersionTransition:
     name: str
     old: str | None
     new: str | None
+    diffstat: RepoDiffStat | None = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,7 @@ class UpdateToastReceipt:
     primary: UpdateVersionTransition | None
     plugins: tuple[UpdateVersionTransition, ...] = ()
     plugin_overflow: int = 0
+    plugin_overflow_diffstat: RepoDiffStat | None = None
     dependency_count: int = 0
     format: int = _FORMAT_VERSION
 
@@ -148,7 +151,9 @@ def _build_managed_receipt(
         for outcome in summary.updated
         if outcome.role == "plugin"
     ]
-    plugins, plugin_overflow = _cap_plugin_transitions(plugin_transitions)
+    plugins, plugin_overflow, plugin_overflow_diffstat = _cap_plugin_transitions(
+        plugin_transitions
+    )
     dependency_count = len(summary.updated_dependencies)
     if primary is None and not plugins and dependency_count == 0:
         return None
@@ -158,6 +163,7 @@ def _build_managed_receipt(
         primary=primary,
         plugins=plugins,
         plugin_overflow=plugin_overflow,
+        plugin_overflow_diffstat=plugin_overflow_diffstat,
         dependency_count=dependency_count,
     )
 
@@ -184,7 +190,9 @@ def _build_dev_receipt(
             and outcome.record.role == "plugin"
         )
     ]
-    plugins, plugin_overflow = _cap_plugin_transitions(plugin_transitions)
+    plugins, plugin_overflow, plugin_overflow_diffstat = _cap_plugin_transitions(
+        plugin_transitions
+    )
     dependency_count = sum(
         1
         for outcome in updated
@@ -201,6 +209,7 @@ def _build_dev_receipt(
         primary=primary,
         plugins=plugins,
         plugin_overflow=plugin_overflow,
+        plugin_overflow_diffstat=plugin_overflow_diffstat,
         dependency_count=dependency_count,
     )
 
@@ -220,14 +229,20 @@ def _transition_from_dev_outcome(outcome: DevUpdateOutcome) -> UpdateVersionTran
         name=outcome.record.name,
         old=outcome.old_version,
         new=outcome.new_version,
+        diffstat=outcome.diffstat,
     )
 
 
 def _cap_plugin_transitions(
     transitions: list[UpdateVersionTransition],
-) -> tuple[tuple[UpdateVersionTransition, ...], int]:
+) -> tuple[tuple[UpdateVersionTransition, ...], int, RepoDiffStat | None]:
     capped = tuple(transitions[:_MAX_PLUGIN_LINES])
-    return capped, max(0, len(transitions) - len(capped))
+    overflow = transitions[_MAX_PLUGIN_LINES:]
+    return (
+        capped,
+        len(overflow),
+        _sum_diffstats(transition.diffstat for transition in overflow),
+    )
 
 
 def _receipt_to_json(receipt: UpdateToastReceipt) -> dict[str, Any]:
@@ -238,19 +253,21 @@ def _receipt_to_json(receipt: UpdateToastReceipt) -> dict[str, Any]:
         "primary": _transition_to_json(receipt.primary),
         "plugins": [_transition_to_json(plugin) for plugin in receipt.plugins],
         "plugin_overflow": receipt.plugin_overflow,
+        "plugin_overflow_diffstat": _diffstat_to_json(receipt.plugin_overflow_diffstat),
         "dependency_count": receipt.dependency_count,
     }
 
 
 def _transition_to_json(
     transition: UpdateVersionTransition | None,
-) -> dict[str, str | None] | None:
+) -> dict[str, object] | None:
     if transition is None:
         return None
     return {
         "name": transition.name,
         "old": transition.old,
         "new": transition.new,
+        "diffstat": _diffstat_to_json(transition.diffstat),
     }
 
 
@@ -280,12 +297,16 @@ def _receipt_from_json(payload: object) -> UpdateToastReceipt | None:
     dependency_count = _nonnegative_int(payload.get("dependency_count"))
     if plugin_overflow is None or dependency_count is None:
         return None
+    plugin_overflow_diffstat = _diffstat_from_json(
+        payload.get("plugin_overflow_diffstat")
+    )
     return UpdateToastReceipt(
         kind=receipt_kind,
         created_at=created_at,
         primary=primary,
         plugins=tuple(plugins),
         plugin_overflow=plugin_overflow,
+        plugin_overflow_diffstat=plugin_overflow_diffstat,
         dependency_count=dependency_count,
     )
 
@@ -300,7 +321,60 @@ def _transition_from_json(payload: object) -> UpdateVersionTransition | None:
         return None
     if old is None and new is None:
         return None
-    return UpdateVersionTransition(name=name, old=old, new=new)
+    return UpdateVersionTransition(
+        name=name,
+        old=old,
+        new=new,
+        diffstat=_diffstat_from_json(payload.get("diffstat")),
+    )
+
+
+def _diffstat_to_json(diffstat: RepoDiffStat | None) -> dict[str, int] | None:
+    if diffstat is None:
+        return None
+    return {
+        "files_changed": diffstat.files_changed,
+        "insertions": diffstat.insertions,
+        "deletions": diffstat.deletions,
+    }
+
+
+def _diffstat_from_json(payload: object) -> RepoDiffStat | None:
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    files_changed = _nonnegative_int(payload.get("files_changed"))
+    insertions = _nonnegative_int(payload.get("insertions"))
+    deletions = _nonnegative_int(payload.get("deletions"))
+    if files_changed is None or insertions is None or deletions is None:
+        return None
+    return RepoDiffStat(
+        files_changed=files_changed,
+        insertions=insertions,
+        deletions=deletions,
+    )
+
+
+def _sum_diffstats(diffstats: Iterable[RepoDiffStat | None]) -> RepoDiffStat | None:
+    files_changed = 0
+    insertions = 0
+    deletions = 0
+    found = False
+    for diffstat in diffstats:
+        if diffstat is None or diffstat.is_empty:
+            continue
+        found = True
+        files_changed += diffstat.files_changed
+        insertions += diffstat.insertions
+        deletions += diffstat.deletions
+    if not found:
+        return None
+    return RepoDiffStat(
+        files_changed=files_changed,
+        insertions=insertions,
+        deletions=deletions,
+    )
 
 
 def _optional_str(value: object) -> str | None:

@@ -12,6 +12,7 @@ from sase.dev_update.models import (
     DevUpdatePackagePlan,
     DevUpdatePlan,
     DevUpdateRootPlan,
+    RepoDiffStat,
 )
 from sase.version._models import VersionPackageRecord
 
@@ -98,6 +99,8 @@ class FakeRunner:
             "--count",
         ):
             return DevCommandResult(0, stdout="0 2")
+        if command[:5] == ("git", "-C", "/repo", "rev-parse", "HEAD"):
+            return DevCommandResult(0, stdout="abc123\n")
         return DevCommandResult(0)
 
 
@@ -144,7 +147,21 @@ def test_execute_dev_update_fetches_preflights_merges_and_reconciles() -> None:
             ),
             None,
         ),
+        (("git", "-C", "/repo", "rev-parse", "HEAD"), None),
         (("git", "-C", "/repo", "merge", "--ff-only", "origin/main"), None),
+        (("git", "-C", "/repo", "rev-parse", "HEAD"), None),
+        (
+            (
+                "git",
+                "-C",
+                "/repo",
+                "diff",
+                "--numstat",
+                "abc123",
+                "abc123",
+            ),
+            None,
+        ),
         (("uv", "tool", "install", "sase"), Path("/repo")),
     ]
 
@@ -169,6 +186,8 @@ def test_execute_dev_update_preflights_all_roots_before_merging() -> None:
                 return DevCommandResult(0, stdout="")
             if command[3:6] == ("rev-list", "--left-right", "--count"):
                 return DevCommandResult(0, stdout="0 1")
+            if command[3:5] == ("rev-parse", "HEAD"):
+                return DevCommandResult(0, stdout="abc123\n")
             return DevCommandResult(0)
 
     runner = MultiRootRunner()
@@ -184,9 +203,88 @@ def test_execute_dev_update_preflights_all_roots_before_merging() -> None:
         "rev-list",
         "status",
         "rev-list",
+        "rev-parse",
         "merge",
+        "rev-parse",
+        "diff",
+        "rev-parse",
         "merge",
+        "rev-parse",
+        "diff",
     ]
+
+
+def test_execute_dev_update_attaches_numstat_diffstat() -> None:
+    runner = FakeRunner(
+        {
+            ("git", "-C", "/repo", "rev-parse", "HEAD"): DevCommandResult(
+                0, stdout="abc123\n"
+            ),
+            (
+                "git",
+                "-C",
+                "/repo",
+                "diff",
+                "--numstat",
+                "abc123",
+                "abc123",
+            ): DevCommandResult(
+                0,
+                stdout="5\t2\tsrc/sase/a.py\n-\t-\tassets/logo.png\n",
+            ),
+        }
+    )
+
+    result = execute_dev_update(_plan(), run=runner)
+
+    assert result.changed is True
+    assert result.outcomes[0].diffstat == RepoDiffStat(
+        files_changed=2,
+        insertions=5,
+        deletions=2,
+    )
+
+
+def test_execute_dev_update_diff_failure_leaves_stats_absent() -> None:
+    runner = FakeRunner(
+        {
+            ("git", "-C", "/repo", "rev-parse", "HEAD"): DevCommandResult(
+                0, stdout="abc123\n"
+            ),
+            (
+                "git",
+                "-C",
+                "/repo",
+                "diff",
+                "--numstat",
+                "abc123",
+                "abc123",
+            ): DevCommandResult(1, stderr="bad revision"),
+        }
+    )
+
+    result = execute_dev_update(_plan(), run=runner)
+
+    assert result.changed is True
+    assert result.outcomes[0].status == "updated"
+    assert result.outcomes[0].diffstat is None
+
+
+def test_execute_dev_update_head_failure_leaves_stats_absent() -> None:
+    runner = FakeRunner(
+        {
+            ("git", "-C", "/repo", "rev-parse", "HEAD"): DevCommandResult(
+                1, stderr="not a git repository"
+            ),
+        }
+    )
+
+    result = execute_dev_update(_plan(), run=runner)
+
+    assert result.changed is True
+    assert result.outcomes[0].status == "updated"
+    assert result.outcomes[0].diffstat is None
+    assert not any(call[0][3:5] == ("diff", "--numstat") for call in runner.calls)
 
 
 def test_execute_dev_update_dirty_preflight_aborts_before_merge() -> None:

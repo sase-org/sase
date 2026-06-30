@@ -15,6 +15,7 @@ from sase.ace.update_receipt import (
     UpdateVersionTransition,
     write_pending_update_toast,
 )
+from sase.dev_update.models import RepoDiffStat
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -33,6 +34,40 @@ def _receipt() -> UpdateToastReceipt:
         plugins=(
             UpdateVersionTransition("sase-github", "1.2.0", "1.3.0"),
             UpdateVersionTransition("sase-telegram", "0.5.0", "0.6.0"),
+        ),
+        dependency_count=2,
+    )
+
+
+def _diffstat_receipt() -> UpdateToastReceipt:
+    return UpdateToastReceipt(
+        kind="dev",
+        created_at=time.time(),
+        primary=UpdateVersionTransition(
+            "sase",
+            "0.5.0+1.gabc123def",
+            "0.5.0+2.gdef456abc",
+            diffstat=RepoDiffStat(files_changed=18, insertions=1234, deletions=567),
+        ),
+        plugins=(
+            UpdateVersionTransition(
+                "sase-github",
+                "1.2.0",
+                "1.3.0",
+                diffstat=RepoDiffStat(files_changed=4, insertions=42, deletions=7),
+            ),
+            UpdateVersionTransition(
+                "sase-telegram",
+                "0.5.0",
+                "0.6.0",
+                diffstat=RepoDiffStat(files_changed=1, insertions=0, deletions=0),
+            ),
+        ),
+        plugin_overflow=2,
+        plugin_overflow_diffstat=RepoDiffStat(
+            files_changed=5,
+            insertions=80,
+            deletions=11,
         ),
         dependency_count=2,
     )
@@ -62,4 +97,31 @@ async def test_post_update_toast_png_snapshot(
             page,
             "post_update_toast_120x40",
             title="ACE post-update toast",
+        )
+
+
+async def test_post_update_toast_diffstat_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The dev post-update toast shows aligned per-repo churn."""
+    patch_startup_loaders(monkeypatch)
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
+    assert write_pending_update_toast(_diffstat_receipt()) is True
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(post_update_toast=True),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await page.wait_for(lambda _s: bool(list(page.app._notifications)))
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "post_update_toast_diffstat_120x40",
+            title="ACE post-update toast with line stats",
         )

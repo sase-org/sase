@@ -17,6 +17,7 @@ from sase.ace.update_receipt import (
     UpdateVersionTransition,
     write_pending_update_toast,
 )
+from sase.dev_update.models import RepoDiffStat
 from sase.updates import OutdatedComponent, UpdateStatus
 from tests.ace.tui.visual._ace_png_snapshot_helpers import patch_startup_loaders
 
@@ -27,6 +28,34 @@ def _receipt(*, created_at: float | None = None) -> UpdateToastReceipt:
         created_at=time.time() if created_at is None else created_at,
         primary=UpdateVersionTransition("sase", "0.5.0", "0.6.0"),
         plugins=(UpdateVersionTransition("sase-github", "1.2.0", "1.3.0"),),
+        dependency_count=2,
+    )
+
+
+def _diffstat_receipt() -> UpdateToastReceipt:
+    return UpdateToastReceipt(
+        kind="dev",
+        created_at=time.time(),
+        primary=UpdateVersionTransition(
+            "sase",
+            "0.5.0+1.gabc123def",
+            "0.5.0+2.gdef456abc",
+            diffstat=RepoDiffStat(files_changed=12, insertions=1234, deletions=567),
+        ),
+        plugins=(
+            UpdateVersionTransition(
+                "sase-github",
+                "1.2.0",
+                "1.3.0",
+                diffstat=RepoDiffStat(files_changed=1, insertions=0, deletions=0),
+            ),
+        ),
+        plugin_overflow=2,
+        plugin_overflow_diffstat=RepoDiffStat(
+            files_changed=3,
+            insertions=10,
+            deletions=2,
+        ),
         dependency_count=2,
     )
 
@@ -82,6 +111,41 @@ def test_post_update_toast_formats_update_confirmation(
     assert "sase-github" in call["message"]
     assert "+2 dependencies" in call["message"]
     assert "Reloaded into the new version." in call["message"]
+
+
+def test_post_update_toast_formats_diffstats() -> None:
+    message = post_update_toast._format_post_update_toast_message(_diffstat_receipt())
+
+    assert "[bold green]+1,234[/]" in message
+    assert "[#D75F5F]−567[/]" in message
+    assert "[dim]1 file[/]" in message
+    assert "…and 2 more" in message
+    assert "[bold green]+10[/]" in message
+    assert "16 files changed" in message
+    assert "+2 dependencies" in message
+
+
+def test_post_update_toast_managed_receipt_keeps_legacy_rendering() -> None:
+    receipt = _receipt()
+
+    assert post_update_toast._format_post_update_toast_message(
+        receipt,
+        show_diffstat=True,
+    ) == post_update_toast._format_post_update_toast_message(
+        receipt,
+        show_diffstat=False,
+    )
+
+
+def test_post_update_toast_diffstat_toggle_suppresses_churn() -> None:
+    message = post_update_toast._format_post_update_toast_message(
+        _diffstat_receipt(),
+        show_diffstat=False,
+    )
+
+    assert "+1,234" not in message
+    assert "16 files changed" not in message
+    assert "0.5.0+1.gabc123def" in message
 
 
 def test_post_update_toast_absent_receipt_does_nothing(

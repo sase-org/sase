@@ -27,6 +27,23 @@ DevReconcileStepKind = Literal["uv_tool_install", "rust_install_uv_tool"]
 
 
 @dataclass(frozen=True)
+class RepoDiffStat:
+    """Line-oriented git diff stats for one repository."""
+
+    files_changed: int
+    insertions: int
+    deletions: int
+
+    @property
+    def is_empty(self) -> bool:
+        return self.files_changed == 0 and self.insertions == 0 and self.deletions == 0
+
+    @property
+    def has_line_changes(self) -> bool:
+        return self.insertions > 0 or self.deletions > 0
+
+
+@dataclass(frozen=True)
 class DevLatest:
     """Latest-dev information for one editable package."""
 
@@ -138,6 +155,7 @@ class DevUpdateOutcome:
     old_version: str | None
     new_version: str | None
     git_root: str | None = None
+    diffstat: RepoDiffStat | None = None
 
 
 @dataclass(frozen=True)

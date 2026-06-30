@@ -43,6 +43,7 @@ class _UpdateToastConfig:
 
     startup_toast: bool = True
     post_update_toast: bool = True
+    post_update_toast_diffstat: bool = True
     indicator: bool = True
     check_ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS
 
@@ -169,6 +170,10 @@ def _load_update_toast_config() -> _UpdateToastConfig:
     return _UpdateToastConfig(
         startup_toast=_coerce_bool(updates.get("startup_toast"), default=True),
         post_update_toast=_coerce_bool(updates.get("post_update_toast"), default=True),
+        post_update_toast_diffstat=_coerce_bool(
+            updates.get("post_update_toast_diffstat"),
+            default=True,
+        ),
         indicator=_coerce_bool(updates.get("indicator"), default=True),
         check_ttl_seconds=_resolve_check_ttl_seconds(updates),
     )

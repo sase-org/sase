@@ -1,6 +1,6 @@
 ---
 create_time: 2026-06-30 13:49:03
-status: wip
+status: done
 prompt: sdd/prompts/202606/update_toast_line_stats.md
 ---
 # Plan: Per-Repo Line-Change Stats in the Post-Update Toast

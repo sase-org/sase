@@ -32,6 +32,7 @@ ace:
   updates:
     startup_toast: true
     post_update_toast: true
+    post_update_toast_diffstat: true
     indicator: true
     check_ttl_minutes: 10
     incoming_commits:
