@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import sys
 from typing import Any
 
 from .init_plan import InitAction, InitPlan
+from .init_project_scope import is_project_directory
+
+_NON_PROJECT_SDD_MESSAGE = (
+    "sase init sdd: not a project directory (no VCS found); skipping SDD initialization"
+)
 
 
 def handle_sdd_command(args: argparse.Namespace) -> None:
@@ -53,6 +59,10 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     from .sdd_init_config import SddInitConfigError, write_sdd_init_config
 
     path = getattr(args, "path", None)
+    if not is_project_directory(_sdd_init_project_root(path)):
+        print(_NON_PROJECT_SDD_MESSAGE, file=sys.stderr)
+        return 1
+
     try:
         write_sdd_init_config(path)
     except SddInitConfigError as exc:
@@ -71,6 +81,15 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
     from .sdd_init_config import plan_sdd_init_config
 
     path = getattr(args, "path", None)
+    if not is_project_directory(_sdd_init_project_root(path)):
+        return InitPlan(
+            command="sdd",
+            label="SDD",
+            summary=_NON_PROJECT_SDD_MESSAGE,
+            actions=(),
+            blockers=(_NON_PROJECT_SDD_MESSAGE,),
+        )
+
     config_plan = plan_sdd_init_config(path)
     actions = []
     if config_plan.action is not None:
@@ -107,6 +126,12 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     if config_actions:
         return "enable version-controlled SDD config"
     return _summarize_generated_sdd_actions(generated_actions)
+
+
+def _sdd_init_project_root(path: str | Path | None) -> Path:
+    from .sdd_init_config import resolve_sdd_init_config_path
+
+    return resolve_sdd_init_config_path(path).parent
 
 
 def _summarize_generated_sdd_actions(actions: list[InitAction]) -> str:

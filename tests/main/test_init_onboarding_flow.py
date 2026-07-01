@@ -52,6 +52,81 @@ def test_noop_plans_print_initialized_message(
     assert "Checked: memory, sdd, skills." in out
 
 
+def test_bare_init_check_skips_sdd_outside_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import init_onboarding
+
+    monkeypatch.chdir(tmp_path)
+    calls: list[str] = []
+    specs = (
+        _spec("memory", _plan("memory", summary="memory current"), calls),
+        _spec(
+            "sdd",
+            _plan(
+                "sdd",
+                actions=(_changed_action("sdd/README.md"),),
+                summary="create SDD README files",
+            ),
+            calls,
+        ),
+        _spec("skills", _plan("skills", summary="skills current"), calls),
+    )
+    monkeypatch.setattr(init_onboarding, "iter_init_command_specs", lambda: specs)
+
+    exit_code = run_init_onboarding(
+        _args(check=True),
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "Checked: memory, skills." in out
+    assert "init sdd" not in out
+    assert calls == []
+
+
+def test_bare_init_check_includes_sdd_inside_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import init_onboarding
+
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+    calls: list[str] = []
+    specs = (
+        _spec("memory", _plan("memory", summary="memory current"), calls),
+        _spec(
+            "sdd",
+            _plan(
+                "sdd",
+                actions=(_changed_action("sdd/README.md"),),
+                summary="create SDD README files",
+            ),
+            calls,
+        ),
+        _spec("skills", _plan("skills", summary="skills current"), calls),
+    )
+    monkeypatch.setattr(init_onboarding, "iter_init_command_specs", lambda: specs)
+
+    exit_code = run_init_onboarding(
+        _args(check=True),
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "init sdd" in out
+    assert "create SDD README files" in out
+    assert calls == []
+
+
 def test_interactive_prompt_runs_only_confirmed_plan(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

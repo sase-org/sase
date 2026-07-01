@@ -40,6 +40,13 @@ def _resolve_sdd_init_config_path(
     return (sdd_root.parent / "sase.yml").resolve()
 
 
+def resolve_sdd_init_config_path(
+    path: str | Path | None = None, *, cwd: Path | None = None
+) -> Path:
+    """Resolve the project-local ``sase.yml`` path for an SDD init target."""
+    return _resolve_sdd_init_config_path(path, cwd=cwd)
+
+
 def plan_sdd_init_config(
     path: str | Path | None = None, *, cwd: Path | None = None
 ) -> _SddInitConfigPlan:
@@ -302,5 +309,6 @@ def _preferred_newline(lines: list[str]) -> str:
 __all__ = [
     "SddInitConfigError",
     "plan_sdd_init_config",
+    "resolve_sdd_init_config_path",
     "write_sdd_init_config",
 ]

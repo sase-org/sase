@@ -18,6 +18,8 @@ from tests.main.init_memory_handler_helpers import (
     write,
 )
 
+_PROJECT_DETECTION_COMMAND = ["git", "config", "--get", "remote.origin.url"]
+
 
 def _prepare_project(
     tmp_path: Path,
@@ -75,6 +77,10 @@ def _install_successful_git(
     return git_calls
 
 
+def _without_project_detection(calls: list[list[str]]) -> list[list[str]]:
+    return [cmd for cmd in calls if cmd != _PROJECT_DETECTION_COMMAND]
+
+
 def test_init_memory_default_commits_and_pushes_project_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -129,7 +135,8 @@ def test_init_memory_default_commits_and_pushes_project_changes(
     assert run_handler(no_commit=False) == 0
 
     assert precommit_calls == [str(project_root)]
-    verbs = [cmd[cmd.index("git") + 3] for cmd in git_calls if cmd[0] == "git"]
+    deploy_git_calls = _without_project_detection(git_calls)
+    verbs = [cmd[cmd.index("git") + 3] for cmd in deploy_git_calls if cmd[0] == "git"]
     assert verbs == [
         "rev-parse",
         "status",
@@ -177,7 +184,9 @@ def test_init_memory_no_commit_skips_project_deploy(
 
     assert run_handler(no_commit=True) == 0
     precommit.assert_not_called()
-    git_run.assert_not_called()
+    assert [call.args[0] for call in git_run.call_args_list] == [
+        _PROJECT_DETECTION_COMMAND
+    ]
 
 
 def test_init_memory_folds_memory_dirty_with_message(
@@ -445,7 +454,8 @@ def test_init_memory_failing_precommit_aborts_project_deploy(
 
     assert run_handler(no_commit=False) == 1
 
-    assert [cmd[cmd.index("git") + 3] for cmd in git_calls] == [
+    deploy_git_calls = _without_project_detection(git_calls)
+    assert [cmd[cmd.index("git") + 3] for cmd in deploy_git_calls] == [
         "rev-parse",
         "status",
     ]

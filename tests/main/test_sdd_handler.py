@@ -13,6 +13,11 @@ from sase.main.parser import create_parser
 from sase.main.sdd_handler import handle_sdd_command
 
 
+@pytest.fixture(autouse=True)
+def _mark_tmp_path_as_project(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir(exist_ok=True)
+
+
 def _args(**overrides: object) -> argparse.Namespace:
     defaults: dict[str, object] = {
         "sdd_subcommand": "validate",

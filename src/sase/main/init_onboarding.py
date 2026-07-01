@@ -13,6 +13,7 @@ from rich.console import Console
 
 from ._init_chezmoi_deploy import defer_chezmoi_deploy, deploy_deferred_chezmoi
 from .init_plan import InitAction, InitPlan
+from .init_project_scope import is_project_directory
 from .init_registry import InitCommandSpec, iter_init_command_specs
 
 _MAX_ACTION_DETAILS = 3
@@ -163,6 +164,15 @@ def _plan_specs(
     return tuple(spec.plan(args) for spec in specs)
 
 
+def _active_onboarding_specs(
+    specs: Sequence[InitCommandSpec] | None,
+) -> tuple[InitCommandSpec, ...]:
+    active_specs = tuple(iter_init_command_specs() if specs is None else specs)
+    if specs is None and not is_project_directory():
+        return tuple(spec for spec in active_specs if spec.name != "sdd")
+    return active_specs
+
+
 def _plan_check_status(plans: Sequence[InitPlan]) -> tuple[bool, bool, bool]:
     has_changes = any(plan.has_changes for plan in plans)
     has_blockers = any(not plan.runnable for plan in plans)
@@ -217,7 +227,7 @@ def run_init_onboarding(
     console: Console | None = None,
 ) -> int:
     """Run bare ``sase init`` and return a process exit code."""
-    active_specs = tuple(iter_init_command_specs() if specs is None else specs)
+    active_specs = _active_onboarding_specs(specs)
     out_console = console or _console_for(sys.stdout)
     is_tty = (stdin or sys.stdin).isatty()
 

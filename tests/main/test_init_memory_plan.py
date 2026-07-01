@@ -47,6 +47,43 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     assert not (home_root / "memory").exists()
 
 
+def test_memory_plan_non_project_reports_home_only_actions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        project_is_vcs=False,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+linked_repos:
+  - name: core
+    path: ../sase-core
+""",
+    )
+
+    plan = plan_memory()
+    action_paths = {action.path for action in plan.actions}
+
+    assert plan.blockers == ()
+    assert home_root / "memory" / "sase.md" in action_paths
+    assert home_root / "AGENTS.md" in action_paths
+    assert project_root / "memory" / "sase.md" not in action_paths
+    assert project_root / "AGENTS.md" not in action_paths
+    assert not (project_root / "memory").exists()
+    assert not (home_root / "memory").exists()
+
+
 def test_memory_check_missing_tree_reports_drift_without_writing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -22,6 +22,7 @@ from ._init_chezmoi_deploy import (
     deploy_to_chezmoi,
 )
 from .init_plan import InitAction, InitPlan
+from .init_project_scope import is_project_directory
 from .init_memory.config import (
     primary_workspace_root_for_memory as _primary_workspace_root_for_memory,
     project_config_path as _project_config_path,
@@ -55,6 +56,7 @@ from .init_memory.roots import plan_memory_root as _plan_memory_root
 class _MemoryInitInputs:
     use_chezmoi: bool
     no_commit: bool
+    is_project_dir: bool
     global_config: Path
     project_root: Path
     home_root: Path
@@ -112,21 +114,33 @@ def _stdin_is_tty() -> bool:
 def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     use_chezmoi = get_use_chezmoi()
     project_root = Path.cwd()
+    is_project_dir = is_project_directory(project_root)
     primary_root = _primary_workspace_root_for_memory(project_root)
     project_config = _project_config_path()
     global_config = _global_config_path(use_chezmoi)
 
-    project_entries, project_errors = _linked_entries_from_config(
-        project_config, label="project", primary_root=primary_root
-    )
+    project_entries: tuple[_LinkedRepoMemoryEntry, ...]
+    project_errors: tuple[str, ...]
+    if is_project_dir:
+        project_entries, project_errors = _linked_entries_from_config(
+            project_config, label="project", primary_root=primary_root
+        )
+    else:
+        project_entries = ()
+        project_errors = ()
     home_entries, home_errors = _linked_entries_from_config(
         global_config, label="home", primary_root=primary_root
     )
     config_errors = (*project_errors, *home_errors)
-    project_name = None if config_errors else _project_memory_name(project_root)
+    project_name = (
+        None
+        if config_errors or not is_project_dir
+        else _project_memory_name(project_root)
+    )
     return _MemoryInitInputs(
         use_chezmoi=use_chezmoi,
         no_commit=bool(getattr(args, "no_commit", False)),
+        is_project_dir=is_project_dir,
         global_config=global_config,
         project_root=project_root,
         home_root=_home_root_path(use_chezmoi),
@@ -439,20 +453,25 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
 
 def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]:
     chezmoi_home_roots = (inputs.home_root,) if inputs.use_chezmoi else ()
-    project_plan = _plan_memory_root(
-        inputs.project_root,
-        inputs.project_entries,
-        project_name=inputs.project_name,
-        enable_amd=True,
-        chezmoi_home_roots=chezmoi_home_roots,
-    )
+    root_plans: list[_MemoryRootPlan] = []
+    if inputs.is_project_dir:
+        root_plans.append(
+            _plan_memory_root(
+                inputs.project_root,
+                inputs.project_entries,
+                project_name=inputs.project_name,
+                enable_amd=True,
+                chezmoi_home_roots=chezmoi_home_roots,
+            )
+        )
     home_plan = _plan_memory_root(
         inputs.home_root,
         inputs.home_entries,
         enable_amd=True,
         chezmoi_home_roots=chezmoi_home_roots,
     )
-    return (project_plan, home_plan)
+    root_plans.append(home_plan)
+    return tuple(root_plans)
 
 
 def _format_unreferenced_path(root: Path, path: Path) -> str:
@@ -560,42 +579,48 @@ def run_init_memory(args: argparse.Namespace) -> int:
         return 1
 
     git_state = None
-    if not inputs.no_commit:
+    if inputs.is_project_dir and not inputs.no_commit:
         git_state = _capture_pre_init_git_state(inputs.project_root)
 
-    project_result = _initialize_memory_root(
-        inputs.project_root,
-        inputs.project_entries,
-        project_name=inputs.project_name,
-        enable_amd=True,
-        chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
-    )
+    project_result: _MemoryRootResult | None = None
+    if inputs.is_project_dir:
+        project_result = _initialize_memory_root(
+            inputs.project_root,
+            inputs.project_entries,
+            project_name=inputs.project_name,
+            enable_amd=True,
+            chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
+        )
     home_result = _initialize_memory_root(
         inputs.home_root,
         inputs.home_entries,
         enable_amd=True,
         chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
     )
-    results = (project_result, home_result)
+    results = tuple(
+        result for result in (project_result, home_result) if result is not None
+    )
 
     if any(result.unreferenced for result in results):
         _print_validation_errors(results)
         return 1
 
     print(f"{COMMAND_LABEL}: initialized memory")
-    print(f"  project memory target: {_sase_memory_path(Path.cwd())}")
+    if inputs.is_project_dir:
+        print(f"  project memory target: {_sase_memory_path(inputs.project_root)}")
     print(f"  home memory target: {_home_memory_path(inputs.use_chezmoi)}")
     print(f"  global config source: {inputs.global_config}")
 
     exit_code = 0
-    project_exit_code = _deploy_to_project_repo(
-        project_result,
-        no_commit=inputs.no_commit,
-        git_state=git_state,
-        message=getattr(args, "message", None),
-    )
-    if project_exit_code != 0:
-        exit_code = project_exit_code
+    if project_result is not None:
+        project_exit_code = _deploy_to_project_repo(
+            project_result,
+            no_commit=inputs.no_commit,
+            git_state=git_state,
+            message=getattr(args, "message", None),
+        )
+        if project_exit_code != 0:
+            exit_code = project_exit_code
 
     if inputs.use_chezmoi:
         home_changed_paths = (*home_result.written_paths, *home_result.deleted_paths)

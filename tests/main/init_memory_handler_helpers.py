@@ -84,7 +84,12 @@ def patch_standard_paths(
     home_root: Path,
     config_dir: Path,
     use_chezmoi: bool = False,
+    project_is_vcs: bool = True,
 ) -> None:
+    if project_is_vcs:
+        git_marker = project_root / ".git"
+        if not git_marker.exists():
+            git_marker.mkdir()
     monkeypatch.chdir(project_root)
     monkeypatch.setenv("HOME", str(home_root))
     monkeypatch.setattr(init_memory_handler, "CONFIG_DIR", config_dir)

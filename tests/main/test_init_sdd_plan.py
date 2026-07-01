@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import pytest
+
 from sase.main.init_registry import iter_init_command_specs
-from sase.main.sdd_handler import plan_sdd_init
+from sase.main.sdd_handler import plan_sdd_init, run_sdd_init
 from sase.sdd.files import (
     expected_sdd_directory_map,
     expected_sdd_directory_readmes,
@@ -26,6 +28,10 @@ def _write_enabled_config(path: Path) -> None:
     )
 
 
+def _mark_project(path: Path) -> None:
+    (path / ".git").mkdir()
+
+
 def _rel_actions(path: Path) -> set[tuple[str, Path]]:
     plan = plan_sdd_init(_args(path))
     sdd_root = path / "sdd"
@@ -39,6 +45,8 @@ def _rel_actions(path: Path) -> set[tuple[str, Path]]:
 def test_sdd_plan_missing_tree_reports_create_actions_without_writing(
     tmp_path: Path,
 ) -> None:
+    _mark_project(tmp_path)
+
     plan = plan_sdd_init(_args(tmp_path))
 
     assert not (tmp_path / "sdd").exists()
@@ -55,7 +63,34 @@ def test_sdd_plan_missing_tree_reports_create_actions_without_writing(
     assert plan.has_changes is True
 
 
+def test_sdd_plan_non_project_reports_blocker_without_writing(
+    tmp_path: Path,
+) -> None:
+    plan = plan_sdd_init(_args(tmp_path))
+
+    assert plan.actions == ()
+    assert plan.blockers == (
+        "sase init sdd: not a project directory (no VCS found); "
+        "skipping SDD initialization",
+    )
+    assert not (tmp_path / "sdd").exists()
+    assert not (tmp_path / "sase.yml").exists()
+
+
+def test_sdd_run_non_project_skips_without_writing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert run_sdd_init(_args(tmp_path)) == 1
+
+    captured = capsys.readouterr()
+    assert "not a project directory" in captured.err
+    assert not (tmp_path / "sdd").exists()
+    assert not (tmp_path / "sase.yml").exists()
+
+
 def test_sdd_plan_stale_readmes_report_update_actions(tmp_path: Path) -> None:
+    _mark_project(tmp_path)
     write_sdd_readme(str(tmp_path))
     _write_enabled_config(tmp_path)
     top_readme = expected_sdd_readme(str(tmp_path)).path
@@ -74,6 +109,7 @@ def test_sdd_plan_stale_readmes_report_update_actions(tmp_path: Path) -> None:
 
 
 def test_sdd_plan_corrupt_directory_map_reports_update_action(tmp_path: Path) -> None:
+    _mark_project(tmp_path)
     write_sdd_readme(str(tmp_path))
     _write_enabled_config(tmp_path)
     directory_map = expected_sdd_directory_map(str(tmp_path)).path
@@ -85,6 +121,7 @@ def test_sdd_plan_corrupt_directory_map_reports_update_action(tmp_path: Path) ->
 
 
 def test_sdd_plan_identical_outputs_is_empty(tmp_path: Path) -> None:
+    _mark_project(tmp_path)
     write_sdd_readme(str(tmp_path))
     _write_enabled_config(tmp_path)
 
@@ -98,6 +135,7 @@ def test_sdd_plan_identical_outputs_is_empty(tmp_path: Path) -> None:
 def test_sdd_plan_current_outputs_without_config_reports_config_action(
     tmp_path: Path,
 ) -> None:
+    _mark_project(tmp_path)
     write_sdd_readme(str(tmp_path))
 
     plan = plan_sdd_init(_args(tmp_path))
@@ -112,6 +150,7 @@ def test_sdd_plan_current_outputs_without_config_reports_config_action(
 def test_sdd_plan_existing_enabled_config_reports_no_config_action(
     tmp_path: Path,
 ) -> None:
+    _mark_project(tmp_path)
     _write_enabled_config(tmp_path)
 
     plan = plan_sdd_init(_args(tmp_path))

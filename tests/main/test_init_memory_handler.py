@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.main import init_memory_handler
 from tests.main.init_memory_handler_helpers import (
     SASE_MEMORY_HEADER,
     patch_standard_paths,
@@ -95,6 +97,46 @@ sibling_repos:
         # Provider files are byte-for-byte copies of ``AGENTS.md``.
         for filename in PROVIDER_SHIM_FILES:
             assert (root / filename).read_text() == agents
+
+
+def test_init_memory_non_project_initializes_home_only_without_project_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "not-project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        project_is_vcs=False,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+linked_repos:
+  - name: core
+    path: ../sase-core
+""",
+    )
+    git_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(init_memory_handler.subprocess, "run", git_run)
+
+    assert run_handler(no_commit=False) == 0
+
+    out = capsys.readouterr().out
+    assert "project memory target" not in out
+    assert "home memory target" in out
+    assert not (project_root / "memory").exists()
+    assert not (project_root / "AGENTS.md").exists()
+    assert (home_root / "memory" / "sase.md").exists()
+    assert (home_root / "AGENTS.md").exists()
+    git_run.assert_not_called()
 
 
 def test_init_memory_static_linked_repos_use_paths_without_workspace_open(
