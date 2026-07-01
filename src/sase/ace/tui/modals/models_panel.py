@@ -24,6 +24,7 @@ offer a ``use_chezmoi``-aware commit+push. Temporary-override state lives in
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from rich.text import Text
@@ -193,6 +194,16 @@ class _DurationPickerModal(DurationChoiceModal[float | None, DurationChoiceCance
 _KIND_CELL = 13
 _NAME_CELL = 16
 
+# The provider/model badge is treated as its own column so the rightmost
+# state/provenance tag lines up across rows. The column is sized to the widest
+# badge currently visible, capped so the state tag stays inside the 84-column
+# modal budget: content width (78, after the double border and 1 2 padding)
+# minus the fixed kind/name columns and their inner spaces (31), minus the
+# fixed gap before the state tag (3), minus the longest state tag
+# ("override · until cleared", 24) leaves 20 columns for the badge.
+_PROVIDER_MODEL_CELL_MAX = 20
+_STATE_GAP = "   "
+
 _KIND_LABELS: dict[str, str] = {
     "default": "default",
     "role": "role",
@@ -242,22 +253,51 @@ def _state_tag(view: AliasView, now: float) -> tuple[str, str]:
     return "implicit → @default", _IMPLICIT_TAG_STYLE
 
 
-def _render_alias_row(view: AliasView, *, now: float) -> Text:
+def _provider_model_text(view: AliasView) -> Text:
+    """Build the themed ``PROVIDER(model)`` badge for *view* as a Rich ``Text``.
+
+    Building a ``Text`` (rather than leaving the raw markup string) keeps the
+    badge measurable and truncatable while preserving provider styling — and
+    ensures no markup ever leaks into a rendered row.
+    """
+    return Text.from_markup(provider_model_badge_markup(view.provider, view.model))
+
+
+def _provider_model_column_width(views: Iterable[AliasView]) -> int:
+    """Return the provider/model column width (in cells) for *views*.
+
+    Sized to the widest badge currently visible, capped by
+    :data:`_PROVIDER_MODEL_CELL_MAX` so the state tag stays on-screen. Rich cell
+    widths are used (not ``len``) so wide glyphs and future badges are measured
+    correctly. Collapses to ``0`` when no row has a badge.
+    """
+    widest = 0
+    for view in views:
+        widest = max(widest, _provider_model_text(view).cell_len)
+    return min(widest, _PROVIDER_MODEL_CELL_MAX)
+
+
+def _render_alias_row(
+    view: AliasView, *, now: float, provider_model_width: int
+) -> Text:
     """Render one alias row as a single-line Rich ``Text``.
 
     Layout: ``<kind badge> <alias name> <PROVIDER(model) badge> <state tag>``.
-    Building a ``Text`` (rather than a markup string) keeps alias/model values
-    literal so a stray bracket in a config value can never break rendering.
+    The provider/model badge is fitted to *provider_model_width* — padded when
+    short and ellipsized when it exceeds the cap — so the rightmost state tag
+    starts at the same cell across every row. Building a ``Text`` (rather than a
+    markup string) keeps alias/model values literal so a stray bracket in a
+    config value can never break rendering.
     """
     text = Text(no_wrap=True, overflow="ellipsis")
     text.append(_pad(_kind_label(view), _KIND_CELL), style=_KIND_STYLES.get(view.kind))
     text.append(" ")
     text.append(_pad(view.name, _NAME_CELL), style="bold")
     text.append(" ")
-    text.append_text(
-        Text.from_markup(provider_model_badge_markup(view.provider, view.model))
-    )
-    text.append("   ")
+    badge = _provider_model_text(view)
+    badge.truncate(provider_model_width, overflow="ellipsis", pad=True)
+    text.append_text(badge)
+    text.append(_STATE_GAP)
     tag_text, tag_style = _state_tag(view, now)
     text.append(tag_text, style=tag_style)
     return text
@@ -332,8 +372,14 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         now = _now()
         self._views = build_alias_views()
         self._view_by_name = {view.name: view for view in self._views}
+        provider_model_width = _provider_model_column_width(self._views)
         return [
-            Option(_render_alias_row(view, now=now), id=view.name)
+            Option(
+                _render_alias_row(
+                    view, now=now, provider_model_width=provider_model_width
+                ),
+                id=view.name,
+            )
             for view in self._views
         ]
 

@@ -24,6 +24,7 @@ from sase.ace.tui.modals.models_panel import (
     _format_duration_chosen,
     _format_remaining,
     _kind_label,
+    _provider_model_column_width,
     _state_tag,
     _render_alias_row,
 )
@@ -141,10 +142,63 @@ def test_state_tag_override_until_cleared() -> None:
 
 def test_render_alias_row_contains_name_provider_and_state() -> None:
     view = _view("phase_worker", "role", provider="codex", model="o3")
-    line = _render_alias_row(view, now=0.0).plain
+    width = _provider_model_column_width([view])
+    line = _render_alias_row(view, now=0.0, provider_model_width=width).plain
     assert "phase_worker" in line
     assert "CODEX(o3)" in line
     assert "implicit → @default" in line
+
+
+def test_render_alias_rows_align_state_column() -> None:
+    """Rows with different badge widths share one state-column start cell."""
+    short = _view("codex_coder", "provider_coder", provider="codex", model="o3")
+    wide = _view(
+        "fast",
+        "user",
+        configured=True,
+        configured_value="claude/haiku",
+        provider="claude",
+        model="haiku",
+    )
+    # The wider badge (CLAUDE(haiku)) drives the shared column width.
+    width = _provider_model_column_width([short, wide])
+    assert width == len("CLAUDE(haiku)")
+
+    short_line = _render_alias_row(short, now=0.0, provider_model_width=width).plain
+    wide_line = _render_alias_row(wide, now=0.0, provider_model_width=width).plain
+    short_state, _ = _state_tag(short, now=0.0)
+    wide_state, _ = _state_tag(wide, now=0.0)
+
+    assert short_state in short_line
+    assert wide_state in wide_line
+    assert short_line.index(short_state) == wide_line.index(wide_state)
+
+
+def test_render_alias_row_ellipsizes_long_provider_model_label() -> None:
+    """An over-cap badge is ellipsized but the state tag still aligns."""
+    long_view = _view(
+        "mega",
+        "user",
+        configured=True,
+        configured_value="opencode/really-long",
+        provider="opencode",
+        model="anthropic/claude-sonnet-4-5-extremely-long-model-name",
+    )
+    short = _view("codex_coder", "provider_coder", provider="codex", model="o3")
+
+    width = _provider_model_column_width([long_view, short])
+    assert width == models_panel._PROVIDER_MODEL_CELL_MAX
+
+    long_line = _render_alias_row(long_view, now=0.0, provider_model_width=width).plain
+    short_line = _render_alias_row(short, now=0.0, provider_model_width=width).plain
+    long_state, _ = _state_tag(long_view, now=0.0)
+    short_state, _ = _state_tag(short, now=0.0)
+
+    # The badge was truncated with an ellipsis, yet the state tag is present
+    # and starts at the same cell as the short row's state tag.
+    assert "…" in long_line
+    assert long_state in long_line
+    assert long_line.index(long_state) == short_line.index(short_state)
 
 
 # ---------------------------------------------------------------------------
