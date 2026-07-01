@@ -273,9 +273,11 @@ def test_set_key_safety_rejection_uses_round_trip_fallback() -> None:
     text = "llm_provider:\n  model_aliases:\n    coder: sonnet\n"
     key_path = ("llm_provider", "model_aliases", "coder")
     with (
-        patch("sase.config.edit._parsed_edit_matches", return_value=False),
         patch(
-            "sase.config.edit._set_key_round_trip", return_value="fallback\n"
+            "sase.config._edit_yaml_surgical._parsed_edit_matches", return_value=False
+        ),
+        patch(
+            "sase.config._edit_yaml._set_key_round_trip", return_value="fallback\n"
         ) as fallback,
     ):
         assert set_key(text, key_path, "opus") == "fallback\n"
