@@ -5,7 +5,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import split_prompt_for_models
+from sase.xprompt.directives import (
+    extract_prompt_directives,
+    split_prompt_for_models,
+)
 from sase.xprompt.models import XPrompt
 
 
@@ -73,6 +76,24 @@ def test_split_prompt_for_models_with_provider_syntax() -> None:
     assert len(result) == 2
     assert result[0] == "%name:foo.cdx\n%model:codex/o3\nReview this code"
     assert result[1] == "%name:foo.cld\n%model:claude/opus\nReview this code"
+
+
+def test_split_prompt_for_models_quoted_provider_model_with_spaces_and_parens() -> None:
+    """Fan-out preserves exact quoted provider/model values."""
+    prompt = (
+        '%n:foo\n%{%m("agy/Gemini 3.1 Pro (High)") | '
+        '%m("agy/Gemini 3.5 Flash (High)")}\nReview this code'
+    )
+    result = split_prompt_for_models(prompt)
+    assert result is not None
+    assert len(result) == 2
+
+    models = [extract_prompt_directives(variant)[1].model for variant in result]
+    assert models == [
+        "agy/Gemini 3.1 Pro (High)",
+        "agy/Gemini 3.5 Flash (High)",
+    ]
+    assert all("Review this code" in variant for variant in result)
 
 
 def test_split_prompt_for_models_spaces_in_args() -> None:

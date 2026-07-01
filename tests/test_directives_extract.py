@@ -39,6 +39,17 @@ def test_model_directive_paren_arg() -> None:
     assert directives.model == "opus"
 
 
+@pytest.mark.parametrize("directive", ["%model", "%m"])
+def test_model_directive_quoted_paren_provider_model_with_spaces_and_parens(
+    directive: str,
+) -> None:
+    """Quoted paren args preserve exact provider/model values."""
+    prompt = f'{directive}("agy/Gemini 3.5 Flash (High)")\nReview this code'
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Review this code"
+    assert directives.model == "agy/Gemini 3.5 Flash (High)"
+
+
 def test_model_directive_paren_multi_arg_rejected() -> None:
     """Multi-argument %model(...) raises with the migration syntax."""
     prompt = "%model(opus,sonnet)\nReview this code"

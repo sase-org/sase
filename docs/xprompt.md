@@ -988,7 +988,7 @@ Directives use the same argument syntax as xprompt references:
 %model(claude-sonnet)        # Parenthesis syntax (single value only)
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
 %model:codex/o3              # Provider/model syntax — switches both provider and model
-%model:agy/flash35h          # Provider/model syntax for Antigravity (agy)
+%m("agy/Gemini 3.5 Flash (High)") # Quoted provider/model value with spaces/parentheses
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %effort:xhigh                # Set the reasoning-effort level for this prompt
 %e:xhigh                     # Same, using alias
@@ -1026,6 +1026,9 @@ Directives use the same argument syntax as xprompt references:
 %group:review                # Assign the tag "review" to this agent
 %g:review                    # Same, using alias
 ```
+
+Model names containing spaces or parentheses must use the quoted parenthesis form (for example,
+`%m("provider/Model Name (Variant)")`); colon syntax cannot express those values.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See

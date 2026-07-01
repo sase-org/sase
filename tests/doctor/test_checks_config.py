@@ -189,6 +189,32 @@ def test_model_xprompts_ignores_explicit_provider_model_token(
     assert not check.data["problems"]
 
 
+def test_model_xprompts_skips_multi_segment_agent_prompts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Multi-agent xprompts are not model presets, even with per-agent models."""
+    xprompts = {
+        "m_codex": XPrompt(name="m_codex", content="%model:codex/gpt-5.5"),
+        "research_swarm": XPrompt(
+            name="research_swarm",
+            content=(
+                "%name:research.cdx %model:codex/gpt-5.5\n"
+                "---\n"
+                "%name:research.cld %model:claude/opus"
+            ),
+        ),
+    }
+    _patch_model_xprompt_env(
+        monkeypatch, xprompts, {"provider": "codex", "model_aliases": {}}
+    )
+
+    check = _check_config_model_xprompts(_doctor_context(tmp_path))
+
+    assert check.status == "OK"
+    assert not check.data["problems"]
+    assert check.data["scanned"] == 1
+
+
 def test_model_xprompts_flags_retired_worker_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

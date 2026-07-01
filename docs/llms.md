@@ -298,8 +298,9 @@ tier defaults are:
 | `large` | `Gemini 3.5 Flash (High)` | `flash35h`  |
 | `small` | `Gemini 3.5 Flash (Low)`  | `flash35l`  |
 
-All other `agy models` names remain reachable through `%model:agy/<exact name>`, the model picker, and configured
-aliases.
+All other `agy models` names remain reachable through the model picker, configured aliases, and quoted paren-form
+provider/model directives such as `%m("agy/Gemini 3.5 Flash (High)")`. Use the quoted form for names with spaces or
+parentheses; colon syntax cannot express those names verbatim.
 
 ### Environment Variables
 
@@ -638,7 +639,7 @@ Use `provider/model` to specify both explicitly:
 ```
 %model:codex/o3
 %model:claude/opus
-%model:agy/flash35h
+%model("agy/Gemini 3.5 Flash (High)")
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
 ```

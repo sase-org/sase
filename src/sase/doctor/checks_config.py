@@ -475,11 +475,16 @@ def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
         has_model_directive,
         split_prompt_for_models,
     )
+    from sase.xprompt.models import XPrompt
     from sase.xprompt.processor import process_xprompt_references
+    from sase.xprompt.segment_separators import xprompt_has_segment_separators
 
     try:
         expanded = process_xprompt_references(content)
     except Exception:  # noqa: BLE001 - a malformed preset must not break doctor.
+        return None
+
+    if xprompt_has_segment_separators(XPrompt(name="_doctor_scan", content=expanded)):
         return None
 
     if not has_model_directive(expanded):

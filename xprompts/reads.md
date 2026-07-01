@@ -42,7 +42,7 @@ xprompts:
 ---
 
 %name:reads.@.agy
-%model:agy/flash35h
+%model("agy/Gemini 3.5 Flash (High)")
 %g:read
 #_article_search_agent
 
