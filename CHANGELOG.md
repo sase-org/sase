@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.7.0](https://github.com/sase-org/sase/compare/v0.6.1...v0.7.0) (2026-07-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **llm_provider:** The worker model-override lane is removed. The `@worker` and `@other` implicit model aliases are retired, the `role="worker"` temporary-override API and `llm_provider.worker_models` config resolvers are gone, and bead/epic launches now use the `@phase_worker`, `@epic_lander`, and `@epic_creator` role aliases.
+* **axe:** accepted-plan coder follow-ups now launch with a coder alias directive (`%model:@<provider>_coder`) instead of a concrete worker-lane model directive.
+* **llm_provider:** The public config schema no longer accepts `llm_provider.worker_models` (migrate each entry to a `<provider>_coder` alias under `llm_provider.model_aliases`) or a stale `llm_provider.default_model` (move its value to `llm_provider.model_aliases.default`). `sase doctor` reports both with migration guidance.
+* **ace:** The Tab/Shift-Tab cycling order changed because Agents is now the first tab instead of the second.
+* Model aliases in %model and %m directives must now use the @alias form. For example, use %model:@worker or %model:@#agy_flash instead of %model:worker or %model:#agy_flash.
+* **ace:** ACE leader-mode default chords are reassigned. `,o` no longer opens Model Overrides (now `,m`); Mentor Review moves to `,C`; and the Agents-tab repro bundle capture moves to `,B`. Re-bind via `ace.keymaps.modes.leader_mode.keys` to restore the previous chords.
+
+### Features
+
+* **ace:** models panel for viewing aliases and per-alias overrides (sase-5e.2) ([df160e3](https://github.com/sase-org/sase/commit/df160e361c289688cf097727c0c4041eff12ba28))
+* **ace:** move Agents to the first tab position ([2404af6](https://github.com/sase-org/sase/commit/2404af6d2a8d32eb2deb910298b25ee50219faa1))
+* **ace:** move Model Overrides to leader `,m` ([0edfb84](https://github.com/sase-org/sase/commit/0edfb846b2bc80a4288e7a1a10d34686c935ddc6))
+* **ace:** persistent alias editing + commit/push in models panel (sase-5e.3) ([aebfbf2](https://github.com/sase-org/sase/commit/aebfbf247cef8d783fffdc327b90c46c3cfeaee3))
+* **ace:** render bare count in Agents info strip ([937278e](https://github.com/sase-org/sase/commit/937278ecb1b0723a4aa42d55fe60f1cd635e8660))
+* **ace:** show dev update diff stats in restart toast ([c78d5c2](https://github.com/sase-org/sase/commit/c78d5c250064809639ac4cb1ba8257d638ca9222))
+* **ace:** top-bar indicator for non-default alias overrides (sase-5e.4) ([c1cd662](https://github.com/sase-org/sase/commit/c1cd66291d8071d4192fd820ca692e347bdd56b2))
+* add leader shortcut for SASE updates ([cbb6135](https://github.com/sase-org/sase/commit/cbb61358a39faaf7a96609d5f09e2bb0e6546be5))
+* **axe:** route plan coder follow-ups through provider coder alias (sase-5d.3) ([02a9d4d](https://github.com/sase-org/sase/commit/02a9d4db9496a6a821f05234e547fdb79edcd19d))
+* **bead:** default closed list results to newest 20 ([b926688](https://github.com/sase-org/sase/commit/b9266887d7f25c0950ef3a4a0a77aa1218256ae0))
+* **bead:** limit list results and fall back to closed ([4d3264c](https://github.com/sase-org/sase/commit/4d3264c366be8562da0025eaf7828b20f72f3d34))
+* **llm_provider:** add core alias resolver and [@default](https://github.com/default) launch semantics (sase-5d.1) ([4d1a4b7](https://github.com/sase-org/sase/commit/4d1a4b71ff832c07364f242848371a85dfa7a0e9))
+* **llm_provider:** migrate alias parser, completion, doctor, and schema (sase-5d.2) ([829b43d](https://github.com/sase-org/sase/commit/829b43d25ddf4a164cd0a44e88c9bf034a2c7805))
+* **llm_provider:** per-alias temporary model overrides (sase-5e.1) ([9f93305](https://github.com/sase-org/sase/commit/9f933053e8b9e9b75c200d1ae72d82f9d2fc98f7))
+* **llm_provider:** route bead/epic launches through role aliases and retire worker lane (sase-5d.4) ([788e321](https://github.com/sase-org/sase/commit/788e321c6445309771f65c300d91841d7e1a55f1))
+* recommend plugins during agents onboarding ([9e77bd3](https://github.com/sase-org/sase/commit/9e77bd393aed7b6bf604abbfb88c7e9ed8c65784))
+* require @ marker for model aliases ([5856cd7](https://github.com/sase-org/sase/commit/5856cd7a0c6746156c865a1e605556672a68e6e7))
+
+
+### Bug Fixes
+
+* **ace:** hide onboarding launch hint without targets ([1b9395b](https://github.com/sase-org/sase/commit/1b9395b059364c4c3f04934d3c079a4dfedcc29f))
+* **ace:** improve post-update toast layout ([dbaf6ad](https://github.com/sase-org/sase/commit/dbaf6adcf11571e7eb07d30f0bac71c7a2226ed1))
+* **ace:** order agents-onboarding tabs to match the tab bar ([282fc6c](https://github.com/sase-org/sase/commit/282fc6ccf29c72e3ff003d878afccfaff4714153))
+* **chezmoi:** apply target path on config edits and always use --force ([09d0c44](https://github.com/sase-org/sase/commit/09d0c44ddb955a7503e61169efee1b21c6dafd62))
+* **config:** preserve YAML source around scalar edits ([0844ec9](https://github.com/sase-org/sase/commit/0844ec91505e99124319455d0cda0de7da8c1b5c))
+* **dev-update:** fetch release tags from upstream ([31c9895](https://github.com/sase-org/sase/commit/31c98951ce0acb47910225275ff318c2a15b1c3a))
+* dismiss completion notifications with agent rows ([86a4b6b](https://github.com/sase-org/sase/commit/86a4b6b8c21c65af943293b10b431c8321b10a42))
+* handle quoted Antigravity model directives ([0e0020b](https://github.com/sase-org/sase/commit/0e0020b4aeae7536f3ed7ab946b6c24429ff57fd))
+* **init:** skip project-scoped setup outside VCS dirs ([08ef0f2](https://github.com/sase-org/sase/commit/08ef0f24655c204c2ee097a6ae25c140bbe0e28f))
+* mark answered question continuations ([631beaf](https://github.com/sase-org/sase/commit/631beaf863226145930cd0bd9b6d45f175aa7b58))
+* show agents onboarding when no rows are visible ([f783204](https://github.com/sase-org/sase/commit/f7832045b7ec7052a3454aef208a86786b68d413))
+* **tui:** align Models panel state column ([d297933](https://github.com/sase-org/sase/commit/d2979336e22b6c692fa91e266c32b3a4d7fc8ee5))
+* **tui:** recommend update keymap in update notices ([8ba81d7](https://github.com/sase-org/sase/commit/8ba81d7ff03166ff0e54df1ac448ea1cb4e6d1b6))
+* **tui:** show provider coder model kind as coder ([c8b9321](https://github.com/sase-org/sase/commit/c8b93210fb722bebcba1bacbf363b531f3549ed9))
+
+
+### Documentation
+
+* **ace:** document unified Models panel and per-alias overrides (sase-5e.5) ([37b8257](https://github.com/sase-org/sase/commit/37b8257d2fd96fe48cb42f0bee1628991ec0a433))
+* Add "Agent Hoods" and "Agent Neighbors" memory/glossary.md entries ([c05e092](https://github.com/sase-org/sase/commit/c05e0920b7f07173a981390b06bb8df543e50f62))
+* clarify GitHub plugin install and Enterprise setup ([d337fc0](https://github.com/sase-org/sase/commit/d337fc01f315b086de8ff134a2d0dffa70a1a1c9))
+* **llm_provider:** align docs and shipped config with role-alias model (sase-5d.5) ([a27b457](https://github.com/sase-org/sase/commit/a27b4572ecc94114f06e808ba0697390678bdb98))
+
 ## [0.6.1](https://github.com/sase-org/sase/compare/v0.6.0...v0.6.1) (2026-06-30)
 
 
