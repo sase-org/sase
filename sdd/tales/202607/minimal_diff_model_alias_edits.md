@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-01 08:23:39
-status: wip
+status: done
 prompt: sdd/prompts/202607/minimal_diff_model_alias_edits.md
 ---
 # Plan: Minimal-Diff Model Alias Edits from the Models Panel
