@@ -296,8 +296,12 @@ class ConfigEditModal(ConfigEditModalBase):
         def task() -> tuple[AppliedResult, str | None]:
             result = apply_config_edit(plan)
             note: str | None = None
-            if result.used_chezmoi:
-                proc = apply_chezmoi(result.path)
+            # ``chezmoi apply`` takes the home *target* path, not the chezmoi
+            # source we just wrote to. Only apply when a real source→target
+            # remap happened (target differs from the written source path).
+            target = plan.write_plan.file
+            if result.used_chezmoi and target is not None and target != result.path:
+                proc = apply_chezmoi(target)
                 if proc.returncode != 0:
                     detail = proc.stderr.strip() or f"exit {proc.returncode}"
                     note = f"chezmoi apply failed: {detail}"

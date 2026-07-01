@@ -8,6 +8,7 @@ post-write row refresh and commit/push offer — plus the
 
 from __future__ import annotations
 
+import subprocess
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -379,6 +380,49 @@ async def test_preview_modal_confirm_writes_and_dismisses(monkeypatch: Any) -> N
     apply_mock.assert_called_once()
     assert isinstance(result[0], AliasEditOutcome)
     assert result[0].alias == "coder"
+
+
+async def test_preview_modal_chezmoi_applies_home_target_not_source(
+    monkeypatch: Any,
+) -> None:
+    """A chezmoi-backed write runs ``chezmoi apply`` on the home target path.
+
+    Regression: the modal previously handed the chezmoi *source* path to
+    ``chezmoi apply``, which rejects it as "not in source state". The apply must
+    receive the original home target (``plan.write_plan.file``).
+    """
+    home_target = "/home/u/.config/sase/sase.yml"
+    source_path = "/home/u/.local/share/chezmoi/home/dot_config/sase/sase.yml"
+    monkeypatch.setattr(
+        models_panel_edit,
+        "plan_alias_edit",
+        lambda *a, **k: _make_plan(used_chezmoi=True, target_path=home_target),
+    )
+    applied = AppliedResult(
+        path=source_path,
+        op="set",
+        key_path=("llm_provider", "model_aliases", "coder"),
+        created=False,
+        used_chezmoi=True,
+    )
+    monkeypatch.setattr(
+        models_panel_edit, "apply_config_edit", MagicMock(return_value=applied)
+    )
+    apply_chezmoi_mock = MagicMock(
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    )
+    monkeypatch.setattr(models_panel_edit, "apply_chezmoi", apply_chezmoi_mock)
+    result: list[Any] = []
+
+    async with _TestApp().run_test() as pilot:
+        modal = AliasEditPreviewModal("coder", ConfigEditOp.set_value("opus"))
+        pilot.app.push_screen(modal, result.append)
+        await _wait_for(pilot, lambda: modal._plan is not None)
+        modal.action_confirm()
+        await _wait_for(pilot, lambda: bool(result))
+
+    apply_chezmoi_mock.assert_called_once_with(home_target)
+    assert isinstance(result[0], AliasEditOutcome)
 
 
 async def test_preview_modal_no_change_blocks_write(monkeypatch: Any) -> None:

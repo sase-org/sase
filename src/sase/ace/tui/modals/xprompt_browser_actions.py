@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 from sase.ace.hints import build_editor_args
-from sase.config import get_use_chezmoi
+from sase.config import apply_chezmoi, get_use_chezmoi
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 
 from .confirm_action_modal import ConfirmActionModal
@@ -177,16 +177,11 @@ class XPromptBrowserActionsMixin:
             self.notify("Failed to insert xprompt into config", severity="error")  # type: ignore[attr-defined]
 
     def _run_chezmoi_apply(self) -> None:
-        """Run ``chezmoi apply`` if use_chezmoi is enabled."""
+        """Run ``chezmoi apply --force`` if use_chezmoi is enabled."""
         if not get_use_chezmoi():
             return
         try:
-            result = subprocess.run(
-                ["chezmoi", "apply"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            result = apply_chezmoi()
         except FileNotFoundError:
             self.notify("chezmoi not found on PATH", severity="warning")  # type: ignore[attr-defined]
             return

@@ -153,4 +153,3 @@ def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
     deploy_mock.assert_not_called()
     assert chezmoi_home / "memory" / "sase.md" in deferred.paths
     assert chezmoi_home / "CLAUDE.md" in deferred.paths
-    assert deferred.apply_force is True

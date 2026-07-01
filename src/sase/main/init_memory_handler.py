@@ -440,7 +440,6 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
             auto_commit_type="memory",
             chezmoi_home=CHEZMOI_HOME,
             pull_push=False,
-            apply_force=True,
             apply_when_nothing_staged=True,
             commit_failed_label="chezmoi commit failed",
             print_committing=False,
@@ -626,7 +625,6 @@ def run_init_memory(args: argparse.Namespace) -> int:
         home_changed_paths = (*home_result.written_paths, *home_result.deleted_paths)
         if defer_chezmoi_paths(
             home_changed_paths,
-            apply_force=True,
             chezmoi_home=CHEZMOI_HOME,
         ):
             chezmoi_exit_code = 0

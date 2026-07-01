@@ -108,13 +108,19 @@ def default_target_layer(
 def apply_chezmoi(
     path: Path | str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run ``chezmoi apply`` (optionally scoped to a single target *path*).
+    """Run ``chezmoi apply --force`` (optionally scoped to a single *path*).
+
+    Applies are always forced so they stay non-interactive: chezmoi never pauses
+    for a confirmation prompt on a diverged destination (these run as captured
+    subprocesses with no interactive stdin). When *path* is given it is a home
+    (target) path, not a chezmoi source path; ``~`` is expanded so chezmoi always
+    receives an absolute home path it can resolve.
 
     Side-effecting subprocess; only ever call from a tracked background task.
     Returns the completed process so the caller can surface stdout/stderr; a
     non-zero exit is not raised here.
     """
-    cmd = ["chezmoi", "apply"]
+    cmd = ["chezmoi", "apply", "--force"]
     if path is not None:
-        cmd.append(str(path))
+        cmd.append(str(Path(path).expanduser()))
     return subprocess.run(cmd, capture_output=True, text=True, check=False)

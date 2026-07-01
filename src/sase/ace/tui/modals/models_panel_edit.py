@@ -210,8 +210,12 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
         def task() -> tuple[AliasEditOutcome, str | None]:
             applied = apply_config_edit(plan)
             note: str | None = None
-            if applied.used_chezmoi:
-                proc = apply_chezmoi(applied.path)
+            # ``chezmoi apply`` takes the home *target* path, not the chezmoi
+            # source we just wrote to. Only apply when a real source→target
+            # remap happened (target differs from the written source path).
+            target = plan.write_plan.file
+            if applied.used_chezmoi and target is not None and target != applied.path:
+                proc = apply_chezmoi(target)
                 if proc.returncode != 0:
                     detail = proc.stderr.strip() or f"exit {proc.returncode}"
                     note = f"chezmoi apply failed: {detail}"

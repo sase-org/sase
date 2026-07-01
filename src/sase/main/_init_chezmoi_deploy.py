@@ -25,7 +25,6 @@ class ChezmoiDeployBehavior:
     no_push: bool = False
     no_apply: bool = False
     pull_push: bool = True
-    apply_force: bool = False
     apply_when_nothing_staged: bool = False
     git_failure_is_error: bool = True
     chezmoi_missing_is_error: bool = True
@@ -44,20 +43,17 @@ class _DeferredChezmoiDeploy:
 
     paths: list[Path] = field(default_factory=list)
     chezmoi_home: Path = CHEZMOI_HOME
-    apply_force: bool = False
 
     def add(
         self,
         paths: Iterable[Path],
         *,
-        apply_force: bool = False,
         chezmoi_home: Path = CHEZMOI_HOME,
     ) -> None:
         new_paths = list(paths)
         if not self.paths and new_paths:
             self.chezmoi_home = chezmoi_home
         self.paths.extend(new_paths)
-        self.apply_force = self.apply_force or apply_force
 
 
 _DEFERRED_DEPLOY: ContextVar[_DeferredChezmoiDeploy | None] = ContextVar(
@@ -252,15 +248,11 @@ def deploy_to_chezmoi(
     if behavior.no_apply:
         return 0
 
-    apply_cmd = ["chezmoi", "apply"]
-    if behavior.apply_force:
-        apply_cmd.append("--force")
-
     if behavior.print_applying:
         print("Applying chezmoi...")
     try:
         apply = subprocess.run(
-            apply_cmd,
+            ["chezmoi", "apply", "--force"],
             capture_output=True,
             text=True,
             check=False,
@@ -269,11 +261,9 @@ def deploy_to_chezmoi(
         print(f"{behavior.command_label}: chezmoi not found on PATH", file=sys.stderr)
         return 1 if behavior.chezmoi_missing_is_error else 0
     if apply.returncode != 0:
-        apply_label = "chezmoi apply --force failed"
-        if not behavior.apply_force:
-            apply_label = "chezmoi apply failed"
         print(
-            f"{behavior.command_label}: {apply_label}: {apply.stderr.strip()}",
+            f"{behavior.command_label}: chezmoi apply --force failed: "
+            f"{apply.stderr.strip()}",
             file=sys.stderr,
         )
         return 1
@@ -296,7 +286,6 @@ def defer_chezmoi_deploy() -> Iterator[_DeferredChezmoiDeploy]:
 def defer_chezmoi_paths(
     written_paths: Iterable[Path],
     *,
-    apply_force: bool = False,
     chezmoi_home: Path = CHEZMOI_HOME,
 ) -> bool:
     """Record paths in the active deferral context.
@@ -308,7 +297,6 @@ def defer_chezmoi_paths(
         return False
     deferred.add(
         written_paths,
-        apply_force=apply_force,
         chezmoi_home=chezmoi_home,
     )
     return True
@@ -323,7 +311,6 @@ def deploy_deferred_chezmoi(deferred: _DeferredChezmoiDeploy) -> int:
             commit_message="chore: run sase init",
             auto_commit_type="init",
             chezmoi_home=deferred.chezmoi_home,
-            apply_force=deferred.apply_force,
             apply_when_nothing_staged=True,
             print_nothing_to_commit=False,
         ),

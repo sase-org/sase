@@ -10,9 +10,10 @@ write executor.
 from __future__ import annotations
 
 import difflib
+import subprocess
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -30,6 +31,7 @@ from sase.config.edit import (
 from sase.config.inventory import build_config_inventory, inventory_with_new_overlay
 from sase.config.targets import (
     CHEZMOI_HOME,
+    apply_chezmoi,
     chezmoi_source_path,
     default_target_layer,
     overlay_config_path,
@@ -506,6 +508,31 @@ def test_resolve_write_path_honors_chezmoi_flag() -> None:
         CHEZMOI_HOME / "dot_config" / "sase" / "sase.yml"
     )
     assert resolve_write_path(None, use_chezmoi=True) is None
+
+
+def test_apply_chezmoi_forces_and_expands_target_path() -> None:
+    """apply_chezmoi always passes --force and expands ~ in the target path."""
+    run_mock = MagicMock(
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    )
+    with patch("sase.config.targets.subprocess.run", run_mock):
+        apply_chezmoi("~/.config/sase/sase.yml")
+
+    cmd = run_mock.call_args.args[0]
+    assert cmd[:3] == ["chezmoi", "apply", "--force"]
+    assert cmd[3] == str(Path("~/.config/sase/sase.yml").expanduser())
+    assert "~" not in cmd[3]
+
+
+def test_apply_chezmoi_without_path_is_full_forced_apply() -> None:
+    """apply_chezmoi() with no path forces a whole-tree apply."""
+    run_mock = MagicMock(
+        return_value=subprocess.CompletedProcess([], 0, stdout="", stderr="")
+    )
+    with patch("sase.config.targets.subprocess.run", run_mock):
+        apply_chezmoi()
+
+    assert run_mock.call_args.args[0] == ["chezmoi", "apply", "--force"]
 
 
 def test_plan_remaps_target_to_chezmoi_source(

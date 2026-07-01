@@ -374,12 +374,10 @@ def test_yes_runs_one_deferred_chezmoi_deploy_after_selected_runs(
     def _deferred_run(
         name: str,
         path: Path,
-        *,
-        apply_force: bool = False,
     ) -> Callable[[argparse.Namespace], int]:
         def _run(args: argparse.Namespace) -> int:
             calls.append(name)
-            assert defer_chezmoi_paths([path], apply_force=apply_force) is True
+            assert defer_chezmoi_paths([path]) is True
             return 0
 
         return _run
@@ -396,7 +394,6 @@ def test_yes_runs_one_deferred_chezmoi_deploy_after_selected_runs(
             run=_deferred_run(
                 "memory",
                 Path("/home/x/chezmoi/home/memory/sase.md"),
-                apply_force=True,
             ),
         ),
         InitCommandSpec(

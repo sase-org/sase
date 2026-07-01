@@ -159,18 +159,13 @@ def run_git_commit_push_sync(
     if push_result.returncode != 0:
         return False, f"Push failed: {process_error_text(push_result)}"
 
-    from sase.config import get_use_chezmoi
+    from sase.config import apply_chezmoi, get_use_chezmoi
 
     if not get_use_chezmoi():
         return True, "Committed and pushed to remote"
 
     try:
-        chezmoi_result = subprocess.run(
-            ["chezmoi", "apply"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        chezmoi_result = apply_chezmoi()
     except FileNotFoundError:
         return False, "chezmoi not found on PATH"
     if chezmoi_result.returncode != 0:

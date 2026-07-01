@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-01 09:13:40
-status: wip
+status: done
 prompt: sdd/prompts/202607/chezmoi_apply_target_path_and_force.md
 ---
 # Plan: Fix `chezmoi apply` "not in source state" on config/model-alias edits, and always use `--force`

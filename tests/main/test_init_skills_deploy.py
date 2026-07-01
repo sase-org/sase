@@ -250,7 +250,7 @@ def test_deploy_chezmoi_apply_failure_returns_nonzero(
         rc = _deploy_to_chezmoi([Path("/x/a")], args)
 
     assert rc == 1
-    assert "chezmoi apply failed" in capsys.readouterr().err
+    assert "chezmoi apply --force failed" in capsys.readouterr().err
 
 
 def test_deploy_provider_filter_in_commit_message() -> None:
