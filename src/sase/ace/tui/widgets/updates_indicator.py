@@ -52,4 +52,7 @@ class UpdatesAvailableIndicator(Static):
         if count <= 0:
             return "No updates available"
         noun = "update" if count == 1 else "updates"
-        return f"{count} {noun} available - open the Updates tab (click, or press # then 5)"
+        return (
+            f"{count} {noun} available - click to open Updates, "
+            "or press ,U to update sase, core & plugins"
+        )

@@ -11,7 +11,6 @@ from sase.ace.tui.actions import update_toast
 from sase.ace.tui.actions.update_toast import (
     UpdateToastMixin,
 )
-from sase.ace.tui.modals.config_center_modal import center_tab_shortcut
 from sase.updates import OutdatedComponent, UpdateStatus
 
 from tests.ace.tui.visual._ace_png_snapshot_helpers import patch_startup_loaders
@@ -51,16 +50,14 @@ def _status(count: int = 2) -> UpdateStatus:
     return UpdateStatus(checked_at=100.0, components=tuple(components[:count]))
 
 
-def test_update_toast_message_uses_computed_updates_shortcut() -> None:
-    shortcut = center_tab_shortcut("updates")
-    assert shortcut is not None
-
+def test_update_toast_message_recommends_update_keymap() -> None:
     message = update_toast._format_update_toast_message(_status())
 
     assert "2 updates" in message
     assert "sase" in message
     assert "1.0.0 → 1.1.0" in message
-    assert f"]{shortcut}[/]" in message
+    assert "],U[/]" in message
+    assert "update sase, core & plugins" in message
 
 
 def test_update_toast_message_caps_component_list() -> None:

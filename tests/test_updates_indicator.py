@@ -19,11 +19,13 @@ def test_positive_updates_render_updates_badge() -> None:
 def test_tooltip_singular_and_plural() -> None:
     assert (
         UpdatesAvailableIndicator._build_tooltip(1)
-        == "1 update available - open the Updates tab (click, or press # then 5)"
+        == "1 update available - click to open Updates, "
+        "or press ,U to update sase, core & plugins"
     )
     assert (
         UpdatesAvailableIndicator._build_tooltip(2)
-        == "2 updates available - open the Updates tab (click, or press # then 5)"
+        == "2 updates available - click to open Updates, "
+        "or press ,U to update sase, core & plugins"
     )
 
 
@@ -34,7 +36,8 @@ def test_set_available_updates_count_and_tooltip() -> None:
 
     assert indicator.count == 2
     assert indicator.tooltip == (
-        "2 updates available - open the Updates tab (click, or press # then 5)"
+        "2 updates available - click to open Updates, "
+        "or press ,U to update sase, core & plugins"
     )
 
 

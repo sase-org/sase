@@ -133,14 +133,6 @@ def _tab_description_text(tab: CenterTab) -> Text:
     return Text(f"› {_TAB_DESCRIPTIONS[tab]}", style=_TAB_COLORS[tab])
 
 
-def center_tab_shortcut(tab: str) -> int | None:
-    """Return the digit shortcut for an Admin Center tab, if it exists."""
-    for index, candidate in enumerate(_TAB_ORDER, start=1):
-        if candidate == tab:
-            return index
-    return None
-
-
 def center_tab_accent(tab: str) -> str | None:
     """Return the accent color for an Admin Center tab, if it exists."""
     for candidate, color in _TAB_COLORS.items():

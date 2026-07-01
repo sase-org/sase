@@ -19,7 +19,6 @@ from sase.updates import (
 
 from ..modals.config_center_modal import (
     center_tab_accent,
-    center_tab_shortcut,
 )
 
 if TYPE_CHECKING:
@@ -219,15 +218,7 @@ def _component_line(component: OutdatedComponent) -> str:
 
 
 def _shortcut_line(accent: str) -> str:
-    shortcut = center_tab_shortcut("updates")
-    if shortcut is None:
-        return (
-            f"Open the [bold {accent}]Updates[/] tab in the SASE Admin Center (press #)"
-        )
-    return (
-        f"Press [bold {accent}]#[/] then [bold {accent}]{shortcut}[/] "
-        "to open the Updates tab"
-    )
+    return f"Press [bold {accent}],U[/] to update sase, core & plugins"
 
 
 def _coerce_bool(value: object, *, default: bool) -> bool:
