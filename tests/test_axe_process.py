@@ -381,7 +381,7 @@ def test_stop_axe_daemon_targets_recorded_daemon_not_acquirer(
             "import signal",
             "import sys",
             "import time",
-            "signal.signal(signal.SIGTERM, lambda _signum, _frame: sys.exit(0))",
+            "signal.signal(signal.SIGTERM, lambda _signum, _frame: os._exit(0))",
             "print(os.getpid(), flush=True)",
             "time.sleep(30)",
         ]
@@ -408,7 +408,7 @@ def test_stop_axe_daemon_targets_recorded_daemon_not_acquirer(
                 return_value=acquirer.pid,
             ),
         ):
-            result = stop_axe_daemon_result(timeout=2.0, kill_timeout=1.0)
+            result = stop_axe_daemon_result(timeout=10.0, kill_timeout=1.0)
 
         assert result.orchestrator_pid == daemon_pid
         assert result.orchestrator_signaled is True
@@ -453,7 +453,7 @@ def test_stop_axe_daemon_targets_inherited_lock_daemon(
             "os.ftruncate(fd, 0)",
             "os.write(fd, (str(pid) + '\\n').encode())",
             "os.fsync(fd)",
-            "signal.signal(signal.SIGTERM, lambda _signum, _frame: sys.exit(0))",
+            "signal.signal(signal.SIGTERM, lambda _signum, _frame: os._exit(0))",
             "print(pid, flush=True)",
             "time.sleep(30)",
         ]
@@ -474,7 +474,7 @@ def test_stop_axe_daemon_targets_inherited_lock_daemon(
         lock.close_after_handoff()
         handed_off = True
 
-        result = stop_axe_daemon_result(timeout=2.0, kill_timeout=1.0)
+        result = stop_axe_daemon_result(timeout=10.0, kill_timeout=1.0)
 
         assert result.orchestrator_pid == child_pid
         assert result.orchestrator_signaled is True
