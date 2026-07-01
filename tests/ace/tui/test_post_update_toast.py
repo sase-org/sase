@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,19 @@ def _diffstat_receipt() -> UpdateToastReceipt:
     )
 
 
+def _single_repo_dev_receipt() -> UpdateToastReceipt:
+    return UpdateToastReceipt(
+        kind="dev",
+        created_at=time.time(),
+        primary=UpdateVersionTransition(
+            "sase",
+            "0.6.1+41.g26e9d358d",
+            "0.6.1+43.g937278ecb",
+            diffstat=RepoDiffStat(files_changed=8, insertions=171, deletions=26),
+        ),
+    )
+
+
 def _status() -> UpdateStatus:
     return UpdateStatus(
         checked_at=100.0,
@@ -73,6 +87,10 @@ def _status() -> UpdateStatus:
             ),
         ),
     )
+
+
+def _plain_text_lines(message: str) -> list[str]:
+    return [re.sub(r"\[[^\]]+\]", "", line) for line in message.splitlines()]
 
 
 def test_post_update_toast_formats_update_confirmation(
@@ -111,29 +129,44 @@ def test_post_update_toast_formats_update_confirmation(
     assert "sase-github" in call["message"]
     assert "+2 dependencies" in call["message"]
     assert "Reloaded into the new version." in call["message"]
+    assert (
+        "\n\n[dim]+2 dependencies · Reloaded into the new version.[/]"
+        in call["message"]
+    )
 
 
 def test_post_update_toast_formats_diffstats() -> None:
     message = post_update_toast._format_post_update_toast_message(_diffstat_receipt())
+    lines = message.splitlines()
 
     assert "[bold green]+1,234[/]" in message
     assert "[#D75F5F]−567[/]" in message
+    assert "[bold green]+1,234[/]" not in lines[0]
+    assert lines[1].startswith(" " * 15)
+    assert "[bold green]+1,234[/]" in lines[1]
     assert "[dim]1 file[/]" in message
     assert "…and 2 more" in message
     assert "[bold green]+10[/]" in message
-    assert "16 files changed" in message
-    assert "+2 dependencies" in message
+    assert (
+        "\n\n[dim]16 files changed · +2 dependencies · "
+        "Reloaded into the new version.[/]"
+    ) in message
 
 
 def test_post_update_toast_managed_receipt_keeps_legacy_rendering() -> None:
     receipt = _receipt()
 
-    assert post_update_toast._format_post_update_toast_message(
+    with_diffstat = post_update_toast._format_post_update_toast_message(
         receipt,
         show_diffstat=True,
-    ) == post_update_toast._format_post_update_toast_message(
+    )
+    without_diffstat = post_update_toast._format_post_update_toast_message(
         receipt,
         show_diffstat=False,
+    )
+    assert with_diffstat == without_diffstat
+    assert "\n\n[dim]+2 dependencies · Reloaded into the new version.[/]" in (
+        with_diffstat
     )
 
 
@@ -146,6 +179,22 @@ def test_post_update_toast_diffstat_toggle_suppresses_churn() -> None:
     assert "+1,234" not in message
     assert "16 files changed" not in message
     assert "0.5.0+1.gabc123def" in message
+    assert "\n\n[dim]+2 dependencies · Reloaded into the new version.[/]" in message
+
+
+def test_post_update_toast_single_repo_dev_receipt_does_not_wrap() -> None:
+    message = post_update_toast._format_post_update_toast_message(
+        _single_repo_dev_receipt()
+    )
+    lines = _plain_text_lines(message)
+
+    assert lines == [
+        "sase  0.6.1+41.g26e9d358d → 0.6.1+43.g937278ecb",
+        "      +171 −26",
+        "",
+        "8 files changed · Reloaded into the new version.",
+    ]
+    assert all(len(line) <= 57 for line in lines)
 
 
 def test_post_update_toast_absent_receipt_does_nothing(

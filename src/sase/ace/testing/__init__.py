@@ -129,6 +129,7 @@ class AcePage:
         changespecs: list[ChangeSpec] | None = None,
         model_tier_override: Literal["large", "small"] | None = None,
         initial_tab: Literal["changespecs", "agents", "axe"] = "changespecs",
+        notifications: bool = False,
     ) -> None:
         self._query = query
         self._size = size
@@ -139,6 +140,7 @@ class AcePage:
             model_tier_override
         )
         self._initial_tab: Literal["changespecs", "agents", "axe"] = initial_tab
+        self._notifications = notifications
         self._app: AceApp | None = None
         self._pilot: Any = None
         self._patch: Any = None
@@ -161,7 +163,10 @@ class AcePage:
             refresh_interval=0,
             initial_tab=self._initial_tab,
         )
-        self._pilot_cm = self._app.run_test(size=self._size)
+        self._pilot_cm = self._app.run_test(
+            size=self._size,
+            notifications=self._notifications,
+        )
         self._pilot = await self._pilot_cm.__aenter__()
         return self
 

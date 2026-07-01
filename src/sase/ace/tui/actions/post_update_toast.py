@@ -95,6 +95,8 @@ def _format_legacy_post_update_toast_message(
         lines.append(f"…and {receipt.plugin_overflow} more")
     tail = _tail_line(receipt)
     if tail:
+        if lines:
+            lines.append("")
         lines.append(tail)
     return "\n".join(lines)
 
@@ -117,26 +119,42 @@ def _format_diffstat_post_update_toast_message(
         display_names.append(overflow_label)
     name_width = max((len(name) for name in display_names), default=0)
     old_width = max(
-        (len(_version_text(transition.old)) for transition, _ in transitions),
+        (
+            len(_version_text(transition.old))
+            for transition, is_primary in transitions
+            if not is_primary
+        ),
         default=0,
     )
     new_width = max(
-        (len(_version_text(transition.new)) for transition, _ in transitions),
+        (
+            len(_version_text(transition.new))
+            for transition, is_primary in transitions
+            if not is_primary
+        ),
         default=0,
     )
     transition_prefix_width = name_width + 2 + old_width + 3 + new_width + 3
 
-    lines = [
-        _diffstat_transition_line(
-            transition,
-            primary=is_primary,
-            accent=accent,
-            name_width=name_width,
-            old_width=old_width,
-            new_width=new_width,
+    lines: list[str] = []
+    for transition, is_primary in transitions:
+        lines.append(
+            _diffstat_transition_line(
+                transition,
+                primary=is_primary,
+                accent=accent,
+                name_width=name_width,
+                old_width=old_width,
+                new_width=new_width,
+            )
         )
-        for transition, is_primary in transitions
-    ]
+        if is_primary:
+            churn_line = _primary_diffstat_line(
+                transition.diffstat,
+                name_width=name_width,
+            )
+            if churn_line:
+                lines.append(churn_line)
     if overflow_label is not None:
         lines.append(
             _diffstat_overflow_line(
@@ -147,6 +165,8 @@ def _format_diffstat_post_update_toast_message(
         )
     tail = _tail_line(receipt, show_diffstat=True)
     if tail:
+        if lines:
+            lines.append("")
         lines.append(tail)
     return "\n".join(lines)
 
@@ -167,14 +187,14 @@ def _plugin_line(transition: UpdateVersionTransition) -> str:
 
 def _tail_line(receipt: UpdateToastReceipt, *, show_diffstat: bool = False) -> str:
     parts: list[str] = []
-    if receipt.dependency_count > 0:
-        noun = "dependency" if receipt.dependency_count == 1 else "dependencies"
-        parts.append(f"+{receipt.dependency_count} {noun}")
     if show_diffstat:
         files_changed = _total_files_changed(receipt)
         if files_changed > 0:
             noun = "file" if files_changed == 1 else "files"
             parts.append(f"{files_changed:,} {noun} changed")
+    if receipt.dependency_count > 0:
+        noun = "dependency" if receipt.dependency_count == 1 else "dependencies"
+        parts.append(f"+{receipt.dependency_count} {noun}")
     parts.append("Reloaded into the new version.")
     return f"[dim]{' · '.join(parts)}[/]"
 
@@ -195,20 +215,31 @@ def _diffstat_transition_line(
     old_pad = " " * (old_width - len(old_text))
     new_pad = " " * (new_width - len(new_text))
     diffstat = _diffstat_markup(transition.diffstat)
-    suffix = f"   {diffstat}" if diffstat else ""
     if primary:
         name = _truncated_transition_name(transition.name)
         return (
             f"[bold {accent}]{escape(name)}[/]{name_pad}  "
             f"[dim]{escape(old_text)}[/]{old_pad} [dim]→[/] "
-            f"[bold green]{escape(new_text)}[/]{new_pad}{suffix}"
+            f"[bold green]{escape(new_text)}[/]{new_pad}"
         )
+    suffix = f"   {diffstat}" if diffstat else ""
     name = _truncated_transition_name(transition.name)
     return (
         f"• {escape(name)}{name_pad}  "
         f"[dim]{escape(old_text)}{old_pad} →[/] "
         f"[green]{escape(new_text)}[/]{new_pad}{suffix}"
     )
+
+
+def _primary_diffstat_line(
+    diffstat: RepoDiffStat | None,
+    *,
+    name_width: int,
+) -> str:
+    diffstat_markup = _diffstat_markup(diffstat)
+    if not diffstat_markup:
+        return ""
+    return f"{' ' * (name_width + 2)}{diffstat_markup}"
 
 
 def _diffstat_overflow_line(

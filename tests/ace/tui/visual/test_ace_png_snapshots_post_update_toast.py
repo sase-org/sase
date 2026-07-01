@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 import pytest
+from textual.widgets._toast import Toast
 
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
@@ -73,6 +74,10 @@ def _diffstat_receipt() -> UpdateToastReceipt:
     )
 
 
+def _toast_is_mounted(page: AcePage) -> bool:
+    return bool(list(page.app.screen.query(Toast)))
+
+
 async def test_post_update_toast_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -89,8 +94,13 @@ async def test_post_update_toast_png_snapshot(
         lambda: update_toast._UpdateToastConfig(post_update_toast=True),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        notifications=True,
+    ) as page:
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
+        await page.wait_for(lambda _s: _toast_is_mounted(page))
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -116,8 +126,13 @@ async def test_post_update_toast_diffstat_png_snapshot(
         lambda: update_toast._UpdateToastConfig(post_update_toast=True),
     )
 
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        notifications=True,
+    ) as page:
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
+        await page.wait_for(lambda _s: _toast_is_mounted(page))
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

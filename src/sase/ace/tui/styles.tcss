@@ -2813,6 +2813,12 @@ ToastRack {
     margin-bottom: 0;
 }
 
+Toast {
+    width: auto;
+    min-width: 44;
+    max-width: 72;
+}
+
 /* ===== Runners Modal Styling ===== */
 
 RunnersModal {
