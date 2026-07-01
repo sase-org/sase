@@ -24,6 +24,16 @@ def test_agent_onboarding_content_includes_tabs_and_docs_link() -> None:
     assert "https://sase.sh" in rendered
 
 
+def test_agent_onboarding_tab_rows_follow_visible_tab_order() -> None:
+    widget = AgentOnboarding()
+    sections = widget.render_content(load_keymap_registry({}))
+    tabs_text = _section_plain(sections, "#agent-onboarding-tabs")
+
+    positions = {label: tabs_text.index(label) for label in ("Agents", "PRs", "AXE")}
+
+    assert positions["Agents"] < positions["PRs"] < positions["AXE"]
+
+
 def test_agent_onboarding_uses_active_keymap_registry() -> None:
     registry = load_keymap_registry({"keymaps": {"app": {"show_help": "f1"}}})
     widget = AgentOnboarding()

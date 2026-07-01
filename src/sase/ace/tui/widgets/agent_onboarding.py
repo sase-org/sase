@@ -10,8 +10,29 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..tab_order import TAB_ORDER, TabName
 
 _DOCS_URL = "https://sase.sh"
+
+# Per-tab onboarding row copy, keyed by tab name.  Rows are rendered in the
+# shared ``TAB_ORDER`` so this guide can never drift from the visible tab bar.
+_TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
+    "agents": (
+        "Agents",
+        "#87D7FF",
+        "Inspect prompts, diffs, tools, and artifacts. You are here.",
+    ),
+    "changespecs": (
+        "PRs",
+        "#00D7AF",
+        "Browse ChangeSpecs: commits, hooks, mentors, and status.",
+    ),
+    "axe": (
+        "AXE",
+        "#FF5F5F",
+        "Monitor the Axe daemon and automation.",
+    ),
+}
 
 
 def _append_keycap(text: Text, label: str) -> None:
@@ -175,24 +196,9 @@ class AgentOnboarding(VerticalScroll):
         app = registry.app
         text = Text()
         _append_section_heading(text, "Know where you are")
-        cls._append_tab_row(
-            text,
-            "PRs",
-            "#00D7AF",
-            "Browse ChangeSpecs: commits, hooks, mentors, and status.",
-        )
-        cls._append_tab_row(
-            text,
-            "Agents",
-            "#87D7FF",
-            "Inspect prompts, diffs, tools, and artifacts. You are here.",
-        )
-        cls._append_tab_row(
-            text,
-            "AXE",
-            "#FF5F5F",
-            "Monitor the Axe daemon and automation.",
-        )
+        for tab in TAB_ORDER:
+            label, color, description = _TAB_ROWS[tab]
+            cls._append_tab_row(text, label, color, description)
         text.append("Switch with", style="dim")
         _append_keycap(text, key_display_name(app.next_tab))
         text.append("/", style="dim")
