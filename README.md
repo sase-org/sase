@@ -25,9 +25,19 @@ SASE orchestrates an existing provider CLI; it does not replace that provider's 
 SASE from PyPI, then run `sase doctor` as the readiness gate before launching your first agent:
 
 ```bash
-uv tool install sase --python 3.12
+uv tool install sase
 sase version
 sase doctor
+```
+
+See [INSTALL.md](INSTALL.md) for the full installation guide, including system requirements, optional runtime tools,
+plugin installs, and how to keep SASE up to date.
+
+Plugins such as `sase-github` are best installed from the **Updates** tab of the SASE Admin Center (press `#` inside
+`sase ace`). To install SASE together with a plugin in one command instead, add `--with`:
+
+```bash
+uv tool install sase --with sase-github
 ```
 
 After `sase doctor` reports a usable provider, try a read-only run from the repository or directory you want the agent

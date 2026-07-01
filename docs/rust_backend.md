@@ -2,8 +2,8 @@
 
 A subset of sase's core APIs is served by a Rust extension distributed as
 [`sase-core-rs`](https://pypi.org/project/sase-core-rs/) on PyPI and built from the sibling
-[`sase-core`](https://github.com/sase-org/sase-core) repo. `sase` declares `sase-core-rs>=0.1.1,<0.2.0` as a hard
-runtime dependency, so a normal `pip install sase` (or `uv tool install sase`) on a supported platform pulls a prebuilt
+[`sase-core`](https://github.com/sase-org/sase-core) repo. `sase` declares `sase-core-rs` as a hard runtime dependency
+(see `pyproject.toml` for the pinned range), so a normal `uv tool install sase` (or `pip install sase`) pulls a prebuilt
 wheel automatically — no Rust toolchain required, no env-var selection, no Python fallback for ported operations.
 
 The shipped Rust-backed operations are grouped by the Python facade that calls them:
@@ -211,9 +211,9 @@ Post-migration targets for bead checks and future regression floors:
 platform from PyPI; no Rust toolchain is needed:
 
 ```bash
-pip install sase
-# or
 uv tool install sase
+# or, for non-managed / library-style environments
+pip install sase
 ```
 
 The release matrix ships wheels for CPython 3.12+ on Linux x86_64, Linux aarch64, macOS universal2, and Windows x86_64.
@@ -525,7 +525,7 @@ Rust.
 If a user reports a `sase core health` failure post-release, the support workflow is:
 
 1. Verify the installed `sase-core-rs` version (`pip show sase-core-rs` or the JSON output of `sase core health -j`).
-2. Reinstall: `pip install --force-reinstall sase` (or `uv tool install --force sase`) to repull the wheel.
+2. Reinstall: `uv tool install --force sase` (or `pip install --force-reinstall sase`) to repull the wheel.
 3. If the wheel itself is broken on the user's platform, pin to the previous `sase-core-rs` version and file a bug in
    `../sase-core` with the `sase core health -j` output, the platform tag, and the failing binding.
 

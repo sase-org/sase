@@ -36,7 +36,7 @@ SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and one authenticat
 Codex, Antigravity CLI (`agy`), Qwen Code, or OpenCode. With Python and `uv` in place:
 
 ```bash
-uv tool install sase --python 3.12
+uv tool install sase
 sase version
 ```
 

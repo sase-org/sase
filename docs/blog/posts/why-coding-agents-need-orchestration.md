@@ -80,7 +80,7 @@ SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and at least one au
 the core package:
 
 ```bash
-uv tool install sase --python 3.12
+uv tool install sase
 sase version
 sase doctor
 ```
@@ -88,7 +88,7 @@ sase doctor
 Add GitHub support when you want PR/workspace integration:
 
 ```bash
-uv tool install sase --python 3.12 --with sase-github
+uv tool install sase --with sase-github
 gh auth login
 sase doctor -C plugins.github
 ```
@@ -96,14 +96,14 @@ sase doctor -C plugins.github
 Add Telegram support when you want chat-driven notifications and remote control:
 
 ```bash
-uv tool install sase --python 3.12 --with sase-telegram
+uv tool install sase --with sase-telegram
 sase axe chop doctor
 ```
 
 Install both plugins together if that is your normal setup:
 
 ```bash
-uv tool install sase --python 3.12 --with sase-github --with sase-telegram
+uv tool install sase --with sase-github --with sase-telegram
 ```
 
 If you are replacing an existing `uv tool` install, add `--force` to the same command. The quickstart has the fuller
