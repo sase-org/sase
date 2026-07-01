@@ -106,9 +106,9 @@ def test_format_duration_chosen_finite() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_kind_label_provider_coder_strips_suffix() -> None:
+def test_kind_label_provider_coder_shows_coder() -> None:
     view = _view("codex_coder", "provider_coder")
-    assert _kind_label(view) == "codex coder"
+    assert _kind_label(view) == "coder"
 
 
 def test_state_tag_configured() -> None:

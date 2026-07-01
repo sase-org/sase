@@ -44,7 +44,6 @@ from sase.llm_provider import (
 )
 from sase.llm_provider.config import (
     DEFAULT_MODEL_ALIAS_NAME,
-    PROVIDER_CODER_ALIAS_SUFFIX,
 )
 from sase.llm_provider.registry import format_provider_model_label
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
@@ -197,6 +196,7 @@ _NAME_CELL = 16
 _KIND_LABELS: dict[str, str] = {
     "default": "default",
     "role": "role",
+    "provider_coder": "coder",
     "user": "user",
 }
 
@@ -221,9 +221,6 @@ def _pad(value: str, width: int) -> str:
 
 def _kind_label(view: AliasView) -> str:
     """Return the small kind badge text for *view*."""
-    if view.kind == "provider_coder":
-        provider = view.name[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
-        return f"{provider} coder"
     return _KIND_LABELS.get(view.kind, view.kind)
 
 
