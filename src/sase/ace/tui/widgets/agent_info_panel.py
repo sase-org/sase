@@ -306,7 +306,6 @@ class AgentInfoPanel(Static):
             text.append("…", style="dim italic")
             return text
         text.append(f"{self._visible_agent_count}", style=self._TOTAL_COUNT_STYLE)
-        text.append(" Agents", style="bold #87D7FF")
         self._append_metric_strip(text)
         self._append_neighbor_badge(text)
         if self._search_query:

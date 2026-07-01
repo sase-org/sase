@@ -60,7 +60,7 @@ def test_grouping_badge_renders_by_project_when_unset() -> None:
     assert f"[group: by project ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
-def test_agent_count_strip_renders_total_before_agents_label() -> None:
+def test_agent_count_strip_renders_numeric_total_before_metrics() -> None:
     panel = AgentInfoPanel()
     panel._position = 2
     panel._total = 12
@@ -75,7 +75,7 @@ def test_agent_count_strip_renders_total_before_agents_label() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12 Agents [2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
+        "12 [2 stopped · 5 running · 2 waiting · 1 failed · 3 unread]"
     )
     assert "Agents: 2/12" not in plain
 
@@ -97,7 +97,7 @@ def test_agent_count_strip_reports_starting_separately() -> None:
     plain = _collect_text(panel)
 
     assert plain.startswith(
-        "12 Agents [2 stopped · 7 starting · 3 running · "
+        "12 [2 stopped · 7 starting · 3 running · "
         "4 waiting · 5 failed · 1 unread · 6 done]"
     )
 
@@ -170,7 +170,7 @@ def test_update_agent_counts_uses_plain_metric_text() -> None:
     plain = captured[-1]
 
     assert (
-        "10 Agents [2 stopped · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
+        "10 [2 stopped · 3 running · 4 waiting · 5 failed · 1 unread · 6 done]"
     ) in plain
     assert "Agents(" not in plain
     assert "#FFAF5F" not in plain
@@ -193,7 +193,7 @@ def test_agent_count_strip_omits_zero_metric_types() -> None:
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert plain.startswith("9 Agents [3 running · 1 failed · 2 unread]")
+    assert plain.startswith("9 [3 running · 1 failed · 2 unread]")
     assert "stopped" not in counts_prefix
     assert "waiting" not in counts_prefix
     assert " done" not in counts_prefix
@@ -215,7 +215,7 @@ def test_agent_count_strip_omits_metrics_section_when_all_counts_are_zero() -> N
     plain = _collect_text(panel)
     counts_prefix = plain.split("   [group:", 1)[0]
 
-    assert counts_prefix == "5 Agents"
+    assert counts_prefix == "5"
 
 
 def test_neighbor_badge_is_omitted_without_visible_neighbors() -> None:
