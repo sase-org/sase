@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-01 07:05:33
-status: wip
+status: done
 prompt: sdd/prompts/202607/onboarding_install_plugins_step.md
 ---
 # Plan: "Install plugins" onboarding step (shown only when no plugins are installed)

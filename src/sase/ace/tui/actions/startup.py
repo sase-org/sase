@@ -55,6 +55,10 @@ class StartupMixin(
     _agents_onboarding_launch_targets_refresh_scheduled: bool
     _agents_onboarding_launch_targets_refresh_running: bool
     _agents_onboarding_launch_targets_refresh_pending: bool
+    _agents_onboarding_plugins_installed: bool
+    _agents_onboarding_plugins_refresh_scheduled: bool
+    _agents_onboarding_plugins_refresh_running: bool
+    _agents_onboarding_plugins_refresh_pending: bool
     _refresh_timer: Timer | None
     _countdown_timer: Timer | None
     _countdown_remaining: int

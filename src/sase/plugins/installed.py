@@ -94,6 +94,28 @@ def build_installed_index(
     return index
 
 
+# pyvision: sdd/tales/202607/onboarding_install_plugins_step.md
+def installed_plugin_distributions(
+    *,
+    candidates_fn: CandidatesFn = _installed_plugin_candidates,
+) -> tuple[str, ...]:
+    """Return normalized distribution names for installed third-party plugins."""
+    names: list[str] = []
+    for candidate in candidates_fn():
+        key = normalize_distribution_name(candidate.distribution_name)
+        if key:
+            names.append(key)
+    return tuple(_dedupe(names))
+
+
+def any_plugins_installed(
+    *,
+    candidates_fn: CandidatesFn = _installed_plugin_candidates,
+) -> bool:
+    """Return whether any third-party SASE plugin is installed locally."""
+    return bool(installed_plugin_distributions(candidates_fn=candidates_fn))
+
+
 def lookup_installed(
     index: dict[str, InstalledInfo],
     *,
@@ -138,6 +160,8 @@ def _clean_version(version: str | None) -> str | None:
 
 __all__ = [
     "InstalledInfo",
+    "any_plugins_installed",
     "build_installed_index",
+    "installed_plugin_distributions",
     "lookup_installed",
 ]

@@ -1424,6 +1424,11 @@ HintInputBar #hint-escape-hint {
     margin-bottom: 1;
 }
 
+.agent-onboarding-card.-recommend {
+    border: round #AF87FF;
+    border-title-color: #AF87FF;
+}
+
 #agent-onboarding-footer {
     width: 100%;
     max-width: 90;

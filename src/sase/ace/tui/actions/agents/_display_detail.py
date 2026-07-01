@@ -52,6 +52,10 @@ class DetailMixin:
     _agents_onboarding_launch_targets_refresh_scheduled: bool
     _agents_onboarding_launch_targets_refresh_running: bool
     _agents_onboarding_launch_targets_refresh_pending: bool
+    _agents_onboarding_plugins_installed: bool
+    _agents_onboarding_plugins_refresh_scheduled: bool
+    _agents_onboarding_plugins_refresh_running: bool
+    _agents_onboarding_plugins_refresh_pending: bool
 
     def _apply_agent_detail_immediate(self) -> None:
         """Update the agent detail prompt header without spawning workers."""
@@ -228,6 +232,72 @@ class DetailMixin:
             return
         onboarding.set_launch_targets_available(available)
 
+    def _schedule_agents_onboarding_plugins_refresh(self) -> None:
+        """Queue a coalesced off-thread refresh of plugin presence."""
+        if getattr(
+            self,
+            "_agents_onboarding_plugins_refresh_running",
+            False,
+        ):
+            self._agents_onboarding_plugins_refresh_pending = True
+            return
+        if getattr(
+            self,
+            "_agents_onboarding_plugins_refresh_scheduled",
+            False,
+        ):
+            return
+        call_later = getattr(self, "call_later", None)
+        if not callable(call_later):
+            return
+        self._agents_onboarding_plugins_refresh_scheduled = True
+        call_later(self._run_agents_onboarding_plugins_refresh)
+
+    async def _run_agents_onboarding_plugins_refresh(self) -> None:
+        """Compute plugin presence off-thread and update the card."""
+        self._agents_onboarding_plugins_refresh_scheduled = False
+        self._agents_onboarding_plugins_refresh_running = True
+        try:
+            from ._onboarding_plugins import (
+                discover_agents_onboarding_plugins_installed,
+            )
+
+            installed = await asyncio.to_thread(
+                discover_agents_onboarding_plugins_installed
+            )
+            self._apply_agents_onboarding_plugins_installed(installed)
+        except Exception:
+            log.exception("Agents onboarding plugin refresh failed")
+        finally:
+            self._agents_onboarding_plugins_refresh_running = False
+            if self._agents_onboarding_plugins_refresh_pending:
+                self._agents_onboarding_plugins_refresh_pending = False
+                self._schedule_agents_onboarding_plugins_refresh()
+
+    def _apply_agents_onboarding_plugins_installed(self, installed: bool) -> None:
+        """Store and, if visible, apply plugin presence to the recommendation."""
+        from textual.css.query import NoMatches
+
+        from ...widgets import AgentOnboarding
+
+        changed = (
+            getattr(
+                self,
+                "_agents_onboarding_plugins_installed",
+                True,
+            )
+            != installed
+        )
+        self._agents_onboarding_plugins_installed = installed
+        if not changed or not self._should_show_agents_onboarding():
+            return
+
+        try:
+            onboarding = self.query_one("#agent-onboarding-panel", AgentOnboarding)  # type: ignore[attr-defined]
+        except (NoMatches, LookupError):
+            return
+        onboarding.set_plugins_installed(installed)
+
     def _sync_agents_onboarding(
         self,
         *,
@@ -273,11 +343,19 @@ class DetailMixin:
             ),
             refresh=False,
         )
+        onboarding.set_plugins_installed(
+            getattr(
+                self,
+                "_agents_onboarding_plugins_installed",
+                True,
+            )
+        )
         if registry is not None:
             onboarding.set_keymap_registry(registry)
         else:
             onboarding.refresh_content()
         self._schedule_agents_onboarding_launch_targets_refresh()
+        self._schedule_agents_onboarding_plugins_refresh()
         if footer_widget is not None:
             self._apply_agent_footer_update(agent_detail, footer_widget, None)
         return True

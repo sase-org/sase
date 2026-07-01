@@ -4,16 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from sase.plugins import installed as installed_module
 from sase.plugins.installed import (
     InstalledInfo,
+    any_plugins_installed,
     build_installed_index,
+    installed_plugin_distributions,
     lookup_installed,
 )
 from sase.plugins.inventory import (
     PluginInventory,
     _PluginDistributionRecord,
 )
-from sase.version._plugins import plugin_candidates_from_distributions
+from sase.version._plugins import PluginCandidate, plugin_candidates_from_distributions
 from tests._version_inventory_helpers import _FakeDistribution, _FakeEntryPoint
 
 
@@ -132,3 +137,61 @@ def test_lookup_installed_missing_is_not_installed() -> None:
     assert info.installed is False
     assert info.version is None
     assert info.entry_point_groups == ()
+
+
+def test_any_plugins_installed_false_for_empty_candidates() -> None:
+    assert any_plugins_installed(candidates_fn=lambda: ()) is False
+
+
+def test_any_plugins_installed_true_for_plugin_candidate(tmp_path: Path) -> None:
+    dist = _FakeDistribution(
+        name="sase-github",
+        version="0.4.1",
+        location=tmp_path,
+    )
+    candidate = PluginCandidate(
+        distribution_name="sase-github",
+        distribution=dist,
+        import_module="sase_github",
+        plugin_signals=("distribution_name:sase-github",),
+    )
+
+    assert any_plugins_installed(candidates_fn=lambda: (candidate,)) is True
+    assert installed_plugin_distributions(candidates_fn=lambda: (candidate,)) == (
+        "sase-github",
+    )
+
+
+def test_installed_plugin_distributions_excludes_runtime_distributions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host_ep = _FakeEntryPoint(
+        group="sase_config",
+        name="host",
+        value="sase.config:load",
+    )
+    host_dist = _FakeDistribution(
+        name="sase",
+        version="1.2.3",
+        location=tmp_path,
+        entry_points=(host_ep,),
+    )
+    core_dist = _FakeDistribution(
+        name="sase-core-rs",
+        version="1.2.3",
+        location=tmp_path,
+    )
+    plugin_dist = _FakeDistribution(
+        name="sase-foo",
+        version="0.1.0",
+        location=tmp_path,
+    )
+    monkeypatch.setattr(
+        installed_module.importlib.metadata,
+        "distributions",
+        lambda: [host_dist, core_dist, plugin_dist],
+    )
+
+    assert installed_plugin_distributions() == ("sase-foo",)
+    assert any_plugins_installed() is True

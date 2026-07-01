@@ -8,7 +8,7 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.actions.agents import _onboarding_launch_targets
+from sase.ace.tui.actions.agents import _onboarding_launch_targets, _onboarding_plugins
 from sase.ace.tui.actions.agents._display_detail import DetailMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -46,6 +46,20 @@ async def _wait_for_onboarding_launch_target_refresh(
             bool(calls)
             and not page.app._agents_onboarding_launch_targets_refresh_scheduled
             and not page.app._agents_onboarding_launch_targets_refresh_running
+        )
+    )
+    await page.pause()
+
+
+async def _wait_for_onboarding_plugins_refresh(
+    page: AcePage,
+    calls: list[bool],
+) -> None:
+    await page.wait_for(
+        lambda _state: (
+            bool(calls)
+            and not page.app._agents_onboarding_plugins_refresh_scheduled
+            and not page.app._agents_onboarding_plugins_refresh_running
         )
     )
     await page.pause()
@@ -248,6 +262,72 @@ async def test_agents_onboarding_project_cl_hint_hidden_without_targets(
         assert "open the prompt bar in your home workspace." in plain
         assert "Works from any tab; shell: sase ace." in plain
         assert "pick a project or CL first." not in plain
+
+
+async def test_agents_onboarding_plugins_card_visible_when_no_plugins_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[bool] = []
+
+    def _no_plugins_installed() -> bool:
+        calls.append(True)
+        return False
+
+    patch_startup_loaders(monkeypatch, agents=[])
+    monkeypatch.setattr(
+        _onboarding_plugins,
+        "discover_agents_onboarding_plugins_installed",
+        _no_plugins_installed,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 0)
+        await _wait_for_onboarding_plugins_refresh(page, calls)
+
+        plugins_card = page.query_one_widget("#agent-onboarding-plugins")
+        assert not plugins_card.has_class("hidden")
+        plain = _mounted_onboarding_plain(page)
+        assert "SASE Admin Center" in plain
+        assert "Updates" in plain
+        assert "sase-github" in plain
+
+
+async def test_agents_onboarding_plugins_card_hidden_when_plugins_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[bool] = []
+
+    def _plugins_installed() -> bool:
+        calls.append(True)
+        return True
+
+    patch_startup_loaders(monkeypatch, agents=[])
+    monkeypatch.setattr(
+        _onboarding_plugins,
+        "discover_agents_onboarding_plugins_installed",
+        _plugins_installed,
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 0)
+        await _wait_for_onboarding_plugins_refresh(page, calls)
+
+        plugins_card = page.query_one_widget("#agent-onboarding-plugins")
+        help_card = page.query_one_widget("#agent-onboarding-help")
+        assert plugins_card.has_class("hidden")
+        assert help_card.border_title == "3 Get more help"
 
 
 async def test_agents_onboarding_visible_for_hidden_only_workflow(

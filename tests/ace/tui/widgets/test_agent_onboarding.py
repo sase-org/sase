@@ -45,6 +45,54 @@ def test_agent_onboarding_uses_active_keymap_registry() -> None:
     assert "?" not in help_text
 
 
+def test_plugins_card_includes_admin_center_updates_and_github_copy() -> None:
+    widget = AgentOnboarding()
+    sections = widget.render_content(load_keymap_registry({}))
+    plugins_text = _section_plain(sections, "#agent-onboarding-plugins")
+
+    assert "Extend sase from the Admin Center" in plugins_text
+    assert "SASE Admin Center" in plugins_text
+    assert "Updates" in plugins_text
+    assert "install a plugin" in plugins_text
+    assert "update sase & all plugins" in plugins_text
+    assert "sase-github" in plugins_text
+    assert "GitHub PR & repo workflows" in plugins_text
+
+
+def test_plugins_card_uses_active_admin_center_keymap() -> None:
+    registry = load_keymap_registry({"keymaps": {"app": {"open_config_center": "f2"}}})
+    widget = AgentOnboarding()
+
+    sections = widget.render_content(registry)
+    plugins_text = _section_plain(sections, "#agent-onboarding-plugins")
+
+    assert "f2" in plugins_text
+    assert "#" not in plugins_text
+
+
+def test_agent_onboarding_numbering_hides_plugins_when_installed() -> None:
+    widget = AgentOnboarding()
+
+    assert widget.numbered_step_titles() == [
+        "1 Launch your first agent",
+        "2 The three tabs",
+        "3 Get more help",
+    ]
+
+
+def test_agent_onboarding_numbering_includes_plugins_when_none_installed() -> None:
+    widget = AgentOnboarding()
+
+    widget.set_plugins_installed(False)
+
+    assert widget.numbered_step_titles() == [
+        "1 Launch your first agent",
+        "2 The three tabs",
+        "3 Install plugins & keep sase current",
+        "4 Get more help",
+    ]
+
+
 def test_launch_card_includes_project_cl_hint_when_targets_exist() -> None:
     widget = AgentOnboarding()
     sections = widget.render_content(
