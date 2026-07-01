@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-01 08:06:25
-status: wip
+status: done
 prompt: sdd/prompts/202607/github_enterprise_support.md
 ---
 # Plan: GitHub Enterprise / Custom Root URL Support for the sase-github Plugin
