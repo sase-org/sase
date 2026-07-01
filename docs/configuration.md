@@ -528,6 +528,9 @@ Source: `src/sase/linked_repos.py`, `src/sase/agent/launch_spawn.py`
 Configures the version control system backend. See [docs/vcs.md](vcs.md) for the full VCS provider reference including
 per-command behavior, Git/Mercurial details, and troubleshooting.
 
+GitHub Enterprise host configuration (`github_hosts`) is owned by the `sase-github` plugin; see its
+[GitHub Enterprise setup walkthrough](https://github.com/sase-org/sase-github/blob/master/docs/configuration.md#github-enterprise-setup).
+
 ```yaml
 vcs_provider:
   provider: auto # "git", "hg", or "auto" (default: "auto")

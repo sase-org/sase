@@ -19,10 +19,10 @@ the **BareGitPlugin** (for plain git repositories). Additional VCS backends are 
 | `sase` (core) | `BareGitPlugin` | Standard git operations (bundled)         |
 | `sase-github` | `GitHubPlugin`  | Git + GitHub CLI (`gh`) for PR operations |
 
-Install optional providers via pip:
+Install optional providers into the same managed SASE environment:
 
 ```bash
-pip install sase-github   # GitHub PR support
+sase plugin install github   # GitHub PR support
 ```
 
 Plugins register themselves via the `sase_vcs` entry point group. The plugin manager loads all registered plugins and
@@ -118,8 +118,8 @@ If neither the environment variable nor config file specifies a provider, sase w
 current working directory looking for `.hg/` or `.git/` directories. The first one found determines the provider.
 
 - `.hg/` found first → Mercurial provider (`"hg"`)
-- `.git/` found first → Git provider. If a plugin claims the Git remote, such as `sase-github` claiming GitHub URLs,
-  that provider name wins.
+- `.git/` found first → Git provider. If a plugin claims the Git remote, such as `sase-github` claiming a configured
+  GitHub host, that provider name wins.
 - `.git/` found with a hosted remote (e.g., GitHub) but no VCS plugin claims the repo → falls back to `"bare_git"`. This
   preserves baseline commit capability even without provider-specific plugins like `sase-github`.
 - `.git/` found without a readable `origin` URL and no plugin claim → **Error**: `VCSProviderNotFoundError`
@@ -324,6 +324,14 @@ backend, BUG values are left as provided, and Mercurial-only refresh/split workf
 
 These are plugin capability gaps, not core VCS limitations: ordinary git operations, diffing, branch management,
 commit/proposal/PR dispatch, conflict resume, and workspace setup are still provided by the shared git implementation.
+
+### GitHub Enterprise
+
+The `sase-github` plugin supports GitHub Enterprise Server and other self-hosted GitHub hosts. Authenticate the GitHub
+CLI with `gh auth login --hostname <host>`, configure the host through `github_hosts`, and then use the normal
+`#gh(owner/repo)` workflow. The plugin's
+[GitHub Enterprise setup walkthrough](https://github.com/sase-org/sase-github/blob/master/docs/configuration.md#github-enterprise-setup)
+is the source of truth for the ordered setup, including SSH clone configuration and workspace layout.
 
 ### Sync
 
@@ -552,9 +560,9 @@ type name (e.g., `"hg"`) or `None`. Used during auto-detection when walking up t
 ### `vcs_classify_repo`
 
 For git repositories, further classifies by examining the remote URL. For example, the `sase-github` plugin claims repos
-with `github.com` URLs (returning `"github"`), while unclaimed repos fall through to the `"bare_git"` provider. This
-allows hosting-specific plugins to provide enhanced functionality (e.g., PR operations via `gh` CLI) without modifying
-the core.
+whose remote host is in the configured GitHub host set, returning `"github"` for `github.com` by default and for any
+hosts listed in `github_hosts`. Unclaimed repos fall through to the `"bare_git"` provider. This allows hosting-specific
+plugins to provide enhanced functionality (e.g., PR operations via `gh` CLI) without modifying the core.
 
 ## Troubleshooting
 
@@ -589,6 +597,9 @@ brew install gh
 
 # Then authenticate
 gh auth login
+
+# GitHub Enterprise / self-hosted GitHub
+gh auth login --hostname github.mycompany.com
 ```
 
 ### Mercurial: Plugin Not Installed

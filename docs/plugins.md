@@ -37,12 +37,15 @@ points resolve to a module whose package resources are read by Sase.
 ## Installation
 
 ```bash
-# Core sase (includes BareGitPlugin for plain git repos)
-pip install sase
+# Core SASE (installs the sase tool)
+uv tool install sase --python 3.12
 
-# Add GitHub PR support
-pip install sase-github
+# Core SASE + GitHub PR support in one command
+uv tool install sase --python 3.12 --with sase-github
 ```
+
+To add GitHub PR support to an existing managed install, use `sase plugin install github` or install it interactively
+from the [SASE Admin Center Updates tab](configuration.md#updates-tab).
 
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 
