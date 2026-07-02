@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-02 05:55:40
-status: wip
+status: done
 prompt: sdd/prompts/202607/fix_config_schema_wheel_packaging.md
 ---
 # Fix Config Center schema-load error on wheel installs (uv tool install)

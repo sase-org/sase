@@ -184,7 +184,7 @@ Home roots are the exception. For the live home root, user config from `~/.confi
 under `dot_config/sase/` is used instead. With `use_chezmoi: true`, `sase memory init` initializes the chezmoi home
 source root rather than writing a live-home `AGENTS.md`.
 
-Source: `src/sase/default_config.yml`, `config/sase.schema.json`
+Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
 ### ace
 

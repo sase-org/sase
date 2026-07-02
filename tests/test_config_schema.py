@@ -2,20 +2,37 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
 from jsonschema import Draft7Validator
 from jsonschema.exceptions import ValidationError
 
+from sase.config.inventory import config_schema_path, load_config_schema
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _schema() -> dict[str, Any]:
+    return load_config_schema()
+
+
+def test_config_schema_resolves_inside_sase_package() -> None:
+    schema_path = config_schema_path().resolve()
+    package_root = Path(str(importlib.resources.files("sase"))).resolve()
+
+    assert schema_path.is_file()
+    assert schema_path.is_relative_to(package_root)
+    json.loads(schema_path.read_text(encoding="utf-8"))
+
+
 def test_default_config_matches_public_schema() -> None:
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     default_config = yaml.safe_load(
         (REPO_ROOT / "src/sase/default_config.yml").read_text()
     )
@@ -30,7 +47,7 @@ def test_default_config_matches_public_schema() -> None:
 
 
 def test_config_schema_accepts_xprompt_input_descriptions() -> None:
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     config = {
         "xprompts": {
             "review": {
@@ -65,7 +82,7 @@ def test_config_schema_accepts_xprompt_input_descriptions() -> None:
 
 
 def test_config_schema_accepts_xprompt_log_skill_use() -> None:
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     config = {
         "xprompts": {
             "quiet_skill": {
@@ -86,7 +103,7 @@ def test_config_schema_accepts_xprompt_log_skill_use() -> None:
 
 
 def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
 
     for config in ({"amd_h1_title": None}, {"amd_h1_title": "Agent Instructions"}):
         errors = sorted(
@@ -99,7 +116,7 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
 
 def test_config_schema_rejects_worker_models_mapping() -> None:
     """``worker_models`` was removed by the model-alias migration (epic sase-5d)."""
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     config = {
         "llm_provider": {
             "worker_models": {
@@ -124,7 +141,7 @@ def test_config_schema_rejects_worker_models_mapping() -> None:
 
 def test_config_schema_rejects_obsolete_default_model_field() -> None:
     """A stale ``llm_provider.default_model`` is rejected (use model_aliases.default)."""
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     config = {"llm_provider": {"default_model": "claude/opus"}}
 
     errors = sorted(
@@ -142,7 +159,7 @@ def test_config_schema_rejects_obsolete_default_model_field() -> None:
 
 def test_config_schema_accepts_model_aliases_with_at_references() -> None:
     """``model_aliases`` stays a string map so ``@alias`` references validate."""
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     config = {
         "llm_provider": {
             "model_aliases": {
@@ -162,7 +179,7 @@ def test_config_schema_accepts_model_aliases_with_at_references() -> None:
 
 
 def test_config_schema_rejects_legacy_worker_model_field() -> None:
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     config = {"llm_provider": {"worker_model": "codex/gpt-5.5"}}
 
     errors = sorted(
@@ -182,7 +199,7 @@ def test_config_schema_rejects_legacy_worker_model_field() -> None:
 def test_config_schema_requires_linked_repo_descriptions(repos_key: str) -> None:
     # Both the canonical ``linked_repos`` key and the deprecated ``sibling_repos``
     # alias share the same item schema, so each enforces the required fields.
-    schema = json.loads((REPO_ROOT / "config/sase.schema.json").read_text())
+    schema = _schema()
     config = {
         repos_key: [
             {

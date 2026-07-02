@@ -45,15 +45,19 @@ class ConfigBackendError(RuntimeError):
 # --- Schema loading -------------------------------------------------------
 
 
-def _config_schema_path() -> Path:
-    """Resolve the bundled ``config/sase.schema.json`` document path.
+def config_schema_path() -> Path:
+    """Resolve the bundled ``src/sase/config/sase.schema.json`` path.
 
-    Mirrors ``sase path config-schema``: the schema ships alongside the repo
-    (not inside the ``sase`` package), so it is resolved relative to the
-    installed package directory.
+    The schema lives inside the ``sase`` package, so ``importlib.resources``
+    resolves it for both wheel and editable installs.
     """
-    sase_pkg = Path(str(importlib.resources.files("sase")))
-    return (sase_pkg / ".." / ".." / "config" / "sase.schema.json").resolve()
+    sase_pkg = Path(str(importlib.resources.files("sase"))).resolve()
+    return sase_pkg / "config" / "sase.schema.json"
+
+
+def _config_schema_path() -> Path:
+    """Backward-compatible private alias for :func:`config_schema_path`."""
+    return config_schema_path()
 
 
 def load_config_schema() -> dict[str, Any]:
@@ -473,7 +477,7 @@ def build_config_inventory(
 
     Args:
         schema: JSON Schema document to flatten. Defaults to the bundled
-            ``config/sase.schema.json``.
+            ``src/sase/config/sase.schema.json``.
         local_paths: Explicitly-selected project-local ``sase.yml`` paths to
             include as selectable local layers (ACE disables the implicit
             local layer, so the Config Center selects local config here).

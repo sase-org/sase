@@ -55,8 +55,8 @@ mentor_profiles:
           - focus_name: config_schema_sync
             description: >
               When new config fields are added or changed (in default_config.yml, sase.yml, or code), check that
-              config/sase.schema.json is updated to match. Missing schema updates break yaml-language-server LSP
-              validation in editors. This is the single most common gotcha in this repo.
+              src/sase/config/sase.schema.json is updated to match. Missing schema updates break yaml-language-server
+              LSP validation in editors. This is the single most common gotcha in this repo.
           - focus_name: cross_repo_impact
             description: >
               When renaming files, changing config structure, or modifying shared interfaces, check whether maintained

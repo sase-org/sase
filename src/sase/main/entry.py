@@ -237,11 +237,9 @@ def main() -> NoReturn:
     # --- path ---
     if args.command == "path":
         if args.name == "config-schema":
-            from pathlib import Path
-            import importlib.resources
+            from sase.config.inventory import config_schema_path
 
-            sase_pkg = Path(str(importlib.resources.files("sase")))
-            schema = (sase_pkg / ".." / ".." / "config" / "sase.schema.json").resolve()
+            schema = config_schema_path()
             if schema.is_file():
                 print(schema)
             else:

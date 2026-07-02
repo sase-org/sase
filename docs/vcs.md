@@ -514,7 +514,8 @@ Valid values for all three methods: `git`, `hg`, `auto`.
 
 ### Schema
 
-The `vcs_provider` section in `sase.yml` is validated against the schema at `~/.config/sase/sase.schema.json`:
+The `vcs_provider` section in `sase.yml` is validated against the installed config schema returned by
+`sase path config-schema`:
 
 ```json
 {
