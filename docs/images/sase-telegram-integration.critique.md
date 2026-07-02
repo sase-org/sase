@@ -93,10 +93,8 @@ The grounding sources for accuracy are `../sase-telegram/README.md`, `../sase-te
   still process, but free-form text/photo messages no longer launch agents) is a deployment-relevant configuration. It
   does not need its own node, but a small footnote near the inbound "launch agent" arrow ("disabled when
   `SASE_TELEGRAM_LAUNCH_AGENTS_DISABLED` is set") would prevent the diagram from misleading multi-host operators.
-- **Activity-aware sending source is mis-attributed.** The OUTBOUND idle check reads SASE TUI's idle state file (written
-  by the TUI's activity tracker), not a `sase-telegram` internal heuristic. The diagram should show an arrow from
-  `ACE TUI` (or a labelled "TUI activity / idle state file") into OUTBOUND step 3, otherwise the idle check looks
-  self-contained inside the bridge process.
+- **Outbound delivery controls are mis-attributed.** OUTBOUND no longer reads SASE TUI user-presence state. The diagram
+  should show OUTBOUND step 3 as high-water mark / read-state / rate-limit filtering rather than a user-presence gate.
 - **Outbound side-effects on attachments are not represented.** The outbound script materialises response-only Markdown
   extracts and converts attachments to PDF via SASE's shared renderer (`pdf_convert.py`). The diagram has a "generated
   images & artifacts" box on the SASE-core side but no arrow into OUTBOUND that represents attachment delivery to
@@ -115,8 +113,7 @@ first-time reader.
    outbound_debug.log; \_inbound* — update*offset, awaiting_feedback, pending_actions; \_attachments* — images/).
 3. Replace the single "Approve / Reject" keyboard with the actual plan-approval row (Tale · ✅ Approve · Epic · Legend ·
    Reject · Feedback) and add a small badge strip naming the eight notification types and the seven slash commands.
-4. Show AXE feeding **both** lanes; show TUI idle-state file feeding OUTBOUND step 3; show
-   `generated images & artifacts` feeding the OUTBOUND format step.
+4. Show AXE feeding **both** lanes; show `generated images & artifacts` feeding the OUTBOUND format step.
 5. Re-letter the lanes (`O1..O5`, `I1..I3`) so the two flows are visually independent.
 6. Insert an explicit `SASE core | ../sase-telegram` process boundary, and label the cross-boundary artifacts
    (`notifications.jsonl`, `*.response.json`, `sase run` subprocess) on the arrows that traverse it.

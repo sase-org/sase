@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ._event_activity import EventActivityMixin
 from ._event_base import TabName
+from ._event_countdown import EventCountdownMixin
 from ._event_keyboard import EventKeyboardMixin
 from ._event_refresh import (
     FULL_SANITY_REFRESH_SECONDS,
@@ -16,7 +16,7 @@ from ._event_widgets import EventWidgetHandlersMixin
 class EventHandlersMixin(
     EventWidgetHandlersMixin,
     EventKeyboardMixin,
-    EventActivityMixin,
+    EventCountdownMixin,
     EventRefreshMixin,
 ):
     """Mixin combining ACE TUI event handlers and timer callbacks."""

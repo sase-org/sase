@@ -207,10 +207,6 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Agent run log",
                 ),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'activity_info'))}",
-                    "Activity dashboard",
-                ),
-                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'models_panel'))}",
                     "Models panel",
                 ),
@@ -271,11 +267,6 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
-                (d(a.mark_inactive), "Toggle idle (any key clears)"),
-                (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_inactive_pinned'))}",
-                    "Toggle pinned idle (sticky)",
-                ),
                 (d(a.toggle_hide_submitted), "Show/hide submitted PRs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (

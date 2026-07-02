@@ -344,7 +344,6 @@ def _patch_non_agent_startup(monkeypatch: pytest.MonkeyPatch) -> None:
 
     import sase.notifications as notifications
     from sase.ace import grouping_strategy
-    from sase.ace import tui_activity
     from sase.ace.tui.models.agent_groups import GroupingMode
     from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
     from sase.ace.tui.widgets import llm_override_indicator
@@ -363,9 +362,6 @@ def _patch_non_agent_startup(monkeypatch: pytest.MonkeyPatch) -> None:
             expired_ids=[],
             counts=SimpleNamespace(priority=0, rest=0, muted=0, errors=0),
         )
-
-    def _fake_activity_write(*_args: object, **_kwargs: object) -> None:
-        return None
 
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
     monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)
@@ -404,14 +400,6 @@ def _patch_non_agent_startup(monkeypatch: pytest.MonkeyPatch) -> None:
         "get_active_temporary_override",
         lambda *_args, **_kwargs: None,
     )
-    monkeypatch.setattr(tui_activity, "read_pinned_idle", lambda: False)
-    monkeypatch.setattr(tui_activity, "write_tui_pid", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "write_activity_timestamp", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "write_last_keypress", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "write_idle_state", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "remove_tui_pid", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "remove_idle_state", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "remove_last_keypress", _fake_activity_write)
 
 
 async def _wait_until(

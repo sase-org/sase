@@ -16,7 +16,6 @@ EXPECTED_TOP_BAR_ORDER = [
     "updates-indicator",
     "llm-override-indicator",
     "alias-overrides-indicator",
-    "inactive-indicator",
     "stashed-prompts-indicator",
     "notification-indicator",
 ]

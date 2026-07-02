@@ -91,14 +91,11 @@ def init_late_startup_state(
 
     self._saved_queries = load_saved_queries()
 
-    # Load inactive_seconds from merged config
+    # Load ACE settings from merged config.
     from sase.config import load_merged_config
 
     merged = load_merged_config()
     ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
-    self._inactive_seconds = int(
-        ace_cfg.get("inactive_seconds", 600) if isinstance(ace_cfg, dict) else 600
-    )
     self._agents_repro_output_dir = (
         str(ace_cfg.get("repro_output_dir", "")) if isinstance(ace_cfg, dict) else ""
     )

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-02 10:47:52
-status: wip
+status: done
 prompt: sdd/prompts/202607/remove_idle_tracking.md
 ---
 # Remove the User Idle / Activity-Tracking System

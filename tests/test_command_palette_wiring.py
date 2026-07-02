@@ -335,12 +335,12 @@ def test_execute_leader_repeat_last_dispatches_configured_subkeys() -> None:
         spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
     }
 
-    execute_command(app, catalog["leader.activity_info"])
+    execute_command(app, catalog["leader.models_panel"])
     execute_command(app, catalog["leader.repeat_last"])
 
     assert app._leader_mode_active is True
     assert app._handle_leader_key.call_args_list == [
-        (("i",),),
+        (("m",),),
         (("comma",),),
     ]
 

@@ -16,7 +16,6 @@ from .changespec_list import ChangeSpecList
 from .hint_input_bar import HintInputBar
 from .keybinding_footer import KeybindingFooter
 from .tools_panel import AgentToolsPanel, ToolsVisibilityChanged
-from .inactive_indicator import InactiveIndicator
 from .llm_override_indicator import LLMOverrideIndicator
 from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
@@ -56,7 +55,6 @@ __all__ = [
     "ChangeSpecList",
     "FileTrimChanged",
     "HintInputBar",
-    "InactiveIndicator",
     "KeybindingFooter",
     "LLMOverrideIndicator",
     "NotificationIndicator",

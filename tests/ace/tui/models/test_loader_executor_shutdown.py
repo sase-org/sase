@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from sase.ace import dismissed_agents_bundles, tui_activity
+from sase.ace import dismissed_agents_bundles
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.models._loaders import (
     _done_loaders,
@@ -67,7 +67,6 @@ def test_shutdown_loader_executor_is_noop_without_pool() -> None:
 def test_lifecycle_do_quit_shuts_down_loader_executor(monkeypatch) -> None:
     calls: list[str] = []
     app = _lifecycle_app(calls)
-    _patch_activity_writes(monkeypatch, calls)
     monkeypatch.setattr(
         _json_cache,
         "shutdown_loader_executor",
@@ -83,7 +82,6 @@ def test_lifecycle_do_quit_shuts_down_loader_executor(monkeypatch) -> None:
 def test_lifecycle_do_quit_exits_after_cleanup_failure(monkeypatch) -> None:
     calls: list[str] = []
     app = _lifecycle_app(calls)
-    _patch_activity_writes(monkeypatch, calls)
     monkeypatch.setattr(
         _json_cache,
         "shutdown_loader_executor",
@@ -172,7 +170,6 @@ def test_loader_consumers_return_empty_during_executor_shutdown(
 def _lifecycle_app(calls: list[str]) -> LifecycleMixin:
     app = LifecycleMixin.__new__(LifecycleMixin)
     app.changespecs = []
-    app._pinned_idle = False
     app._stop_artifact_watcher = lambda: calls.append("watcher")
     app._cancel_pending_artifact_discovery = lambda: calls.append("discovery")
     app._cancel_pending_content_search_refresh = lambda: calls.append("content-search")
@@ -184,25 +181,6 @@ def _lifecycle_app(calls: list[str]) -> LifecycleMixin:
     )
     app.exit = lambda: calls.append("exit")
     return app
-
-
-def _patch_activity_writes(monkeypatch, calls: list[str]) -> None:
-    monkeypatch.setattr(
-        tui_activity,
-        "write_activity_timestamp",
-        lambda _timestamp: calls.append("activity-timestamp"),
-    )
-    monkeypatch.setattr(
-        tui_activity,
-        "remove_idle_state",
-        lambda: calls.append("idle-state"),
-    )
-    monkeypatch.setattr(
-        tui_activity,
-        "remove_last_keypress",
-        lambda: calls.append("last-keypress"),
-    )
-    monkeypatch.setattr(tui_activity, "remove_tui_pid", lambda: calls.append("pid"))
 
 
 def _done_artifact_tree(tmp_path: Path) -> Path:

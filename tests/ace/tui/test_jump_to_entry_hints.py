@@ -102,7 +102,7 @@ class _InlineJumpEventApp(EventHandlersMixin):
         self.handled_keys: list[str] = []
         self.activity_recorded = False
 
-    def _record_user_activity(self) -> None:
+    def _record_input_event(self) -> None:
         self.activity_recorded = True
 
     def _handle_entry_jump_key(self, key: str) -> bool:

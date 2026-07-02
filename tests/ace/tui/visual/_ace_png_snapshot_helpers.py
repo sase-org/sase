@@ -343,7 +343,6 @@ def patch_startup_loaders(
     """Replace background startup data sources with deterministic fixtures."""
     import sase.notifications as notifications
     from sase.ace import grouping_strategy
-    from sase.ace import tui_activity
     from sase.ace.tui import memory_reads as memory_reads_module
     from sase.ace.tui import opened_workspaces as opened_workspaces_module
     from sase.ace.tui import skill_uses as skill_uses_module
@@ -423,12 +422,6 @@ def patch_startup_loaders(
     def _fake_get_active_temporary_override(*_args: Any, **_kwargs: Any) -> None:
         return None
 
-    def _fake_read_pinned_idle() -> bool:
-        return False
-
-    def _fake_activity_write(*_args: Any, **_kwargs: Any) -> None:
-        return None
-
     monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
     monkeypatch.setattr(
         memory_reads_module,
@@ -472,14 +465,6 @@ def patch_startup_loaders(
         "get_active_temporary_override",
         _fake_get_active_temporary_override,
     )
-    monkeypatch.setattr(tui_activity, "read_pinned_idle", _fake_read_pinned_idle)
-    monkeypatch.setattr(tui_activity, "write_tui_pid", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "write_activity_timestamp", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "write_last_keypress", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "write_idle_state", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "remove_tui_pid", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "remove_idle_state", _fake_activity_write)
-    monkeypatch.setattr(tui_activity, "remove_last_keypress", _fake_activity_write)
     monkeypatch.setattr(
         llm_override_indicator,
         "resolve_effective_default_provider_model",
@@ -500,9 +485,6 @@ def patch_startup_loaders(
         llm_override_indicator.resolve_effective_default_provider_model
         is _fake_resolve_effective_default_provider_model
     ), "LLM provider resolver patch did not bind — visual snapshot may re-leak state"
-    assert tui_activity.read_pinned_idle is _fake_read_pinned_idle, (
-        "Pinned-idle patch did not bind — visual snapshot may re-leak state"
-    )
 
 
 async def wait_for_startup(page: AcePage) -> None:

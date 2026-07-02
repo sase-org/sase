@@ -192,7 +192,6 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 
 ```yaml
 ace:
-  inactive_seconds: 600 # seconds before showing IDLE indicator (default: 600)
   updates:
     startup_toast: true # show update-available toast on startup
     post_update_toast: true # confirm the version transition after self-update restart
@@ -231,15 +230,11 @@ ace:
 
 | Field               | Type         | Default   | Description                                                                                                                                                |
 | ------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `inactive_seconds`  | int          | `600`     | Seconds of inactivity before the IDLE badge appears in the TUI top bar.                                                                                    |
 | `keymaps`           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 | `updates`           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
-
-The app-level `I` keybinding marks temporary idle until the next keypress. Leader-mode `,I` toggles pinned idle, which
-regular keypresses do not clear. External tools can query idle status via `sase.ace.tui_activity.is_idle()`.
 
 #### `ace.updates`
 

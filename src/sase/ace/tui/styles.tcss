@@ -35,11 +35,6 @@
     content-align: right middle;
 }
 
-#inactive-indicator {
-    width: auto;
-    content-align: right middle;
-}
-
 #notification-indicator {
     width: auto;
     content-align: right middle;
@@ -2372,45 +2367,6 @@ PreviewPanelModal #preview-content {
 }
 
 PreviewPanelModal #preview-footer {
-    text-align: center;
-    color: $text-muted;
-    height: auto;
-    margin-top: 1;
-    border-top: solid $secondary;
-    padding-top: 1;
-}
-
-/* ===== Activity Modal Styling ===== */
-
-ActivityModal {
-    align: center middle;
-}
-
-ActivityModal > Container {
-    width: 80;
-    height: 85%;
-    border: double $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-ActivityModal #activity-title {
-    text-align: center;
-    height: auto;
-    margin-bottom: 1;
-}
-
-ActivityModal #activity-content-scroll {
-    height: 1fr;
-    scrollbar-gutter: stable;
-}
-
-ActivityModal #activity-content {
-    width: 100%;
-    height: auto;
-}
-
-ActivityModal #activity-footer {
     text-align: center;
     color: $text-muted;
     height: auto;

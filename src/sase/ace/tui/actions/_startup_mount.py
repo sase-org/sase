@@ -31,7 +31,6 @@ class StartupMountMixin:
             ChangeSpecDetail,
             ChangeSpecInfoPanel,
             ChangeSpecList,
-            InactiveIndicator,
             KeybindingFooter,
             SearchQueryPanel,
             TabBar,
@@ -96,17 +95,6 @@ class StartupMountMixin:
             self._apply_startup_loading_state()
             self.call_after_refresh(self._start_post_mount_background_loads)
 
-            from sase.ace.tui_activity import (
-                read_pinned_idle,
-                write_activity_timestamp,
-                write_idle_state,
-                write_last_keypress,
-                write_tui_pid,
-            )
-
-            from ..activity_log import ActivityEventType
-
-            write_tui_pid()
             from ..util.stall_watchdog import (
                 start_event_loop_stall_watchdog,
                 subscribe_watchdog_to_suspend_signals,
@@ -119,23 +107,7 @@ class StartupMountMixin:
             self._stall_watchdog_suspend_signals_wired = (
                 subscribe_watchdog_to_suspend_signals(self, self._stall_watchdog)
             )
-            self._activity_log.record(ActivityEventType.SESSION_START)
-            if read_pinned_idle():
-                self._pinned_idle = True
-                if hasattr(self, "_last_activity_time"):
-                    del self._last_activity_time
-                write_activity_timestamp(0)
-                write_idle_state(True)
-                indicator = self.query_one("#inactive-indicator", InactiveIndicator)
-                indicator.set_idle(True, pinned=True)
-                self._activity_log.record(ActivityEventType.IDLE_RESTORED)
-            else:
-                self._last_activity_time = time.monotonic()
-                self._last_activity_flush = time.monotonic()
-                now = time.time()
-                write_activity_timestamp(now)
-                write_last_keypress(now)
-                write_idle_state(False)
+            self._last_input_mono = time.monotonic()
 
             if self.refresh_interval > 0:
                 self._countdown_remaining = self.refresh_interval
@@ -154,9 +126,9 @@ class StartupMountMixin:
         """Return side-effect-free context for the stall watchdog thread."""
         now_mono = time.monotonic()
         last_keypress_age_s: float | None = None
-        if hasattr(self, "_last_activity_time"):
-            last_keypress_age_s = max(0.0, now_mono - self._last_activity_time)
-        current_state = self._activity_log.current_state()
+        last_input_mono = getattr(self, "_last_input_mono", 0.0)
+        if last_input_mono > 0.0:
+            last_keypress_age_s = max(0.0, now_mono - last_input_mono)
         return {
             "current_tab": self.current_tab,
             "current_idx": self.current_idx,
@@ -164,9 +136,6 @@ class StartupMountMixin:
             "last_keypress_age_s": (
                 None if last_keypress_age_s is None else round(last_keypress_age_s, 3)
             ),
-            "activity_state": None
-            if current_state is None
-            else current_state.event.value,
         }
 
     def _maybe_end_startup_stopwatch(self: Any) -> None:

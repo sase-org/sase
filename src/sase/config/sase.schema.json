@@ -115,11 +115,6 @@
       "description": "Configuration for the ace TUI",
       "additionalProperties": false,
       "properties": {
-        "inactive_seconds": {
-          "type": "integer",
-          "description": "Seconds of inactivity before auto-sleep",
-          "default": 600
-        },
         "repro_output_dir": {
           "type": "string",
           "description": "Directory where ACE agent repro captures are written. Empty string uses the runtime default.",

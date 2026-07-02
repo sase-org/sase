@@ -126,7 +126,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
             "saved group name",
         ),
     ),
-    ("mark_inactive", "Mark inactive", "Marking", ALL_TABS, ("idle",)),
     # Agents / Axe actions
     ("kill_agent", "Kill / dismiss / start-stop axe", "Agents", ALL_TABS, ()),
     (

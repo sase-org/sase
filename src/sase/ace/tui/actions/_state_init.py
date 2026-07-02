@@ -19,7 +19,6 @@ from textual.timer import Timer
 from textual.worker import Worker
 
 from ...query import parse_query
-from ..activity_log import ActivityLog
 from ..exit_action import AceExitAction
 from ..models.fold_state import FoldStateManager
 from ..util.fs_watcher import ArtifactWatcher
@@ -184,12 +183,8 @@ class StateInitMixin:
         # Copy mode state (for % key sub-commands)
         self._copy_mode_active: bool = False
 
-        # Activity tracking state (for inactivity detection)
-        self._last_activity_time = 0.0
-        self._last_activity_flush = 0.0
-        self._pinned_idle = False
-
-        self._activity_log = ActivityLog()
+        # Last input timestamp used to defer non-urgent background work.
+        self._last_input_mono = 0.0
         # Stable widget refs cached during ``on_mount`` so hot paths (j/k
         # navigation, debounced detail refresh, mark toggle) skip repeated
         # ``query_one`` walks against the DOM. ``None`` until mount runs;
@@ -298,9 +293,9 @@ class StateInitMixin:
         self._artifact_index_maintenance_last_mono: float = 0.0
         # Deferred Tier 2 reconcile: set when a load arrives with
         # incomplete history. The reconcile is then triggered lazily by an
-        # idle tick or explicit full-history refresh action rather than
+        # input-quiet tick or explicit full-history refresh action rather than
         # firing immediately at startup (see ``_loading_apply`` and
-        # ``_maybe_trigger_idle_tier2_reconcile``).
+        # ``_maybe_trigger_input_quiet_tier2_reconcile``).
         self._agents_history_reconcile_pending: bool = False
         self._agents_history_reconcile_armed_mono: float = 0.0
         self._agent_load_state: AgentLoadState | None = None

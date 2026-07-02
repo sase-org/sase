@@ -25,11 +25,11 @@ log = logging.getLogger(__name__)
 _StartingPollSignature = tuple[int, int] | None
 _StartingPollMarkerState = tuple[_StartingPollSignature, _StartingPollSignature]
 
-# Seconds of input idleness required before the deferred Tier 2
+# Seconds of input quiet required before the deferred Tier 2
 # full-history reconcile is scheduled in the background. Picked to land
 # well outside any j/k burst while still completing before the user
 # would typically reach for historic data.
-TIER2_RECONCILE_IDLE_THRESHOLD_S = 30.0
+TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S = 30.0
 
 
 def _marker_signature(path: Path) -> _StartingPollSignature:
@@ -334,16 +334,16 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
                     on_complete=on_complete if needs_broad_fallback else None,
                 )
 
-    def _maybe_trigger_idle_tier2_reconcile(
+    def _maybe_trigger_input_quiet_tier2_reconcile(
         self, *, now_mono: float | None = None
     ) -> bool:
-        """Schedule the deferred Tier 2 reconcile once the user is idle.
+        """Schedule the deferred Tier 2 reconcile once input has been quiet.
 
         Returns True iff a refresh was scheduled. The reconcile is the
         single largest startup span (~2.7 s) and is deferred until input
-        has been quiet for ``TIER2_RECONCILE_IDLE_THRESHOLD_S``; the
-        idle window is measured from the later of the last recorded
-        keypress and the moment the pending flag was armed, so users
+        has been quiet for ``TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S``; the
+        quiet window is measured from the later of the last recorded
+        input and the moment the pending flag was armed, so users
         who never touch input still get the reconcile in the
         background.
         """
@@ -352,18 +352,18 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         if self._agents_loading or self._agents_refresh_scheduled:
             return False
         cur = time.monotonic() if now_mono is None else now_mono
-        last_activity = getattr(self, "_last_activity_time", 0.0)
+        last_input = getattr(self, "_last_input_mono", 0.0)
         armed_at = getattr(self, "_agents_history_reconcile_armed_mono", 0.0)
-        reference = max(last_activity, armed_at)
+        reference = max(last_input, armed_at)
         if reference <= 0.0:
             return False
-        if cur - reference < TIER2_RECONCILE_IDLE_THRESHOLD_S:
+        if cur - reference < TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S:
             return False
         self._agents_history_reconcile_pending = False
         self._schedule_agents_async_refresh(
-            source="idle_tier2_reconcile",
+            source="input_quiet_tier2_reconcile",
             full_history=True,
-            full_history_reason="idle_tier2_reconcile",
+            full_history_reason="input_quiet_tier2_reconcile",
         )
         return True
 

@@ -36,12 +36,12 @@ Layout:
 Required exact labels, keep them large and readable:
 
 - Title: `SASE Telegram Integration`
-- Left zone labels: `SASE core`, `ACE TUI idle state`, `~/.sase/notifications/notifications.jsonl`, `*.response.json`,
-  `sase run`, `generated images & artifacts`
+- Left zone labels: `SASE core`, `~/.sase/notifications/notifications.jsonl`, `*.response.json`, `sase run`,
+  `generated images & artifacts`
 - Middle header: `../sase-telegram`, `separate package: pip install sase-telegram`
 - Boundary label: `process boundary`
 - Scheduler label: `AXE scheduler runs chops`
-- Outbound lane labels: `O1 sase_chop_tg_outbound`, `O2 read notifications.jsonl`, `O3 idle + rate-limit gate`,
+- Outbound lane labels: `O1 sase_chop_tg_outbound`, `O2 read notifications.jsonl`, `O3 HWM/read/rate-limit gate`,
   `O4 format Markdown/buttons/attachments`, `O5 Telegram Bot API`
 - Inbound lane labels: `I1 callbacks/text/photos/docs`, `I2 sase_chop_tg_inbound`, `I3 dispatch`,
   `I4 write response / slash command / launch agent`
@@ -58,7 +58,7 @@ Required exact labels, keep them large and readable:
 Accuracy constraints:
 
 - AXE feeds both outbound and inbound lanes.
-- ACE TUI idle state feeds O3.
+- O3 filters by high-water mark, read state, silent flag, and rate limit.
 - Generated images and artifacts feed O4 and then Telegram `sendPhoto` / `sendDocument`.
 - Cross-boundary arrows are labelled with `notifications.jsonl`, `*.response.json`, and `sase run subprocess`.
 - Do not write `notifications.json`, `last_send_ts`, `mailing_inbox.json`, or `Telegrams Bot API`.

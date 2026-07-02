@@ -300,7 +300,7 @@ def test_build_command_catalog_includes_all_buckets() -> None:
     # Mode (sample one of each)
     assert "fold.cycle_commits" in ids
     assert "copy.agents.name" in ids
-    assert "leader.activity_info" in ids
+    assert "leader.models_panel" in ids
     assert "bang.toggle_axe" in ids
 
 

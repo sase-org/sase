@@ -53,14 +53,7 @@ def test_multiline_template_round_trips_as_block_scalar(tmp_path: Path) -> None:
 def test_inserts_under_existing_ace_without_disturbing_siblings(
     tmp_path: Path,
 ) -> None:
-    initial = (
-        "ace:\n"
-        "  # keep this comment\n"
-        '  repro_output_dir: ""\n'
-        "  inactive_seconds: 600\n"
-        "\n"
-        "other_top: 1\n"
-    )
+    initial = 'ace:\n  # keep this comment\n  repro_output_dir: ""\n\nother_top: 1\n'
 
     text = _insert(tmp_path, initial, "foo", "body$0")
 
@@ -68,7 +61,6 @@ def test_inserts_under_existing_ace_without_disturbing_siblings(
         "ace:\n"
         "  # keep this comment\n"
         '  repro_output_dir: ""\n'
-        "  inactive_seconds: 600\n"
         "  snippets:\n"
         "    foo: |-\n"
         "      body$0\n"

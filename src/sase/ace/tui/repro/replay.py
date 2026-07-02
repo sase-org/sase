@@ -168,16 +168,6 @@ def _patched_replay_environment(
     stack.enter_context(
         patch("sase.notifications.read_notification_snapshot", _empty_notifications)
     )
-    stack.enter_context(patch("sase.ace.tui_activity.write_tui_pid", _noop))
-    stack.enter_context(patch("sase.ace.tui_activity.write_activity_timestamp", _noop))
-    stack.enter_context(patch("sase.ace.tui_activity.write_last_keypress", _noop))
-    stack.enter_context(patch("sase.ace.tui_activity.write_idle_state", _noop))
-    stack.enter_context(patch("sase.ace.tui_activity.remove_tui_pid", _noop))
-    stack.enter_context(patch("sase.ace.tui_activity.remove_idle_state", _noop))
-    stack.enter_context(patch("sase.ace.tui_activity.remove_last_keypress", _noop))
-    stack.enter_context(
-        patch("sase.ace.tui_activity.read_pinned_idle", return_value=False)
-    )
     if merge_mode == "legacy_replace":
         stack.enter_context(
             patch.object(
@@ -281,10 +271,6 @@ def _empty_notifications(*_args: object, **_kwargs: object) -> SimpleNamespace:
         muted_count=0,
         expired_ids=[],
     )
-
-
-def _noop(*_args: object, **_kwargs: object) -> None:
-    return None
 
 
 def _build_verdict(

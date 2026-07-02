@@ -59,7 +59,6 @@ from .widgets import (
     ChangeSpecDetail,
     ChangeSpecInfoPanel,
     ChangeSpecList,
-    InactiveIndicator,
     KeybindingFooter,
     LLMOverrideIndicator,
     NotificationIndicator,
@@ -283,7 +282,6 @@ class AceApp(
             yield UpdatesAvailableIndicator(id="updates-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")
             yield AliasOverridesIndicator(id="alias-overrides-indicator")
-            yield InactiveIndicator(id="inactive-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):

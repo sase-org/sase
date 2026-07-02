@@ -13,7 +13,7 @@ agents, changes, notifications, and automation state." The diagram is reviewed a
   `docs/ace.md`.
 - The current TUI code: `src/sase/ace/tui/widgets/tab_bar.py` (tab labels and colors), `src/sase/ace/tui/app.py`
   (composition of each tab's panes), and the surrounding chrome (`Header`, `TaskIndicator`, `LLMOverrideIndicator`,
-  `InactiveIndicator`, `NotificationIndicator`, `KeybindingFooter`, `Footer`).
+  `NotificationIndicator`, `KeybindingFooter`, `Footer`).
 - `docs/ace.md` (canonical user-facing description of the three tabs).
 
 ## What the diagram currently shows
@@ -40,9 +40,9 @@ A bottom horizontal strip shows four nodes connected left-to-right by a circuit-
    the _conceptual_ agent lifecycle, but nothing in the diagram says so.
 2. **"One control plane" is the headline claim and it is not depicted.** What makes ACE a single control plane is the
    shared chrome — the persistent tab bar, the right-side indicator stack
-   (`TaskIndicator`/`LLMOverrideIndicator`/`InactiveIndicator`/`NotificationIndicator` in `app.py:236-239`), and the
-   `KeybindingFooter` (`app.py:268`) — all of which surround every tab. The diagram instead shows three independent
-   cards with no shared frame, which contradicts the title.
+   (`TaskIndicator`/`LLMOverrideIndicator`/`NotificationIndicator` in `app.py:236-239`), and the `KeybindingFooter`
+   (`app.py:268`) — all of which surround every tab. The diagram instead shows three independent cards with no shared
+   frame, which contradicts the title.
 3. **The three rows inside each tab card mix three different categories without flagging them as such.** Each card
    conflates _what is shown_ (e.g. `running + completed runs`, `prompts, files, diffs`), _state model_ (e.g.
    `status lifecycle`), and _available actions_ (e.g. `review, mail, sync`, `resume, tag, kill`). A new reader cannot

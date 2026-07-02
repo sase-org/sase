@@ -1,32 +1,26 @@
-"""Lifecycle, quit, and inactivity action methods for the ace TUI app."""
+"""Lifecycle, quit, and selection-persistence methods for the ace TUI app."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-import time
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
-
-from ..activity_log import ActivityEventType, ActivityLog
 
 # Type alias for tab names (used in type hints)
 TabName = Literal["changespecs", "agents", "axe"]
 
 
 class LifecycleMixin:
-    """Mixin providing quit, inactivity, selection persistence, and agent tracking init."""
+    """Mixin providing quit, selection persistence, and agent tracking init."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
     changespecs: list[ChangeSpec]
     current_idx: int
     current_tab: TabName
     _changespecs_last_idx: int
-    _last_activity_time: float
-    _pinned_idle: bool
     _last_unread_ids: set[str]
-    _activity_log: ActivityLog
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
@@ -261,24 +255,6 @@ class LifecycleMixin:
             if restore_artifact_signal is not None:
                 restore_artifact_signal()
 
-        def write_quit_activity_state() -> None:
-            from sase.ace.tui_activity import (
-                remove_idle_state,
-                remove_last_keypress,
-                remove_tui_pid,
-                write_activity_timestamp,
-            )
-
-            if self._pinned_idle:
-                # Pinned idle persists across restarts — leave idle state files
-                # intact so external consumers still see the user as idle.
-                remove_tui_pid()
-            else:
-                write_activity_timestamp(time.time())
-                remove_idle_state()
-                remove_last_keypress()
-                remove_tui_pid()
-
         try:
             cleanup(self._save_current_selection)
             cleanup(self._stop_tui_stall_watchdog)
@@ -288,7 +264,6 @@ class LifecycleMixin:
             cleanup(shutdown_loader_executor)
             cleanup(restore_artifact_tmux_decoration)
             cleanup(restore_artifact_viewer_signal_handler)
-            cleanup(write_quit_activity_state)
         finally:
             self.exit()  # type: ignore[attr-defined]
 
@@ -302,83 +277,3 @@ class LifecycleMixin:
             watchdog.stop()
         except Exception:
             pass
-
-    def action_mark_inactive(self) -> None:
-        """Toggle manual idle mode.
-
-        First press enters idle (epoch 0, idle_state=True).
-        Second press exits idle and resumes normal activity tracking.
-        No-op when pinned idle is active; only the pinned-idle action clears it.
-        """
-        from ..widgets import InactiveIndicator
-
-        if self._pinned_idle:
-            return
-
-        indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
-        if not hasattr(self, "_last_activity_time"):
-            # Currently in manual idle — exit it.
-            from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
-
-            self._last_activity_time = time.monotonic()
-            write_activity_timestamp(time.time())
-            write_idle_state(False)
-            indicator.set_idle(False)
-            self._activity_log.record(ActivityEventType.ACTIVE)
-            return
-
-        # Enter manual idle.
-        from sase.ace.tui_activity import write_activity_timestamp, write_idle_state
-
-        write_activity_timestamp(0)
-        write_idle_state(True)
-        # Clear activity tracking so _on_countdown_tick() doesn't overwrite
-        # the inactive marker (epoch 0) with the current time.
-        del self._last_activity_time
-        indicator.set_idle(True)
-        self._activity_log.record(ActivityEventType.IDLE_MANUAL)
-
-    def action_mark_inactive_pinned(self) -> None:
-        """Toggle pinned idle mode.
-
-        Pinned idle stays active until explicitly toggled off.
-        Regular keypresses do not clear pinned idle.  The state is
-        persisted to disk so it survives TUI restarts.
-        """
-        from ..widgets import InactiveIndicator
-
-        indicator = self.query_one("#inactive-indicator", InactiveIndicator)  # type: ignore[attr-defined]
-        if self._pinned_idle:
-            # Currently in pinned idle — exit it.
-            from sase.ace.tui_activity import (
-                write_activity_timestamp,
-                write_idle_state,
-                write_pinned_idle,
-            )
-
-            self._pinned_idle = False
-            self._last_activity_time = time.monotonic()
-            write_activity_timestamp(time.time())
-            write_idle_state(False)
-            write_pinned_idle(False)
-            indicator.set_idle(False)
-            self._activity_log.record(ActivityEventType.ACTIVE)
-            return
-
-        # Enter pinned idle.
-        from sase.ace.tui_activity import (
-            write_activity_timestamp,
-            write_idle_state,
-            write_pinned_idle,
-        )
-
-        self._pinned_idle = True
-        write_activity_timestamp(0)
-        write_idle_state(True)
-        write_pinned_idle(True)
-        # Clear activity tracking so _on_countdown_tick() doesn't overwrite
-        # the inactive marker (epoch 0) with the current time.
-        if hasattr(self, "_last_activity_time"):
-            del self._last_activity_time
-        indicator.set_idle(True, pinned=True)
-        self._activity_log.record(ActivityEventType.IDLE_PINNED)

@@ -1,4 +1,4 @@
-"""Mentor review, activity dashboard, and comment clearing for the ace TUI app."""
+"""Mentor review and comment clearing for the ace TUI app."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec, MentorEntry
-    from ...activity_log import ActivityLog
 
 
 _REVIEWABLE_MENTOR_STATUSES = ("COMMENTED", "FAILED", "RUNNING", "PASSED")
@@ -30,20 +29,12 @@ def has_reviewable_mentors(entry: MentorEntry) -> bool:
 
 
 class MentorReviewMixin:
-    """Mixin providing mentor review, activity dashboard, and comment clearing."""
+    """Mixin providing mentor review and comment clearing."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
     changespecs: list[ChangeSpec]
     current_idx: int
-    _activity_log: ActivityLog
-    _inactive_seconds: int
     _prompt_context: PromptContext | None
-
-    def _show_activity_dashboard(self) -> None:
-        """Show the Activity Dashboard modal."""
-        from ...modals import ActivityModal
-
-        self.push_screen(ActivityModal(self._activity_log, self._inactive_seconds))  # type: ignore[attr-defined]
 
     def _open_mentor_review(self) -> None:
         """Open the Mentor Review popup for the latest commit's mentors."""

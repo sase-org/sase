@@ -28,7 +28,7 @@ class _TabNavigationApp(BasicNavigationMixin):
         self.focus_calls = 0
         self.activity_calls = 0
 
-    def _record_user_activity(self) -> None:
+    def _record_input_event(self) -> None:
         self.activity_calls += 1
 
     def _focus_tracked_artifact_tmux_pane(self) -> bool:

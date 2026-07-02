@@ -181,18 +181,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["activity_info"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self._show_activity_dashboard()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
-        if key == leader_keys["mark_inactive_pinned"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self.action_mark_inactive_pinned()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["clear_comments"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "changespecs":

@@ -60,15 +60,14 @@ window so a noisy axe sweep can't flood the chat. On shared hosts that should re
 agents, set `SASE_TELEGRAM_LAUNCH_AGENTS_DISABLED` and callbacks/feedback/slash commands keep working while free-form
 text is logged and ignored.
 
-## Activity-Aware Sending
+## Outbound Notifications
 
-Outbound is gated on whether you are actually away from the TUI. SASE's TUI writes an idle-state file as it runs; the
-outbound script consults that file before it sends. If you are sitting in front of ACE, plan approvals and HITL
-questions stay in-app. The moment the TUI stops touching the idle file — laptop closed, screen locked, on the train —
-the same notifications start arriving as Telegram messages with inline keyboards attached.
+Outbound sends unread, non-silent SASE notifications to Telegram using the same notification store ACE reads. Plan
+approvals, HITL requests, user questions, and completion notices arrive as Telegram messages with inline keyboards or
+attachments when applicable.
 
-This is why sase-telegram doesn't have its own inactivity threshold: the TUI is the source of truth, and the plugin
-inherits it. Push behavior follows the operator, not a per-channel timer.
+The plugin does not maintain a separate delivery threshold. Delivery is controlled by the notification high-water mark,
+read state, silent flag, rate limiter, and outbound lock.
 
 ## Launching Agents From The Chat
 

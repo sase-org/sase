@@ -99,7 +99,6 @@ from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
-from .activity_modal import ActivityModal
 from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from .models_panel import ModelsPanel, ModelsPanelResult
 from .models_panel_edit import AliasEditPreviewModal
@@ -134,7 +133,6 @@ from .xprompt_save_target_modal import XPromptSaveTarget, XPromptSaveTargetModal
 from .xprompt_select_modal import XPromptSelection, XPromptSelectModal
 
 __all__ = [
-    "ActivityModal",
     "AddableProperty",
     "AddPropertyModal",
     "InputItemModal",

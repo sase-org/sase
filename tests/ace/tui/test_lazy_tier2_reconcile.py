@@ -17,7 +17,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._loading_refresh import (
     AgentLoadingRefreshMixin,
-    TIER2_RECONCILE_IDLE_THRESHOLD_S,
+    TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
 )
 from sase.ace.tui.util.nav_gate import NavigationGate
 
@@ -37,7 +37,7 @@ class _FakeRefreshApp(AgentLoadingRefreshMixin):
         self._agents_refresh_debounce_armed = False
         self._agents_history_reconcile_pending = False
         self._agents_history_reconcile_armed_mono = 0.0
-        self._last_activity_time = 0.0
+        self._last_input_mono = 0.0
         self._nav_gate = NavigationGate(window_s=0.25)
         self._scheduled: list[Any] = []
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
@@ -72,9 +72,9 @@ class _FakeBaseActionsApp:
         self.notifications.append(message)
 
 
-def test_idle_trigger_skips_when_flag_not_set() -> None:
+def test_input_quiet_trigger_skips_when_flag_not_set() -> None:
     app = _FakeRefreshApp()
-    fired = app._maybe_trigger_idle_tier2_reconcile(now_mono=10_000.0)
+    fired = app._maybe_trigger_input_quiet_tier2_reconcile(now_mono=10_000.0)
     assert fired is False
     assert app._scheduled == []
 
@@ -105,41 +105,44 @@ def test_explicit_agents_full_history_refresh_uses_tier2() -> None:
     assert app.notifications == ["Refreshing Agents from full history"]
 
 
-def test_idle_trigger_skips_when_recently_active() -> None:
+def test_input_quiet_trigger_skips_when_recent_input() -> None:
     app = _FakeRefreshApp()
     app._agents_history_reconcile_pending = True
     app._agents_history_reconcile_armed_mono = 100.0
-    app._last_activity_time = 100.0
-    fired = app._maybe_trigger_idle_tier2_reconcile(
-        now_mono=100.0 + TIER2_RECONCILE_IDLE_THRESHOLD_S - 1.0
+    app._last_input_mono = 100.0
+    fired = app._maybe_trigger_input_quiet_tier2_reconcile(
+        now_mono=100.0 + TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S - 1.0
     )
     assert fired is False
     assert app._scheduled == []
     assert app._agents_history_reconcile_pending is True
 
 
-def test_idle_trigger_fires_after_threshold() -> None:
+def test_input_quiet_trigger_fires_after_threshold() -> None:
     app = _FakeRefreshApp()
     app._agents_history_reconcile_pending = True
     app._agents_history_reconcile_armed_mono = 100.0
-    fired = app._maybe_trigger_idle_tier2_reconcile(
-        now_mono=100.0 + TIER2_RECONCILE_IDLE_THRESHOLD_S + 0.5
+    fired = app._maybe_trigger_input_quiet_tier2_reconcile(
+        now_mono=100.0 + TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S + 0.5
     )
     assert fired is True
     assert app._agents_history_reconcile_pending is False
     assert app._agents_refresh_scheduled is True
     assert app._agents_refresh_scheduled_full_history is True
-    assert app._agents_refresh_scheduled_full_history_reason == "idle_tier2_reconcile"
+    assert (
+        app._agents_refresh_scheduled_full_history_reason
+        == "input_quiet_tier2_reconcile"
+    )
     assert len(app._scheduled) == 1
 
 
-def test_idle_trigger_skips_when_load_already_in_flight() -> None:
+def test_input_quiet_trigger_skips_when_load_already_in_flight() -> None:
     app = _FakeRefreshApp()
     app._agents_history_reconcile_pending = True
     app._agents_history_reconcile_armed_mono = 100.0
     app._agents_loading = True
-    fired = app._maybe_trigger_idle_tier2_reconcile(
-        now_mono=100.0 + TIER2_RECONCILE_IDLE_THRESHOLD_S + 5.0
+    fired = app._maybe_trigger_input_quiet_tier2_reconcile(
+        now_mono=100.0 + TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S + 5.0
     )
     assert fired is False
     assert app._scheduled == []
@@ -147,20 +150,20 @@ def test_idle_trigger_skips_when_load_already_in_flight() -> None:
     assert app._agents_history_reconcile_pending is True
 
 
-def test_idle_trigger_uses_latest_of_activity_and_arm_time() -> None:
-    """Active input after arming resets the idle clock."""
+def test_input_quiet_trigger_uses_latest_of_input_and_arm_time() -> None:
+    """Input after arming resets the quiet clock."""
     app = _FakeRefreshApp()
     app._agents_history_reconcile_pending = True
     app._agents_history_reconcile_armed_mono = 100.0
-    # User pressed a key 5 s ago — not idle long enough yet.
-    app._last_activity_time = 100.0 + TIER2_RECONCILE_IDLE_THRESHOLD_S - 5.0
-    fired = app._maybe_trigger_idle_tier2_reconcile(
-        now_mono=app._last_activity_time + TIER2_RECONCILE_IDLE_THRESHOLD_S - 1.0
+    # User pressed a key 5 s ago — not quiet long enough yet.
+    app._last_input_mono = 100.0 + TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S - 5.0
+    fired = app._maybe_trigger_input_quiet_tier2_reconcile(
+        now_mono=app._last_input_mono + TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S - 1.0
     )
     assert fired is False
     # …but a further wait past the threshold from the keypress fires it.
-    fired = app._maybe_trigger_idle_tier2_reconcile(
-        now_mono=app._last_activity_time + TIER2_RECONCILE_IDLE_THRESHOLD_S + 0.5
+    fired = app._maybe_trigger_input_quiet_tier2_reconcile(
+        now_mono=app._last_input_mono + TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S + 0.5
     )
     assert fired is True
 
@@ -290,7 +293,7 @@ def test_apply_clears_pending_flag_on_complete_history() -> None:
 
 
 @pytest.mark.asyncio
-async def test_idle_trigger_routes_through_async_refresh() -> None:
+async def test_input_quiet_trigger_routes_through_async_refresh() -> None:
     """The deferred reconcile actually issues a full_history reload."""
     app = _FakeRefreshApp()
     captured: list[bool] = []
@@ -302,8 +305,8 @@ async def test_idle_trigger_routes_through_async_refresh() -> None:
 
     app._agents_history_reconcile_pending = True
     app._agents_history_reconcile_armed_mono = 0.001  # any non-zero value
-    fired = app._maybe_trigger_idle_tier2_reconcile(
-        now_mono=TIER2_RECONCILE_IDLE_THRESHOLD_S + 1.0
+    fired = app._maybe_trigger_input_quiet_tier2_reconcile(
+        now_mono=TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S + 1.0
     )
     assert fired is True
     await app._run_agents_async_refresh()

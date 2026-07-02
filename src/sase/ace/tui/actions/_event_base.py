@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from ..activity_log import ActivityLog
 from ..util.nav_gate import NavigationGate
 from ..widgets import PromptInputBar
 
@@ -44,10 +43,7 @@ class EventHandlersBase:
     _custom_mode_active: str | None
     _custom_mode_prefixes: dict[str, str]
     _entry_jump_mode_active: bool
-    _inactive_seconds: int
-    _last_activity_time: float
-    _last_activity_flush: float
-    _activity_log: ActivityLog
+    _last_input_mono: float
     _nav_gate: NavigationGate
     _dirty_changespecs: bool
     _dirty_agents: bool
@@ -81,8 +77,8 @@ class EventHandlersBase:
         """
         self._nav_gate.record()
 
-    def _record_user_activity(self) -> None:
-        """Record activity for event handlers that run before activity mixins."""
+    def _record_input_event(self) -> None:
+        """Record input for event handlers that run before timer mixins."""
         raise NotImplementedError
 
     def _prompt_input_active(self) -> bool:

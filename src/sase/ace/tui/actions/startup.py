@@ -7,13 +7,11 @@ module stays as a small composition point.
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from textual.timer import Timer
 
 from ...query.types import QueryExpr
-from ..activity_log import ActivityLog
 from ..util.fs_watcher import ArtifactWatcher
 from ..util.nav_gate import NavigationGate
 from ._startup_loads import StartupLoadsMixin
@@ -62,10 +60,7 @@ class StartupMixin(
     _refresh_timer: Timer | None
     _countdown_timer: Timer | None
     _countdown_remaining: int
-    _activity_log: ActivityLog
-    _last_activity_time: float
-    _last_activity_flush: float
-    _pinned_idle: bool
+    _last_input_mono: float
     _post_mount_background_loads_started: bool
     _jump_all_last_position: JumpAllResult | None
     _nav_gate: NavigationGate

@@ -18,7 +18,7 @@ class EventKeyboardMixin(EventHandlersBase):
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""
-        self._record_user_activity()
+        self._record_input_event()
         if self._entry_jump_mode_active:
             key = normalize_jump_key(event.key, event.character)
             if self._handle_entry_jump_key(key):  # type: ignore[attr-defined]
@@ -68,6 +68,6 @@ class EventKeyboardMixin(EventHandlersBase):
         Textual's ``Input`` widget calls ``event.stop()`` on key events,
         preventing them from bubbling to the App's ``on_key()`` handler.
         The ``Input.Changed`` message still bubbles, so we catch it here
-        to keep the idle timer accurate while the user types.
+        to keep input-quiescence timing accurate while the user types.
         """
-        self._record_user_activity()
+        self._record_input_event()

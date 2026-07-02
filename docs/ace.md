@@ -333,9 +333,9 @@ active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`
 through the persistent artifact index when it is available.
 
 If the index is missing or unhealthy, ACE falls back to a bounded source-artifact scan for the first paint and shows a
-repair warning with the reason. That repair state can arm a deferred full-history reconcile after the TUI is idle, but
-normal `y` refreshes still stay on the visible-inbox path. Use `sase agent index status --json` for a lightweight check
-that does not scan source artifacts, `sase agent index verify` to compare the index with source artifacts, and
+repair warning with the reason. That repair state can arm a deferred full-history reconcile after input has been quiet,
+but normal `y` refreshes still stay on the visible-inbox path. Use `sase agent index status --json` for a lightweight
+check that does not scan source artifacts, `sase agent index verify` to compare the index with source artifacts, and
 `sase agent index gc` to rebuild the index and dismissed projection. Use the Agents-tab leader command `,y` when you
 want an immediate full-history refresh from source artifacts.
 
@@ -653,14 +653,13 @@ cached by raw query string so re-renders skip the parse.
 ### Leader Mode (`,` prefix)
 
 Leader mode is available on every tab. In the Agents tab it also exposes layout and notification shortcuts for the
-currently loaded agent list; global entries such as `,I`, `,m`, and `,U` behave the same from other tabs.
-Unread-completed actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
+currently loaded agent list; global entries such as `,m` and `,U` behave the same from other tabs. Unread-completed
+actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
 
 | Key        | Action                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------- |
 | `,,`       | Repeat the last leader command                                                               |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                      |
-| `,I`       | Toggle pinned idle (global; sticky IDLE indicator; press `,I` again to clear)                |
 | `,g`       | Toggle between tag-split panels and one merged agent panel                                   |
 | `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read              |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state |
@@ -886,9 +885,7 @@ These work on all tabs:
 | `#`                 | Open SASE Admin Center (Config, Logs, Projects, Tasks, Updates, XPrompts; `1`–`6` jump to a tab) |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                       |
-| `,i`                | Open Activity Dashboard modal (global)                                                           |
 | `i`                 | Show notifications inbox                                                                         |
-| `I`                 | Mark temporary idle; the next keypress re-activates                                              |
 | `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                         |
 | `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                |
 | `@`                 | Open the stashed-prompt restore picker                                                           |
@@ -1152,21 +1149,6 @@ Press `Ctrl+O` to start the guided creation flow:
    with a YAML template containing the workflow scaffold.
 3. **Editor** — The file opens in `$EDITOR` for editing.
 4. **Git commit** — After saving, the browser offers to commit and push changes.
-
-## Idle Detection
-
-ACE tracks user activity and displays an orange **IDLE** badge in the top bar when the user has been inactive for longer
-than the configured threshold (`ace.inactive_seconds`, default: 600 seconds). The badge is also shown when the user
-presses `I` to manually mark themselves as inactive. The next keypress, including another `I`, re-activates the user and
-hides the badge.
-
-Pressing `,I` (leader chord) activates **pinned idle** mode, shown as a red **■ IDLE** badge. Pinned idle stays active
-regardless of keypresses — only pressing `,I` again clears it. This is useful when you want to remain marked as idle
-while still interacting with the TUI. Pinned idle state is persisted to `~/.sase/tui_pinned_idle` and automatically
-restored when the TUI restarts, so the user remains marked as idle across sessions.
-
-External tools (e.g., chop scripts) can call `is_idle()` from `sase.ace.tui_activity` to check idle status
-programmatically.
 
 ## Jump All Modal
 
