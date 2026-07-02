@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-02 15:38:11
-status: wip
+status: done
 prompt: sdd/prompts/202607/blog_quickstart_git_workspace.md
 ---
 # Plan: Fix the quickstart blog's workspace-isolation narrative by switching to `#git`

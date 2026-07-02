@@ -287,7 +287,7 @@ part of "continue this agent" without making every workflow depend on one mutabl
 plays nicely with `%wait`: wait for the prior agent to finish, then fork from it.
 
 ```bash
-sase run '%n:design #cd:$(pwd) propose a small architecture improvement'
+sase run '%n:design propose a small architecture improvement'
 sase run '%n:implement %w:design #fork:design implement the approved part only'
 ```
 

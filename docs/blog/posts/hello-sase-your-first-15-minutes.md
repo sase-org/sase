@@ -63,16 +63,19 @@ quickstart can stay focused.
 
 ## Step 3 — Launch a safe first agent (≈3 minutes, plus model time)
 
-Start with a read-only task in the directory you want the agent to inspect:
+Start with a read-only task in SASE's managed `home` project:
 
 ```bash
-sase run "#cd:$(pwd) summarize what this repository does; do not change files"
+sase run "#git:home summarize this workspace's layout; do not change files"
 sase agent list
 ```
 
-The `#cd:$(pwd)` prefix makes the target workspace explicit. `sase run` allocates an isolated **workspace** — a sibling
-clone of the repo named `sase_<N>` — and runs the provider CLI there. That isolation is what lets you fire off several
-agents at once without them colliding, and what lets a failed run be retried without touching your real checkout.
+The `#git:home` prefix targets SASE's built-in `home` sandbox. On first use, SASE bootstraps that managed project with a
+bare git repository, a primary checkout, and generated SDD scaffolding, then launches the provider CLI in an isolated
+numbered workspace managed by SASE. Prompts with no workspace reference are normalized to `#git:home` automatically, so
+the bare form `sase run "summarize this workspace's layout; do not change files"` is equivalent. That isolation is what
+lets you fire off several agents at once without them colliding, and what lets a failed run be retried without touching
+your primary checkout.
 
 The launched agent gets its own durable record on disk: prompt, reply transcript, artifacts directory, status, and
 workspace path. `sase agent list` gives you the first visible handle for that record while the model is thinking or
@@ -96,7 +99,8 @@ ACE has three tabs:
 - **PRs** — every ChangeSpec on this project. A **ChangeSpec** is SASE's durable record of one CL/PR-sized unit of work;
   think of it as the long-lived sibling of a pull request that holds the description, parent, status (WIP → Draft →
   Ready → Mailed → Submitted), commits, hooks, comments, and mentor activity all in one place. The
-  [ChangeSpec guide](../../change_spec.md) goes deeper when you're curious.
+  [ChangeSpec guide](../../change_spec.md) goes deeper when you're curious. This first read-only run should not have
+  created one yet; editable committed work is where ChangeSpecs appear.
 - **Axe** — the background daemon's view: scheduled jobs, hooks waiting to complete, mentor launches, error digests. ACE
   auto-starts AXE the first time it opens, so this tab is already ticking before you click it.
 
@@ -110,12 +114,18 @@ ACE has three tabs:
 After you have seen the agent record, try a low-risk change:
 
 ```bash
-sase run "#cd:$(pwd) make a tiny documentation-only improvement and explain the diff"
+sase run "#git:home create or update notes.md with one short note about SASE workspaces"
 sase agent list
 ```
 
-Now the agent has permission to make a visible diff in its isolated workspace. Review the resulting workspace or
-ChangeSpec before bringing anything back to your primary checkout.
+Now the agent has permission to make a visible diff in its isolated numbered workspace. Your own repositories and the
+`home` primary checkout stay untouched unless you explicitly bring changes back. When the agent commits its work, SASE's
+commit workflow records a ChangeSpec that you can review on ACE's PRs tab before landing or submitting anything.
+
+For your own repositories, use `#git:<name>` to target a managed project or `#git:<bare-repo-path>` to register an
+existing bare repository. Provider plugins add other workspace references, such as `#gh:<owner>/<repo>` for GitHub.
+`#cd:<path>` also exists, but it runs directly in that directory with no numbered workspace or VCS lifecycle; use it
+only when you deliberately want an in-place run. The [workspace guide](../../workspace.md) has the full model.
 
 **What you just did.** Moved from a read-only run to a small editable task after confirming where SASE records agent
 state.
@@ -123,22 +133,23 @@ state.
 ## Step 6 — Reuse the prompt as an XPrompt (≈3 minutes)
 
 A one-off prompt is fine once. The second time you find yourself reaching for it, wrap it as an **XPrompt** so you're
-not retyping the same paragraph forever. Create `xprompts/docstring.md` in your project root:
+not retyping the same paragraph forever. Create `xprompts/til.md` in the directory where you run `sase`:
 
 ```markdown
-Add a one-line docstring to the most recently edited Python function in this repo. Keep the wording terse; do not change
-behavior.
+Append one Today-I-Learned entry to `til.md` about something useful in this workspace. Keep it to two sentences. If the
+file does not exist, create it.
 ```
 
 Now the same agent run is one tag:
 
 ```bash
-sase run "#cd:$(pwd) #docstring"
+sase run "#til"
 ```
 
-That is the smallest XPrompt shape — a single Markdown file becomes a reusable prompt part. XPrompts also support YAML
-files with typed inputs, multi-step workflows (prompt parts, Python, bash, parallel fan-out, approvals), and `---`
-separators for multi-agent dispatch. The [XPrompts guide](../../xprompt.md) covers the full surface, and the
+That is the smallest XPrompt shape — a single Markdown file becomes a reusable prompt part. Because this prompt has no
+workspace reference, the same `#git:home` default kicks in at launch. XPrompts also support YAML files with typed
+inputs, multi-step workflows (prompt parts, Python, bash, parallel fan-out, approvals), and `---` separators for
+multi-agent dispatch. The [XPrompts guide](../../xprompt.md) covers the full surface, and the
 [workflow spec reference](../../workflow_spec.md) documents the YAML form.
 
 **What you just did.** Turned a one-off prompt into a reusable XPrompt, the smallest unit of repeatable agent work in
@@ -175,8 +186,8 @@ The names you'll keep bumping into, in one place:
 - **[AXE](../../axe.md)** — the background automation daemon. Runs hooks, mentor launches, comment polling, dependency
   unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the [CLI reference](../../cli.md).
-- **[Workspaces](../../workspace.md)** — isolated `sase_<N>` clones of the repo so agents can work in parallel without
-  touching your checkout.
+- **[Workspaces](../../workspace.md)** — isolated numbered clones managed by SASE so agents can work in parallel without
+  touching your primary checkout.
 - **[ChangeSpecs](../../change_spec.md)** — durable CL/PR-sized review records: status lifecycle, commits, hooks,
   comments, mentors.
 - **[Beads](../../beads.md)** — dependency-aware, git-portable work units. Powers epic execution.
