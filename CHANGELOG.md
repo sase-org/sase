@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.1](https://github.com/sase-org/sase/compare/v0.7.0...v0.7.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **ace:** include STARTING agents in Agents tab headline total ([97f34fa](https://github.com/sase-org/sase/commit/97f34fa983c53adfe1e5ddee4753c7bf3d234ae9))
+* package config schema in wheel ([3580f1c](https://github.com/sase-org/sase/commit/3580f1c68810f9409fd7dded341ea312cf39e8bf))
+
+
+### Documentation
+
+* recommend plain `uv tool install sase` and add INSTALL.md ([702c8fe](https://github.com/sase-org/sase/commit/702c8fee83d33d8eecd3440a64e4f3b303c80c18))
+
 ## [0.7.0](https://github.com/sase-org/sase/compare/v0.6.1...v0.7.0) (2026-07-01)
 
 
