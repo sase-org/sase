@@ -184,9 +184,10 @@ def test_init_memory_no_commit_skips_project_deploy(
 
     assert run_handler(no_commit=True) == 0
     precommit.assert_not_called()
-    assert [call.args[0] for call in git_run.call_args_list] == [
-        _PROJECT_DETECTION_COMMAND
-    ]
+    assert (
+        _without_project_detection([call.args[0] for call in git_run.call_args_list])
+        == []
+    )
 
 
 def test_init_memory_folds_memory_dirty_with_message(
