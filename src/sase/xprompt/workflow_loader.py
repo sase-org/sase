@@ -15,6 +15,7 @@ from sase.xprompt.loader import (
     get_xprompt_search_paths,
 )
 from sase.xprompt.loader_parsing import parse_xprompt_entries
+from sase.xprompt.load_issues import record_load_issue
 from sase.xprompt.models import UNSET, InputArg, InputType
 from sase.xprompt.tags import parse_tags
 from sase.xprompt.workflow_loader_parse import (
@@ -43,7 +44,11 @@ def _get_step_search_dirs() -> list[Path]:
     return dirs
 
 
-def _load_step_definition(use_ref: str) -> dict[str, Any] | None:
+def _load_step_definition(
+    use_ref: str,
+    *,
+    workflow_source_path: str | None = None,
+) -> dict[str, Any] | None:
     """Load a step definition file referenced by a ``use:`` field.
 
     Args:
@@ -56,6 +61,12 @@ def _load_step_definition(use_ref: str) -> dict[str, Any] | None:
     # Reject suspicious paths
     if ".." in use_ref or use_ref.startswith("/"):
         log.warning("Rejecting step import with unsafe path: %s", use_ref)
+        if workflow_source_path is not None:
+            record_load_issue(
+                workflow_source_path,
+                f"unsafe step import {use_ref!r}",
+                kind="step_import",
+            )
         return None
 
     for search_dir in _get_step_search_dirs():
@@ -67,12 +78,28 @@ def _load_step_definition(use_ref: str) -> dict[str, Any] | None:
                     data = yaml.safe_load(content)
                     if isinstance(data, dict):
                         return data
-                except (OSError, yaml.YAMLError):
+                    if workflow_source_path is not None:
+                        record_load_issue(
+                            workflow_source_path,
+                            f"step import {use_ref!r} did not parse to a mapping",
+                            kind="step_import",
+                        )
+                except (OSError, yaml.YAMLError) as exc:
+                    if workflow_source_path is not None:
+                        record_load_issue(
+                            workflow_source_path,
+                            f"failed to load step import {use_ref!r}: {exc}",
+                            kind="step_import",
+                        )
                     continue
     return None
 
 
-def _resolve_step_imports(step_data: dict[str, Any]) -> dict[str, Any] | None:
+def _resolve_step_imports(
+    step_data: dict[str, Any],
+    *,
+    workflow_source_path: str | None = None,
+) -> dict[str, Any] | None:
     """Resolve ``use:`` imports in *step_data*, including nested parallel steps.
 
     Local fields in *step_data* override fields from the imported definition.
@@ -82,9 +109,18 @@ def _resolve_step_imports(step_data: dict[str, Any]) -> dict[str, Any] | None:
     """
     use_ref = step_data.get("use")
     if use_ref:
-        base = _load_step_definition(str(use_ref))
+        base = _load_step_definition(
+            str(use_ref),
+            workflow_source_path=workflow_source_path,
+        )
         if base is None:
             log.warning("Step import '%s' not found", use_ref)
+            if workflow_source_path is not None:
+                record_load_issue(
+                    workflow_source_path,
+                    f"step import {use_ref!r} not found",
+                    kind="step_import",
+                )
             return None
         merged = dict(base)
         for key, value in step_data.items():
@@ -98,7 +134,10 @@ def _resolve_step_imports(step_data: dict[str, Any]) -> dict[str, Any] | None:
         resolved_parallel: list[Any] = []
         for nested in parallel_data:
             if isinstance(nested, dict):
-                resolved = _resolve_step_imports(nested)
+                resolved = _resolve_step_imports(
+                    nested,
+                    workflow_source_path=workflow_source_path,
+                )
                 if resolved is None:
                     return None
                 resolved_parallel.append(resolved)
@@ -174,6 +213,7 @@ def _load_workflow_from_mapping(
     # Parse steps
     steps_data = data.get("steps", [])
     if not isinstance(steps_data, list):
+        record_load_issue(source_path, "steps must be a list", kind="workflow")
         return None
 
     steps: list[WorkflowStep] = []
@@ -183,7 +223,10 @@ def _load_workflow_from_mapping(
                 continue
             # Resolve step imports (use: field) before parsing
             if "use" in step_data:
-                resolved = _resolve_step_imports(step_data)
+                resolved = _resolve_step_imports(
+                    step_data,
+                    workflow_source_path=source_path,
+                )
                 if resolved is None:
                     continue
                 step_data = resolved
@@ -197,10 +240,14 @@ def _load_workflow_from_mapping(
                 f"Workflow '{name}' has {prompt_part_count} prompt_part steps, "
                 "but at most one is allowed"
             )
-    except WorkflowValidationError:
+    except WorkflowValidationError as exc:
+        record_load_issue(source_path, exc, kind="workflow")
         return None
 
     if not steps:
+        record_load_issue(
+            source_path, "no valid workflow steps parsed", kind="workflow"
+        )
         return None
 
     # Generate implicit inputs for each step with an output schema
@@ -253,10 +300,15 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
     try:
         content = file_path.read_text(encoding="utf-8")
         data = yaml.safe_load(content)
-    except (OSError, yaml.YAMLError):
+    except OSError as exc:
+        record_load_issue(file_path, exc, kind="workflow")
+        return None
+    except yaml.YAMLError as exc:
+        record_load_issue(file_path, exc, kind="workflow")
         return None
 
     if not isinstance(data, dict):
+        record_load_issue(file_path, "top-level YAML is not a mapping", kind="workflow")
         return None
 
     return _load_workflow_from_mapping(file_path.stem, data, str(file_path))

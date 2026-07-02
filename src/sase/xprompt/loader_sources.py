@@ -22,7 +22,9 @@ from .loader_parsing import (
     parse_local_xprompt_entries,
     parse_xprompt_entries,
     parse_yaml_front_matter,
+    parse_yaml_front_matter_with_error,
 )
+from .load_issues import record_load_issue
 from .models import InputArg, XPrompt
 from .tags import parse_tags
 
@@ -68,10 +70,17 @@ def load_xprompt_from_file(file_path: Path) -> XPrompt | None:
     """
     try:
         content = file_path.read_text(encoding="utf-8")
-    except OSError:
+    except OSError as exc:
+        record_load_issue(file_path, exc, kind="frontmatter")
         return None
 
-    front_matter, body = parse_yaml_front_matter(content)
+    front_matter, body, frontmatter_error = parse_yaml_front_matter_with_error(content)
+    if frontmatter_error is not None:
+        record_load_issue(
+            file_path,
+            f"invalid YAML frontmatter (treated as plain body): {frontmatter_error}",
+            kind="frontmatter",
+        )
 
     # Get name from front matter or fallback to filename
     if front_matter and "name" in front_matter:
@@ -468,8 +477,9 @@ def load_project_local_xprompts(
     try:
         with open(sase_yml, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-    except Exception:
+    except Exception as exc:
         log.debug("Failed to load project sase.yml: %s", sase_yml, exc_info=True)
+        record_load_issue(sase_yml, exc, kind="config")
         return {}
 
     if not isinstance(data, dict):

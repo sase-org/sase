@@ -28,6 +28,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
+from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
 from sase.ace.tui.task_queue import TaskInfo
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 from tests.ace.tui._agent_launch_helpers import _LaunchBodyApp
@@ -126,6 +127,19 @@ def _complete_launch_task(app: _SubmitLaunchBodyApp, outcome: Any) -> None:
             error=outcome.message if not outcome.success else None,
         )
     )
+
+
+def test_launch_task_completion_emits_warning_messages() -> None:
+    app = _SubmitLaunchBodyApp()
+    outcome = LaunchTaskOutcome(
+        "done",
+        notify=False,
+        warning_messages=("Unknown xprompt reference(s): #reviewww",),
+    )
+
+    _complete_launch_task(app, outcome)
+
+    assert app.notifications == [("Unknown xprompt reference(s): #reviewww", "warning")]
 
 
 @pytest.mark.asyncio

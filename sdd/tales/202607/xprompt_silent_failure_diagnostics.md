@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-02 15:57:04
-status: wip
+status: done
 prompt: sdd/prompts/202607/xprompt_silent_failure_diagnostics.md
 ---
 # Plan: Make xprompt silent failures loud — unresolved-reference warnings + definition load-error surfacing

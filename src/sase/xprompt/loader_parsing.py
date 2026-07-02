@@ -16,19 +16,21 @@ class LocalXPromptNameError(ValueError):
     """Raised when a local xprompt name does not start with ``_``."""
 
 
-def parse_yaml_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
+def parse_yaml_front_matter_with_error(
+    content: str,
+) -> tuple[dict[str, Any] | None, str, yaml.YAMLError | None]:
     """Parse YAML front matter delimited by --- lines.
 
     Args:
         content: The full file content.
 
     Returns:
-        Tuple of (front_matter_dict, body_content).
+        Tuple of (front_matter_dict, body_content, parse_error).
         front_matter_dict is None if no front matter found.
     """
     lines = content.split("\n")
     if not lines or lines[0].strip() != "---":
-        return None, content
+        return None, content, None
 
     # Find the closing ---
     end_index = -1
@@ -39,7 +41,7 @@ def parse_yaml_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
 
     if end_index == -1:
         # No closing ---, treat as no front matter
-        return None, content
+        return None, content, None
 
     # Extract and parse YAML
     yaml_content = "\n".join(lines[1:end_index])
@@ -47,9 +49,9 @@ def parse_yaml_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
         front_matter = yaml.safe_load(yaml_content)
         if not isinstance(front_matter, dict):
             front_matter = {}
-    except yaml.YAMLError:
+    except yaml.YAMLError as exc:
         # Invalid YAML, treat as no front matter
-        return None, content
+        return None, content, exc
 
     # Body is everything after the closing ---
     body = "\n".join(lines[end_index + 1 :])
@@ -57,6 +59,16 @@ def parse_yaml_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
     if body.startswith("\n"):
         body = body[1:]
 
+    return front_matter, body, None
+
+
+def parse_yaml_front_matter(content: str) -> tuple[dict[str, Any] | None, str]:
+    """Parse YAML front matter delimited by --- lines.
+
+    Invalid YAML preserves the historical fallback of treating the full content
+    as plain body text.
+    """
+    front_matter, body, _error = parse_yaml_front_matter_with_error(content)
     return front_matter, body
 
 
@@ -391,6 +403,13 @@ def parse_xprompt_entries(
 
     for name, value in entries.items():
         if not isinstance(name, str):
+            from .load_issues import record_load_issue
+
+            record_load_issue(
+                source_path,
+                f"skipped xprompt entry with non-string name: {name!r}",
+                kind="config",
+            )
             continue
 
         if isinstance(value, str):
@@ -407,6 +426,13 @@ def parse_xprompt_entries(
             # Structured xprompt with input/content
             content = value.get("content", "")
             if not isinstance(content, str):
+                from .load_issues import record_load_issue
+
+                record_load_issue(
+                    source_path,
+                    f"skipped xprompt entry {name!r}: content must be a string",
+                    kind="config",
+                )
                 continue
             inputs = parse_inputs_from_front_matter(value.get("input"))
             tags = parse_tags(value.get("tags"))
@@ -421,6 +447,13 @@ def parse_xprompt_entries(
                 else {}
             )
         else:
+            from .load_issues import record_load_issue
+
+            record_load_issue(
+                source_path,
+                f"skipped xprompt entry {name!r}: value must be a string or mapping",
+                kind="config",
+            )
             continue
 
         xprompts[name] = XPrompt(

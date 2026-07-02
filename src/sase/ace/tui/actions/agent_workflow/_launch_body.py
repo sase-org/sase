@@ -91,6 +91,8 @@ class AgentLaunchBodyMixin:
             # An inner failed-launch branch already stashed the prompt
             # synchronously; reflect the new row in the badge.
             self._schedule_prompt_stash_badge_refresh()  # type: ignore[attr-defined]
+        for warning in outcome.warning_messages:
+            self.notify(warning, severity="warning")  # type: ignore[attr-defined]
         if outcome.notify and outcome.message:
             self.notify(outcome.message, severity=outcome.severity)  # type: ignore[attr-defined]
 
@@ -122,6 +124,23 @@ class AgentLaunchBodyMixin:
                 severity="warning",
             )
         original_submitted_prompt = prompt
+        from sase.xprompt.unresolved import (
+            format_unresolved_references_toast,
+            scan_query_for_unresolved_references,
+        )
+
+        unresolved_refs = scan_query_for_unresolved_references(prompt)
+        unresolved_warning_messages = (
+            (format_unresolved_references_toast(unresolved_refs),)
+            if unresolved_refs
+            else ()
+        )
+
+        def _with_unresolved_warnings(
+            outcome: LaunchTaskOutcome,
+        ) -> LaunchTaskOutcome:
+            return outcome.with_warning_messages(unresolved_warning_messages)
+
         from sase.agent.launch_validation import (
             force_reuse_owner_names,
             rewrite_force_reuse_name_directives,
@@ -149,8 +168,11 @@ class AgentLaunchBodyMixin:
                 )
                 if owns_context:
                     self._prompt_context = None
-                return LaunchTaskOutcome(
-                    with_log_panel_hint("Agent name reuse failed"), severity="error"
+                return _with_unresolved_warnings(
+                    LaunchTaskOutcome(
+                        with_log_panel_hint("Agent name reuse failed"),
+                        severity="error",
+                    )
                 )
             prompt = rewrite_force_reuse_name_directives(prompt)
 
@@ -184,12 +206,16 @@ class AgentLaunchBodyMixin:
                 self._bulk_changespecs = None
                 if owns_context:
                     self._prompt_context = None
-                return LaunchTaskOutcome(
-                    "Multi-prompt is not supported with bulk launch",
-                    severity="error",
+                return _with_unresolved_warnings(
+                    LaunchTaskOutcome(
+                        "Multi-prompt is not supported with bulk launch",
+                        severity="error",
+                    )
                 )
             self.call_later(self._launch_bulk_agents, prompt)  # type: ignore[attr-defined]
-            return LaunchTaskOutcome("Bulk launch queued", notify=False)
+            return _with_unresolved_warnings(
+                LaunchTaskOutcome("Bulk launch queued", notify=False)
+            )
 
         from sase.workspace_provider import get_ref_patterns, get_workflow_names
         from sase.xprompt.directives import has_deferred_start_directive
@@ -270,7 +296,9 @@ class AgentLaunchBodyMixin:
                     if owns_context:
                         self._prompt_context = None
                     timer.finish(dispatch="multi_prompt", outcome="cancelled")
-                    return LaunchTaskOutcome(err_msg, severity="error")
+                    return _with_unresolved_warnings(
+                        LaunchTaskOutcome(err_msg, severity="error")
+                    )
                 add_or_update_prompt(
                     submitted_xprompt,
                     allow_short=True,
@@ -292,9 +320,11 @@ class AgentLaunchBodyMixin:
                 mp_vcs_ref,
                 submitted_xprompt,
             )
-            return LaunchTaskOutcome(
-                f"Multi-prompt launch queued for {ctx.display_name}",
-                notify=False,
+            return _with_unresolved_warnings(
+                LaunchTaskOutcome(
+                    f"Multi-prompt launch queued for {ctx.display_name}",
+                    notify=False,
+                )
             )
 
         from sase.xprompt._parsing import (
@@ -427,7 +457,9 @@ class AgentLaunchBodyMixin:
                     self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
                 err_msg = f"Cannot resolve {leading_tag.strip()}; not launching"
-                return LaunchTaskOutcome(err_msg, severity="error")
+                return _with_unresolved_warnings(
+                    LaunchTaskOutcome(err_msg, severity="error")
+                )
 
         # Save prompt after launch validation; validation failures are recorded
         # through the failed-launch helper so short prompts are retained.
@@ -442,7 +474,9 @@ class AgentLaunchBodyMixin:
                 if owns_context:
                     self._prompt_context = None
                 timer.finish(dispatch="single", outcome="cancelled")
-                return LaunchTaskOutcome(err_msg, severity="error")
+                return _with_unresolved_warnings(
+                    LaunchTaskOutcome(err_msg, severity="error")
+                )
             add_or_update_prompt(prompt)
             record_prompt_file_references(prompt)
         single_history_prompt = prompt
@@ -507,10 +541,12 @@ class AgentLaunchBodyMixin:
                 if owns_context:
                     self._prompt_context = None
                 timer.finish(dispatch="workflow")
-                return LaunchTaskOutcome(
-                    "Workflow launch queued",
-                    notify=False,
-                    schedule_agents_refresh=True,
+                return _with_unresolved_warnings(
+                    LaunchTaskOutcome(
+                        "Workflow launch queued",
+                        notify=False,
+                        schedule_agents_refresh=True,
+                    )
                 )
             elif vcs_ref is None and isinstance(workflow_result, str):
                 # Simple xprompt expanded inline - use as regular prompt
@@ -586,9 +622,11 @@ class AgentLaunchBodyMixin:
                 submitted_xprompt,
                 fanout_plan,
             )
-            return LaunchTaskOutcome(
-                f"Prompt fan-out launch queued for {ctx.display_name}",
-                notify=False,
+            return _with_unresolved_warnings(
+                LaunchTaskOutcome(
+                    f"Prompt fan-out launch queued for {ctx.display_name}",
+                    notify=False,
+                )
             )
 
         # Check for repeat directive (e.g., %r:3). Fan out into N independent
@@ -606,9 +644,11 @@ class AgentLaunchBodyMixin:
                 vcs_ref,
                 has_wait,
             )
-            return LaunchTaskOutcome(
-                f"Repeat launch queued for {ctx.display_name}",
-                notify=False,
+            return _with_unresolved_warnings(
+                LaunchTaskOutcome(
+                    f"Repeat launch queued for {ctx.display_name}",
+                    notify=False,
+                )
             )
 
         # For agents with %wait directives, override workspace to deferred
@@ -675,9 +715,11 @@ class AgentLaunchBodyMixin:
                     base_timestamp=ctx.timestamp,
                 )
             timer.finish(dispatch="single")
-            return LaunchTaskOutcome(
-                f"Agent started for {display_name}",
-                results=launch_results_tuple(execution.results),
+            return _with_unresolved_warnings(
+                LaunchTaskOutcome(
+                    f"Agent started for {display_name}",
+                    results=launch_results_tuple(execution.results),
+                )
             )
         except Exception as exc:
             record_failed_launch_prompt(single_history_prompt)
@@ -694,7 +736,9 @@ class AgentLaunchBodyMixin:
                 prompt_preview=single_history_prompt,
                 vcs_ref=None if vcs_ref is None else f"{vcs_ref[0]}:{vcs_ref[1]}",
             )
-            return LaunchTaskOutcome(
-                with_log_panel_hint("Agent launch failed"),
-                severity="error",
+            return _with_unresolved_warnings(
+                LaunchTaskOutcome(
+                    with_log_panel_hint("Agent launch failed"),
+                    severity="error",
+                )
             )

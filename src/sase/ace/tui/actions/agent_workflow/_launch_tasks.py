@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
@@ -24,6 +24,7 @@ class LaunchTaskOutcome:
     message: str
     results: tuple[AgentLaunchResult, ...] = ()
     severity: LaunchSeverity | None = None
+    warning_messages: tuple[str, ...] = ()
     notify: bool = True
     request_agents_refresh: bool = False
     schedule_agents_refresh: bool = False
@@ -33,6 +34,16 @@ class LaunchTaskOutcome:
     def success(self) -> bool:
         """Return whether this outcome should be recorded as task success."""
         return self.severity != "error"
+
+    def with_warning_messages(
+        self,
+        warning_messages: Sequence[str],
+    ) -> LaunchTaskOutcome:
+        """Return a copy carrying additional non-fatal warning toasts."""
+        if not warning_messages:
+            return self
+        merged = tuple(dict.fromkeys((*self.warning_messages, *warning_messages)))
+        return replace(self, warning_messages=merged)
 
 
 def launch_results_tuple(
@@ -131,6 +142,9 @@ class LaunchTaskMixin:
             # A failed/partial worker already stashed its prompt synchronously;
             # refresh the badge so the new row is reflected.
             self._schedule_prompt_stash_badge_refresh()  # type: ignore[attr-defined]
+
+        for warning in outcome.warning_messages:
+            self.notify(warning, severity="warning")  # type: ignore[attr-defined]
 
         if outcome.notify and outcome.message:
             self.notify(  # type: ignore[attr-defined]

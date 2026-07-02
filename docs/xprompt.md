@@ -1827,3 +1827,18 @@ steps:
 
 See the [Workflow Specification](workflow_spec.md) for full details on multi-step workflows, control flow, parallel
 execution, and human-in-the-loop approval.
+
+## Troubleshooting
+
+If a launch prompt contains an unknown `#name` reference, SASE warns before launch and passes the text through
+literally. This is non-blocking so prose hashtags can still be used, but typos such as `#reviewww` are visible at
+`sase run`, `sase xprompt expand`, and from the `sase ace` prompt bar.
+
+If a definition file is malformed, run:
+
+```bash
+sase xprompt list
+sase doctor -C config.xprompt_definitions
+```
+
+Both commands report `skipped: <file>: <error>` lines for xprompt or workflow definitions that could not be loaded.

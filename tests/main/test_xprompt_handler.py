@@ -107,6 +107,34 @@ def test_xprompt_expand_canonicalizes_project_alias(
     assert capsys.readouterr().out == "#gh:bob-cli do it"
 
 
+def test_xprompt_expand_warns_on_unresolved_reference_on_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("sase.config.load_merged_config", return_value={"xprompt_aliases": {}}),
+        patch("sase.xprompt.processor.get_all_xprompts", return_value={}),
+        patch("sase.xprompt.loader.get_all_prompts", return_value={}),
+        patch("sase.workspace_provider.get_workflow_names", return_value=set()),
+        patch("sase.workspace_provider.get_ref_patterns", return_value={}),
+        patch("sase.xprompt.loader.get_known_project_workspaces", return_value={}),
+        patch(
+            "sase.main.query_handler.expand_embedded_workflows_in_query",
+            side_effect=lambda prompt: (prompt, []),
+        ),
+        patch(
+            "sase.llm_provider.preprocessing.preprocess_prompt_late",
+            side_effect=lambda prompt, **_kwargs: prompt,
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _handle_expand(argparse.Namespace(prompt="#reviewww", trace=False))
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert captured.out == "#reviewww"
+    assert "unknown xprompt reference '#reviewww'" in captured.err
+
+
 def test_xprompt_list_marks_only_skill_xprompts(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -138,6 +166,33 @@ def test_xprompt_list_marks_only_skill_xprompts(
     assert rows["sase_plan"]["is_skill"] is True
     assert rows["review"]["is_skill"] is False
     assert rows["ship"]["is_skill"] is False
+
+
+def test_xprompt_list_prints_load_issues_to_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.xprompt.load_issues import record_load_issue
+
+    def get_prompts_with_issue() -> dict[str, Workflow]:
+        record_load_issue(
+            "/tmp/bad.yml", "mapping values are not allowed", kind="workflow"
+        )
+        return {}
+
+    with (
+        patch(
+            "sase.xprompt.loader.get_all_prompts", side_effect=get_prompts_with_issue
+        ),
+        patch("sase.xprompt.loader.get_all_xprompts", return_value={}),
+        patch("sase.xprompt.loader.get_all_workflows", return_value={}),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        _handle_list()
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert json.loads(captured.out) == []
+    assert captured.err == "skipped: /tmp/bad.yml: mapping values are not allowed\n"
 
 
 def test_xprompt_list_includes_prompt_and_input_descriptions(

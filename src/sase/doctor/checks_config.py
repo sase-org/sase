@@ -58,6 +58,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Model xprompt routing",
             runner=lambda: _check_config_model_xprompts(context),
         ),
+        CheckSpec(
+            id="config.xprompt_definitions",
+            group="config",
+            title="XPrompt definitions",
+            runner=lambda: _check_config_xprompt_definitions(context),
+        ),
     )
 
 
@@ -457,6 +463,56 @@ def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
         details=details,
         next_steps=next_steps,
         data={"scanned": scanned, "problems": problems},
+    )
+
+
+def _check_config_xprompt_definitions(context: DoctorContext) -> DiagnosticCheck:
+    """Surface non-fatal xprompt/workflow definition load issues."""
+    from sase.xprompt.load_issues import XPromptLoadIssue, collect_xprompt_load_issues
+    from sase.xprompt.loader import get_all_project_local_prompts, get_all_prompts
+
+    with collect_xprompt_load_issues() as issues:
+        prompts = get_all_prompts(context.project)
+        project_local_prompts = get_all_project_local_prompts()
+
+    issue_rows: list[XPromptLoadIssue] = list(issues)
+    rows = [
+        {
+            "source": issue.source,
+            "error": issue.error,
+            "kind": issue.kind,
+        }
+        for issue in issue_rows
+    ]
+    if not rows:
+        loaded = len(prompts) + len(project_local_prompts)
+        return DiagnosticCheck(
+            id="config.xprompt_definitions",
+            group="config",
+            status="OK",
+            title="XPrompt definitions",
+            summary=f"{loaded} xprompt/workflow definition(s) loaded cleanly",
+            data={"loaded_count": loaded, "issues": []},
+        )
+
+    details = tuple(
+        f"skipped: {row['source']}: {row['error']}" for row in rows[:_MAX_DETAIL_ROWS]
+    )
+    return DiagnosticCheck(
+        id="config.xprompt_definitions",
+        group="config",
+        status="WARN",
+        title="XPrompt definitions",
+        summary=f"{len(rows)} xprompt definition file(s) skipped or degraded",
+        details=details,
+        next_steps=(
+            "Fix the reported xprompt/workflow definition files, then rerun "
+            "`sase doctor -C config.xprompt_definitions`.",
+        ),
+        data={
+            "loaded_count": len(prompts) + len(project_local_prompts),
+            "issues": rows,
+        },
     )
 
 

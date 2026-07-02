@@ -29,6 +29,15 @@ def launch_query(query: str) -> None:
         )
         sys.exit(1)
 
+    from sase.output import print_status
+    from sase.xprompt.unresolved import (
+        format_unresolved_reference_warning,
+        scan_query_for_unresolved_references,
+    )
+
+    for name in scan_query_for_unresolved_references(query):
+        print_status(format_unresolved_reference_warning(name), "warning")
+
     try:
         results = launch_agents_from_cwd(query)
     except RuntimeError as e:

@@ -54,6 +54,16 @@ def _handle_expand(args: argparse.Namespace) -> None:
     expanded, _post_workflows = expand_embedded_workflows_in_query(early.prompt)
     processed = preprocess_prompt_late(expanded, file_ref_mode="validate")
     print(processed, end="")
+    from sase.xprompt.unresolved import (
+        find_unresolved_reference_names,
+        format_unresolved_reference_warning,
+    )
+
+    for name in find_unresolved_reference_names(
+        processed,
+        extra_xprompts=local_xprompts,
+    ):
+        print(format_unresolved_reference_warning(name), file=sys.stderr)
     if trace is not None:
         print_trace(trace)
     sys.exit(0)
@@ -68,15 +78,17 @@ def _handle_list() -> None:
         get_all_workflows,
         get_all_xprompts,
     )
+    from sase.xprompt.load_issues import collect_xprompt_load_issues
     from sase.xprompt.reference_display import (
         workflow_kind_value,
         workflow_reference_insertion,
         workflow_reference_prefix,
     )
 
-    prompts = get_all_prompts()
-    xprompts = get_all_xprompts()
-    workflow_names = set(get_all_workflows())
+    with collect_xprompt_load_issues() as load_issues:
+        prompts = get_all_prompts()
+        xprompts = get_all_xprompts()
+        workflow_names = set(get_all_workflows())
     items = []
     for name, wf in sorted(prompts.items()):
         is_simple = wf.is_simple_xprompt()
@@ -151,6 +163,8 @@ def _handle_list() -> None:
             }
         )
     print(json.dumps(items))
+    for issue in load_issues:
+        print(f"skipped: {issue.source}: {issue.error}", file=sys.stderr)
     sys.exit(0)
 
 

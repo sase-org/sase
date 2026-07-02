@@ -117,3 +117,35 @@ def test_launch_query_prints_each_launched_agent_pid(
         "Agent started (PID 1234)",
         "Agent started (PID 5678)",
     ]
+
+
+def test_launch_query_warns_on_unresolved_xprompt_and_still_launches(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main.query_handler import _launch
+
+    warnings: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+        lambda _query: ("reviewww",),
+    )
+    monkeypatch.setattr("sase.xprompt.loader.get_all_prompts", lambda: {})
+    monkeypatch.setattr(
+        "sase.output.print_status",
+        lambda message, status: warnings.append((message, status)),
+    )
+    monkeypatch.setattr(
+        _launch,
+        "launch_agents_from_cwd",
+        lambda _query: [_launch_result()],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _launch.launch_query("do work #reviewww")
+
+    assert exc_info.value.code == 0
+    assert warnings
+    assert warnings[0][1] == "warning"
+    assert "unknown xprompt reference '#reviewww'" in warnings[0][0]
+    assert capsys.readouterr().out == "Agent started (PID 1234)\n"

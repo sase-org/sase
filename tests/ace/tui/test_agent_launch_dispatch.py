@@ -212,6 +212,24 @@ def test_run_agent_launch_body_direct_single_agent_schedules_delta_after_success
     assert app.refresh_count == 0
 
 
+def test_run_agent_launch_body_carries_unresolved_reference_warning() -> None:
+    app = _LaunchBodyApp()
+
+    with (
+        patch(
+            "sase.xprompt.unresolved.process_xprompt_references",
+            side_effect=lambda prompt, **_kwargs: prompt,
+        ),
+        patch("sase.xprompt.loader.get_all_prompts", return_value={}),
+        patch("sase.xprompt.processor.get_all_xprompts", return_value={}),
+    ):
+        outcome = _run_launch_body_with_common_patches(app, "do #reviewww")
+
+    assert outcome.warning_messages == (
+        "Unknown xprompt reference(s): #reviewww - passed through as literal text",
+    )
+
+
 def test_run_agent_launch_body_name_validation_failure_records_failed_history() -> None:
     app = _LaunchBodyApp()
 
