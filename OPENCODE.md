@@ -50,6 +50,15 @@ A `<name>` agent family refers to a group of agents that are all named with the 
 rest of its name by a dot. For example, agents named `foo`, `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
 same `foo` agent family.
 
+**Agent Hoods**  
+An agent hood is a group of agents that are all named with the same `<name>.` prefix. For example, agents named
+`foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the same `foo` agent hood. The agent `foo`, if it exists, is also
+considered part of the `foo` agent hood.
+
+**Agent Neighbors**  
+An agent neighbor is any agent that is in the same agent hood as another agent. For example, agents named `foo`,
+`foo.baz`, and `foo.bar.1` are all neighbors of each other because they are all in the same `foo` agent hood.
+
 **ChangeSpec**  
 Represents a single CL/PR. Stored in `.gp` files at `~/.sase/projects/<project>/`. Sections: NAME, DESCRIPTION, PARENT,
 CL/PR, STATUS, COMMITS, HOOKS, COMMENTS, MENTORS. Active specs in `<project>.gp`; terminal ones (Submitted, Archived,
