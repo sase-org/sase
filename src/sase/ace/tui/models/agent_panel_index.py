@@ -61,6 +61,19 @@ class AgentPanelIndex:
     def non_child_total(self) -> int:
         return len(self.non_child_indices)
 
+    @property
+    def top_level_total(self) -> int:
+        """Total top-level rows, including hidden STARTING rows.
+
+        ``non_child_total`` counts only the rendered/selectable top-level
+        rows and drives row position and navigation semantics. The
+        info-panel headline additionally includes transient top-level
+        STARTING rows: they are hidden from the panel slices but still
+        contribute to the displayed agent total. ``hidden_starting_indices``
+        already excludes workflow children, so this never double-counts.
+        """
+        return len(self.non_child_indices) + len(self.hidden_starting_indices)
+
 
 def build_agent_panel_index(
     agents: list[Agent],

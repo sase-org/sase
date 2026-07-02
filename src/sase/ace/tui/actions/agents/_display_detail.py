@@ -506,7 +506,7 @@ class DetailMixin:
             waiting_count,
             failed_count,
             read_count,
-            panel_index.non_child_total,
+            panel_index.top_level_total,
             starting_count,
         )
         self._agent_info_metrics_cache = (cache_key, metrics)
@@ -552,7 +552,10 @@ class DetailMixin:
             log.debug("agents info panel update skipped: widget tree unavailable")
             return
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
-        total = panel_index.non_child_total
+        # ``selectable_total`` drives position semantics (rendered/selectable
+        # top-level rows), while ``visible_agent_count`` is the headline total
+        # that also includes hidden top-level STARTING rows.
+        selectable_total = panel_index.non_child_total
         position = (
             panel_index.non_child_position(self.current_idx) if self._agents else 0
         )
@@ -587,7 +590,7 @@ class DetailMixin:
         if callable(update_state):
             update_state(
                 position=position,
-                total=total,
+                total=selectable_total,
                 unread=unread_count,
                 asking=asking_count,
                 running=running_count,
@@ -605,7 +608,7 @@ class DetailMixin:
             )
             return
 
-        agent_info_panel.update_position(position, total)
+        agent_info_panel.update_position(position, selectable_total)
         agent_info_panel.update_agent_counts(
             unread_count,
             asking_count,
@@ -613,7 +616,7 @@ class DetailMixin:
             waiting_count,
             failed_count,
             read_count,
-            total,
+            visible_agent_count,
             starting=starting_count,
         )
         agent_info_panel.update_countdown(

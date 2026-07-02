@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-02 05:53:43
-status: wip
+status: done
 prompt: sdd/prompts/202607/agents_starting_total.md
 ---
 # Plan: Include STARTING Agents in the Agents Tab Total

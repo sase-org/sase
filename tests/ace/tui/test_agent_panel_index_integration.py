@@ -183,6 +183,59 @@ def test_sync_panel_group_snaps_selection_off_hidden_starting_row() -> None:
     assert bare._panel_group.panel_keys == [None]
 
 
+class _RecordingInfoPanel:
+    """Info-panel stub that records the legacy position + count-strip calls."""
+
+    counts: tuple[int, int, int, int, int, int, int, int] | None = None
+    position: tuple[int, int] | None = None
+
+    def update_position(self, position: int, total: int) -> None:
+        self.position = (position, total)
+
+    def update_agent_counts(
+        self,
+        unread: int,
+        asking: int,
+        running: int,
+        waiting: int,
+        failed: int,
+        read: int,
+        total: int,
+        *,
+        starting: int = 0,
+    ) -> None:
+        self.counts = (
+            unread,
+            asking,
+            starting,
+            running,
+            waiting,
+            failed,
+            read,
+            total,
+        )
+
+    def update_countdown(self, _countdown: int, _interval: int) -> None:
+        return
+
+    def update_search_query(self, _query: str) -> None:
+        return
+
+    def update_grouping_mode(self, _label: str) -> None:
+        return
+
+    def update_view_mode(self, _mode: str) -> None:
+        return
+
+
+def _run_info_panel(bare: _Bare) -> _RecordingInfoPanel:
+    """Drive ``_update_agents_info_panel`` against a recording info-panel stub."""
+    info_panel = _RecordingInfoPanel()
+    bare.query_one = lambda _selector, _type=None: info_panel  # type: ignore[attr-defined]
+    bare._update_agents_info_panel()
+    return info_panel
+
+
 def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     visible_unread = _agent(suffix="done-unread", status="DONE")
     visible_asking = _agent(suffix="asking", status="PLAN")
@@ -230,56 +283,29 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
         child_unread.identity,
     }
 
-    class _InfoPanel:
-        counts: tuple[int, int, int, int, int, int, int, int] | None = None
-        position: tuple[int, int] | None = None
+    info_panel = _run_info_panel(bare)
 
-        def update_position(self, position: int, total: int) -> None:
-            self.position = (position, total)
-
-        def update_agent_counts(
-            self,
-            unread: int,
-            asking: int,
-            running: int,
-            waiting: int,
-            failed: int,
-            read: int,
-            total: int,
-            *,
-            starting: int = 0,
-        ) -> None:
-            self.counts = (
-                unread,
-                asking,
-                starting,
-                running,
-                waiting,
-                failed,
-                read,
-                total,
-            )
-
-        def update_countdown(self, _countdown: int, _interval: int) -> None:
-            return
-
-        def update_search_query(self, _query: str) -> None:
-            return
-
-        def update_grouping_mode(self, _label: str) -> None:
-            return
-
-        def update_view_mode(self, _mode: str) -> None:
-            return
-
-    info_panel = _InfoPanel()
-
-    def _query_one(_selector: str, _type: Any = None) -> Any:
-        return info_panel
-
-    bare.query_one = _query_one  # type: ignore[attr-defined]
-
-    bare._update_agents_info_panel()
-
+    # Position uses the selectable (rendered) top-level total, which excludes
+    # the hidden STARTING row.
     assert info_panel.position == (0, 6)
-    assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 6)
+    # The count-strip total is the inclusive headline total: six rendered
+    # top-level rows plus the one hidden top-level STARTING row (still one in
+    # the ``starting`` bucket).
+    assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 7)
+
+
+def test_info_panel_total_counts_lone_hidden_starting_agent() -> None:
+    """Regression: one top-level STARTING agent with no rendered rows.
+
+    The user-visible symptom was an impossible ``0 [1 starting]`` headline.
+    The displayed total must include the hidden STARTING row (``1``) while the
+    selectable position total stays ``0``.
+    """
+    bare = _Bare([_agent(suffix="starting", status="STARTING")])
+    bare.current_idx = -1
+
+    info_panel = _run_info_panel(bare)
+
+    assert info_panel.position == (0, 0)
+    # (unread, asking, starting, running, waiting, failed, read, total)
+    assert info_panel.counts == (0, 0, 1, 0, 0, 0, 0, 1)
