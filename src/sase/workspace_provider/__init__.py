@@ -10,6 +10,7 @@ Usage::
 
 from ._hookspec import (
     ResolvedRef,
+    SUBMITTED_CHECK_EXIT_CODE_CLOSED,
     WorkflowMetadata,
     WorkspaceHookSpec,
     hookimpl,
@@ -57,6 +58,7 @@ from ._registry import (
 __all__ = [
     "CheckoutMarker",
     "ResolvedRef",
+    "SUBMITTED_CHECK_EXIT_CODE_CLOSED",
     "WorkflowMetadata",
     "WorkspaceEntry",
     "WorkspaceHookSpec",

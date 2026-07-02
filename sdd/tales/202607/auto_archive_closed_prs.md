@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-02 07:16:49
-status: wip
+status: done
 prompt: sdd/prompts/202607/auto_archive_closed_prs.md
 ---
 # Auto-archive ChangeSpecs whose PRs were closed without merging

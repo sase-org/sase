@@ -16,9 +16,14 @@ from typing import Literal
 
 from sase.core.paths import iter_sharded_files, sharded_path
 from sase.core.time import generate_timestamp
-from sase.status_state_machine import transition_changespec_status
+from sase.status_state_machine import (
+    ARCHIVE_STATUSES,
+    remove_workspace_suffix,
+    transition_changespec_status,
+)
+from sase.workspace_provider import SUBMITTED_CHECK_EXIT_CODE_CLOSED
 
-from ..changespec import ChangeSpec, CommentEntry, is_plain_suffix
+from ..changespec import ChangeSpec, CommentEntry, get_base_status, is_plain_suffix
 from ..cl_status import is_parent_submitted
 from ..comments import (
     get_comments_file_path,
@@ -389,7 +394,7 @@ def _handle_cl_submitted_completion(
 
     Args:
         changespec: The ChangeSpec to update.
-        exit_code: The exit code from the check (0 = submitted).
+        exit_code: The exit code from the check.
         log: Logging callback.
 
     Returns:
@@ -397,6 +402,23 @@ def _handle_cl_submitted_completion(
     """
     # Update the last_checked timestamp
     update_last_checked(changespec.name)
+
+    if exit_code == SUBMITTED_CHECK_EXIT_CODE_CLOSED:
+        base_status = remove_workspace_suffix(get_base_status(changespec.status))
+        if base_status not in ARCHIVE_STATUSES:
+            from ..sync_cache import clear_cache_entry
+
+            success, old_status, _, _ = transition_changespec_status(
+                changespec.file_path,
+                changespec.name,
+                "Archived",
+                validate=False,
+            )
+
+            if success:
+                clear_cache_entry(changespec.name)
+                return f"Status changed {old_status} -> Archived"
+        return None
 
     # Exit code 0 means submitted, but skip if already Submitted
     if (

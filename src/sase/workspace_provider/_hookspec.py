@@ -7,6 +7,8 @@ import pluggy
 hookspec = pluggy.HookspecMarker("sase_workspace")
 hookimpl = pluggy.HookimplMarker("sase_workspace")
 
+SUBMITTED_CHECK_EXIT_CODE_CLOSED = 20
+
 
 @dataclass
 class ResolvedRef:
@@ -91,7 +93,16 @@ class WorkspaceHookSpec:
     @hookspec(firstresult=True)
     def ws_generate_submitted_check_script(
         self, identifier: str, vcs_type: str
-    ) -> str | None: ...
+    ) -> str | None:
+        """Generate a shell fragment for checking whether a CL/PR is submitted.
+
+        The returned script body must not call ``exit`` directly because the
+        scheduler wrapper captures the final ``$?``. Exit code ``0`` means the
+        CL/PR was submitted or merged,
+        :data:`SUBMITTED_CHECK_EXIT_CODE_CLOSED` means it was closed without
+        merging, and any other code means no status signal was available.
+        """
+        ...
 
     @hookspec(firstresult=True)
     def ws_supports_reviewer_comments(self, cl_url: str) -> bool | None: ...

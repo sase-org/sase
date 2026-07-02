@@ -13,6 +13,7 @@ from sase.ace.scheduler.checks_runner import (
     CHECK_TYPE_REVIEWER_COMMENTS,
     _extract_change_identifier,
     _get_pending_checks,
+    _handle_cl_submitted_completion,
     _parse_check_completion,
     has_pending_check,
     process_pending_checks_for,
@@ -20,8 +21,19 @@ from sase.ace.scheduler.checks_runner import (
     scan_all_pending_checks,
     start_reviewer_comments_check,
 )
+from sase.workspace_provider import SUBMITTED_CHECK_EXIT_CODE_CLOSED
 
 from tests.conftest import redirect_sase_home
+
+
+def _mock_changespec(status: str = "Draft") -> MagicMock:
+    changespec = MagicMock()
+    changespec.name = "my_feature"
+    changespec.file_path = "/path/to/project.sase"
+    changespec.cl = "http://cl/123456"
+    changespec.status = status
+    changespec.comments = None
+    return changespec
 
 
 def test_extract_change_identifier_valid_https() -> None:
@@ -181,6 +193,174 @@ def test_check_type_constants() -> None:
 def test_check_complete_marker() -> None:
     """Test that completion marker has expected value."""
     assert CHECK_COMPLETE_MARKER == "===CHECK_COMPLETE=== "
+
+
+def test_handle_cl_submitted_completion_archives_closed_non_terminal_spec() -> None:
+    """Exit 20 archives a non-terminal ChangeSpec and clears sync cache."""
+    changespec = _mock_changespec(status="Draft")
+    log = MagicMock()
+
+    with (
+        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
+        patch(
+            "sase.ace.scheduler.checks_runner.transition_changespec_status",
+            return_value=(True, "Draft", None, []),
+        ) as mock_transition,
+        patch("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
+        patch(
+            "sase.ace.scheduler.checks_runner.is_parent_submitted"
+        ) as mock_parent_submitted,
+    ):
+        result = _handle_cl_submitted_completion(
+            changespec,
+            SUBMITTED_CHECK_EXIT_CODE_CLOSED,
+            log,
+        )
+
+    assert result == "Status changed Draft -> Archived"
+    mock_checked.assert_called_once_with("my_feature")
+    mock_transition.assert_called_once_with(
+        "/path/to/project.sase",
+        "my_feature",
+        "Archived",
+        validate=False,
+    )
+    mock_clear.assert_called_once_with("my_feature")
+    mock_parent_submitted.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        "Submitted",
+        "Archived",
+        "Reverted",
+        "Submitted (proj_1)",
+        "Archived (proj_1)",
+        "Reverted (proj_1)",
+    ],
+)
+def test_handle_cl_submitted_completion_closed_terminal_status_is_noop(
+    status: str,
+) -> None:
+    """Exit 20 does not rewrite already-terminal specs."""
+    changespec = _mock_changespec(status=status)
+    log = MagicMock()
+
+    with (
+        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
+        patch(
+            "sase.ace.scheduler.checks_runner.transition_changespec_status"
+        ) as mock_transition,
+        patch(
+            "sase.ace.scheduler.checks_runner.is_parent_submitted"
+        ) as mock_parent_submitted,
+    ):
+        result = _handle_cl_submitted_completion(
+            changespec,
+            SUBMITTED_CHECK_EXIT_CODE_CLOSED,
+            log,
+        )
+
+    assert result is None
+    mock_checked.assert_called_once_with("my_feature")
+    mock_transition.assert_not_called()
+    mock_parent_submitted.assert_not_called()
+
+
+@pytest.mark.parametrize("exit_code", [1, 2, 19, 21])
+def test_handle_cl_submitted_completion_other_nonzero_exit_is_noop(
+    exit_code: int,
+) -> None:
+    """Only the closed-unmerged exit code archives a ChangeSpec."""
+    changespec = _mock_changespec(status="Draft")
+    log = MagicMock()
+
+    with (
+        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
+        patch(
+            "sase.ace.scheduler.checks_runner.transition_changespec_status"
+        ) as mock_transition,
+        patch(
+            "sase.ace.scheduler.checks_runner.is_parent_submitted"
+        ) as mock_parent_submitted,
+    ):
+        result = _handle_cl_submitted_completion(changespec, exit_code, log)
+
+    assert result is None
+    mock_checked.assert_called_once_with("my_feature")
+    mock_transition.assert_not_called()
+    mock_parent_submitted.assert_not_called()
+
+
+def test_handle_cl_submitted_completion_exit_zero_still_submits() -> None:
+    """Exit 0 keeps the existing Submitted transition behavior."""
+    changespec = _mock_changespec(status="Mailed")
+    log = MagicMock()
+
+    with (
+        patch("sase.ace.scheduler.checks_runner.update_last_checked") as mock_checked,
+        patch(
+            "sase.ace.scheduler.checks_runner.is_parent_submitted",
+            return_value=True,
+        ) as mock_parent_submitted,
+        patch(
+            "sase.ace.scheduler.checks_runner.transition_changespec_status",
+            return_value=(True, "Mailed", None, []),
+        ) as mock_transition,
+        patch("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
+    ):
+        result = _handle_cl_submitted_completion(changespec, 0, log)
+
+    assert result == "Status changed Mailed -> Submitted"
+    mock_checked.assert_called_once_with("my_feature")
+    mock_parent_submitted.assert_called_once_with(changespec)
+    mock_transition.assert_called_once_with(
+        "/path/to/project.sase",
+        "my_feature",
+        "Submitted",
+        validate=False,
+    )
+    mock_clear.assert_called_once_with("my_feature")
+
+
+def test_process_pending_checks_for_archives_on_closed_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pending-check poll handles the closed-unmerged completion marker."""
+    changespec = _mock_changespec(status="Ready")
+    log = MagicMock()
+
+    redirect_sase_home(monkeypatch, tmp_path)
+    checks_shard = tmp_path / "checks" / "202412"
+    checks_shard.mkdir(parents=True)
+    check_file = checks_shard / "my_feature-cl_submitted-241227_120000.txt"
+    check_file.write_text(
+        f"PR state: CLOSED\n{CHECK_COMPLETE_MARKER}"
+        f"EXIT_CODE: {SUBMITTED_CHECK_EXIT_CODE_CLOSED}\n"
+    )
+
+    pending = _get_pending_checks(changespec)
+
+    with (
+        patch("sase.ace.scheduler.checks_runner.update_last_checked"),
+        patch(
+            "sase.ace.scheduler.checks_runner.transition_changespec_status",
+            return_value=(True, "Ready", None, []),
+        ) as mock_transition,
+        patch("sase.ace.sync_cache.clear_cache_entry") as mock_clear,
+    ):
+        result = process_pending_checks_for(changespec, pending, log)
+
+    assert result == ["Status changed Ready -> Archived"]
+    mock_transition.assert_called_once_with(
+        "/path/to/project.sase",
+        "my_feature",
+        "Archived",
+        validate=False,
+    )
+    mock_clear.assert_called_once_with("my_feature")
+    assert not check_file.exists()
 
 
 # === Tests for start_reviewer_comments_check git skip ===

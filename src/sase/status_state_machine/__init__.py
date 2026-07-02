@@ -6,6 +6,7 @@ STATUS field transitions across all sase workflows.
 """
 
 from .constants import (
+    ARCHIVE_STATUSES,
     VALID_STATUSES,
     VALID_TRANSITIONS,
     is_valid_transition,
@@ -24,6 +25,7 @@ from .transitions import transition_changespec_status
 
 __all__ = [
     # Constants
+    "ARCHIVE_STATUSES",
     "VALID_STATUSES",
     "VALID_TRANSITIONS",
     # Validation
