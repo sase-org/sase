@@ -146,7 +146,7 @@ jobs:
           /tmp/smoke-venv/bin/sase run --help | tee /tmp/sase-run-help.txt
           grep -Fq "[PROMPT]" /tmp/sase-run-help.txt
           grep -Fq 'sase run "#cd:$(pwd) summarize what this repository does; do not change files"' /tmp/sase-run-help.txt
-          grep -Fq "sase agent list" /tmp/sase-run-help.txt
+          grep -Fq "sase chat list" /tmp/sase-run-help.txt
       # Surface platform / extension version details when the smoke
       # step above fails so the build log is enough to diagnose a
       # missing-wheel or ABI-mismatch issue without a manual repro step.
