@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0](https://github.com/sase-org/sase/compare/v0.7.1...v0.8.0) (2026-07-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* ace.inactive_seconds and the ACE idle/activity keybindings and UI surfaces are removed; old idle key overrides are retired during keymap loading.
+* **cli:** `sase run` no longer supports the foreground runner, `--list`, or `--resume` flags. Use the default detached launch path, and use `#fork` or `#fork_by_chat` for retrying or branching from existing chats.
+
+### Features
+
+* **cli:** make run detached-only ([b20637f](https://github.com/sase-org/sase/commit/b20637f4f09fc5eb9e72ee1dbb3fdcdbc728f8d2))
+* remove ACE idle activity tracking ([a39f524](https://github.com/sase-org/sase/commit/a39f5240141dd057b8ac5af0fdd103db6e1e7f22))
+
+
+### Bug Fixes
+
+* archive closed submitted checks ([df54ba5](https://github.com/sase-org/sase/commit/df54ba51bcc7400bea1d75c41ddf05032115daba))
+
 ## [0.7.1](https://github.com/sase-org/sase/compare/v0.7.0...v0.7.1) (2026-07-02)
 
 
