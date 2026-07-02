@@ -51,9 +51,8 @@ def _run_ns(
     *,
     prefix: str | None = None,
     edit: bool = False,
-    daemon: bool = False,
 ) -> argparse.Namespace:
-    return argparse.Namespace(id=prompt_id, prefix=prefix, edit=edit, daemon=daemon)
+    return argparse.Namespace(id=prompt_id, prefix=prefix, edit=edit)
 
 
 def _select_ns(
@@ -63,7 +62,6 @@ def _select_ns(
     query: str | None = None,
     prefix: str | None = None,
     edit: bool = False,
-    daemon: bool = False,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         all=all_,
@@ -71,7 +69,6 @@ def _select_ns(
         query=query,
         prefix=prefix,
         edit=edit,
-        daemon=daemon,
     )
 
 

@@ -22,7 +22,7 @@ def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:
             "sase.main.query_handler.special_cases.show_prompt_history_picker",
             mock_picker,
         ),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         patch("sase.workspace_provider.get_workflow_names", mock_names),
         patch("sase.workspace_provider._registry.get_workflow_names", mock_names),
         patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
@@ -31,7 +31,7 @@ def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:
         handle_run_special_cases(["#gh:sase ."])
 
     mock_picker.assert_called_once_with()
-    mock_run.assert_called_once_with("#gh:sase selected prompt")
+    mock_launch.assert_called_once_with("#gh:sase selected prompt")
 
 
 def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
@@ -47,7 +47,7 @@ def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
             "sase.main.query_handler.special_cases.show_prompt_history_picker",
             mock_picker,
         ),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         patch("sase.workspace_provider.get_workflow_names", mock_names),
         patch("sase.workspace_provider._registry.get_workflow_names", mock_names),
         patch("sase.xprompt._parsing._VCS_TAG_PATTERN", None),
@@ -56,35 +56,24 @@ def test_vcs_dot_prompt_strips_cross_vcs_prefix() -> None:
         handle_run_special_cases(["#gh:sase", "."])
 
     # Should strip #git:repo and prepend #gh:sase
-    mock_run.assert_called_once_with("#gh:sase do something cool")
+    mock_launch.assert_called_once_with("#gh:sase do something cool")
 
 
 def test_run_special_cases_executes_explicit_standalone_workflow() -> None:
-    """sase run '#!sync' executes a standalone workflow directly."""
+    """sase run '#!sync' launches a detached standalone workflow."""
     workflow = Workflow(
         name="sync",
         steps=[WorkflowStep(name="run", bash="echo sync")],
     )
     with (
         patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
-        patch("sase.xprompt.execute_workflow") as mock_execute,
-        patch(
-            "sase.main.query_handler.special_cases.create_artifacts_directory",
-            return_value="/tmp/artifacts",
-        ),
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc,
     ):
         handle_run_special_cases(["#!sync!!"])
 
     assert exc.value.code == 0
-    mock_execute.assert_called_once_with(
-        "sync",
-        [],
-        {},
-        artifacts_dir="/tmp/artifacts",
-        project=None,
-        hitl_override=True,
-    )
+    mock_launch.assert_called_once_with("#!sync!!")
 
 
 def test_run_special_cases_warns_for_legacy_standalone_workflow(
@@ -97,17 +86,14 @@ def test_run_special_cases_warns_for_legacy_standalone_workflow(
     )
     with (
         patch("sase.xprompt.get_all_prompts", return_value={"sync": workflow}),
-        patch("sase.xprompt.execute_workflow"),
-        patch(
-            "sase.main.query_handler.special_cases.create_artifacts_directory",
-            return_value="/tmp/artifacts",
-        ),
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit),
     ):
         handle_run_special_cases(["#sync"])
 
     captured = capsys.readouterr()
     assert "use '#!sync'" in captured.err
+    mock_launch.assert_called_once_with("#sync")
 
 
 def test_run_special_cases_rejects_bang_for_embeddable_workflow(
@@ -120,6 +106,7 @@ def test_run_special_cases_rejects_bang_for_embeddable_workflow(
     )
     with (
         patch("sase.xprompt.get_all_prompts", return_value={"commit": workflow}),
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc,
     ):
         handle_run_special_cases(["#!commit"])
@@ -127,6 +114,7 @@ def test_run_special_cases_rejects_bang_for_embeddable_workflow(
     assert exc.value.code == 1
     captured = capsys.readouterr()
     assert "Only standalone workflows use '#!'" in captured.err
+    mock_launch.assert_not_called()
 
 
 def test_run_single_token_prompt_dispatches_directly() -> None:
@@ -137,25 +125,41 @@ def test_run_single_token_prompt_dispatches_directly() -> None:
     """
     with (
         patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
         handle_run_special_cases(["hello-single-token"])
 
     assert excinfo.value.code == 0
-    mock_run.assert_called_once_with("hello-single-token")
+    mock_launch.assert_called_once_with("hello-single-token")
 
 
 def test_run_single_flag_like_token_falls_through() -> None:
     """Unknown flag-like tokens still fall through to argparse's error."""
     with (
         patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
     ):
         handled = handle_run_special_cases(["--bogus-flag"])
 
     assert handled is False
-    mock_run.assert_not_called()
+    mock_launch.assert_not_called()
+
+
+def test_run_deprecated_daemon_flag_warns_and_launches(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The hidden -d shim keeps old automation working while warning."""
+    with (
+        patch("sase.xprompt.get_all_prompts", MagicMock(return_value={})),
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_run_special_cases(["-d", "hello-single-token"])
+
+    assert excinfo.value.code == 0
+    mock_launch.assert_called_once_with("hello-single-token")
+    assert "-d/--daemon is deprecated" in capsys.readouterr().err
 
 
 def test_run_parsed_prompt_dispatches_fallthrough_namespace() -> None:
@@ -164,15 +168,15 @@ def test_run_parsed_prompt_dispatches_fallthrough_namespace() -> None:
 
     from sase.main.query_handler.special_cases import run_parsed_prompt
 
-    args = argparse.Namespace(command="run", prompt="known_prompt_name", daemon=False)
+    args = argparse.Namespace(command="run", prompt="known_prompt_name")
     with (
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
         run_parsed_prompt(args)
 
     assert excinfo.value.code == 0
-    mock_run.assert_called_once_with("known_prompt_name")
+    mock_launch.assert_called_once_with("known_prompt_name")
 
 
 def test_entry_run_known_prompt_falls_through_to_run_branch(
@@ -189,10 +193,10 @@ def test_entry_run_known_prompt_falls_through_to_run_branch(
             "sase.xprompt.get_all_prompts",
             MagicMock(return_value={"known_prompt_name": object()}),
         ),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
         entry.main()
 
     assert excinfo.value.code == 0
-    mock_run.assert_called_once_with("known_prompt_name")
+    mock_launch.assert_called_once_with("known_prompt_name")

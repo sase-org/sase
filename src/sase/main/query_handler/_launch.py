@@ -1,12 +1,12 @@
-"""Daemon mode for sase run — launches prompt as a detached background agent."""
+"""Launch ``sase run`` prompts as detached background agents."""
 
 import sys
 
-from sase.agent.launcher import launch_agent_from_cwd
+from sase.agent.launcher import launch_agents_from_cwd
 
 
-def run_query_daemon(query: str) -> None:
-    """Launch *query* as a detached background agent process.
+def launch_query(query: str) -> None:
+    """Launch *query* as detached background agent process(es).
 
     Replicates the TUI ``@`` keybinding behaviour without TUI dependencies.
     The spawned agent appears in the TUI Agents tab.
@@ -14,8 +14,23 @@ def run_query_daemon(query: str) -> None:
     For multi-prompt queries (containing ``---`` separators), all segments
     are launched sequentially before this function returns.
     """
+    from sase.agent.prompt_inputs import missing_required_input_names
+
+    missing_inputs = missing_required_input_names(query)
+    if missing_inputs:
+        from sase.output import print_status
+
+        names = ", ".join(missing_inputs)
+        print_status(
+            f"Prompt declares required input(s) without defaults: {names}. "
+            "Interactive input collection is only available in `sase ace`; "
+            "add a default to each input or launch from the TUI.",
+            "error",
+        )
+        sys.exit(1)
+
     try:
-        result = launch_agent_from_cwd(query)
+        results = launch_agents_from_cwd(query)
     except RuntimeError as e:
         from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
 
@@ -35,5 +50,10 @@ def run_query_daemon(query: str) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Agent started (PID {result.pid})")
+    if not results:
+        print("Error: agent launch produced no results", file=sys.stderr)
+        sys.exit(1)
+
+    for result in results:
+        print(f"Agent started (PID {result.pid})")
     sys.exit(0)

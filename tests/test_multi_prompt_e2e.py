@@ -14,17 +14,17 @@ from sase.xprompt.models import XPrompt
 
 
 # ---------------------------------------------------------------------------
-# CLI: auto-daemon redirect for multi-prompt
+# CLI: detached launch routing for prompts
 # ---------------------------------------------------------------------------
 
 
-def test_cli_multi_prompt_auto_daemon_redirect() -> None:
-    """sase run with a multi-prompt auto-switches to daemon mode."""
+def test_cli_multi_prompt_launches_detached() -> None:
+    """sase run with a multi-prompt launches through the detached path."""
     query = "Fix the bug\n---\nAdd tests"
     assert is_multi_prompt(query)
 
     with (
-        patch("sase.main.query_handler.special_cases.run_query_daemon") as mock_daemon,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         patch("sase.xprompt.get_all_prompts", return_value={}),
     ):
         from sase.main.query_handler.special_cases import handle_run_special_cases
@@ -32,11 +32,11 @@ def test_cli_multi_prompt_auto_daemon_redirect() -> None:
         with pytest.raises(SystemExit) as exc_info:
             handle_run_special_cases([query])
         assert exc_info.value.code == 0
-        mock_daemon.assert_called_once_with(query)
+        mock_launch.assert_called_once_with(query)
 
 
-def test_editor_multi_prompt_auto_daemon_redirect() -> None:
-    """Editor returning a multi-prompt auto-switches to daemon mode."""
+def test_editor_multi_prompt_launches_detached() -> None:
+    """Editor returning a multi-prompt launches through the detached path."""
     query = "#gh:sase fix bug\n---\n#gh:sase add tests"
 
     with (
@@ -44,23 +44,23 @@ def test_editor_multi_prompt_auto_daemon_redirect() -> None:
             "sase.main.query_handler.special_cases.open_editor_for_prompt",
             return_value=query,
         ),
-        patch("sase.main.query_handler.special_cases.run_query_daemon") as mock_daemon,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
     ):
         from sase.main.query_handler.special_cases import handle_run_special_cases
 
         with pytest.raises(SystemExit) as exc_info:
             handle_run_special_cases([])
         assert exc_info.value.code == 0
-        mock_daemon.assert_called_once_with(query)
+        mock_launch.assert_called_once_with(query)
 
 
-def test_cli_single_prompt_no_daemon_redirect() -> None:
-    """sase run with a single prompt does NOT redirect to daemon."""
+def test_cli_single_prompt_launches_detached() -> None:
+    """sase run with a single prompt launches through the detached path."""
     query = "Just a single prompt"
     assert not is_multi_prompt(query)
 
     with (
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.special_cases.launch_query") as mock_launch,
         patch("sase.xprompt.get_all_prompts", return_value={}),
     ):
         with pytest.raises(SystemExit):
@@ -69,45 +69,7 @@ def test_cli_single_prompt_no_daemon_redirect() -> None:
             )
 
             handle_run_special_cases([query])
-        mock_run.assert_called_once_with(query)
-
-
-# ---------------------------------------------------------------------------
-# CLI: resume + multi-prompt error
-# ---------------------------------------------------------------------------
-
-
-def test_resume_with_multi_prompt_errors() -> None:
-    """sase run -r with a multi-prompt should error."""
-    query = "Fix bug\n---\nAdd tests"
-
-    with pytest.raises(SystemExit) as exc_info:
-        from sase.main.query_handler._resume import handle_run_with_resume
-
-        handle_run_with_resume(["-r", query])
-
-    assert exc_info.value.code == 1
-
-
-def test_resume_with_single_prompt_succeeds() -> None:
-    """sase run -r with a single prompt should NOT error on multi-prompt check."""
-    query = "Just fix the bug"
-
-    with (
-        patch(
-            "sase.main.query_handler._resume.list_chat_histories",
-            return_value=["history1"],
-        ),
-        patch("sase.main.query_handler._resume.load_chat_for_resume", return_value=[]),
-        patch("sase.main.query_handler._resume.run_query") as mock_run,
-    ):
-        with pytest.raises(SystemExit) as exc_info:
-            from sase.main.query_handler._resume import handle_run_with_resume
-
-            handle_run_with_resume(["-r", query])
-
-        assert exc_info.value.code == 0
-        mock_run.assert_called_once()
+        mock_launch.assert_called_once_with(query)
 
 
 # ---------------------------------------------------------------------------

@@ -385,12 +385,12 @@ in the gitignored `sdd/tales/202604/perf_artifacts/local_only/` dir because they
 
 | Surface                      | Workload                          | runs |     rust | python (Phase 7B) |   speedup |
 | ---------------------------- | --------------------------------- | ---- | -------: | ----------------: | --------: |
-| `sase_run_startup`           | `import_run_query_cold`           | 12   | 249.3 ms |          252.6 ms |     1.01× |
+| `sase_run_startup`           | `import_launch_query_cold`        | 12   | 249.3 ms |          252.6 ms |     1.01× |
 | `sase_agents_status_listing` | `synthetic_8_projects_25_agents`  | 12   | 298.5 ms |          774.5 ms | **2.59×** |
 | `sase_agents_status_listing` | `home_tree` (local-only artifact) | 5    | 885.8 ms |        1,799.7 ms | **2.03×** |
 | `sase_ace_cold_open`         | `synthetic_100_cs_50_agents`      | 10   | 1,472 ms |          1,237 ms |     0.84× |
 
-`sase_run_startup` measures cold subprocess `python -c "from sase.main.query_handler._query import run_query"`; it
+`sase_run_startup` measures cold subprocess `python -c "from sase.main.query_handler._launch import launch_query"`; it
 deliberately stops at the dispatcher's provider boundary, never resolves a provider, never touches the network, and
 never claims a workspace. The `metadata.extra.boundary` field in the artifact records this scope so a future agent can
 push the boundary further toward provider resolution without invalidating the comparison.

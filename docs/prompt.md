@@ -15,8 +15,8 @@ stable JSON.
 and deduplicate records across shards, so reusing the same prompt in a later month still shows one newest entry even if
 older shard copies remain on disk. New launch recordings only touch the current-month shard. Maintenance commands such
 as `delete` and `prune` remove every stored copy of the selected exact prompt text. Replay commands (`run`, `edit`,
-`select`) route through the same launch machinery as `sase run`, so foreground, `--daemon`, multi-prompt, multi-model,
-and xprompt behavior stay identical.
+`select`) route through the same launch machinery as `sase run`, so multi-prompt, multi-model, and xprompt behavior stay
+identical.
 
 ## Selectors
 
@@ -153,7 +153,6 @@ sase prompt show ph_8f3a9c0d12ab -f json       # metadata + full text
 
 ```bash
 sase prompt run ph_8f3a9c0d12ab            # launch the exact prompt
-sase prompt run ph_8f3a9c0d12ab -d         # launch as a detached background agent
 sase prompt run ph_8f3a9c0d12ab -e         # open in the editor, then launch
 sase prompt edit ph_8f3a9c0d12ab           # memorable alias for edit-before-launch
 ```
@@ -176,7 +175,7 @@ This is the shared, drift-free implementation behind the `sase run "#vcs:ref ."`
 
 ```bash
 sase prompt select                 # fzf over launched prompts, newest first
-sase prompt select -q auth -e -d   # filter to "auth", edit the choice, launch in daemon mode
+sase prompt select -q auth -e      # filter to "auth", edit the choice, then launch
 sase prompt select -a              # include cancelled prompts as candidates
 ```
 

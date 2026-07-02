@@ -59,16 +59,16 @@ def test_rollback_partial_launch_results_terminates_and_releases(
     assert summary.released_workspaces == (("/tmp/projects/proj/proj.sase", 7),)
 
 
-def test_run_query_daemon_rolls_back_partial_multi_prompt_launch(
+def test_launch_query_rolls_back_partial_multi_prompt_launch(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     from sase.agent.multi_prompt_launcher import _MultiPromptPartialLaunchError
-    from sase.main.query_handler import _daemon
+    from sase.main.query_handler import _launch
 
     result = _launch_result()
 
-    def fail_launch(query: str) -> AgentLaunchResult:
+    def fail_launch(query: str) -> list[AgentLaunchResult]:
         del query
         raise _MultiPromptPartialLaunchError([result], RuntimeError("boom"))
 
@@ -78,16 +78,42 @@ def test_run_query_daemon_rolls_back_partial_multi_prompt_launch(
             released_workspaces=((result.project_file, result.workspace_num),),
         )
     )
-    monkeypatch.setattr(_daemon, "launch_agent_from_cwd", fail_launch)
+    monkeypatch.setattr(_launch, "launch_agents_from_cwd", fail_launch)
     monkeypatch.setattr(
         "sase.agent.partial_launch.rollback_partial_launch_results", rollback
     )
 
     with pytest.raises(SystemExit) as exc_info:
-        _daemon.run_query_daemon("one\n---\ntwo")
+        _launch.launch_query("one\n---\ntwo")
 
     assert exc_info.value.code == 1
     rollback.assert_called_once_with([result])
     stderr = capsys.readouterr().err
     assert "partial multi-prompt launch failed after spawning 1 child agent" in stderr
     assert "Cause: boom" in stderr
+
+
+def test_launch_query_prints_each_launched_agent_pid(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from dataclasses import replace
+
+    from sase.main.query_handler import _launch
+
+    first = _launch_result()
+    second = replace(first, pid=5678, workspace_num=8)
+    monkeypatch.setattr(
+        _launch,
+        "launch_agents_from_cwd",
+        lambda _query: [first, second],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        _launch.launch_query("one\n---\ntwo")
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "Agent started (PID 1234)",
+        "Agent started (PID 5678)",
+    ]

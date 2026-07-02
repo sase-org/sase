@@ -335,42 +335,22 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'run' subcommand parser."""
     run_parser = subparsers.add_parser(
         "run",
-        usage="sase run [-h] [-d] [-l] [-r [CONTINUE_HISTORY]] [PROMPT]",
-        help="Run a workflow or execute a query directly (e.g., 'sase run \"Your question here\"')",
+        usage="sase run [-h] [PROMPT]",
+        help="Launch a detached background agent from a prompt or workflow",
         description=(
-            "Launch or resume a coding-agent run from a prompt, xprompt, "
-            "workflow, or history."
+            "Launch a detached background coding-agent run from a prompt, "
+            "xprompt, or workflow. Runs use the same launch machinery as ACE "
+            "and appear in the ACE Agents tab."
         ),
         epilog=(
             "Examples:\n"
             '  sase run "#cd:$(pwd) summarize what this repository does; do not change files"\n'
-            '  sase run -d "#cd:$(pwd) inspect pending work; do not change files"\n'
-            "  sase agent list"
+            '  sase run "#fork(agent_name) follow up on the previous result"\n'
+            "  sase chat list"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    # Options for 'run' (keep sorted alphabetically by long option name)
-    run_parser.add_argument(
-        "-d",
-        "--daemon",
-        action="store_true",
-        help="Run prompt as a detached background agent (appears in TUI Agents tab)",
-    )
-    run_parser.add_argument(
-        "-l",
-        "--list",
-        action="store_true",
-        help="List all available chat history files",
-    )
-    run_parser.add_argument(
-        "-r",
-        "--resume",
-        dest="continue_history",
-        nargs="?",
-        const="",  # Empty string means "use most recent"
-        help="Resume a previous conversation. Optionally specify history file basename or path (defaults to most recent).",
-    )
     run_parser.add_argument(
         "prompt",
         nargs="?",

@@ -1371,16 +1371,13 @@ also supports marks for bulk lifecycle operations, alias editing with `A`, an ac
 
 ### `sase run`
 
-| Flag           | Values | Default | Description                                                                                                   |
-| -------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------- |
-| `[query]`      | string | -       | Prompt text, inline reference (`#name`), standalone workflow reference (`#!name`), or `.` for history picker. |
-| `-d, --daemon` | flag   | -       | Run as a detached background agent (appears in TUI Agents tab).                                               |
-| `-l, --list`   | flag   | -       | List all available chat history files.                                                                        |
-| `-r, --resume` | string | -       | Resume a previous conversation by agent name or history file basename.                                        |
+| Flag      | Values | Default | Description                                                                                                   |
+| --------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `[query]` | string | -       | Prompt text, inline reference (`#name`), standalone workflow reference (`#!name`), or `.` for history picker. |
 
 When invoked with no arguments, opens `$EDITOR` for composing a prompt interactively. When invoked with `.`, opens a
-prompt history picker. Multi-prompt queries (containing `---` separators) are auto-detected and launched as sequential
-daemon agents.
+prompt history picker. All prompts launch as detached background agents, and multi-prompt queries (containing `---`
+separators) are launched as sequential detached background agents.
 
 ### `sase repro`
 

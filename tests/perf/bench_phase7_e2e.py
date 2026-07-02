@@ -31,7 +31,7 @@ Surfaces:
   the ``home_tree`` workload uses the real ``$HOME`` so cold listing
   cost reflects the user's actual project count.
 - ``sase_run_startup`` — subprocess
-  ``python -c "from sase.main.query_handler._query import run_query"``.
+  ``python -c "from sase.main.query_handler._launch import launch_query"``.
   This is a deliberately scoped proxy for "``sase run`` startup up to
   the provider boundary": it includes every import the dispatcher does
   before the LLM call but stops before any provider/network work, so it
@@ -284,7 +284,7 @@ def _bench_agents_status_listing(
 
 
 _RUN_STARTUP_SNIPPET = (
-    "from sase.main.query_handler._query import run_query as _r; _ = _r"
+    "from sase.main.query_handler._launch import launch_query as _l; _ = _l"
 )
 
 
@@ -294,9 +294,9 @@ def _bench_run_startup(
     warmup: int,
     backend_env: dict[str, str],
 ) -> dict[str, Any]:
-    """Time cold ``python -c <import-run_query>`` subprocess launches.
+    """Time cold ``python -c <import-launch_query>`` subprocess launches.
 
-    The snippet imports the same ``run_query`` entry point ``sase run``
+    The snippet imports the same ``launch_query`` entry point ``sase run``
     drives but stops before invoking any provider. This is the documented
     Phase 7C "up to the provider boundary" boundary: it captures the
     interpreter + sase package + dispatcher import cost users pay before
@@ -310,14 +310,14 @@ def _bench_run_startup(
         warmup=warmup,
     )
     return {
-        "workload": "import_run_query_cold",
+        "workload": "import_launch_query_cold",
         "scenarios": {
-            "import_run_query_cold": _summarize(samples),
+            "import_launch_query_cold": _summarize(samples),
         },
         "extra": {
             "boundary": (
-                "subprocess python -c 'from sase.main.query_handler._query "
-                "import run_query'; provider invocation NOT exercised"
+                "subprocess python -c 'from sase.main.query_handler._launch "
+                "import launch_query'; provider invocation NOT exercised"
             ),
             "interpreter": sys.executable,
         },

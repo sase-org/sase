@@ -491,25 +491,6 @@ def _expand_multiple_embedded_multi_agent_references(
     return expanded
 
 
-def expand_multi_agent_xprompts(
-    segments: list[str],
-    local_xprompts: dict[str, XPrompt] | None = None,
-    *,
-    max_depth: int = 8,
-    _strict_segment_check: bool = True,
-) -> list[str]:
-    """Expand any multi-agent xprompt references in *segments* into sub-segments."""
-    return [
-        segment.prompt
-        for segment in expand_multi_agent_xprompts_with_metadata(
-            segments,
-            local_xprompts=local_xprompts,
-            max_depth=max_depth,
-            _strict_segment_check=_strict_segment_check,
-        )
-    ]
-
-
 def expand_multi_agent_xprompts_with_metadata(
     segments: list[str],
     local_xprompts: dict[str, XPrompt] | None = None,
@@ -672,7 +653,6 @@ def _next_template_group(name: str, group_counter: Iterator[int]) -> str:
 
 
 __all__ = [
-    "expand_multi_agent_xprompts",
     "expand_multi_agent_xprompts_with_metadata",
     "_extract_top_level_xprompt_reference",
     "xprompt_has_segment_separators",

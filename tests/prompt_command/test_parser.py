@@ -39,26 +39,23 @@ def test_prompt_replay_subcommands_parse_with_short_flags() -> None:
     assert copy_args.id == "ph_abc123"
 
     run_args = parser.parse_args(
-        ["prompt", "run", "ph_abc123", "-d", "-e", "-P", "#gh:bob-cli"]
+        ["prompt", "run", "ph_abc123", "-e", "-P", "#gh:bob-cli"]
     )
     assert run_args.prompt_subcommand == "run"
     assert run_args.id == "ph_abc123"
-    assert run_args.daemon is True
     assert run_args.edit is True
     assert run_args.prefix == "#gh:bob-cli"
 
-    edit_args = parser.parse_args(["prompt", "edit", "ph_abc123", "-d"])
+    edit_args = parser.parse_args(["prompt", "edit", "ph_abc123"])
     assert edit_args.prompt_subcommand == "edit"
     assert edit_args.id == "ph_abc123"
-    assert edit_args.daemon is True
 
     select_args = parser.parse_args(
-        ["prompt", "select", "-a", "-c", "-d", "-e", "-P", "#gh:bob-cli", "-q", "auth"]
+        ["prompt", "select", "-a", "-c", "-e", "-P", "#gh:bob-cli", "-q", "auth"]
     )
     assert select_args.prompt_subcommand == "select"
     assert select_args.all is True
     assert select_args.cancelled is True
-    assert select_args.daemon is True
     assert select_args.edit is True
     assert select_args.prefix == "#gh:bob-cli"
     assert select_args.query == "auth"

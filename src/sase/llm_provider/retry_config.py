@@ -24,7 +24,7 @@ class ProviderRetryConfig:
     fallback_model: str | None = None
     continuation_prompt: str | None = None
     preserve_workspace: bool = False
-    # When True, retry by spawning a fresh detached agent (as if `sase run -d`
+    # When True, retry by spawning a fresh detached agent (as if `sase run`
     # had been invoked) instead of re-running in the same process. The fresh
     # agent inherits the parent's workspace number, chat history, plan file,
     # and continuation nudge via a retry_handoff.json hand-off file.

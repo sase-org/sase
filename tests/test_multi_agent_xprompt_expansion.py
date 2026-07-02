@@ -10,7 +10,6 @@ import pytest
 
 from sase.agent.multi_agent_xprompt import (
     _MultiAgentXPromptUsageError,
-    expand_multi_agent_xprompts,
     expand_multi_agent_xprompts_with_metadata,
 )
 from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
@@ -24,6 +23,13 @@ from tests._multi_agent_xprompt_helpers import (
 )
 
 # --- expand_multi_agent_xprompts ---
+
+
+def expand_multi_agent_xprompts(segments: list[str], **kwargs) -> list[str]:
+    return [
+        segment.prompt
+        for segment in expand_multi_agent_xprompts_with_metadata(segments, **kwargs)
+    ]
 
 
 def test_expand_single_segment_xprompt_unchanged() -> None:

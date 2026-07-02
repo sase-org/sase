@@ -2,13 +2,8 @@
 
 import sys
 
-from sase.artifacts import create_artifacts_directory
-from sase.history.chat import list_chat_histories
-
-from ._daemon import run_query_daemon
 from ._editor import open_editor_for_prompt, show_prompt_history_picker
-from ._query import run_query
-from ._resume import handle_run_with_resume
+from ._launch import launch_query
 
 
 def _print_standalone_deprecation(name: str) -> None:
@@ -26,7 +21,7 @@ def _print_invalid_standalone_marker(name: str) -> None:
 def handle_run_special_cases(args_after_run: list[str]) -> bool:
     """Handle special cases for 'sase run' before argparse processes it.
 
-    This handles queries that contain spaces and special flags like -l, -r, -d.
+    This handles queries that contain spaces and the deprecated -d/--daemon shim.
 
     Args:
         args_after_run: Arguments after 'run' command.
@@ -34,28 +29,14 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
     Returns:
         True if a special case was handled (and sys.exit was called), False otherwise.
     """
-    # Detect and strip -d/--daemon flag
-    daemon_mode = False
+    # Back-compat shim: detached launch is now the only run behavior, but older
+    # automation may still pass the former daemon flag.
     if "-d" in args_after_run or "--daemon" in args_after_run:
         args_after_run = [a for a in args_after_run if a not in ("-d", "--daemon")]
-        daemon_mode = True
-
-    def _run_query(prompt: str) -> None:
-        dispatch_query(prompt, daemon_mode=daemon_mode)
-
-    # Handle -l/--list flag (incompatible with daemon)
-    if args_after_run and args_after_run[0] in ("-l", "--list"):
-        if daemon_mode:
-            print("Error: -d/--daemon is incompatible with -l/--list")
-            sys.exit(1)
-        histories = list_chat_histories()
-        if not histories:
-            print("No chat histories found.")
-        else:
-            print("Available chat histories:")
-            for history in histories:
-                print(f"  {history}")
-        sys.exit(0)
+        print(
+            "Warning: -d/--daemon is deprecated; detached launch is now the default.",
+            file=sys.stderr,
+        )
 
     # Handle VCS workflow prefix + '.' (e.g., "#gh:sase ." or "#hg:my_cl .").
     # Opens the recency-ordered prompt history picker, then runs the selected
@@ -87,7 +68,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                 # multi-prompt segments.
                 from sase.xprompt import replace_vcs_workflow_tags
 
-                _run_query(replace_vcs_workflow_tags(prompt, vcs_prefix))
+                launch_query(replace_vcs_workflow_tags(prompt, vcs_prefix))
                 sys.exit(0)
 
     # Handle '.' - show prompt history picker
@@ -96,7 +77,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if prompt is None:
             print("No prompt selected. Aborting.")
             sys.exit(1)
-        _run_query(prompt)
+        launch_query(prompt)
         sys.exit(0)
 
     # Handle no arguments - open editor for prompt
@@ -105,26 +86,16 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if prompt is None:
             print("No prompt provided. Aborting.")
             sys.exit(1)
-        _run_query(prompt)
-        sys.exit(0)
-
-    # Handle -r/--resume flag (incompatible with daemon)
-    if args_after_run and args_after_run[0] in ("-r", "--resume"):
-        if daemon_mode:
-            print("Error: -d/--daemon is incompatible with -r/--resume")
-            sys.exit(1)
-        handle_run_with_resume(args_after_run)
-        # handle_run_with_resume calls sys.exit, but just in case:
+        launch_query(prompt)
         sys.exit(0)
 
     # Handle #workflow_name syntax (e.g., sase run "#split" or sase run "#explain")
     # and explicit standalone workflow syntax (e.g., sase run "#!sync").
-    # All xprompts and workflows are treated uniformly through execute_workflow
+    # All xprompts and workflows launch through the same detached path.
     if args_after_run:
         potential_query = args_after_run[0]
         if potential_query.startswith("#"):
             from sase.xprompt import (
-                execute_workflow,
                 get_all_prompts,
                 iter_xprompt_references,
                 parse_workflow_reference,
@@ -142,15 +113,11 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
 
             if leading_ref is not None:
                 workflow_name = leading_ref.name
-                positional_args, named_args = leading_ref.parse_arguments()
-                hitl_override = leading_ref.hitl_override
                 explicit_standalone_marker = leading_ref.is_standalone_marker
             else:
                 workflow_ref = potential_query[1:]  # Strip the #
-                workflow_ref, hitl_override = strip_hitl_suffix(workflow_ref)
-                workflow_name, positional_args, named_args = parse_workflow_reference(
-                    workflow_ref
-                )
+                workflow_ref, _ = strip_hitl_suffix(workflow_ref)
+                workflow_name, _, _ = parse_workflow_reference(workflow_ref)
                 explicit_standalone_marker = False
 
             # Extract project from workflow_name if it contains a slash
@@ -167,10 +134,10 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                     sys.exit(1)
 
                 # Multi-step prompt_part workflows (like #gh, #hg) need to go
-                # through run_query so their embedded pre/post steps and
-                # prompt_part expansion work correctly.
+                # through the detached launch path so their embedded pre/post
+                # steps and prompt_part expansion work correctly.
                 if workflow.has_prompt_part() and not workflow.is_simple_xprompt():
-                    _run_query(potential_query)
+                    launch_query(potential_query)
                     sys.exit(0)
 
                 # Avoid treating "#!sync do more" or "#sync do more" as a direct
@@ -184,36 +151,8 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                     ):
                         _print_standalone_deprecation(workflow_name)
 
-                    # In daemon mode, pass the full reference as the prompt — the
-                    # runner script handles xprompt expansion and anonymous
-                    # workflow flattening.
-                    if daemon_mode:
-                        run_query_daemon(potential_query)
-                        sys.exit(0)
-
-                    # Create artifacts directory in ~/.sase/projects/ so TUI can find it
-                    # Extract base workflow name (without project prefix) to avoid slashes in path
-                    base_workflow = (
-                        workflow_name.split("/")[-1]
-                        if "/" in workflow_name
-                        else workflow_name
-                    )
-                    artifacts_dir = create_artifacts_directory(
-                        f"workflow-{base_workflow}"
-                    )
-                    try:
-                        execute_workflow(
-                            workflow_name,
-                            positional_args,
-                            named_args,
-                            artifacts_dir=artifacts_dir,
-                            project=project,
-                            hitl_override=hitl_override,
-                        )
-                        sys.exit(0)
-                    except Exception as e:
-                        print(f"Workflow error: {e}")
-                        sys.exit(1)
+                    launch_query(potential_query)
+                    sys.exit(0)
 
     # Handle direct query (not a known prompt): a quoted multi-word prompt,
     # or a sole non-flag token (the PROMPT positional advertised by
@@ -231,47 +170,11 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         if potential_query not in known_prompts and (
             " " in potential_query or single_prompt_token
         ):
-            _run_query(potential_query)
+            launch_query(potential_query)
             sys.exit(0)
 
     # No special case handled
     return False
-
-
-def dispatch_query(prompt: str, *, daemon_mode: bool) -> None:
-    """Run a query, auto-routing multi-prompts through daemon mode.
-
-    Shared by ``sase run`` and ``sase prompt run/edit/select`` so prompt replay
-    follows the same foreground/daemon, multi-prompt, multi-model, and xprompt
-    routing as a fresh ``sase run "<prompt>"`` invocation.
-    """
-    if daemon_mode:
-        run_query_daemon(prompt)
-        return
-    from sase.agent.multi_prompt import is_multi_prompt
-
-    if is_multi_prompt(prompt):
-        from sase.agent.multi_prompt import parse_multi_prompt
-
-        n = len(parse_multi_prompt(prompt).segments)
-        print(f"Multi-prompt detected — launching {n} agents in daemon mode")
-        run_query_daemon(prompt)
-        return
-    from sase.xprompt.directives import (
-        has_alt_directive,
-        split_prompt_for_models,
-    )
-
-    alt_prompts = split_prompt_for_models(prompt)
-    if alt_prompts is not None:
-        n = len(alt_prompts)
-        if has_alt_directive(prompt):
-            print(f"Alt-split detected — launching {n} agents in daemon mode")
-        else:
-            print(f"Multi-model detected — launching {n} agents in daemon mode")
-        run_query_daemon(prompt)
-        return
-    run_query(prompt)
 
 
 def run_parsed_prompt(args: object) -> None:
@@ -288,5 +191,5 @@ def run_parsed_prompt(args: object) -> None:
         if prompt is None:
             print("No prompt provided. Aborting.")
             sys.exit(1)
-    dispatch_query(prompt, daemon_mode=bool(getattr(args, "daemon", False)))
+    launch_query(prompt)
     sys.exit(0)

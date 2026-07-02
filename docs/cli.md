@@ -33,9 +33,9 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase repro replay`             | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                        | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 | `sase repro capture agents-tab` | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                   | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 
-`sase run` can run in the foreground, launch detached background agents with `--daemon`, resume previous conversations,
-or expand multi-prompt input into sequential background launches. ACE uses the same launch machinery when users start
-agents from the TUI.
+`sase run` launches detached background agents that appear in the ACE Agents tab. It can start from prompt text, xprompt
+or workflow references, the editor, or the prompt-history picker, and multi-prompt input expands into sequential
+background launches. ACE uses the same launch machinery when users start agents from the TUI.
 
 Command groups with an exact `list` child default to that list view when invoked bare, including `sase bead`,
 `sase chat`, `sase file`, `sase file-history`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,

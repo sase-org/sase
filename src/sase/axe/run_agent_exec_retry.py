@@ -128,7 +128,7 @@ def handle_workflow_error(
         # ----------------------------------------------------------------
         # When the active provider's retry config sets spawn_new_agent=True,
         # we replace the in-process retry with a fresh detached child agent
-        # (as if `sase run -d` had been invoked).  The child inherits the
+        # (as if `sase run` had been invoked).  The child inherits the
         # workspace claim, chat history, plan path, and continuation nudge
         # via retry_handoff.json.  On spawn-side failure we fall back to
         # the legacy in-process retry path so the user is never worse off.

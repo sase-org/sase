@@ -82,12 +82,6 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "id",
         help="Prompt selector: ph_<prefix>, a bare hash prefix, or sha256:<hash>",
     )
-    edit_parser.add_argument(
-        "-d",
-        "--daemon",
-        action="store_true",
-        help="Launch the edited prompt as a detached background agent",
-    )
     _add_prefix_option(edit_parser)
 
     # sase prompt export
@@ -209,12 +203,6 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
     run_parser.add_argument(
         "id",
         help="Prompt selector: ph_<prefix>, a bare hash prefix, or sha256:<hash>",
-    )
-    run_parser.add_argument(
-        "-d",
-        "--daemon",
-        action="store_true",
-        help="Launch the prompt as a detached background agent",
     )
     run_parser.add_argument(
         "-e",
@@ -373,12 +361,6 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "--cancelled",
         action="store_true",
         help="Show only cancelled prompts (takes precedence over --all)",
-    )
-    select_parser.add_argument(
-        "-d",
-        "--daemon",
-        action="store_true",
-        help="Launch the selected prompt as a detached background agent",
     )
     select_parser.add_argument(
         "-e",

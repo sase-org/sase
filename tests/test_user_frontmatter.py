@@ -150,7 +150,7 @@ def test_extract_directives_handles_frontmatter(_xp, _al, tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration with run_query (anonymous workflow xprompts)
+# Integration with anonymous workflow xprompts
 # ---------------------------------------------------------------------------
 
 

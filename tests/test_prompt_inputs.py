@@ -221,16 +221,16 @@ def test_render_skips_jinja_when_only_disabled_region_has_template_syntax() -> N
     )
 
 
-def test_run_query_errors_clearly_on_missing_required_inputs(
+def test_launch_query_errors_clearly_on_missing_required_inputs(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # The non-interactive CLI cannot prompt; a required (default-less) input must
     # surface a clear error up front instead of a cryptic later Jinja failure.
-    from sase.main.query_handler._query import run_query
+    from sase.main.query_handler._launch import launch_query
 
     prompt = "---\ninput:\n  service: word\n  retries: int\n---\nRefactor {{ service }}"
     with pytest.raises(SystemExit) as exc_info:
-        run_query(prompt)
+        launch_query(prompt)
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out

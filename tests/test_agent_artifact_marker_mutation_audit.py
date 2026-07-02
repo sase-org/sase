@@ -251,19 +251,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("write_text",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/main/query_handler/_query.py:run_query": Review(
-        mutation_calls=(
-            "open",
-            "open",
-            "dump",
-            "open",
-            "dump",
-            "open",
-            "open",
-            "dump",
-        ),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
     "src/sase/scripts/sase_chop_wait_checks.py:main": Review(
         mutation_calls=("open", "dump"),
         exemption=(

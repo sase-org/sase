@@ -34,16 +34,16 @@ def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
     run_help = parser_for(("sase", "run")).format_help()
     args = create_parser().parse_args(["run", "hello"])
 
-    assert "usage: sase run [-h] [-d] [-l] [-r [CONTINUE_HISTORY]] [PROMPT]" in run_help
+    assert "usage: sase run [-h] [PROMPT]" in run_help
     assert "PROMPT" in run_help
     assert (
         'sase run "#cd:$(pwd) summarize what this repository does; do not change files"'
         in run_help
     )
-    assert (
-        'sase run -d "#cd:$(pwd) inspect pending work; do not change files"' in run_help
-    )
-    assert "sase agent list" in run_help
+    assert 'sase run "#fork(agent_name) follow up on the previous result"' in run_help
+    assert "sase chat list" in run_help
+    assert "--daemon" not in run_help
+    assert "--resume" not in run_help
     assert args.prompt == "hello"
 
 

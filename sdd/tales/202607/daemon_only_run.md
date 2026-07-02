@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-02 10:00:44
-status: wip
+status: done
 prompt: sdd/prompts/202607/daemon_only_run.md
 ---
 # Plan: Make Detached Launch the Only `sase run` Behavior (remove `-d|--daemon`)

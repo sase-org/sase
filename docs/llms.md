@@ -1011,15 +1011,15 @@ llm_provider:
 
 ### Config Fields
 
-| Field                 | Type          | Default | Description                                                                                                                                                                                      |
-| --------------------- | ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `max_retries`         | int           | `0`     | Maximum retry attempts. `0` disables retrying.                                                                                                                                                   |
-| `error_patterns`      | list[str]     | `[]`    | Case-insensitive substring patterns matched against error output.                                                                                                                                |
-| `wait_times`          | list[int]     | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.                                                                                                                         |
-| `fallback_model`      | `str \| null` | `null`  | Alternate model to use after exhausting all retries.                                                                                                                                             |
-| `continuation_prompt` | `str \| null` | `null`  | Text prepended to `state.current_prompt` on every retry (used to nudge the agent).                                                                                                               |
-| `preserve_workspace`  | bool          | `false` | Preserve on-disk edits across legacy in-process retry attempts.                                                                                                                                  |
-| `spawn_new_agent`     | bool          | `false` | Opt in to spawn-on-retry: a retryable error spawns a fresh detached child agent (as if `sase run -d` had been invoked) instead of in-process retry. See [Spawn-on-Retry](#spawn-on-retry) below. |
+| Field                 | Type          | Default | Description                                                                                                                                                                                   |
+| --------------------- | ------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_retries`         | int           | `0`     | Maximum retry attempts. `0` disables retrying.                                                                                                                                                |
+| `error_patterns`      | list[str]     | `[]`    | Case-insensitive substring patterns matched against error output.                                                                                                                             |
+| `wait_times`          | list[int]     | `[30]`  | Per-retry wait times in seconds. Last value reused if list is too short.                                                                                                                      |
+| `fallback_model`      | `str \| null` | `null`  | Alternate model to use after exhausting all retries.                                                                                                                                          |
+| `continuation_prompt` | `str \| null` | `null`  | Text prepended to `state.current_prompt` on every retry (used to nudge the agent).                                                                                                            |
+| `preserve_workspace`  | bool          | `false` | Preserve on-disk edits across legacy in-process retry attempts.                                                                                                                               |
+| `spawn_new_agent`     | bool          | `false` | Opt in to spawn-on-retry: a retryable error spawns a fresh detached child agent (as if `sase run` had been invoked) instead of in-process retry. See [Spawn-on-Retry](#spawn-on-retry) below. |
 
 ### Default Configuration
 
@@ -1120,10 +1120,10 @@ Source: `src/sase/llm_provider/retry_config.py`, `src/sase/axe/run_agent_exec_fi
 
 ### Spawn-on-Retry
 
-When `ProviderRetryConfig.spawn_new_agent=True`, a retryable error spawns a fresh detached child agent (as if
-`sase run -d` had been invoked) instead of running the next attempt in-process. The failing parent transfers its
-workspace claim to the child via `transfer_workspace_claim()` and exits with status `FAILED (RETRIED)`. This trades the
-small cost of a fresh process for two benefits:
+When `ProviderRetryConfig.spawn_new_agent=True`, a retryable error spawns a fresh detached child agent (as if `sase run`
+had been invoked) instead of running the next attempt in-process. The failing parent transfers its workspace claim to
+the child via `transfer_workspace_claim()` and exits with status `FAILED (RETRIED)`. This trades the small cost of a
+fresh process for two benefits:
 
 - The workspace is preserved by design — the child skips `prepare_workspace()` and inherits the parent's in-progress
   edits via the transferred workspace claim. (Legacy in-process retry runs `prepare_workspace()` between attempts and
@@ -1347,10 +1347,10 @@ model name, just a provider name, or both. When both provider and model are know
 
 ### Resume Support
 
-The `sase run --resume` flag resumes a previous conversation by agent name. The `#fork` workflow resolves the agent name
-to its artifacts directory, extracts the response path from `done.json`, and delegates to `#fork_by_chat` which loads
-the chat history and prepends it to the new conversation. The `--resume` flag also accepts a history file basename or
-full path for direct chat-file-based resumption via the `#fork_by_chat` workflow.
+Resume uses the `#fork` and `#fork_by_chat` workflows through normal detached `sase run` launches. `#fork` resolves an
+agent name to its artifacts directory, extracts the response path from `done.json`, and delegates to `#fork_by_chat`,
+which loads the chat history and prepends it to the new conversation. Use `#fork_by_chat(<path-or-basename>)` for direct
+chat-file-based resumption.
 
 Fork expansion is recursive: if the loaded chat history itself contains `#fork` or `#fork_by_chat` references, those are
 expanded inline as well. Legacy `#resume` and `#resume_by_chat` references in old transcripts are still recognized.

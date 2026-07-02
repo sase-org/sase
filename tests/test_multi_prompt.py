@@ -198,12 +198,13 @@ def test_non_multi_agent_xprompt_segment_passes_through() -> None:
     by ``expand_multi_agent_xprompts``."""
     from unittest.mock import patch
 
-    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
+    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts_with_metadata
     from sase.xprompt.models import XPrompt
 
     catalog = {"plain": XPrompt(name="plain", content="just one body")}
     with patch("sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog):
-        assert expand_multi_agent_xprompts(["#plain"]) == ["#plain"]
+        out = expand_multi_agent_xprompts_with_metadata(["#plain"])
+        assert [segment.prompt for segment in out] == ["#plain"]
 
 
 # --- parse_multi_prompt: structured xprompts ---

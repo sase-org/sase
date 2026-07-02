@@ -1,10 +1,10 @@
 """``sase prompt run``/``edit``/``select`` — replay stored prompts.
 
 These commands reuse the same dispatch path as a fresh ``sase run "<prompt>"``
-so foreground/daemon, multi-prompt, multi-model, and xprompt routing stay
-identical. ``--prefix`` reuses the existing VCS-tag replacement logic so a
-prompt captured under one VCS workflow can be replayed under another without the
-compatibility path (``sase run "#vcs:ref ."``) drifting from this one.
+so multi-prompt, multi-model, and xprompt routing stay identical. ``--prefix``
+reuses the existing VCS-tag replacement logic so a prompt captured under one VCS
+workflow can be replayed under another without the compatibility path
+(``sase run "#vcs:ref ."``) drifting from this one.
 """
 
 from __future__ import annotations
@@ -30,7 +30,6 @@ def handle_prompt_run(args: argparse.Namespace) -> None:
         record,
         prefix=getattr(args, "prefix", None),
         edit=bool(getattr(args, "edit", False)),
-        daemon=bool(getattr(args, "daemon", False)),
     )
 
 
@@ -41,7 +40,6 @@ def handle_prompt_edit(args: argparse.Namespace) -> None:
         record,
         prefix=getattr(args, "prefix", None),
         edit=True,
-        daemon=bool(getattr(args, "daemon", False)),
     )
 
 
@@ -61,7 +59,6 @@ def handle_prompt_select(args: argparse.Namespace) -> None:
         record,
         prefix=getattr(args, "prefix", None),
         edit=bool(getattr(args, "edit", False)),
-        daemon=bool(getattr(args, "daemon", False)),
     )
 
 
@@ -79,7 +76,6 @@ def _replay_record(
     *,
     prefix: str | None,
     edit: bool,
-    daemon: bool,
 ) -> None:
     """Apply optional VCS-prefix replacement and editing, then dispatch.
 
@@ -101,9 +97,9 @@ def _replay_record(
             sys.exit(1)
         text = edited
 
-    from sase.main.query_handler import dispatch_query
+    from sase.main.query_handler import launch_query
 
-    dispatch_query(text, daemon_mode=daemon)
+    launch_query(text)
 
 
 def _pick_record(

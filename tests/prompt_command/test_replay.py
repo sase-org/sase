@@ -18,25 +18,15 @@ from sase.prompt.cli_run import (
 from ._helpers import _entry, _prompt_id, _run_ns, _seed, _select_ns
 
 
-def test_run_dispatches_exact_prompt_through_run_query(history_file: Path) -> None:
+def test_run_dispatches_exact_prompt_through_launch_query(history_file: Path) -> None:
     text = "refactor the parser module to be cleaner"
     _seed(_entry(text, "260603_000000"))
 
-    with patch("sase.main.query_handler.special_cases.run_query") as mock_run:
+    with patch("sase.main.query_handler.launch_query") as mock_launch:
         handle_prompt_run(_run_ns(_prompt_id(text)))
 
     # Replay routes through the same dispatch path as `sase run "<prompt>"`.
-    mock_run.assert_called_once_with(text)
-
-
-def test_run_daemon_routes_through_daemon(history_file: Path) -> None:
-    text = "build the daemon pipeline end to end"
-    _seed(_entry(text, "260603_000000"))
-
-    with patch("sase.main.query_handler.special_cases.run_query_daemon") as mock_daemon:
-        handle_prompt_run(_run_ns(_prompt_id(text), daemon=True))
-
-    mock_daemon.assert_called_once_with(text)
+    mock_launch.assert_called_once_with(text)
 
 
 def test_run_prefix_replaces_vcs_tags_before_dispatch(history_file: Path) -> None:
@@ -48,14 +38,14 @@ def test_run_prefix_replaces_vcs_tags_before_dispatch(history_file: Path) -> Non
         patch(
             "sase.xprompt.replace_vcs_workflow_tags", return_value=rewritten
         ) as mock_replace,
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
     ):
         handle_prompt_run(_run_ns(_prompt_id(text), prefix="#gh:bob-cli"))
 
     # The replay path and the `sase run "#vcs:ref ."` compatibility path share
     # one replacement function, so they cannot drift.
     mock_replace.assert_called_once_with(text, "#gh:bob-cli")
-    mock_run.assert_called_once_with(rewritten)
+    mock_launch.assert_called_once_with(rewritten)
 
 
 def test_run_edit_launches_edited_content(history_file: Path) -> None:
@@ -67,12 +57,12 @@ def test_run_edit_launches_edited_content(history_file: Path) -> None:
         patch(
             "sase.main.query_handler._editor.edit_prompt_text", return_value=edited
         ) as mock_edit,
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
     ):
         handle_prompt_run(_run_ns(_prompt_id(text), edit=True))
 
     mock_edit.assert_called_once_with(text)
-    mock_run.assert_called_once_with(edited)
+    mock_launch.assert_called_once_with(edited)
 
 
 def test_run_edit_empty_content_aborts(
@@ -84,13 +74,13 @@ def test_run_edit_empty_content_aborts(
 
     with (
         patch("sase.main.query_handler._editor.edit_prompt_text", return_value=None),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_prompt_run(_run_ns(_prompt_id(text), edit=True))
 
     assert exc_info.value.code == 1
-    mock_run.assert_not_called()
+    mock_launch.assert_not_called()
     assert "Aborted" in capsys.readouterr().err
 
 
@@ -116,14 +106,12 @@ def test_edit_is_edit_before_launch_wrapper(history_file: Path) -> None:
         patch(
             "sase.main.query_handler._editor.edit_prompt_text", return_value=edited
         ) as mock_edit,
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
     ):
-        handle_prompt_edit(
-            argparse.Namespace(id=_prompt_id(text), prefix=None, daemon=False)
-        )
+        handle_prompt_edit(argparse.Namespace(id=_prompt_id(text), prefix=None))
 
     mock_edit.assert_called_once_with(text)
-    mock_run.assert_called_once_with(edited)
+    mock_launch.assert_called_once_with(edited)
 
 
 def test_select_filters_candidates_and_launches(history_file: Path) -> None:
@@ -140,11 +128,11 @@ def test_select_filters_candidates_and_launches(history_file: Path) -> None:
         patch(
             "sase.prompt.cli_run.subprocess.run", return_value=fzf_result
         ) as mock_fzf,
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
     ):
         handle_prompt_select(_select_ns())
 
-    mock_run.assert_called_once_with(launched)
+    mock_launch.assert_called_once_with(launched)
     # Default candidates exclude cancelled prompts before reaching fzf.
     fzf_input = mock_fzf.call_args.kwargs["input"]
     assert _prompt_id(launched) in fzf_input
@@ -159,13 +147,13 @@ def test_select_no_fzf_installed_exits_nonzero(
 
     with (
         patch("sase.prompt.cli_run.shutil.which", return_value=None),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_prompt_select(_select_ns())
 
     assert exc_info.value.code == 1
-    mock_run.assert_not_called()
+    mock_launch.assert_not_called()
     err = capsys.readouterr().err
     assert "sase prompt list" in err
     assert "sase prompt run" in err
@@ -181,13 +169,13 @@ def test_select_cancelled_picker_exits_nonzero(
     with (
         patch("sase.prompt.cli_run.shutil.which", return_value="/usr/bin/fzf"),
         patch("sase.prompt.cli_run.subprocess.run", return_value=fzf_result),
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_prompt_select(_select_ns())
 
     assert exc_info.value.code == 1
-    mock_run.assert_not_called()
+    mock_launch.assert_not_called()
     assert "No prompt selected" in capsys.readouterr().err
 
 
@@ -198,13 +186,13 @@ def test_select_no_candidates_exits_nonzero(
     _seed(_entry("only a cancelled prompt", "260603_000000", cancelled=True))
 
     with (
-        patch("sase.main.query_handler.special_cases.run_query") as mock_run,
+        patch("sase.main.query_handler.launch_query") as mock_launch,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_prompt_select(_select_ns())
 
     assert exc_info.value.code == 1
-    mock_run.assert_not_called()
+    mock_launch.assert_not_called()
     assert "No matching prompts" in capsys.readouterr().err
 
 

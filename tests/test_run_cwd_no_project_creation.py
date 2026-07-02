@@ -3,8 +3,7 @@
 A plain launch from a git checkout whose basename happens to be a valid SASE
 project name must not silently create ``~/.sase/projects/<cwd-project>/``.
 Bare prompts fall back to ``home``; explicit refs resolve their real project.
-Both background (``launch_agents_from_cwd``) and foreground (``run_query``)
-paths are covered.
+The detached launch path is covered.
 """
 
 from __future__ import annotations
@@ -17,7 +16,6 @@ import pytest
 from sase.workspace_provider._hookspec import ResolvedRef
 from tests._cd_launch_resolution_helpers import (
     patch_cd_git_metadata,
-    patch_cd_metadata,
 )
 
 _INFERRED_PROJECT = "myrepo"
@@ -32,11 +30,11 @@ def _fake_resolve_ref(ref: str, workflow_type: str, *, base: Path) -> ResolvedRe
     )
 
 
-def test_daemon_bare_prompt_falls_back_to_home_without_creating_cwd_project(
+def test_detached_bare_prompt_falls_back_to_home_without_creating_cwd_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """A bare daemon launch from an inferred (spec-less) git project → home."""
+    """A bare detached launch from an inferred (spec-less) git project -> home."""
     patch_cd_git_metadata(monkeypatch)
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
@@ -94,7 +92,7 @@ def test_daemon_bare_prompt_falls_back_to_home_without_creating_cwd_project(
     assert not (sase_home / "projects" / _INFERRED_PROJECT).exists()
 
 
-def test_daemon_explicit_ref_resolves_referenced_project_not_cwd(
+def test_detached_explicit_ref_resolves_referenced_project_not_cwd(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -145,120 +143,3 @@ def test_daemon_explicit_ref_resolves_referenced_project_not_cwd(
     assert kwargs["vcs_ref"] == ("git", "sase")
     # The inferred CWD project must never have been registered on disk.
     assert not (sase_home / "projects" / _INFERRED_PROJECT).exists()
-
-
-def test_run_query_bare_prompt_skips_claim_without_creating_cwd_project(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Foreground ``run_query`` from a spec-less checkout creates no project."""
-    patch_cd_metadata(monkeypatch)
-    sase_home = tmp_path / ".sase"
-    monkeypatch.setenv("SASE_HOME", str(sase_home))
-
-    from sase.main import utils as main_utils
-
-    monkeypatch.setattr(
-        main_utils, "get_workspace_name", lambda _cwd: _INFERRED_PROJECT
-    )
-
-    workflow_result = MagicMock(response_text="ok")
-    anon_workflow = MagicMock(name="anon", xprompts=None)
-
-    with (
-        patch("sase.xprompt.resolve_xprompt_aliases", side_effect=lambda q: q),
-        patch("sase.history.prompt.add_or_update_prompt"),
-        patch(
-            "sase.main.query_handler._query.claim_workspace",
-        ) as claim_workspace,
-        patch("sase.main.query_handler._query.release_workspace"),
-        patch(
-            "sase.main.query_handler._query.create_artifacts_directory",
-        ) as create_artifacts,
-        patch(
-            "sase.xprompt.models.create_anonymous_workflow",
-            return_value=anon_workflow,
-        ),
-        patch(
-            "sase.xprompt.workflow_runner.execute_workflow",
-            return_value=workflow_result,
-        ) as execute_workflow,
-        patch(
-            "sase.main.query_handler._query.save_chat_history",
-            return_value="/tmp/chat.md",
-        ),
-    ):
-        from sase.main.query_handler._query import run_query
-
-        run_query("hello")
-
-    execute_workflow.assert_called_once()
-    # No project resolved → no workspace claim and no CWD-derived artifacts.
-    claim_workspace.assert_not_called()
-    create_artifacts.assert_not_called()
-    assert not (sase_home / "projects" / _INFERRED_PROJECT).exists()
-
-
-def test_run_query_anchors_artifacts_to_resolved_home_not_cwd(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """When a bare prompt resolves to ``home``, artifacts anchor to ``home``."""
-    sase_home = tmp_path / ".sase"
-    monkeypatch.setenv("SASE_HOME", str(sase_home))
-    artifacts_dir = str(tmp_path / "20260501120000")
-    Path(artifacts_dir).mkdir(parents=True)
-
-    mock_directives = MagicMock(model=None)
-    anon_workflow = MagicMock(name="anon", xprompts=None)
-    workflow_result = MagicMock(response_text="ok")
-
-    with (
-        patch(
-            "sase.main.query_handler._query._resolve_vcs_cwd",
-            return_value=("home", "home"),
-        ),
-        patch(
-            "sase.main.query_handler._query.ensure_project_file_and_get_workspace_num",
-            return_value=(None, None, None),
-        ),
-        patch(
-            "sase.main.query_handler._query.create_artifacts_directory",
-            return_value=artifacts_dir,
-        ) as create_artifacts,
-        patch("sase.xprompt.resolve_xprompt_aliases", side_effect=lambda q: q),
-        patch("sase.history.prompt.add_or_update_prompt"),
-        patch(
-            "sase.xprompt.directives.extract_prompt_directives",
-            return_value=("hello", mock_directives),
-        ),
-        patch(
-            "sase.llm_provider.temporary_override.resolve_effective_default_provider_model",
-            return_value=("anthropic", "test-model"),
-        ),
-        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-        patch(
-            "sase.main.query_handler._query.update_agent_artifact_index_for_marker_mutation"
-        ),
-        patch("sase.main.query_handler._query.claim_workspace") as claim_workspace,
-        patch("sase.main.query_handler._query.release_workspace"),
-        patch(
-            "sase.xprompt.models.create_anonymous_workflow",
-            return_value=anon_workflow,
-        ),
-        patch(
-            "sase.xprompt.workflow_runner.execute_workflow",
-            return_value=workflow_result,
-        ),
-        patch(
-            "sase.main.query_handler._query.save_chat_history",
-            return_value="/tmp/chat.md",
-        ),
-    ):
-        from sase.main.query_handler._query import run_query
-
-        run_query("hello")
-
-    create_artifacts.assert_called_once_with("run", project_name="home")
-    # project_file resolved to None → workspace claiming is skipped.
-    claim_workspace.assert_not_called()

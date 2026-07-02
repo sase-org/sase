@@ -1,5 +1,5 @@
 """Spawn-on-retry machinery: hand a failing agent's state off to a fresh
-detached child agent, as if `sase run -d` had been invoked.
+detached child agent, as if `sase run` had been invoked.
 
 Used by :mod:`sase.axe.run_agent_exec_retry` when the active provider's
 ``ProviderRetryConfig.spawn_new_agent`` flag is set. The failing parent

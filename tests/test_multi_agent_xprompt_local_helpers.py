@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts
+from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts_with_metadata
 from sase.xprompt.loader import load_xprompt_from_file
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.processor import process_xprompt_references_with_catalog
 
 from tests._multi_agent_xprompt_helpers import patch_catalog, xp
+
+
+def expand_multi_agent_xprompts(segments: list[str], **kwargs) -> list[str]:
+    return [
+        segment.prompt
+        for segment in expand_multi_agent_xprompts_with_metadata(segments, **kwargs)
+    ]
+
 
 DEFAULT_READS_REFERENCE_QUERY = """LIST WITHOUT ID title + " (" + url + ")"
 FROM "ref"

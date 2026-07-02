@@ -8,11 +8,18 @@ import pytest
 
 from sase.agent.multi_agent_xprompt import (
     _MultiAgentXPromptUsageError,
-    expand_multi_agent_xprompts,
+    expand_multi_agent_xprompts_with_metadata,
 )
 from sase.xprompt.processor import process_xprompt_references
 
 from tests._multi_agent_xprompt_helpers import patch_catalog, patch_vcs_patterns, xp
+
+
+def expand_multi_agent_xprompts(segments: list[str], **kwargs) -> list[str]:
+    return [
+        segment.prompt
+        for segment in expand_multi_agent_xprompts_with_metadata(segments, **kwargs)
+    ]
 
 
 def test_expand_depth_cap() -> None:
