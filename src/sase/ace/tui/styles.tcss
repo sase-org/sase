@@ -823,7 +823,12 @@ ModelsPanel {
 #models-panel-container {
     width: 84;
     height: auto;
-    max-height: 33;
+    /* Full-budget: container border (2) + padding (2) + title + margin (2) +
+       list cap (22) + description strip margin + height (1 + 4 = 5) + footer
+       margin + border + padding + text (4) = 37.  Sized so the taller
+       description strip cannot push the footer out of the modal when the alias
+       list is at its 22-row cap. */
+    max-height: 37;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -842,7 +847,12 @@ ModelsPanel {
 }
 
 #models-panel-description {
-    height: 2;
+    /* Border-box height: 1 (border-top) + 1 (padding-top) + 2 content rows = 4.
+       Do NOT lower this back to 2 — that leaves 0 content rows and the strip
+       renders its separator/padding with the description text fully clipped.
+       Fixed (not auto) so navigating j/k between aliases with different
+       description lengths causes zero layout shift. */
+    height: 4;
     color: $text-muted;
     text-style: italic;
     border-top: solid $secondary;

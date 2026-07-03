@@ -8,6 +8,7 @@ back-compat with the old ``temporary_llm_override`` action id).
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, call
 
@@ -34,6 +35,8 @@ from sase.ace.tui.widgets import AliasOverridesIndicator, LLMOverrideIndicator
 from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
 from tests._temporary_llm_override_helpers import full_registry
 
+_ROOT = Path(__file__).resolve().parents[1]
+
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -45,6 +48,14 @@ class _TestApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield from ()
+
+
+class _StyledTestApp(_TestApp):
+    """Test app that loads the production ``styles.tcss`` so pushed modals lay
+    out exactly as they do in the real TUI — required for asserting rendered
+    geometry (as opposed to just widget content)."""
+
+    CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
 
 
 def _view(
@@ -423,6 +434,32 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         await pilot.press("j")
         await pilot.pause()
         assert "Draft blog posts." in description.content.plain
+
+
+async def test_panel_description_strip_has_visible_content_area(monkeypatch) -> None:
+    """The strip must lay out with a non-zero content area, not just hold text.
+
+    Regression for the invisible-strip bug: the Static's ``content`` was always
+    set correctly, but a border-box ``height: 2`` (1 border-top + 1 padding-top)
+    left 0 rows for content, so the description text rendered fully clipped.
+    Asserting ``content_size.height`` catches "content set but not visible".
+
+    Uses ``_StyledTestApp`` (loads the real ``styles.tcss``) because the bug and
+    its fix live entirely in that stylesheet; the default ``_TestApp`` applies
+    no CSS and so cannot exercise the border-box height math.
+    """
+    _patch_views(
+        monkeypatch,
+        [_view("default", "default", description="Default model.")],
+    )
+
+    async with _StyledTestApp().run_test(size=(120, 40)) as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        description = panel.query_one("#models-panel-description", Static)
+        assert "Default model." in description.content.plain
+        assert description.content_size.height == 2
 
 
 async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
