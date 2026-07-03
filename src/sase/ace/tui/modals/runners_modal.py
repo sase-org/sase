@@ -11,6 +11,8 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.core.time import local_now
+
 from ._runners_data import RunnerInfo, collect_runners, get_runner_count
 from .base import CopyModeForwardingMixin
 
@@ -110,7 +112,7 @@ def _format_duration(start_time: datetime | None) -> str:
     """
     if start_time is None:
         return "?"
-    delta = datetime.now() - start_time
+    delta = local_now() - start_time
     total_seconds = int(delta.total_seconds())
     if total_seconds < 60:
         return f"{total_seconds}s"

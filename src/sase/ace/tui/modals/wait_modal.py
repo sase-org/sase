@@ -15,6 +15,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.agent_completion import AgentVcsWorkflow, status_style
 from sase.ace.tui.models.agent_time import format_compact_duration, format_wait_until
+from sase.core.time import local_now
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
 from sase.xprompt._exceptions import DirectiveError
 
@@ -108,7 +109,7 @@ def _format_duration_token(seconds: float) -> str:
 def _format_wait_until_token(iso_value: str) -> str:
     """Render stored ISO wait target as a user-editable absolute-time token."""
     target = datetime.fromisoformat(iso_value)
-    now = datetime.now(target.tzinfo) if target.tzinfo is not None else datetime.now()
+    now = datetime.now(target.tzinfo) if target.tzinfo is not None else local_now()
     if target.date() == now.date():
         return target.strftime("%H%M")
     return target.strftime("%y%m%d/%H%M")

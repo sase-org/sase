@@ -902,8 +902,8 @@
     },
     "timezone": {
       "type": "string",
-      "description": "IANA timezone name used for all dates/datetimes (e.g., 'America/New_York', 'US/Pacific')",
-      "default": "America/New_York"
+      "description": "IANA timezone name governing all SASE wall-clock display and timestamp generation (e.g., 'America/New_York', 'US/Pacific'). Defaults to the system timezone when unset.",
+      "default": ""
     },
     "use_chezmoi": {
       "type": "boolean",

@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 
 from sase.core.changespec import strip_reverted_suffix
-from sase.core.time import generate_timestamp
+from sase.core.time import generate_timestamp, local_timezone_name
 from sase.telemetry.metrics import HOOK_DURATION, HOOK_EXECUTIONS, HOOK_RETRIES
 
 from ..changespec import (
@@ -45,6 +45,13 @@ def start_hook_background(
 
     # Get the actual command to run (strips "!" prefix if present)
     actual_command = hook.run_command
+
+    # Mint END_TIMESTAMP in the configured timezone so it round-trips with the
+    # start timestamp (also configured-tz via generate_timestamp) through
+    # calculate_duration_from_timestamps. When the configured tz has no IANA
+    # key (fixed-offset fallback ⇒ configured == system), omit the TZ override.
+    tz_name = local_timezone_name()
+    tz_prefix = f'TZ="{tz_name}" ' if tz_name else ""
 
     # Create wrapper script with retry logic for transient errors
     wrapper_script = f"""#!/bin/bash
@@ -107,8 +114,8 @@ while [ $attempt -le $MAX_RETRIES ]; do
 done
 
 echo ""
-# Log end timestamp in YYmmdd_HHMMSS format (America/New_York timezone)
-end_timestamp=$(TZ="America/New_York" date +"%y%m%d_%H%M%S")
+# Log end timestamp in YYmmdd_HHMMSS format (configured timezone)
+end_timestamp=$({tz_prefix}date +"%y%m%d_%H%M%S")
 echo "===HOOK_COMPLETE=== END_TIMESTAMP: $end_timestamp EXIT_CODE: $exit_code"
 # Ensure output is flushed to disk before exiting to prevent race condition
 # where the parent process sees the process as dead but hasn't read the marker yet

@@ -1,6 +1,7 @@
 """Tests for the ``sase ace`` command handler."""
 
 import argparse
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,15 +10,6 @@ import pytest
 from sase.main import ace_handler
 from sase.ace.tui import AceExitAction
 from sase.main.parser_ace import register_ace_parser
-
-
-class _FixedDatetime:
-    @classmethod
-    def now(cls) -> "_FixedDatetime":
-        return cls()
-
-    def strftime(self, _fmt: str) -> str:
-        return "20260513_120957"
 
 
 class _FakeProfiler:
@@ -37,7 +29,10 @@ def test_write_profile_output_shortens_home_and_copies_path(
     tmpdir.mkdir(parents=True)
 
     with (
-        patch("sase.main.ace_handler.datetime", _FixedDatetime),
+        patch(
+            "sase.main.ace_handler.local_now",
+            return_value=datetime(2026, 5, 13, 12, 9, 57),
+        ),
         patch("sase.main.ace_handler.get_sase_tmpdir", return_value=str(tmpdir)),
         patch("sase.core.paths.Path.home", return_value=home),
         patch(

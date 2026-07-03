@@ -5,6 +5,8 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 
+from sase.core.time import get_timezone
+
 
 @dataclass(frozen=True)
 class AttemptRecord:
@@ -78,11 +80,15 @@ class AttemptRecord:
 
     @property
     def start_datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.start_epoch)
+        return datetime.fromtimestamp(self.start_epoch, get_timezone()).replace(
+            tzinfo=None
+        )
 
     @property
     def end_datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.end_epoch)
+        return datetime.fromtimestamp(self.end_epoch, get_timezone()).replace(
+            tzinfo=None
+        )
 
     @property
     def start_hhmmss(self) -> str:

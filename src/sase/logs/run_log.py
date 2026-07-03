@@ -117,12 +117,19 @@ def log_event(
 
 
 def _parse_event_timestamp(record: dict[str, Any]) -> datetime | None:
-    """Parse the ``%y%m%d_%H%M%S`` timestamp on an event record."""
+    """Parse the ``%y%m%d_%H%M%S`` timestamp on an event record.
+
+    Event timestamps are written in the configured timezone (see
+    :func:`log_event`), so the parsed value is made aware in that same zone.
+    This keeps ``since`` / ``until`` comparisons — whose bounds come from
+    ``parse_daterange`` as aware configured-tz datetimes — from raising
+    ``TypeError`` on a naive/aware mismatch.
+    """
     raw = record.get("timestamp")
     if not isinstance(raw, str):
         return None
     try:
-        return datetime.strptime(raw, "%y%m%d_%H%M%S")
+        return datetime.strptime(raw, "%y%m%d_%H%M%S").replace(tzinfo=get_timezone())
     except ValueError:
         return None
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from sase.ace.revert_agent_models import RepoRevertOutcome
+from sase.core.time import local_now
 
 _REVERT_RESULT_FILENAME = "revert_result.json"
 
@@ -57,7 +57,7 @@ def write_revert_result(
             "reverted_shas": list(shas),
             "pushed": pushed,
             "complete": complete,
-            "reverted_at": datetime.now().isoformat(timespec="seconds"),
+            "reverted_at": local_now().isoformat(timespec="seconds"),
         }
         if repo_outcomes:
             payload["repos"] = [

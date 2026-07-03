@@ -8,6 +8,7 @@ from datetime import datetime
 from rich.text import Text
 
 from sase.agent.agent_artifacts_cache import get_global_cache
+from sase.core.time import get_timezone, to_local
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
@@ -38,7 +39,7 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
     """Create a styled timestamp divider: ``--- HH:MM:SS ---...---``."""
     try:
         dt = datetime.fromisoformat(iso_timestamp)
-        local_dt = dt.astimezone()
+        local_dt = dt.astimezone(get_timezone())
         time_str = local_dt.strftime("%H:%M:%S")
     except (ValueError, OSError):
         time_str = "??:??:??"
@@ -129,8 +130,10 @@ def render_phase_divider(label: str, start_time: datetime | None) -> Text:
     """Create a styled phase divider: ``--- LABEL --- HH:MM:SS ---...---``."""
     if start_time:
         try:
-            local_dt = start_time.astimezone()
-            time_str = local_dt.strftime("%H:%M:%S")
+            # ``start_time`` is a naive configured-tz model datetime (run/start
+            # time); ``to_local`` displays it verbatim (and converts if an aware
+            # value is ever passed) instead of misreading naive as system tz.
+            time_str = to_local(start_time).strftime("%H:%M:%S")
         except (ValueError, OSError):
             time_str = "??:??:??"
     else:

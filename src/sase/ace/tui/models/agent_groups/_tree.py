@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from sase.core.time import local_now
+
 from ..agent import Agent
 from ..agent_group_fold import AgentGroupFoldRegistry, GroupKey
 from ..agent_panels import panel_key_per_agent
@@ -89,7 +91,7 @@ def enumerate_group_keys(
     for i, pk in enumerate(panel_keys):
         panel_to_indices.setdefault(pk, []).append(i)
 
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     seen: set[GroupKey] = set()
     out: list[GroupKey] = []
     for indices in panel_to_indices.values():
@@ -198,7 +200,7 @@ def build_agent_tree(
     parent_lookup: dict[str, Agent] = {
         a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     keys_per_agent = [
         grouping_keys_for(a, parent_lookup, mode, reference) for a in agents
     ]

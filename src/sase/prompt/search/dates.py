@@ -18,10 +18,9 @@ from __future__ import annotations
 
 import calendar
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 from sase.history.prompt import PromptDateError, parse_prune_date
 
@@ -59,7 +58,7 @@ class PromptSearchDateError(ValueError):
         )
 
 
-def _timezone() -> ZoneInfo:
+def _timezone() -> tzinfo:
     """Return the configured timezone (indirection keeps tests deterministic)."""
     from sase.core.time import get_timezone
 

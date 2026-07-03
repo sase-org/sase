@@ -48,7 +48,7 @@ def create_artifacts_directory(
     project_name: str | None = None,
     timestamp: str | None = None,
 ) -> str:
-    """Create a timestamped artifacts directory using NYC Eastern timezone.
+    """Create a timestamped artifacts directory using the configured timezone.
 
     Args:
         workflow_name: Name of the workflow (e.g., 'crs', 'new-tdd-feature')

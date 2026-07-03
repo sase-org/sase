@@ -22,8 +22,10 @@ def remaining_until(wait_until: str) -> float:
     """Seconds remaining until the ISO 8601 target time."""
     from datetime import datetime as dt_cls
 
+    from sase.core.time import local_now
+
     target = dt_cls.fromisoformat(wait_until)
-    now = dt_cls.now(target.tzinfo) if target.tzinfo is not None else dt_cls.now()
+    now = dt_cls.now(target.tzinfo) if target.tzinfo is not None else local_now()
     return max(0.0, (target - now).total_seconds())
 
 

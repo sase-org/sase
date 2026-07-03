@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo
 
-from sase.core.time import get_timezone
+from sase.core.time import to_local
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_phase_name,
@@ -28,15 +26,14 @@ if TYPE_CHECKING:
 ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
 
 
-@lru_cache(maxsize=1)
-def _cached_timezone() -> ZoneInfo:
-    return get_timezone()
+def parse_utc_to_local(iso_str: str) -> datetime:
+    """Parse a UTC ISO 8601 timestamp and convert to configured-tz display time.
 
-
-def parse_utc_to_eastern(iso_str: str) -> datetime:
-    """Parse a UTC ISO 8601 timestamp and convert to local display time."""
+    Delegates to :func:`sase.core.time.to_local`, the shared aware→naive-local
+    normalizer, so every model timestamp is a configured-tz wall time.
+    """
     dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-    return dt.astimezone(_cached_timezone()).replace(tzinfo=None)
+    return to_local(dt)
 
 
 def _parse_timestamp_field(raw_value: object) -> list[datetime]:
@@ -52,7 +49,7 @@ def _parse_timestamp_values(values: list[str]) -> list[datetime]:
     parsed: list[datetime] = []
     for value in values:
         try:
-            parsed.append(parse_utc_to_eastern(value))
+            parsed.append(parse_utc_to_local(value))
         except ValueError:
             continue
     return parsed

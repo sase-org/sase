@@ -202,13 +202,13 @@ class WorkflowExecMixin:
         Returns:
             True if workflow was started, False on error.
         """
-        from datetime import datetime
         from pathlib import Path
 
+        from sase.core.time import local_now
         from sase.xprompt import execute_workflow
 
         # Create proper artifacts directory for workflow state persistence
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = local_now().strftime("%Y%m%d%H%M%S")
         base_workflow = (
             workflow_name.split("/")[-1] if "/" in workflow_name else workflow_name
         )
@@ -308,8 +308,8 @@ class WorkflowExecMixin:
         """
         import json
         import subprocess
-        from datetime import datetime
 
+        from sase.core.time import local_now
         from sase.running_field import claim_workspace
 
         ctx = self._prompt_context
@@ -322,7 +322,7 @@ class WorkflowExecMixin:
             return False
 
         # Build artifacts directory using project context
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = local_now().strftime("%Y%m%d%H%M%S")
         project_name = os.path.basename(os.path.dirname(ctx.project_file))
         base_workflow = (
             workflow_name.split("/")[-1] if "/" in workflow_name else workflow_name

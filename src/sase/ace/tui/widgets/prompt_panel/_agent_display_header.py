@@ -307,10 +307,12 @@ def build_header_text(
                 )
         # Show live countdown for duration waits
         elif agent.wait_duration and agent.start_time and not agent.waiting_for:
-            from datetime import datetime, timedelta
+            from datetime import timedelta
+
+            from sase.core.time import local_now
 
             target = agent.start_time + timedelta(seconds=agent.wait_duration)
-            remaining = (target - datetime.now()).total_seconds()
+            remaining = (target - local_now()).total_seconds()
             if remaining > 0:
                 header_text.append(
                     f" ({format_compact_duration(remaining)} left)", style="dim #AF87FF"

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from sase.ace.changespec import ChangeSpec
+from sase.core.time import local_now
 
 from ..group_fold import GroupFoldRegistry, GroupKey
 from ._buckets import ChangeSpecGroupingMode, precompute_latest_timestamps
@@ -52,7 +53,7 @@ def enumerate_changespec_group_keys(
     """
     if not changespecs:
         return []
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     # BY_DATE bucketing reads the latest TIMESTAMPS entry; precomputing
     # once keeps enumeration linear instead of re-parsing per CS.
     latest_map = (
@@ -131,7 +132,7 @@ def build_changespec_tree(
         return []
 
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     # BY_DATE uses the latest TIMESTAMPS entry both for L0 bucketing and
     # for the within-bucket sort anchor; precompute once so a 200-CL
     # refresh does 200 timestamp parses, not 600.

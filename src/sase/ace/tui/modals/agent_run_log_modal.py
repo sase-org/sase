@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from rich.text import Text
@@ -23,6 +22,7 @@ from sase.ace.hints import build_editor_args
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_all_agents
 from sase.core.changespec import changespec_names_match
+from sase.core.time import local_now
 from sase.ace.tui.widgets.prompt_panel._helpers import append_model_field
 
 from .base import OptionListNavigationMixin
@@ -119,7 +119,7 @@ def _group_agents_by_date(
     agents: list[Agent],
 ) -> list[tuple[str, list[Agent]]]:
     """Group agents by date category (Running, Today, Yesterday, older dates)."""
-    now = datetime.now()
+    now = local_now()
     today = now.date()
 
     running: list[Agent] = []

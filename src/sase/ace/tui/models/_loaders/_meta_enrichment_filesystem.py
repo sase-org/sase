@@ -13,7 +13,7 @@ from ._meta_enrichment_common import (
     has_plan_submission_marker,
     meta_has_wait_directive,
     parent_timestamp_from_meta,
-    parse_utc_to_eastern,
+    parse_utc_to_local,
     parse_linked_repos,
     pending_question_status_from_marker,
     plan_enrichment_status,
@@ -128,7 +128,7 @@ def enrich_agent_from_meta(
     epic_started_at = data.get("epic_started_at")
     if isinstance(epic_started_at, str):
         try:
-            agent.epic_time = parse_utc_to_eastern(epic_started_at)
+            agent.epic_time = parse_utc_to_local(epic_started_at)
         except ValueError:
             pass
 
@@ -156,7 +156,7 @@ def enrich_agent_from_meta(
         for ts in retry_started_at:
             if isinstance(ts, str):
                 try:
-                    agent.retry_times.append(parse_utc_to_eastern(ts))
+                    agent.retry_times.append(parse_utc_to_local(ts))
                 except ValueError:
                     pass
 
@@ -165,7 +165,7 @@ def enrich_agent_from_meta(
     wait_completed_at = data.get("wait_completed_at")
     if isinstance(run_started_at, str):
         try:
-            agent.run_start_time = parse_utc_to_eastern(run_started_at)
+            agent.run_start_time = parse_utc_to_local(run_started_at)
             if agent.status == "STARTING":
                 agent.status = "RUNNING"
         except ValueError:
@@ -177,7 +177,7 @@ def enrich_agent_from_meta(
     stopped_at = data.get("stopped_at")
     if isinstance(stopped_at, str):
         try:
-            agent.stop_time = parse_utc_to_eastern(stopped_at)
+            agent.stop_time = parse_utc_to_local(stopped_at)
         except ValueError:
             pass
 

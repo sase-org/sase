@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui.models.agent import Agent
+from sase.core.time import get_timezone
 
 
 def resolve_agent_session(agent: Agent) -> Path | None:
@@ -101,6 +102,11 @@ def _find_jsonl_files_since(directory: Path, since: datetime) -> list[Path]:
     the same project directory), selects the file whose first event timestamp
     is closest to ``since`` — the agent's start time.
     """
+    # A naive ``since`` is a configured-tz wall time by convention; interpret it
+    # in that zone (not the system tz) before converting to an epoch for mtime
+    # comparison.
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=get_timezone())
     since_ts = since.timestamp()
     matching = [p for p in directory.glob("*.jsonl") if p.stat().st_mtime >= since_ts]
     matching.sort(key=lambda p: p.stat().st_mtime)

@@ -9,7 +9,6 @@ the workspace upon completion.
 import json
 import os
 import sys
-from datetime import datetime
 from typing import Any
 
 from sase.axe.runner_utils import (
@@ -22,6 +21,7 @@ from sase.axe.runner_args import parse_runner_bool_arg
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.time import local_now
 from sase.running_field import release_workspace
 
 install_sigterm_handler("workflow")
@@ -57,7 +57,7 @@ def _write_workflow_state(
         "steps": [],
         "context": {"cl_name": cl_name},
         "artifacts_dir": artifacts_dir,
-        "start_time": datetime.now().isoformat(),
+        "start_time": local_now().isoformat(),
         "pid": os.getpid(),
     }
     if error is not None:

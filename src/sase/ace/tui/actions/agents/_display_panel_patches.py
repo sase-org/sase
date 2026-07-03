@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING
+
+from sase.core.time import local_now
 
 from ...models.agent_groups import GroupingMode, status_grouping_signature
 from ._display_helpers import TabName, panel_widget_id
@@ -163,7 +164,7 @@ class PanelPatchMixin:
         except NoMatches:
             return 0
 
-        now = datetime.now()
+        now = local_now()
         patched = 0
         for widget in container.children:
             if isinstance(widget, AgentList):

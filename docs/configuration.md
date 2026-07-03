@@ -880,15 +880,17 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/workflow.py`
 
 ### timezone
 
-The timezone used for formatting timestamps in notifications, agent logs, and TUI displays.
+The timezone that governs all SASE wall-clock display and timestamp generation (notifications, agent logs,
+artifact/agent-name timestamps, runtime durations, and TUI displays). When unset, SASE uses the host **system
+timezone**, so machines that don't share our timezone assumptions get sensible behavior out of the box.
 
 ```yaml
-timezone: "America/New_York" # default: "America/New_York"
+timezone: "America/New_York" # default: system timezone
 ```
 
-| Field      | Type   | Default              | Description                               |
-| ---------- | ------ | -------------------- | ----------------------------------------- |
-| `timezone` | string | `"America/New_York"` | IANA timezone name for timestamp display. |
+| Field      | Type   | Default           | Description                                                                        |
+| ---------- | ------ | ----------------- | ---------------------------------------------------------------------------------- |
+| `timezone` | string | _system timezone_ | IANA timezone name governing all SASE wall-clock display and timestamp generation. |
 
 ### chat_install
 

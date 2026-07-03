@@ -251,6 +251,55 @@ def _clear_config_caches() -> None:
     mentor_config._local_profile_names_cache_value = None
 
 
+@pytest.fixture(autouse=True)
+def _pin_configured_timezone() -> Iterator[None]:
+    """Pin the configured timezone to ``America/New_York`` for every test.
+
+    Production resolves an unset ``timezone`` config to the host system tz (see
+    :func:`sase.core.time.get_timezone`), which would make wall-clock rendering
+    host-dependent — Eastern on a dev machine, UTC on CI — and break the visual
+    snapshots and every ``get_timezone()``-relative assertion. Pinning the
+    process cache here keeps all tests on one deterministic clock regardless of
+    host. Tests that exercise timezone resolution or divergence (see
+    ``tz_divergence``) reset and re-pin as needed.
+
+    The cache is reset by poking the module global directly, mirroring how
+    ``_clear_config_caches`` resets the config caches.
+    """
+    from zoneinfo import ZoneInfo
+
+    from sase.core import time as core_time
+
+    core_time._cached_timezone = ZoneInfo("America/New_York")
+    yield
+    core_time._cached_timezone = None
+
+
+@pytest.fixture
+def tz_divergence(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Force configured tz (``America/New_York``) ≠ system tz (``UTC``).
+
+    Reproduces the production bug class where the host's system timezone differs
+    from the configured ``timezone``: bare ``datetime.now()`` / ``.astimezone()``
+    / ``datetime.fromtimestamp()`` observe UTC while :func:`get_timezone` /
+    :func:`local_now` observe Eastern. The system tz is restored on teardown.
+    """
+    import time as _time
+    from zoneinfo import ZoneInfo
+
+    from sase.core import time as core_time
+
+    monkeypatch.setenv("TZ", "UTC")
+    _time.tzset()
+    core_time._cached_timezone = ZoneInfo("America/New_York")
+    try:
+        yield
+    finally:
+        monkeypatch.undo()
+        _time.tzset()
+        core_time._cached_timezone = ZoneInfo("America/New_York")
+
+
 @pytest.fixture
 def make_changespec() -> "type[_ChangeSpecFactory]":  # Return a callable factory class
     """Fixture that provides a factory for creating ChangeSpec objects for testing."""

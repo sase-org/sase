@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.paths import shorten_path
+from sase.core.time import local_now
 
 from .agent_attempt import AttemptRecord, load_attempt_history
 from .agent_source import agent_source
@@ -487,7 +488,7 @@ class Agent:
         """Display how long the agent has been running."""
         if self.start_time is None:
             return "?"
-        end = self.stop_time or datetime.now()
+        end = self.stop_time or local_now()
         delta = end - self.start_time
         total_seconds = int(delta.total_seconds())
         hours, remainder = divmod(total_seconds, 3600)

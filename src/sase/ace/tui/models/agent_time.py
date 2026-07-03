@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
+from sase.core.time import get_timezone, local_now
 from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
     APPROVED_PLAN_STATUSES,
@@ -57,14 +58,14 @@ def wait_until_target_and_reference(
     if now is not None:
         reference = now
         if target.tzinfo is not None and reference.tzinfo is None:
-            reference = reference.astimezone()
+            reference = reference.astimezone(get_timezone())
         elif target.tzinfo is None and reference.tzinfo is not None:
             target = target.replace(tzinfo=reference.tzinfo)
         return target, reference
 
     if target.tzinfo is not None:
         return target, datetime.now(target.tzinfo)
-    return target, datetime.now()
+    return target, local_now()
 
 
 def format_wait_until(iso_str: str, now: datetime | None = None) -> str:
@@ -104,10 +105,10 @@ def _reference_for_target(target: datetime, now: datetime | None) -> datetime:
     elif target.tzinfo is not None:
         reference = datetime.now(target.tzinfo)
     else:
-        reference = datetime.now()
+        reference = local_now()
 
     if target.tzinfo is not None and reference.tzinfo is None:
-        return reference.astimezone()
+        return reference.astimezone(get_timezone())
     if target.tzinfo is None and reference.tzinfo is not None:
         return reference.replace(tzinfo=None)
     return reference
@@ -138,7 +139,7 @@ def _format_finish_timestamp(
       the gap between the two halves).
     - Different year: ``("Mon DD 'YY", "")``.
     """
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     if stop.date() == reference.date():
         return ("", stop.strftime("%H:%M:%S"))
     if stop.year == reference.year:
@@ -385,7 +386,7 @@ def compute_row_runtime(
     inflate what reads as runtime. Historical terminal rows without
     ``run_start_time`` fall back to ``start_time`` for compatibility.
     """
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     interval = _runtime_interval(agent, reference)
     if interval is None:
         return (None, None)

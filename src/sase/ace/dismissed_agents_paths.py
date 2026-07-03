@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 
 from sase.core.paths import parse_filename_timestamp
+from sase.core.time import local_now
 
 _SHARD_DIR_RE = re.compile(r"^\d{6}$")
 
@@ -18,7 +18,7 @@ def bundle_shard_dir(bundles_dir: Path, filename: str) -> Path:
     children append ``__c<idx>`` before ``.json``. If the timestamp can't be
     parsed, fall back to ``now()`` so the file still lands in a valid shard.
     """
-    ts = parse_filename_timestamp(filename) or datetime.now()
+    ts = parse_filename_timestamp(filename) or local_now()
     return bundles_dir / ts.strftime("%Y%m")
 
 

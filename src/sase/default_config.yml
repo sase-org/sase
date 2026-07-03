@@ -1,4 +1,3 @@
-timezone: "America/New_York"
 amd_h1_title: null
 use_chezmoi: false
 precommit_command: ""

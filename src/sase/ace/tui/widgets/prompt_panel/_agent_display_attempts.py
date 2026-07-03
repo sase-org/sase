@@ -9,6 +9,8 @@ from typing import Any
 from rich.console import Group
 from rich.text import Text
 
+from sase.core.time import get_timezone
+
 from ...models.agent import Agent, AttemptRecord
 from ...util.lazy_syntax import lazy_renderable
 from ._agent_display_content import (
@@ -155,7 +157,9 @@ def render_attempt_banner(record: AttemptRecord, *, total: int) -> Text:
     except (ValueError, OSError):
         hhmmss = "??:??:??"
     try:
-        end_time = datetime.fromtimestamp(record.end_epoch).strftime("%H:%M:%S")
+        end_time = datetime.fromtimestamp(record.end_epoch, get_timezone()).strftime(
+            "%H:%M:%S"
+        )
     except (ValueError, OSError):
         end_time = "??:??:??"
     banner.append(

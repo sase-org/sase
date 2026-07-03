@@ -22,7 +22,6 @@ timestamp recording — run after the lock releases.
 """
 
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sase.ace.changespec import changespec_lock
@@ -37,6 +36,8 @@ from sase.core.status_wire import (
     SUFFIX_ACTION_NONE,
     SUFFIX_ACTION_STRIP,
 )
+from sase.core.time import local_now
+
 from .field_updates import apply_status_update, read_status_from_lines
 from .siblings import SiblingRevertResult
 from .suffix import handle_suffix_append, handle_suffix_strip
@@ -121,7 +122,7 @@ def transition_changespec_status_python(
             return (False, plan.old_status, plan.error, sibling_results)
 
         # Stage 3: in-lock side effects (STATUS line rewrite + mentor flags).
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = local_now().strftime("%Y-%m-%d %H:%M:%S")
         log_msg = (
             f"[{timestamp}] Transitioning {changespec_name}: "
             f"'{old_status}' -> '{new_status}'"

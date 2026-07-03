@@ -12,6 +12,7 @@ import plotext as plt  # type: ignore[import-untyped,import-not-found]
 from rich.panel import Panel
 from rich.text import Text
 
+from sase.core.time import get_timezone
 from sase.telemetry.prom_query import TimeSeries
 
 log = logging.getLogger(__name__)
@@ -53,7 +54,10 @@ def render_line_chart(
     plt.date_form("d/m H:M")
 
     for i, (ts, label) in enumerate(filtered):
-        xs = [datetime.fromtimestamp(p[0]).strftime("%d/%m %H:%M") for p in ts.points]
+        xs = [
+            datetime.fromtimestamp(p[0], get_timezone()).strftime("%d/%m %H:%M")
+            for p in ts.points
+        ]
         ys = [p[1] for p in ts.points]
         color = COLORS[i % len(COLORS)]
         plt.plot(xs, ys, label=label, color=color)

@@ -244,11 +244,10 @@ def create_anonymous_workflow(query: str) -> Workflow:
     Returns:
         A Workflow object with a single prompt step containing the query.
     """
-    from datetime import datetime
-
+    from sase.core.time import generate_timestamp
     from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
-    name = f"tmp_{datetime.now().strftime('%y%m%d_%H%M%S')}"
+    name = f"tmp_{generate_timestamp()}"
     return Workflow(
         name=name,
         inputs=[],

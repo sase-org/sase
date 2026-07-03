@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import datetime as dt
 import json
 import os
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from sase.core.time import local_now
 
 from ._chat_install_models import ChatInstallConfig
 
@@ -100,7 +101,7 @@ def write_completion_record(
 
 
 def log_message(message: str) -> None:
-    timestamp = dt.datetime.now().isoformat(timespec="seconds")
+    timestamp = local_now().isoformat(timespec="seconds")
     print(f"[{timestamp}] {message}", flush=True)
 
 

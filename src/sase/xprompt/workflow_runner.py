@@ -305,7 +305,8 @@ def _write_failed_workflow_state(
     """
     import json
     import os
-    from datetime import datetime
+
+    from sase.core.time import local_now
 
     # Save agent templates from step definitions so the TUI can display
     # the prompt that was attempted even when no steps ran.
@@ -322,7 +323,7 @@ def _write_failed_workflow_state(
         "steps": [],
         "context": {},
         "artifacts_dir": artifacts_dir,
-        "start_time": datetime.now().isoformat(),
+        "start_time": local_now().isoformat(),
         "pid": os.getpid(),
         "error": error_message,
         "is_anonymous": workflow_name.startswith("tmp_"),

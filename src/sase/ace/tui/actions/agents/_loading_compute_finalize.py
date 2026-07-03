@@ -10,8 +10,9 @@ anything drifted before applying it.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING
+
+from sase.core.time import local_now
 
 from ._loading_compute_types import (
     PreparedApplyBoundary,
@@ -107,7 +108,7 @@ def _filter_agents_by_query(
     """Filter *agents* by *parsed_ast*, preserving children of matching parents."""
     from ....agent_query import evaluate_agent_query
 
-    now = datetime.now()
+    now = local_now()
 
     def _matches(agent: Agent) -> bool:
         return evaluate_agent_query(

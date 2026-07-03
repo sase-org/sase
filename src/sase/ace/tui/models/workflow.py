@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from sase.core.time import local_now
 from sase.xprompt import StepState, StepStatus
 
 
@@ -70,7 +71,7 @@ class WorkflowEntry:
         """Display how long the workflow has been running."""
         if self.start_time is None:
             return "?"
-        delta = datetime.now() - self.start_time
+        delta = local_now() - self.start_time
         total_seconds = int(delta.total_seconds())
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)

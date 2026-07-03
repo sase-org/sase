@@ -13,8 +13,9 @@ The implementation lives here as a free function so the mixin in
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING
+
+from sase.core.time import local_now
 
 from ._loading_compute import PreparedFinalizePlan
 from ._loading_helpers import (
@@ -281,7 +282,7 @@ def finalize_agent_list(
         from ....agent_query import evaluate_agent_query
 
         content_index = getattr(app, "_agent_content_search_index", None)
-        now = datetime.now()
+        now = local_now()
 
         def _matches(agent: Agent) -> bool:
             return evaluate_agent_query(

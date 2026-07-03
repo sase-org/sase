@@ -3,12 +3,12 @@
 import json
 import os
 import time
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.time import local_now
 from sase.xprompt.workflow_executor_loops import LoopMixin
 from sase.xprompt.workflow_executor_parallel import ParallelMixin
 from sase.xprompt.workflow_executor_steps import StepMixin
@@ -101,7 +101,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             ],
             context=dict(args),
             artifacts_dir=artifacts_dir,
-            start_time=datetime.now().isoformat(),
+            start_time=local_now().isoformat(),
         )
 
     def _inject_environment(self) -> None:

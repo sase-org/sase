@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.time import local_now
 from sase.plan_chain import agent_family_base, canonical_plan_chain_suffix
 
 from ..agent import Agent
@@ -195,7 +196,7 @@ def grouping_keys_for(
         parent = parent_lookup.get(agent.parent_timestamp)
         if parent is not None:
             target = parent
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     l0 = _l0_value_for(target, mode, reference)
     return _GroupingKeys(
         project=l0,
@@ -225,7 +226,7 @@ def grouping_keys_for_agents(
     parent_lookup: dict[str, Agent] = {
         a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }
-    reference = now if now is not None else datetime.now()
+    reference = now if now is not None else local_now()
     return [grouping_keys_for(a, parent_lookup, mode, reference) for a in agents]
 
 

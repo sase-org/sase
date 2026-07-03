@@ -3,13 +3,13 @@
 import argparse
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sase.ace.query import QueryParseError
 from sase.core.clipboard import copy_to_system_clipboard
 from sase.core.paths import get_sase_tmpdir, shorten_path
+from sase.core.time import local_now
 
 if TYPE_CHECKING:
     from sase.ace.tui.exit_action import AceExitAction
@@ -24,7 +24,7 @@ def _profile_output_path(profile_arg: str) -> str:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         return output_path
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = local_now().strftime("%Y%m%d_%H%M%S")
     filename = f"ace_profile_{timestamp}.txt"
     tmpdir = get_sase_tmpdir()
     return os.path.join(tmpdir, filename) if tmpdir else filename

@@ -28,6 +28,8 @@ from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
+from sase.core.time import local_now
+
 
 def get_sase_tmpdir() -> str | None:
     """Return the SASE temp directory if $SASE_TMPDIR is set, else None.
@@ -208,14 +210,14 @@ def sharded_path(
     1. An explicit ``ts`` argument.
     2. A ``YYmmdd_HHMMSS`` / ``YYYYmmddHHMMSS`` timestamp parsed from
        ``filename``.
-    3. ``datetime.now()``.
+    3. The configured-timezone ``local_now()``.
 
     If ``ensure=True``, the shard directory is created.
     """
     if ts is None:
         ts = parse_filename_timestamp(filename)
     if ts is None:
-        ts = datetime.now()
+        ts = local_now()
     shard_dir = _sase_subdir(subdir) / _shard_name(ts)
     if ensure:
         shard_dir.mkdir(parents=True, exist_ok=True)

@@ -14,6 +14,7 @@ from pathlib import Path
 from sase.axe.process import is_axe_running, start_axe_daemon, stop_axe_daemon
 from sase.config.core import load_merged_config
 from sase.core.paths import sase_projects_dir, sase_subdir
+from sase.core.time import local_now
 from sase.vcs_provider import get_vcs_provider
 
 from ._chat_install_cli import main as _cli_main
@@ -342,7 +343,7 @@ def _adopt_lock_fd() -> int | None:
 
 
 def _new_job_id() -> str:
-    timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = local_now().strftime("%Y%m%d_%H%M%S")
     return f"{timestamp}_{os.getpid()}_{uuid.uuid4().hex[:8]}"
 
 

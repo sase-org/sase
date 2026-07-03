@@ -8,6 +8,8 @@ interpret ``%wait(time=5m)``, ``%wait(time=1h30m)``,
 import re
 from datetime import datetime, timedelta
 
+from sase.core.time import local_now
+
 from ._exceptions import DirectiveError
 
 _DURATION_RE = re.compile(r"^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$")
@@ -55,7 +57,7 @@ def parse_absolute_time(s: str) -> str | None:
             raise DirectiveError(
                 f"Invalid date/time in '%wait(time={s})' — {exc}"
             ) from exc
-        if target <= datetime.now():
+        if target <= local_now():
             raise DirectiveError(f"Target time '%wait(time={s})' is in the past")
         return target.isoformat()
 
@@ -66,7 +68,7 @@ def parse_absolute_time(s: str) -> str | None:
                 f"Invalid time '{s}' in '%wait(time={s})'"
                 f" — hours must be 00-23 and minutes 00-59"
             )
-        now = datetime.now()
+        now = local_now()
         target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)

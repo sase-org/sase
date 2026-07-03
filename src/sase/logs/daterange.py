@@ -1,8 +1,8 @@
 """Date range parsing for the ``sase logs`` command.
 
 Supports absolute dates (``YYmmdd``, ``YYmmddHHMMSS``), relative dates
-(``-7d``, ``0d``), and ranges (``START..END``).  All dates resolve to Eastern
-timezone (consistent with the rest of the codebase).
+(``-7d``, ``0d``), and ranges (``START..END``).  All dates resolve to the
+configured timezone (consistent with the rest of the codebase).
 """
 
 import re
@@ -14,9 +14,9 @@ from sase.core.time import get_timezone
 def _parse_datepoint(s: str) -> datetime:
     """Parse a single date point into a timezone-aware datetime.
 
-    Accepted formats:
-    - ``YYmmdd``          – e.g. ``260318``  → 2026-03-18 00:00:00 ET
-    - ``YYmmddHHMMSS``    – e.g. ``260318143000`` → 2026-03-18 14:30:00 ET
+    Accepted formats (resolved in the configured timezone):
+    - ``YYmmdd``          – e.g. ``260318``  → 2026-03-18 00:00:00
+    - ``YYmmddHHMMSS``    – e.g. ``260318143000`` → 2026-03-18 14:30:00
     - ``-Nd``             – N days ago at midnight
     - ``0d``              – today at midnight
     - ``-Nm``             – N minutes ago
