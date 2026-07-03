@@ -490,7 +490,9 @@ def patch_startup_loaders(
 async def wait_for_startup(page: AcePage) -> None:
     await page.wait_for(
         lambda _state: (
-            page.app._agents_first_load_done and page.app._axe_first_load_done
+            page.app._changespecs_first_load_done
+            and page.app._agents_first_load_done
+            and page.app._axe_first_load_done
         )
     )
 

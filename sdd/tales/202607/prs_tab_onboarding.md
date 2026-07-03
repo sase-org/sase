@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-03 13:36:48
-status: wip
+status: done
 prompt: sdd/prompts/202607/prs_tab_onboarding.md
 ---
 # PRs Tab Onboarding Page

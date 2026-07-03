@@ -60,6 +60,14 @@
     height: 100%;
 }
 
+#changespecs-view.-onboarding-active #list-container {
+    display: none;
+}
+
+#changespecs-view.-onboarding-active #detail-container {
+    display: none;
+}
+
 #list-container {
     width: 43;  /* Default, will be set programmatically */
     min-width: 43;  /* Must fit info panel text */
@@ -112,6 +120,43 @@
 
 #detail-panel {
     height: auto;
+}
+
+#changespec-onboarding-panel {
+    width: 1fr;
+    height: 100%;
+    padding: 1 2;
+    align-horizontal: center;
+    scrollbar-gutter: stable;
+}
+
+#changespec-onboarding-hero {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+.changespec-onboarding-card {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    border: round $secondary;
+    border-title-color: #00D7AF;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+#changespec-onboarding-footer {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    color: $text-muted;
+    margin-top: 1;
 }
 
 #keybinding-footer {

@@ -4,6 +4,7 @@ from ._core import ChangeSpecMixin
 from ._display import ChangeSpecDisplayMixin
 from ._grouping_nav import ChangeSpecGroupingNavMixin
 from ._loading import ChangeSpecLoadingMixin
+from ._onboarding import ChangeSpecOnboardingMixin
 from ._query import ChangeSpecQueryMixin
 
 __all__ = [
@@ -11,5 +12,6 @@ __all__ = [
     "ChangeSpecGroupingNavMixin",
     "ChangeSpecLoadingMixin",
     "ChangeSpecMixin",
+    "ChangeSpecOnboardingMixin",
     "ChangeSpecQueryMixin",
 ]

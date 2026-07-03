@@ -87,6 +87,7 @@ class StateInitMixin:
         # Startup loading flags: flipped to True once the first async load
         # completes. Used to distinguish "not yet loaded" from "loaded, empty"
         # in the TUI's agents and axe surfaces.
+        self._changespecs_first_load_done = False
         self._agents_first_load_done = False
         self._axe_first_load_done = False
         self._agents_onboarding_launch_targets_available = False

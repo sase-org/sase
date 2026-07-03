@@ -17,6 +17,7 @@ from ...models.changespec_graph_index import (
 )
 from ...models.changespec_groups import ChangeSpecGroupingMode
 from ...util.trace import tui_trace
+from ._onboarding import ChangeSpecOnboardingMixin
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ _CHANGESPEC_GROUPING_BADGE_LABELS: dict[ChangeSpecGroupingMode, str] = {
 }
 
 
-class ChangeSpecDisplayMixin:
+class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
     """Mixin providing display refresh, tab-count, and info-panel updates."""
 
     changespecs: list[ChangeSpec]
@@ -67,6 +68,7 @@ class ChangeSpecDisplayMixin:
     _w_search_query_panel: object
     _changespec_graph_index: ChangeSpecGraphIndex | None
     _changespec_graph_index_for_id: int | None
+    _changespecs_first_load_done: bool
 
     def _get_changespec_graph_index(self) -> ChangeSpecGraphIndex:
         """Return the graph index for ``_all_changespecs``, building if stale.
@@ -157,6 +159,13 @@ class ChangeSpecDisplayMixin:
 
     def _refresh_changespec_detail_only_impl(self) -> None:
         from ....query import query_explicitly_targets_terminal
+
+        if self._sync_changespecs_onboarding():
+            footer_widget = self._get_footer_widget()
+            if footer_widget is not None:
+                self._apply_empty_footer_update(footer_widget)
+            self._update_info_panel()
+            return
 
         detail_widget = self._get_changespec_detail_widget()
         ancestors_panel = self._get_ancestors_children_widget()
@@ -354,6 +363,13 @@ class ChangeSpecDisplayMixin:
     def _refresh_display_impl(self) -> None:
         # Full refresh supersedes any pending debounced detail update.
         self._changespec_detail_debouncer.cancel()
+
+        if self._sync_changespecs_onboarding():
+            footer_widget = self._get_footer_widget()
+            if footer_widget is not None:
+                self._apply_empty_footer_update(footer_widget)
+            self._update_info_panel()
+            return
 
         list_widget = self._get_changespec_list_widget()
         detail_widget = self._get_changespec_detail_widget()

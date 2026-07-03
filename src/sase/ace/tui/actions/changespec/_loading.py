@@ -38,6 +38,7 @@ class ChangeSpecLoadingMixin:
     _hidden_submitted_count: int
     _changespecs_loading: bool
     _changespecs_refresh_pending: bool
+    _changespecs_first_load_done: bool
     _current_changespec_group_key: tuple[str, ...] | None
     _query_corpus: QueryCorpus | None
     _query_corpus_source_list_id: int | None
@@ -119,6 +120,7 @@ class ChangeSpecLoadingMixin:
         else:
             self.current_idx = 0
 
+        self._changespecs_first_load_done = True
         self._refresh_display()  # type: ignore[attr-defined]
 
     def _load_changespecs(self) -> None:
@@ -328,6 +330,7 @@ class ChangeSpecLoadingMixin:
         # highlight a banner that no longer exists.
         if not self._changespec_banner_focus_still_valid():  # type: ignore[attr-defined]
             self._current_changespec_group_key = None  # type: ignore[attr-defined]
+        self._changespecs_first_load_done = True
         # Skip the (hidden) widget repaint entirely when off-tab. The
         # freshly applied data sits ready and ``watch_current_tab`` will
         # re-run ``_refresh_display`` on switch-back. Avoids the wasted

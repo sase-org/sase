@@ -11,8 +11,10 @@ from textual.widgets import Static
 
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..tab_order import TAB_ORDER, TabName
+from ._onboarding_common import append_keycap, append_section_heading
 
 _DOCS_URL = "https://sase.sh"
+_AGENTS_ACCENT = "#87D7FF"
 _UPDATES_ACCENT = "#AF87FF"
 
 _STEP_BASE_TITLES: tuple[tuple[str, str], ...] = (
@@ -41,17 +43,6 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
         "Monitor the Axe daemon and automation.",
     ),
 }
-
-
-def _append_keycap(text: Text, label: str) -> None:
-    text.append(" ")
-    text.append(f" {label} ", style="bold #1a1a1a on #00D7AF")
-    text.append(" ")
-
-
-def _append_section_heading(text: Text, label: str) -> None:
-    text.append(label, style="bold #87D7FF")
-    text.append("\n")
 
 
 class AgentOnboarding(VerticalScroll):
@@ -233,12 +224,12 @@ class AgentOnboarding(VerticalScroll):
     ) -> Text:
         app = registry.app
         text = Text()
-        _append_section_heading(text, "Start from the prompt")
-        _append_keycap(text, key_display_name(app.start_agent_home))
+        append_section_heading(text, "Start from the prompt", accent=_AGENTS_ACCENT)
+        append_keycap(text, key_display_name(app.start_agent_home))
         text.append("open the prompt bar in your home workspace.")
         text.append("\n")
         if launch_targets_available:
-            _append_keycap(text, key_display_name(app.start_custom_agent))
+            append_keycap(text, key_display_name(app.start_custom_agent))
             text.append("pick a project or CL first.")
             text.append("\n")
         text.append("Works from any tab; shell: ", style="dim")
@@ -257,14 +248,14 @@ class AgentOnboarding(VerticalScroll):
     def _build_tabs_card(cls, registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
-        _append_section_heading(text, "Know where you are")
+        append_section_heading(text, "Know where you are", accent=_AGENTS_ACCENT)
         for tab in TAB_ORDER:
             label, color, description = _TAB_ROWS[tab]
             cls._append_tab_row(text, label, color, description)
         text.append("Switch with", style="dim")
-        _append_keycap(text, key_display_name(app.next_tab))
+        append_keycap(text, key_display_name(app.next_tab))
         text.append("/", style="dim")
-        _append_keycap(text, key_display_name(app.prev_tab))
+        append_keycap(text, key_display_name(app.prev_tab))
         text.append(".")
         return text
 
@@ -272,18 +263,20 @@ class AgentOnboarding(VerticalScroll):
     def _build_plugins_card(registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
-        _append_section_heading(text, "Extend sase from the Admin Center")
-        _append_keycap(text, key_display_name(app.open_config_center))
+        append_section_heading(
+            text, "Extend sase from the Admin Center", accent=_AGENTS_ACCENT
+        )
+        append_keycap(text, key_display_name(app.open_config_center))
         text.append("open the ")
         text.append("SASE Admin Center", style="bold")
         text.append(", then its ")
         text.append("Updates", style=f"bold {_UPDATES_ACCENT}")
         text.append(" tab.")
         text.append("\n")
-        _append_keycap(text, "i")
+        append_keycap(text, "i")
         text.append("install a plugin", style="dim")
         text.append(" · ", style="dim")
-        _append_keycap(text, "u")
+        append_keycap(text, "u")
         text.append("update sase & all plugins.", style="dim")
         text.append("\n")
         text.append("Recommended first plugin: ", style="dim")
@@ -295,10 +288,10 @@ class AgentOnboarding(VerticalScroll):
     def _build_help_card(registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
-        _append_keycap(text, key_display_name(app.show_help))
+        append_keycap(text, key_display_name(app.show_help))
         text.append("open the help pop-up for this tab.")
         text.append("\n")
-        _append_keycap(text, key_display_name(app.open_command_palette))
+        append_keycap(text, key_display_name(app.open_command_palette))
         text.append("fuzzy-search and run any command.")
         text.append("\n")
         text.append(_DOCS_URL, style=f"bold #87D7FF link {_DOCS_URL}")

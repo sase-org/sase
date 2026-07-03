@@ -22,6 +22,16 @@ class StartupLoadsMixin:
         from ...saved_queries import load_saved_queries
 
         self._saved_queries = load_saved_queries()
+        sync_onboarding = getattr(self, "_sync_changespecs_onboarding", None)
+        if callable(sync_onboarding):
+            showing_onboarding = sync_onboarding()
+            if (
+                not showing_onboarding
+                and getattr(self, "current_tab", None) == "changespecs"
+            ):
+                refresh_display = getattr(self, "_refresh_display", None)
+                if callable(refresh_display):
+                    refresh_display()
 
     def _start_post_mount_background_loads(self: Any) -> None:
         """Launch post-mount startup loads once after first paint."""

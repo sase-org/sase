@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 from ...models.agent_groups import GroupingMode, status_bucket_for
 from ...util.trace import tui_trace
+from .._widget_visibility import set_widget_hidden, widget_has_class
 from ._display_helpers import TabName
 from ._loading_helpers import DISMISSABLE_STATUSES
 
@@ -134,22 +135,6 @@ class DetailMixin:
         if (getattr(self, "_agent_search_query", "") or "").strip():
             return False
         return not bool(getattr(self, "_agents", []))
-
-    @staticmethod
-    def _set_widget_hidden(widget: object, hidden: bool) -> None:
-        if hidden:
-            add_class = getattr(widget, "add_class", None)
-            if callable(add_class):
-                add_class("hidden")
-        else:
-            remove_class = getattr(widget, "remove_class", None)
-            if callable(remove_class):
-                remove_class("hidden")
-
-    @staticmethod
-    def _widget_has_class(widget: object, class_name: str) -> bool:
-        has_class = getattr(widget, "has_class", None)
-        return bool(has_class(class_name)) if callable(has_class) else False
 
     def _set_agents_onboarding_layout(self, active: bool) -> None:
         """Collapse the Agents-tab chrome while onboarding is visible."""
@@ -317,7 +302,7 @@ class DetailMixin:
         if (
             not show_onboarding
             and agent_detail is not None
-            and not self._widget_has_class(agent_detail, "hidden")
+            and not widget_has_class(agent_detail, "hidden")
         ):
             return False
 
@@ -328,8 +313,8 @@ class DetailMixin:
         except (NoMatches, LookupError):
             return False
 
-        self._set_widget_hidden(agent_detail, show_onboarding)
-        self._set_widget_hidden(onboarding, not show_onboarding)
+        set_widget_hidden(agent_detail, show_onboarding)
+        set_widget_hidden(onboarding, not show_onboarding)
         self._set_agents_onboarding_layout(show_onboarding)
         if not show_onboarding:
             return False

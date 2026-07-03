@@ -47,6 +47,7 @@ class StartupMixin(
     _auto_start_axe: bool
     _restart_axe: bool
     _mounting: bool
+    _changespecs_first_load_done: bool
     _agents_first_load_done: bool
     _axe_first_load_done: bool
     _agents_onboarding_launch_targets_available: bool

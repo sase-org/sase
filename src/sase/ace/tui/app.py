@@ -59,6 +59,7 @@ from .widgets import (
     ChangeSpecDetail,
     ChangeSpecInfoPanel,
     ChangeSpecList,
+    ChangeSpecOnboarding,
     KeybindingFooter,
     LLMOverrideIndicator,
     NotificationIndicator,
@@ -294,6 +295,9 @@ class AceApp(
                     yield SearchQueryPanel(id="search-query-panel")
                     with VerticalScroll(id="detail-scroll"):
                         yield ChangeSpecDetail(id="detail-panel")
+                yield ChangeSpecOnboarding(
+                    id="changespec-onboarding-panel", classes="hidden"
+                )
             with Vertical(id="agents-view", classes=agents_classes):
                 yield AgentInfoPanel(id="agent-info-panel")
                 with Horizontal(id="agents-content"):
