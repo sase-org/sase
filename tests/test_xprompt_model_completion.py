@@ -112,7 +112,7 @@ def test_model_completion_custom_alias_uses_configured_description(
     monkeypatch.setattr(
         model_completion,
         "model_alias_config_source",
-        lambda alias: "custom_model_aliases" if alias == "blogger" else None,
+        lambda alias: "custom" if alias == "blogger" else None,
     )
     monkeypatch.setattr(
         model_completion,

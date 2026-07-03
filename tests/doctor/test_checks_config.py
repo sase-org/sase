@@ -130,7 +130,14 @@ def test_model_xprompts_ok_when_alias_routes_to_provider(
         xprompts,
         {
             "provider": "codex",
-            "model_aliases": {"agy_flash": "agy/Gemini 3.5 Flash (High)"},
+            "model_aliases": {
+                "custom": {
+                    "agy_flash": {
+                        "model": "agy/Gemini 3.5 Flash (High)",
+                        "description": "Antigravity flash preset.",
+                    }
+                }
+            },
         },
     )
 
@@ -154,7 +161,14 @@ def test_model_xprompts_flags_bare_alias_with_migration_hint(
         xprompts,
         {
             "provider": "codex",
-            "model_aliases": {"agy_flash": "agy/Gemini 3.5 Flash (High)"},
+            "model_aliases": {
+                "custom": {
+                    "agy_flash": {
+                        "model": "agy/Gemini 3.5 Flash (High)",
+                        "description": "Antigravity flash preset.",
+                    }
+                }
+            },
         },
     )
 
@@ -319,7 +333,7 @@ def test_model_aliases_warns_on_worker_models_and_default_model(
     assert keys == {"worker_models", "default_model"}
     detail_text = " ".join(check.details)
     assert "model_aliases" in detail_text
-    assert "model_aliases.default" in detail_text
+    assert "model_aliases.builtin.default" in detail_text
 
 
 def test_model_aliases_warns_on_retired_and_unknown_alias_references(
@@ -330,10 +344,12 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "coder": "@worker",
-                "phase_worker": "@nope",
-                "epic_creator": "@default",
-                "epic_lander": "claude/opus",
+                "builtin": {
+                    "coder": "@worker",
+                    "phase_worker": "@nope",
+                    "epic_creator": "@default",
+                    "epic_lander": "claude/opus",
+                }
             }
         },
     )
@@ -342,40 +358,42 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
-    assert "model_aliases.coder" in by_key
-    assert "retired" in by_key["model_aliases.coder"]
-    assert "model_aliases.phase_worker" in by_key
-    assert "unknown alias '@nope'" in by_key["model_aliases.phase_worker"]
-    assert "model_aliases.epic_creator" not in by_key
-    assert "model_aliases.epic_lander" not in by_key
+    assert "model_aliases.builtin.coder" in by_key
+    assert "retired" in by_key["model_aliases.builtin.coder"]
+    assert "model_aliases.builtin.phase_worker" in by_key
+    assert "unknown alias '@nope'" in by_key["model_aliases.builtin.phase_worker"]
+    assert "model_aliases.builtin.epic_creator" not in by_key
+    assert "model_aliases.builtin.epic_lander" not in by_key
 
 
-def test_model_aliases_warns_on_split_schema_misuse(
+def test_model_aliases_warns_on_nested_schema_misuse(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "blogger": "claude/haiku",
-                "shadow": "claude/haiku",
-            },
-            "custom_model_aliases": {
-                "coder": {
-                    "model": "claude/opus",
-                    "description": "Wrong location.",
+                "builtin": {
+                    "blogger": "claude/haiku",
+                    "shadow": "claude/haiku",
                 },
-                "shadow": {
-                    "model": "claude/opus",
-                    "description": "Custom wins.",
-                },
-                "blank_description": {
-                    "model": "codex/o3",
-                    "description": " ",
-                },
-                "blank_model": {
-                    "model": "",
-                    "description": "No target.",
+                "custom": {
+                    "coder": {
+                        "model": "claude/opus",
+                        "description": "Wrong location.",
+                    },
+                    "shadow": {
+                        "model": "claude/opus",
+                        "description": "Custom wins.",
+                    },
+                    "blank_description": {
+                        "model": "codex/o3",
+                        "description": " ",
+                    },
+                    "blank_model": {
+                        "model": "",
+                        "description": "No target.",
+                    },
                 },
             },
         },
@@ -385,16 +403,48 @@ def test_model_aliases_warns_on_split_schema_misuse(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
-    assert "model_aliases.blogger" in by_key
-    assert "custom_model_aliases" in by_key["model_aliases.blogger"]
-    assert "custom_model_aliases.coder" in by_key
-    assert "builtin alias" in by_key["custom_model_aliases.coder"]
-    assert "model_aliases.shadow" in by_key
+    assert "model_aliases.builtin.blogger" in by_key
+    assert "model_aliases.custom" in by_key["model_aliases.builtin.blogger"]
+    assert "model_aliases.custom.coder" in by_key
+    assert "builtin alias" in by_key["model_aliases.custom.coder"]
+    assert "model_aliases.builtin.shadow" in by_key
     assert (
-        "both model_aliases and custom_model_aliases" in by_key["model_aliases.shadow"]
+        "both model_aliases.builtin and model_aliases.custom"
+        in by_key["model_aliases.builtin.shadow"]
     )
-    assert "custom_model_aliases.blank_description.description" in by_key
-    assert "custom_model_aliases.blank_model.model" in by_key
+    assert "model_aliases.custom.blank_description.description" in by_key
+    assert "model_aliases.custom.blank_model.model" in by_key
+
+
+def test_model_aliases_warns_on_legacy_flat_and_top_level_custom(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "coder": "@default",
+                "blogger": "claude/opus",
+            },
+            "custom_model_aliases": {
+                "researcher": {
+                    "model": "codex/o3",
+                    "description": "Research follow-ups.",
+                }
+            },
+        },
+    )
+
+    check = _check_config_model_aliases()
+
+    assert check.status == "WARN"
+    by_key = {row["key"]: row["message"] for row in check.data["problems"]}
+    assert "model_aliases.coder" in by_key
+    assert "model_aliases.builtin.coder" in by_key["model_aliases.coder"]
+    assert "model_aliases.blogger" in by_key
+    assert "model_aliases.custom.blogger" in by_key["model_aliases.blogger"]
+    assert "custom_model_aliases" in by_key
+    assert "model_aliases.custom" in by_key["custom_model_aliases"]
 
 
 def test_model_aliases_ok_when_config_is_clean(
@@ -403,12 +453,14 @@ def test_model_aliases_ok_when_config_is_clean(
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
-            "model_aliases": {"coder": "@default"},
-            "custom_model_aliases": {
-                "big": {
-                    "model": "claude/opus",
-                    "description": "Large review agents.",
-                }
+            "model_aliases": {
+                "builtin": {"coder": "@default"},
+                "custom": {
+                    "big": {
+                        "model": "claude/opus",
+                        "description": "Large review agents.",
+                    }
+                },
             },
         },
     )

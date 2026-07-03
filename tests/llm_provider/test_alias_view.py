@@ -30,7 +30,17 @@ def test_includes_default_role_provider_coder_and_user_aliases(
 ) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"myalias": "claude/opus"}},
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "myalias": {
+                        "model": "claude/opus",
+                        "description": "Test alias.",
+                    }
+                }
+            },
+        },
     )
     _patch_providers(monkeypatch)
 
@@ -57,7 +67,12 @@ def test_default_is_first_and_groups_are_ordered(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"zeta": "claude/opus", "alpha": "codex/o3"},
+            "model_aliases": {
+                "custom": {
+                    "zeta": {"model": "claude/opus", "description": "Zeta alias."},
+                    "alpha": {"model": "codex/o3", "description": "Alpha alias."},
+                }
+            },
         },
     )
     _patch_providers(monkeypatch)
@@ -80,7 +95,7 @@ def test_configured_value_shadows_role_alias(
 ) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"coder": "codex/o3"}},
+        {"provider": "claude", "model_aliases": {"builtin": {"coder": "codex/o3"}}},
     )
     _patch_providers(monkeypatch)
 
@@ -97,10 +112,12 @@ def test_custom_alias_view_carries_source_and_description(
         monkeypatch,
         {
             "provider": "claude",
-            "custom_model_aliases": {
-                "blogger": {
-                    "model": "claude/opus",
-                    "description": "Draft blog posts.",
+            "model_aliases": {
+                "custom": {
+                    "blogger": {
+                        "model": "claude/opus",
+                        "description": "Draft blog posts.",
+                    }
                 }
             },
         },
@@ -112,7 +129,7 @@ def test_custom_alias_view_carries_source_and_description(
     assert blogger.kind == "user"
     assert blogger.configured is True
     assert blogger.configured_value == "claude/opus"
-    assert blogger.configured_source == "custom_model_aliases"
+    assert blogger.configured_source == "custom"
     assert blogger.description == "Draft blog posts."
 
 

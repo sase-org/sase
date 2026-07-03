@@ -1,10 +1,10 @@
 """Tests for the Models panel's persistent alias edit/reset helpers.
 
 Phase 3 (epic sase-5e): cover the pure pieces around the Rust-backed config-edit
-path — planning a ``llm_provider.model_aliases.<alias>`` set/unset edit (including
-the chezmoi source remap of the write target) and deciding whether to offer a
-commit+push for the file that was actually written (git-root detection across the
-``use_chezmoi`` on/off branches).
+path — planning a ``llm_provider.model_aliases.builtin.<alias>`` set/unset edit
+(including the chezmoi source remap of the write target) and deciding whether to
+offer a commit+push for the file that was actually written (git-root detection
+across the ``use_chezmoi`` on/off branches).
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ import yaml
 from sase.ace.tui.modals.models_panel_edit_helpers import (
     AliasCommitOffer,
     _alias_field_path,
-    alias_description_edit,
     alias_model_edit_path,
     alias_reset_path,
     build_alias_commit_offer,
@@ -41,20 +40,26 @@ ALIAS_SCHEMA: dict[str, Any] = {
             "properties": {
                 "model_aliases": {
                     "type": "object",
-                    "additionalProperties": {"type": "string"},
-                },
-                "custom_model_aliases": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "required": ["model", "description"],
-                        "properties": {
-                            "model": {"type": "string", "minLength": 1},
-                            "description": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 160,
+                    "additionalProperties": False,
+                    "properties": {
+                        "builtin": {
+                            "type": "object",
+                            "additionalProperties": {"type": "string"},
+                        },
+                        "custom": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": ["model", "description"],
+                                "properties": {
+                                    "model": {"type": "string", "minLength": 1},
+                                    "description": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 160,
+                                    },
+                                },
                             },
                         },
                     },
@@ -121,12 +126,12 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_alias_field_path_builds_map_key_path() -> None:
-    assert _alias_field_path("coder") == "llm_provider.model_aliases.coder"
+    assert _alias_field_path("coder") == "llm_provider.model_aliases.builtin.coder"
 
 
 def test_alias_field_path_strips_and_rejects_empty() -> None:
     assert _alias_field_path("  phase_worker  ") == (
-        "llm_provider.model_aliases.phase_worker"
+        "llm_provider.model_aliases.builtin.phase_worker"
     )
     with pytest.raises(ValueError):
         _alias_field_path("   ")
@@ -137,25 +142,25 @@ def test_alias_model_edit_path_routes_by_kind_and_source() -> None:
         alias_model_edit_path(
             "coder",
             kind="role",
-            configured_source="model_aliases",
+            configured_source="builtin",
         )
-        == "llm_provider.model_aliases.coder"
+        == "llm_provider.model_aliases.builtin.coder"
     )
     assert (
         alias_model_edit_path(
             "blogger",
             kind="user",
-            configured_source="custom_model_aliases",
+            configured_source="custom",
         )
-        == "llm_provider.custom_model_aliases.blogger.model"
+        == "llm_provider.model_aliases.custom.blogger.model"
     )
     assert (
         alias_model_edit_path(
             "blogger",
             kind="user",
-            configured_source="model_aliases",
+            configured_source="builtin",
         )
-        == "llm_provider.model_aliases.blogger"
+        == "llm_provider.model_aliases.builtin.blogger"
     )
 
 
@@ -164,39 +169,17 @@ def test_alias_reset_path_deletes_custom_user_alias_entry() -> None:
         alias_reset_path(
             "blogger",
             kind="user",
-            configured_source="custom_model_aliases",
+            configured_source="custom",
         )
-        == "llm_provider.custom_model_aliases.blogger"
+        == "llm_provider.model_aliases.custom.blogger"
     )
     assert (
         alias_reset_path(
             "coder",
             kind="role",
-            configured_source="custom_model_aliases",
+            configured_source="custom",
         )
-        == "llm_provider.model_aliases.coder"
-    )
-
-
-def test_alias_description_edit_routes_custom_and_legacy() -> None:
-    path, op = alias_description_edit(
-        "blogger",
-        description="Draft blog posts.",
-        model="claude/opus",
-        configured_source="custom_model_aliases",
-    )
-    assert path == "llm_provider.custom_model_aliases.blogger.description"
-    assert op == ConfigEditOp.set_value("Draft blog posts.")
-
-    path, op = alias_description_edit(
-        "legacy",
-        description="Research follow-ups.",
-        model="codex/o3",
-        configured_source="model_aliases",
-    )
-    assert path == "llm_provider.custom_model_aliases.legacy"
-    assert op == ConfigEditOp.set_value(
-        {"model": "codex/o3", "description": "Research follow-ups."}
+        == "llm_provider.model_aliases.builtin.coder"
     )
 
 
@@ -211,7 +194,12 @@ def test_plan_alias_edit_set(tmp_path: Path) -> None:
         inventory=inventory,
         use_chezmoi=False,
     )
-    assert plan.write_plan.key_path == ("llm_provider", "model_aliases", "coder")
+    assert plan.write_plan.key_path == (
+        "llm_provider",
+        "model_aliases",
+        "builtin",
+        "coder",
+    )
     assert plan.write_plan.op == "set"
     assert plan.write_plan.new_value == "opus"
     assert plan.target_path == str(user_file)
@@ -224,21 +212,23 @@ def test_plan_alias_edit_custom_model_path(tmp_path: Path) -> None:
     inventory, user_file = _alias_inventory(
         tmp_path,
         "llm_provider:\n"
-        "  custom_model_aliases:\n"
-        "    blogger:\n"
-        "      model: claude/haiku\n"
-        "      description: Draft posts.\n",
+        "  model_aliases:\n"
+        "    custom:\n"
+        "      blogger:\n"
+        "        model: claude/haiku\n"
+        "        description: Draft posts.\n",
     )
     plan = plan_alias_edit(
         "blogger",
         ConfigEditOp.set_value("claude/opus"),
-        path="llm_provider.custom_model_aliases.blogger.model",
+        path="llm_provider.model_aliases.custom.blogger.model",
         inventory=inventory,
         use_chezmoi=False,
     )
     assert plan.write_plan.key_path == (
         "llm_provider",
-        "custom_model_aliases",
+        "model_aliases",
+        "custom",
         "blogger",
         "model",
     )
@@ -254,7 +244,7 @@ def test_plan_alias_edit_rejects_descriptionless_custom_entry(tmp_path: Path) ->
     plan = plan_alias_edit(
         "blogger",
         ConfigEditOp.set_value("claude/opus"),
-        path="llm_provider.custom_model_aliases.blogger.model",
+        path="llm_provider.model_aliases.custom.blogger.model",
         inventory=inventory,
         use_chezmoi=False,
     )
@@ -263,43 +253,10 @@ def test_plan_alias_edit_rejects_descriptionless_custom_entry(tmp_path: Path) ->
     assert any("description" in diagnostic.message for diagnostic in plan.validation)
 
 
-def test_plan_alias_edit_legacy_description_migration_write(tmp_path: Path) -> None:
-    inventory, _ = _alias_inventory(
-        tmp_path,
-        "llm_provider:\n  model_aliases:\n    legacy: codex/o3\n",
-    )
-    path, op = alias_description_edit(
-        "legacy",
-        description="Research follow-ups.",
-        model="codex/o3",
-        configured_source="model_aliases",
-    )
-
-    plan = plan_alias_edit(
-        "legacy",
-        op,
-        path=path,
-        inventory=inventory,
-        use_chezmoi=False,
-    )
-
-    assert plan.write_plan.key_path == (
-        "llm_provider",
-        "custom_model_aliases",
-        "legacy",
-    )
-    assert plan.write_plan.new_value == {
-        "model": "codex/o3",
-        "description": "Research follow-ups.",
-    }
-    assert "custom_model_aliases:" in plan.new_text
-    assert "description: Research follow-ups." in plan.new_text
-
-
 def test_plan_alias_edit_unset(tmp_path: Path) -> None:
     inventory, _ = _alias_inventory(
         tmp_path,
-        "llm_provider:\n  model_aliases:\n    coder: opus\n",
+        "llm_provider:\n  model_aliases:\n    builtin:\n      coder: opus\n",
     )
     plan = plan_alias_edit(
         "coder",
@@ -324,7 +281,8 @@ def test_plan_alias_edit_chezmoi_remaps_target(
     config_dir.mkdir(parents=True)
     user_file = config_dir / "sase.yml"
     user_file.write_text(
-        "llm_provider:\n  model_aliases:\n    coder: opus\n", encoding="utf-8"
+        "llm_provider:\n  model_aliases:\n    builtin:\n      coder: opus\n",
+        encoding="utf-8",
     )
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     monkeypatch.setattr("sase.config.targets.CHEZMOI_HOME", chezmoi)
@@ -335,7 +293,7 @@ def test_plan_alias_edit_chezmoi_remaps_target(
             "user",
             path=str(user_file),
             strategy="replace",
-            data={"llm_provider": {"model_aliases": {"coder": "opus"}}},
+            data={"llm_provider": {"model_aliases": {"builtin": {"coder": "opus"}}}},
         ),
     ]
     inventory = _inventory(layers)
@@ -373,7 +331,9 @@ def test_commit_offer_set_in_repo_with_changes(tmp_path: Path) -> None:
     repo = tmp_path / "userconfig"
     _init_repo(repo)
     target = repo / "sase.yml"
-    target.write_text("llm_provider:\n  model_aliases:\n    coder: opus\n")
+    target.write_text(
+        "llm_provider:\n  model_aliases:\n    builtin:\n      coder: opus\n"
+    )
 
     offer = build_alias_commit_offer(str(target), op="set", alias="coder")
 
@@ -403,7 +363,9 @@ def test_commit_offer_chezmoi_source_repo(tmp_path: Path) -> None:
     _init_repo(repo)
     source = repo / "home" / "dot_config" / "sase" / "sase.yml"
     source.parent.mkdir(parents=True)
-    source.write_text("llm_provider:\n  model_aliases:\n    coder: opus\n")
+    source.write_text(
+        "llm_provider:\n  model_aliases:\n    builtin:\n      coder: opus\n"
+    )
 
     offer = build_alias_commit_offer(str(source), op="set", alias="coder")
 

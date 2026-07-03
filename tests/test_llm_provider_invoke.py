@@ -143,7 +143,16 @@ def test_invoke_agent_resolves_model_alias_for_provider_and_model(
     mock_config: MagicMock,
 ) -> None:
     """A %model alias selects the resolved provider and provider-local model."""
-    mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
+    mock_config.return_value = {
+        "model_aliases": {
+            "custom": {
+                "other": {
+                    "model": "claude/opus",
+                    "description": "Other model.",
+                }
+            }
+        }
+    }
     mock_provider = MagicMock()
     mock_provider.invoke.return_value = InvokeResult(content="response")
     mock_get_provider.return_value = mock_provider
@@ -229,11 +238,15 @@ def test_invoke_agent_no_directive_routes_through_configured_default_alias(
 ) -> None:
     """A no-%model launch routes through a configured ``@default`` alias.
 
-    With ``model_aliases.default`` set, the no-directive launch must select the
-    configured default's provider/model instead of silently falling back to the
-    autodetected provider's tier default (epic sase-5d phase 1 exit criterion).
+    With ``model_aliases.builtin.default`` set, the no-directive launch must
+    select the configured default's provider/model instead of silently falling
+    back to the autodetected provider's tier default (epic sase-5d phase 1 exit
+    criterion).
     """
-    cfg = {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}}
+    cfg = {
+        "provider": "claude",
+        "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+    }
     mock_config.return_value = cfg
     mock_registry_config.return_value = cfg
     mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")

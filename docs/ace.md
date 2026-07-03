@@ -988,8 +988,7 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model
 alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`)
-and any user-defined `llm_provider.custom_model_aliases` entry. Legacy custom aliases that still live in
-`llm_provider.model_aliases` are also shown so they can be migrated in place.
+and any user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @default`, or an
@@ -998,8 +997,8 @@ deterministically: `default` first, then the other role aliases, then `<provider
 aliases alphabetically.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
-use `custom_model_aliases.<name>.description`; a legacy user alias without one shows a hint to press `d`, which writes a
-described `custom_model_aliases` entry through the preview flow.
+use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
+the fix.
 
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted alias:
 
@@ -1008,7 +1007,6 @@ Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlight
 | `o`         | **Override** — set/change a time-bound temporary override (model picker → duration picker) |
 | `x`         | **Clear** — remove the temporary override on this alias                                    |
 | `e`         | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
-| `d`         | **Describe** — add/edit the required description for a user alias                          |
 | `r`         | **Reset** — unset the configured value back to its implicit fallback                       |
 | `Esc` / `q` | Close the panel                                                                            |
 
@@ -1032,8 +1030,8 @@ temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete over
 while the tier override only applies when no concrete override is active.
 
 Delegated launches (plan coder follow-ups, `sase bead work` phase/land agents, epic-creation follow-ups) resolve through
-[role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases`, all of which fall
-back to `@default`, so a `default` override also moves delegated work unless a role alias pins it elsewhere.
+[role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`, all of
+which fall back to `@default`, so a `default` override also moves delegated work unless a role alias pins it elsewhere.
 
 ### Persistent edits
 
@@ -1045,10 +1043,8 @@ target file is not in a git repo the commit offer is skipped and the file is sim
 override visually "wins" the effective-target column even after a persistent edit; the state tag distinguishes the
 _configured_ value from the _currently effective (overridden)_ one.
 
-Builtin aliases edit under `llm_provider.model_aliases.<name>`. User aliases under
-`llm_provider.custom_model_aliases.<name>` edit their `model` field and reset by deleting the custom alias entry. Legacy
-user aliases still under `model_aliases` keep editing/resetting that legacy key; pressing `d` creates the corresponding
-described `custom_model_aliases` entry with the current target.
+Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User aliases under
+`llm_provider.model_aliases.custom.<name>` edit their `model` field and reset by deleting the whole custom alias entry.
 
 ### Examples
 
@@ -1057,10 +1053,8 @@ described `custom_model_aliases` entry with the current target.
 - Highlight `phase_worker`, `o`, pick `claude/opus`, `Until cleared` — `@phase_worker` resolves to CLAUDE(opus) until
   you clear it; the violet non-default pill appears in the top bar.
 - Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured
-  `llm_provider.model_aliases.coder` value is updated and committed (and pushed / `chezmoi apply`-ed when `use_chezmoi`
-  is set).
-- Highlight `blogger`, `d`, enter a description, confirm the preview — `llm_provider.custom_model_aliases.blogger` gets
-  a required description, or a legacy `model_aliases.blogger` entry is migrated into the custom map.
+  `llm_provider.model_aliases.builtin.coder` value is updated and committed (and pushed / `chezmoi apply`-ed when
+  `use_chezmoi` is set).
 - Highlight an alias, `x` — clear its temporary override; `r` — unset its configured value back to `@default`.
 
 See [docs/llms.md](llms.md#temporary-model-overrides) for the resolution order and state-file format.

@@ -24,7 +24,10 @@ def test_override_on_role_alias_changes_resolution(
 ) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "claude/opus"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus"}},
+        },
     )
 
     set_alias_override("coder", "codex/o3", None, source="panel")
@@ -37,7 +40,10 @@ def test_override_on_role_alias_changes_resolution(
 def test_override_beats_configured_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"coder": "claude/sonnet"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"coder": "claude/sonnet"}},
+        },
     )
 
     # Baseline: the configured value resolves before any override.
@@ -52,7 +58,10 @@ def test_override_on_phase_worker_takes_effect(
 ) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "claude/opus"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus"}},
+        },
     )
 
     set_alias_override("phase_worker", "codex/o3", None, source="panel")
@@ -62,7 +71,10 @@ def test_override_on_phase_worker_takes_effect(
 def test_provider_coder_alias_override(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "claude/opus"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus"}},
+        },
     )
 
     set_alias_override("codex_coder", "codex/o3", None, source="panel")
@@ -74,7 +86,10 @@ def test_nondefault_override_leaves_default_lane_unchanged(
 ) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "claude/opus"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus"}},
+        },
     )
 
     set_alias_override("coder", "codex/o3", None, source="panel")
@@ -92,7 +107,10 @@ def test_default_override_preserves_two_path_semantics(
     """A ``default`` override drives the launch lane but not explicit ``@default``."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "claude/opus"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "claude/opus"}},
+        },
     )
 
     set_alias_override("default", "codex/o3", None, source="panel")
@@ -121,7 +139,10 @@ def test_override_clears_back_to_configured(
 
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"coder": "claude/sonnet"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"coder": "claude/sonnet"}},
+        },
     )
 
     set_alias_override("coder", "codex/o3", None, source="panel")

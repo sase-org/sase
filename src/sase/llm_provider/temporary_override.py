@@ -442,7 +442,7 @@ def resolve_effective_default_provider_model(
 
     1. an active primary temporary override (the user's recent explicit choice);
     2. otherwise the ``@default`` alias — a configured
-       ``llm_provider.model_aliases.default`` target, or the configured/
+       ``llm_provider.model_aliases.builtin.default`` target, or the configured/
        autodetected provider's ``resolve_model_name(model_tier)`` default.
 
     This keeps the temporary override winning the "new launch default" slot

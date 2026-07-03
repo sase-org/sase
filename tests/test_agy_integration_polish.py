@@ -167,11 +167,11 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
     """``%model:@#agy_flash`` records agy + the exact display model, not the default.
 
     This pins the full readable surface end to end: the ``#agy_flash`` xprompt
-    expands to the ``agy_flash`` token, the configured ``model_aliases`` entry
-    rewrites that token to ``agy/Gemini 3.5 Flash (High)``, and the recorded
-    metadata routes to the Antigravity provider even though the configured
-    default provider is Codex. It is the regression guard for the bug where the
-    removed alias silently degraded these presets to the default provider.
+    expands to the ``agy_flash`` token, the configured custom alias rewrites
+    that token to ``agy/Gemini 3.5 Flash (High)``, and the recorded metadata
+    routes to the Antigravity provider even though the configured default
+    provider is Codex. It is the regression guard for the bug where the removed
+    alias silently degraded these presets to the default provider.
     """
     workspace_dir = tmp_path / "workspace"
     artifacts_dir = tmp_path / "artifacts" / "20260628120000"
@@ -181,7 +181,14 @@ def test_agent_metadata_routes_model_xprompt_alias_to_agy(
 
     config = {
         "provider": "codex",
-        "model_aliases": {"agy_flash": f"agy/{_AGY_LARGE}"},
+        "model_aliases": {
+            "custom": {
+                "agy_flash": {
+                    "model": f"agy/{_AGY_LARGE}",
+                    "description": "Antigravity flash preset.",
+                }
+            }
+        },
     }
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config", lambda: config

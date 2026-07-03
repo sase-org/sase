@@ -12,17 +12,17 @@ if TYPE_CHECKING:
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
 
-ModelAliasConfigSource = Literal["model_aliases", "custom_model_aliases"]
+ModelAliasConfigSource = Literal["builtin", "custom"]
 
 # ---------------------------------------------------------------------------
 # Model alias policy (epic sase-5d)
 # ---------------------------------------------------------------------------
 #
-# Builtin-role overrides are configured under ``llm_provider.model_aliases``;
-# user-created aliases live under ``llm_provider.custom_model_aliases`` so they
-# can carry required descriptions. On top of the configured maps, SASE exposes a
-# fixed set of *implicit* special aliases that always resolve, even when the user
-# has not defined them:
+# Builtin-role overrides are configured under
+# ``llm_provider.model_aliases.builtin``; user-created aliases live under
+# ``llm_provider.model_aliases.custom`` so they can carry required descriptions.
+# On top of the configured maps, SASE exposes a fixed set of *implicit* special
+# aliases that always resolve, even when the user has not defined them:
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
@@ -156,21 +156,27 @@ def resolve_effective_effort(
     return None, False
 
 
-def get_legacy_model_aliases() -> dict[str, str]:
-    """Return cleaned legacy/builtin ``llm_provider.model_aliases`` entries."""
-    return _clean_string_mapping(get_llm_provider_config().get("model_aliases", {}))
+def _raw_model_aliases_config() -> dict[str, Any]:
+    """Return the nested ``llm_provider.model_aliases`` object, or ``{}``."""
+    value = get_llm_provider_config().get("model_aliases", {})
+    return value if isinstance(value, dict) else {}
+
+
+def get_builtin_model_aliases() -> dict[str, str]:
+    """Return cleaned ``llm_provider.model_aliases.builtin`` entries."""
+    return _clean_string_mapping(_raw_model_aliases_config().get("builtin", {}))
 
 
 def get_custom_model_aliases() -> dict[str, str]:
-    """Return cleaned ``llm_provider.custom_model_aliases`` entries.
+    """Return cleaned ``llm_provider.model_aliases.custom`` entries.
 
-    Values in the new custom-alias map are objects. Runtime parsing is
-    deliberately defensive: non-object entries and entries with missing/blank
-    ``model`` are skipped so malformed config cannot crash alias resolution.
-    Missing descriptions are reported by schema validation/doctor and simply
-    produce no runtime description.
+    Values in the custom-alias map are objects. Runtime parsing is deliberately
+    defensive: non-object entries and entries with missing/blank ``model`` are
+    skipped so malformed config cannot crash alias resolution. Missing
+    descriptions are reported by schema validation/doctor and simply produce no
+    runtime description.
     """
-    value = get_llm_provider_config().get("custom_model_aliases", {})
+    value = _raw_model_aliases_config().get("custom", {})
     if not isinstance(value, dict):
         return {}
 
@@ -190,7 +196,7 @@ def get_custom_model_aliases() -> dict[str, str]:
 
 def _custom_model_alias_descriptions() -> dict[str, str]:
     """Return configured descriptions for custom aliases that have one."""
-    value = get_llm_provider_config().get("custom_model_aliases", {})
+    value = _raw_model_aliases_config().get("custom", {})
     if not isinstance(value, dict):
         return {}
 
@@ -210,7 +216,7 @@ def _custom_model_alias_descriptions() -> dict[str, str]:
 
 def _get_model_aliases() -> dict[str, str]:
     """Return merged configured aliases; custom aliases win collisions."""
-    return get_legacy_model_aliases() | get_custom_model_aliases()
+    return get_builtin_model_aliases() | get_custom_model_aliases()
 
 
 def get_model_aliases() -> dict[str, str]:
@@ -221,16 +227,16 @@ def get_model_aliases() -> dict[str, str]:
 def model_alias_config_source(name: str) -> ModelAliasConfigSource | None:
     """Return where *name* is configured, or ``None`` when it is implicit.
 
-    When the legacy and custom maps both define the name, the custom map is the
+    When the builtin and custom maps both define the name, the custom map is the
     effective source because it wins during merge.
     """
     alias = name.strip()
     if not alias:
         return None
     if alias in get_custom_model_aliases():
-        return "custom_model_aliases"
-    if alias in get_legacy_model_aliases():
-        return "model_aliases"
+        return "custom"
+    if alias in get_builtin_model_aliases():
+        return "builtin"
     return None
 
 
@@ -388,7 +394,7 @@ def _resolve_default_alias_target() -> str:
     """Return the implicit ``@default`` target as a ``provider/model`` string.
 
     Only reached when ``default`` is *not* user-configured (a configured
-    ``model_aliases.default`` is followed by the normal alias chain in
+    ``model_aliases.builtin.default`` is followed by the normal alias chain in
     :func:`resolve_model_alias`). Resolves to the configured or autodetected
     provider's large-tier default. Temporary overrides are intentionally *not*
     consulted: an explicit ``@default`` reference means "the configured default",
@@ -411,12 +417,13 @@ def _resolve_default_alias_target() -> str:
 def resolve_model_alias(model: str) -> str:
     """Resolve a model alias to its final target.
 
-    Resolution follows configured ``llm_provider.model_aliases`` chains and the
-    implicit special aliases (``default``, ``coder``, ``<provider>_coder``,
-    ``epic_creator``, ``epic_lander``, ``phase_worker``). Alias *values* may
-    reference other aliases with an ``@`` marker (e.g. ``coder: "@default"``);
-    those references are followed too. A user-configured alias always shadows
-    the implicit special of the same name.
+    Resolution follows configured ``llm_provider.model_aliases.builtin`` /
+    ``llm_provider.model_aliases.custom`` chains and the implicit special aliases
+    (``default``, ``coder``, ``<provider>_coder``, ``epic_creator``,
+    ``epic_lander``, ``phase_worker``). Alias *values* may reference other
+    aliases with an ``@`` marker (e.g. ``coder: "@default"``); those references
+    are followed too. A user-configured alias always shadows the implicit
+    special of the same name.
 
     Unknown tokens return *model* unchanged. Cycles and overly deep chains fall
     back to the original input so a bad config cannot crash launches.

@@ -1247,9 +1247,9 @@ prompt) wins. When no model is chosen, the follow-up routes through the planner 
 Claude-authored plan emits `%model:@claude_coder`, a Codex plan `%model:@codex_coder`, and so on for every registered
 provider. When the planner is missing provider metadata the follow-up falls back to the generic `%model:@coder`. Each
 `<provider>_coder` alias defaults to `@coder`, which defaults to `@default`, so an unconfigured setup lands on the
-default model; configure `llm_provider.model_aliases.<provider>_coder` to route a provider's coder follow-ups elsewhere
-(see [Configured Model Aliases](llms.md#configured-model-aliases)). The recorded follow-up metadata resolves the alias
-to the concrete model the coder actually launches with.
+default model; configure `llm_provider.model_aliases.builtin.<provider>_coder` to route a provider's coder follow-ups
+elsewhere (see [Configured Model Aliases](llms.md#configured-model-aliases)). The recorded follow-up metadata resolves
+the alias to the concrete model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected archived plans. Use the `id_prefix` from a Proposed row with

@@ -157,15 +157,17 @@ def test_config_schema_rejects_obsolete_default_model_field() -> None:
     )
 
 
-def test_config_schema_accepts_model_aliases_with_at_references() -> None:
-    """``model_aliases`` stays a string map so ``@alias`` references validate."""
+def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> None:
+    """``model_aliases.builtin`` stays a string map for ``@alias`` references."""
     schema = _schema()
     config = {
         "llm_provider": {
             "model_aliases": {
-                "default": "claude/opus",
-                "coder": "@default",
-                "codex_coder": "claude/opus",
+                "builtin": {
+                    "default": "claude/opus",
+                    "coder": "@default",
+                    "codex_coder": "claude/opus",
+                }
             }
         }
     }
@@ -182,10 +184,12 @@ def test_config_schema_accepts_described_custom_model_aliases() -> None:
     schema = _schema()
     config = {
         "llm_provider": {
-            "custom_model_aliases": {
-                "blogger": {
-                    "model": "claude/opus",
-                    "description": "Agents that draft and edit blog posts.",
+            "model_aliases": {
+                "custom": {
+                    "blogger": {
+                        "model": "claude/opus",
+                        "description": "Agents that draft and edit blog posts.",
+                    }
                 }
             }
         }
@@ -231,7 +235,11 @@ def test_config_schema_rejects_bad_custom_model_aliases(
     message: str,
 ) -> None:
     schema = _schema()
-    config = {"llm_provider": {"custom_model_aliases": {"blogger": alias_value}}}
+    config = {
+        "llm_provider": {
+            "model_aliases": {"custom": {"blogger": alias_value}},
+        }
+    }
 
     errors = sorted(
         Draft7Validator(schema).iter_errors(config),
@@ -239,6 +247,49 @@ def test_config_schema_rejects_bad_custom_model_aliases(
     )
 
     assert any(message in error.message for error in errors)
+
+
+def test_config_schema_rejects_flat_model_alias_entry() -> None:
+    schema = _schema()
+    config = {"llm_provider": {"model_aliases": {"coder": "@default"}}}
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path) == ["llm_provider", "model_aliases"]
+        and "Additional properties are not allowed" in error.message
+        and "coder" in error.message
+        for error in errors
+    )
+
+
+def test_config_schema_rejects_top_level_custom_model_aliases() -> None:
+    schema = _schema()
+    config = {
+        "llm_provider": {
+            "custom_model_aliases": {
+                "blogger": {
+                    "model": "claude/opus",
+                    "description": "Draft posts.",
+                }
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path) == ["llm_provider"]
+        and "Additional properties are not allowed" in error.message
+        and "custom_model_aliases" in error.message
+        for error in errors
+    )
 
 
 def test_config_schema_rejects_legacy_worker_model_field() -> None:

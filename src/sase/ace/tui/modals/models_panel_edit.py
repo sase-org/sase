@@ -1,10 +1,11 @@
 """Preview-and-confirm modal for a persistent model-alias edit.
 
 Phase 3 (epic sase-5e): when the user edits or resets an alias from the Models
-panel, this modal plans the ``llm_provider.model_aliases.<alias>`` set/unset edit
-(Rust-backed, source-preserving), shows the *effective* before→after value and
-the target-file diff, and on confirm writes it — applying chezmoi when enabled,
-exactly like the Config Center. It dismisses with an :class:`AliasEditOutcome`
+panel, this modal plans the relevant ``llm_provider.model_aliases.builtin`` or
+``llm_provider.model_aliases.custom`` set/unset edit (Rust-backed,
+source-preserving), shows the *effective* before→after value and the target-file
+diff, and on confirm writes it — applying chezmoi when enabled, exactly like the
+Config Center. It dismisses with an :class:`AliasEditOutcome`
 after a successful write (so the panel can offer commit+push), or ``None`` on
 cancel.
 

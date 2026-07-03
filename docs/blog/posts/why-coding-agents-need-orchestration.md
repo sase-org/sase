@@ -498,8 +498,9 @@ providers. The `model_aliases` config map is a small example:
 llm_provider:
   provider: codex
   model_aliases:
-    codex_coder: claude/opus
-    claude_coder: codex/gpt-5.5
+    builtin:
+      codex_coder: claude/opus
+      claude_coder: codex/gpt-5.5
 ```
 
 That means delegated coder follow-ups can use a different provider/model than the planner that handed them off. If the

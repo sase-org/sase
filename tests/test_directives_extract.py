@@ -105,7 +105,16 @@ def test_xprompt_ref_in_directive_arg() -> None:
 def test_model_alias_requires_at_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
-        lambda: {"model_aliases": {"other": "claude/opus"}},
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "other": {
+                        "model": "claude/opus",
+                        "description": "Other model.",
+                    }
+                }
+            }
+        },
     )
 
     _, directives = extract_prompt_directives("%m:@other\nReview")
@@ -118,7 +127,16 @@ def test_model_bare_alias_raises_with_migration_hint(
 ) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
-        lambda: {"model_aliases": {"other": "claude/opus"}},
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "other": {
+                        "model": "claude/opus",
+                        "description": "Other model.",
+                    }
+                }
+            }
+        },
     )
 
     with pytest.raises(
@@ -164,7 +182,16 @@ def test_model_alias_prefix_composes_with_effort(
 ) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
-        lambda: {"model_aliases": {"other": "claude/opus"}},
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "other": {
+                        "model": "claude/opus",
+                        "description": "Other model.",
+                    }
+                }
+            }
+        },
     )
 
     _, directives = extract_prompt_directives("%m:@other@xhigh\nReview")
@@ -178,7 +205,16 @@ def test_model_literal_bypasses_alias_prefix_rule(
 ) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
-        lambda: {"model_aliases": {"other": "claude/opus"}},
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "other": {
+                        "model": "claude/opus",
+                        "description": "Other model.",
+                    }
+                }
+            }
+        },
     )
 
     _, directives = extract_prompt_directives("%model:`@other`\nReview")
@@ -191,7 +227,16 @@ def test_model_alias_prefix_strips_before_xprompt_expansion(
 ) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
-        lambda: {"model_aliases": {"agy_flash": "agy/Gemini 3.5 Flash (High)"}},
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "agy_flash": {
+                        "model": "agy/Gemini 3.5 Flash (High)",
+                        "description": "Antigravity flash preset.",
+                    }
+                }
+            }
+        },
     )
 
     with patch("sase.xprompt.directives.process_xprompt_references") as mock_process:

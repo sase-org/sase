@@ -329,8 +329,8 @@ directly by the `+` token; it is not disabled by `auto_xprompt_menu`. Manual `Ct
 works regardless of these automatic-completion settings.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
-reserved aliases, and configured `llm_provider.model_aliases`; provider short aliases are shown as filter/display hints
-but are not inserted.
+reserved aliases, and configured model aliases; provider short aliases are shown as filter/display hints but are not
+inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. A resolvable `#cd` reference takes
 precedence; without `#cd`, registered workspace-provider refs and known-project refs such as `#git:<project>` or
@@ -353,34 +353,35 @@ llm_provider:
     large: opus
     small: sonnet
   model_aliases:
-    default: opus # model used when a prompt has no %model directive
-    claude_coder: codex/gpt-5.5 # coder follow-ups from Claude-authored plans
-    codex_coder: claude/opus # coder follow-ups from Codex-authored plans
-  custom_model_aliases:
-    blogger:
-      model: claude/opus
-      description: Agents that draft and edit blog posts.
+    builtin:
+      default: opus # model used when a prompt has no %model directive
+      claude_coder: codex/gpt-5.5 # coder follow-ups from Claude-authored plans
+      codex_coder: claude/opus # coder follow-ups from Codex-authored plans
+    custom:
+      blogger:
+        model: claude/opus
+        description: Agents that draft and edit blog posts.
 ```
 
-| Field                               | Type   | Default     | Description                                                                                                                                            |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.               |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                 |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                 |
-| `llm_provider.model_aliases`        | dict   | -           | Builtin alias overrides only. Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
-| `llm_provider.custom_model_aliases` | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each custom alias requires `model` and `description` fields.                       |
+| Field                                | Type   | Default     | Description                                                                                                                                            |
+| ------------------------------------ | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.               |
+| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier.                                                                                                                 |
+| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                 |
+| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only. Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
+| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each custom alias requires `model` and `description` fields.                       |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@default` or
 `%model:@blogger` while each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the
 `@` marker is only used in `%model`/`%m` directive values. Alias values may reference another alias with `@<alias>`
 (chains are followed with cycle/depth protection). Unknown non-alias model values keep the existing fallback behavior
-and run on the default provider. Use `model_aliases` for builtin role overrides and `custom_model_aliases` for
+and run on the default provider. Use `model_aliases.builtin` for builtin role overrides and `model_aliases.custom` for
 user-defined aliases with descriptions.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
 `@epic_creator`, `@epic_lander`, and `@phase_worker` (bead/epic role launches). Each falls back through other aliases to
-`@default`, so configuring `model_aliases.default` is enough to drive every role; override an individual role by
+`@default`, so configuring `model_aliases.builtin.default` is enough to drive every role; override an individual role by
 configuring an alias of the same name. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
 

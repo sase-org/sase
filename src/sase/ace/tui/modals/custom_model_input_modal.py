@@ -24,8 +24,6 @@ class CustomModelInputModal(ModalScreen[str | None]):
         title: Heading shown above the input.
         hint: Format hint shown below the heading.
         placeholder: Input placeholder text.
-        initial_value: Optional text prefilled into the input.
-        empty_message: Error shown when the user submits an empty value.
     """
 
     BINDINGS = [
@@ -38,15 +36,11 @@ class CustomModelInputModal(ModalScreen[str | None]):
         title: str = "Enter Custom Model",
         hint: str = "Format: provider/model  or  model",
         placeholder: str = "e.g. opencode/anthropic/claude-sonnet-4-5",
-        initial_value: str = "",
-        empty_message: str = "Please enter a model name",
     ) -> None:
         super().__init__()
         self._title = title
         self._hint = hint
         self._placeholder = placeholder
-        self._initial_value = initial_value
-        self._empty_message = empty_message
 
     def compose(self) -> ComposeResult:
         with Container(id="custom-model-container"):
@@ -69,7 +63,6 @@ class CustomModelInputModal(ModalScreen[str | None]):
 
     def on_mount(self) -> None:
         input_widget = self.query_one("#custom-model-input", _ModelInput)
-        input_widget.value = self._initial_value
         input_widget.focus()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -77,7 +70,7 @@ class CustomModelInputModal(ModalScreen[str | None]):
         if value:
             self.dismiss(value)
         else:
-            self.notify(self._empty_message, severity="error")
+            self.notify("Please enter a model name", severity="error")
 
     def action_cancel(self) -> None:
         self.dismiss(None)

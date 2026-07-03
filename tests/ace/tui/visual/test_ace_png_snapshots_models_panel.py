@@ -101,7 +101,7 @@ def _calm_views() -> list[AliasView]:
             configured_value="claude/haiku",
             provider="claude",
             model="haiku",
-            configured_source="custom_model_aliases",
+            configured_source="custom",
             description="Quick low-cost follow-up agents.",
         ),
         _view(
@@ -111,7 +111,7 @@ def _calm_views() -> list[AliasView]:
             configured_value="codex/o3",
             provider="codex",
             model="o3",
-            configured_source="model_aliases",
+            configured_source="builtin",
         ),
     ]
 

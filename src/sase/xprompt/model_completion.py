@@ -169,7 +169,7 @@ def _build_model_completion_catalog() -> list[_ModelCompletionEntry]:
         if alias in seen:
             continue
         description = f"alias for {target}"
-        if model_alias_config_source(alias) == "custom_model_aliases":
+        if model_alias_config_source(alias) == "custom":
             configured_description = model_alias_description(alias)
             if configured_description:
                 description = f"{configured_description} (alias for {target})"
@@ -196,8 +196,8 @@ def _append_implicit_alias_entries(
 
     Provider-specific ``@<provider>_coder`` aliases are generated for every
     registered provider, slotted between ``@coder`` and the epic/phase roles.
-    An implicit alias the user has shadowed via ``model_aliases`` is skipped
-    here so the user-configured target is surfaced once, with its real
+    An implicit alias the user has shadowed via ``model_aliases`` is skipped here
+    so the user-configured target is surfaced once, with its real
     description, by the caller's user-alias loop.
     """
     implicit: list[tuple[str, str]] = [*_LEADING_IMPLICIT_ALIASES]

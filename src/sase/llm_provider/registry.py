@@ -273,11 +273,11 @@ def resolve_default_alias_provider_model(
 ) -> tuple[str, str]:
     """Resolve the implicit ``@default`` alias to ``(provider, model)``.
 
-    Honors a configured ``llm_provider.model_aliases.default`` target (which may
-    itself chain through other aliases via ``@``); otherwise falls back to the
-    configured or autodetected provider's *model_tier* default. This is the
-    no-``%model`` launch default, minus any temporary override — callers that
-    want the override to win (the new-launch default behavior) go through
+    Honors a configured ``llm_provider.model_aliases.builtin.default`` target
+    (which may itself chain through other aliases via ``@``); otherwise falls
+    back to the configured or autodetected provider's *model_tier* default. This
+    is the no-``%model`` launch default, minus any temporary override — callers
+    that want the override to win (the new-launch default behavior) go through
     :func:`sase.llm_provider.temporary_override.resolve_effective_default_provider_model`,
     which applies the override first and then delegates here.
     """

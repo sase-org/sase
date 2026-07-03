@@ -11,6 +11,7 @@ from sase.llm_provider.config import (
     coder_model_alias_for_provider,
     default_model_alias_name,
     format_model_directive_value,
+    get_builtin_model_aliases,
     get_custom_model_aliases,
     model_alias_config_source,
     model_alias_description,
@@ -27,29 +28,34 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
     """Model aliases are stripped and invalid keys/values are ignored."""
     mock_config.return_value = {
         "model_aliases": {
-            " other ": " claude/opus ",
-            123: "opus",
-            "empty": "   ",
-            "bad": ["opus"],
+            "builtin": {
+                " other ": " claude/opus ",
+                123: "opus",
+                "empty": "   ",
+                "bad": ["opus"],
+            }
         }
     }
 
     assert _get_model_aliases() == {"other": "claude/opus"}
+    assert get_builtin_model_aliases() == {"other": "claude/opus"}
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
 def test_custom_model_aliases_parse_defensively(mock_config: MagicMock) -> None:
     """Custom aliases skip malformed entries but tolerate missing descriptions."""
     mock_config.return_value = {
-        "custom_model_aliases": {
-            " blogger ": {
-                "model": " claude/opus ",
-                "description": "Draft blog posts.",
-            },
-            "no_description": {"model": "codex/o3"},
-            "blank_model": {"model": "  ", "description": "Nope."},
-            "bad": "claude/opus",
-            123: {"model": "claude/opus", "description": "Nope."},
+        "model_aliases": {
+            "custom": {
+                " blogger ": {
+                    "model": " claude/opus ",
+                    "description": "Draft blog posts.",
+                },
+                "no_description": {"model": "codex/o3"},
+                "blank_model": {"model": "  ", "description": "Nope."},
+                "bad": "claude/opus",
+                123: {"model": "claude/opus", "description": "Nope."},
+            }
         }
     }
 
@@ -63,18 +69,20 @@ def test_custom_model_aliases_parse_defensively(mock_config: MagicMock) -> None:
 def test_custom_model_aliases_merge_over_legacy(mock_config: MagicMock) -> None:
     """The described custom map is authoritative on name collisions."""
     mock_config.return_value = {
-        "model_aliases": {"blogger": "claude/haiku", "coder": "@default"},
-        "custom_model_aliases": {
-            "blogger": {
-                "model": "claude/opus",
-                "description": "Draft blog posts.",
-            }
+        "model_aliases": {
+            "builtin": {"blogger": "claude/haiku", "coder": "@default"},
+            "custom": {
+                "blogger": {
+                    "model": "claude/opus",
+                    "description": "Draft blog posts.",
+                }
+            },
         },
     }
 
     assert _get_model_aliases()["blogger"] == "claude/opus"
-    assert model_alias_config_source("blogger") == "custom_model_aliases"
-    assert model_alias_config_source("coder") == "model_aliases"
+    assert model_alias_config_source("blogger") == "custom"
+    assert model_alias_config_source("coder") == "builtin"
 
 
 @patch("sase.llm_provider.config._registered_provider_names")
@@ -84,12 +92,14 @@ def test_model_alias_description_builtin_and_custom(
     mock_providers: MagicMock,
 ) -> None:
     mock_config.return_value = {
-        "custom_model_aliases": {
-            "blogger": {
-                "model": "claude/opus",
-                "description": "Draft blog posts.",
-            },
-            "legacy_gap": {"model": "codex/o3"},
+        "model_aliases": {
+            "custom": {
+                "blogger": {
+                    "model": "claude/opus",
+                    "description": "Draft blog posts.",
+                },
+                "legacy_gap": {"model": "codex/o3"},
+            }
         }
     }
     mock_providers.return_value = ["claude"]
@@ -113,7 +123,7 @@ def test_model_alias_names_include_configured_and_special(
     The legacy ``worker``/``other`` reserved aliases were retired with the
     worker lane (epic sase-5d phase 4), so they are no longer implicit.
     """
-    mock_config.return_value = {"model_aliases": {"fast": "codex/o4-mini"}}
+    mock_config.return_value = {"model_aliases": {"builtin": {"fast": "codex/o4-mini"}}}
     mock_providers.return_value = ["claude", "codex"]
 
     assert model_alias_names() == {
@@ -137,8 +147,10 @@ def test_format_model_directive_value_adds_alias_prefix(
 ) -> None:
     mock_config.return_value = {
         "model_aliases": {
-            "fast": "codex/o4-mini",
-            "other": "claude/opus",
+            "builtin": {
+                "fast": "codex/o4-mini",
+                "other": "claude/opus",
+            }
         }
     }
 
@@ -159,10 +171,12 @@ def test_resolve_model_alias_handles_chains_and_cycles(
     """Alias chains resolve, but cycles fall back to the raw input."""
     mock_config.return_value = {
         "model_aliases": {
-            "other": "review",
-            "review": "opus",
-            "a": "b",
-            "b": "a",
+            "builtin": {
+                "other": "review",
+                "review": "opus",
+                "a": "b",
+                "b": "a",
+            }
         }
     }
 
@@ -186,7 +200,10 @@ def test_default_alias_resolves_to_configured_target(
     """A configured ``default`` resolves through its explicit provider/model."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+        },
     )
 
     assert resolve_model_alias("default") == "codex/gpt-5.5"
@@ -207,7 +224,10 @@ def test_coder_alias_chains_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """``coder`` defaults to ``@default`` when not explicitly configured."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+        },
     )
 
     assert resolve_model_alias("coder") == "codex/gpt-5.5"
@@ -220,7 +240,10 @@ def test_provider_coder_alias_chains_to_coder(
     """``<provider>_coder`` defaults to ``@coder`` -> ``@default`` when unset."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+        },
     )
 
     # codex is a registered provider, so codex_coder is an implicit alias.
@@ -234,7 +257,10 @@ def test_epic_role_aliases_chain_to_default(
     """epic_creator / epic_lander / phase_worker default to ``@default``."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+        },
     )
 
     for role in ("epic_creator", "epic_lander", "phase_worker"):
@@ -250,8 +276,10 @@ def test_configured_role_alias_shadows_implicit_default(
         {
             "provider": "claude",
             "model_aliases": {
-                "default": "codex/gpt-5.5",
-                "phase_worker": "claude/sonnet",
+                "builtin": {
+                    "default": "codex/gpt-5.5",
+                    "phase_worker": "claude/sonnet",
+                }
             },
         },
     )
@@ -269,8 +297,10 @@ def test_alias_value_may_reference_another_alias_with_at(
         {
             "provider": "claude",
             "model_aliases": {
-                "fast": "codex/o4-mini",
-                "claude_coder": "@fast",
+                "builtin": {
+                    "fast": "codex/o4-mini",
+                    "claude_coder": "@fast",
+                }
             },
         },
     )
@@ -285,7 +315,10 @@ def test_alias_at_reference_cycle_falls_back_to_input(
     """A cyclic ``@`` reference chain fails closed to the original input."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"x": "@y", "y": "@x"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"x": "@y", "y": "@x"}},
+        },
     )
 
     assert resolve_model_alias("x") == "x"
@@ -297,7 +330,10 @@ def test_self_referential_default_does_not_recurse(
     """A ``default: @default`` self-cycle is detected and never recurses."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "@default"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "@default"}},
+        },
     )
 
     # Fails closed to the input rather than recursing on the special branch.

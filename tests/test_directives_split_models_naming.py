@@ -22,7 +22,16 @@ def test_split_prompt_for_models_alias_uses_resolved_suffix(
     mock_config: MagicMock,
 ) -> None:
     """Fan-out names use the concrete configured model behind an alias."""
-    mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
+    mock_config.return_value = {
+        "model_aliases": {
+            "custom": {
+                "other": {
+                    "model": "claude/opus",
+                    "description": "Other model.",
+                }
+            }
+        }
+    }
 
     prompt = "%n:foo\n%{%model:@other | %model:gpt-5.5}\nReview this code"
     result = split_prompt_for_models(prompt)
@@ -47,7 +56,14 @@ def test_split_prompt_for_models_other_resolves_to_configured_alias(
 
     cfg = {
         "provider": "claude",
-        "model_aliases": {"other": "claude/opus"},
+        "model_aliases": {
+            "custom": {
+                "other": {
+                    "model": "claude/opus",
+                    "description": "Other model.",
+                }
+            }
+        },
     }
     # Patch both modules: registry imports the symbol at load time,
     # config defines it. Alias resolution goes through registry.
@@ -286,8 +302,16 @@ def test_split_prompt_for_models_alias_shorthand_strips_at_before_expansion(
     """Alias-marked shorthand branches expand and name with resolved aliases."""
     cfg = {
         "model_aliases": {
-            "agy_flash": "agy/Gemini 3.5 Flash (High)",
-            "agy_pro": "agy/Gemini 3.1 Pro (High)",
+            "custom": {
+                "agy_flash": {
+                    "model": "agy/Gemini 3.5 Flash (High)",
+                    "description": "Antigravity flash preset.",
+                },
+                "agy_pro": {
+                    "model": "agy/Gemini 3.1 Pro (High)",
+                    "description": "Antigravity pro preset.",
+                },
+            }
         }
     }
     xprompts = {

@@ -680,27 +680,34 @@
         },
         "model_aliases": {
           "type": "object",
-          "description": "Overrides for SASE's builtin model aliases only: default, coder, <provider>_coder, epic_creator, epic_lander, and phase_worker. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references. Use custom_model_aliases for user-defined aliases because those require descriptions.",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "custom_model_aliases": {
-          "type": "object",
-          "description": "User-defined custom model aliases usable from %model:@<alias> / %m:@<alias>. Each custom alias must include both the target model and a short description shown in completions and the Models panel.",
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["model", "description"],
-            "properties": {
-              "model": {
-                "type": "string",
-                "minLength": 1
-              },
-              "description": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 160
+          "description": "Model alias configuration. builtin contains overrides for SASE role aliases; custom contains user-defined aliases with required descriptions.",
+          "additionalProperties": false,
+          "properties": {
+            "builtin": {
+              "type": "object",
+              "description": "Overrides for SASE's builtin model aliases: default, coder, <provider>_coder, epic_creator, epic_lander, and phase_worker. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "custom": {
+              "type": "object",
+              "description": "User-defined custom model aliases usable from %model:@<alias> / %m:@<alias>. Each custom alias must include both the target model and a short description shown in completions and the Models panel.",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["model", "description"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                }
               }
             }
           }

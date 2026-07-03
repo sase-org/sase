@@ -8,9 +8,9 @@ alias-specific pieces around it so the modal stays declarative and these can be
 unit-tested without Textual:
 
 - :func:`plan_alias_edit` — map a bare alias name to its
-  ``llm_provider.model_aliases.<alias>`` config path and plan a set/unset edit
-  against the default writable layer (chezmoi source remapping is applied by the
-  Rust-backed planner).
+  ``llm_provider.model_aliases.builtin.<alias>`` config path and plan a
+  set/unset edit against the default writable layer (chezmoi source remapping is
+  applied by the Rust-backed planner).
 - :func:`build_alias_commit_offer` — after a write, decide whether to offer a
   commit+push for the *actually written* file. Git-root detection on that path
   is what transparently handles both the ``use_chezmoi`` on branch (the written
@@ -39,16 +39,16 @@ from sase.config import (
     plan_config_edit,
 )
 
-#: Dotted config path to the ``additionalProperties`` map of model aliases.
-MODEL_ALIASES_FIELD_PREFIX = "llm_provider.model_aliases"
-CUSTOM_MODEL_ALIASES_FIELD_PREFIX = "llm_provider.custom_model_aliases"
+#: Dotted config paths to the ``additionalProperties`` maps of model aliases.
+MODEL_ALIASES_FIELD_PREFIX = "llm_provider.model_aliases.builtin"
+CUSTOM_MODEL_ALIASES_FIELD_PREFIX = "llm_provider.model_aliases.custom"
 
 
 def _alias_field_path(alias: str) -> str:
     """Return the dotted config path for the *alias* map key.
 
     For example ``_alias_field_path("coder")`` is
-    ``"llm_provider.model_aliases.coder"``.
+    ``"llm_provider.model_aliases.builtin.coder"``.
     """
     cleaned = alias.strip()
     if not cleaned:
@@ -72,7 +72,7 @@ def alias_model_edit_path(
     configured_source: str | None,
 ) -> str:
     """Return the config path for an Edit action on *alias*."""
-    if kind == "user" and configured_source == "custom_model_aliases":
+    if kind == "user" and configured_source == "custom":
         return _custom_alias_field_path(alias, "model")
     return _alias_field_path(alias)
 
@@ -84,42 +84,9 @@ def alias_reset_path(
     configured_source: str | None,
 ) -> str:
     """Return the config path for a Reset action on *alias*."""
-    if kind == "user" and configured_source == "custom_model_aliases":
+    if kind == "user" and configured_source == "custom":
         return _custom_alias_field_path(alias)
     return _alias_field_path(alias)
-
-
-def alias_description_edit(
-    alias: str,
-    *,
-    description: str,
-    model: str,
-    configured_source: str | None,
-) -> tuple[str, ConfigEditOp]:
-    """Return ``(path, op)`` for writing a custom alias description.
-
-    Existing custom aliases update only their ``description`` field. A legacy
-    user alias in ``model_aliases`` is migrated with one whole-object write so
-    the new entry is immediately valid under the schema.
-    """
-    cleaned_description = description.strip()
-    if not cleaned_description:
-        raise ValueError("description must be non-empty")
-    cleaned_model = model.strip()
-    if not cleaned_model:
-        raise ValueError("model must be non-empty")
-
-    if configured_source == "custom_model_aliases":
-        return (
-            _custom_alias_field_path(alias, "description"),
-            ConfigEditOp.set_value(cleaned_description),
-        )
-    return (
-        _custom_alias_field_path(alias),
-        ConfigEditOp.set_value(
-            {"model": cleaned_model, "description": cleaned_description}
-        ),
-    )
 
 
 def plan_alias_edit(
@@ -222,7 +189,6 @@ __all__ = [
     "MODEL_ALIASES_FIELD_PREFIX",
     "AliasCommitOffer",
     "AliasEditOutcome",
-    "alias_description_edit",
     "alias_model_edit_path",
     "alias_reset_path",
     "build_alias_commit_offer",

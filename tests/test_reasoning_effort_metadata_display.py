@@ -242,7 +242,16 @@ def test_append_model_field_explicit_provider_resolves_matching_alias(
 
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
-        lambda: {"model_aliases": {"large": "codex/gpt-5"}},
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "large": {
+                        "model": "codex/gpt-5",
+                        "description": "Large model alias.",
+                    }
+                }
+            }
+        },
     )
     monkeypatch.setattr(
         "sase.llm_provider.registry.resolve_model_provider",

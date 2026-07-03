@@ -281,20 +281,21 @@ def _check_config_model_aliases() -> DiagnosticCheck:
 
     - the removed ``llm_provider.worker_models`` and ``llm_provider.default_model``
       keys (the former is replaced by ``<provider>_coder`` aliases, the latter by
-      ``model_aliases.default``);
-    - user-created aliases that still live in legacy ``model_aliases`` instead
-      of the described ``custom_model_aliases`` map;
-    - builtin aliases placed in ``custom_model_aliases`` or names present in
-      both maps;
+      ``model_aliases.builtin.default``);
+    - legacy flat entries directly under ``llm_provider.model_aliases``;
+    - the removed top-level ``llm_provider.custom_model_aliases`` map;
+    - user-created aliases that live in ``model_aliases.builtin`` or builtin
+      aliases that live in ``model_aliases.custom``;
+    - names present in both nested maps;
     - custom alias objects missing a usable ``model`` or ``description``;
-    - ``model_aliases`` values that reference a retired implicit ``@worker`` /
-      ``@other`` alias;
+    - ``model_aliases.builtin`` / ``model_aliases.custom`` values that reference
+      a retired implicit ``@worker`` / ``@other`` alias;
     - merged alias values that reference an ``@<alias>`` name that resolves to
       nothing, which would silently fall through at launch.
     """
     from sase.llm_provider.config import (
+        get_builtin_model_aliases,
         get_custom_model_aliases,
-        get_legacy_model_aliases,
         get_llm_provider_config,
         get_model_aliases,
         model_alias_kind,
@@ -304,10 +305,16 @@ def _check_config_model_aliases() -> DiagnosticCheck:
 
     config = get_llm_provider_config()
     known_aliases = model_alias_names()
-    legacy_aliases = get_legacy_model_aliases()
+    builtin_aliases = get_builtin_model_aliases()
     custom_aliases = get_custom_model_aliases()
-    raw_custom = config.get("custom_model_aliases", {})
+    raw_model_aliases = config.get("model_aliases", {})
+    raw_model_alias_entries = (
+        raw_model_aliases if isinstance(raw_model_aliases, dict) else {}
+    )
+    raw_builtin = raw_model_alias_entries.get("builtin", {})
+    raw_custom = raw_model_alias_entries.get("custom", {})
     raw_custom_entries = raw_custom if isinstance(raw_custom, dict) else {}
+    raw_top_custom = config.get("custom_model_aliases")
     problems: list[dict[str, str]] = []
 
     if config.get("worker_models"):
@@ -317,7 +324,7 @@ def _check_config_model_aliases() -> DiagnosticCheck:
                 "message": (
                     "llm_provider.worker_models is no longer supported; migrate "
                     "each entry to a `<provider>_coder` alias under "
-                    "llm_provider.model_aliases"
+                    "llm_provider.model_aliases.builtin"
                 ),
             }
         )
@@ -327,7 +334,65 @@ def _check_config_model_aliases() -> DiagnosticCheck:
                 "key": "default_model",
                 "message": (
                     "llm_provider.default_model is not a supported key; move its "
-                    "value to llm_provider.model_aliases.default"
+                    "value to llm_provider.model_aliases.builtin.default"
+                ),
+            }
+        )
+
+    if raw_top_custom is not None:
+        problems.append(
+            {
+                "key": "custom_model_aliases",
+                "message": (
+                    "llm_provider.custom_model_aliases is no longer supported; "
+                    "move entries to llm_provider.model_aliases.custom"
+                ),
+            }
+        )
+
+    if raw_model_aliases and not isinstance(raw_model_aliases, dict):
+        problems.append(
+            {
+                "key": "model_aliases",
+                "message": (
+                    "llm_provider.model_aliases must be an object with builtin "
+                    "and/or custom maps"
+                ),
+            }
+        )
+
+    for raw_key, value in sorted(
+        raw_model_alias_entries.items(), key=lambda item: str(item[0])
+    ):
+        if raw_key in {"builtin", "custom"}:
+            continue
+        if not isinstance(raw_key, str):
+            continue
+        alias = raw_key.strip()
+        if not alias:
+            continue
+        if model_alias_kind(alias) == "user":
+            message = (
+                f"model_aliases.{alias} is a legacy custom alias; move it to "
+                f"llm_provider.model_aliases.custom.{alias} with model and "
+                "description fields"
+            )
+        else:
+            message = (
+                f"model_aliases.{alias} is a legacy builtin alias override; "
+                f"move it to llm_provider.model_aliases.builtin.{alias}"
+            )
+        if not isinstance(value, str) or not value.strip():
+            message += " (and keep the model target as a non-empty string)"
+        problems.append({"key": f"model_aliases.{alias}", "message": message})
+
+    if raw_builtin and not isinstance(raw_builtin, dict):
+        problems.append(
+            {
+                "key": "model_aliases.builtin",
+                "message": (
+                    "llm_provider.model_aliases.builtin must be a map of alias "
+                    "names to model target strings"
                 ),
             }
         )
@@ -335,34 +400,35 @@ def _check_config_model_aliases() -> DiagnosticCheck:
     if raw_custom and not isinstance(raw_custom, dict):
         problems.append(
             {
-                "key": "custom_model_aliases",
+                "key": "model_aliases.custom",
                 "message": (
-                    "llm_provider.custom_model_aliases must be a map of alias "
+                    "llm_provider.model_aliases.custom must be a map of alias "
                     "names to {model, description} objects"
                 ),
             }
         )
 
-    for alias in sorted(legacy_aliases):
+    for alias in sorted(builtin_aliases):
         if model_alias_kind(alias) == "user":
             problems.append(
                 {
-                    "key": f"model_aliases.{alias}",
+                    "key": f"model_aliases.builtin.{alias}",
                     "message": (
-                        f"model_aliases.{alias} is a custom alias in the legacy "
-                        "builtin-override map; migrate it to "
-                        "llm_provider.custom_model_aliases with a description"
+                        f"model_aliases.builtin.{alias} is a custom alias in "
+                        "the builtin-override map; move it to "
+                        f"llm_provider.model_aliases.custom.{alias} with a "
+                        "description"
                     ),
                 }
             )
         if alias in custom_aliases:
             problems.append(
                 {
-                    "key": f"model_aliases.{alias}",
+                    "key": f"model_aliases.builtin.{alias}",
                     "message": (
-                        f"{alias} is configured in both model_aliases and "
-                        "custom_model_aliases; custom_model_aliases wins, so "
-                        "remove the legacy model_aliases entry"
+                        f"{alias} is configured in both model_aliases.builtin "
+                        "and model_aliases.custom; custom wins, so remove the "
+                        "builtin entry"
                     ),
                 }
             )
@@ -378,19 +444,19 @@ def _check_config_model_aliases() -> DiagnosticCheck:
         if model_alias_kind(alias) != "user":
             problems.append(
                 {
-                    "key": f"custom_model_aliases.{alias}",
+                    "key": f"model_aliases.custom.{alias}",
                     "message": (
-                        f"custom_model_aliases.{alias} is a builtin alias; move "
-                        "it to llm_provider.model_aliases"
+                        f"model_aliases.custom.{alias} is a builtin alias; move "
+                        f"it to llm_provider.model_aliases.builtin.{alias}"
                     ),
                 }
             )
         if not isinstance(entry, dict):
             problems.append(
                 {
-                    "key": f"custom_model_aliases.{alias}",
+                    "key": f"model_aliases.custom.{alias}",
                     "message": (
-                        f"custom_model_aliases.{alias} must be an object with "
+                        f"model_aliases.custom.{alias} must be an object with "
                         "model and description"
                     ),
                 }
@@ -400,9 +466,9 @@ def _check_config_model_aliases() -> DiagnosticCheck:
         if not isinstance(model, str) or not model.strip():
             problems.append(
                 {
-                    "key": f"custom_model_aliases.{alias}.model",
+                    "key": f"model_aliases.custom.{alias}.model",
                     "message": (
-                        f"custom_model_aliases.{alias}.model is missing or blank"
+                        f"model_aliases.custom.{alias}.model is missing or blank"
                     ),
                 }
             )
@@ -410,9 +476,9 @@ def _check_config_model_aliases() -> DiagnosticCheck:
         if not isinstance(description, str) or not description.strip():
             problems.append(
                 {
-                    "key": f"custom_model_aliases.{alias}.description",
+                    "key": f"model_aliases.custom.{alias}.description",
                     "message": (
-                        f"custom_model_aliases.{alias}.description is missing or blank"
+                        f"model_aliases.custom.{alias}.description is missing or blank"
                     ),
                 }
             )
@@ -422,9 +488,9 @@ def _check_config_model_aliases() -> DiagnosticCheck:
             continue
         referenced = strip_model_alias_prefix(target).strip()
         target_key = (
-            f"custom_model_aliases.{alias}.model"
+            f"model_aliases.custom.{alias}.model"
             if alias in custom_aliases
-            else f"model_aliases.{alias}"
+            else f"model_aliases.builtin.{alias}"
         )
         if referenced in _REMOVED_IMPLICIT_ALIAS_GUIDANCE:
             guidance = _REMOVED_IMPLICIT_ALIAS_GUIDANCE[referenced]
@@ -481,9 +547,9 @@ def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     Configured ``%model``/``%m`` presets (e.g. ``#m_agy_flash`` expands to
     ``%model:@#agy_flash``) resolve their final model token to a provider at
     launch time. When that token is a bare name that is neither a configured
-    ``llm_provider.model_aliases`` entry, an explicit ``provider/model`` target,
-    nor a model a registered provider plugin knows, the launch silently falls
-    back to the default provider instead of the intended one.
+    model alias entry, an explicit ``provider/model`` target, nor a model a
+    registered provider plugin knows, the launch silently falls back to the
+    default provider instead of the intended one.
 
     This read-only guard surfaces that drift — for example a removed
     ``agy_flash`` alias quietly rerouting every ``#agy_*``/``#m_agy_*`` preset to
@@ -548,9 +614,9 @@ def _check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
     )
     next_steps = (
         (
-            "Add the unresolved token(s) to `llm_provider.model_aliases`, or "
-            "point the xprompt at an explicit `provider/model` target, then rerun "
-            "`sase doctor -C config.model_xprompts`.",
+            "Add the unresolved token(s) to `llm_provider.model_aliases.custom`, "
+            "or point the xprompt at an explicit `provider/model` target, then "
+            "rerun `sase doctor -C config.model_xprompts`.",
         )
         if problems
         else ()

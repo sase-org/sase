@@ -22,7 +22,10 @@ def test_effective_default_uses_configured_default_alias(
     """A no-directive launch routes through a configured ``@default`` alias."""
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+        },
     )
 
     assert resolve_default_alias_provider_model() == ("codex", "gpt-5.5")
@@ -49,7 +52,10 @@ def test_active_override_wins_over_configured_default_alias(
 
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"default": "codex/gpt-5.5"}},
+        {
+            "provider": "claude",
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+        },
     )
 
     set_temporary_override("agy/Gemini 3.5 Pro", 3600.0, source="test")
@@ -67,7 +73,16 @@ def test_resolve_model_provider_resolves_explicit_alias(
     mock_config: MagicMock,
 ) -> None:
     """An alias can point at explicit provider/model syntax."""
-    mock_config.return_value = {"model_aliases": {"other": "claude/opus"}}
+    mock_config.return_value = {
+        "model_aliases": {
+            "custom": {
+                "other": {
+                    "model": "claude/opus",
+                    "description": "Other model.",
+                }
+            }
+        }
+    }
 
     assert resolve_model_provider("other") == ("claude", "opus")
 
@@ -77,7 +92,16 @@ def test_resolve_model_provider_resolves_bare_alias(
     mock_config: MagicMock,
 ) -> None:
     """An alias can point at a known bare model name."""
-    mock_config.return_value = {"model_aliases": {"other": "opus"}}
+    mock_config.return_value = {
+        "model_aliases": {
+            "custom": {
+                "other": {
+                    "model": "opus",
+                    "description": "Other model.",
+                }
+            }
+        }
+    }
 
     assert resolve_model_provider("other") == ("claude", "opus")
 
@@ -95,7 +119,14 @@ def test_resolve_model_provider_resolves_agy_display_name_alias(
     """
     mock_config.return_value = {
         "provider": "codex",
-        "model_aliases": {"agy_flash": "agy/Gemini 3.5 Flash (High)"},
+        "model_aliases": {
+            "custom": {
+                "agy_flash": {
+                    "model": "agy/Gemini 3.5 Flash (High)",
+                    "description": "Antigravity flash preset.",
+                }
+            }
+        },
     }
 
     assert resolve_model_provider("agy_flash") == ("agy", "Gemini 3.5 Flash (High)")
@@ -132,7 +163,17 @@ def test_worker_and_other_are_not_special_aliases(
 
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"other": "claude/sonnet"}},
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "other": {
+                        "model": "claude/sonnet",
+                        "description": "Other model.",
+                    }
+                }
+            },
+        },
     )
     set_temporary_override("codex/o3", 3600.0, source="test")
 

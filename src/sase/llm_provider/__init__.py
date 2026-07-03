@@ -10,8 +10,8 @@ from .alias_view import AliasKind, AliasView, build_alias_views
 from .base import LLMProvider
 from .config import (
     ModelAliasConfigSource,
+    get_builtin_model_aliases,
     get_custom_model_aliases,
-    get_legacy_model_aliases,
     model_alias_config_source,
     model_alias_description,
 )
@@ -69,8 +69,8 @@ __all__ = [
     "get_active_alias_override",
     "get_active_alias_overrides",
     "get_active_temporary_override",
+    "get_builtin_model_aliases",
     "get_custom_model_aliases",
-    "get_legacy_model_aliases",
     "get_provider",
     "get_retry_config",
     "get_wait_time",

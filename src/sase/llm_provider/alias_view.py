@@ -54,8 +54,8 @@ class AliasView:
         name: The bare alias name (no ``@`` marker).
         kind: ``default`` / ``role`` / ``provider_coder`` / ``user``.
         configured: ``True`` when ``name`` is an explicit
-            ``llm_provider.model_aliases`` or
-            ``llm_provider.custom_model_aliases`` entry (vs. an implicit
+            ``llm_provider.model_aliases.builtin`` or
+            ``llm_provider.model_aliases.custom`` entry (vs. an implicit
             special).
         configured_value: The raw configured target string, or ``None`` for an
             implicit alias.

@@ -225,7 +225,7 @@ def test_description_text_for_custom_alias() -> None:
             "blogger",
             "user",
             configured=True,
-            configured_source="custom_model_aliases",
+            configured_source="custom",
             description="Draft and edit blog posts.",
         )
     )
@@ -233,19 +233,21 @@ def test_description_text_for_custom_alias() -> None:
     assert text.plain == "Draft and edit blog posts."
 
 
-def test_description_text_for_legacy_user_alias_hints_describe() -> None:
+def test_description_text_for_user_alias_without_description_hints_config_path() -> (
+    None
+):
     text = _description_text_for_view(
         _view(
-            "legacy",
+            "blogger",
             "user",
             configured=True,
-            configured_source="model_aliases",
+            configured_source="builtin",
             description=None,
         )
     )
 
     assert "no description" in text.plain
-    assert "llm_provider.custom_model_aliases.legacy" in text.plain
+    assert "llm_provider.model_aliases.custom.blogger.description" in text.plain
 
 
 # ---------------------------------------------------------------------------
@@ -406,7 +408,7 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
                 "blogger",
                 "user",
                 configured=True,
-                configured_source="custom_model_aliases",
+                configured_source="custom",
                 description="Draft blog posts.",
             ),
         ],

@@ -35,9 +35,10 @@ _DIFF = (
     "@@ -1,4 +1,4 @@\n"
     " llm_provider:\n"
     "   model_aliases:\n"
-    '-    coder: "@default"\n'
-    "+    coder: claude/opus\n"
-    "     phase_worker: codex/o3\n"
+    "     builtin:\n"
+    '-      coder: "@default"\n'
+    "+      coder: claude/opus\n"
+    "       phase_worker: codex/o3\n"
 )
 
 
@@ -47,14 +48,14 @@ def _edit_plan() -> EditPlanResult:
         write_plan=ConfigWritePlan(
             file=_TARGET,
             layer="user",
-            key_path=("llm_provider", "model_aliases", "coder"),
+            key_path=("llm_provider", "model_aliases", "builtin", "coder"),
             op="set",
             has_value=True,
             new_value="claude/opus",
         ),
         candidate_config={},
         effective_preview=ConfigEffectivePreview(
-            path="llm_provider.model_aliases.coder",
+            path="llm_provider.model_aliases.builtin.coder",
             has_before=True,
             before="@default",
             has_after=True,
