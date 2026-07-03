@@ -91,6 +91,29 @@ def test_fast_mode_selects_non_slow_marker_to_include_visual_tests() -> None:
     assert result[-1] == "not slow"
 
 
+def test_worker_count_caps_at_quarter_of_cpus(monkeypatch) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.setattr(runner.os, "cpu_count", lambda: 8)
+
+    assert runner._worker_count() == "2"
+
+
+def test_worker_count_uses_at_least_one_worker(monkeypatch) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.delenv("SASE_PYTEST_WORKERS", raising=False)
+    monkeypatch.setattr(runner.os, "cpu_count", lambda: 2)
+
+    assert runner._worker_count() == "1"
+
+
+def test_worker_count_prefers_env_override(monkeypatch) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv("SASE_PYTEST_WORKERS", "12")
+
+    assert runner._worker_count() == "12"
+
+
 def test_inline_snapshot_fix_disables_default_xdist() -> None:
     runner = _load_run_pytest()
 

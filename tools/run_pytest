@@ -116,7 +116,7 @@ def _worker_count() -> str:
     configured = os.environ.get("SASE_PYTEST_WORKERS")
     if configured:
         return configured
-    return str(min(os.cpu_count() or 1, 16))
+    return str(max((os.cpu_count() or 1) // 4, 1))
 
 
 def _inline_snapshot_value_requires_serial(value: str) -> bool:

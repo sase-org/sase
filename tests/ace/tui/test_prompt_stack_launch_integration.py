@@ -53,7 +53,7 @@ def test_whole_stack_submit_routes_manual_multi_prompt_to_multi_prompt_launch() 
         ),
         patch("sase.history.prompt.add_or_update_prompt") as save_history,
         patch(
-            "sase.ace.tui.actions.agent_workflow._launch_body."
+            "sase.ace.tui.actions.agent_workflow._launch_body_impl."
             "record_prompt_file_references"
         ) as record_refs,
     ):
@@ -113,7 +113,7 @@ def test_whole_stack_submit_with_multi_agent_xprompt_preserves_invocation() -> N
         ),
         patch("sase.history.prompt.add_or_update_prompt") as save_history,
         patch(
-            "sase.ace.tui.actions.agent_workflow._launch_body."
+            "sase.ace.tui.actions.agent_workflow._launch_body_impl."
             "record_prompt_file_references"
         ),
     ):
