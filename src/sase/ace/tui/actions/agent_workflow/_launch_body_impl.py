@@ -142,7 +142,9 @@ def run_agent_launch_body(
             activate_known_project_vcs_refs_for_launch_prompt,
         )
 
-        activate_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
+        activate_known_project_vcs_refs_for_launch_prompt(
+            "\n---\n".join(multi.segments)
+        )
     with timer.stage("multi_agent_xprompt_expand", segment_count=len(multi.segments)):
         expanded_records = expand_multi_agent_xprompts_with_metadata(
             multi.segments, multi.local_xprompts
