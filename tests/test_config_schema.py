@@ -178,6 +178,69 @@ def test_config_schema_accepts_model_aliases_with_at_references() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_described_custom_model_aliases() -> None:
+    schema = _schema()
+    config = {
+        "llm_provider": {
+            "custom_model_aliases": {
+                "blogger": {
+                    "model": "claude/opus",
+                    "description": "Agents that draft and edit blog posts.",
+                }
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
+
+
+@pytest.mark.parametrize(
+    ("alias_value", "message"),
+    [
+        ({"model": "claude/opus"}, "'description' is a required property"),
+        ({"description": "Draft posts."}, "'model' is a required property"),
+        (
+            {"model": "", "description": "Draft posts."},
+            "'' should be non-empty",
+        ),
+        (
+            {"model": "claude/opus", "description": ""},
+            "'' should be non-empty",
+        ),
+        (
+            {"model": "claude/opus", "description": "x" * 161},
+            "is too long",
+        ),
+        (
+            {
+                "model": "claude/opus",
+                "description": "Draft posts.",
+                "extra": True,
+            },
+            "Additional properties are not allowed",
+        ),
+    ],
+)
+def test_config_schema_rejects_bad_custom_model_aliases(
+    alias_value: dict[str, Any],
+    message: str,
+) -> None:
+    schema = _schema()
+    config = {"llm_provider": {"custom_model_aliases": {"blogger": alias_value}}}
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(message in error.message for error in errors)
+
+
 def test_config_schema_rejects_legacy_worker_model_field() -> None:
     schema = _schema()
     config = {"llm_provider": {"worker_model": "codex/gpt-5.5"}}

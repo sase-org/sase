@@ -11,6 +11,9 @@ from sase.llm_provider.config import (
     coder_model_alias_for_provider,
     default_model_alias_name,
     format_model_directive_value,
+    get_custom_model_aliases,
+    model_alias_config_source,
+    model_alias_description,
     model_alias_names,
     resolve_model_alias,
     role_model_directive_value,
@@ -32,6 +35,71 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
     }
 
     assert _get_model_aliases() == {"other": "claude/opus"}
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_custom_model_aliases_parse_defensively(mock_config: MagicMock) -> None:
+    """Custom aliases skip malformed entries but tolerate missing descriptions."""
+    mock_config.return_value = {
+        "custom_model_aliases": {
+            " blogger ": {
+                "model": " claude/opus ",
+                "description": "Draft blog posts.",
+            },
+            "no_description": {"model": "codex/o3"},
+            "blank_model": {"model": "  ", "description": "Nope."},
+            "bad": "claude/opus",
+            123: {"model": "claude/opus", "description": "Nope."},
+        }
+    }
+
+    assert get_custom_model_aliases() == {
+        "blogger": "claude/opus",
+        "no_description": "codex/o3",
+    }
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_custom_model_aliases_merge_over_legacy(mock_config: MagicMock) -> None:
+    """The described custom map is authoritative on name collisions."""
+    mock_config.return_value = {
+        "model_aliases": {"blogger": "claude/haiku", "coder": "@default"},
+        "custom_model_aliases": {
+            "blogger": {
+                "model": "claude/opus",
+                "description": "Draft blog posts.",
+            }
+        },
+    }
+
+    assert _get_model_aliases()["blogger"] == "claude/opus"
+    assert model_alias_config_source("blogger") == "custom_model_aliases"
+    assert model_alias_config_source("coder") == "model_aliases"
+
+
+@patch("sase.llm_provider.config._registered_provider_names")
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_model_alias_description_builtin_and_custom(
+    mock_config: MagicMock,
+    mock_providers: MagicMock,
+) -> None:
+    mock_config.return_value = {
+        "custom_model_aliases": {
+            "blogger": {
+                "model": "claude/opus",
+                "description": "Draft blog posts.",
+            },
+            "legacy_gap": {"model": "codex/o3"},
+        }
+    }
+    mock_providers.return_value = ["claude"]
+
+    assert model_alias_description("default").startswith("Model used")
+    assert model_alias_description("claude_coder") == (
+        "Coder follow-up agents for plans authored by claude."
+    )
+    assert model_alias_description("blogger") == "Draft blog posts."
+    assert model_alias_description("legacy_gap") is None
 
 
 @patch("sase.llm_provider.config._registered_provider_names")

@@ -100,6 +100,32 @@ def test_model_completion_user_alias_shadows_implicit_role(
     assert coder_entries[0].description == "alias for claude/opus"
 
 
+def test_model_completion_custom_alias_uses_configured_description(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
+    monkeypatch.setattr(
+        model_completion,
+        "get_model_aliases",
+        lambda: {"blogger": "claude/opus"},
+    )
+    monkeypatch.setattr(
+        model_completion,
+        "model_alias_config_source",
+        lambda alias: "custom_model_aliases" if alias == "blogger" else None,
+    )
+    monkeypatch.setattr(
+        model_completion,
+        "model_alias_description",
+        lambda alias: "Draft and edit blog posts." if alias == "blogger" else None,
+    )
+
+    entries = model_completion.build_model_completion_catalog()
+    blogger = next(entry for entry in entries if entry.value == "@blogger")
+
+    assert blogger.description == ("Draft and edit blog posts. (alias for claude/opus)")
+
+
 def test_model_completion_filter_matches_values_and_short_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

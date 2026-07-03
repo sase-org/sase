@@ -823,7 +823,7 @@ ModelsPanel {
 #models-panel-container {
     width: 84;
     height: auto;
-    max-height: 30;
+    max-height: 33;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -839,6 +839,15 @@ ModelsPanel {
 #models-panel-list {
     height: auto;
     max-height: 22;
+}
+
+#models-panel-description {
+    height: 2;
+    color: $text-muted;
+    text-style: italic;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
 }
 
 #models-panel-footer {

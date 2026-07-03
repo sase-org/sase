@@ -12,6 +12,7 @@ from typing import cast
 from unittest.mock import MagicMock, call
 
 from textual.app import App, ComposeResult
+from textual.widgets import Static
 
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
@@ -21,6 +22,7 @@ from sase.ace.tui.modals.models_panel import (
     ModelsPanel,
     ModelsPanelResult,
     _DurationPickerModal,
+    _description_text_for_view,
     _format_duration_chosen,
     _format_remaining,
     _kind_label,
@@ -54,6 +56,8 @@ def _view(
     provider: str | None = "claude",
     model: str = "opus",
     override: TemporaryLLMOverride | None = None,
+    configured_source: str | None = None,
+    description: str | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -63,6 +67,8 @@ def _view(
         provider=provider,
         model=model,
         override=override,
+        configured_source=configured_source,
+        description=description,
     )
 
 
@@ -199,6 +205,47 @@ def test_render_alias_row_ellipsizes_long_provider_model_label() -> None:
     assert "…" in long_line
     assert long_state in long_line
     assert long_line.index(long_state) == short_line.index(short_state)
+
+
+def test_description_text_for_builtin_alias() -> None:
+    text = _description_text_for_view(
+        _view(
+            "default",
+            "default",
+            description="Model used when a prompt has no %model directive.",
+        )
+    )
+
+    assert text.plain == "Model used when a prompt has no %model directive."
+
+
+def test_description_text_for_custom_alias() -> None:
+    text = _description_text_for_view(
+        _view(
+            "blogger",
+            "user",
+            configured=True,
+            configured_source="custom_model_aliases",
+            description="Draft and edit blog posts.",
+        )
+    )
+
+    assert text.plain == "Draft and edit blog posts."
+
+
+def test_description_text_for_legacy_user_alias_hints_describe() -> None:
+    text = _description_text_for_view(
+        _view(
+            "legacy",
+            "user",
+            configured=True,
+            configured_source="model_aliases",
+            description=None,
+        )
+    )
+
+    assert "no description" in text.plain
+    assert "llm_provider.custom_model_aliases.legacy" in text.plain
 
 
 # ---------------------------------------------------------------------------
@@ -348,6 +395,32 @@ async def test_panel_x_without_override_does_not_clear(monkeypatch) -> None:
         await pilot.pause()
         clear_mock.assert_not_called()
         assert panel._changed is False
+
+
+async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None:
+    _patch_views(
+        monkeypatch,
+        [
+            _view("default", "default", description="Default model."),
+            _view(
+                "blogger",
+                "user",
+                configured=True,
+                configured_source="custom_model_aliases",
+                description="Draft blog posts.",
+            ),
+        ],
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        description = panel.query_one("#models-panel-description", Static)
+        assert "Default model." in description.content.plain
+        await pilot.press("j")
+        await pilot.pause()
+        assert "Draft blog posts." in description.content.plain
 
 
 async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:

@@ -356,20 +356,26 @@ llm_provider:
     default: opus # model used when a prompt has no %model directive
     claude_coder: codex/gpt-5.5 # coder follow-ups from Claude-authored plans
     codex_coder: claude/opus # coder follow-ups from Codex-authored plans
+  custom_model_aliases:
+    blogger:
+      model: claude/opus
+      description: Agents that draft and edit blog posts.
 ```
 
-| Field                               | Type   | Default     | Description                                                                                                                                                                                                                         |
-| ----------------------------------- | ------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                                            |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                                                                                              |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                              |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases usable from `%model:@<alias>` / `%m:@<alias>`, plus overrides for the implicit role aliases. Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
+| Field                               | Type   | Default     | Description                                                                                                                                            |
+| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.               |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier.                                                                                                                 |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier.                                                                                                                 |
+| `llm_provider.model_aliases`        | dict   | -           | Builtin alias overrides only. Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
+| `llm_provider.custom_model_aliases` | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each custom alias requires `model` and `description` fields.                       |
 
-Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@default`
-while each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the `@` marker is only
-used in `%model`/`%m` directive values. Alias values may reference another alias with `@<alias>` (chains are followed
-with cycle/depth protection). Unknown non-alias model values keep the existing fallback behavior and run on the default
-provider.
+Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@default` or
+`%model:@blogger` while each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the
+`@` marker is only used in `%model`/`%m` directive values. Alias values may reference another alias with `@<alias>`
+(chains are followed with cycle/depth protection). Unknown non-alias model values keep the existing fallback behavior
+and run on the default provider. Use `model_aliases` for builtin role overrides and `custom_model_aliases` for
+user-defined aliases with descriptions.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),

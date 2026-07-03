@@ -379,11 +379,11 @@ def test_stream_subprocess_timeout_raises_with_captured_output() -> None:
             [
                 sys.executable,
                 "-c",
-                "import time; print('started', flush=True); time.sleep(5)",
+                "import os, time; os.write(1, b'started\\n'); time.sleep(5)",
             ],
             on_line=lambda _line: None,
             cancel_event=threading.Event(),
-            timeout=0.1,
+            timeout=1.0,
         )
 
     output = exc_info.value.output

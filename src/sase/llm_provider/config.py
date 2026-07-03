@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.config import load_merged_config
 from sase.xprompt.effort import is_valid_effort
@@ -12,13 +12,17 @@ if TYPE_CHECKING:
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
 
+ModelAliasConfigSource = Literal["model_aliases", "custom_model_aliases"]
+
 # ---------------------------------------------------------------------------
 # Model alias policy (epic sase-5d)
 # ---------------------------------------------------------------------------
 #
-# Model indirection is configured under ``llm_provider.model_aliases``. On top
-# of the user-configured map, SASE exposes a fixed set of *implicit* special
-# aliases that always resolve, even when the user has not defined them:
+# Builtin-role overrides are configured under ``llm_provider.model_aliases``;
+# user-created aliases live under ``llm_provider.custom_model_aliases`` so they
+# can carry required descriptions. On top of the configured maps, SASE exposes a
+# fixed set of *implicit* special aliases that always resolve, even when the user
+# has not defined them:
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
@@ -58,6 +62,26 @@ _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     EPIC_CREATOR_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
+}
+
+_ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
+    DEFAULT_MODEL_ALIAS_NAME: (
+        "Model used when a prompt has no %model directive; every other alias "
+        "ultimately falls back to it."
+    ),
+    CODER_MODEL_ALIAS_NAME: (
+        "Coder follow-up agents launched from plans (fallback for every "
+        "<provider>_coder alias)."
+    ),
+    EPIC_CREATOR_MODEL_ALIAS_NAME: (
+        "Agents that create epics from #bd/new_epic follow-ups."
+    ),
+    EPIC_LANDER_MODEL_ALIAS_NAME: (
+        "Epic land agents that finalize and submit an epic."
+    ),
+    PHASE_WORKER_MODEL_ALIAS_NAME: (
+        "Bead phase agents that implement individual plan phases."
+    ),
 }
 
 
@@ -132,14 +156,82 @@ def resolve_effective_effort(
     return None, False
 
 
-def _get_model_aliases() -> dict[str, str]:
-    """Return cleaned ``llm_provider.model_aliases`` entries from config."""
+def get_legacy_model_aliases() -> dict[str, str]:
+    """Return cleaned legacy/builtin ``llm_provider.model_aliases`` entries."""
     return _clean_string_mapping(get_llm_provider_config().get("model_aliases", {}))
+
+
+def get_custom_model_aliases() -> dict[str, str]:
+    """Return cleaned ``llm_provider.custom_model_aliases`` entries.
+
+    Values in the new custom-alias map are objects. Runtime parsing is
+    deliberately defensive: non-object entries and entries with missing/blank
+    ``model`` are skipped so malformed config cannot crash alias resolution.
+    Missing descriptions are reported by schema validation/doctor and simply
+    produce no runtime description.
+    """
+    value = get_llm_provider_config().get("custom_model_aliases", {})
+    if not isinstance(value, dict):
+        return {}
+
+    cleaned: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not isinstance(item, dict):
+            continue
+        alias = key.strip()
+        model = item.get("model")
+        if not isinstance(model, str):
+            continue
+        target = model.strip()
+        if alias and target:
+            cleaned[alias] = target
+    return cleaned
+
+
+def _custom_model_alias_descriptions() -> dict[str, str]:
+    """Return configured descriptions for custom aliases that have one."""
+    value = get_llm_provider_config().get("custom_model_aliases", {})
+    if not isinstance(value, dict):
+        return {}
+
+    descriptions: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not isinstance(item, dict):
+            continue
+        alias = key.strip()
+        description = item.get("description")
+        if not isinstance(description, str):
+            continue
+        text = description.strip()
+        if alias and text:
+            descriptions[alias] = text
+    return descriptions
+
+
+def _get_model_aliases() -> dict[str, str]:
+    """Return merged configured aliases; custom aliases win collisions."""
+    return get_legacy_model_aliases() | get_custom_model_aliases()
 
 
 def get_model_aliases() -> dict[str, str]:
     """Return configured model aliases usable from ``%model:<alias>``."""
     return _get_model_aliases()
+
+
+def model_alias_config_source(name: str) -> ModelAliasConfigSource | None:
+    """Return where *name* is configured, or ``None`` when it is implicit.
+
+    When the legacy and custom maps both define the name, the custom map is the
+    effective source because it wins during merge.
+    """
+    alias = name.strip()
+    if not alias:
+        return None
+    if alias in get_custom_model_aliases():
+        return "custom_model_aliases"
+    if alias in get_legacy_model_aliases():
+        return "model_aliases"
+    return None
 
 
 def default_model_alias_name() -> str:
@@ -246,6 +338,19 @@ def model_alias_kind(name: str) -> str:
     if _is_provider_coder_alias(name):
         return "provider_coder"
     return "user"
+
+
+def model_alias_description(name: str) -> str | None:
+    """Return the display description for a model alias, if one is known."""
+    alias = name.strip()
+    if not alias:
+        return None
+    if alias in _ROLE_ALIAS_DESCRIPTIONS:
+        return _ROLE_ALIAS_DESCRIPTIONS[alias]
+    if _is_provider_coder_alias(alias):
+        provider = alias[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
+        return f"Coder follow-up agents for plans authored by {provider}."
+    return _custom_model_alias_descriptions().get(alias)
 
 
 def strip_model_alias_prefix(value: str) -> str:

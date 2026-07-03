@@ -26,6 +26,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from sase.llm_provider import AliasKind
+
 from sase.config import (
     AppliedResult,
     ConfigEditError,
@@ -39,6 +41,7 @@ from sase.config import (
 
 #: Dotted config path to the ``additionalProperties`` map of model aliases.
 MODEL_ALIASES_FIELD_PREFIX = "llm_provider.model_aliases"
+CUSTOM_MODEL_ALIASES_FIELD_PREFIX = "llm_provider.custom_model_aliases"
 
 
 def _alias_field_path(alias: str) -> str:
@@ -53,14 +56,81 @@ def _alias_field_path(alias: str) -> str:
     return f"{MODEL_ALIASES_FIELD_PREFIX}.{cleaned}"
 
 
+def _custom_alias_field_path(alias: str, field: str | None = None) -> str:
+    """Return the dotted config path for a custom alias or child field."""
+    cleaned = alias.strip()
+    if not cleaned:
+        raise ValueError("alias name must be non-empty")
+    path = f"{CUSTOM_MODEL_ALIASES_FIELD_PREFIX}.{cleaned}"
+    return f"{path}.{field}" if field else path
+
+
+def alias_model_edit_path(
+    alias: str,
+    *,
+    kind: AliasKind,
+    configured_source: str | None,
+) -> str:
+    """Return the config path for an Edit action on *alias*."""
+    if kind == "user" and configured_source == "custom_model_aliases":
+        return _custom_alias_field_path(alias, "model")
+    return _alias_field_path(alias)
+
+
+def alias_reset_path(
+    alias: str,
+    *,
+    kind: AliasKind,
+    configured_source: str | None,
+) -> str:
+    """Return the config path for a Reset action on *alias*."""
+    if kind == "user" and configured_source == "custom_model_aliases":
+        return _custom_alias_field_path(alias)
+    return _alias_field_path(alias)
+
+
+def alias_description_edit(
+    alias: str,
+    *,
+    description: str,
+    model: str,
+    configured_source: str | None,
+) -> tuple[str, ConfigEditOp]:
+    """Return ``(path, op)`` for writing a custom alias description.
+
+    Existing custom aliases update only their ``description`` field. A legacy
+    user alias in ``model_aliases`` is migrated with one whole-object write so
+    the new entry is immediately valid under the schema.
+    """
+    cleaned_description = description.strip()
+    if not cleaned_description:
+        raise ValueError("description must be non-empty")
+    cleaned_model = model.strip()
+    if not cleaned_model:
+        raise ValueError("model must be non-empty")
+
+    if configured_source == "custom_model_aliases":
+        return (
+            _custom_alias_field_path(alias, "description"),
+            ConfigEditOp.set_value(cleaned_description),
+        )
+    return (
+        _custom_alias_field_path(alias),
+        ConfigEditOp.set_value(
+            {"model": cleaned_model, "description": cleaned_description}
+        ),
+    )
+
+
 def plan_alias_edit(
     alias: str,
     op: ConfigEditOp,
     *,
+    path: str | None = None,
     inventory: ConfigInventory | None = None,
     use_chezmoi: bool | None = None,
 ) -> EditPlanResult:
-    """Plan a set/unset edit of ``llm_provider.model_aliases.<alias>``.
+    """Plan a set/unset edit of one model-alias config path.
 
     Builds the config inventory when one is not supplied, targets the default
     writable layer (typically the user ``sase.yml``), and delegates to the
@@ -78,7 +148,7 @@ def plan_alias_edit(
         raise ConfigEditError("no writable config layer available")
     return plan_config_edit(
         inv,
-        _alias_field_path(alias),
+        path or _alias_field_path(alias),
         target,
         op,
         use_chezmoi=use_chezmoi,
@@ -148,9 +218,13 @@ def build_alias_commit_offer(
 
 
 __all__ = [
+    "CUSTOM_MODEL_ALIASES_FIELD_PREFIX",
     "MODEL_ALIASES_FIELD_PREFIX",
     "AliasCommitOffer",
     "AliasEditOutcome",
+    "alias_description_edit",
+    "alias_model_edit_path",
+    "alias_reset_path",
     "build_alias_commit_offer",
     "plan_alias_edit",
 ]

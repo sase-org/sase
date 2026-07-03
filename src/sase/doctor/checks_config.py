@@ -277,25 +277,37 @@ _REMOVED_IMPLICIT_ALIAS_GUIDANCE: dict[str, str] = {
 def _check_config_model_aliases() -> DiagnosticCheck:
     """Surface model-alias config that needs migrating (epic sase-5d).
 
-    Three classes of stale config are reported as actionable warnings:
+    Stale config is reported as actionable warnings:
 
     - the removed ``llm_provider.worker_models`` and ``llm_provider.default_model``
       keys (the former is replaced by ``<provider>_coder`` aliases, the latter by
       ``model_aliases.default``);
+    - user-created aliases that still live in legacy ``model_aliases`` instead
+      of the described ``custom_model_aliases`` map;
+    - builtin aliases placed in ``custom_model_aliases`` or names present in
+      both maps;
+    - custom alias objects missing a usable ``model`` or ``description``;
     - ``model_aliases`` values that reference a retired implicit ``@worker`` /
       ``@other`` alias;
-    - ``model_aliases`` values that reference an ``@<alias>`` name that resolves
-      to nothing, which would silently fall through at launch.
+    - merged alias values that reference an ``@<alias>`` name that resolves to
+      nothing, which would silently fall through at launch.
     """
     from sase.llm_provider.config import (
+        get_custom_model_aliases,
+        get_legacy_model_aliases,
         get_llm_provider_config,
         get_model_aliases,
+        model_alias_kind,
         model_alias_names,
         strip_model_alias_prefix,
     )
 
     config = get_llm_provider_config()
     known_aliases = model_alias_names()
+    legacy_aliases = get_legacy_model_aliases()
+    custom_aliases = get_custom_model_aliases()
+    raw_custom = config.get("custom_model_aliases", {})
+    raw_custom_entries = raw_custom if isinstance(raw_custom, dict) else {}
     problems: list[dict[str, str]] = []
 
     if config.get("worker_models"):
@@ -320,17 +332,107 @@ def _check_config_model_aliases() -> DiagnosticCheck:
             }
         )
 
-    for alias, target in sorted(get_model_aliases().items()):
-        if not target.startswith("@"):
-            continue
-        referenced = strip_model_alias_prefix(target).strip()
-        if referenced in _REMOVED_IMPLICIT_ALIAS_GUIDANCE:
-            guidance = _REMOVED_IMPLICIT_ALIAS_GUIDANCE[referenced]
+    if raw_custom and not isinstance(raw_custom, dict):
+        problems.append(
+            {
+                "key": "custom_model_aliases",
+                "message": (
+                    "llm_provider.custom_model_aliases must be a map of alias "
+                    "names to {model, description} objects"
+                ),
+            }
+        )
+
+    for alias in sorted(legacy_aliases):
+        if model_alias_kind(alias) == "user":
             problems.append(
                 {
                     "key": f"model_aliases.{alias}",
                     "message": (
-                        f"model_aliases.{alias} -> {target} references the retired "
+                        f"model_aliases.{alias} is a custom alias in the legacy "
+                        "builtin-override map; migrate it to "
+                        "llm_provider.custom_model_aliases with a description"
+                    ),
+                }
+            )
+        if alias in custom_aliases:
+            problems.append(
+                {
+                    "key": f"model_aliases.{alias}",
+                    "message": (
+                        f"{alias} is configured in both model_aliases and "
+                        "custom_model_aliases; custom_model_aliases wins, so "
+                        "remove the legacy model_aliases entry"
+                    ),
+                }
+            )
+
+    for raw_alias, entry in sorted(
+        raw_custom_entries.items(), key=lambda item: str(item[0])
+    ):
+        if not isinstance(raw_alias, str):
+            continue
+        alias = raw_alias.strip()
+        if not alias:
+            continue
+        if model_alias_kind(alias) != "user":
+            problems.append(
+                {
+                    "key": f"custom_model_aliases.{alias}",
+                    "message": (
+                        f"custom_model_aliases.{alias} is a builtin alias; move "
+                        "it to llm_provider.model_aliases"
+                    ),
+                }
+            )
+        if not isinstance(entry, dict):
+            problems.append(
+                {
+                    "key": f"custom_model_aliases.{alias}",
+                    "message": (
+                        f"custom_model_aliases.{alias} must be an object with "
+                        "model and description"
+                    ),
+                }
+            )
+            continue
+        model = entry.get("model")
+        if not isinstance(model, str) or not model.strip():
+            problems.append(
+                {
+                    "key": f"custom_model_aliases.{alias}.model",
+                    "message": (
+                        f"custom_model_aliases.{alias}.model is missing or blank"
+                    ),
+                }
+            )
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            problems.append(
+                {
+                    "key": f"custom_model_aliases.{alias}.description",
+                    "message": (
+                        f"custom_model_aliases.{alias}.description is missing or blank"
+                    ),
+                }
+            )
+
+    for alias, target in sorted(get_model_aliases().items()):
+        if not target.startswith("@"):
+            continue
+        referenced = strip_model_alias_prefix(target).strip()
+        target_key = (
+            f"custom_model_aliases.{alias}.model"
+            if alias in custom_aliases
+            else f"model_aliases.{alias}"
+        )
+        if referenced in _REMOVED_IMPLICIT_ALIAS_GUIDANCE:
+            guidance = _REMOVED_IMPLICIT_ALIAS_GUIDANCE[referenced]
+            problems.append(
+                {
+                    "key": target_key,
+                    "message": (
+                        f"{target_key} -> {target} references the retired "
                         f"'@{referenced}' alias; {guidance}"
                     ),
                 }
@@ -338,9 +440,9 @@ def _check_config_model_aliases() -> DiagnosticCheck:
         elif referenced and referenced not in known_aliases:
             problems.append(
                 {
-                    "key": f"model_aliases.{alias}",
+                    "key": target_key,
                     "message": (
-                        f"model_aliases.{alias} -> {target} references unknown alias "
+                        f"{target_key} -> {target} references unknown alias "
                         f"'@{referenced}'"
                     ),
                 }

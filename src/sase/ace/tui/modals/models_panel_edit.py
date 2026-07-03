@@ -53,10 +53,21 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
         ("ctrl+s", "confirm", "Write"),
     ]
 
-    def __init__(self, alias: str, op: ConfigEditOp) -> None:
+    def __init__(
+        self,
+        alias: str,
+        op: ConfigEditOp,
+        *,
+        path: str | None = None,
+        action_label: str | None = None,
+        reset_deletes_alias: bool = False,
+    ) -> None:
         super().__init__()
         self._alias = alias
         self._op = op
+        self._path = path
+        self._action_label = action_label
+        self._reset_deletes_alias = reset_deletes_alias
         self._is_unset = op.kind == "unset"
         self._plan: EditPlanResult | None = None
         self._busy = True  # planning on mount
@@ -79,7 +90,7 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
     # -- rendering ------------------------------------------------------
 
     def _title_text(self) -> Text:
-        verb = "Reset" if self._is_unset else "Edit"
+        verb = self._action_label or ("Reset" if self._is_unset else "Edit")
         text = Text()
         text.append(f"{verb} Model Alias  ", style="bold")
         text.append(f"@{self._alias}", style=f"bold {_ACCENT}")
@@ -115,7 +126,10 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
         if self._is_unset:
             text.append("  reset ", style=f"bold {_MOD_COLOR}")
             text.append(f"@{self._alias}", style=f"bold {_ACCENT}")
-            text.append(" to its implicit default ", style=_MUTED)
+            if self._reset_deletes_alias:
+                text.append(" by deleting the custom alias ", style=_MUTED)
+            else:
+                text.append(" to its implicit default ", style=_MUTED)
             text.append("(removes the configured key)\n", style=_MUTED)
             return
         text.append("  set ", style="bold")
@@ -177,9 +191,10 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
     def _start_plan(self) -> None:
         alias = self._alias
         op = self._op
+        path = self._path
 
         def task() -> EditPlanResult:
-            return plan_alias_edit(alias, op)
+            return plan_alias_edit(alias, op, path=path)
 
         self._busy = True
         self._plan_worker = self.run_worker(task, thread=True, exclusive=True)

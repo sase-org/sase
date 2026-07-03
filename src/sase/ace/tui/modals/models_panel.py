@@ -62,6 +62,9 @@ from .models_panel_edit import AliasEditPreviewModal
 from .models_panel_edit_helpers import (
     AliasCommitOffer,
     AliasEditOutcome,
+    alias_description_edit,
+    alias_model_edit_path,
+    alias_reset_path,
     build_alias_commit_offer,
 )
 
@@ -221,6 +224,8 @@ _KIND_STYLES: dict[str, str] = {
 _OVERRIDE_TAG_STYLE = "bold #AF87FF"
 _CONFIGURED_TAG_STYLE = "#87D787"
 _IMPLICIT_TAG_STYLE = "dim #9E9E9E"
+_DESCRIPTION_STYLE = "italic #B0B0B0"
+_DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
 
 
 def _pad(value: str, width: int) -> str:
@@ -303,6 +308,30 @@ def _render_alias_row(
     return text
 
 
+def _description_text_for_view(view: AliasView | None) -> Text:
+    """Return the two-line description strip content for *view*."""
+    if view is None:
+        return Text("", style=_DESCRIPTION_STYLE)
+    if view.description:
+        return Text(view.description, style=_DESCRIPTION_STYLE)
+    if view.kind == "user":
+        return Text(
+            "no description - press d to describe "
+            f"(writes llm_provider.custom_model_aliases.{view.name})",
+            style=_DESCRIPTION_MISSING_STYLE,
+        )
+    return Text("", style=_DESCRIPTION_STYLE)
+
+
+def _configured_or_effective_target(view: AliasView) -> str:
+    """Return the best model target to persist for *view*."""
+    if view.configured_value:
+        return view.configured_value
+    if view.provider:
+        return f"{view.provider}/{view.model}"
+    return view.model
+
+
 # ---------------------------------------------------------------------------
 # Models panel
 # ---------------------------------------------------------------------------
@@ -329,6 +358,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         ("o", "override", "Override"),
         ("x", "clear", "Clear"),
         ("e", "edit", "Edit"),
+        ("d", "describe", "Describe"),
         ("r", "reset", "Reset"),
     ]
 
@@ -339,7 +369,8 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         self._view_by_name: dict[str, AliasView] = {}
         self._pending_alias = ""
         self._pending_raw_model = ""
-        self._pending_edit_alias = ""
+        self._pending_edit_view: AliasView | None = None
+        self._pending_describe_view: AliasView | None = None
 
     # -- compose --------------------------------------------------------
 
@@ -347,6 +378,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         with Container(id="models-panel-container"):
             yield Static("[bold cyan]Models[/bold cyan]", id="models-panel-title")
             yield OptionList(*self._build_options(), id="models-panel-list")
+            yield Static("", id="models-panel-description")
             yield Static(self._footer_markup(), id="models-panel-footer")
 
     def on_mount(self) -> None:
@@ -354,6 +386,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         option_list.focus()
         if option_list.option_count and option_list.highlighted is None:
             option_list.highlighted = 0
+        self._update_description_strip()
 
     @staticmethod
     def _footer_markup() -> str:
@@ -361,6 +394,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
             "[green]o[/green]=Override  "
             "[green]x[/green]=Clear  "
             "[green]e[/green]=Edit  "
+            "[green]d[/green]=Describe  "
             "[green]r[/green]=Reset  "
             "[dim]j/k[/dim]=Navigate  "
             "[dim]esc[/dim]=Close"
@@ -392,11 +426,21 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         if preferred is not None:
             try:
                 option_list.highlighted = option_list.get_option_index(preferred)
+                self._update_description_strip()
                 return
             except Exception:
                 pass
         if option_list.option_count:
             option_list.highlighted = 0
+        self._update_description_strip()
+
+    def _update_description_strip(self) -> None:
+        """Refresh the description strip for the currently highlighted alias."""
+        try:
+            description = self.query_one("#models-panel-description", Static)
+        except Exception:
+            return
+        description.update(_description_text_for_view(self._selected_view()))
 
     def _highlighted_alias(self) -> str | None:
         option_list = self.query_one("#models-panel-list", OptionList)
@@ -414,6 +458,18 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         if alias is None:
             return None
         return self._view_by_name.get(alias)
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        if event.option is not None and event.option.id is not None:
+            view = self._view_by_name.get(str(event.option.id))
+            try:
+                self.query_one("#models-panel-description", Static).update(
+                    _description_text_for_view(view)
+                )
+            except Exception:
+                pass
 
     # -- actions --------------------------------------------------------
 
@@ -509,7 +565,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         view = self._selected_view()
         if view is None:
             return
-        self._pending_edit_alias = view.name
+        self._pending_edit_view = view
         self.app.push_screen(
             ModelPickerModal(
                 title=f"Edit Model — @{view.name}",
@@ -528,10 +584,46 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
                 severity="warning",
             )
             return
-        self._open_alias_preview(view.name, ConfigEditOp.unset())
+        self._open_alias_preview(
+            view.name,
+            ConfigEditOp.unset(),
+            path=alias_reset_path(
+                view.name,
+                kind=view.kind,
+                configured_source=view.configured_source,
+            ),
+            reset_deletes_alias=(
+                view.kind == "user" and view.configured_source == "custom_model_aliases"
+            ),
+        )
+
+    def action_describe(self) -> None:
+        view = self._selected_view()
+        if view is None:
+            return
+        if view.kind != "user":
+            self.notify(
+                "Builtin alias descriptions are fixed",
+                severity="information",
+            )
+            return
+        self._pending_describe_view = view
+        self.app.push_screen(
+            CustomModelInputModal(
+                title=f"Describe Alias — @{view.name}",
+                hint="Short description, 1-160 characters.",
+                placeholder="e.g. Agents that draft and edit blog posts.",
+                initial_value=view.description or "",
+                empty_message="Please enter a description",
+            ),
+            callback=self._on_description_picked,
+        )
 
     def _on_edit_model_picked(self, result: str | None) -> None:
         if result is None:
+            return
+        view = self._pending_edit_view
+        if view is None:
             return
         if result == CUSTOM_SENTINEL:
             self.app.push_screen(
@@ -543,20 +635,72 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
                 callback=self._on_edit_custom_picked,
             )
             return
-        self._open_alias_preview(
-            self._pending_edit_alias, ConfigEditOp.set_value(result)
-        )
+        self._open_model_edit_preview(view, result)
 
     def _on_edit_custom_picked(self, result: str | None) -> None:
         if result is None:
             return
+        view = self._pending_edit_view
+        if view is None:
+            return
+        self._open_model_edit_preview(view, result)
+
+    def _open_model_edit_preview(self, view: AliasView, model: str) -> None:
         self._open_alias_preview(
-            self._pending_edit_alias, ConfigEditOp.set_value(result)
+            view.name,
+            ConfigEditOp.set_value(model),
+            path=alias_model_edit_path(
+                view.name,
+                kind=view.kind,
+                configured_source=view.configured_source,
+            ),
         )
 
-    def _open_alias_preview(self, alias: str, op: ConfigEditOp) -> None:
+    def _on_description_picked(self, result: str | None) -> None:
+        if result is None:
+            return
+        description = result.strip()
+        if len(description) > 160:
+            self.notify("Description must be 160 characters or less", severity="error")
+            return
+        view = self._pending_describe_view
+        if view is None:
+            return
+        target = _configured_or_effective_target(view)
+        try:
+            path, op = alias_description_edit(
+                view.name,
+                description=description,
+                model=target,
+                configured_source=view.configured_source,
+            )
+        except ValueError as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self._open_alias_preview(
+            view.name,
+            op,
+            path=path,
+            action_label="Describe",
+        )
+
+    def _open_alias_preview(
+        self,
+        alias: str,
+        op: ConfigEditOp,
+        *,
+        path: str | None = None,
+        action_label: str | None = None,
+        reset_deletes_alias: bool = False,
+    ) -> None:
         self.app.push_screen(
-            AliasEditPreviewModal(alias, op),
+            AliasEditPreviewModal(
+                alias,
+                op,
+                path=path,
+                action_label=action_label,
+                reset_deletes_alias=reset_deletes_alias,
+            ),
             callback=self._on_alias_edited,
         )
 

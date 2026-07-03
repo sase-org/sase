@@ -8,6 +8,13 @@ from ._invoke import invoke_agent
 from ._subprocess import stream_process_output
 from .alias_view import AliasKind, AliasView, build_alias_views
 from .base import LLMProvider
+from .config import (
+    ModelAliasConfigSource,
+    get_custom_model_aliases,
+    get_legacy_model_aliases,
+    model_alias_config_source,
+    model_alias_description,
+)
 from .messages import AIMessage, BaseMessage, HumanMessage, MessageContent
 from .postprocessing import log_prompt_and_response, save_prompt_to_file
 from .preprocessing import (
@@ -51,6 +58,7 @@ __all__ = [
     "LoggingContext",
     "MessageContent",
     "ModelTier",
+    "ModelAliasConfigSource",
     "PreprocessResult",
     "ProviderRetryConfig",
     "RetryState",
@@ -61,12 +69,16 @@ __all__ = [
     "get_active_alias_override",
     "get_active_alias_overrides",
     "get_active_temporary_override",
+    "get_custom_model_aliases",
+    "get_legacy_model_aliases",
     "get_provider",
     "get_retry_config",
     "get_wait_time",
     "invoke_agent",
     "is_retryable_error",
     "log_prompt_and_response",
+    "model_alias_config_source",
+    "model_alias_description",
     "parse_override_duration",
     "preprocess_prompt",
     "preprocess_prompt_early",

@@ -90,6 +90,32 @@ def test_configured_value_shadows_role_alias(
     assert coder.configured_value == "codex/o3"
 
 
+def test_custom_alias_view_carries_source_and_description(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "custom_model_aliases": {
+                "blogger": {
+                    "model": "claude/opus",
+                    "description": "Draft blog posts.",
+                }
+            },
+        },
+    )
+    _patch_providers(monkeypatch)
+
+    blogger = {v.name: v for v in build_alias_views()}["blogger"]
+
+    assert blogger.kind == "user"
+    assert blogger.configured is True
+    assert blogger.configured_value == "claude/opus"
+    assert blogger.configured_source == "custom_model_aliases"
+    assert blogger.description == "Draft blog posts."
+
+
 def test_non_default_override_wins_effective_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

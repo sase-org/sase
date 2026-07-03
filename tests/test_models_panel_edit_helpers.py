@@ -20,6 +20,9 @@ import yaml
 from sase.ace.tui.modals.models_panel_edit_helpers import (
     AliasCommitOffer,
     _alias_field_path,
+    alias_description_edit,
+    alias_model_edit_path,
+    alias_reset_path,
     build_alias_commit_offer,
     plan_alias_edit,
 )
@@ -39,6 +42,22 @@ ALIAS_SCHEMA: dict[str, Any] = {
                 "model_aliases": {
                     "type": "object",
                     "additionalProperties": {"type": "string"},
+                },
+                "custom_model_aliases": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["model", "description"],
+                        "properties": {
+                            "model": {"type": "string", "minLength": 1},
+                            "description": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                            },
+                        },
+                    },
                 },
             },
         },
@@ -113,6 +132,74 @@ def test_alias_field_path_strips_and_rejects_empty() -> None:
         _alias_field_path("   ")
 
 
+def test_alias_model_edit_path_routes_by_kind_and_source() -> None:
+    assert (
+        alias_model_edit_path(
+            "coder",
+            kind="role",
+            configured_source="model_aliases",
+        )
+        == "llm_provider.model_aliases.coder"
+    )
+    assert (
+        alias_model_edit_path(
+            "blogger",
+            kind="user",
+            configured_source="custom_model_aliases",
+        )
+        == "llm_provider.custom_model_aliases.blogger.model"
+    )
+    assert (
+        alias_model_edit_path(
+            "blogger",
+            kind="user",
+            configured_source="model_aliases",
+        )
+        == "llm_provider.model_aliases.blogger"
+    )
+
+
+def test_alias_reset_path_deletes_custom_user_alias_entry() -> None:
+    assert (
+        alias_reset_path(
+            "blogger",
+            kind="user",
+            configured_source="custom_model_aliases",
+        )
+        == "llm_provider.custom_model_aliases.blogger"
+    )
+    assert (
+        alias_reset_path(
+            "coder",
+            kind="role",
+            configured_source="custom_model_aliases",
+        )
+        == "llm_provider.model_aliases.coder"
+    )
+
+
+def test_alias_description_edit_routes_custom_and_legacy() -> None:
+    path, op = alias_description_edit(
+        "blogger",
+        description="Draft blog posts.",
+        model="claude/opus",
+        configured_source="custom_model_aliases",
+    )
+    assert path == "llm_provider.custom_model_aliases.blogger.description"
+    assert op == ConfigEditOp.set_value("Draft blog posts.")
+
+    path, op = alias_description_edit(
+        "legacy",
+        description="Research follow-ups.",
+        model="codex/o3",
+        configured_source="model_aliases",
+    )
+    assert path == "llm_provider.custom_model_aliases.legacy"
+    assert op == ConfigEditOp.set_value(
+        {"model": "codex/o3", "description": "Research follow-ups."}
+    )
+
+
 # --- plan_alias_edit ------------------------------------------------------
 
 
@@ -131,6 +218,82 @@ def test_plan_alias_edit_set(tmp_path: Path) -> None:
     assert plan.is_valid is True
     assert "coder: opus" in plan.new_text
     assert "+" in plan.text_diff
+
+
+def test_plan_alias_edit_custom_model_path(tmp_path: Path) -> None:
+    inventory, user_file = _alias_inventory(
+        tmp_path,
+        "llm_provider:\n"
+        "  custom_model_aliases:\n"
+        "    blogger:\n"
+        "      model: claude/haiku\n"
+        "      description: Draft posts.\n",
+    )
+    plan = plan_alias_edit(
+        "blogger",
+        ConfigEditOp.set_value("claude/opus"),
+        path="llm_provider.custom_model_aliases.blogger.model",
+        inventory=inventory,
+        use_chezmoi=False,
+    )
+    assert plan.write_plan.key_path == (
+        "llm_provider",
+        "custom_model_aliases",
+        "blogger",
+        "model",
+    )
+    assert plan.write_plan.op == "set"
+    assert plan.write_plan.new_value == "claude/opus"
+    assert plan.target_path == str(user_file)
+    assert "model: claude/opus" in plan.new_text
+
+
+def test_plan_alias_edit_rejects_descriptionless_custom_entry(tmp_path: Path) -> None:
+    inventory, _ = _alias_inventory(tmp_path, "")
+
+    plan = plan_alias_edit(
+        "blogger",
+        ConfigEditOp.set_value("claude/opus"),
+        path="llm_provider.custom_model_aliases.blogger.model",
+        inventory=inventory,
+        use_chezmoi=False,
+    )
+
+    assert plan.is_valid is False
+    assert any("description" in diagnostic.message for diagnostic in plan.validation)
+
+
+def test_plan_alias_edit_legacy_description_migration_write(tmp_path: Path) -> None:
+    inventory, _ = _alias_inventory(
+        tmp_path,
+        "llm_provider:\n  model_aliases:\n    legacy: codex/o3\n",
+    )
+    path, op = alias_description_edit(
+        "legacy",
+        description="Research follow-ups.",
+        model="codex/o3",
+        configured_source="model_aliases",
+    )
+
+    plan = plan_alias_edit(
+        "legacy",
+        op,
+        path=path,
+        inventory=inventory,
+        use_chezmoi=False,
+    )
+
+    assert plan.write_plan.key_path == (
+        "llm_provider",
+        "custom_model_aliases",
+        "legacy",
+    )
+    assert plan.write_plan.new_value == {
+        "model": "codex/o3",
+        "description": "Research follow-ups.",
+    }
+    assert "custom_model_aliases:" in plan.new_text
+    assert "description: Research follow-ups." in plan.new_text
 
 
 def test_plan_alias_edit_unset(tmp_path: Path) -> None:

@@ -26,6 +26,8 @@ from .config import (
     EPIC_LANDER_MODEL_ALIAS_NAME,
     PHASE_WORKER_MODEL_ALIAS_NAME,
     get_model_aliases,
+    model_alias_config_source,
+    model_alias_description,
     model_alias_kind,
     model_alias_names,
     resolve_model_alias,
@@ -52,9 +54,15 @@ class AliasView:
         name: The bare alias name (no ``@`` marker).
         kind: ``default`` / ``role`` / ``provider_coder`` / ``user``.
         configured: ``True`` when ``name`` is an explicit
-            ``llm_provider.model_aliases`` entry (vs. an implicit special).
+            ``llm_provider.model_aliases`` or
+            ``llm_provider.custom_model_aliases`` entry (vs. an implicit
+            special).
         configured_value: The raw configured target string, or ``None`` for an
             implicit alias.
+        configured_source: The config map providing ``configured_value``, or
+            ``None`` for an implicit alias.
+        description: The fixed builtin or user-configured alias description, if
+            one is known.
         provider: The currently-effective provider name, or ``None`` when the
             target is a bare/unknown model that runs on the default provider.
         model: The currently-effective model name.
@@ -68,6 +76,8 @@ class AliasView:
     provider: str | None
     model: str
     override: TemporaryLLMOverride | None
+    configured_source: str | None = None
+    description: str | None = None
 
     @property
     def is_overridden(self) -> bool:
@@ -151,6 +161,8 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
                 provider=provider,
                 model=model,
                 override=override,
+                configured_source=model_alias_config_source(name),
+                description=model_alias_description(name),
             )
         )
 

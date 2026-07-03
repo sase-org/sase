@@ -330,10 +330,10 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "legacy": "@worker",
-                "typo": "@nope",
-                "ok_ref": "@default",
-                "ok_target": "claude/opus",
+                "coder": "@worker",
+                "phase_worker": "@nope",
+                "epic_creator": "@default",
+                "epic_lander": "claude/opus",
             }
         },
     )
@@ -342,12 +342,59 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
-    assert "model_aliases.legacy" in by_key
-    assert "retired" in by_key["model_aliases.legacy"]
-    assert "model_aliases.typo" in by_key
-    assert "unknown alias '@nope'" in by_key["model_aliases.typo"]
-    assert "model_aliases.ok_ref" not in by_key
-    assert "model_aliases.ok_target" not in by_key
+    assert "model_aliases.coder" in by_key
+    assert "retired" in by_key["model_aliases.coder"]
+    assert "model_aliases.phase_worker" in by_key
+    assert "unknown alias '@nope'" in by_key["model_aliases.phase_worker"]
+    assert "model_aliases.epic_creator" not in by_key
+    assert "model_aliases.epic_lander" not in by_key
+
+
+def test_model_aliases_warns_on_split_schema_misuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "blogger": "claude/haiku",
+                "shadow": "claude/haiku",
+            },
+            "custom_model_aliases": {
+                "coder": {
+                    "model": "claude/opus",
+                    "description": "Wrong location.",
+                },
+                "shadow": {
+                    "model": "claude/opus",
+                    "description": "Custom wins.",
+                },
+                "blank_description": {
+                    "model": "codex/o3",
+                    "description": " ",
+                },
+                "blank_model": {
+                    "model": "",
+                    "description": "No target.",
+                },
+            },
+        },
+    )
+
+    check = _check_config_model_aliases()
+
+    assert check.status == "WARN"
+    by_key = {row["key"]: row["message"] for row in check.data["problems"]}
+    assert "model_aliases.blogger" in by_key
+    assert "custom_model_aliases" in by_key["model_aliases.blogger"]
+    assert "custom_model_aliases.coder" in by_key
+    assert "builtin alias" in by_key["custom_model_aliases.coder"]
+    assert "model_aliases.shadow" in by_key
+    assert (
+        "both model_aliases and custom_model_aliases" in by_key["model_aliases.shadow"]
+    )
+    assert "custom_model_aliases.blank_description.description" in by_key
+    assert "custom_model_aliases.blank_model.model" in by_key
 
 
 def test_model_aliases_ok_when_config_is_clean(
@@ -355,7 +402,15 @@ def test_model_aliases_ok_when_config_is_clean(
 ) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
-        lambda: {"model_aliases": {"coder": "@default", "big": "claude/opus"}},
+        lambda: {
+            "model_aliases": {"coder": "@default"},
+            "custom_model_aliases": {
+                "big": {
+                    "model": "claude/opus",
+                    "description": "Large review agents.",
+                }
+            },
+        },
     )
 
     check = _check_config_model_aliases()

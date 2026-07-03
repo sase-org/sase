@@ -43,6 +43,8 @@ def _view(
     provider: str | None = "claude",
     model: str = "opus",
     override: TemporaryLLMOverride | None = None,
+    configured_source: str | None = None,
+    description: str | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -52,12 +54,20 @@ def _view(
         provider=provider,
         model=model,
         override=override,
+        configured_source=configured_source,
+        description=description,
     )
 
 
 def _calm_views() -> list[AliasView]:
     return [
-        _view("default", "default", provider="claude", model="opus"),
+        _view(
+            "default",
+            "default",
+            provider="claude",
+            model="opus",
+            description="Model used when a prompt has no %model directive.",
+        ),
         _view(
             "coder",
             "role",
@@ -91,6 +101,17 @@ def _calm_views() -> list[AliasView]:
             configured_value="claude/haiku",
             provider="claude",
             model="haiku",
+            configured_source="custom_model_aliases",
+            description="Quick low-cost follow-up agents.",
+        ),
+        _view(
+            "legacy_blog",
+            "user",
+            configured=True,
+            configured_value="codex/o3",
+            provider="codex",
+            model="o3",
+            configured_source="model_aliases",
         ),
     ]
 

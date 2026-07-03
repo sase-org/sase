@@ -18,6 +18,8 @@ from sase.llm_provider.config import (
     PHASE_WORKER_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
     get_model_aliases,
+    model_alias_config_source,
+    model_alias_description,
 )
 from sase.llm_provider.registry import get_llm_metadata_payload
 
@@ -166,11 +168,16 @@ def _build_model_completion_catalog() -> list[_ModelCompletionEntry]:
     for alias, target in sorted(user_aliases.items()):
         if alias in seen:
             continue
+        description = f"alias for {target}"
+        if model_alias_config_source(alias) == "custom_model_aliases":
+            configured_description = model_alias_description(alias)
+            if configured_description:
+                description = f"{configured_description} (alias for {target})"
         _append_alias_entry(
             entries,
             seen,
             value=alias,
-            description=f"alias for {target}",
+            description=description,
             kind="user_alias",
         )
 

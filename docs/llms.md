@@ -550,17 +550,22 @@ llm_provider:
     default: opus # model used when a prompt has no %model directive
     claude_coder: codex/gpt-5.5 # coder follow-ups from Claude-authored plans
     codex_coder: claude/opus # coder follow-ups from Codex-authored plans
+  custom_model_aliases:
+    blogger:
+      model: claude/opus
+      description: Agents that draft and edit blog posts.
 ```
 
 ### Config Fields
 
-| Field                               | Type   | Default     | Description                                                                                                                                                                                                                                                                                                         |
-| ----------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                                                                                                                            |
-| `llm_provider.default_effort`       | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                          |
-| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                               |
-| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                               |
-| `llm_provider.model_aliases`        | dict   | -           | Model aliases for `%model:@<alias>` / `%m:@<alias>`, plus overrides for the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`). Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
+| Field                               | Type   | Default     | Description                                                                                                                                                                                                                                    |
+| ----------------------------------- | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`             | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                                                       |
+| `llm_provider.default_effort`       | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                     |
+| `llm_provider.model_tier_map.large` | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                          |
+| `llm_provider.model_tier_map.small` | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                          |
+| `llm_provider.model_aliases`        | dict   | -           | Builtin alias overrides only (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`). Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
+| `llm_provider.custom_model_aliases` | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; descriptions are shown in completions and the Models panel.                                                |
 
 ## Per-Prompt Provider Switching
 
@@ -570,14 +575,24 @@ model metadata.
 
 ### Configured Model Aliases
 
-Use `llm_provider.model_aliases` to define launch-time aliases for reusable prompts and to override the implicit role
-aliases (see below):
+Use `llm_provider.custom_model_aliases` to define launch-time aliases for reusable prompts. Each custom alias must carry
+a short description:
+
+```yaml
+llm_provider:
+  custom_model_aliases:
+    fast:
+      model: claude/sonnet
+      description: Quick follow-up agents.
+```
+
+Use `llm_provider.model_aliases` only to override the implicit role aliases (see below):
 
 ```yaml
 llm_provider:
   model_aliases:
-    fast: claude/sonnet
     default: opus
+    coder: "@default"
 ```
 
 Then prompts can use the alias with a leading `@`:
@@ -591,8 +606,14 @@ Alias values may point at another alias (for example `@default` or `@coder`), a 
 explicit provider/model string such as `claude/opus`, or a nested provider-local path such as
 `opencode/anthropic/claude-sonnet-4-5`. Alias-to-alias chains are followed with cycle and depth protection; a cyclic or
 unresolved reference falls back to the raw input rather than crashing a launch. The `@` marker is only directive surface
-syntax: `model_aliases` keys and xprompt values stay bare. A bare configured/implicit alias raises with a migration
-hint, and `@` in front of a non-alias raises.
+syntax: alias keys and xprompt values stay bare. A bare configured/implicit alias raises with a migration hint, and `@`
+in front of a non-alias raises.
+
+When the same name appears in both maps, `custom_model_aliases` wins. `sase doctor -C config.model_aliases` warns about
+legacy custom keys in `model_aliases`, builtin names in `custom_model_aliases`, collisions between the two maps, missing
+custom descriptions/models, and dangling `@alias` references. In ACE, the Models panel shows a "no description" hint for
+legacy user aliases; press `d` on that row to write a described `custom_model_aliases.<name>` entry through the normal
+preview/confirm flow.
 
 A bare `%model` token that is _not_ a configured alias, an explicit `provider/model` target, or a known provider model
 silently falls back to the default provider rather than erroring. To catch this drift — for example a removed
@@ -797,6 +818,10 @@ choices, and per-bead/land model metadata always win over the role-alias default
 In addition to the tier-based global override, sase supports **concrete** provider/model overrides that act as
 temporary, time-bound overrides of a model alias. The ACE `,m` chord opens the [**Models** panel](ace.md#models-panel)
 for setting, changing, and clearing these overrides — for the `default` alias or any role/user alias.
+
+The panel also shows a two-line description for the highlighted alias. Builtin aliases have fixed descriptions, and
+custom aliases read `llm_provider.custom_model_aliases.<name>.description`. Press `d` on a user alias to add or edit
+that description.
 
 Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
 for new agent launches; an override on any other alias takes effect wherever that alias is resolved (e.g. `@coder`,

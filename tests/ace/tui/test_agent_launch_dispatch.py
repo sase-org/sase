@@ -170,7 +170,7 @@ def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
         ),
         patch("sase.history.prompt.add_or_update_prompt") as save_history,
         patch(
-            "sase.ace.tui.actions.agent_workflow._launch_body."
+            "sase.ace.tui.actions.agent_workflow._launch_body_impl."
             "record_prompt_file_references"
         ) as record_file_refs,
     ):

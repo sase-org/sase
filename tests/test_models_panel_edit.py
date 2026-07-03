@@ -53,6 +53,8 @@ def _view(
     provider: str | None = "claude",
     model: str = "opus",
     override: TemporaryLLMOverride | None = None,
+    configured_source: str | None = None,
+    description: str | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -62,6 +64,8 @@ def _view(
         provider=provider,
         model=model,
         override=override,
+        configured_source=configured_source,
+        description=description,
     )
 
 
@@ -149,7 +153,8 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
 
 
 async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("coder", "role")])
+    view = _view("coder", "role")
+    _patch_views(monkeypatch, [view])
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
     )
@@ -158,7 +163,7 @@ async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) 
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_edit_alias = "coder"
+        panel._pending_edit_view = view
         panel._on_edit_model_picked("opus")
         await pilot.pause()
         screen = pilot.app.screen
@@ -168,7 +173,8 @@ async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) 
 
 
 async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("coder", "role")])
+    view = _view("coder", "role")
+    _patch_views(monkeypatch, [view])
     monkeypatch.setattr(
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
     )
@@ -177,7 +183,7 @@ async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> Non
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        panel._pending_edit_alias = "coder"
+        panel._pending_edit_view = view
         panel._on_edit_model_picked(CUSTOM_SENTINEL)
         await pilot.pause()
         assert isinstance(pilot.app.screen, CustomModelInputModal)
@@ -240,6 +246,170 @@ async def test_action_reset_configured_opens_preview_with_unset(
         screen = pilot.app.screen
         assert isinstance(screen, AliasEditPreviewModal)
         assert screen._op.kind == "unset"
+
+
+async def test_action_edit_custom_alias_routes_to_custom_model_path(
+    monkeypatch: Any,
+) -> None:
+    view = _view(
+        "blogger",
+        "user",
+        configured=True,
+        configured_value="claude/haiku",
+        configured_source="custom_model_aliases",
+    )
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = view
+        panel._on_edit_model_picked("claude/opus")
+        await pilot.pause()
+        screen = pilot.app.screen
+        assert isinstance(screen, AliasEditPreviewModal)
+        assert screen._path == "llm_provider.custom_model_aliases.blogger.model"
+
+
+async def test_action_reset_custom_alias_deletes_custom_entry(
+    monkeypatch: Any,
+) -> None:
+    _patch_views(
+        monkeypatch,
+        [
+            _view(
+                "blogger",
+                "user",
+                configured=True,
+                configured_value="claude/opus",
+                configured_source="custom_model_aliases",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan(op="unset")
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.action_reset()
+        await pilot.pause()
+        screen = pilot.app.screen
+        assert isinstance(screen, AliasEditPreviewModal)
+        assert screen._path == "llm_provider.custom_model_aliases.blogger"
+        assert screen._reset_deletes_alias is True
+
+
+# ---------------------------------------------------------------------------
+# Panel — Describe
+# ---------------------------------------------------------------------------
+
+
+async def test_action_describe_builtin_alias_notifies(monkeypatch: Any) -> None:
+    _patch_views(monkeypatch, [_view("coder", "role", description="Fixed.")])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel.action_describe()
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        panel.notify.assert_called_once()
+
+
+async def test_action_describe_custom_alias_opens_prefilled_input(
+    monkeypatch: Any,
+) -> None:
+    _patch_views(
+        monkeypatch,
+        [
+            _view(
+                "blogger",
+                "user",
+                configured=True,
+                configured_source="custom_model_aliases",
+                description="Draft posts.",
+            )
+        ],
+    )
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(ModelsPanel())
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        screen = pilot.app.screen
+        assert isinstance(screen, CustomModelInputModal)
+        assert screen._initial_value == "Draft posts."
+
+
+async def test_describe_existing_custom_alias_routes_to_description_field(
+    monkeypatch: Any,
+) -> None:
+    view = _view(
+        "blogger",
+        "user",
+        configured=True,
+        configured_value="claude/opus",
+        configured_source="custom_model_aliases",
+        description="Draft posts.",
+    )
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_describe_view = view
+        panel._on_description_picked("Draft and edit blog posts.")
+        await pilot.pause()
+        screen = pilot.app.screen
+        assert isinstance(screen, AliasEditPreviewModal)
+        assert screen._path == "llm_provider.custom_model_aliases.blogger.description"
+        assert screen._op.value == "Draft and edit blog posts."
+        assert screen._action_label == "Describe"
+
+
+async def test_describe_legacy_alias_routes_to_whole_custom_entry(
+    monkeypatch: Any,
+) -> None:
+    view = _view(
+        "legacy",
+        "user",
+        configured=True,
+        configured_value="codex/o3",
+        configured_source="model_aliases",
+    )
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_describe_view = view
+        panel._on_description_picked("Research follow-ups.")
+        await pilot.pause()
+        screen = pilot.app.screen
+        assert isinstance(screen, AliasEditPreviewModal)
+        assert screen._path == "llm_provider.custom_model_aliases.legacy"
+        assert screen._op.value == {
+            "model": "codex/o3",
+            "description": "Research follow-ups.",
+        }
 
 
 # ---------------------------------------------------------------------------
