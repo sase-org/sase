@@ -19,6 +19,7 @@ class ToolCallEntry:
     tool_name: str | None = None
     tool_use_id: str | None = None
     duration_ms: int | None = None
+    completed_at: str | None = None
     tool_input_summary: Mapping[str, Any] = field(default_factory=dict)
     tool_response_summary: Mapping[str, Any] = field(default_factory=dict)
     session_id: str | None = None

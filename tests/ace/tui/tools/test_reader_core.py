@@ -91,6 +91,7 @@ def test_read_tool_calls_for_agent_collapses_v2_use_result_pairs(
     assert entry.status == "success"
     assert entry.tool_input_summary["command"] == "echo hi"
     assert entry.tool_response_summary["stdout_preview"] == "hi\n"
+    assert entry.completed_at == "2026-05-14T14:00:01+00:00"
 
 
 def test_read_tool_calls_for_agent_collapses_gemini_stream_pairs(

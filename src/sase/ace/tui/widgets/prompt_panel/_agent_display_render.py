@@ -377,6 +377,9 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
 
     def show_empty(self) -> None:
         """Show empty state."""
+        cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
+        if callable(cancel_slow_tick):
+            cancel_slow_tick()
         current_worker = getattr(self, "_agent_bead_display_worker", None)
         if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()

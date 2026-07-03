@@ -15,8 +15,10 @@ from sase.ace.tui import memory_reads as memory_reads_module
 from sase.ace.tui import opened_workspaces as opened_workspaces_module
 from sase.ace.tui import skill_uses as skill_uses_module
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    DetailHeaderSummary,
     build_detail_header_summary,
     build_header_text,
 )
@@ -187,6 +189,22 @@ def _skill_event(
     )
 
 
+def _tool_entry(**overrides: object) -> ToolCallEntry:
+    kwargs = {
+        "recorded_at": "2026-07-03T14:00:00+00:00",
+        "runtime": "codex",
+        "event": "ToolUse",
+        "status": "success",
+        "tool_name": "Bash",
+        "tool_use_id": "call_1",
+        "duration_ms": 30_000,
+        "tool_input_summary": {"command": "just test"},
+        "tool_response_summary": {"exit_code": 0},
+    }
+    kwargs.update(overrides)
+    return ToolCallEntry(**kwargs)  # type: ignore[arg-type]
+
+
 def test_header_renders_workflow_variables_before_agent_context(
     tmp_path: Path,
 ) -> None:
@@ -308,6 +326,38 @@ def test_cheap_header_omits_agent_context(tmp_path: Path) -> None:
     assert "▸ MEMORY" not in header.plain
     assert "▸ SKILLS" not in header.plain
     assert "▸ WORKSPACES" not in header.plain
+
+
+def test_full_header_renders_slow_tool_calls_before_error(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    agent = _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
+    agent.error_message = "boom"
+    summary = DetailHeaderSummary(slow_tool_candidates=(_tool_entry(),))
+
+    header, _ = build_header_text(agent, summary=summary)
+    plain = header.plain
+
+    assert "SLOW TOOL CALLS · ≥20s · 1 call" in plain
+    assert "✔ Bash" in plain
+    assert "just test" in plain
+    assert plain.index("SLOW TOOL CALLS") < plain.index("ERROR")
+    _assert_dim_divider_before(header, "SLOW TOOL CALLS")
+
+
+def test_cheap_header_omits_slow_tool_calls_even_with_summary(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    agent = _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
+    summary = DetailHeaderSummary(slow_tool_candidates=(_tool_entry(),))
+
+    header, _ = build_header_text(agent, cheap=True, summary=summary)
+
+    assert "SLOW TOOL CALLS" not in header.plain
 
 
 def test_no_events_omits_agent_context_section(tmp_path: Path) -> None:

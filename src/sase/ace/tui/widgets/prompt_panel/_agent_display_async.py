@@ -374,6 +374,9 @@ class AgentDisplayWorkerMixin:
         summary = cast(Any, worker.result)
         cache_detail_header_summary(self, request.agent, summary)
         self._update_display_impl(request.agent)  # type: ignore[attr-defined]
+        configure_slow_tick = getattr(self, "_configure_slow_tool_render_tick", None)
+        if callable(configure_slow_tick):
+            configure_slow_tick(request.agent)
 
     def _apply_agent_linked_delta_worker_result(
         self, worker: Worker[Any], state: WorkerState

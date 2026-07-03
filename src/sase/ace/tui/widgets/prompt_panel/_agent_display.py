@@ -38,6 +38,16 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             self._start_agent_detail_header_enrichment_from_context(agent)
             self._start_agent_linked_delta_refresh_from_context(agent)
             self._start_agent_bead_display_resolve_from_context(agent)
+            configure_slow_tick = getattr(
+                self, "_configure_slow_tool_render_tick", None
+            )
+            if callable(configure_slow_tick):
+                configure_slow_tick(agent)
+
+    def refresh_slow_tool_metadata_from_cache(self, agent: Agent) -> None:
+        """Re-render from cached header/tool data for the slow-tool tick."""
+        with tui_trace("widget.prompt_panel.refresh_slow_tool_metadata_from_cache"):
+            self._update_display_impl(agent)
 
     def update_header_only(self, agent: Agent) -> None:
         """Render only the agent-details header + inline error traceback.
@@ -49,6 +59,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         prompt body, reply, tools, and file content shortly after.
         """
         with tui_trace("widget.prompt_panel.update_header_only"):
+            cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
+            if callable(cancel_slow_tick):
+                cancel_slow_tick()
             self._cancel_agent_bead_display_worker_for_selection_change(agent)
             self._cancel_agent_linked_delta_worker_for_selection_change(agent)
             self._cancel_agent_detail_header_worker_for_selection_change(agent)

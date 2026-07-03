@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import time
-from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 from rich.text import Text
@@ -15,12 +13,25 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.tools import ToolCallEntry, read_tool_calls_for_agent
+from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from sase.ace.tui.tools.cache import (
+    ToolsCacheEntry,
+    fetch_tool_calls_cached,
+    get_cache_key,
+    invalidate_cached_tool_calls,
+    mark_tool_call_fetch_started,
+    peek_tool_calls_cache_entry,
+    should_throttle_tool_call_fetch,
+    tools_cache,
+)
+from sase.ace.tui.tools.slow import format_long_duration
 from sase.core.time import get_timezone
 
 from ..util.trace import tui_trace
 
-_MIN_REREAD_INTERVAL_S = 0.5
+_ToolsCacheEntry = ToolsCacheEntry
+_tools_cache = tools_cache
 
 
 class ToolsVisibilityChanged(Message):
@@ -29,53 +40,6 @@ class ToolsVisibilityChanged(Message):
     def __init__(self, has_tools: bool) -> None:
         super().__init__()
         self.has_tools = has_tools
-
-
-@dataclass
-class _ToolsCacheEntry:
-    """Cache entry for agent tool-call records."""
-
-    entries: list[ToolCallEntry] | None
-    fetch_time: datetime
-    artifact_mtime_ns: int = 0
-    discovered_dirs: list[Path] = field(default_factory=list)
-    parent_mtime_ns: int = 0
-    last_worker_monotonic: float = 0.0
-
-
-_tools_cache: dict[str, _ToolsCacheEntry] = {}
-
-
-def _max_mtime_ns_for_paths(paths: list[Path]) -> int:
-    latest = 0
-    for path in paths:
-        try:
-            stat_result = path.stat()
-        except OSError:
-            continue
-        if stat_result.st_mtime_ns > latest:
-            latest = stat_result.st_mtime_ns
-    return latest
-
-
-def _resolve_artifacts_dir(agent: Agent) -> str | Path | None:
-    get_artifacts_dir = getattr(agent, "get_artifacts_dir", None)
-    if not callable(get_artifacts_dir):
-        return None
-    artifacts_dir = get_artifacts_dir()
-    if not isinstance(artifacts_dir, (str, Path)) or not artifacts_dir:
-        return None
-    return artifacts_dir
-
-
-def get_cache_key(agent: Agent) -> str:
-    """Generate a unique cache key for an agent's tool-call output."""
-    parts = [agent.cl_name, agent.agent_type.value]
-    if agent.workspace_num is not None:
-        parts.append(str(agent.workspace_num))
-    if agent.raw_suffix:
-        parts.append(agent.raw_suffix)
-    return ":".join(parts)
 
 
 def _format_timestamp(iso_str: str) -> str:
@@ -92,6 +56,8 @@ def _format_timestamp(iso_str: str) -> str:
 def _format_duration(duration_ms: int | None) -> str:
     if duration_ms is None:
         return ""
+    if duration_ms >= SLOW_TOOL_CALL_THRESHOLD_MS:
+        return format_long_duration(duration_ms)
     if duration_ms < 1000:
         return f"{duration_ms}ms"
     seconds = duration_ms / 1000
@@ -130,7 +96,7 @@ def _append_bounded(
 
 
 def _build_tools_timeline_text(
-    entries: list[ToolCallEntry] | None,
+    entries: Sequence[ToolCallEntry] | None,
     fetch_time: datetime,
     *,
     is_stale: bool = False,
@@ -171,7 +137,13 @@ def _build_tools_timeline_text(
         duration = _format_duration(entry.duration_ms)
         if duration:
             output.append("  ")
-            output.append(duration, style="dim")
+            style = (
+                "bold #FFAF5F"
+                if entry.duration_ms is not None
+                and entry.duration_ms >= SLOW_TOOL_CALL_THRESHOLD_MS
+                else "dim"
+            )
+            output.append(duration, style=style)
 
         detail = entry.detail
         if detail:
@@ -183,7 +155,7 @@ def _build_tools_timeline_text(
 
 
 def _build_tools_timeline_markdown(
-    entries: list[ToolCallEntry] | None,
+    entries: Sequence[ToolCallEntry] | None,
     fetch_time: datetime,
 ) -> str | None:
     """Build a plain markdown rendering for editor/export actions."""
@@ -221,9 +193,9 @@ class AgentToolsPanel(Static):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._current_agent: Agent | None = None
-        self._current_worker: Worker[list[ToolCallEntry] | None] | None = None
+        self._current_worker: Worker[tuple[ToolCallEntry, ...] | None] | None = None
         self._has_displayed_content: bool = False
-        self._last_entries: list[ToolCallEntry] | None = None
+        self._last_entries: tuple[ToolCallEntry, ...] | None = None
         self._last_fetch_time: datetime | None = None
         self._is_background_refreshing: bool = False
 
@@ -239,8 +211,7 @@ class AgentToolsPanel(Static):
     ) -> None:
         del stale_threshold_seconds  # freshness now checked inside the worker
         self._current_agent = agent
-        cache_key = get_cache_key(agent)
-        cache_entry = _tools_cache.get(cache_key)
+        cache_entry = peek_tool_calls_cache_entry(agent)
 
         if cache_entry is not None:
             self._display_tools_with_timestamp(
@@ -251,20 +222,15 @@ class AgentToolsPanel(Static):
         else:
             self._show_loading()
 
-        if (
-            cache_entry is not None
-            and (time.monotonic() - cache_entry.last_worker_monotonic)
-            < _MIN_REREAD_INTERVAL_S
-        ):
+        if should_throttle_tool_call_fetch(agent):
             return
 
         if self._current_worker is not None and self._current_worker.is_running:
             return
 
-        if cache_entry is not None:
-            cache_entry.last_worker_monotonic = time.monotonic()
+        mark_tool_call_fetch_started(agent)
 
-        def fetch_task() -> list[ToolCallEntry] | None:
+        def fetch_task() -> tuple[ToolCallEntry, ...] | None:
             return self._fetch_tools_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
@@ -272,8 +238,7 @@ class AgentToolsPanel(Static):
     def refresh_tools(self, agent: Agent) -> None:
         """Force refresh tool-call records for an agent."""
         self._current_agent = agent
-        cache_key = get_cache_key(agent)
-        cache_entry = _tools_cache.get(cache_key)
+        cache_entry = peek_tool_calls_cache_entry(agent)
 
         if cache_entry is not None:
             self._is_background_refreshing = True
@@ -284,15 +249,14 @@ class AgentToolsPanel(Static):
                 is_stale=True,
             )
             # Force a re-read by invalidating the mtime watermark.
-            cache_entry.artifact_mtime_ns = 0
-            cache_entry.last_worker_monotonic = time.monotonic()
+            invalidate_cached_tool_calls(agent)
         else:
             self._show_loading()
 
         if self._current_worker is not None and self._current_worker.is_running:
             self._current_worker.cancel()
 
-        def fetch_task() -> list[ToolCallEntry] | None:
+        def fetch_task() -> tuple[ToolCallEntry, ...] | None:
             return self._fetch_tools_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
@@ -335,7 +299,7 @@ class AgentToolsPanel(Static):
 
     def _display_tools_with_timestamp(
         self,
-        entries: list[ToolCallEntry] | None,
+        entries: tuple[ToolCallEntry, ...] | None,
         fetch_time: datetime,
         *,
         post_visibility_message: bool = True,
@@ -350,55 +314,10 @@ class AgentToolsPanel(Static):
         self.update(_build_tools_timeline_text(entries, fetch_time, is_stale=is_stale))
         self._has_displayed_content = True
 
-    def _fetch_tools_in_background(self, agent: Agent) -> list[ToolCallEntry] | None:
-        from sase.ace.tui.tools.reader import (
-            TOOL_CALLS_FILENAME,
-            discover_related_tool_artifact_dirs_cached,
-        )
-
-        cache_key = get_cache_key(agent)
-        prior = _tools_cache.get(cache_key)
-        artifacts_dir = _resolve_artifacts_dir(agent)
-
-        if artifacts_dir is None:
-            entries = read_tool_calls_for_agent(agent)
-            _tools_cache[cache_key] = _ToolsCacheEntry(
-                entries=entries,
-                fetch_time=datetime.now(),
-                last_worker_monotonic=time.monotonic(),
-            )
-            return entries
-
-        cached_dirs = prior.discovered_dirs if prior is not None else None
-        cached_parent_mtime_ns = prior.parent_mtime_ns if prior is not None else 0
-        dirs, parent_mtime_ns = discover_related_tool_artifact_dirs_cached(
-            agent,
-            artifacts_dir,
-            cached_dirs=cached_dirs,
-            cached_parent_mtime_ns=cached_parent_mtime_ns,
-        )
-        tool_call_paths = [directory / TOOL_CALLS_FILENAME for directory in dirs]
-        current_mtime = _max_mtime_ns_for_paths(tool_call_paths)
-
-        if (
-            prior is not None
-            and prior.artifact_mtime_ns
-            and current_mtime == prior.artifact_mtime_ns
-        ):
-            prior.discovered_dirs = dirs
-            prior.parent_mtime_ns = parent_mtime_ns
-            return prior.entries
-
-        entries = read_tool_calls_for_agent(agent, artifact_dirs=dirs)
-        _tools_cache[cache_key] = _ToolsCacheEntry(
-            entries=entries,
-            fetch_time=datetime.now(),
-            artifact_mtime_ns=current_mtime,
-            discovered_dirs=dirs,
-            parent_mtime_ns=parent_mtime_ns,
-            last_worker_monotonic=time.monotonic(),
-        )
-        return entries
+    def _fetch_tools_in_background(
+        self, agent: Agent
+    ) -> tuple[ToolCallEntry, ...] | None:
+        return fetch_tool_calls_cached(agent)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
@@ -409,9 +328,8 @@ class AgentToolsPanel(Static):
 
         if event.state == WorkerState.SUCCESS:
             if self._current_agent:
-                cache_key = get_cache_key(self._current_agent)
-                if cache_key in _tools_cache:
-                    cache_entry = _tools_cache[cache_key]
+                cache_entry = peek_tool_calls_cache_entry(self._current_agent)
+                if cache_entry is not None:
                     scroll_pos = self._save_scroll_position()
                     self._display_tools_with_timestamp(
                         cache_entry.entries,
@@ -427,3 +345,14 @@ class AgentToolsPanel(Static):
             self.update(text)
         elif event.state == WorkerState.CANCELLED:
             pass
+
+
+__all__ = [
+    "AgentToolsPanel",
+    "ToolsVisibilityChanged",
+    "_ToolsCacheEntry",
+    "_build_tools_timeline_markdown",
+    "_build_tools_timeline_text",
+    "_tools_cache",
+    "get_cache_key",
+]

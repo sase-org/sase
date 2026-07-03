@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sase.ace.changespec.models import DeltaEntry
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
+from sase.ace.tui.tools import ToolCallEntry
 
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._agent_artifacts import AgentArtifactPath
@@ -35,3 +37,5 @@ class DetailHeaderSummary:
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
+    slow_tool_candidates: tuple[ToolCallEntry, ...] | None = None
+    slow_tool_end_reference: datetime | None = None

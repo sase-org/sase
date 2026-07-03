@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime as DateTime
 from pathlib import Path
 
 from rich.syntax import Syntax
@@ -405,6 +406,17 @@ def build_header_text(
             memory_reads=summary.memory_reads,
             skill_uses=summary.skill_uses,
             opened_workspaces=summary.opened_workspaces,
+        )
+
+    if not cheap and summary is not None:
+        from ._agent_slow_tools import append_slow_tool_calls_section
+
+        append_slow_tool_calls_section(
+            header_text,
+            candidates=summary.slow_tool_candidates,
+            agent=agent,
+            now=DateTime.now(),
+            agent_end_reference=summary.slow_tool_end_reference,
         )
 
     # Error message (for failed agents)

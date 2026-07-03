@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.tools import ToolCallEntry, read_tool_calls_for_agent
+from sase.ace.tui.tools.cache import fetch_tool_calls_cached
 from sase.ace.tui.tools.reader import TOOL_CALLS_FILENAME
 from sase.ace.tui.widgets import tools_panel as tools_panel_mod
 from sase.ace.tui.widgets.tools_panel import (
@@ -372,11 +373,11 @@ def test_tools_panel_worker_reuses_discovered_dirs_for_reread(
 
     with (
         patch(
-            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs_cached",
+            "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
             return_value=([root_dir, retry_dir], 3),
         ),
         patch(
-            "sase.ace.tui.widgets.tools_panel.read_tool_calls_for_agent",
+            "sase.ace.tui.tools.cache.read_tool_calls_for_agent",
             return_value=[],
         ) as read_mock,
     ):
@@ -386,8 +387,46 @@ def test_tools_panel_worker_reuses_discovered_dirs_for_reread(
         finally:
             tools_panel_mod._tools_cache.pop(cache_key, None)
 
-    assert entries == []
+    assert entries == ()
     read_mock.assert_called_once_with(agent, artifact_dirs=[root_dir, retry_dir])
+
+
+def test_tools_panel_and_header_fetch_share_cache_entry(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    artifacts_dir.mkdir(parents=True)
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="proj",
+        project_file="/tmp/proj/proj.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(artifacts_dir),
+        raw_suffix=artifacts_dir.name,
+    )
+    cache_key = get_cache_key(agent)
+    tools_panel_mod._tools_cache.pop(cache_key, None)
+    expected_entries = [_entry(tool_use_id="shared-cache")]
+
+    with (
+        patch(
+            "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+            return_value=([artifacts_dir], 123),
+        ),
+        patch("sase.ace.tui.tools.cache._max_mtime_ns_for_paths", return_value=456),
+        patch(
+            "sase.ace.tui.tools.cache.read_tool_calls_for_agent",
+            return_value=expected_entries,
+        ) as read_mock,
+    ):
+        try:
+            header_entries = fetch_tool_calls_cached(agent)
+            panel_entries = _build_panel()._fetch_tools_in_background(agent)
+        finally:
+            tools_panel_mod._tools_cache.pop(cache_key, None)
+
+    assert header_entries == tuple(expected_entries)
+    assert panel_entries == tuple(expected_entries)
+    read_mock.assert_called_once_with(agent, artifact_dirs=[artifacts_dir])
 
 
 def _build_panel() -> AgentToolsPanel:
@@ -483,10 +522,8 @@ def test_cold_update_display_defers_missing_artifact_reads_to_worker(
     tools_panel_mod._tools_cache.pop(cache_key, None)
 
     with (
-        patch(
-            "sase.ace.tui.widgets.tools_panel.read_tool_calls_for_agent"
-        ) as read_mock,
-        patch("sase.ace.tui.widgets.tools_panel._max_mtime_ns_for_paths") as mtime_mock,
+        patch("sase.ace.tui.tools.cache.read_tool_calls_for_agent") as read_mock,
+        patch("sase.ace.tui.tools.cache._max_mtime_ns_for_paths") as mtime_mock,
         patch(
             "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs"
         ) as discover_mock,
@@ -542,10 +579,8 @@ def test_refresh_tools_defers_forced_codex_reread_to_worker(
     )
 
     with (
-        patch(
-            "sase.ace.tui.widgets.tools_panel.read_tool_calls_for_agent"
-        ) as read_mock,
-        patch("sase.ace.tui.widgets.tools_panel._max_mtime_ns_for_paths") as mtime_mock,
+        patch("sase.ace.tui.tools.cache.read_tool_calls_for_agent") as read_mock,
+        patch("sase.ace.tui.tools.cache._max_mtime_ns_for_paths") as mtime_mock,
     ):
         try:
             panel = _build_panel()
