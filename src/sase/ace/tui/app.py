@@ -218,7 +218,9 @@ class AceApp(
             initial_tab: Tab to focus on startup ("changespecs", "agents", or "axe")
         """
         super().__init__()
-        self.title = f"sase ace (PID: {os.getpid()})"
+        from .util.app_version import format_app_title, initial_app_version
+
+        self.title = format_app_title(initial_app_version())
         self._jk_perf = JKPerfTimer() if _perf_enabled() else None
         self._init_app_state(
             query=query,

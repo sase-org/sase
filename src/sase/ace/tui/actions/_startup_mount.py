@@ -119,6 +119,22 @@ class StartupMountMixin:
                 self._refresh_timer = self.set_interval(
                     self.refresh_interval, auto_refresh, name="auto-refresh"
                 )
+
+            # Best-effort title refinement. Runs last (after first paint is
+            # already scheduled) and off-thread because resolving a
+            # git-derived dev version blocks on git subprocesses for editable
+            # installs. Wheel installs typically resolve to the same string
+            # and see no visible change; a ``None`` result keeps the instant
+            # ``__version__``-based title from ``__init__``.
+            from ..util.app_version import (
+                format_app_title,
+                initial_app_version,
+                resolved_app_version,
+            )
+
+            version = await asyncio.to_thread(resolved_app_version)
+            if version and version != initial_app_version():
+                self.title = format_app_title(version)
         finally:
             self._mounting = False
 

@@ -1,5 +1,6 @@
 """Runtime version inventory helpers for ``sase version``."""
 
+from sase.version._host import host_display_version
 from sase.version.inventory import (
     GitProbeResult,
     GitVersionMetadata,
@@ -19,5 +20,6 @@ __all__ = [
     "collect_package_record",
     "collect_runtime_version_inventory",
     "derive_display_version",
+    "host_display_version",
     "probe_git_metadata",
 ]
