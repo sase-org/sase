@@ -562,11 +562,14 @@ async def test_plugins_pane_update_unknown_toasts(
         assert severity == "error"
 
 
-async def test_plugins_pane_update_confirm_executes_and_refreshes(
+async def test_plugins_pane_update_confirm_executes_and_writes_receipt(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     _patch_other_panes(monkeypatch)
     calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
     plan = _update_ready(("github",))
     monkeypatch.setattr(
         pbp,
@@ -614,6 +617,13 @@ async def test_plugins_pane_update_confirm_executes_and_refreshes(
         assert not executed[0].all_plugins
         assert restart_calls == [True]
         assert calls  # initial load happened
+        receipt = update_receipt.read_and_clear_pending_update_toast()
+        assert receipt is not None
+        assert receipt.primary is None
+        assert receipt.plugins
+        assert receipt.plugins[0].name == "sase-github"
+        assert receipt.plugins[0].old == "1.2.0"
+        assert receipt.plugins[0].new == "1.3.0"
 
 
 async def test_plugins_pane_editable_update_uses_dev_preview_and_restart(

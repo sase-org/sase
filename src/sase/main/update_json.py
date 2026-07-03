@@ -90,7 +90,7 @@ def combined_result_json(
         "dev": _dev_result_json(dev_plan, dev_result)
         if dev_result is not None or dev_plan is not None
         else None,
-        "restart": _restart_json(restart),
+        "restart": restart_info_json(restart),
     }
 
 
@@ -237,7 +237,7 @@ def _combined_package_json(
     return packages
 
 
-def _restart_json(restart: RestartInfo) -> dict[str, Any]:
+def restart_info_json(restart: RestartInfo) -> dict[str, Any]:
     return {
         "attempted": restart.attempted,
         "status": restart.status,
@@ -245,3 +245,6 @@ def _restart_json(restart: RestartInfo) -> dict[str, Any]:
         "message": restart.message,
         "reason": restart.reason,
     }
+
+
+_restart_json = restart_info_json

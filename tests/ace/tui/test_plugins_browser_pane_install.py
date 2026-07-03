@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.plugin_action_confirm_modal import (
@@ -126,11 +127,14 @@ async def test_plugins_pane_install_not_found_toasts(
         assert severity == "error"
 
 
-async def test_plugins_pane_install_confirm_executes_and_refreshes(
+async def test_plugins_pane_install_confirm_executes_and_restarts(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     _patch_other_panes(monkeypatch)
     calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
     monkeypatch.setattr(
         pbp, "_plan_install_preview", lambda name, *, offline: _ready_preview(name)
     )
@@ -155,6 +159,13 @@ async def test_plugins_pane_install_confirm_executes_and_refreshes(
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
         initial = len(calls)
+        messages = _spy_notify(monkeypatch, pane)
+        restart_calls: list[bool] = []
+        monkeypatch.setattr(
+            page.app,
+            "_restart_tui",
+            lambda *, restart_axe: restart_calls.append(restart_axe),
+        )
         _highlight(pane, "nvim")
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
         pane.action_install()
@@ -162,10 +173,60 @@ async def test_plugins_pane_install_confirm_executes_and_refreshes(
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()  # accept the default index variant
-        # The tracked task runs execute_install, then refreshes the catalog.
-        await page.wait_for(lambda _s: bool(executed) and len(calls) > initial)
+        # The tracked task runs execute_install, then restarts ACE + axe.
+        await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
         assert executed[0].spec.display_name == "nvim"
         assert executed[0].spec.source == "catalog"
+        assert restart_calls == [True]
+        assert len(calls) == initial
+        assert any("restarting ACE" in message for message, _severity in messages)
+        receipt = update_receipt.read_and_clear_pending_update_toast()
+        assert receipt is not None
+        assert receipt.plugins
+        assert receipt.plugins[0].name == "sase-nvim"
+        assert receipt.plugins[0].old is None
+        assert receipt.plugins[0].new == "2.0.0"
+
+
+async def test_plugins_pane_install_no_change_refreshes_without_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    monkeypatch.setattr(
+        pbp, "_plan_install_preview", lambda name, *, offline: _ready_preview(name)
+    )
+    executed: list[InstallReady] = []
+
+    def _fake_execute(plan: InstallReady, **_kw: object) -> InstallOutcome:
+        executed.append(plan)
+        return InstallOutcome(
+            plan=plan,
+            change_set=UvChangeSet(),
+            groups=(),
+            elapsed=0.1,
+        )
+
+    monkeypatch.setattr(pbp, "execute_install", _fake_execute)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        initial = len(calls)
+        restart_calls: list[bool] = []
+        monkeypatch.setattr(
+            page.app,
+            "_restart_tui",
+            lambda *, restart_axe: restart_calls.append(restart_axe),
+        )
+        _highlight(pane, "nvim")
+        await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
+        pane.action_install()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_confirm()
+
+        await page.wait_for(lambda _s: bool(executed) and len(calls) > initial)
+        assert restart_calls == []
 
 
 async def test_plugins_pane_install_git_variant_executed(

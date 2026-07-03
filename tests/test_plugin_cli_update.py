@@ -10,6 +10,7 @@ from typing import Any
 
 from rich.console import Console
 
+from sase.axe.process import AxeStartResult
 from sase.main.parser import create_parser
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.cli_update import (
@@ -189,6 +190,7 @@ def test_update_single_runs_upgrade_package_argv(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=_run,
         version_fn=_versions,
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -226,6 +228,7 @@ def test_update_resolves_short_name_from_receipt_without_catalog(
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
         version_fn=_versions,
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -253,6 +256,7 @@ requirements = [
             or parse_uv_output("- sase-acme==1.0\n+ sase-acme==1.1\n")
         ),
         version_fn=lambda _n: None,
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -268,6 +272,7 @@ def test_update_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
         version_fn=_versions,
+        axe_running_fn=lambda: False,
         clock=lambda: next(clock),
     )
     assert code == 0
@@ -285,6 +290,33 @@ def test_update_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
             "new_version": "0.4.0",
         }
     ]
+    assert payload["restart"]["status"] == "skipped_not_running"
+
+
+def test_update_restarts_axe_when_changed(tmp_path: Path) -> None:
+    restart_calls = 0
+
+    def _restart() -> AxeStartResult:
+        nonlocal restart_calls
+        restart_calls += 1
+        return AxeStartResult(status="started", pid=1357)
+
+    out = _console()
+    code = handle_plugin_update_command(
+        _args("github"),
+        console=out,
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
+        version_fn=_versions,
+        axe_running_fn=lambda: True,
+        restart_axe_fn=_restart,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    assert restart_calls == 1
+    assert "Axe restarted (pid 1357)" in _text(out)
 
 
 def test_update_noop_says_up_to_date(tmp_path: Path) -> None:
@@ -296,6 +328,9 @@ def test_update_noop_says_up_to_date(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output("Nothing to upgrade\n"),
         version_fn=_versions,
+        axe_running_fn=lambda: (_ for _ in ()).throw(
+            AssertionError("axe status must not be checked for a no-op update")
+        ),
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -322,6 +357,7 @@ def test_update_all_upgrades_every_injected_plugin(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=_run,
         version_fn=_versions,
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -349,6 +385,7 @@ def test_update_all_dedupes_duplicate_dev_receipt_plugins(tmp_path: Path) -> Non
         probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
         run_fn=_run,
         version_fn=_versions,
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0

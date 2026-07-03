@@ -112,7 +112,7 @@ def sase_update_success_message(summary: UpdateSummary, elapsed: float) -> str:
     return f"Updated {' + '.join(subjects)} in {humanize_duration(elapsed)}"
 
 
-def managed_update_changed(outcome: Any) -> bool:
+def _managed_update_changed(outcome: Any) -> bool:
     """Whether a managed update result changed any installed package."""
     changed = getattr(outcome, "changed", None)
     if isinstance(changed, bool):
@@ -332,6 +332,8 @@ class SaseUpdateActionsMixin:
         self._handle_code_update_completion(
             completion,
             failure_prefix="sase update failed",
+            unchanged_message=_SASE_UPDATE_NOOP_MESSAGE,
+            unchanged_severity="error",
         )
 
     def _submit_dev_update_task(
@@ -401,10 +403,12 @@ class SaseUpdateActionsMixin:
         completion: TrackedTaskCompletion[Any],
         *,
         failure_prefix: str,
+        unchanged_message: str | None = None,
+        unchanged_severity: Literal["information", "warning", "error"] = "information",
     ) -> None:
         """Common update completion handling: restart only after real changes."""
         if completion.success:
-            if completion.payload is not None and managed_update_changed(
+            if completion.payload is not None and _managed_update_changed(
                 completion.payload
             ):
                 receipt = build_update_receipt(completion.payload)
@@ -412,10 +416,10 @@ class SaseUpdateActionsMixin:
                     write_pending_update_toast(receipt)
                 self._restart_after_update(completion.message)
                 return
-            if failure_prefix == "sase update failed":
-                self._notify(_SASE_UPDATE_NOOP_MESSAGE, severity="error")
-            else:
-                self._notify(completion.message)
+            self._notify(
+                unchanged_message or completion.message,
+                severity=unchanged_severity,
+            )
             if self.is_mounted and not self._loading:
                 self._start_load(force=False)
         else:

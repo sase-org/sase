@@ -21,7 +21,14 @@ from typing import Any, Literal
 
 from sase.core.paths import sase_home
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult, RepoDiffStat
-from sase.uv_tool.render import UpdateOutcome, UpdateSummary
+from sase.plugins.operations import (
+    InstallOutcome,
+    UninstallOutcome,
+    UpdateOutcome as PluginUpdateOutcome,
+)
+from sase.uv_tool.render import UpdateOutcome as ManagedUpdateOutcome
+from sase.uv_tool.render import UpdateSummary
+from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from sase.version._utils import normalize_distribution_name
 
 log = logging.getLogger(__name__)
@@ -71,6 +78,12 @@ def build_update_receipt(
         return _build_managed_receipt(payload, created_at=timestamp)
     if isinstance(payload, DevUpdateResult):
         return _build_dev_receipt(payload, created_at=timestamp)
+    if isinstance(payload, InstallOutcome):
+        return _build_plugin_install_receipt(payload, created_at=timestamp)
+    if isinstance(payload, PluginUpdateOutcome):
+        return _build_plugin_update_receipt(payload, created_at=timestamp)
+    if isinstance(payload, UninstallOutcome):
+        return _build_plugin_uninstall_receipt(payload, created_at=timestamp)
     return None
 
 
@@ -215,7 +228,7 @@ def _build_dev_receipt(
 
 
 def _transition_from_update_outcome(
-    outcome: UpdateOutcome,
+    outcome: ManagedUpdateOutcome,
 ) -> UpdateVersionTransition:
     return UpdateVersionTransition(
         name=outcome.name,
@@ -230,6 +243,111 @@ def _transition_from_dev_outcome(outcome: DevUpdateOutcome) -> UpdateVersionTran
         old=outcome.old_version,
         new=outcome.new_version,
         diffstat=outcome.diffstat,
+    )
+
+
+def _build_plugin_install_receipt(
+    outcome: InstallOutcome, *, created_at: float
+) -> UpdateToastReceipt | None:
+    spec = outcome.plan.spec
+    target_key = spec.normalized_name
+    transition = _transition_from_change(
+        outcome.change_set.get(spec.requirement.name),
+        fallback_name=spec.requirement.name,
+    )
+    dependency_count = _dependency_change_count(
+        outcome.change_set,
+        target_keys={target_key},
+    )
+    if transition is None and dependency_count == 0:
+        return None
+    return UpdateToastReceipt(
+        kind="managed",
+        created_at=created_at,
+        primary=None,
+        plugins=(transition,) if transition is not None else (),
+        dependency_count=dependency_count,
+    )
+
+
+def _build_plugin_update_receipt(
+    outcome: PluginUpdateOutcome, *, created_at: float
+) -> UpdateToastReceipt | None:
+    target_keys = {
+        normalize_distribution_name(target) for target in outcome.plan.targets
+    }
+    transitions = [
+        transition
+        for target in outcome.plan.targets
+        if (
+            transition := _transition_from_change(
+                outcome.change_set.get(target),
+                fallback_name=target,
+            )
+        )
+        is not None
+    ]
+    plugins, plugin_overflow, plugin_overflow_diffstat = _cap_plugin_transitions(
+        transitions
+    )
+    dependency_count = _dependency_change_count(
+        outcome.change_set,
+        target_keys=target_keys,
+    )
+    if not plugins and dependency_count == 0:
+        return None
+    return UpdateToastReceipt(
+        kind="managed",
+        created_at=created_at,
+        primary=None,
+        plugins=plugins,
+        plugin_overflow=plugin_overflow,
+        plugin_overflow_diffstat=plugin_overflow_diffstat,
+        dependency_count=dependency_count,
+    )
+
+
+def _build_plugin_uninstall_receipt(
+    outcome: UninstallOutcome, *, created_at: float
+) -> UpdateToastReceipt | None:
+    target_key = outcome.plan.normalized_name
+    transition = _transition_from_change(
+        outcome.change_set.get(outcome.plan.dist_name),
+        fallback_name=outcome.plan.dist_name,
+    )
+    dependency_count = _dependency_change_count(
+        outcome.change_set,
+        target_keys={target_key},
+    )
+    if transition is None and dependency_count == 0:
+        return None
+    return UpdateToastReceipt(
+        kind="managed",
+        created_at=created_at,
+        primary=None,
+        plugins=(transition,) if transition is not None else (),
+        dependency_count=dependency_count,
+    )
+
+
+def _transition_from_change(
+    change: UvPackageChange | None, *, fallback_name: str
+) -> UpdateVersionTransition | None:
+    if change is None or change.kind is ChangeKind.UNCHANGED:
+        return None
+    old = change.old_version
+    new = change.new_version
+    if old is None and new is None:
+        return None
+    return UpdateVersionTransition(name=change.name or fallback_name, old=old, new=new)
+
+
+def _dependency_change_count(change_set: UvChangeSet, *, target_keys: set[str]) -> int:
+    return sum(
+        1
+        for change in change_set.changes
+        if normalize_distribution_name(change.name) not in target_keys
+        and change.kind is not ChangeKind.UNCHANGED
     )
 
 

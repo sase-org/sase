@@ -28,7 +28,12 @@ from typing import Any
 
 from rich.console import Console
 
+from sase.axe.process import is_axe_running, restart_axe_daemon_result
+from sase.main.update_json import restart_info_json
+from sase.main.update_restart import render_restart_info
+from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
 from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
+from sase.plugins.cli_restart import restart_after_plugin_change
 from sase.plugins.operations import (
     ClockFn,
     LoadFn,
@@ -80,6 +85,8 @@ def handle_plugin_update_command(
     probe_fn: ProbeFn = probe_uv_tool_install,
     run_fn: RunUvFn = run_uv,
     version_fn: VersionFn = _installed_version,
+    axe_running_fn: AxeRunningFn = is_axe_running,
+    restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
     clock: ClockFn = time.monotonic,
 ) -> int:
     """Run ``sase plugin update``; return the process exit code."""
@@ -129,8 +136,20 @@ def handle_plugin_update_command(
     except UvToolError as exc:
         return _fail(exc, as_json=as_json, err=err)
 
+    restart = restart_after_plugin_change(
+        outcome.change_set,
+        axe_running_fn=axe_running_fn,
+        restart_axe_fn=restart_axe_fn,
+    )
+
     if as_json:
-        print(json.dumps(_result_json(outcome, version_fn), indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                _result_json(outcome, version_fn, restart),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
 
     render_plugin_update_result(
@@ -141,6 +160,7 @@ def handle_plugin_update_command(
         current_version=version_fn,
         console=out,
     )
+    render_restart_info(restart, console=out, quiet=False)
     return 0
 
 
@@ -279,7 +299,9 @@ def _fail_catalog(error: PluginCatalogError, *, as_json: bool, err: Console) -> 
     return 1
 
 
-def _result_json(outcome: UpdateOutcome, version_fn: VersionFn) -> dict[str, Any]:
+def _result_json(
+    outcome: UpdateOutcome, version_fn: VersionFn, restart: RestartInfo
+) -> dict[str, Any]:
     change_set = outcome.change_set
     plugins = []
     for name in outcome.plan.targets:
@@ -311,6 +333,7 @@ def _result_json(outcome: UpdateOutcome, version_fn: VersionFn) -> dict[str, Any
         "elapsed_seconds": round(outcome.elapsed, 3),
         "counts": {"updated": upgraded, "already_current": len(plugins) - upgraded},
         "plugins": plugins,
+        "restart": restart_info_json(restart),
     }
 
 

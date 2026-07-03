@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-03 16:52:05
-status: wip
+status: done
 prompt: sdd/prompts/202607/plugin_install_update_restart.md
 ---
 # Plan: Restart TUI + AXE when installing/updating individual plugins

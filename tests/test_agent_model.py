@@ -8,6 +8,7 @@ from sase.ace.tui.models.agent import (
     format_compact_duration,
     format_wait_until,
 )
+from sase.core.time import local_now
 
 # --- Agent Model Tests ---
 
@@ -78,7 +79,7 @@ def test_agent_duration_display_without_time() -> None:
 
 def test_agent_duration_display_seconds() -> None:
     """Test Agent.duration_display for seconds only."""
-    start = datetime.now() - timedelta(seconds=45)
+    start = local_now() - timedelta(seconds=45)
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
@@ -93,7 +94,7 @@ def test_agent_duration_display_seconds() -> None:
 
 def test_agent_duration_display_minutes() -> None:
     """Test Agent.duration_display for minutes."""
-    start = datetime.now() - timedelta(minutes=5, seconds=30)
+    start = local_now() - timedelta(minutes=5, seconds=30)
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
@@ -108,7 +109,7 @@ def test_agent_duration_display_minutes() -> None:
 
 def test_agent_duration_display_hours() -> None:
     """Test Agent.duration_display for hours."""
-    start = datetime.now() - timedelta(hours=2, minutes=15)
+    start = local_now() - timedelta(hours=2, minutes=15)
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",

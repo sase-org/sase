@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from rich.console import Console
 
+from sase.axe.process import AxeStartResult
 from sase.main.parser import create_parser
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.cli_install import (
@@ -306,6 +307,7 @@ def test_install_runs_full_set_plus_new_plugin(tmp_path: Path) -> None:
                 installed=True, version="0.4.0", entry_point_groups=("sase_vcs",)
             )
         },
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -340,6 +342,7 @@ def test_install_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
                 installed=True, version="0.4.0", entry_point_groups=("sase_vcs",)
             )
         },
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -352,6 +355,53 @@ def test_install_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
     assert payload["version"] == "0.4.0"
     assert payload["entry_point_groups"] == ["sase_vcs"]
     assert payload["command"][:3] == ["uv", "tool", "install"]
+    assert payload["restart"]["status"] == "skipped_not_running"
+
+
+def test_install_restarts_axe_when_changed(tmp_path: Path) -> None:
+    restart_calls = 0
+
+    def _restart() -> AxeStartResult:
+        nonlocal restart_calls
+        restart_calls += 1
+        return AxeStartResult(status="started", pid=2468)
+
+    out = _console()
+    code = handle_plugin_install_command(
+        _args("github"),
+        console=out,
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_INSTALL_OUTPUT),
+        installed_index_fn=lambda: {},
+        axe_running_fn=lambda: True,
+        restart_axe_fn=_restart,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    assert restart_calls == 1
+    assert "Axe restarted (pid 2468)" in _text(out)
+
+
+def test_install_noop_does_not_check_axe(tmp_path: Path) -> None:
+    def _axe_running() -> bool:
+        raise AssertionError("axe status must not be checked for a no-op install")
+
+    out = _console()
+    code = handle_plugin_install_command(
+        _args("github"),
+        console=out,
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: UvChangeSet(),
+        installed_index_fn=lambda: {},
+        axe_running_fn=_axe_running,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    assert "Axe Restart" not in _text(out)
 
 
 def test_install_already_injected_is_idempotent(tmp_path: Path) -> None:

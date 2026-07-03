@@ -170,6 +170,55 @@ def test_post_update_toast_managed_receipt_keeps_legacy_rendering() -> None:
     )
 
 
+def test_post_update_toast_formats_install_receipt() -> None:
+    receipt = UpdateToastReceipt(
+        kind="managed",
+        created_at=time.time(),
+        primary=None,
+        plugins=(UpdateVersionTransition("sase-nvim", None, "2.0.0"),),
+    )
+
+    assert post_update_toast._format_post_update_toast_title(receipt) == (
+        "✓ Installed sase-nvim"
+    )
+    message = post_update_toast._format_post_update_toast_message(receipt)
+    plain = "\n".join(_plain_text_lines(message))
+    assert "sase-nvim  installed v2.0.0" in plain
+    assert "unknown" not in plain
+    assert "Reloaded to load the new plugin." in plain
+
+
+def test_post_update_toast_formats_uninstall_receipt() -> None:
+    receipt = UpdateToastReceipt(
+        kind="managed",
+        created_at=time.time(),
+        primary=None,
+        plugins=(UpdateVersionTransition("sase-github", "1.2.0", None),),
+    )
+
+    assert post_update_toast._format_post_update_toast_title(receipt) == (
+        "✓ Uninstalled sase-github"
+    )
+    message = post_update_toast._format_post_update_toast_message(receipt)
+    plain = "\n".join(_plain_text_lines(message))
+    assert "sase-github  uninstalled (was v1.2.0)" in plain
+    assert "unknown" not in plain
+    assert "Reloaded after removing the plugin." in plain
+
+
+def test_post_update_toast_single_plugin_update_title_names_plugin() -> None:
+    receipt = UpdateToastReceipt(
+        kind="managed",
+        created_at=time.time(),
+        primary=None,
+        plugins=(UpdateVersionTransition("sase-github", "1.2.0", "1.3.0"),),
+    )
+
+    assert post_update_toast._format_post_update_toast_title(receipt) == (
+        "✓ Updated sase-github"
+    )
+
+
 def test_post_update_toast_diffstat_toggle_suppresses_churn() -> None:
     message = post_update_toast._format_post_update_toast_message(
         _diffstat_receipt(),

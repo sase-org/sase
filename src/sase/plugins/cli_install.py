@@ -26,6 +26,10 @@ from typing import Any
 
 from rich.console import Console
 
+from sase.axe.process import is_axe_running, restart_axe_daemon_result
+from sase.main.update_json import restart_info_json
+from sase.main.update_restart import render_restart_info
+from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
 from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
 from sase.plugins.installed import build_installed_index
 from sase.plugins.operations import (
@@ -50,6 +54,7 @@ from sase.plugins.render import (
     render_install_result,
     render_show_not_found,
 )
+from sase.plugins.cli_restart import restart_after_plugin_change
 from sase.uv_tool.detect import probe_uv_tool_install
 from sase.uv_tool.errors import ReceiptError, UvToolError
 from sase.uv_tool.render import render_uv_tool_error
@@ -73,6 +78,8 @@ def handle_plugin_install_command(
     probe_fn: ProbeFn = probe_uv_tool_install,
     run_fn: RunUvFn = run_uv,
     installed_index_fn: InstalledIndexFn = build_installed_index,
+    axe_running_fn: AxeRunningFn = is_axe_running,
+    restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
     clock: ClockFn = time.monotonic,
 ) -> int:
     """Run ``sase plugin install <plugin>``; return the process exit code."""
@@ -125,8 +132,14 @@ def handle_plugin_install_command(
     except UvToolError as exc:
         return _fail(exc, as_json=as_json, err=err)
 
+    restart = restart_after_plugin_change(
+        outcome.change_set,
+        axe_running_fn=axe_running_fn,
+        restart_axe_fn=restart_axe_fn,
+    )
+
     if as_json:
-        print(json.dumps(_result_json(outcome), indent=2, sort_keys=True))
+        print(json.dumps(_result_json(outcome, restart), indent=2, sort_keys=True))
         return 0
 
     render_install_result(
@@ -137,6 +150,7 @@ def handle_plugin_install_command(
         elapsed=outcome.elapsed,
         console=out,
     )
+    render_restart_info(restart, console=out, quiet=False)
     return 0
 
 
@@ -238,7 +252,7 @@ def _fail_catalog(error: PluginCatalogError, *, as_json: bool, err: Console) -> 
     return 1
 
 
-def _result_json(outcome: InstallOutcome) -> dict[str, Any]:
+def _result_json(outcome: InstallOutcome, restart: RestartInfo) -> dict[str, Any]:
     spec = outcome.plan.spec
     change_set = outcome.change_set
     change = change_set.get(spec.requirement.name)
@@ -252,6 +266,7 @@ def _result_json(outcome: InstallOutcome) -> dict[str, Any]:
         "version": change.new_version if change is not None else None,
         "entry_point_groups": list(outcome.groups),
         "elapsed_seconds": round(outcome.elapsed, 3),
+        "restart": restart_info_json(restart),
         "dependencies_changed": sum(
             1
             for c in change_set.changes

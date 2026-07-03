@@ -26,7 +26,12 @@ from typing import Any
 
 from rich.console import Console
 
+from sase.axe.process import is_axe_running, restart_axe_daemon_result
+from sase.main.update_json import restart_info_json
+from sase.main.update_restart import render_restart_info
+from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
 from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
+from sase.plugins.cli_restart import restart_after_plugin_change
 from sase.plugins.operations import (
     AlreadyAbsent,
     ClockFn,
@@ -63,6 +68,8 @@ def handle_plugin_uninstall_command(
     load_fn: LoadFn = load_plugin_catalog,
     probe_fn: ProbeFn = probe_uv_tool_install,
     run_fn: RunUvFn = run_uv,
+    axe_running_fn: AxeRunningFn = is_axe_running,
+    restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
     clock: ClockFn = time.monotonic,
 ) -> int:
     """Run ``sase plugin uninstall <plugin>``; return the process exit code."""
@@ -104,8 +111,14 @@ def handle_plugin_uninstall_command(
     except UvToolError as exc:
         return _fail(exc, as_json=as_json, err=err)
 
+    restart = restart_after_plugin_change(
+        outcome.change_set,
+        axe_running_fn=axe_running_fn,
+        restart_axe_fn=restart_axe_fn,
+    )
+
     if as_json:
-        print(json.dumps(_result_json(outcome), indent=2, sort_keys=True))
+        print(json.dumps(_result_json(outcome, restart), indent=2, sort_keys=True))
         return 0
 
     render_plugin_uninstall_result(
@@ -115,6 +128,7 @@ def handle_plugin_uninstall_command(
         elapsed=outcome.elapsed,
         console=out,
     )
+    render_restart_info(restart, console=out, quiet=False)
     return 0
 
 
@@ -218,7 +232,7 @@ def _fail_catalog(error: PluginCatalogError, *, as_json: bool, err: Console) -> 
     return 1
 
 
-def _result_json(outcome: UninstallOutcome) -> dict[str, Any]:
+def _result_json(outcome: UninstallOutcome, restart: RestartInfo) -> dict[str, Any]:
     plan = outcome.plan
     change = outcome.change_set.get(plan.dist_name)
     removed = change is not None and change.kind is ChangeKind.REMOVED
@@ -231,6 +245,7 @@ def _result_json(outcome: UninstallOutcome) -> dict[str, Any]:
         "changed": removed,
         "removed_version": change.old_version if change is not None else None,
         "elapsed_seconds": round(outcome.elapsed, 3),
+        "restart": restart_info_json(restart),
     }
 
 

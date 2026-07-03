@@ -67,6 +67,21 @@ def _format_post_update_toast_title(receipt: UpdateToastReceipt) -> str:
     primary = receipt.primary
     if primary is not None and primary.new:
         return f"{_SUCCESS_GLYPH} Updated to sase {primary.new}"
+    if primary is None and len(receipt.plugins) == 1 and receipt.plugin_overflow == 0:
+        plugin = receipt.plugins[0]
+        operation = _transition_operation(plugin)
+        if operation == "install":
+            return f"{_SUCCESS_GLYPH} Installed {plugin.name}"
+        if operation == "uninstall":
+            return f"{_SUCCESS_GLYPH} Uninstalled {plugin.name}"
+        return f"{_SUCCESS_GLYPH} Updated {plugin.name}"
+    if primary is None and receipt.plugins:
+        operations = {_transition_operation(plugin) for plugin in receipt.plugins}
+        if operations == {"install"}:
+            return f"{_SUCCESS_GLYPH} Installed plugins"
+        if operations == {"uninstall"}:
+            return f"{_SUCCESS_GLYPH} Uninstalled plugins"
+        return f"{_SUCCESS_GLYPH} Updated plugins"
     return f"{_SUCCESS_GLYPH} SASE updated"
 
 
@@ -179,9 +194,16 @@ def _primary_line(transition: UpdateVersionTransition, accent: str) -> str:
 
 
 def _plugin_line(transition: UpdateVersionTransition) -> str:
+    name = escape(transition.name)
+    operation = _transition_operation(transition)
+    if operation == "install":
+        suffix = f" v{escape(transition.new)}" if transition.new else ""
+        return f"• {name}  [green]installed{suffix}[/]"
+    if operation == "uninstall":
+        suffix = f" [dim](was v{escape(transition.old)})[/]" if transition.old else ""
+        return f"• {name}  [yellow]uninstalled[/]{suffix}"
     old = escape(transition.old or "unknown")
     new = escape(transition.new or "unknown")
-    name = escape(transition.name)
     return f"• {name}  [dim]{old} →[/] [green]{new}[/]"
 
 
@@ -195,8 +217,24 @@ def _tail_line(receipt: UpdateToastReceipt, *, show_diffstat: bool = False) -> s
     if receipt.dependency_count > 0:
         noun = "dependency" if receipt.dependency_count == 1 else "dependencies"
         parts.append(f"+{receipt.dependency_count} {noun}")
-    parts.append("Reloaded into the new version.")
+    parts.append(_reload_tail_text(receipt))
     return f"[dim]{' · '.join(parts)}[/]"
+
+
+def _reload_tail_text(receipt: UpdateToastReceipt) -> str:
+    if receipt.primary is not None:
+        return "Reloaded into the new version."
+    plugin_count = len(receipt.plugins) + receipt.plugin_overflow
+    if plugin_count <= 0:
+        return "Reloaded into the new version."
+    operations = {_transition_operation(plugin) for plugin in receipt.plugins}
+    if operations == {"install"}:
+        noun = "plugin" if plugin_count == 1 else "plugins"
+        return f"Reloaded to load the new {noun}."
+    if operations == {"uninstall"}:
+        noun = "plugin" if plugin_count == 1 else "plugins"
+        return f"Reloaded after removing the {noun}."
+    return "Reloaded into the new plugin version."
 
 
 def _diffstat_transition_line(
@@ -261,6 +299,14 @@ def _transition_display_name(
 ) -> str:
     name = _truncated_transition_name(transition.name)
     return name if primary else f"• {name}"
+
+
+def _transition_operation(transition: UpdateVersionTransition) -> str:
+    if transition.old is None and transition.new is not None:
+        return "install"
+    if transition.old is not None and transition.new is None:
+        return "uninstall"
+    return "update"
 
 
 def _truncated_transition_name(name: str) -> str:

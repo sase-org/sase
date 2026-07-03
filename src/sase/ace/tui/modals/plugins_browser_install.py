@@ -136,6 +136,13 @@ class PluginInstallActionsMixin:
 
         def _start_load(self, *, force: bool) -> None: ...
 
+        def _handle_code_update_completion(
+            self,
+            completion: TrackedTaskCompletion[Any],
+            *,
+            failure_prefix: str,
+        ) -> None: ...
+
     def action_install(self) -> None:
         """Install the highlighted plugin (``i``) via a confirm-preview modal.
 
@@ -195,6 +202,9 @@ class PluginInstallActionsMixin:
                 label="from index",
                 argv=tuple(index_plan.argv),
                 summary=install_summary(index_plan),
+                details=(
+                    "ACE restarts after a successful install to load the new plugin.",
+                ),
             )
         ]
         if git_plan is not None:
@@ -205,6 +215,9 @@ class PluginInstallActionsMixin:
                     label="from git",
                     argv=tuple(git_plan.argv),
                     summary=install_summary(git_plan),
+                    details=(
+                        "ACE restarts after a successful install to load the new plugin.",
+                    ),
                 )
             )
         name = index_plan.spec.display_name
@@ -261,15 +274,11 @@ class PluginInstallActionsMixin:
     def _on_install_complete(
         self, completion: TrackedTaskCompletion[InstallOutcome]
     ) -> None:
-        """Toast the CLI-matching outcome and refresh the row in place."""
-        if completion.success:
-            self._notify(completion.message)
-            # Re-merge installed state so the freshly-installed row flips to *.
-            if self.is_mounted and not self._loading:
-                self._start_load(force=False)
-        else:
-            detail = completion.error or completion.message
-            self._notify(f"Install failed: {detail}", severity="error")
+        """Toast/restart after install; no-op installs refresh in place."""
+        self._handle_code_update_completion(
+            completion,
+            failure_prefix="Install failed",
+        )
 
 
 _InstallPreview = InstallPreview

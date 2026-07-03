@@ -15,8 +15,18 @@ from sase.ace.update_receipt import (
 )
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult
 from sase.dev_update.models import RepoDiffStat
+from sase.plugins.operations import (
+    InstallOutcome,
+    InstallReady,
+    ResolvedSpec,
+    UninstallOutcome,
+    UninstallReady,
+    UpdateOutcome as PluginUpdateOutcome,
+    UpdateReady,
+)
 from sase.uv_tool.render import UpdateOutcome, UpdateSummary
-from sase.uv_tool.runner import ChangeKind
+from sase.uv_tool.receipt import Requirement
+from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from sase.version._models import VersionPackageRecord
 
 
@@ -81,6 +91,25 @@ def test_pending_update_toast_round_trips_optional_diffstats(
             deletions=0,
         ),
         dependency_count=2,
+    )
+    receipt_file = tmp_path / "pending.json"
+
+    with patch("sase.ace.update_receipt._PENDING_UPDATE_TOAST_FILE", receipt_file):
+        assert write_pending_update_toast(receipt) is True
+        assert read_and_clear_pending_update_toast(now=101.0) == receipt
+
+
+def test_pending_update_toast_round_trips_install_and_uninstall_transitions(
+    tmp_path: Path,
+) -> None:
+    receipt = UpdateToastReceipt(
+        kind="managed",
+        created_at=100.0,
+        primary=None,
+        plugins=(
+            UpdateVersionTransition("sase-nvim", None, "2.0.0"),
+            UpdateVersionTransition("sase-github", "1.2.0", None),
+        ),
     )
     receipt_file = tmp_path / "pending.json"
 
@@ -259,6 +288,102 @@ def test_build_managed_update_receipt_returns_none_for_no_updates() -> None:
     )
 
     assert build_update_receipt(summary, created_at=123.0) is None
+
+
+def test_build_plugin_install_receipt_uses_added_package_version() -> None:
+    plan = InstallReady(
+        spec=ResolvedSpec(
+            requirement=Requirement.from_spec("sase-nvim"),
+            display_name="nvim",
+            source="catalog",
+        ),
+        argv=["uv", "tool", "install"],
+    )
+    outcome = InstallOutcome(
+        plan=plan,
+        change_set=UvChangeSet(
+            changes=(
+                UvPackageChange(
+                    name="sase-nvim",
+                    kind=ChangeKind.ADDED,
+                    new_version="2.0.0",
+                ),
+            )
+        ),
+        groups=(),
+        elapsed=0.0,
+    )
+
+    assert build_update_receipt(outcome, created_at=123.0) == UpdateToastReceipt(
+        kind="managed",
+        created_at=123.0,
+        primary=None,
+        plugins=(UpdateVersionTransition("sase-nvim", None, "2.0.0"),),
+    )
+
+
+def test_build_plugin_update_receipt_uses_target_transitions() -> None:
+    plan = UpdateReady(
+        argv=["uv", "tool", "install"],
+        targets=("sase-github",),
+        all_plugins=False,
+    )
+    outcome = PluginUpdateOutcome(
+        plan=plan,
+        change_set=UvChangeSet(
+            changes=(
+                UvPackageChange(
+                    name="sase-github",
+                    kind=ChangeKind.UPGRADED,
+                    old_version="1.2.0",
+                    new_version="1.3.0",
+                ),
+                UvPackageChange(
+                    name="rich",
+                    kind=ChangeKind.UPGRADED,
+                    old_version="13.0.0",
+                    new_version="14.0.0",
+                ),
+            )
+        ),
+        elapsed=0.0,
+    )
+
+    assert build_update_receipt(outcome, created_at=123.0) == UpdateToastReceipt(
+        kind="managed",
+        created_at=123.0,
+        primary=None,
+        plugins=(UpdateVersionTransition("sase-github", "1.2.0", "1.3.0"),),
+        dependency_count=1,
+    )
+
+
+def test_build_plugin_uninstall_receipt_uses_removed_package_version() -> None:
+    plan = UninstallReady(
+        requirement=Requirement.from_spec("sase-github"),
+        display_name="github",
+        argv=["uv", "tool", "install"],
+    )
+    outcome = UninstallOutcome(
+        plan=plan,
+        change_set=UvChangeSet(
+            changes=(
+                UvPackageChange(
+                    name="sase-github",
+                    kind=ChangeKind.REMOVED,
+                    old_version="1.2.0",
+                ),
+            )
+        ),
+        elapsed=0.0,
+    )
+
+    assert build_update_receipt(outcome, created_at=123.0) == UpdateToastReceipt(
+        kind="managed",
+        created_at=123.0,
+        primary=None,
+        plugins=(UpdateVersionTransition("sase-github", "1.2.0", None),),
+    )
 
 
 def test_build_dev_update_receipt_uses_git_versions() -> None:

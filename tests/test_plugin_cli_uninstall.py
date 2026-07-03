@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from rich.console import Console
 
+from sase.axe.process import AxeStartResult
 from sase.main.parser import create_parser
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.cli_uninstall import (
@@ -182,6 +183,7 @@ def test_uninstall_runs_full_set_minus_plugin(tmp_path: Path) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         run_fn=_run,
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -213,6 +215,7 @@ def test_uninstall_resolves_from_receipt_without_catalog(tmp_path: Path) -> None
         load_fn=_load,
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UNINSTALL_OUTPUT),
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -231,6 +234,7 @@ def test_uninstall_dedupes_dev_receipt_duplicates(tmp_path: Path) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
         run_fn=_run,
+        axe_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -247,6 +251,7 @@ def test_uninstall_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UNINSTALL_OUTPUT),
+        axe_running_fn=lambda: False,
         clock=lambda: next(clock),
     )
     assert code == 0
@@ -259,6 +264,51 @@ def test_uninstall_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
     assert payload["removed_version"] == "0.4.0"
     assert payload["elapsed_seconds"] == 1.0
     assert payload["command"][:3] == ["uv", "tool", "install"]
+    assert payload["restart"]["status"] == "skipped_not_running"
+
+
+def test_uninstall_restarts_axe_when_changed(tmp_path: Path) -> None:
+    restart_calls = 0
+
+    def _restart() -> AxeStartResult:
+        nonlocal restart_calls
+        restart_calls += 1
+        return AxeStartResult(status="started", pid=9753)
+
+    out = _console()
+    code = handle_plugin_uninstall_command(
+        _args("github"),
+        console=out,
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_UNINSTALL_OUTPUT),
+        axe_running_fn=lambda: True,
+        restart_axe_fn=_restart,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    assert restart_calls == 1
+    assert "Axe restarted (pid 9753)" in _text(out)
+
+
+def test_uninstall_noop_does_not_check_axe(tmp_path: Path) -> None:
+    def _axe_running() -> bool:
+        raise AssertionError("axe status must not be checked for a no-op uninstall")
+
+    out = _console()
+    code = handle_plugin_uninstall_command(
+        _args("github"),
+        console=out,
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: UvChangeSet(),
+        axe_running_fn=_axe_running,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    assert "Axe Restart" not in _text(out)
 
 
 # --------------------------------------------------------------------------- #

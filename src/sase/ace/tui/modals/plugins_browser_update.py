@@ -39,7 +39,6 @@ from .plugins_browser_dev_update import (
     entry_uses_dev_update,
 )
 from .plugins_browser_install import missing_plugin_message
-from .plugins_browser_sase_update import managed_update_changed
 
 if TYPE_CHECKING:
     from textual.worker import Worker
@@ -149,7 +148,12 @@ class PluginUpdateActionsMixin:
             duplicate_message: str,
         ) -> None: ...
 
-        def _restart_after_update(self, message: str) -> None: ...
+        def _handle_code_update_completion(
+            self,
+            completion: TrackedTaskCompletion[Any],
+            *,
+            failure_prefix: str,
+        ) -> None: ...
 
         def _notify(
             self,
@@ -294,6 +298,9 @@ class PluginUpdateActionsMixin:
                 label="update",
                 argv=tuple(plan.argv),
                 summary=update_summary(plan),
+                details=(
+                    "ACE restarts after a successful update to load the new plugin code.",
+                ),
             )
         ]
         modal = PluginActionConfirmModal(
@@ -351,20 +358,11 @@ class PluginUpdateActionsMixin:
     def _on_update_complete(
         self, completion: TrackedTaskCompletion[UpdateOutcome]
     ) -> None:
-        """Toast the CLI-matching outcome and refresh the row(s) in place."""
-        if completion.success:
-            if completion.payload is not None and managed_update_changed(
-                completion.payload
-            ):
-                self._restart_after_update(completion.message)
-                return
-            self._notify(completion.message)
-            # Re-merge installed state so upgraded rows reflect the new version.
-            if self.is_mounted and not self._loading:
-                self._start_load(force=False)
-        else:
-            detail = completion.error or completion.message
-            self._notify(f"Update failed: {detail}", severity="error")
+        """Toast/restart after update; no-op updates refresh in place."""
+        self._handle_code_update_completion(
+            completion,
+            failure_prefix="Update failed",
+        )
 
 
 _UpdatePreview = UpdatePreview
