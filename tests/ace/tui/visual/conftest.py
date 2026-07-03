@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.ace.tui.visual._font_pin_guard import check_font_pin_for_update
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 _FONTS_DIR = Path(__file__).parent / "fonts"
@@ -77,8 +78,32 @@ def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(scope="session")
+def _visual_snapshot_update_guard(
+    request: pytest.FixtureRequest,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """Block golden updates on renderers that ignore the bundled-font pin.
+
+    Runs lazily, once per session, and only when
+    ``--sase-update-visual-snapshots`` is passed and the first visual test would
+    write a golden. On a host whose renderer silently ignores ``FONTCONFIG_FILE``
+    (macOS / Quartz), regenerating goldens produces fallback-font / tofu PNGs
+    that CI cannot reproduce, so the update is refused with an actionable error
+    pointing at the CI-artifact adoption workflow. Comparison runs (no update
+    flag) are unaffected.
+    """
+    if not request.config.getoption("--sase-update-visual-snapshots"):
+        return
+    workdir = tmp_path_factory.mktemp("font-pin-probe")
+    check_font_pin_for_update(fonts_dir=_FONTS_DIR, workdir=workdir)
+
+
 @pytest.fixture
-def ace_png_visual(request: pytest.FixtureRequest) -> AcePngSnapshotFixture:
+def ace_png_visual(
+    request: pytest.FixtureRequest,
+    _visual_snapshot_update_guard: None,
+) -> AcePngSnapshotFixture:
     """ACE PNG visual snapshot assertion helper."""
     update = bool(request.config.getoption("--sase-update-visual-snapshots"))
     artifact_root = Path(
