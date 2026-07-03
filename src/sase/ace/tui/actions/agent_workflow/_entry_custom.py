@@ -162,19 +162,25 @@ class EntryCustomMixin:
                     history_sort_key=selection.cl_name,
                 )
         else:
-            # Project selection
-            prefix = self._vcs_prompt_prefix_or_notify(project_file, project_name)
+            # Project selection. The prefix and bar label show the configured
+            # project name (falling back to the directory key); identity uses
+            # above keep ``selection.project_name``, and the history grouping
+            # key stays the canonical directory key.
+            from sase.project_display_names import project_display_name_for
+
+            display_name = project_display_name_for(project_name)
+            prefix = self._vcs_prompt_prefix_or_notify(project_file, display_name)
             if prefix is None:
                 return
             if open_in_editor:
                 self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
                     initial_text=prefix,
-                    display_name=project_name,
+                    display_name=display_name,
                     history_sort_key=project_name,
                 )
             else:
                 self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                     initial_text=prefix,
-                    display_name=project_name,
+                    display_name=display_name,
                     history_sort_key=project_name,
                 )

@@ -36,6 +36,7 @@ def run_single_agent_launch_body(
     timer: Any,
 ) -> LaunchTaskOutcome:
     """Run single-prompt, fan-out, repeat, workflow, and spawn launch paths."""
+    from sase.project_display_names import project_display_name_for
     from sase.workspace_provider import get_ref_patterns, get_workflow_names
     from sase.xprompt._parsing import (
         extract_project_from_vcs_tag,
@@ -322,7 +323,8 @@ def run_single_agent_launch_body(
         )
         return _with_unresolved_warnings(
             LaunchTaskOutcome(
-                f"Prompt fan-out launch queued for {ctx.display_name}",
+                "Prompt fan-out launch queued for "
+                f"{project_display_name_for(ctx.display_name)}",
                 notify=False,
             )
         )
@@ -344,7 +346,8 @@ def run_single_agent_launch_body(
         )
         return _with_unresolved_warnings(
             LaunchTaskOutcome(
-                f"Repeat launch queued for {ctx.display_name}",
+                "Repeat launch queued for "
+                f"{project_display_name_for(ctx.display_name)}",
                 notify=False,
             )
         )
@@ -415,7 +418,7 @@ def run_single_agent_launch_body(
         timer.finish(dispatch="single")
         return _with_unresolved_warnings(
             LaunchTaskOutcome(
-                f"Agent started for {display_name}",
+                f"Agent started for {project_display_name_for(display_name)}",
                 results=launch_results_tuple(execution.results),
             )
         )

@@ -5,7 +5,14 @@ from __future__ import annotations
 from contextlib import ExitStack
 from unittest.mock import patch
 
-from tests.ace.tui._agent_launch_helpers import _FakeApp, _LaunchBodyApp, _fake_context
+import pytest
+
+from tests.ace.tui._agent_launch_helpers import (
+    _FakeApp,
+    _LaunchBodyApp,
+    _fake_context,
+    _run_launch_body_with_common_patches,
+)
 
 
 def test_finish_agent_launch_toast_uses_cycled_vcs_ref_not_baked_name() -> None:
@@ -35,6 +42,30 @@ def test_finish_agent_launch_toast_falls_back_to_display_name_without_tag() -> N
 
     launching = [m for m, _ in app.notifications if m.startswith("Launching agent")]
     assert launching == ["Launching agent for sase..."]
+
+
+def test_launch_toast_humanizes_project_name_while_identity_stays_canonical(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The 'Agent started' toast shows the configured name.
+
+    Run identity (``cl_name``) still receives the canonical directory key, since
+    ``ctx.display_name`` itself is left untouched (only the toast text humanizes).
+    """
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: {"gh_acme__widgets": "widgets"}.get(key, key),
+    )
+    app = _LaunchBodyApp()
+    assert app._prompt_context is not None
+    app._prompt_context.display_name = "gh_acme__widgets"
+    app._prompt_context.project_name = "gh_acme__widgets"
+
+    outcome = _run_launch_body_with_common_patches(app, "do work")
+
+    assert outcome.message == "Agent started for widgets"
+    assert len(app.launched) == 1
+    assert app.launched[0]["cl_name"] == "gh_acme__widgets"
 
 
 def test_run_agent_launch_body_aborts_unresolvable_home_mode_vcs_tag() -> None:

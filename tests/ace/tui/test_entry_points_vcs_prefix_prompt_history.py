@@ -54,6 +54,53 @@ def test_prompt_history_edit_first_uses_first_non_cancelled_modal_entry(
     assert app._prompt_context.history_sort_key == "target"
 
 
+def test_prompt_history_project_selection_uses_configured_name_in_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A project selection substitutes the configured ``PROJECT_NAME`` prefix.
+
+    The bar label is humanized too, while the history grouping key stays the
+    canonical directory key.
+    """
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: {"gh_acme__widgets": "widgets"}.get(key, key),
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.list_prompt_records",
+        lambda *, limit: [
+            record_from_entry(
+                PromptEntry(
+                    text="picked prompt",
+                    branch_or_workspace="target",
+                    timestamp="260509_090000",
+                    last_used="260509_120000",
+                    workspace="home",
+                )
+            )
+        ],
+    )
+    app = _App()
+    app._last_custom_agent_selection = SelectionItem(
+        display_name="[P] gh_acme__widgets",
+        item_type="project",
+        project_name="gh_acme__widgets",
+        cl_name=None,
+    )
+
+    app._start_prompt_history_from_last_selection(edit_first=True)
+
+    assert app.editor_prompts == ["#gh:widgets picked prompt"]
+    assert app.finished_prompts == ["edited: #gh:widgets picked prompt"]
+    assert app._prompt_context is not None
+    assert app._prompt_context.display_name == "widgets"
+    assert app._prompt_context.history_sort_key == "gh_acme__widgets"
+
+
 def test_prompt_history_edit_first_notifies_when_no_non_cancelled_entry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

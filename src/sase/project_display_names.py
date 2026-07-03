@@ -65,6 +65,26 @@ def project_display_name_for(
     return _project_display_name_map_cached(projects_root).get(key, key)
 
 
+def humanize_vcs_refs_in_text(
+    text: str,
+    projects_root: Path | str | None = None,
+) -> str:
+    """Rewrite canonical project directory keys in VCS tags to display names.
+
+    Applies :func:`humanize_project_refs_in_prompt` using the mtime-keyed
+    display-name cache, so per-keystroke callers (e.g. ``<ctrl+p>`` MRU
+    cycling) pay only a ``stat()`` plus dict lookup rather than a fresh disk
+    read. Text without a display-name override for its ref is returned
+    unchanged.
+    """
+    from sase.project_aliases import humanize_project_refs_in_prompt
+
+    return humanize_project_refs_in_prompt(
+        text, _project_display_name_map_cached(projects_root)
+    )
+
+
 __all__ = [
+    "humanize_vcs_refs_in_text",
     "project_display_name_for",
 ]

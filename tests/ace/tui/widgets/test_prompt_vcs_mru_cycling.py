@@ -135,6 +135,50 @@ async def test_cycling_skips_persisted_default_git_home_entry(
     assert cursor == len("#git:bar ")
 
 
+async def test_cycling_inserts_humanized_configured_project_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cycling surfaces the configured ``PROJECT_NAME``, never the directory key.
+
+    The on-disk MRU stays canonical (``#git:proj_widgets``); the real loader
+    humanizes it to ``#git:widgets`` before it reaches the cycling widget.
+    """
+    import sase.project_display_names as pdn
+
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    project_dir = sase_home / "projects" / "proj_widgets"
+    project_dir.mkdir(parents=True)
+    (project_dir / "proj_widgets.sase").write_text(
+        f"PROJECT_NAME: widgets\nWORKSPACE_DIR: {workspace}\nNAME: proj_widgets_c\n",
+        encoding="utf-8",
+    )
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#git:proj_widgets"]}))
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *a, **k: {"proj_widgets": workspace},
+    )
+    monkeypatch.setattr(
+        "sase.ace.changespec.cache.find_all_changespecs_cached",
+        lambda *a, **k: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    text, cursor = await _press_with_real_loader("", "ctrl+p")
+
+    assert text == "#git:widgets "
+    assert cursor == len("#git:widgets ")
+    # Disk stays canonical for launch-time identity/resolution.
+    assert json.loads(mru_file.read_text()) == {"entries": ["#git:proj_widgets"]}
+
+
 async def test_cycling_noops_when_only_mru_entry_is_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -49,11 +49,22 @@ class EntryPromptHistoryMixin:
                 self.notify("No previous +/Ctrl+Space selection", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Resolve VCS prefix
+        # Resolve VCS prefix. The substituted prefix and bar label show the
+        # configured project name; the history grouping key stays the canonical
+        # directory key (CL names are already user-facing on both).
+        from sase.project_display_names import project_display_name_for
+
         project_name: str = last.project_name
         project_dir = str(sase_projects_dir() / project_name)
         project_file = preferred_project_spec_path(project_dir, project_name)
-        name = last.cl_name if last.item_type == "cl" and last.cl_name else project_name
+        history_key = (
+            last.cl_name if last.item_type == "cl" and last.cl_name else project_name
+        )
+        name = (
+            last.cl_name
+            if last.item_type == "cl" and last.cl_name
+            else project_display_name_for(project_name)
+        )
         prefix = self._vcs_prompt_prefix_or_notify(project_file, name)
         if prefix is None:
             return
@@ -72,7 +83,7 @@ class EntryPromptHistoryMixin:
             workspace_num=0,
             workflow_name=workflow_name,
             timestamp=timestamp,
-            history_sort_key=name,
+            history_sort_key=history_key,
             display_name=name,
             update_target="",
             is_home_mode=True,
@@ -99,7 +110,7 @@ class EntryPromptHistoryMixin:
                     self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                         initial_text=cleaned,
                         display_name=name,
-                        history_sort_key=name,
+                        history_sort_key=history_key,
                         as_xprompt_markdown=True,
                     )
                 else:
@@ -129,7 +140,7 @@ class EntryPromptHistoryMixin:
                 self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                     initial_text=_build_prompt(result.prompt_text),
                     display_name=name,
-                    history_sort_key=name,
+                    history_sort_key=history_key,
                 )
             else:
                 _edit_prompt(result.prompt_text)

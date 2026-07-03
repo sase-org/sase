@@ -475,7 +475,6 @@ def ensure_project_name_locked(
     )
 
 
-# pyvision: sdd/epics/202606/project_aliases.md
 def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str, str]:
     """Return ``alias -> canonical project`` for all non-system projects.
 

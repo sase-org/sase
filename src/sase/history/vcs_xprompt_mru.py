@@ -61,16 +61,29 @@ def load_launchable_vcs_xprompt_mru(
     # The global ref index is built from the default SASE home and can
     # confidently prune refs only for that default context.
     resolvable_refs = None if projects_dir is not None else _resolvable_vcs_ref_index()
+    # Resolve alias/display-form prefixes to their canonical project before
+    # pruning so they are judged by the real project rather than wrongly
+    # dropped. Built once per call (reusing the index's map when available) so
+    # the per-keystroke ``<ctrl+p>`` path never re-reads project records per
+    # entry.
+    alias_map = (
+        resolvable_refs[2]
+        if resolvable_refs is not None
+        else _project_alias_map_or_empty(projects_dir)
+    )
     filtered = [
         entry
         for entry in entries
         if not is_default_vcs_xprompt_prefix(entry)
-        and not _is_stale_known_project_prefix(entry, projects_dir)
+        and not _is_stale_known_project_prefix(entry, projects_dir, alias_map=alias_map)
         and not _vcs_prefix_ref_is_gone(entry, resolvable_refs)
     ]
     if prune and filtered != entries:
         _save_vcs_xprompt_mru(filtered)
-    return filtered
+    # Disk stays canonical (written above); the returned entries are humanized
+    # to the configured project name and deduped in MRU order so callers that
+    # render/cycle them never surface directory keys.
+    return _humanize_and_dedupe_mru(filtered, projects_dir)
 
 
 def record_vcs_xprompt_usage(prefix: str) -> None:
@@ -81,9 +94,18 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
     implicit fallback rather than an explicit selection. If a default entry is
     already present it is removed instead of re-added.
 
+    The incoming prefix is canonicalized (alias/``PROJECT_NAME`` form ->
+    directory key) before the default-prefix check and dedup/insert, so the
+    on-disk MRU stays in canonical form and spelling variants of the same
+    project collapse to one entry. (``home`` is excluded from the alias map, so
+    the ``#git:home`` default handling is unaffected.)
+
     Args:
         prefix: VCS workflow prefix string (e.g. ``"#gh:sase"``).
     """
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
+
+    prefix = canonicalize_project_aliases_in_prompt(prefix)
     entries = _load_vcs_xprompt_mru()
     if is_default_vcs_xprompt_prefix(prefix):
         filtered = [e for e in entries if not is_default_vcs_xprompt_prefix(e)]
@@ -112,6 +134,38 @@ def _save_vcs_xprompt_mru(entries: list[str]) -> None:
         pass
 
 
+def _project_alias_map_or_empty(projects_dir: Path | None) -> dict[str, str]:
+    """Return the ``alias/PROJECT_NAME -> directory key`` map, or ``{}`` on error.
+
+    Conflicting hand-edited ProjectSpecs raise from ``load_project_alias_map``;
+    an empty map degrades pruning to today's canonical-only behavior instead of
+    nuking the whole MRU.
+    """
+    try:
+        from sase.project_aliases import load_project_alias_map
+
+        return load_project_alias_map(projects_dir)
+    except Exception:
+        log.debug("VCS MRU alias map unavailable", exc_info=True)
+        return {}
+
+
+def _humanize_and_dedupe_mru(
+    entries: list[str], projects_dir: Path | None
+) -> list[str]:
+    """Rewrite each entry to its configured project name, deduped in MRU order."""
+    from sase.project_display_names import humanize_vcs_refs_in_text
+
+    seen: set[str] = set()
+    humanized: list[str] = []
+    for entry in entries:
+        display = humanize_vcs_refs_in_text(entry, projects_dir)
+        if display not in seen:
+            seen.add(display)
+            humanized.append(display)
+    return humanized
+
+
 def is_default_vcs_xprompt_prefix(prefix: str) -> bool:
     """Return whether *prefix* is the implicit default workflow prefix.
 
@@ -134,14 +188,23 @@ def is_default_vcs_xprompt_prefix(prefix: str) -> bool:
 def _is_stale_known_project_prefix(
     prefix: str,
     projects_dir: Path | None = None,
+    *,
+    alias_map: dict[str, str] | None = None,
 ) -> bool:
     project_name = _project_name_from_vcs_prefix(prefix)
     if project_name is None:
         return False
 
+    projects_base = projects_dir or sase_projects_dir()
+    # Resolve an alias/display-form ref (e.g. ``#gh:widgets``) to its directory
+    # key so the spec-path and launchability checks below judge the real
+    # project instead of short-circuiting on a nonexistent ``widgets/`` dir.
+    if alias_map is None:
+        alias_map = _project_alias_map_or_empty(projects_base)
+    project_name = alias_map.get(project_name, project_name)
+
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
-    projects_base = projects_dir or sase_projects_dir()
     project_file = Path(
         preferred_project_spec_path(str(projects_base / project_name), project_name)
     )
@@ -159,13 +222,17 @@ def _project_name_from_vcs_prefix(prefix: str) -> str | None:
     return extract_project_from_vcs_tag(prefix)
 
 
-def _resolvable_vcs_ref_index() -> tuple[dict[str, Path], set[str]] | None:
+def _resolvable_vcs_ref_index() -> (
+    tuple[dict[str, Path], set[str], dict[str, str]] | None
+):
     """Snapshot the offline data needed to judge ref resolvability.
 
-    Returns ``(known_projects, active_changespec_names)`` computed once per
-    load (cheap, cached, offline), or ``None`` when the snapshot can't be
-    built — in which case callers keep every entry rather than risk nuking the
-    MRU on a transient error.
+    Returns ``(known_projects, active_changespec_names, alias_map)`` computed
+    once per load (cheap, cached, offline), or ``None`` when the snapshot can't
+    be built — in which case callers keep every entry rather than risk nuking
+    the MRU on a transient error. ``alias_map`` maps alias/``PROJECT_NAME`` refs
+    to their directory key so display-form entries resolve without a per-entry
+    project-records read.
     """
     try:
         from sase.ace.changespec.cache import find_all_changespecs_cached
@@ -173,7 +240,8 @@ def _resolvable_vcs_ref_index() -> tuple[dict[str, Path], set[str]] | None:
 
         known_projects = get_known_project_workspaces()
         changespec_names = {cs.name for cs in find_all_changespecs_cached()}
-        return known_projects, changespec_names
+        alias_map = _project_alias_map_or_empty(None)
+        return known_projects, changespec_names, alias_map
     except Exception:
         log.debug("VCS MRU resolvability index unavailable", exc_info=True)
         return None
@@ -200,7 +268,7 @@ def _workflow_and_ref_for_prefix(prefix: str) -> tuple[str, str] | None:
 
 def _vcs_prefix_ref_is_gone(
     prefix: str,
-    index: tuple[dict[str, Path], set[str]] | None,
+    index: tuple[dict[str, Path], set[str], dict[str, str]] | None,
 ) -> bool:
     """Return whether *prefix*'s ref no longer resolves to any launch target.
 
@@ -232,13 +300,17 @@ def _vcs_prefix_ref_is_gone(
         if "/" in ref or ref.startswith("~") or ref == "home":
             return False
 
-        known_projects, changespec_names = index
+        known_projects, changespec_names, alias_map = index
+        # Resolve an alias/display-form ref (e.g. ``#gh:widgets``) to its
+        # directory key so it is judged by its real project and not wrongly
+        # pruned as gone. Canonical refs pass through unchanged.
+        canonical_ref = alias_map.get(ref, ref)
 
         from sase.xprompt._parsing import resolve_known_project_ref
 
-        if resolve_known_project_ref(ref, known_projects) is not None:
+        if resolve_known_project_ref(canonical_ref, known_projects) is not None:
             return False
-        return ref not in changespec_names
+        return canonical_ref not in changespec_names
     except Exception:
         log.debug("VCS MRU resolvability check failed for %r", prefix, exc_info=True)
         return False

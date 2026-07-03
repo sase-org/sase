@@ -107,6 +107,25 @@ def test_current_tag_lookup_advances_forward() -> None:
     assert edit.mru_index == 2
 
 
+def test_prefilled_humanized_tag_resumes_ring_at_matching_index() -> None:
+    """A prompt prefilled with a humanized tag resumes the (humanized) ring.
+
+    Because ``load_launchable_vcs_xprompt_mru`` now returns humanized entries
+    and the widget inserts those humanized tags, the current prompt tag and the
+    MRU entries are in the same (display) form, so the current tag is found by
+    normalized equality and the cycle advances from its position rather than
+    restarting at the most-recent entry.
+    """
+    edit = _cycle(
+        "#git:widgets do work",
+        mru=["#git:alpha", "#git:widgets", "#git:beta"],
+        cursor_offset=len("#git:widgets do work"),
+    )
+    assert edit.mru_index == 2
+    assert edit.replacement == "#git:beta"
+    assert edit.text == "#git:beta do work"
+
+
 def test_current_tag_lookup_normalizes_underscore_refs() -> None:
     edit = _cycle("#gh_sase fix", mru=["#gh:sase", "#gh:other"])
     assert edit.text == "#gh:other fix"

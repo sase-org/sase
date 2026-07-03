@@ -96,12 +96,14 @@ class _EntryPointsBaseMixin:
 
     def _clear_stale_last_custom_agent_selection(self, project_name: str) -> None:
         from sase.ace.last_agent_selection import clear_last_agent_selection
+        from sase.project_display_names import project_display_name_for
 
         self._last_custom_agent_selection = None
         clear_last_agent_selection()
+        display_name = project_display_name_for(project_name)
         self.notify(  # type: ignore[attr-defined]
             "Saved +/Ctrl+Space selection is stale: "
-            f"project {project_name!r} is not launchable; cleared saved selection",
+            f"project {display_name!r} is not launchable; cleared saved selection",
             severity="warning",
         )
 

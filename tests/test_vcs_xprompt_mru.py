@@ -30,6 +30,30 @@ def _write_project(
     )
 
 
+def _write_named_project(
+    projects_dir: Path,
+    directory_key: str,
+    project_name: str,
+    workspace_dir: Path,
+) -> None:
+    """Write a real ProjectSpec whose ``PROJECT_NAME`` differs from its dir key."""
+    project_dir = projects_dir / directory_key
+    project_dir.mkdir(parents=True)
+    (project_dir / f"{directory_key}.sase").write_text(
+        f"PROJECT_NAME: {project_name}\nWORKSPACE_DIR: {workspace_dir}\n"
+        f"NAME: {directory_key}_change\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.fixture
+def _reset_display_name_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear the module-level, mtime-keyed display-name cache before a test."""
+    import sase.project_display_names as pdn
+
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+
 def test_load_empty_when_file_missing(tmp_path: Path) -> None:
     """Returns empty list when MRU file doesn't exist."""
     fake = tmp_path / "vcs_xprompt_mru.json"
@@ -361,3 +385,128 @@ def test_load_launchable_keeps_entries_when_resolution_index_unavailable(
 
     assert result == ["#git:sase", "#git:gone"]
     assert json.loads(mru_file.read_text()) == {"entries": ["#git:sase", "#git:gone"]}
+
+
+@pytest.mark.usefixtures("_reset_display_name_cache")
+def test_load_launchable_humanizes_project_name_and_keeps_disk_canonical(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A canonical on-disk entry is returned humanized; disk stays canonical.
+
+    The stale sibling forces a prune write-back, proving the persisted MRU is
+    re-written in canonical (directory-key) form even as the returned list is
+    humanized to the configured ``PROJECT_NAME``.
+    """
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(
+        json.dumps({"entries": ["#gh:gh_acme__widgets", "#gh:gh_acme__stale"]})
+    )
+    projects_dir = tmp_path / "projects"
+    widgets_ws = tmp_path / "widgets-ws"
+    widgets_ws.mkdir()
+    _write_named_project(projects_dir, "gh_acme__widgets", "widgets", widgets_ws)
+    _write_named_project(
+        projects_dir, "gh_acme__stale", "stale", tmp_path / "missing-ws"
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        result = load_launchable_vcs_xprompt_mru(projects_dir)
+
+    assert result == ["#gh:widgets"]
+    assert json.loads(fake.read_text()) == {"entries": ["#gh:gh_acme__widgets"]}
+
+
+@pytest.mark.usefixtures("_reset_display_name_cache")
+def test_load_launchable_dedupes_humanized_duplicates_in_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Canonical and display-form entries for one project collapse to one, in order."""
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(
+        json.dumps({"entries": ["#gh:gh_acme__widgets", "#gh:widgets", "#gh:other"]})
+    )
+    projects_dir = tmp_path / "projects"
+    widgets_ws = tmp_path / "widgets-ws"
+    widgets_ws.mkdir()
+    _write_named_project(projects_dir, "gh_acme__widgets", "widgets", widgets_ws)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        result = load_launchable_vcs_xprompt_mru(projects_dir)
+
+    assert result == ["#gh:widgets", "#gh:other"]
+
+
+@pytest.mark.usefixtures("_reset_display_name_cache")
+def test_load_launchable_keeps_alias_form_entry_via_alias_aware_pruning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A display-form ``#git:widgets`` is judged by its canonical project.
+
+    Without alias-aware pruning the ref resolves to neither a known project key
+    nor a ChangeSpec name and would be wrongly pruned as gone.
+    """
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    projects_dir = sase_home / "projects"
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    _write_named_project(projects_dir, "proj_widgets", "widgets", workspace)
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#git:widgets"]}))
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *a, **k: {"proj_widgets": workspace},
+    )
+    monkeypatch.setattr(
+        "sase.ace.changespec.cache.find_all_changespecs_cached",
+        lambda *a, **k: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    result = load_launchable_vcs_xprompt_mru()
+
+    assert result == ["#git:widgets"]
+    assert json.loads(mru_file.read_text()) == {"entries": ["#git:widgets"]}
+
+
+def test_record_canonicalizes_alias_form_and_dedupes_against_canonical(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Recording ``#gh:widgets`` stores the canonical key and collapses dupes."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    projects_dir = sase_home / "projects"
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    _write_named_project(projects_dir, "gh_acme__widgets", "widgets", workspace)
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#gh:gh_acme__widgets", "#gh:other"]}))
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    record_vcs_xprompt_usage("#gh:widgets")
+
+    assert _load_vcs_xprompt_mru() == ["#gh:gh_acme__widgets", "#gh:other"]

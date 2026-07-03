@@ -68,6 +68,107 @@ def test_home_project_selection_launches_with_vcs_prefix(
     assert app.editor_launches == []
 
 
+def test_project_selection_prefills_configured_project_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A project with a ``PROJECT_NAME`` prefills the configured name, not the key.
+
+    The bar label is humanized too, while the history grouping key stays the
+    canonical directory key.
+    """
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: {"gh_acme__widgets": "widgets"}.get(key, key),
+    )
+    app = _App()
+
+    app._start_custom_agent_from_selection(
+        SelectionItem(
+            display_name="[P] gh_acme__widgets",
+            item_type="project",
+            project_name="gh_acme__widgets",
+            cl_name=None,
+        )
+    )
+
+    assert app.prompt_launches == [
+        {
+            "initial_text": "#gh:widgets ",
+            "display_name": "widgets",
+            "history_sort_key": "gh_acme__widgets",
+        }
+    ]
+    assert app.editor_launches == []
+
+
+def test_project_selection_without_project_name_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A project without a ``PROJECT_NAME`` still prefills its directory key."""
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: key,
+    )
+    app = _App()
+
+    app._start_custom_agent_from_selection(
+        SelectionItem(
+            display_name="[P] sase",
+            item_type="project",
+            project_name="sase",
+            cl_name=None,
+        )
+    )
+
+    assert app.prompt_launches == [
+        {
+            "initial_text": "#gh:sase ",
+            "display_name": "sase",
+            "history_sort_key": "sase",
+        }
+    ]
+
+
+def test_cl_selection_keeps_changespec_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The CL branch is untouched: it prefills the changespec name verbatim."""
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: {"gh_acme__widgets": "widgets"}.get(key, key),
+    )
+    app = _App()
+
+    app._start_custom_agent_from_selection(
+        SelectionItem(
+            display_name="fix bug",
+            item_type="cl",
+            project_name="gh_acme__widgets",
+            cl_name="fix_bug",
+        )
+    )
+
+    assert app.prompt_launches == [
+        {
+            "initial_text": "#gh:fix_bug ",
+            "display_name": "fix_bug",
+            "history_sort_key": "fix_bug",
+        }
+    ]
+
+
 def test_start_custom_agent_selector_hides_home_project_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
