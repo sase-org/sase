@@ -204,11 +204,10 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         page.app._dismiss_revive_epoch += 1
         page.app.action_start_sibling_mode()
         await page.expect_modal("AgentNeighborModal")
-        # The footer's neighbor-count hint ("neighbors (N)") is recomputed
-        # asynchronously as the dismissed descendant is folded into the
-        # neighbor index; wait_for_visual_idle only settles detail debouncers,
-        # so poll the rendered footer until the count reaches its resting value
-        # (2) to keep the snapshot deterministic.
+        page.app._refresh_agent_footer_bindings_only()
+        # The direct private-state mutation above bypasses the normal action
+        # path that refreshes the footer. Repaint it explicitly, then keep the
+        # rendered-count poll as a cheap guard before taking the snapshot.
         await page.wait_for(
             lambda _s: (
                 "neighbors (2)"
