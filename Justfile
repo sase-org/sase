@@ -16,6 +16,13 @@ prettier_bin := "node_modules/.bin/prettier"
 # launch environments.
 sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", "../sase-core"))))
 
+# Even with the bundled-font pin, resvg rasterizes a small, fixed set of pixels
+# differently across host OSes (macOS arm64 vs CI's Linux x86_64), so the golden
+# corpus drifts ~0.1-0.3% cross-platform. Allow that expected band by default in
+# every visual-bearing lane (test / test-visual / test-cov / check, plus CI which
+# runs `just test-visual`). Override by exporting a different value (0 = exact).
+export SASE_VISUAL_PNG_MAX_DIFF_RATIO := env_var_or_default("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.01")
+
 default:
     @just --list
 

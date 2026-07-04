@@ -82,24 +82,27 @@ just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace
 Review changed PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`, `just fmt`,
 or broad CI-style commands.
 
-Committed goldens are canonical to the pinned renderer, not to any host. Rasterization goes through resvg
-(`resvg_py==0.3.3`), a pure-Rust SVG renderer that carries its own font database restricted to the bundled Fira Code
-(`tests/ace/tui/visual/fonts/`) with `skip_system_fonts=True`. No platform text or graphics stack participates, so every
-machine — macOS arm64, CI's Linux x86_64, anything else — produces byte-identical PNGs.
+Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg (`resvg_py==0.3.3`), a
+pure-Rust SVG renderer that carries its own font database restricted to the bundled Fira Code
+(`tests/ace/tui/visual/fonts/`) with `skip_system_fonts=True`. No host font-config or graphics stack participates, so
+rendering is stable and host-font-independent everywhere.
 
-Because rendering is hermetic, goldens are regenerable anywhere. Accept intentional visual changes with the local
-one-liner above, review the changed PNGs as ordinary test data, then commit. There is no CI-artifact adoption ritual and
-no host-specific font setup to perform.
+Rasterization is not perfectly byte-identical across host operating systems, though: resvg anti-aliases a small, fixed
+set of pixels differently on macOS arm64 than on CI's Linux x86_64 — a drift of ~0.1-0.3% of pixels. Every lane (local
+`just test-visual`, the broad `just test` / `just test-cov` runs, `just check`, and CI, which all run through the
+`justfile`) therefore allows a small ratio-only drift tolerance by default: `SASE_VISUAL_PNG_MAX_DIFF_RATIO` is exported
+from the `justfile` at `0.01` (1%). That band absorbs cross-host anti-aliasing drift with headroom while still catching
+real regressions, which change orders of magnitude more pixels. Goldens are consequently regenerable on any host —
+accept intentional changes with the local one-liner above, review the changed PNGs as ordinary test data, then commit;
+no CI-artifact adoption ritual and no host-specific font setup is required.
 
 The renderer version is pinned exactly because it _defines_ the golden corpus. Bumping `resvg_py` is a deliberate
 regenerate-and-review event: change the pin, regenerate every golden, spot-check the diff, and commit the corpus churn
 in the same change.
 
-PNG comparison uses exact pixel equality by default in every lane — local `just test-visual`, the broad `just test` /
-`just test-cov` runs, and CI. Any drift is a real regression. As a triage escape hatch the comparison can be relaxed
-with `SASE_VISUAL_PNG_MAX_DIFF_RATIO=<ratio>` (a ratio-only cap) or a per-assertion `max_diff_pixels` / `max_diff_ratio`
-kwarg — useful for measuring drift scale during a renderer bump — but these are inert by default and should not be left
-in place.
+Override the default tolerance per run with `SASE_VISUAL_PNG_MAX_DIFF_RATIO=<ratio>` (use `0` to demand exact pixel
+equality, or a larger cap while measuring drift scale during a renderer bump) or per assertion with a `max_diff_pixels`
+/ `max_diff_ratio` kwarg.
 
 One accepted fidelity caveat: Fira Code ships no italic face and resvg does not synthesize oblique, so
 `font-style: italic` renders upright. This is uniform across every screen and host. Restoring visible italics would mean
