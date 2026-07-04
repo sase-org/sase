@@ -30,6 +30,7 @@ class ConfiguredChopRecord:
     name: str
     description: str
     agent: str | None
+    env: dict[str, str]
     status: ConfiguredChopStatus
     resolved_path: str | None
 
@@ -141,6 +142,7 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
                         name=chop.name,
                         description=chop.description,
                         agent=chop.agent,
+                        env=dict(chop.env),
                         status="agent-backed",
                         resolved_path=None,
                     )
@@ -154,6 +156,7 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
                     name=chop.name,
                     description=chop.description,
                     agent=None,
+                    env=dict(chop.env),
                     status="configured" if script is not None else "missing",
                     resolved_path=str(script) if script is not None else None,
                 )

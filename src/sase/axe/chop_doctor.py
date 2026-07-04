@@ -10,18 +10,34 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sase.axe.chop_inventory import (
     ChopInventory,
+    ConfiguredChopRecord,
     chop_inventory_to_dict,
     collect_chop_inventory,
 )
 from sase.diagnostics import CheckStatus
 
 _TELEGRAM_ENV_VARS = ("SASE_TELEGRAM_BOT_CHAT_ID", "SASE_TELEGRAM_BOT_USERNAME")
+_TELEGRAM_BOT_TOKEN_ENV_VAR = "SASE_TELEGRAM_BOT_TOKEN"
+_TELEGRAM_BOT_TOKEN_FILE = Path(".sase") / "telegram_bot_token"
+_TELEGRAM_CHOP_NAMES = {
+    "tg_inbound",
+    "tg_outbound",
+    "telegram_inbound",
+    "telegram_outbound",
+}
+_TELEGRAM_TOKEN_NEXT_STEP = (
+    "Set SASE_TELEGRAM_BOT_TOKEN in process or per-chop env, create "
+    "~/.sase/telegram_bot_token with mode 600, or install pass and ensure "
+    "`pass show telegram_sase_bot_token` works."
+)
 
 
 @dataclass(frozen=True)
@@ -159,16 +175,18 @@ def _telegram_checks(
         return ()
 
     checks: list[ChopCheck] = []
-    missing_env = tuple(name for name in _TELEGRAM_ENV_VARS if not os.environ.get(name))
+    missing_env = tuple(
+        name for name in _TELEGRAM_ENV_VARS if not _telegram_env_is_set(inventory, name)
+    )
     if missing_env:
         checks.append(
             ChopCheck(
                 id="telegram_env",
                 status="WARN",
-                summary="Telegram chop scripts are installed, but required environment variables are missing.",
+                summary="Telegram chop scripts are installed or configured, but required environment variables are missing.",
                 details=missing_env,
                 next_steps=(
-                    "Set the missing SASE_TELEGRAM_* variables before enabling Telegram chops.",
+                    "Set the missing SASE_TELEGRAM_* variables in process env or per-chop env before enabling Telegram chops.",
                 ),
             )
         )
@@ -177,27 +195,44 @@ def _telegram_checks(
             ChopCheck(
                 id="telegram_env",
                 status="OK",
-                summary="Required Telegram environment variables are set.",
+                summary="Required Telegram environment variables are set or configured per chop.",
             )
         )
 
-    if which_fn("pass") is None:
+    token_source, token_details = _telegram_token_source(
+        inventory,
+        which_fn=which_fn,
+    )
+    if token_source is None:
+        telegram_enabled = _telegram_is_enabled()
+        configured_chops = _configured_telegram_chops(inventory)
+        is_outage = telegram_enabled and bool(configured_chops)
+        status: CheckStatus = "ERROR" if is_outage else "WARN"
+        summary = (
+            "Telegram is enabled and configured, but no Telegram bot token source is available."
+            if is_outage
+            else "Telegram chop scripts are installed or configured, but no Telegram bot token source is available."
+        )
         checks.append(
             ChopCheck(
-                id="telegram_pass",
-                status="WARN",
-                summary="Telegram chop scripts are installed, but pass was not found.",
-                next_steps=(
-                    "Install pass and ensure `pass show telegram_sase_bot_token` works for the SASE process.",
+                id="telegram_bot_token",
+                status=status,
+                summary=summary,
+                details=(
+                    *token_details,
+                    f"telegram_enabled={telegram_enabled}",
+                    f"configured_telegram_chops={_chop_names(configured_chops)}",
                 ),
+                next_steps=(_TELEGRAM_TOKEN_NEXT_STEP,),
             )
         )
     else:
         checks.append(
             ChopCheck(
-                id="telegram_pass",
+                id="telegram_bot_token",
                 status="OK",
-                summary="pass is available for Telegram bot token lookup.",
+                summary=f"Telegram bot token source is available ({token_source}).",
+                details=token_details,
             )
         )
 
@@ -205,8 +240,82 @@ def _telegram_checks(
 
 
 def _has_telegram_chop_scripts(inventory: ChopInventory) -> bool:
-    known_names = {"tg_inbound", "tg_outbound", "telegram_inbound", "telegram_outbound"}
+    if _configured_telegram_chops(inventory):
+        return True
     for script in inventory.available_scripts:
-        if script.name in known_names or "telegram" in script.name:
+        if _is_telegram_chop_name(script.name):
             return True
     return False
+
+
+def _configured_telegram_chops(
+    inventory: ChopInventory,
+) -> tuple[ConfiguredChopRecord, ...]:
+    return tuple(
+        chop for chop in inventory.configured_chops if _is_telegram_chop_name(chop.name)
+    )
+
+
+def _is_telegram_chop_name(name: str) -> bool:
+    return name in _TELEGRAM_CHOP_NAMES or "telegram" in name
+
+
+def _telegram_env_is_set(inventory: ChopInventory, name: str) -> bool:
+    if os.environ.get(name, "").strip():
+        return True
+    return any(
+        chop.env.get(name, "").strip() for chop in _configured_telegram_chops(inventory)
+    )
+
+
+def _telegram_token_source(
+    inventory: ChopInventory,
+    *,
+    which_fn: Callable[[str], str | None],
+) -> tuple[str | None, tuple[str, ...]]:
+    if _telegram_env_is_set(inventory, _TELEGRAM_BOT_TOKEN_ENV_VAR):
+        return (_TELEGRAM_BOT_TOKEN_ENV_VAR, ())
+
+    file_available, file_detail = _telegram_token_file_status()
+    if file_available:
+        return ("~/.sase/telegram_bot_token", (file_detail,))
+
+    if which_fn("pass") is not None:
+        return ("pass", ("pass executable was found",))
+
+    return (None, (file_detail, "pass executable was not found"))
+
+
+def _telegram_token_file_status() -> tuple[bool, str]:
+    token_path = Path.home() / _TELEGRAM_BOT_TOKEN_FILE
+    display_path = "~/.sase/telegram_bot_token"
+    try:
+        token_stat = token_path.stat()
+    except FileNotFoundError:
+        return (False, f"{display_path} does not exist")
+    except OSError as exc:
+        return (False, f"{display_path} could not be inspected: {exc}")
+
+    if not stat.S_ISREG(token_stat.st_mode):
+        return (False, f"{display_path} is not a regular file")
+    if token_stat.st_mode & (stat.S_IRGRP | stat.S_IROTH):
+        return (False, f"{display_path} is group/other-readable; run chmod 600")
+
+    try:
+        token = token_path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        return (False, f"{display_path} could not be read: {exc}")
+    if not token:
+        return (False, f"{display_path} is empty")
+    return (True, f"{display_path} exists with restricted permissions")
+
+
+def _telegram_is_enabled() -> bool:
+    try:
+        return (Path.home() / ".sase" / "telegram_is_enabled").exists()
+    except OSError:
+        return False
+
+
+def _chop_names(chops: tuple[ConfiguredChopRecord, ...]) -> str:
+    return ", ".join(chop.name for chop in chops) or "-"

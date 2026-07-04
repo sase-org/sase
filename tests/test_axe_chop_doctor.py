@@ -27,6 +27,26 @@ def _make_executable(path: Path) -> None:
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def _point_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+
+def _enable_telegram(home: Path) -> None:
+    flag = home / ".sase" / "telegram_is_enabled"
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.touch()
+
+
+def _point_python_bin(monkeypatch: pytest.MonkeyPatch, python_bin: Path) -> None:
+    python_bin.mkdir(parents=True)
+    (python_bin / "python").write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.axe.chop_inventory.sys.executable", str(python_bin / "python")
+    )
+    monkeypatch.setenv("PATH", "")
+
+
 def _config_with_missing_chop() -> AxeConfig:
     return AxeConfig(
         lumberjacks={
@@ -59,16 +79,13 @@ def test_build_chop_checks_warns_on_unconfigured_telegram(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     python_bin = tmp_path / "venv" / "bin"
-    python_bin.mkdir(parents=True)
-    (python_bin / "python").write_text("", encoding="utf-8")
+    _point_python_bin(monkeypatch, python_bin)
     _make_executable(python_bin / "sase_chop_tg_inbound")
 
-    monkeypatch.setattr(
-        "sase.axe.chop_inventory.sys.executable", str(python_bin / "python")
-    )
-    monkeypatch.setenv("PATH", "")
+    _point_home(monkeypatch, tmp_path)
     monkeypatch.delenv("SASE_TELEGRAM_BOT_CHAT_ID", raising=False)
     monkeypatch.delenv("SASE_TELEGRAM_BOT_USERNAME", raising=False)
+    monkeypatch.delenv("SASE_TELEGRAM_BOT_TOKEN", raising=False)
 
     inventory = collect_chop_inventory(AxeConfig())
     checks = build_chop_checks(inventory, which_fn=lambda _: None)
@@ -76,8 +93,140 @@ def test_build_chop_checks_warns_on_unconfigured_telegram(
     statuses = {check.id: check.status for check in checks}
     assert statuses["available_unconfigured_chops"] == "WARN"
     assert statuses["telegram_env"] == "WARN"
-    assert statuses["telegram_pass"] == "WARN"
+    assert statuses["telegram_bot_token"] == "WARN"
     assert aggregate_chop_status(checks) == "WARN"
+
+
+def test_build_chop_checks_accepts_telegram_chop_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    python_bin = tmp_path / "venv" / "bin"
+    _point_python_bin(monkeypatch, python_bin)
+    _make_executable(python_bin / "sase_chop_tg_inbound")
+    _point_home(monkeypatch, tmp_path)
+    monkeypatch.delenv("SASE_TELEGRAM_BOT_CHAT_ID", raising=False)
+    monkeypatch.delenv("SASE_TELEGRAM_BOT_USERNAME", raising=False)
+    monkeypatch.delenv("SASE_TELEGRAM_BOT_TOKEN", raising=False)
+
+    config = AxeConfig(
+        lumberjacks={
+            "telegram": LumberjackConfig(
+                name="telegram",
+                interval=10,
+                chops=[
+                    ChopConfig(
+                        name="tg_inbound",
+                        description="",
+                        env={
+                            "SASE_TELEGRAM_BOT_CHAT_ID": "123",
+                            "SASE_TELEGRAM_BOT_USERNAME": "sase_bot",
+                        },
+                    )
+                ],
+            )
+        }
+    )
+
+    checks = build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+
+    statuses = {check.id: check.status for check in checks}
+    assert statuses["telegram_env"] == "OK"
+    assert statuses["telegram_bot_token"] == "WARN"
+
+
+def test_build_chop_checks_accepts_telegram_token_from_chop_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    python_bin = tmp_path / "venv" / "bin"
+    _point_python_bin(monkeypatch, python_bin)
+    _make_executable(python_bin / "sase_chop_tg_inbound")
+    _point_home(monkeypatch, tmp_path)
+    monkeypatch.delenv("SASE_TELEGRAM_BOT_TOKEN", raising=False)
+
+    config = AxeConfig(
+        lumberjacks={
+            "telegram": LumberjackConfig(
+                name="telegram",
+                interval=10,
+                chops=[
+                    ChopConfig(
+                        name="tg_inbound",
+                        description="",
+                        env={"SASE_TELEGRAM_BOT_TOKEN": "token"},
+                    )
+                ],
+            )
+        }
+    )
+
+    checks = build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+
+    token_check = next(check for check in checks if check.id == "telegram_bot_token")
+    assert token_check.status == "OK"
+    assert "SASE_TELEGRAM_BOT_TOKEN" in token_check.summary
+
+
+def test_build_chop_checks_accepts_telegram_token_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    python_bin = tmp_path / "venv" / "bin"
+    _point_python_bin(monkeypatch, python_bin)
+    _make_executable(python_bin / "sase_chop_tg_inbound")
+    _point_home(monkeypatch, tmp_path)
+    monkeypatch.delenv("SASE_TELEGRAM_BOT_TOKEN", raising=False)
+    token_file = tmp_path / ".sase" / "telegram_bot_token"
+    token_file.parent.mkdir()
+    token_file.write_text("token\n", encoding="utf-8")
+    token_file.chmod(0o600)
+
+    checks = build_chop_checks(
+        collect_chop_inventory(AxeConfig()), which_fn=lambda _: None
+    )
+
+    token_check = next(check for check in checks if check.id == "telegram_bot_token")
+    assert token_check.status == "OK"
+    assert "~/.sase/telegram_bot_token" in token_check.summary
+
+
+def test_build_chop_checks_errors_when_enabled_configured_and_token_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    python_bin = tmp_path / "venv" / "bin"
+    _point_python_bin(monkeypatch, python_bin)
+    _make_executable(python_bin / "sase_chop_tg_inbound")
+    _point_home(monkeypatch, tmp_path)
+    _enable_telegram(tmp_path)
+    monkeypatch.delenv("SASE_TELEGRAM_BOT_TOKEN", raising=False)
+
+    config = AxeConfig(
+        lumberjacks={
+            "telegram": LumberjackConfig(
+                name="telegram",
+                interval=10,
+                chops=[
+                    ChopConfig(
+                        name="tg_inbound",
+                        description="",
+                        env={
+                            "SASE_TELEGRAM_BOT_CHAT_ID": "123",
+                            "SASE_TELEGRAM_BOT_USERNAME": "sase_bot",
+                        },
+                    )
+                ],
+            )
+        }
+    )
+
+    checks = build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+
+    token_check = next(check for check in checks if check.id == "telegram_bot_token")
+    assert token_check.status == "ERROR"
+    assert "SASE_TELEGRAM_BOT_TOKEN" in token_check.next_steps[0]
+    assert aggregate_chop_status(checks) == "ERROR"
 
 
 def test_build_chop_doctor_report_no_error_when_all_resolve() -> None:

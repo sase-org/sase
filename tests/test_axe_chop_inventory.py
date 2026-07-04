@@ -45,7 +45,12 @@ def test_chop_inventory_resolves_missing_agent_and_available_unconfigured(
                 chops=[
                     ChopConfig(name="resolved", description=""),
                     ChopConfig(name="missing", description=""),
-                    ChopConfig(name="agented", description="", agent="do-work"),
+                    ChopConfig(
+                        name="agented",
+                        description="",
+                        agent="do-work",
+                        env={"SECRET_ENV": "hidden"},
+                    ),
                 ],
             )
         },
@@ -63,6 +68,10 @@ def test_chop_inventory_resolves_missing_agent_and_available_unconfigured(
         chop for chop in inventory.configured_chops if chop.name == "resolved"
     )
     assert resolved.resolved_path == str(scripts_dir / "resolved")
+    agented = next(
+        chop for chop in inventory.configured_chops if chop.name == "agented"
+    )
+    assert agented.env == {"SECRET_ENV": "hidden"}
 
     available = inventory.available_unconfigured
     assert len(available) == 1
@@ -96,3 +105,4 @@ def test_chop_inventory_to_dict_is_json_safe() -> None:
     assert agented["status"] == "agent-backed"
     assert agented["script"] is False
     assert agented["agent"] == "do"
+    assert "env" not in agented
