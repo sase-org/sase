@@ -166,6 +166,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last leader command",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'tab_guide'))}",
+                    "Tab guide",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'clear_comments'))}",
                     "Clear COMMENTS field",
                 ),

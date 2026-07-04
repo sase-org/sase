@@ -28,6 +28,7 @@ class StartupMountMixin:
             AgentDetail,
             AgentInfoPanel,
             AncestorsChildrenPanel,
+            AxeInfoPanel,
             ChangeSpecDetail,
             ChangeSpecInfoPanel,
             ChangeSpecList,
@@ -55,6 +56,11 @@ class StartupMountMixin:
                 cs_info_panel.set_keymap_registry(self._keymap_registry)
             except Exception:
                 log.debug("CL info panel keymap wiring skipped: widget not found")
+            try:
+                axe_info_panel = self.query_one("#axe-info-panel", AxeInfoPanel)
+                axe_info_panel.set_keymap_registry(self._keymap_registry)
+            except Exception:
+                log.debug("AXE info panel keymap wiring skipped: widget not found")
 
             # Cache stable widget refs so hot paths skip repeat ``query_one``
             # walks. Wrapped in try/except so a missing widget never blocks

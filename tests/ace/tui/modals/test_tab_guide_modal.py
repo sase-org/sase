@@ -1,0 +1,49 @@
+"""Tests for the Tab Guide modal guide selection."""
+
+from __future__ import annotations
+
+from sase.ace.tui.keymaps import load_keymap_registry
+from sase.ace.tui.modals.tab_guide_modal import TabGuideModal
+from sase.ace.tui.widgets import AgentOnboarding, AxeOnboarding, ChangeSpecOnboarding
+
+
+def test_tab_guide_modal_builds_changespec_guide_with_modal_footer() -> None:
+    registry = load_keymap_registry({})
+    modal = TabGuideModal(current_tab="changespecs", registry=registry)
+
+    guide = modal._build_guide()
+
+    assert isinstance(guide, ChangeSpecOnboarding)
+    sections = ChangeSpecOnboarding.render_content(registry, context="modal")
+    assert "esc closes" in sections["#changespec-onboarding-footer"].plain
+
+
+def test_tab_guide_modal_forwards_agents_onboarding_state() -> None:
+    registry = load_keymap_registry({})
+    modal = TabGuideModal(
+        current_tab="agents",
+        registry=registry,
+        agents_launch_targets_available=True,
+        agents_plugins_installed=False,
+    )
+
+    guide = modal._build_guide()
+
+    assert isinstance(guide, AgentOnboarding)
+    sections = guide.render_content(registry)
+    assert "pick a project or CL first." in sections["#agent-onboarding-launch"].plain
+    assert guide.numbered_step_titles() == [
+        "1 Launch your first agent",
+        "2 The three tabs",
+        "3 Install plugins & keep sase current",
+        "4 Get more help",
+    ]
+    assert "esc closes" in sections["#agent-onboarding-footer"].plain
+
+
+def test_tab_guide_modal_builds_axe_guide() -> None:
+    modal = TabGuideModal(current_tab="axe", registry=load_keymap_registry({}))
+
+    guide = modal._build_guide()
+
+    assert isinstance(guide, AxeOnboarding)

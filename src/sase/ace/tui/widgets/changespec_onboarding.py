@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -11,7 +11,12 @@ from textual.widgets import Static
 
 from ...display_helpers import get_status_color
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
-from ._onboarding_common import append_keycap, append_section_heading
+from ._onboarding_common import (
+    append_keycap,
+    append_leader_keycaps,
+    append_section_heading,
+    leader_key_sequence_display,
+)
 
 _ACCENT = "#00D7AF"
 _CHANGESPEC_DOCS_URL = "https://sase.sh/change_spec/"
@@ -23,9 +28,12 @@ _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 class ChangeSpecOnboarding(VerticalScroll):
     """PRs-tab guide shown before the first ChangeSpec or saved query exists."""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self, *, context: Literal["tab", "modal"] = "tab", **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
         self._registry: KeymapRegistry = load_keymap_registry({})
+        self._guide_context = context
 
     def compose(self) -> ComposeResult:
         """Compose the fixed onboarding sections."""
@@ -60,7 +68,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         yield learn
 
         yield Static(
-            self._build_footer(),
+            self._build_footer(self._registry, context=self._guide_context),
             id="changespec-onboarding-footer",
             classes="changespec-onboarding-footer",
         )
@@ -78,12 +86,16 @@ class ChangeSpecOnboarding(VerticalScroll):
         """Refresh static sections from the current keymap registry."""
         if not self.is_mounted:
             return
-        sections = self.render_content(self._registry)
+        sections = self.render_content(self._registry, context=self._guide_context)
         for selector, content in sections.items():
             self.query_one(selector, Static).update(content)
 
     @staticmethod
-    def render_content(registry: KeymapRegistry) -> dict[str, Text]:
+    def render_content(
+        registry: KeymapRegistry,
+        *,
+        context: Literal["tab", "modal"] = "tab",
+    ) -> dict[str, Text]:
         """Build all renderable sections for *registry*.
 
         Tests call this method directly to verify keybinding-driven copy
@@ -98,7 +110,9 @@ class ChangeSpecOnboarding(VerticalScroll):
             "#changespec-onboarding-learn": ChangeSpecOnboarding._build_learn_card(
                 registry
             ),
-            "#changespec-onboarding-footer": ChangeSpecOnboarding._build_footer(),
+            "#changespec-onboarding-footer": ChangeSpecOnboarding._build_footer(
+                registry, context=context
+            ),
         }
 
     @staticmethod
@@ -169,6 +183,9 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         append_keycap(text, key_display_name(app.show_help))
         text.append("open the help pop-up for this tab.")
+        text.append("\n")
+        append_leader_keycaps(text, registry, "tab_guide")
+        text.append("reopen this guide anytime; it works on every tab.", style="dim")
         return text
 
     @staticmethod
@@ -179,10 +196,19 @@ class ChangeSpecOnboarding(VerticalScroll):
         text.append("\n")
 
     @staticmethod
-    def _build_footer() -> Text:
+    def _build_footer(
+        registry: KeymapRegistry,
+        *,
+        context: Literal["tab", "modal"] = "tab",
+    ) -> Text:
         text = Text(justify="center")
-        text.append(
-            "Your first ChangeSpec replaces this guide with the live PR list.",
-            style="dim italic",
-        )
+        if context == "modal":
+            text.append("esc closes · ", style="dim italic")
+            text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
+            text.append(" reopens this guide on any tab", style="dim italic")
+        else:
+            text.append(
+                "Your first ChangeSpec replaces this guide with the live PR list.",
+                style="dim italic",
+            )
         return text

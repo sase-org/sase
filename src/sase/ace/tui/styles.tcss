@@ -199,6 +199,44 @@ StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentClea
     align: center middle;
 }
 
+TabGuideModal {
+    align: center middle;
+}
+
+#tab-guide-container {
+    width: 96;
+    max-width: 96%;
+    height: 90%;
+    max-height: 90%;
+    border: round $primary;
+    background: $surface;
+    padding: 1 2;
+    border-subtitle-align: center;
+}
+
+#tab-guide-container.-tab-changespecs {
+    border: round #00D7AF;
+    border-title-color: #00D7AF;
+}
+
+#tab-guide-container.-tab-agents {
+    border: round #87D7FF;
+    border-title-color: #87D7FF;
+}
+
+#tab-guide-container.-tab-axe {
+    border: round #FF5F5F;
+    border-title-color: #FF5F5F;
+}
+
+#tab-guide-content {
+    width: 100%;
+    height: 1fr;
+    padding: 0 0;
+    align-horizontal: center;
+    scrollbar-gutter: stable;
+}
+
 StatusModal > Container, QueryEditModal > Container, WorkflowSelectModal > Container, AcceptProposalModal > Container {
     width: 60;
     height: auto;
@@ -1498,6 +1536,35 @@ HintInputBar #hint-escape-hint {
     margin-top: 1;
 }
 
+#axe-onboarding-hero {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+.axe-onboarding-card {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    border: round $secondary;
+    border-title-color: #FF5F5F;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+#axe-onboarding-footer {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    color: $text-muted;
+    margin-top: 1;
+}
+
 #agent-detail-layout {
     width: 100%;
     height: 100%;
@@ -2252,8 +2319,8 @@ BgCmdList > .option-list--option-highlighted {
 }
 
 #axe-info-panel {
-    height: auto;
-    max-height: 1;
+    height: 2;
+    max-height: 2;
     padding: 0 1;
     background: $surface;
     border-bottom: solid $secondary;

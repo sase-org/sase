@@ -64,6 +64,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last leader command",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'tab_guide'))}",
+                    "Tab guide",
+                ),
+                (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
                     "Run agent (home)",
                 ),

@@ -44,6 +44,13 @@ def test_leader_mode_includes_agent_run_log() -> None:
     assert reg.leader_mode.keys["agent_run_log"] == "A"
 
 
+def test_leader_mode_includes_tab_guide() -> None:
+    """LeaderModeKeymaps default includes the ``,?`` tab guide."""
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["tab_guide"] == "question_mark"
+    assert reg.leader_mode.keys["tab_guide"] == "question_mark"
+
+
 def test_leader_mode_drops_project_management_key() -> None:
     """The ``,p`` project panel leader key was retired in the Projects-tab cutover."""
     reg = load_keymap_registry({})

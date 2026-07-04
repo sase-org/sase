@@ -42,7 +42,7 @@ def test_agent_onboarding_uses_active_keymap_registry() -> None:
     help_text = _section_plain(sections, "#agent-onboarding-help")
 
     assert "f1" in help_text
-    assert "?" not in help_text
+    assert "open the help pop-up" in help_text
 
 
 def test_plugins_card_includes_admin_center_updates_and_github_copy() -> None:
@@ -117,3 +117,20 @@ def test_launch_card_omits_project_cl_hint_without_targets() -> None:
     assert "open the prompt bar in your home workspace." in launch_text
     assert "pick a project or CL first." not in launch_text
     assert "Works from any tab; shell: sase ace." in launch_text
+
+
+def test_agent_onboarding_modal_footer_replaces_empty_state_footer() -> None:
+    registry = load_keymap_registry({})
+    tab_widget = AgentOnboarding()
+    modal_widget = AgentOnboarding(context="modal")
+
+    tab_sections = tab_widget.render_content(registry)
+    modal_sections = modal_widget.render_content(registry)
+
+    tab_footer = _section_plain(tab_sections, "#agent-onboarding-footer")
+    modal_footer = _section_plain(modal_sections, "#agent-onboarding-footer")
+
+    assert "Your first agent appears on the left" in tab_footer
+    assert "esc closes" in modal_footer
+    assert ",?" in modal_footer
+    assert "Your first agent" not in modal_footer

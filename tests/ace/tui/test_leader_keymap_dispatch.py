@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from sase.ace.tui.keymaps import load_keymap_registry
+from sase.ace.tui.modals import TabGuideModal
+
 from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
 
 
@@ -16,6 +19,60 @@ def test_leader_space_runs_agent_from_current_cl() -> None:
     assert app.quick_selected_agent_count == 0
     assert app.marked_agent_run_count == 0
     assert app._last_leader_key == "space"
+    assert app.refresh_count == 1
+
+
+def test_leader_question_mark_opens_tab_guide_on_every_tab() -> None:
+    for tab in ("changespecs", "agents", "axe"):
+        app = _FakeApp(current_tab=tab)
+
+        handled = app._handle_leader_key("question_mark")
+
+        assert handled is True
+        assert app._leader_mode_active is False
+        assert len(app.pushed_modals) == 1
+        assert isinstance(app.pushed_modals[0], TabGuideModal)
+        assert app._last_leader_key == "question_mark"
+        assert app.refresh_count == 1
+
+
+def test_leader_question_mark_repeat_reopens_tab_guide() -> None:
+    app = _FakeApp(current_tab="axe")
+
+    app._handle_leader_key("question_mark")
+    app._handle_leader_key("comma")
+
+    assert len(app.pushed_modals) == 2
+    assert all(isinstance(modal, TabGuideModal) for modal in app.pushed_modals)
+    assert app._last_leader_key == "question_mark"
+    assert app.refresh_count == 2
+
+
+def test_leader_tab_guide_uses_configured_subkey() -> None:
+    app = _FakeApp(current_tab="agents")
+    app._keymap_registry = load_keymap_registry(
+        {"keymaps": {"modes": {"leader_mode": {"keys": {"tab_guide": "T"}}}}}
+    )
+
+    handled = app._handle_leader_key("T")
+
+    assert handled is True
+    assert len(app.pushed_modals) == 1
+    assert isinstance(app.pushed_modals[0], TabGuideModal)
+    assert app._last_leader_key == "T"
+
+
+def test_leader_tab_guide_does_not_double_push_when_already_top_screen() -> None:
+    app = _FakeApp(current_tab="changespecs")
+    app.screen = TabGuideModal(
+        current_tab="changespecs",
+        registry=app._keymap_registry,
+    )
+
+    handled = app._handle_leader_key("question_mark")
+
+    assert handled is True
+    assert app.pushed_modals == []
     assert app.refresh_count == 1
 
 

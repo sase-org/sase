@@ -68,6 +68,12 @@ class LeaderModeMixin:
         """Dispatch a non-repeat leader subkey."""
         leader_keys = self._keymap_registry.leader_mode.keys
 
+        if key == leader_keys["tab_guide"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self._open_tab_guide_modal()
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["run_cmd"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "changespecs":
@@ -254,6 +260,30 @@ class LeaderModeMixin:
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
+
+    def _open_tab_guide_modal(self) -> None:
+        """Open the current tab's guide (leader ``,?`` by default)."""
+        from ...modals import TabGuideModal
+
+        if isinstance(getattr(self, "screen", None), TabGuideModal):
+            return
+
+        self.push_screen(  # type: ignore[attr-defined]
+            TabGuideModal(
+                current_tab=self.current_tab,
+                registry=self._keymap_registry,
+                agents_launch_targets_available=getattr(
+                    self,
+                    "_agents_onboarding_launch_targets_available",
+                    False,
+                ),
+                agents_plugins_installed=getattr(
+                    self,
+                    "_agents_onboarding_plugins_installed",
+                    True,
+                ),
+            )
+        )
 
     def _open_models_panel(self) -> None:
         """Open the Models panel (leader ``,m`` by default)."""

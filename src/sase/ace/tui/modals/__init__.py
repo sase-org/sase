@@ -81,6 +81,7 @@ from .runners_modal import (
     get_runner_count,
 )
 from .status_modal import StatusModal
+from .tab_guide_modal import TabGuideModal
 from .agent_tag_modal import AgentTagModal, AgentTagModalResult
 from .tag_input_modal import TagInputModal
 from .approve_options_modal import (
@@ -236,6 +237,7 @@ __all__ = [
     "get_runner_count",
     "SelectionItem",
     "StatusModal",
+    "TabGuideModal",
     "TabName",
     "TagInputModal",
     "AliasEditPreviewModal",

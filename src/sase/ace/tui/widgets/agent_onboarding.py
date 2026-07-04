@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -11,7 +11,12 @@ from textual.widgets import Static
 
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..tab_order import TAB_ORDER, TabName
-from ._onboarding_common import append_keycap, append_section_heading
+from ._onboarding_common import (
+    append_keycap,
+    append_leader_keycaps,
+    append_section_heading,
+    leader_key_sequence_display,
+)
 
 _DOCS_URL = "https://sase.sh"
 _AGENTS_ACCENT = "#87D7FF"
@@ -48,11 +53,14 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
 class AgentOnboarding(VerticalScroll):
     """Right-pane guide shown when the Agents tab has no agents."""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self, *, context: Literal["tab", "modal"] = "tab", **kwargs: Any
+    ) -> None:
         super().__init__(**kwargs)
         self._registry: KeymapRegistry = load_keymap_registry({})
         self._launch_targets_available = False
         self._plugins_installed = True
+        self._guide_context = context
 
     def compose(self) -> ComposeResult:
         """Compose the fixed onboarding sections."""
@@ -94,7 +102,7 @@ class AgentOnboarding(VerticalScroll):
         yield help_card
 
         yield Static(
-            self._build_footer(),
+            self._build_footer(self._registry, context=self._guide_context),
             id="agent-onboarding-footer",
             classes="agent-onboarding-footer",
         )
@@ -206,7 +214,9 @@ class AgentOnboarding(VerticalScroll):
             "#agent-onboarding-tabs": self._build_tabs_card(registry),
             "#agent-onboarding-plugins": self._build_plugins_card(registry),
             "#agent-onboarding-help": self._build_help_card(registry),
-            "#agent-onboarding-footer": self._build_footer(),
+            "#agent-onboarding-footer": self._build_footer(
+                registry, context=self._guide_context
+            ),
         }
 
     @staticmethod
@@ -294,16 +304,28 @@ class AgentOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.open_command_palette))
         text.append("fuzzy-search and run any command.")
         text.append("\n")
+        append_leader_keycaps(text, registry, "tab_guide")
+        text.append("reopen this guide anytime; it works on every tab.", style="dim")
+        text.append("\n")
         text.append(_DOCS_URL, style=f"bold #87D7FF link {_DOCS_URL}")
         text.append(" full documentation.", style="dim")
         return text
 
     @staticmethod
-    def _build_footer() -> Text:
+    def _build_footer(
+        registry: KeymapRegistry,
+        *,
+        context: Literal["tab", "modal"] = "tab",
+    ) -> Text:
         text = Text(justify="center")
-        text.append(
-            "Your first agent appears on the left; this guide moves aside "
-            "automatically.",
-            style="dim italic",
-        )
+        if context == "modal":
+            text.append("esc closes · ", style="dim italic")
+            text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
+            text.append(" reopens this guide on any tab", style="dim italic")
+        else:
+            text.append(
+                "Your first agent appears on the left; this guide moves aside "
+                "automatically.",
+                style="dim italic",
+            )
         return text
