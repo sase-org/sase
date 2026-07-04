@@ -284,6 +284,7 @@ def _patch_plugins_catalog(
     *,
     catalog: Any | None = "default",
     error: str | None = None,
+    uv_tool: Any | None = None,
     core_versions: Any | None = None,
     core_incoming_commits: dict[str, IncomingCommits] | None = None,
 ) -> None:
@@ -294,6 +295,7 @@ def _patch_plugins_catalog(
         catalog=resolved,
         error=error,
         now=_PLUGINS_NOW,
+        uv_tool=uv_tool,
         core_versions=resolved_core_versions,
         core_incoming_commits=core_incoming_commits
         if core_incoming_commits is not None

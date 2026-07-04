@@ -7,8 +7,6 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from tests.ace.tui.test_plugins_browser_pane import (
-    _catalog,
-    _core_versions,
     _highlight,
     _not_uv_tool,
     _ready_preview,
@@ -16,7 +14,6 @@ from tests.ace.tui.test_plugins_browser_pane import (
     _update_ready,
 )
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    _PLUGINS_NOW,
     _build_view,
     _config_layers,
     _config_schema,
@@ -77,21 +74,18 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
     patch_startup_loaders(monkeypatch)
     _patch_xprompt_sources(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
-    result = pbp._PluginsLoadResult(
-        catalog=_catalog(),
-        error=None,
-        now=_PLUGINS_NOW,
-        uv_tool=_not_uv_tool(),
-        core_versions=_core_versions(),
-    )
-    monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
-    monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
+    _patch_plugins_catalog(monkeypatch, uv_tool=_not_uv_tool())
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "github")
         await _wait_for_plugins_detail(page, pane)
+        await page.wait_for(
+            lambda _s: (
+                bool(pane._incoming_commit_cache) and not pane._incoming_commit_loading
+            )
+        )
 
         ace_png_visual.assert_page_png(
             page,

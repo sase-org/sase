@@ -48,6 +48,21 @@ def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _stub_plugin_incoming_commits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep visual snapshots from shelling out to ``gh api``."""
+    from sase.ace.tui.modals import plugins_browser_pane as pbp
+    from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
+        _visual_incoming_commits,
+    )
+
+    monkeypatch.setattr(
+        pbp,
+        "_fetch_incoming_commits",
+        lambda *_a, **_kw: _visual_incoming_commits("plugin"),
+    )
+
+
 @pytest.fixture
 def ace_png_visual(
     request: pytest.FixtureRequest,
