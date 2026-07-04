@@ -28,7 +28,16 @@ def test_deploy_happy_path_runs_full_sequence() -> None:
     assert rc == 0
     calls = [c.args[0] for c in mock_run.call_args_list]
     verbs = [cmd[cmd.index("git") + 3] if cmd[0] == "git" else cmd[0] for cmd in calls]
-    assert verbs == ["rev-parse", "add", "diff", "commit", "pull", "push", "chezmoi"]
+    assert verbs == [
+        "rev-parse",
+        "add",
+        "diff",
+        "commit",
+        "rev-parse",
+        "pull",
+        "push",
+        "chezmoi",
+    ]
 
 
 def test_deploy_no_commit_skips_everything() -> None:
@@ -75,6 +84,7 @@ def test_deploy_no_apply_stops_after_push() -> None:
     assert rc == 0
     calls = [c.args[0] for c in mock_run.call_args_list]
     assert all(cmd[0] != "chezmoi" for cmd in calls)
+    assert any("@{u}" in cmd for cmd in calls)
     assert any("push" in cmd for cmd in calls)
 
 
@@ -197,6 +207,28 @@ def test_deploy_push_failure_returns_nonzero_and_skips_apply(
     calls = [c.args[0] for c in mock_run.call_args_list]
     assert not any(cmd[0] == "chezmoi" for cmd in calls)
     assert "push failed" in capsys.readouterr().err
+
+
+def test_deploy_no_upstream_skips_pull_push_apply(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A local-only repo commits successfully and skips network deploy steps."""
+    args = make_args()
+
+    with patch.object(
+        _init_chezmoi_deploy.subprocess,
+        "run",
+        side_effect=git_cmd_handler(upstream_rc=128),
+    ) as mock_run:
+        rc = _deploy_to_chezmoi([Path("/x/a")], args)
+
+    assert rc == 0
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    assert any("@{u}" in cmd for cmd in calls)
+    assert not any("pull" in cmd for cmd in calls)
+    assert not any("push" in cmd for cmd in calls)
+    assert not any(cmd[0] == "chezmoi" for cmd in calls)
+    assert "no upstream configured; skipping pull/push" in capsys.readouterr().out
 
 
 def test_deploy_pull_failure_returns_nonzero_and_skips_push(

@@ -70,6 +70,22 @@ def _all_providers() -> list[str]:
     return [name for name, _ in iter_plugins()]
 
 
+def _registered_provider_names() -> tuple[str, ...]:
+    """Return registered provider names in registry order."""
+    return tuple(_all_providers())
+
+
+def _provider_validation_error(provider: str | None) -> str | None:
+    """Return an error for an unknown provider filter, if any."""
+    if provider is None:
+        return None
+    registered = _registered_provider_names()
+    if provider in registered:
+        return None
+    names = ", ".join(registered) if registered else "(none)"
+    return f"unknown provider {provider!r}; registered providers: {names}"
+
+
 def _provider_context(provider: str) -> dict[str, str]:
     """Return the Jinja2 rendering context a plugin supplies for its SKILL.md."""
     for name, plugin in iter_plugins():
@@ -504,6 +520,16 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for generated provider skill files."""
     use_chezmoi = get_use_chezmoi()
     provider_filter: str | None = getattr(args, "provider", None)
+    provider_error = _provider_validation_error(provider_filter)
+    if provider_error is not None:
+        return InitPlan(
+            command="skills",
+            label="Skills",
+            summary="cannot plan generated skill files until provider is valid",
+            actions=(),
+            blockers=(provider_error,),
+        )
+
     skill_xprompts = _load_skill_xprompts()
     use_prettier = _prettier_available()
     targets = _render_skill_targets(
@@ -539,11 +565,32 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
 
 def run_init_skills(args: argparse.Namespace) -> int:
     """Apply ``sase init skills`` and return a process exit code."""
+    if getattr(args, "check", False):
+        from .init_onboarding import run_init_check
+        from .init_registry import InitCommandSpec
+
+        return run_init_check(
+            args,
+            specs=(
+                InitCommandSpec(
+                    name="skills",
+                    label="Skills",
+                    plan=plan_init_skills,
+                    run=run_init_skills,
+                ),
+            ),
+        )
+
     use_chezmoi = get_use_chezmoi()
     is_tty = sys.stdin.isatty()
     provider_filter: str | None = getattr(args, "provider", None)
     force: bool = getattr(args, "force", False)
     dry_run: bool = getattr(args, "dry_run", False)
+
+    provider_error = _provider_validation_error(provider_filter)
+    if provider_error is not None:
+        print(f"{_COMMAND_LABEL}: {provider_error}", file=sys.stderr)
+        return 2
 
     skill_xprompts = _load_skill_xprompts()
     if not skill_xprompts:
@@ -562,11 +609,18 @@ def run_init_skills(args: argparse.Namespace) -> int:
 
     written = 0
     skipped = 0
+    unchanged = 0
     written_paths: list[Path] = []
 
     for target in targets:
+        planned = _planned_skill_operation(target)
+        if planned is None:
+            unchanged += 1
+            continue
+
         if dry_run:
-            print(f"  {target.path}")
+            operation, _detail = planned
+            print(f"  {operation}: {target.path}")
             continue
 
         if target.path.exists() and not force:
@@ -590,7 +644,7 @@ def run_init_skills(args: argparse.Namespace) -> int:
     if dry_run:
         print(f"\nDry run: {len(skill_xprompts)} source entries, no files written")
     else:
-        print(f"\nWritten: {written}, Skipped: {skipped}")
+        print(f"\nWritten: {written}, Skipped: {skipped}, Unchanged: {unchanged}")
 
     exit_code = 0
     if use_chezmoi and not dry_run and written > 0:

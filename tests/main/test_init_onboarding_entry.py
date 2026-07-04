@@ -89,3 +89,31 @@ def test_init_check_sdd_alias_does_not_apply(
 
     assert exc.value.code == 1
     assert "create SDD README files" in capsys.readouterr().out
+
+
+def test_init_check_skills_alias_does_not_apply(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import entry, init_skills_handler
+
+    def _fail_apply(*args: object, **kwargs: object) -> object:
+        raise AssertionError("skills check mode must not apply generated files")
+
+    monkeypatch.setattr(sys, "argv", ["sase", "init", "--check", "skills"])
+    monkeypatch.setattr(
+        init_skills_handler,
+        "plan_init_skills",
+        lambda args: _plan(
+            "skills",
+            actions=(_changed_action(".claude/skills/foo/SKILL.md"),),
+            summary="create skill files",
+        ),
+    )
+    monkeypatch.setattr(init_skills_handler, "_load_skill_xprompts", _fail_apply)
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 1
+    assert "create skill files" in capsys.readouterr().out

@@ -262,9 +262,17 @@ def run_init_onboarding(
             if not plan.has_changes or not plan.runnable:
                 continue
             spec = spec_by_name[plan.command]
-            should_run = getattr(args, "yes", False) or _prompt_for_plan(
-                plan, input_func=input_func
-            )
+            if getattr(args, "yes", False):
+                should_run = True
+            else:
+                try:
+                    should_run = _prompt_for_plan(plan, input_func=input_func)
+                except EOFError:
+                    should_run = False
+                except KeyboardInterrupt:
+                    out_console.print()
+                    out_console.print("init: confirmation cancelled; aborting.")
+                    return 1
             if not should_run:
                 continue
             exit_code = spec.run(_apply_args(args, spec))

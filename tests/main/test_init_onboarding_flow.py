@@ -168,6 +168,62 @@ def test_interactive_prompt_runs_only_confirmed_plan(
     assert "init skills" in out
 
 
+def test_interactive_prompt_eof_answers_no_without_running(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    specs = (
+        _spec(
+            "memory",
+            _plan("memory", actions=(_changed_action(),), summary="update memory"),
+            calls,
+        ),
+    )
+
+    def _raise_eof(prompt: str) -> str:
+        raise EOFError
+
+    exit_code = run_init_onboarding(
+        _args(),
+        specs=specs,
+        stdin=_TtyStringIO(),
+        input_func=_raise_eof,
+    )
+
+    assert exit_code == 0
+    assert calls == []
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_interactive_prompt_keyboard_interrupt_aborts_cleanly(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    specs = (
+        _spec(
+            "memory",
+            _plan("memory", actions=(_changed_action(),), summary="update memory"),
+            calls,
+        ),
+    )
+
+    def _raise_interrupt(prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    exit_code = run_init_onboarding(
+        _args(),
+        specs=specs,
+        stdin=_TtyStringIO(),
+        input_func=_raise_interrupt,
+    )
+
+    assert exit_code == 1
+    assert calls == []
+    out = capsys.readouterr().out
+    assert "confirmation cancelled; aborting" in out
+    assert "Traceback" not in out
+
+
 def test_full_drift_prompt_order_all_three_plans() -> None:
     calls: list[str] = []
     prompts: list[str] = []
@@ -432,6 +488,7 @@ def test_yes_runs_one_deferred_chezmoi_deploy_after_selected_runs(
         "add",
         "diff",
         "commit",
+        "rev-parse",
         "pull",
         "push",
         "chezmoi",

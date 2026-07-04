@@ -71,6 +71,39 @@ def test_handler_zero_written_does_not_deploy(
     deploy_mock.assert_not_called()
 
 
+def test_handler_unchanged_targets_do_not_deploy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """use_chezmoi=True but byte-identical targets: no deploy is attempted."""
+    stub_skill_source(tmp_path, monkeypatch)
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+
+    rendered = init_skills_handler.render_skill_targets(
+        init_skills_handler.load_skill_xprompts(),
+        provider_filter="claude",
+        use_chezmoi=True,
+        use_prettier=False,
+    )
+    assert len(rendered) == 1
+    target = rendered[0]
+    target.path.parent.mkdir(parents=True)
+    target.path.write_text(target.content, encoding="utf-8")
+
+    deploy_mock = MagicMock()
+    monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(provider="claude"))
+
+    assert exc.value.code == 0
+    deploy_mock.assert_not_called()
+
+
 def test_handler_use_chezmoi_triggers_deploy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

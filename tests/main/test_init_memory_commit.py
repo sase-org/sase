@@ -149,6 +149,7 @@ def test_init_memory_default_commits_and_pushes_project_changes(
         "add",
         "diff",
         "commit",
+        "rev-parse",
         "pull",
         "push",
     ]
@@ -156,6 +157,62 @@ def test_init_memory_default_commits_and_pushes_project_changes(
     assert commit_calls
     message = commit_calls[0][commit_calls[0].index("-m") + 1]
     assert message == "chore: run sase init memory\n\nSASE_TYPE=memory"
+
+
+def test_init_memory_no_upstream_commits_and_skips_pull_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    monkeypatch.setattr(
+        init_memory_handler, "_project_memory_name", lambda root: "project"
+    )
+
+    git_calls: list[list[str]] = []
+
+    def fake_run(*args: Any, **kwargs: Any) -> MagicMock:
+        cmd: list[str] = args[0] if args else kwargs.get("cmd", [])
+        git_calls.append(cmd)
+        if "@{u}" in cmd:
+            return MagicMock(returncode=128, stdout="", stderr="no upstream")
+        if "rev-parse" in cmd:
+            return MagicMock(returncode=0, stdout=f"{project_root}\n", stderr="")
+        if "status" in cmd:
+            return MagicMock(returncode=0, stdout=b"", stderr=b"")
+        if "diff" in cmd and "--cached" in cmd:
+            return MagicMock(returncode=1, stdout="", stderr="")
+        if "commit" in cmd:
+            return MagicMock(
+                returncode=0,
+                stdout="[main abc1234] chore: run sase init memory\n",
+                stderr="",
+            )
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: True)
+    monkeypatch.setattr(init_memory_handler.subprocess, "run", fake_run)
+
+    assert run_handler(no_commit=False) == 0
+
+    deploy_git_calls = _without_project_detection(git_calls)
+    assert any("commit" in cmd for cmd in deploy_git_calls)
+    assert any("@{u}" in cmd for cmd in deploy_git_calls)
+    assert not any("pull" in cmd for cmd in deploy_git_calls)
+    assert not any("push" in cmd for cmd in deploy_git_calls)
+    assert "init memory: no upstream configured; skipping pull/push" in (
+        capsys.readouterr().out
+    )
 
 
 def test_init_memory_no_commit_skips_project_deploy(

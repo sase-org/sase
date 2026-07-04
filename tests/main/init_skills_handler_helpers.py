@@ -33,6 +33,7 @@ def git_cmd_handler(
     add_rc: int = 0,
     diff_rc: int | None = None,
     commit_rc: int = 0,
+    upstream_rc: int = 0,
     pull_rc: int = 0,
     push_rc: int = 0,
     apply_rc: int = 0,
@@ -48,6 +49,12 @@ def git_cmd_handler(
             return MagicMock(returncode=0, stdout="", stderr="")
 
         if cmd[0] == "git":
+            if "@{u}" in cmd:
+                return MagicMock(
+                    returncode=upstream_rc,
+                    stdout="origin/main\n" if upstream_rc == 0 else "",
+                    stderr="" if upstream_rc == 0 else "no upstream",
+                )
             if "rev-parse" in cmd:
                 if repo_check_raises is not None:
                     raise repo_check_raises("boom")

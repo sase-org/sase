@@ -20,6 +20,7 @@ from ._init_chezmoi_deploy import (
     ChezmoiDeployBehavior,
     defer_chezmoi_paths,
     deploy_to_chezmoi,
+    skip_pull_push_without_upstream,
 )
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
@@ -394,6 +395,9 @@ def _deploy_to_project_repo(
     first_line = commit.stdout.strip().splitlines()[0] if commit.stdout.strip() else ""
     if first_line:
         print(f"  {first_line}")
+
+    if skip_pull_push_without_upstream(git_root, COMMAND_LABEL):
+        return 0
 
     print("Pulling...")
     pull = subprocess.run(

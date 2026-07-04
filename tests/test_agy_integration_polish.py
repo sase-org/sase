@@ -253,12 +253,23 @@ def test_skill_init_parser_accepts_agy_provider(argv: list[str]) -> None:
     assert args.provider == "agy"
 
 
-def test_skill_init_parser_rejects_unknown_provider() -> None:
-    """An unregistered provider is still rejected by the argparse choices."""
+def test_skill_init_unknown_provider_is_rejected_at_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Provider validation happens in the handler, not at parser build time."""
     parser = create_parser()
 
-    with pytest.raises(SystemExit):
-        parser.parse_args(["skill", "init", "-p", "not-a-provider"])
+    args = parser.parse_args(["skill", "init", "-p", "not-a-provider"])
+
+    assert args.provider == "not-a-provider"
+    monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["agy"])
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    assert init_skills_handler.run_init_skills(args) == 2
+    assert (
+        "unknown provider 'not-a-provider'; registered providers: agy"
+        in capsys.readouterr().err
+    )
 
 
 def test_init_skills_provider_filter_accepts_agy(

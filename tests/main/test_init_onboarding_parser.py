@@ -68,6 +68,38 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
     assert parent_memory_args.init_subcommand == "memory"
     assert parent_memory_args.check is True
 
+    skill_short_args = parser.parse_args(["skill", "init", "-c"])
+    assert skill_short_args.command == "skill"
+    assert skill_short_args.skill_subcommand == "init"
+    assert skill_short_args.check is True
+
+    skill_long_args = parser.parse_args(["skill", "init", "--check"])
+    assert skill_long_args.check is True
+
+    init_skills_args = parser.parse_args(["init", "skills", "--check"])
+    assert init_skills_args.command == "init"
+    assert init_skills_args.init_subcommand == "skills"
+    assert init_skills_args.check is True
+
+    parent_skills_args = parser.parse_args(["init", "--check", "skills"])
+    assert parent_skills_args.init_subcommand == "skills"
+    assert parent_skills_args.check is True
+
+
+def test_parser_rejects_bare_init_check_yes_conflict() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "--check", "--yes"])
+
+    check_args = parser.parse_args(["init", "--check"])
+    assert check_args.check is True
+    assert check_args.yes is False
+
+    yes_args = parser.parse_args(["init", "--yes"])
+    assert yes_args.check is False
+    assert yes_args.yes is True
+
 
 def test_init_help_lists_existing_subcommands(
     capsys: pytest.CaptureFixture[str],

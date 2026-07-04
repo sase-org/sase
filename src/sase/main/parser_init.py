@@ -8,6 +8,13 @@ from sase.main.parser_sdd import add_sdd_path_arg
 def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
     """Add flags shared by ``sase skill init`` and its ``sase init skills`` alias."""
     parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Report generated skill-file drift without writing files",
+    )
+    parser.add_argument(
         "-A",
         "--no-apply",
         action="store_true",
@@ -40,8 +47,8 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-p",
         "--provider",
-        choices=["claude", "agy", "codex", "opencode", "qwen"],
-        help="Only deploy for a specific provider (default: all)",
+        metavar="PROVIDER",
+        help="Only deploy for a registered provider (default: all)",
     )
 
 
@@ -59,13 +66,14 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
             "use `sase init memory --no-commit` or `sase skill init --no-push`."
         ),
     )
-    init_parser.add_argument(
+    mode_group = init_parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "-c",
         "--check",
         action="store_true",
         help="Report initialization drift without writing files or running initializers",
     )
-    init_parser.add_argument(
+    mode_group.add_argument(
         "-y",
         "--yes",
         action="store_true",

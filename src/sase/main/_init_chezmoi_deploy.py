@@ -106,6 +106,33 @@ def _missing_untracked_path(git_root: Path, path: Path) -> bool:
     return tracked.returncode != 0
 
 
+def _git_branch_has_upstream(git_root: Path) -> bool:
+    """Return whether the current branch in ``git_root`` has an upstream."""
+    upstream = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(git_root),
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{u}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return upstream.returncode == 0
+
+
+def skip_pull_push_without_upstream(git_root: Path, command_label: str) -> bool:
+    """Print and return true when pull/push should be skipped for no upstream."""
+    if _git_branch_has_upstream(git_root):
+        return False
+    print(f"{command_label}: no upstream configured; skipping pull/push")
+    return True
+
+
 def deploy_to_chezmoi(
     written_paths: Iterable[Path],
     behavior: ChezmoiDeployBehavior,
@@ -212,6 +239,9 @@ def deploy_to_chezmoi(
         return 0
 
     if behavior.pull_push and committed:
+        if skip_pull_push_without_upstream(git_root, behavior.command_label):
+            return 0
+
         print("Pulling...")
         pull = subprocess.run(
             ["git", "-C", str(git_root), "pull", "--rebase"],
@@ -323,4 +353,5 @@ __all__ = [
     "defer_chezmoi_paths",
     "deploy_deferred_chezmoi",
     "deploy_to_chezmoi",
+    "skip_pull_push_without_upstream",
 ]
