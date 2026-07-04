@@ -17,8 +17,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 async def test_preview_panel_xprompt_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
@@ -56,7 +54,6 @@ async def test_preview_panel_xprompt_png_snapshot(
             page,
             "preview_panel_xprompt_120x40",
             title="ACE prompt preview panel - xprompt",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -103,5 +100,4 @@ async def test_preview_panel_file_png_snapshot(
             page,
             "preview_panel_file_120x40",
             title="ACE prompt preview panel - file",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

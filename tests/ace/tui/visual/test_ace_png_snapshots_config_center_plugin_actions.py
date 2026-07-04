@@ -16,7 +16,6 @@ from tests.ace.tui.test_plugins_browser_pane import (
     _update_ready,
 )
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     _PLUGINS_NOW,
     _build_view,
     _config_layers,
@@ -56,6 +55,9 @@ async def test_config_center_plugins_install_preview_png_snapshot(
         _, pane = await _open_plugins_modal(page)
         _highlight(pane, "nvim")  # a not-installed plugin
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
+        # Wait for the debounced detail repaint to actually land on nvim so the
+        # panel behind the modal is deterministic (not the default github row).
+        await page.wait_for(lambda _s: pane._detail_name == "nvim")
         pane.action_install()
         await page.expect_modal("PluginActionConfirmModal")
         await wait_for_visual_idle(page)
@@ -64,7 +66,6 @@ async def test_config_center_plugins_install_preview_png_snapshot(
             page,
             "config_center_plugins_install_preview_120x40",
             title="ACE SASE Admin Center — Plugins install (confirm preview)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -96,7 +97,6 @@ async def test_config_center_plugins_not_uv_tool_png_snapshot(
             page,
             "config_center_plugins_not_uv_tool_120x40",
             title="ACE SASE Admin Center — Updates tab (install unavailable)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -129,7 +129,6 @@ async def test_config_center_plugins_update_preview_png_snapshot(
             page,
             "config_center_plugins_update_preview_120x40",
             title="ACE SASE Admin Center — Plugins update (confirm preview)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -162,5 +161,4 @@ async def test_config_center_plugins_uninstall_preview_png_snapshot(
             page,
             "config_center_plugins_uninstall_preview_120x40",
             title="ACE SASE Admin Center — Plugins uninstall (confirm preview)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

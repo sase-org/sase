@@ -72,7 +72,9 @@ dev = [
     "twine",
 ]
 visual = [
-    "cairosvg>=2.7,<3",
+    # Exact pin: the renderer version defines the golden corpus, so a bump is
+    # an intentional regenerate-and-review event, not a routine upgrade.
+    "resvg_py==0.3.3",
 ]
 terminal-smoke = [
     "pexpect>=4.9,<5",

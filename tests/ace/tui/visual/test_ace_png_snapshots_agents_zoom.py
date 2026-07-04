@@ -14,7 +14,6 @@ from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -215,11 +214,34 @@ def _context_opened_workspaces() -> list[OpenedWorkspaceDisplayEvent]:
     ]
 
 
+def _pin_zoom_file_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the zoom modal's file-header path so it is host-independent.
+
+    The static-diff header renders the file's expanded path, which for this
+    test is a per-run pytest ``tmp_path`` (``pytest-<N>/popen-gwK/...``). Only
+    the displayed ``expanded_path`` is rewritten (the stale-read check compares
+    ``path``, and file visibility is unconditional for static diffs) so the
+    real file is still read but the PNG golden stays deterministic.
+    """
+    from sase.ace.tui.widgets.file_panel import _display
+    from sase.ace.tui.widgets.file_panel._static_read import StaticReadResult
+
+    original_read = _display._read_static_file
+
+    def _fixed_read(request_id: int, path: str, mode: str) -> StaticReadResult:
+        result = original_read(request_id, path, mode)
+        result.expanded_path = "/workspace/sase/visual_zoom.diff"
+        return result
+
+    monkeypatch.setattr(_display, "_read_static_file", _fixed_read)
+
+
 async def test_agents_file_zoom_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    _pin_zoom_file_header(monkeypatch)
     patch_startup_loaders(monkeypatch, agents=[_zoom_agent(tmp_path)])
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -237,7 +259,6 @@ async def test_agents_file_zoom_modal_png_snapshot(
             page,
             "agents_file_zoom_modal_120x40",
             title="ACE agents file zoom modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -277,7 +298,6 @@ async def test_agents_context_zoom_modal_png_snapshot(
             page,
             "agents_context_zoom_modal_120x40",
             title="ACE agents context zoom modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -307,7 +327,6 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
             page,
             "agents_metadata_zoom_modal_120x40",
             title="ACE agents metadata zoom modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -345,5 +364,4 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
             page,
             "agents_waiting_unknown_zoom_modal_120x40",
             title="ACE agents waiting unknown zoom modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

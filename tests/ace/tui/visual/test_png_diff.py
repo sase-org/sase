@@ -69,18 +69,8 @@ def _write_golden(tmp_path: Path, name: str, png: bytes) -> None:
     golden.write_bytes(png)
 
 
-def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
-    monkeypatch.delenv("GITHUB_WORKFLOW", raising=False)
-    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+def _clear_png_tolerance_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
-
-
-def _set_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.setenv("GITHUB_WORKFLOW", "visual-test")
-    monkeypatch.setenv("GITHUB_RUN_ID", "123456")
 
 
 def test_update_mode_writes_png_golden(tmp_path: Path) -> None:
@@ -100,42 +90,46 @@ def test_matching_png_passes(tmp_path: Path) -> None:
     ace_png_visual.assert_png("matching", png)
 
 
-def test_local_default_fails_on_one_pixel_diff(
+def test_default_fails_on_one_pixel_diff(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _clear_github_actions_env(monkeypatch)
+    _clear_png_tolerance_env(monkeypatch)
     ace_png_visual = _fixture(tmp_path)
     expected_pixels = [(255, 0, 0, 255)] * 100
     actual_pixels = expected_pixels.copy()
     actual_pixels[0] = (0, 0, 255, 255)
-    _write_golden(tmp_path, "local_strict.png", _png(*expected_pixels, size=(10, 10)))
+    _write_golden(tmp_path, "strict.png", _png(*expected_pixels, size=(10, 10)))
 
-    with pytest.raises(AssertionError, match="local default"):
-        ace_png_visual.assert_png("local_strict", _png(*actual_pixels, size=(10, 10)))
+    with pytest.raises(AssertionError, match="default"):
+        ace_png_visual.assert_png("strict", _png(*actual_pixels, size=(10, 10)))
 
 
-def test_github_actions_default_allows_one_percent_diff_without_artifacts(
+def test_github_actions_env_does_not_relax_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _set_github_actions_env(monkeypatch)
+    # The renderer is hermetic, so CI no longer earns a drift tolerance: a
+    # GitHub Actions environment must still enforce exact pixel equality.
+    _clear_png_tolerance_env(monkeypatch)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "visual-test")
+    monkeypatch.setenv("GITHUB_RUN_ID", "123456")
     ace_png_visual = _fixture(tmp_path)
     expected_pixels = [(255, 0, 0, 255)] * 100
     actual_pixels = expected_pixels.copy()
     actual_pixels[0] = (0, 0, 255, 255)
-    _write_golden(tmp_path, "ci_tolerated.png", _png(*expected_pixels, size=(10, 10)))
+    _write_golden(tmp_path, "ci_strict.png", _png(*expected_pixels, size=(10, 10)))
 
-    ace_png_visual.assert_png("ci_tolerated", _png(*actual_pixels, size=(10, 10)))
-
-    assert not (tmp_path / "artifacts").exists()
+    with pytest.raises(AssertionError, match="default"):
+        ace_png_visual.assert_png("ci_strict", _png(*actual_pixels, size=(10, 10)))
 
 
 def test_env_tolerance_allows_renderer_drift_without_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _clear_github_actions_env(monkeypatch)
+    _clear_png_tolerance_env(monkeypatch)
     monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.02")
     ace_png_visual = _fixture(tmp_path)
     expected_pixels = [(255, 0, 0, 255)] * 100
@@ -152,7 +146,7 @@ def test_explicit_strict_tolerance_overrides_env_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _clear_github_actions_env(monkeypatch)
+    _clear_png_tolerance_env(monkeypatch)
     monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.02")
     ace_png_visual = _fixture(tmp_path)
     expected_pixels = [(255, 0, 0, 255)] * 100
@@ -167,91 +161,6 @@ def test_explicit_strict_tolerance_overrides_env_default(
     with pytest.raises(AssertionError, match="explicit"):
         ace_png_visual.assert_png(
             "env_explicit_strict",
-            _png(*actual_pixels, size=(10, 10)),
-            max_diff_pixels=0,
-            max_diff_ratio=0.0,
-        )
-
-
-def test_github_actions_marker_requires_workflow_context(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    monkeypatch.delenv("GITHUB_WORKFLOW", raising=False)
-    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
-    ace_png_visual = _fixture(tmp_path)
-    expected_pixels = [(255, 0, 0, 255)] * 100
-    actual_pixels = expected_pixels.copy()
-    actual_pixels[0] = (0, 0, 255, 255)
-    _write_golden(
-        tmp_path,
-        "github_actions_without_workflow.png",
-        _png(*expected_pixels, size=(10, 10)),
-    )
-
-    with pytest.raises(AssertionError, match="local default"):
-        ace_png_visual.assert_png(
-            "github_actions_without_workflow",
-            _png(*actual_pixels, size=(10, 10)),
-        )
-
-
-def test_github_actions_default_fails_above_one_percent_and_writes_artifacts(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _set_github_actions_env(monkeypatch)
-    ace_png_visual = _fixture(tmp_path)
-    expected_pixels = [(255, 0, 0, 255)] * 100
-    actual_pixels = expected_pixels.copy()
-    actual_pixels[0] = (0, 0, 255, 255)
-    actual_pixels[1] = (0, 0, 255, 255)
-    _write_golden(tmp_path, "ci_exceeded.png", _png(*expected_pixels, size=(10, 10)))
-
-    with pytest.raises(AssertionError, match="GitHub Actions default"):
-        ace_png_visual.assert_png("ci_exceeded", _png(*actual_pixels, size=(10, 10)))
-
-    failure_dir = (
-        tmp_path
-        / "artifacts"
-        / "tests_ace_tui_visual_test_png_diff.py__test_case"
-        / "ci_exceeded"
-    )
-    assert (failure_dir / "failure.json").exists()
-
-
-def test_github_actions_default_missing_golden_still_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _set_github_actions_env(monkeypatch)
-    ace_png_visual = _fixture(tmp_path)
-    actual = _png((0, 0, 255, 255), size=(1, 1))
-
-    with pytest.raises(AssertionError, match="Missing ACE PNG snapshot golden"):
-        ace_png_visual.assert_png("ci_missing", actual)
-
-
-def test_explicit_strict_tolerance_overrides_github_actions_default(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _set_github_actions_env(monkeypatch)
-    ace_png_visual = _fixture(tmp_path)
-    expected_pixels = [(255, 0, 0, 255)] * 100
-    actual_pixels = expected_pixels.copy()
-    actual_pixels[0] = (0, 0, 255, 255)
-    _write_golden(
-        tmp_path,
-        "ci_explicit_strict.png",
-        _png(*expected_pixels, size=(10, 10)),
-    )
-
-    with pytest.raises(AssertionError, match="explicit"):
-        ace_png_visual.assert_png(
-            "ci_explicit_strict",
             _png(*actual_pixels, size=(10, 10)),
             max_diff_pixels=0,
             max_diff_ratio=0.0,
@@ -434,7 +343,7 @@ def test_assert_page_png_rasterizes_page_svg(
 
 
 def test_render_svg_to_png_uses_visual_renderer() -> None:
-    pytest.importorskip("cairosvg")
+    pytest.importorskip("resvg_py")
 
     png = render_svg_to_png(
         '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">'

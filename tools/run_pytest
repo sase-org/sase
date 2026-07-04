@@ -16,8 +16,6 @@ PYTEST_ENV_UNSET_KEYS = (
     "SASE_PR_NAME",
     "SASE_PR_STATUS",
 )
-VISUAL_PNG_MAX_DIFF_RATIO_ENV = "SASE_VISUAL_PNG_MAX_DIFF_RATIO"
-BROAD_TEST_VISUAL_PNG_MAX_DIFF_RATIO = "0.001"
 FAST_MARKER_EXPRESSION = "not slow"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
@@ -185,14 +183,6 @@ def _sanitize_pytest_environment() -> None:
         os.environ.pop(key, None)
 
 
-def _configure_mode_environment(mode: str) -> None:
-    if mode in {"fast", "cov"}:
-        os.environ.setdefault(
-            VISUAL_PNG_MAX_DIFF_RATIO_ENV,
-            BROAD_TEST_VISUAL_PNG_MAX_DIFF_RATIO,
-        )
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("fast", "slow", "visual", "cov"))
@@ -204,7 +194,6 @@ def main(argv: list[str] | None = None) -> int:
     ).resolve()
     mode, pytest_args = _resolve_mode_and_args(namespace.mode, namespace.pytest_args)
     pytest_args = _normalize_args(pytest_args, invocation_dir)
-    _configure_mode_environment(mode)
     command = _pytest_command(mode, pytest_args)
 
     _sanitize_pytest_environment()

@@ -21,8 +21,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 def _finder_candidate(rel: str, is_dir: bool = False) -> CompletionCandidate:
     display = f"src/sase/ace/tui/widgets/{rel}"
@@ -106,5 +104,4 @@ async def test_recursive_finder_modal_png_snapshot(
             page,
             "recursive_finder_modal_120x40",
             title="ACE recursive finder modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

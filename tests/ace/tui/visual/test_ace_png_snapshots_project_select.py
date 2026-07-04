@@ -24,8 +24,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 def _select_projects() -> list[str]:
     return ["home", "ace-tui", "rust-core", "telegram-bridge"]
@@ -97,7 +95,6 @@ async def test_project_select_modal_default_png_snapshot(
             page,
             "project_select_modal_default_120x40",
             title="ACE @ project-select pop-up (default)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -120,5 +117,4 @@ async def test_project_select_modal_filtered_png_snapshot(
             page,
             "project_select_modal_filtered_120x40",
             title="ACE @ project-select pop-up (filtered)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

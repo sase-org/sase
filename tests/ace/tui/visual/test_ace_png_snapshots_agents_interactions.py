@@ -11,7 +11,6 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -99,7 +98,6 @@ async def test_agents_unread_highlight_png_snapshot(
             page,
             "agents_unread_highlight_120x40",
             title="ACE agents unread highlight",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -123,7 +121,6 @@ async def test_agents_neighbor_badge_png_snapshot(
             page,
             "agents_neighbor_badge_120x40",
             title="ACE agents neighbor badge",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -154,7 +151,6 @@ async def test_agent_neighbor_modal_narrow_png_snapshot(
             page,
             "agent_neighbor_modal_60x30",
             title="ACE agent neighbor modal narrow",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -208,6 +204,17 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         page.app._dismiss_revive_epoch += 1
         page.app.action_start_sibling_mode()
         await page.expect_modal("AgentNeighborModal")
+        # The footer's neighbor-count hint ("neighbors (N)") is recomputed
+        # asynchronously as the dismissed descendant is folded into the
+        # neighbor index; wait_for_visual_idle only settles detail debouncers,
+        # so poll the rendered footer until the count reaches its resting value
+        # (2) to keep the snapshot deterministic.
+        await page.wait_for(
+            lambda _s: (
+                "neighbors (2)"
+                in page.export_svg(title="neighbor settle").replace("&#160;", " ")
+            )
+        )
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "Descendants")
         assert_page_svg_contains(page, "visual.root.dismissed")
@@ -217,7 +224,6 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
             page,
             "agent_neighbor_modal_descendants_dismissed_60x30",
             title="ACE agent neighbor modal dismissed descendant",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -316,7 +322,6 @@ async def test_agents_auto_approve_icons_png_snapshot(
             page,
             "agents_auto_approve_icons_120x40",
             title="ACE agents auto-approve icons",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -352,7 +357,6 @@ async def test_agents_auto_approve_metadata_png_snapshots(
                 page,
                 snapshot_name,
                 title=f"ACE agents auto-approve metadata {title}",
-                max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
             )
 
 
@@ -418,7 +422,6 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
             page,
             "agents_auto_approve_xprompts_metadata_120x40",
             title="ACE agents auto-approve xprompts metadata",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -454,7 +457,6 @@ async def test_auto_approve_modal_png_snapshot(
             page,
             "auto_approve_modal_60x30",
             title="ACE auto-approve modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -491,7 +493,6 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
             page,
             "agent_workspace_tmux_modal_100x28",
             title="ACE agent workspace tmux modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -557,5 +558,4 @@ async def test_wait_modal_png_snapshot(
             page,
             "wait_modal_100x32",
             title="ACE wait modal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

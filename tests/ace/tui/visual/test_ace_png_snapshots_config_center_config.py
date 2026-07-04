@@ -14,7 +14,6 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_pane import ConfigPane
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     _build_view,
     _config_layers,
     _config_schema,
@@ -52,7 +51,6 @@ async def test_config_center_config_tab_png_snapshot(
             page,
             "config_center_config_tab_120x40",
             title="ACE SASE Admin Center — Config tab (populated)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -80,7 +78,6 @@ async def test_config_center_config_empty_png_snapshot(
             page,
             "config_center_config_empty_120x40",
             title="ACE SASE Admin Center — Config tab (no fields)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -102,7 +99,6 @@ async def test_config_center_config_loading_png_snapshot(
             page,
             "config_center_config_loading_120x40",
             title="ACE SASE Admin Center — Config tab (loading)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -128,7 +124,6 @@ async def test_config_center_config_long_value_png_snapshot(
             page,
             "config_center_config_long_value_120x40",
             title="ACE SASE Admin Center — Config tab (long value)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -156,7 +151,6 @@ async def test_config_center_config_object_value_png_snapshot(
             page,
             "config_center_config_object_value_120x40",
             title="ACE SASE Admin Center — Config tab (object value)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -177,5 +171,4 @@ async def test_config_center_xprompts_tab_png_snapshot(
             page,
             "config_center_xprompts_tab_120x40",
             title="ACE SASE Admin Center — XPrompts tab (migrated browser)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

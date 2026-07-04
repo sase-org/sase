@@ -30,7 +30,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
 # Frozen relative ages keyed by each fixture entry's ``created_at`` so the
 # modal rows render identically on every run.
@@ -123,7 +122,6 @@ async def test_stashed_prompts_indicator_badge_png_snapshot(
             page,
             "stashed_prompts_indicator_badge_120x40",
             title="ACE stashed-prompts top-bar badge",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -153,5 +151,4 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
             page,
             "stashed_prompts_restore_modal_120x40",
             title="ACE stashed-prompts panel",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

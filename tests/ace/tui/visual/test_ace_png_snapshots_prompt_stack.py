@@ -30,7 +30,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
 _TWO_PANE_PROMPT = (
     "Investigate the failing CI on the beads branch and\n"
@@ -111,7 +110,6 @@ async def test_prompt_stack_two_panes_png_snapshot(
             page,
             "prompt_stack_two_panes_120x40",
             title="ACE prompt stack — active lower pane",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -135,7 +133,6 @@ async def test_prompt_stack_active_upper_png_snapshot(
             page,
             "prompt_stack_active_upper_120x40",
             title="ACE prompt stack — active upper pane",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -158,7 +155,6 @@ async def test_prompt_submit_choice_modal_png_snapshot(
             page,
             "prompt_submit_choice_modal_120x40",
             title="ACE prompt stack — submit chooser",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -179,7 +175,6 @@ async def test_prompt_stack_compact_inactive_png_snapshot(
             page,
             "prompt_stack_compact_inactive_80x30",
             title="ACE prompt stack — compact inactive panes",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -208,7 +203,6 @@ async def test_prompt_stack_completion_panel_png_snapshot(
             page,
             "prompt_stack_completion_panel_120x40",
             title="ACE prompt stack — completion panel in active pane",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -234,7 +228,6 @@ async def test_prompt_stack_g_prefix_hints_png_snapshot(
             page,
             "prompt_stack_g_prefix_hints_120x40",
             title="ACE prompt stack — g prefix hints",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -256,7 +249,6 @@ async def test_prompt_search_highlight_png_snapshot(
             page,
             "prompt_search_highlight_120x40",
             title="ACE prompt input - active search highlight",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -278,7 +270,6 @@ async def test_prompt_vim_cursor_insert_png_snapshot(
             page,
             "prompt_vim_cursor_insert_120x40",
             title="ACE prompt input - INSERT cursor",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -301,7 +292,6 @@ async def test_prompt_vim_cursor_normal_png_snapshot(
             page,
             "prompt_vim_cursor_normal_120x40",
             title="ACE prompt input - NORMAL cursor",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -324,7 +314,6 @@ async def test_prompt_vim_cursor_visual_png_snapshot(
             page,
             "prompt_vim_cursor_visual_120x40",
             title="ACE prompt input - VISUAL cursor",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -347,7 +336,6 @@ async def test_prompt_jinja_valid_png_snapshot(
             page,
             "prompt_jinja_valid_120x40",
             title="ACE prompt input — Jinja valid state",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -370,7 +358,6 @@ async def test_prompt_jinja_invalid_png_snapshot(
             page,
             "prompt_jinja_invalid_120x40",
             title="ACE prompt input — Jinja invalid state",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 

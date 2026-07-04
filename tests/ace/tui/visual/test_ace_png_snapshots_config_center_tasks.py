@@ -9,7 +9,6 @@ from sase.ace.tui.modals import tasks_pane as tp
 from sase.ace.tui.task_queue import TaskQueue
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     _FIXED_TASK_NOW,
     _open_tasks_modal,
     _patch_config_view,
@@ -50,6 +49,9 @@ async def test_config_center_tasks_tab_png_snapshot(
             now=_FIXED_TASK_NOW.replace(tzinfo=None),
         ),
     )
+    # Freeze the running-task spinner so the status token is byte-stable; the
+    # 0.25s refresh timer would otherwise advance it between runs.
+    monkeypatch.setattr(tp, "_SPINNER_FRAMES", ("|",))
     monkeypatch.setattr(TaskQueue, "prune_old", lambda self: None)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -65,5 +67,4 @@ async def test_config_center_tasks_tab_png_snapshot(
             page,
             "config_center_tasks_tab_120x40",
             title="ACE SASE Admin Center - Tasks tab",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

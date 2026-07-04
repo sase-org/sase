@@ -20,7 +20,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
 _FROZEN_ELAPSED = {
     "2026-06-23T12:00:00": "12s",
@@ -115,5 +114,4 @@ async def test_quit_confirm_modal_png_snapshot(
             page,
             "quit_confirm_modal_120x40",
             title="ACE quit confirmation panel",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

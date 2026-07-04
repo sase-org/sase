@@ -12,7 +12,6 @@ from sase.plugins.latest import LatestInfo
 from tests.ace.tui.test_plugins_browser_pane import _entry
 from tests.ace.tui.test_plugins_browser_pane import _core_versions
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     _PLUGINS_NOW,
     _build_view,
     _config_layers,
@@ -54,7 +53,6 @@ async def test_config_center_plugins_tab_png_snapshot(
             page,
             "config_center_plugins_tab_120x40",
             title="ACE SASE Admin Center — Updates tab (list + built-in detail)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -81,7 +79,6 @@ async def test_config_center_updates_core_update_available_png_snapshot(
             page,
             "config_center_plugins_core_update_available_120x40",
             title="ACE SASE Admin Center — Updates tab (core update available)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -129,7 +126,6 @@ async def test_config_center_plugins_dev_update_available_png_snapshot(
             page,
             "config_center_plugins_dev_update_available_120x40",
             title="ACE SASE Admin Center — Updates tab (dev update available)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -157,7 +153,6 @@ async def test_config_center_plugins_community_detail_png_snapshot(
             page,
             "config_center_plugins_community_detail_120x40",
             title="ACE SASE Admin Center — Updates tab (community warning + detail)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -202,7 +197,6 @@ async def test_config_center_plugins_long_description_png_snapshot(
             page,
             "config_center_plugins_long_description_120x40",
             title="ACE SASE Admin Center — Updates tab (long description wraps)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -228,7 +222,6 @@ async def test_config_center_plugins_offline_png_snapshot(
             page,
             "config_center_plugins_offline_120x40",
             title="ACE SASE Admin Center — Updates tab (offline badge)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -259,7 +252,6 @@ async def test_config_center_plugins_verbose_png_snapshot(
             page,
             "config_center_plugins_verbose_120x40",
             title="ACE SASE Admin Center — Updates tab (verbose rows)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -285,7 +277,6 @@ async def test_config_center_plugins_empty_png_snapshot(
             page,
             "config_center_plugins_empty_120x40",
             title="ACE SASE Admin Center — Updates tab (empty catalog)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -310,5 +301,4 @@ async def test_config_center_plugins_loading_png_snapshot(
             page,
             "config_center_plugins_loading_120x40",
             title="ACE SASE Admin Center — Updates tab (loading)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

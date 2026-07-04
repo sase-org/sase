@@ -27,8 +27,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 def _vcs_candidate(
     name: str,
@@ -109,5 +107,4 @@ async def test_vcs_project_completion_panel_png_snapshot(
             page,
             "vcs_project_completion_panel_120x40",
             title="ACE prompt input — + project completion menu",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

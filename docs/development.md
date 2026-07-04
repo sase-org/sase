@@ -82,37 +82,28 @@ just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace
 Review changed PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`, `just fmt`,
 or broad CI-style commands.
 
-Committed goldens are canonical to the CI (Linux / fontconfig) renderer. The suite pins rasterization by building a
-hermetic `fonts.conf` and exporting it via `FONTCONFIG_FILE` so every font family resolves to the bundled Fira Code
-(`tests/ace/tui/visual/fonts/`). That pin only takes effect on renderers that route font resolution through fontconfig.
-A host whose cairo build resolves fonts through a different backend — macOS / Quartz today — silently ignores
-`FONTCONFIG_FILE` and rasterizes with a system fallback font, so it can neither exactly reproduce the goldens nor
-regenerate canonical ones (box-drawing borders render as tofu squares, the `→` arrow drops out, body text falls back to
-a proportional font).
+Committed goldens are canonical to the pinned renderer, not to any host. Rasterization goes through resvg
+(`resvg_py==0.3.3`), a pure-Rust SVG renderer that carries its own font database restricted to the bundled Fira Code
+(`tests/ace/tui/visual/fonts/`) with `skip_system_fonts=True`. No platform text or graphics stack participates, so every
+machine — macOS arm64, CI's Linux x86_64, anything else — produces byte-identical PNGs.
 
-Because of this, `--sase-update-visual-snapshots` is guarded. The first time a golden would be written under the update
-flag, the suite renders a tiny probe SVG through the pinned `fonts.conf` and through a second config that points at an
-empty font directory. If the two renders are byte-identical, the host is ignoring the pin and the update is refused with
-an actionable error
-(`Cannot regenerate ACE visual snapshot goldens on this host: the renderer ignores the bundled-font pin ...`). Normal
-comparison runs are never affected. The check is a functional probe rather than a `sys.platform` gate, so it also
-catches misconfigured Linux hosts and will automatically un-block macOS if a future cairo honors fontconfig there.
+Because rendering is hermetic, goldens are regenerable anywhere. Accept intentional visual changes with the local
+one-liner above, review the changed PNGs as ordinary test data, then commit. There is no CI-artifact adoption ritual and
+no host-specific font setup to perform.
 
-To adopt a golden change from a host that fails the probe (macOS today), take the CI render as the new golden instead of
-regenerating locally:
+The renderer version is pinned exactly because it _defines_ the golden corpus. Bumping `resvg_py` is a deliberate
+regenerate-and-review event: change the pin, regenerate every golden, spot-check the diff, and commit the corpus churn
+in the same change.
 
-1. Push the change and let CI run the `visual-test` job.
-2. Download the artifacts: `gh run download <run-id> --name ace-visual-artifacts`.
-3. For each failing test, inspect its `actual.png` (confirm Fira Code monospace, continuous box-drawing borders, and
-   correct `→` glyphs), then copy it over the matching golden under `tests/ace/tui/visual/snapshots/png/`.
+PNG comparison uses exact pixel equality by default in every lane — local `just test-visual`, the broad `just test` /
+`just test-cov` runs, and CI. Any drift is a real regression. As a triage escape hatch the comparison can be relaxed
+with `SASE_VISUAL_PNG_MAX_DIFF_RATIO=<ratio>` (a ratio-only cap) or a per-assertion `max_diff_pixels` / `max_diff_ratio`
+kwarg — useful for measuring drift scale during a renderer bump — but these are inert by default and should not be left
+in place.
 
-PNG comparison tolerance is environment-gated. On hosts that honor the font pin, dedicated local visual runs require
-exact pixel equality against the committed golden; any drift there is a real regression that needs investigation, not
-relaxation. Broad commands that include visual tests, such as `just test` and `just test-cov`, set
-`SASE_VISUAL_PNG_MAX_DIFF_RATIO=0.001` so tiny font/rasterizer jitter does not break the full local suite. Runs in
-GitHub Actions allow a small ratio-only renderer-drift tolerance for the same reason. On a font-pin-honoring host, treat
-a `just test-visual` failure as a true regression even if the same test passes in CI, and accept new goldens only with
-`--sase-update-visual-snapshots` after inspecting the diff PNG locally.
+One accepted fidelity caveat: Fira Code ships no italic face and resvg does not synthesize oblique, so
+`font-style: italic` renders upright. This is uniform across every screen and host. Restoring visible italics would mean
+switching the bundled font family, taken as a separate follow-up if it becomes necessary.
 
 ### Visual Failure Report
 

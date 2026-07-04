@@ -8,7 +8,6 @@ from textual.widgets import Input
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     _build_view,
     _config_layers,
     _config_schema,
@@ -61,7 +60,6 @@ async def test_config_center_edit_modal_png_snapshot(
             page,
             "config_center_edit_modal_120x40",
             title="ACE SASE Admin Center — edit field (scope + editor)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -88,5 +86,4 @@ async def test_config_center_edit_preview_png_snapshot(
             page,
             "config_center_edit_preview_120x40",
             title="ACE SASE Admin Center — edit preview (diff + validation)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

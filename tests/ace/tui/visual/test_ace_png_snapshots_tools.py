@@ -17,6 +17,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.tools import cache as tools_cache_module
 from sase.ace.tui.widgets import tools_panel as tools_panel_module
 from sase.ace.tui.widgets.tools_panel import AgentToolsPanel
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -28,8 +29,6 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
-
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
 
 def _tools_agent(artifacts_dir: Path) -> Agent:
@@ -224,8 +223,14 @@ class _FixedDateTime(datetime):
 
 
 def _pin_tools_panel_now(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin ``datetime.now()`` calls in the Tools panel to a fixed wall-clock."""
+    """Pin ``datetime.now()`` calls in the Tools panel to a fixed wall-clock.
+
+    The rendered ``refreshed HH:MM:SS`` line comes from ``fetch_time``, which
+    the cache loader stamps with ``datetime.now()`` at read time, so the cache
+    module's clock has to be pinned too — not just the panel widget's.
+    """
     monkeypatch.setattr(tools_panel_module, "datetime", _FixedDateTime)
+    monkeypatch.setattr(tools_cache_module, "datetime", _FixedDateTime)
 
 
 def _clear_tools_cache() -> None:
@@ -280,5 +285,4 @@ async def test_agents_tools_panel_populated_png_snapshot(
             page,
             "agents_tools_panel_populated_120x40",
             title="ACE agents tools panel populated with Codex rows",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

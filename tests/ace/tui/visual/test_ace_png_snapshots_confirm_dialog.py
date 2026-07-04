@@ -21,8 +21,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 async def test_confirm_dialog_neutral_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
@@ -51,7 +49,6 @@ async def test_confirm_dialog_neutral_png_snapshot(
             page,
             "confirm_dialog_neutral_120x40",
             title="ACE neutral confirmation dialog",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -72,7 +69,6 @@ async def test_confirm_dialog_danger_png_snapshot(
             page,
             "confirm_dialog_danger_120x40",
             title="ACE danger confirmation dialog",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -97,7 +93,6 @@ async def test_confirm_dialog_dismiss_all_png_snapshot(
             page,
             "confirm_dialog_dismiss_all_120x40",
             title="ACE dismiss-all confirmation dialog",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -125,5 +120,4 @@ async def test_confirm_dialog_kill_all_escalated_png_snapshot(
             page,
             "confirm_dialog_kill_all_escalated_120x40",
             title="ACE escalated kill-all confirmation dialog",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

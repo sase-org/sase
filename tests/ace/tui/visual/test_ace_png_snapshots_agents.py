@@ -14,7 +14,6 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -47,7 +46,6 @@ async def test_agent_list_png_snapshot(
             page,
             "agents_list_120x40",
             title="ACE agents list",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -71,7 +69,6 @@ async def test_agent_reverted_indicator_png_snapshot(
             page,
             "agents_reverted_indicator_120x40",
             title="ACE agents reverted indicator",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -93,7 +90,6 @@ async def test_agent_stopped_status_png_snapshot(
             page,
             "agents_stopped_status_120x40",
             title="ACE agents stopped status",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -162,7 +158,6 @@ async def test_agent_plan_handoff_status_colors_png_snapshot(
             page,
             "agents_plan_handoff_status_colors_120x40",
             title="ACE agents plan handoff status colors",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -190,5 +185,4 @@ async def test_agents_selected_row_png_snapshot(
             page,
             "agents_selected_row_120x40",
             title="ACE agents selected row",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

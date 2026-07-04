@@ -6,7 +6,6 @@ import pytest
 
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -41,5 +40,4 @@ async def test_changespecs_onboarding_png_snapshot(
             page,
             "changespecs_onboarding_120x40",
             title="ACE PRs onboarding",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

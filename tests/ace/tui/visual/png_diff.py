@@ -11,8 +11,8 @@ from typing import Any, Protocol
 
 from PIL import Image
 
-GITHUB_ACTIONS_MAX_DIFF_RATIO = 0.01
 PNG_MAX_DIFF_RATIO_ENV = "SASE_VISUAL_PNG_MAX_DIFF_RATIO"
+_FONTS_DIR = Path(__file__).parent / "fonts"
 
 
 class SvgExporter(Protocol):
@@ -101,11 +101,11 @@ class AcePngSnapshotFixture:
     ) -> None:
         """Capture *page* as PNG and assert that it matches the golden.
 
-        Local runs default to exact pixel equality. GitHub Actions workflow
-        runs and commands that set ``SASE_VISUAL_PNG_MAX_DIFF_RATIO`` default
-        to a small ratio-only tolerance to absorb renderer drift. Explicit
-        ``max_diff_pixels`` or ``max_diff_ratio`` kwargs take precedence over
-        those environment-derived defaults.
+        Rendering is hermetic (resvg + the bundled Fira Code), so the default
+        is exact pixel equality on every host. Setting
+        ``SASE_VISUAL_PNG_MAX_DIFF_RATIO`` or passing ``max_diff_pixels`` /
+        ``max_diff_ratio`` relaxes that as an explicit, documented triage
+        escape hatch (e.g. assessing drift scale during a renderer bump).
         """
         svg = page.export_svg(title=title, simplify=simplify)
         png_bytes = render_svg_to_png(svg)
@@ -144,9 +144,15 @@ class AcePngSnapshotFixture:
 
 
 def render_svg_to_png(svg: str) -> bytes:
-    """Render SVG text to PNG bytes using the opt-in visual renderer."""
+    """Render SVG text to PNG bytes using the pinned hermetic renderer.
+
+    Rendering goes through resvg (a pure-Rust SVG rasterizer with its own font
+    database) restricted to the bundled Fira Code. ``skip_system_fonts`` keeps
+    every platform text and graphics stack out of the render, so the produced
+    PNG is byte-identical on every host.
+    """
     try:
-        import cairosvg
+        import resvg_py
     except ImportError as exc:
         raise RuntimeError(
             "ACE PNG visual snapshots require the visual test extra. "
@@ -154,7 +160,17 @@ def render_svg_to_png(svg: str) -> bytes:
             "equivalent environment setup."
         ) from exc
 
-    return cairosvg.svg2png(bytestring=svg.encode("utf-8"))
+    return bytes(
+        resvg_py.svg_to_bytes(
+            svg_string=svg,
+            skip_system_fonts=True,
+            font_dirs=[str(_FONTS_DIR)],
+            font_family="Fira Code",
+            monospace_family="Fira Code",
+            sans_serif_family="Fira Code",
+            serif_family="Fira Code",
+        )
+    )
 
 
 def assert_png_matches(
@@ -255,16 +271,10 @@ def _resolve_png_diff_tolerance(
         )
     if env_tolerance := _resolve_env_png_diff_tolerance():
         return env_tolerance
-    if _running_in_github_actions_workflow():
-        return _PngDiffTolerance(
-            max_diff_pixels=None,
-            max_diff_ratio=GITHUB_ACTIONS_MAX_DIFF_RATIO,
-            source="GitHub Actions default",
-        )
     return _PngDiffTolerance(
         max_diff_pixels=0,
         max_diff_ratio=0.0,
-        source="local default",
+        source="default",
     )
 
 
@@ -290,13 +300,6 @@ def _resolve_env_png_diff_tolerance() -> _PngDiffTolerance | None:
         max_diff_ratio=max_diff_ratio,
         source=f"${PNG_MAX_DIFF_RATIO_ENV}",
     )
-
-
-def _running_in_github_actions_workflow() -> bool:
-    """Return true for GitHub Actions workflow execution, not generic CI."""
-    if os.environ.get("GITHUB_ACTIONS") != "true":
-        return False
-    return bool(os.environ.get("GITHUB_WORKFLOW") or os.environ.get("GITHUB_RUN_ID"))
 
 
 def snapshot_path(snapshot_root: Path, name: str) -> Path:

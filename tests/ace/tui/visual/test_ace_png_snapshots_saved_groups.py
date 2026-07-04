@@ -29,8 +29,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 async def test_saved_agent_group_modal_normal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
@@ -101,7 +99,6 @@ async def test_saved_agent_group_modal_normal_png_snapshot(
             page,
             "saved_agent_group_revival_normal_120x40",
             title="ACE saved agent group modal normal",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -158,7 +155,6 @@ async def test_saved_agent_group_modal_jump_mode_png_snapshot(
             page,
             "saved_agent_group_revival_jump_mode_120x40",
             title="ACE saved agent group modal jump mode",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -180,7 +176,6 @@ async def test_saved_agent_group_modal_empty_png_snapshot(
             page,
             "saved_agent_group_revival_empty_120x40",
             title="ACE saved agent group modal empty",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -211,7 +206,6 @@ async def test_saved_agent_group_modal_load_more_png_snapshot(
             page,
             "saved_agent_group_revival_load_more_120x40",
             title="ACE saved agent group modal load more",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -243,7 +237,6 @@ async def test_saved_agent_group_modal_preview_rich_png_snapshot(
             page,
             "saved_agent_group_revival_preview_rich_120x40",
             title="ACE saved agent group modal preview-rich",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 

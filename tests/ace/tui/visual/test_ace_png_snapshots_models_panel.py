@@ -28,7 +28,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
 # Frozen clock so override countdowns are deterministic.
 _FROZEN_NOW = 1000.0
@@ -170,7 +169,6 @@ async def test_models_panel_default_png_snapshot(
             page,
             "models_panel_default_120x40",
             title="ACE models panel (no overrides)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -195,5 +193,4 @@ async def test_models_panel_overrides_png_snapshot(
             page,
             "models_panel_overrides_120x40",
             title="ACE models panel (overrides active)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

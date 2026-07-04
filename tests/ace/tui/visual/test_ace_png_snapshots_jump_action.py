@@ -16,8 +16,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 async def test_jump_action_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
@@ -45,5 +43,4 @@ async def test_jump_action_modal_png_snapshot(
             page,
             "jump_action_modal_120x40",
             title="ACE prompt jump action chooser",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

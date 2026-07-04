@@ -27,7 +27,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
 _POPULATED_PROMPT = (
     "---\n"
@@ -92,7 +91,6 @@ async def test_frontmatter_panel_populated_png_snapshot(
             page,
             "frontmatter_panel_populated_120x40",
             title="ACE frontmatter panel — populated",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -115,7 +113,6 @@ async def test_frontmatter_panel_empty_png_snapshot(
             page,
             "frontmatter_panel_empty_120x40",
             title="ACE frontmatter panel — empty",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -138,7 +135,6 @@ async def test_frontmatter_panel_error_png_snapshot(
             page,
             "frontmatter_panel_error_120x40",
             title="ACE frontmatter panel — error state",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -171,7 +167,6 @@ async def test_frontmatter_input_item_modal_png_snapshot(
             page,
             "frontmatter_input_item_modal_120x40",
             title="ACE frontmatter input item editor",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -206,5 +201,4 @@ async def test_frontmatter_xprompt_item_modal_png_snapshot(
             page,
             "frontmatter_xprompt_item_modal_120x40",
             title="ACE frontmatter xprompt item editor",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

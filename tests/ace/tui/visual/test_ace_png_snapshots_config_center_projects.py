@@ -12,7 +12,6 @@ import pytest
 
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     _build_view,
     _config_layers,
     _config_schema,
@@ -58,7 +57,6 @@ async def test_config_center_projects_tab_png_snapshot(
             page,
             "config_center_projects_tab_120x40",
             title="ACE SASE Admin Center — Projects tab (active list + detail)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -82,7 +80,6 @@ async def test_config_center_projects_marked_png_snapshot(
             page,
             "config_center_projects_marked_120x40",
             title="ACE SASE Admin Center — Projects tab (marked set)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -109,7 +106,6 @@ async def test_config_center_projects_inactive_png_snapshot(
             page,
             "config_center_projects_inactive_120x40",
             title="ACE SASE Admin Center — Projects tab (inactive rows visible)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -140,5 +136,4 @@ async def test_config_center_projects_detail_png_snapshot(
             page,
             "config_center_projects_detail_120x40",
             title="ACE SASE Admin Center — Projects tab (all states + detail)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

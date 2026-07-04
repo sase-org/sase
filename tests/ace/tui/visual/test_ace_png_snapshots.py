@@ -23,8 +23,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 async def test_changespec_initial_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
@@ -114,7 +112,6 @@ async def test_footer_leader_overflow_wide_png_snapshot(
             page,
             "footer_leader_overflow_120x40",
             title="ACE footer LEADER grid (wide)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -135,5 +132,4 @@ async def test_footer_leader_overflow_narrow_png_snapshot(
             page,
             "footer_leader_overflow_80x30",
             title="ACE footer LEADER grid (narrow)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

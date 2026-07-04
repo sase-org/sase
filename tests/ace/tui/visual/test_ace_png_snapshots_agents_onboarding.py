@@ -8,7 +8,6 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents import _onboarding_launch_targets
 from sase.ace.tui.actions.agents import _onboarding_plugins
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -73,7 +72,6 @@ async def test_agents_onboarding_png_snapshot(
             page,
             "agents_onboarding_120x40",
             title="ACE agents onboarding",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -113,5 +111,4 @@ async def test_agents_onboarding_no_plugins_png_snapshot(
             page,
             "agents_onboarding_no_plugins_120x40",
             title="ACE agents onboarding without plugins",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

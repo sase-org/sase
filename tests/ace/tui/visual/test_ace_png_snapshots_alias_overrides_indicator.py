@@ -34,7 +34,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 
 # Frozen creation clock; every override is until-cleared so no countdown runs.
 _FROZEN_NOW = 1000.0
@@ -73,7 +72,6 @@ async def test_alias_overrides_indicator_single_png_snapshot(
             page,
             "alias_overrides_indicator_single_120x40",
             title="ACE non-default override pill (single)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -110,5 +108,4 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
             page,
             "alias_overrides_indicator_multi_120x40",
             title="ACE non-default override pill (multi + default)",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

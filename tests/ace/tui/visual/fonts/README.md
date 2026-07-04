@@ -1,11 +1,11 @@
 # Bundled fonts for ACE visual snapshot tests
 
-The PNG snapshot suite renders SVG via cairosvg, which goes through cairo → pango → fontconfig. Without pinning, the
-rendered text depends on whatever "Fira Code, monospace" resolves to on each host, so CI and dev machines disagree on
-glyph metrics and the goldens diverge.
+The PNG snapshot suite renders SVG through resvg (`resvg_py`), a pure-Rust rasterizer with its own font database. It is
+pointed at this directory via `font_dirs` with `skip_system_fonts=True`, so only these files participate in rendering —
+no platform font stack is consulted and the goldens are byte-identical on every host.
 
-`tests/ace/tui/visual/conftest.py` builds a per-session `fonts.conf` that points fontconfig at this directory and
-aliases monospace/sans/serif/arial to Fira Code, giving byte-identical PNGs everywhere.
+`tests/ace/tui/visual/png_diff.py::render_svg_to_png` maps every generic family (monospace/sans-serif/serif and the
+default) to Fira Code, so all text resolves here regardless of the font family Textual emits.
 
 ## Files
 

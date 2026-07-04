@@ -44,7 +44,6 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
 _FIXED_LOG_MTIME = int(datetime(2026, 6, 17, 14, 30, tzinfo=UTC).timestamp())
 _FIXED_TASK_NOW = datetime(2026, 6, 26, 12, 0, 0)
 

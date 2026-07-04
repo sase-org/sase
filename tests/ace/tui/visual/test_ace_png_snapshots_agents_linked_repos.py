@@ -20,7 +20,6 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     get_cached_detail_header_summary,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     assert_page_svg_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -229,7 +228,6 @@ async def test_agents_linked_repo_diff_file_panel_png_snapshot(
             page,
             "agents_linked_repo_diff_file_panel_120x40",
             title="ACE agents linked repo diff file panel",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -264,5 +262,4 @@ async def test_agents_commit_messages_panel_png_snapshot(
             page,
             "agents_commit_messages_panel_120x40",
             title="ACE agents commit deltas and file panel",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

@@ -17,8 +17,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 def _spec(
     spec_id: str,
@@ -70,5 +68,4 @@ async def test_command_palette_png_snapshot(
             page,
             "command_palette_default_120x40",
             title="ACE : command palette pop-up",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

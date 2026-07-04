@@ -23,8 +23,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 def _commit(
     sha: str,
@@ -157,7 +155,6 @@ async def test_revert_confirm_single_png_snapshot(
             page,
             "revert_confirm_modal_single_120x40",
             title="ACE revert confirmation panel",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 
@@ -178,5 +175,4 @@ async def test_revert_confirm_bulk_png_snapshot(
             page,
             "revert_confirm_modal_bulk_120x40",
             title="ACE bulk revert confirmation panel",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )

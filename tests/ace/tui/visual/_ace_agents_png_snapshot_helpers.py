@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from sase.ace.testing import AcePage
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 def assert_page_svg_contains(page: AcePage, text: str) -> None:
     svg = page.export_svg(title="ACE visual assertion")

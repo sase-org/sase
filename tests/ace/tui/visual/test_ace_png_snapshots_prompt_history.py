@@ -21,8 +21,6 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-BROAD_SCREENSHOT_MAX_DIFF_RATIO = 0.03
-
 
 @pytest.fixture
 def prompt_history_sources(monkeypatch: pytest.MonkeyPatch):
@@ -67,7 +65,6 @@ async def test_prompt_history_modal_redesign_png_snapshot(
             page,
             "prompt_history_modal_redesign_120x40",
             title="ACE prompt history modal redesign",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
 
 

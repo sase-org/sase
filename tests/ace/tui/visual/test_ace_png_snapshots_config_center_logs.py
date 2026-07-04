@@ -6,7 +6,6 @@ import pytest
 
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
-    BROAD_SCREENSHOT_MAX_DIFF_RATIO,
     _open_logs_modal,
     _patch_config_view,
     _patch_plugins_catalog,
@@ -43,5 +42,4 @@ async def test_config_center_logs_tab_png_snapshot(
             page,
             "config_center_logs_tab_120x40",
             title="ACE SASE Admin Center - Logs tab",
-            max_diff_ratio=BROAD_SCREENSHOT_MAX_DIFF_RATIO,
         )
