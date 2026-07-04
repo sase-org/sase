@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from textual import events
+from textual.binding import Binding
+from textual.containers import VerticalScroll
 from textual.widgets import Input, TextArea
 from textual.worker import Worker, WorkerState
 
@@ -67,6 +70,8 @@ _OverlayNameModal = OverlayNameModal
 _yaml_dumps = yaml_dumps
 _yaml_loads = yaml_loads
 
+_LIVE_YAML_PARSE_MAX_BYTES = 16_000
+
 
 class ConfigEditModal(ConfigEditModalBase):
     """Edit a single config field and write it."""
@@ -79,7 +84,24 @@ class ConfigEditModal(ConfigEditModalBase):
         ("escape", "back", "Back/Cancel"),
         ("ctrl+s", "confirm", "Confirm"),
         ("enter", "confirm", "Confirm"),
+        ("j", "nav_down", "Down"),
+        ("k", "nav_up", "Up"),
+        ("down", "nav_down", "Down"),
+        ("up", "nav_up", "Up"),
+        ("ctrl+d", "preview_page_down", "Page Down"),
+        ("ctrl+u", "preview_page_up", "Page Up"),
+        ("g", "preview_top", "Top"),
+        ("G", "preview_bottom", "Bottom"),
         ("space", "toggle_value", "Toggle"),
+        Binding("1", "pick_option(1)", "Pick 1", show=False),
+        Binding("2", "pick_option(2)", "Pick 2", show=False),
+        Binding("3", "pick_option(3)", "Pick 3", show=False),
+        Binding("4", "pick_option(4)", "Pick 4", show=False),
+        Binding("5", "pick_option(5)", "Pick 5", show=False),
+        Binding("6", "pick_option(6)", "Pick 6", show=False),
+        Binding("7", "pick_option(7)", "Pick 7", show=False),
+        Binding("8", "pick_option(8)", "Pick 8", show=False),
+        Binding("9", "pick_option(9)", "Pick 9", show=False),
         ("ctrl+t", "cycle_scope", "Scope"),
         ("ctrl+n", "new_overlay", "New overlay"),
         ("ctrl+r", "toggle_reset", "Reset to default"),
@@ -144,6 +166,20 @@ class ConfigEditModal(ConfigEditModalBase):
             return None
         return self._inventory.source(self._target)
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {"nav_down", "nav_up"}:
+            return self._stage == "preview" or self._can_choose_option()
+        if action in {
+            "preview_page_down",
+            "preview_page_up",
+            "preview_top",
+            "preview_bottom",
+        }:
+            return self._stage == "preview"
+        if action == "pick_option":
+            return self._can_pick_option_by_number()
+        return super().check_action(action, parameters)
+
     def action_cycle_scope(self) -> None:
         if self._stage != "edit" or self._busy:
             return
@@ -202,6 +238,111 @@ class ConfigEditModal(ConfigEditModalBase):
                 self._enum_index = (self._enum_index + 1) % count
                 self._render_all()
 
+    def action_nav_down(self) -> None:
+        if self._stage == "preview":
+            self._scroll_preview(lines=1)
+            return
+        self._move_option(1)
+
+    def action_nav_up(self) -> None:
+        if self._stage == "preview":
+            self._scroll_preview(lines=-1)
+            return
+        self._move_option(-1)
+
+    def action_pick_option(self, number: int) -> None:
+        if not self._can_pick_option_by_number():
+            return
+        self._set_option_index(number - 1)
+
+    def action_preview_page_down(self) -> None:
+        self._scroll_preview(page_delta=1)
+
+    def action_preview_page_up(self) -> None:
+        self._scroll_preview(page_delta=-1)
+
+    def action_preview_top(self) -> None:
+        try:
+            self.query_one("#config-edit-preview-scroll", VerticalScroll).scroll_home(
+                animate=False
+            )
+        except Exception:
+            pass
+
+    def action_preview_bottom(self) -> None:
+        try:
+            self.query_one("#config-edit-preview-scroll", VerticalScroll).scroll_end(
+                animate=False
+            )
+        except Exception:
+            pass
+
+    def _scroll_preview(self, *, lines: int = 0, page_delta: int = 0) -> None:
+        if self._stage != "preview":
+            return
+        try:
+            scroll = self.query_one("#config-edit-preview-scroll", VerticalScroll)
+        except Exception:
+            return
+        delta = lines
+        if page_delta:
+            height = scroll.scrollable_content_region.height
+            delta += page_delta * max(1, height // 2)
+        scroll.scroll_relative(y=delta, animate=False)
+
+    def _can_choose_option(self) -> bool:
+        return (
+            self._stage == "edit"
+            and not self._op_unset
+            and not self._busy
+            and self._editor_kind in ("bool", "enum")
+            and self._option_count() > 0
+        )
+
+    def _can_pick_option_by_number(self) -> bool:
+        count = self._option_count()
+        return self._can_choose_option() and 0 < count <= 9
+
+    def _option_count(self) -> int:
+        if self._editor_kind == "bool":
+            return 2
+        if self._editor_kind == "enum" and self._field is not None:
+            return len(self._field.enum_values)
+        return 0
+
+    def _move_option(self, delta: int) -> None:
+        if not self._can_choose_option():
+            return
+        count = self._option_count()
+        if self._editor_kind == "bool":
+            index = 0 if self._bool_value else 1
+            self._set_option_index((index + delta) % count)
+        elif self._editor_kind == "enum":
+            self._set_option_index((self._enum_index + delta) % count)
+
+    def _set_option_index(self, index: int) -> None:
+        if not self._can_choose_option():
+            return
+        count = self._option_count()
+        if index < 0 or index >= count:
+            return
+        if self._editor_kind == "bool":
+            self._bool_value = index == 0
+        elif self._editor_kind == "enum":
+            self._enum_index = index
+        self._error = None
+        self._render_all()
+
+    def _select_scope_index(self, index: int) -> None:
+        if self._stage != "edit" or self._busy:
+            return
+        writable = self._writable_sources()
+        if index < 0 or index >= len(writable):
+            return
+        self._target = writable[index].name
+        self._error = None
+        self._render_all()
+
     def action_back(self) -> None:
         if self._busy:
             return
@@ -226,6 +367,57 @@ class ConfigEditModal(ConfigEditModalBase):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id == "config-edit-input" and self._stage == "edit":
             self._start_plan()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "config-edit-input" and self._stage == "edit":
+            self._validate_live()
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area.id == "config-edit-textarea" and self._stage == "edit":
+            self._validate_live()
+
+    def on_click(self, event: events.Click) -> None:
+        widget = event.widget
+        widget_id = getattr(widget, "id", None)
+        if widget_id not in {"config-edit-value", "config-edit-scope"}:
+            return
+        if widget is not None:
+            offset = event.get_content_offset(widget)
+            y = offset.y if offset is not None else int(event.y)
+        else:
+            y = int(event.y)
+        if widget_id == "config-edit-value":
+            self._set_option_index(y - 1)
+        else:
+            self._select_scope_index(y - 1)
+        event.stop()
+        event.prevent_default()
+
+    def _validate_live(self) -> None:
+        if self._stage != "edit" or self._op_unset or self._busy:
+            return
+        if not (self._uses_input() or self._uses_textarea()):
+            return
+        field = self._field
+        if field is None:
+            return
+        kind = self._editor_kind
+        if self._uses_input():
+            raw = self.query_one("#config-edit-input", Input).value
+        else:
+            raw = self.query_one("#config-edit-textarea", TextArea).text
+        if (
+            kind == "yaml"
+            and len(raw.encode("utf-8", errors="replace")) > _LIVE_YAML_PARSE_MAX_BYTES
+        ):
+            self._error = None
+            self._status = "large YAML buffer; preview validates it"
+            self._render_all()
+            return
+        _value, error = parse_editor_value(kind, raw, field)
+        self._error = error
+        self._status = None
+        self._render_all()
 
     def _current_op(self) -> tuple[ConfigEditOp | None, str | None]:
         """Resolve the edit operation from the editor state, or an error."""

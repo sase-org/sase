@@ -3480,6 +3480,8 @@ ConfigEditModal #config-edit-banner {
 ConfigEditModal #config-edit-value {
     height: auto;
     margin-top: 1;
+    border: solid $secondary;
+    padding: 0 1;
 }
 
 ConfigEditModal #config-edit-input {

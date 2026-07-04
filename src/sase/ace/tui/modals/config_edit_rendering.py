@@ -13,10 +13,15 @@ from textual.widgets import Input, Label, Static, TextArea
 from sase.config import AppliedResult, ConfigField, ConfigSource, EditPlanResult
 
 from .config_edit_helpers import (
-    format_value,
     format_value_for_editor,
+    format_value,
     list_strategy_banner,
-    scope_label,
+)
+from .config_pane_rendering import (
+    abbreviate_path,
+    append_value_block,
+    is_structured_value,
+    kind_badge,
 )
 from .config_edit_types import (
     EditorKind,
@@ -59,7 +64,13 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             if self._uses_input():
                 yield Input(value=seed, id="config-edit-input")
             elif self._uses_textarea():
-                yield TextArea(seed, id="config-edit-textarea", show_line_numbers=False)
+                language = "yaml" if self._editor_kind == "yaml" else None
+                yield TextArea(
+                    seed,
+                    id="config-edit-textarea",
+                    language=language,
+                    show_line_numbers=False,
+                )
             yield Static("", id="config-edit-error", markup=False)
             with VerticalScroll(id="config-edit-preview-scroll"):
                 yield Static("", id="config-edit-preview", markup=False)
@@ -69,7 +80,7 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         return self._editor_kind in ("int", "number", "string")
 
     def _uses_textarea(self) -> bool:
-        return self._editor_kind in ("string_list", "yaml")
+        return self._editor_kind in ("text", "string_list", "yaml")
 
     def _focus_editor(self) -> None:
         """Focus the editor widget, or blur so the screen handles key bindings."""
@@ -78,7 +89,9 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             return
         try:
             if self._uses_input():
-                self.query_one("#config-edit-input", Input).focus()
+                editor = self.query_one("#config-edit-input", Input)
+                editor.focus()
+                editor.select_all()
             elif self._uses_textarea():
                 self.query_one("#config-edit-textarea", TextArea).focus()
             else:
@@ -107,7 +120,11 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         edit_stage = self._stage == "edit"
         show_input = edit_stage and not self._op_unset and self._uses_input()
         show_area = edit_stage and not self._op_unset and self._uses_textarea()
+        show_value = edit_stage and (
+            self._op_unset or self._editor_kind in ("bool", "enum")
+        )
         for selector, visible in (
+            ("#config-edit-value", show_value),
             ("#config-edit-input", show_input),
             ("#config-edit-textarea", show_area),
             ("#config-edit-preview-scroll", self._stage == "preview"),
@@ -148,12 +165,42 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         if constraint:
             text.append(f"  {constraint}", style=_MUTED)
         text.append("\n")
+        self._append_current_value(text, field)
         if field.has_default:
             text.append("default: ", style=_MUTED)
             text.append(format_value(field.default))
         if field.description:
             text.append(f"\n{field.description}", style=_MUTED)
         return text
+
+    def _append_current_value(self, text: Text, field: ConfigField) -> None:
+        view = getattr(self, "_view", None)
+        state = getattr(view, "state_by_path", {}).get(field.path)
+        has_value = state is not None and state.has_effective
+        if state is not None and state.has_effective:
+            value = state.effective_value
+        elif field.has_default:
+            value = field.default
+        else:
+            value = None
+        winning = view.winning_layer(field.path) if view is not None else None
+        text.append("current", style=_MUTED)
+        if winning is not None:
+            text.append(" · ", style=_MUTED)
+            kind = getattr(view, "kind_by_layer", {}).get(winning, "other")
+            text.append(winning, style=f"dim {_ACCENT}")
+            text.append(" ")
+            text.append_text(kind_badge(kind))
+        text.append(": ", style=_MUTED)
+        if has_value or field.has_default:
+            if is_structured_value(value):
+                text.append("\n")
+                append_value_block(text, value, indent="  ")
+            else:
+                text.append(format_value(value), style="bold")
+                text.append("\n")
+        else:
+            text.append("(unset)\n", style=f"italic {_MUTED}")
 
     @staticmethod
     def _constraint_hint(field: ConfigField) -> str:
@@ -171,17 +218,34 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
 
     def _scope_text(self) -> Text:
         text = Text()
-        text.append("scope: ", style=_MUTED)
         source = self._target_source()
-        if source is None:
+        writable = self._writable_sources()
+        text.append("scope", style=_MUTED)
+        if len(writable) > 1:
+            text.append(f"  [ctrl+t cycles {len(writable)}]", style=f"dim {_MUTED}")
+        text.append("\n")
+        if source is None or not writable:
             text.append("no writable target available", style=_ERR_COLOR)
             return text
-        text.append_text(scope_label(source))
+        for index, candidate in enumerate(writable, start=1):
+            active = candidate.name == source.name
+            marker = ">" if active else " "
+            text.append(f"{marker} ", style=_MOD_COLOR if active else _MUTED)
+            if len(writable) <= 9:
+                text.append(f"{index}. ", style=f"dim {_MUTED}")
+            text.append(
+                candidate.name,
+                style=f"bold {_ACCENT}" if active else "",
+            )
+            text.append("  ")
+            text.append_text(kind_badge(candidate.kind))
+            text.append(f"  {candidate.list_strategy}", style=_MUTED)
+            if not candidate.exists:
+                text.append(" · new", style=_WARN_COLOR)
+            text.append("\n")
         if source.path:
-            text.append(f"\n       {source.path}", style=f"dim {_MUTED}")
-        writable = self._writable_sources()
-        if len(writable) > 1:
-            text.append(f"   [ctrl+t: {len(writable)} targets]", style=f"dim {_MUTED}")
+            text.append("path: ", style=_MUTED)
+            text.append(abbreviate_path(source.path), style=f"dim {_MUTED}")
         return text
 
     def _banner_text(self) -> Text:
@@ -203,20 +267,33 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             text.append("\n(removes the key from the chosen scope)", style=_MUTED)
             return text
         if self._editor_kind == "bool":
-            text.append("value: ", style=_MUTED)
-            text.append(
-                "true" if self._bool_value else "false",
-                style=f"bold {_OK_COLOR if self._bool_value else _MUTED}",
-            )
-            text.append("   [space: toggle]", style=f"dim {_MUTED}")
+            self._append_option_rows(text, [True, False], self._bool_value)
         elif self._editor_kind == "enum":
             field = self._field
             values = list(field.enum_values) if field is not None else []
             current = values[self._enum_index] if values else None
-            text.append("value: ", style=_MUTED)
-            text.append(format_value(current), style=f"bold {_ACCENT}")
-            text.append("   [space: next option]", style=f"dim {_MUTED}")
+            self._append_option_rows(text, values, current)
         return text
+
+    def _append_option_rows(
+        self, text: Text, values: list[Any], active_value: Any
+    ) -> None:
+        text.append("value", style=_MUTED)
+        if len(values) <= 9:
+            text.append("  [digits pick]", style=f"dim {_MUTED}")
+        text.append("\n")
+        for index, value in enumerate(values, start=1):
+            active = value == active_value
+            marker = ">" if active else " "
+            text.append(f"{marker} ", style=_MOD_COLOR if active else _MUTED)
+            if len(values) <= 9:
+                text.append(f"{index}. ", style=f"dim {_MUTED}")
+            if self._editor_kind == "bool":
+                style = f"bold {_OK_COLOR if value else _MUTED}" if active else ""
+            else:
+                style = f"bold {_ACCENT}" if active else ""
+            text.append(format_value(value), style=style)
+            text.append("\n")
 
     def _error_text(self) -> Text:
         if self._error:
@@ -296,10 +373,10 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         if self._stage == "preview":
             if self._busy:
                 return "writing…"
-            return "enter / ctrl+s: write   esc: back   "
+            return "j/k: scroll  ctrl+d/u: page  g/G: top/bottom  enter/ctrl+s: write  esc: back"
         toggle = ""
         if self._editor_kind in ("bool", "enum"):
-            toggle = "space: change  "
+            toggle = "j/k: option  1-9: pick  space: next  "
         reset = "ctrl+r: un-reset" if self._op_unset else "ctrl+r: reset"
         return (
             f"{toggle}ctrl+t: scope  ctrl+n: new overlay  {reset}  "

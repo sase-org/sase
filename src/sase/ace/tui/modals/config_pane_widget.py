@@ -12,10 +12,13 @@ from textual.widgets import Input, Label, Static, Tree
 from textual.widgets.tree import TreeNode
 from textual.worker import Worker, WorkerState
 
+from sase.config import AppliedResult
+
 from .config_pane_rendering import (
     render_detail,
     render_row_label,
     render_source_rail,
+    visible_leaf_paths,
     visible_paths,
 )
 from .config_pane_view import ConfigPaneView, InputMode
@@ -64,6 +67,10 @@ class ConfigPane(Vertical):
         ("k", "cursor_up", "Up"),
         ("down", "cursor_down", "Down"),
         ("up", "cursor_up", "Up"),
+        ("h", "collapse_tree", "Collapse"),
+        ("l", "expand_tree", "Expand"),
+        ("g", "scroll_to_top", "Top"),
+        ("G", "scroll_to_bottom", "Bottom"),
         ("ctrl+d", "scroll_detail_down", "Scroll Down"),
         ("ctrl+u", "scroll_detail_up", "Scroll Up"),
         ("slash", "focus_filter", "Filter"),
@@ -179,6 +186,7 @@ class ConfigPane(Vertical):
         self._sync_state_visibility()
 
     def _rebuild_tree(self) -> None:
+        self._update_static("#config-pane-title", self._title_text())
         try:
             tree = self.query_one("#config-tree", Tree)
         except Exception:
@@ -258,6 +266,17 @@ class ConfigPane(Vertical):
             return "Configuration"
         total = sum(1 for f in view.field_model.fields if f.leaf)
         modified = len(view.modified_paths())
+        if self._filter_text or self._modified_only:
+            matching = len(
+                visible_leaf_paths(
+                    view,
+                    filter_text=self._filter_text,
+                    modified_only=self._modified_only,
+                )
+            )
+            return (
+                f"Configuration  [matching {matching} / {total} · {modified} modified]"
+            )
         return f"Configuration  [{total} fields · {modified} modified]"
 
     def _status_message(self) -> str:
@@ -276,7 +295,8 @@ class ConfigPane(Vertical):
     def _hints(self) -> str:
         mod = "mod ✓" if self._modified_only else "mod"
         return (
-            f"j/k: move  ctrl+d/u: scroll  ↵/e: edit  /: filter  :: jump  "
+            f"j/k: move  h/l: fold  g/G: top/bottom  ctrl+d/u: scroll  "
+            f"↵/e: edit  /: filter  :: jump  "
             f"m: {mod}  r: refresh  [ / ]: tab  Esc: close"
         )
 
@@ -312,6 +332,95 @@ class ConfigPane(Vertical):
         except Exception:
             return
         getattr(tree, name)()
+
+    def action_scroll_to_top(self) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        nodes = self._visible_tree_nodes(tree)
+        if nodes:
+            self._move_cursor(tree, nodes[0])
+
+    def action_scroll_to_bottom(self) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        nodes = self._visible_tree_nodes(tree)
+        if nodes:
+            self._move_cursor(tree, nodes[-1])
+
+    def action_collapse_tree(self) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        node = self._current_tree_node(tree)
+        if node is None:
+            return
+        view = self._view
+        data = node.data
+        field = (
+            view.fields_by_path.get(data)
+            if view is not None and isinstance(data, str)
+            else None
+        )
+        if field is not None and not field.leaf:
+            node.collapse()
+            self._update_detail(field.path)
+            return
+        parent = node.parent
+        if parent is not None and isinstance(parent.data, str):
+            self._move_cursor(tree, parent)
+
+    def action_expand_tree(self) -> None:
+        try:
+            tree = self.query_one("#config-tree", Tree)
+        except Exception:
+            return
+        node = self._current_tree_node(tree)
+        if node is None:
+            return
+        view = self._view
+        data = node.data
+        field = (
+            view.fields_by_path.get(data)
+            if view is not None and isinstance(data, str)
+            else None
+        )
+        if field is None or field.leaf:
+            return
+        if node.is_collapsed:
+            node.expand()
+            self._update_detail(field.path)
+        elif node.children:
+            self._move_cursor(tree, node.children[0])
+
+    def _move_cursor(self, tree: Tree[str], node: TreeNode[str]) -> None:
+        tree.move_cursor(node, animate=False)
+        if isinstance(node.data, str):
+            self._update_detail(node.data)
+
+    def _current_tree_node(self, tree: Tree[str]) -> TreeNode[str] | None:
+        if self._selected_path is not None:
+            node = self._node_by_path.get(self._selected_path)
+            if node is not None:
+                return node
+        return tree.cursor_node
+
+    @staticmethod
+    def _visible_tree_nodes(tree: Tree[str]) -> list[TreeNode[str]]:
+        nodes: list[TreeNode[str]] = []
+
+        def append_visible_children(parent: TreeNode[str]) -> None:
+            for child in parent.children:
+                nodes.append(child)
+                if child.is_expanded:
+                    append_visible_children(child)
+
+        append_visible_children(tree.root)
+        return nodes
 
     def action_scroll_detail_down(self) -> None:
         try:
@@ -385,7 +494,19 @@ class ConfigPane(Vertical):
     def _on_edit_dismissed(self, result: Any) -> None:
         """After a successful write, refresh the inventory to show the change."""
         if result is not None:
+            self._notify_write_success(result)
             self.action_refresh()
+
+    def _notify_write_success(self, result: AppliedResult) -> None:
+        key_path = ".".join(result.key_path) if result.key_path else "(unknown)"
+        target = result.path or "(unknown target)"
+        message = f"wrote {key_path} → {target}"
+        if result.used_chezmoi:
+            message += " (chezmoi applied)"
+        try:
+            self.app.notify(message)
+        except Exception:
+            pass
 
     def cancel_input(self) -> None:
         """Drop any in-progress filter and return focus to the tree."""

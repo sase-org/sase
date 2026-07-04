@@ -87,3 +87,26 @@ async def test_config_center_edit_preview_png_snapshot(
             "config_center_edit_preview_120x40",
             title="ACE SASE Admin Center — edit preview (diff + validation)",
         )
+
+
+async def test_config_center_edit_enum_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The edit stage for a key-driven enum option list."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await _open_edit_modal(page, "mode")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_edit_enum_120x40",
+            title="ACE SASE Admin Center — edit field (enum option list)",
+        )

@@ -87,6 +87,14 @@ def test_editor_kind_for_scalars(view: cp.ConfigPaneView) -> None:
     )
 
 
+def test_editor_kind_for_multiline_and_long_strings() -> None:
+    schema: dict[str, Any] = {}
+    field = _field("notes", "scalar", ("string",))
+    assert cem._editor_kind_for(field, schema, "line 1\nline 2") == "text"
+    long_field = _field("body", "scalar", ("string",), max_length=500)
+    assert cem._editor_kind_for(long_field, schema, "") == "text"
+
+
 def test_editor_kind_for_arrays(view: cp.ConfigPaneView) -> None:
     schema = view.inventory.schema
     # array<string> -> line editor.
@@ -156,6 +164,7 @@ def test_schema_node_for_path_nested() -> None:
 
 def test_format_value_for_editor() -> None:
     assert cem._format_value_for_editor("string", "hi") == "hi"
+    assert cem._format_value_for_editor("text", "line 1\nline 2") == "line 1\nline 2"
     assert cem._format_value_for_editor("int", 5) == "5"
     assert cem._format_value_for_editor("string", None) == ""
     assert cem._format_value_for_editor("string_list", ["a", "b"]) == "a\nb"
@@ -193,6 +202,13 @@ def test_parse_editor_value_yaml_roundtrip_and_error() -> None:
     assert type(value) is list and type(value[0]) is dict
     bad_value, bad_error = cem._parse_editor_value("yaml", "key: [unterminated", field)
     assert bad_value is None and bad_error is not None
+
+
+def test_parse_editor_value_text_uses_string_constraints() -> None:
+    field = _field("body", "scalar", ("string",), min_length=3)
+    assert cem._parse_editor_value("text", "hello", field) == ("hello", None)
+    value, error = cem._parse_editor_value("text", "no", field)
+    assert value is None and error is not None
 
 
 # --- banners / scope policy ------------------------------------------------

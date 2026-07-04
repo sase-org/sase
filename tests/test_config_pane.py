@@ -234,6 +234,7 @@ def test_render_row_label_marks_modified_and_winning_layer(
     assert "●" in label.plain  # modified marker
     assert "timezone" in label.plain
     assert "user" in label.plain  # winning-layer badge
+    assert "US/Pacific" in label.plain
 
 
 def test_render_row_label_unmodified_has_no_marker(
@@ -241,6 +242,13 @@ def test_render_row_label_unmodified_has_no_marker(
 ) -> None:
     label = cp._render_row_label(view, "use_chezmoi")
     assert "●" not in label.plain
+    assert "false" in label.plain
+
+
+def test_format_row_value_summary_compacts_structured_values() -> None:
+    assert cp._format_row_value_summary([1, 2, 3]) == "3 items"
+    assert cp._format_row_value_summary({"name": "core"}) == "{...}"
+    assert cp._format_row_value_summary("x" * 40) == ("x" * 29) + "..."
 
 
 def test_render_row_label_section_is_bare_name(view: cp.ConfigPaneView) -> None:

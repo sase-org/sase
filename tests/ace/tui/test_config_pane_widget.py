@@ -19,6 +19,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_pane import ConfigPane
+from sase.config.edit import AppliedResult
 from sase.config.inventory import build_config_inventory, config_field_model
 from tests.test_config_pane import _fixture_layers, _fixture_schema
 
@@ -132,6 +133,19 @@ async def test_config_pane_filter_narrows_tree(
         # Cancelling restores the full tree.
         pane.cancel_input()
         await page.wait_for(lambda _s: "axe.max_hook_runners" in pane._node_by_path)
+
+
+async def test_config_pane_filter_updates_title_match_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        pane.action_focus_filter()
+        await page.pause()
+        await page.press("t", "i", "m", "e", "z", "o", "n", "e")
+        await page.wait_for(lambda _s: set(pane._node_by_path) == {"timezone"})
+        assert "matching 1 /" in pane._title_text()
 
 
 async def test_config_pane_modified_only_toggle(
@@ -255,9 +269,73 @@ async def test_config_pane_edit_sibling_repos_opens_normal_editor(
 def test_config_pane_binds_ctrl_d_and_ctrl_u_to_detail_scroll() -> None:
     assert _binding_action("ctrl+d") == "scroll_detail_down"
     assert _binding_action("ctrl+u") == "scroll_detail_up"
-    assert _binding_action("g") is None
+    assert _binding_action("g") == "scroll_to_top"
+    assert _binding_action("G") == "scroll_to_bottom"
+    assert _binding_action("h") == "collapse_tree"
+    assert _binding_action("l") == "expand_tree"
     assert "ctrl+d/u: scroll" in ConfigPane(auto_load=False)._hints()
+    assert "g/G: top/bottom" in ConfigPane(auto_load=False)._hints()
     assert "g: migrate" not in ConfigPane(auto_load=False)._hints()
+
+
+async def test_config_pane_g_and_G_jump_tree_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        pane.action_scroll_to_bottom()
+        await page.wait_for(lambda _s: pane._selected_path == "use_chezmoi")
+        pane.action_scroll_to_top()
+        await page.wait_for(lambda _s: pane._selected_path == "ace")
+
+
+async def test_config_pane_h_l_collapse_expand_and_descend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        pane._do_jump("axe.max_hook_runners")
+        await page.wait_for(lambda _s: pane._selected_path == "axe.max_hook_runners")
+
+        pane.action_collapse_tree()
+        await page.wait_for(lambda _s: pane._selected_path == "axe")
+        axe_node = pane._node_by_path["axe"]
+        pane.action_collapse_tree()
+        await page.pause()
+        assert axe_node.is_collapsed
+
+        pane.action_expand_tree()
+        await page.pause()
+        assert axe_node.is_expanded
+        assert pane._selected_path == "axe"
+
+        pane.action_expand_tree()
+        await page.wait_for(lambda _s: pane._selected_path == "axe.chop_script_dirs")
+
+
+async def test_config_pane_successful_write_toast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        messages: list[str] = []
+        monkeypatch.setattr(
+            page.app, "notify", lambda message, **_kw: messages.append(message)
+        )
+        monkeypatch.setattr(pane, "action_refresh", lambda: None)
+        pane._on_edit_dismissed(
+            AppliedResult(
+                path="/tmp/sase.yml",
+                op="set",
+                key_path=("timezone",),
+                created=False,
+                used_chezmoi=True,
+            )
+        )
+        assert messages == ["wrote timezone → /tmp/sase.yml (chezmoi applied)"]
 
 
 async def test_config_pane_ctrl_d_and_ctrl_u_scroll_detail_only(

@@ -40,6 +40,21 @@ def format_value(value: Any) -> str:
         return repr(value)
 
 
+def format_row_value_summary(value: Any, *, max_width: int = 32) -> str:
+    """Single-line value summary for tree leaf rows."""
+    if isinstance(value, dict):
+        return "{}" if not value else "{...}"
+    if isinstance(value, list):
+        if not value:
+            return "[]"
+        noun = "item" if len(value) == 1 else "items"
+        return f"{len(value)} {noun}"
+    rendered = format_value(value).replace("\n", " ")
+    if len(rendered) <= max_width:
+        return rendered
+    return rendered[: max(0, max_width - 3)].rstrip() + "..."
+
+
 def is_structured_value(value: Any) -> bool:
     """Return True when *value* should render as an indented YAML block."""
     if isinstance(value, dict):
@@ -208,6 +223,15 @@ def render_row_label(view: ConfigPaneView, path: str) -> Text:
         text.append(
             _KIND_LABEL.get(kind, kind), style=f"dim {_KIND_COLOR.get(kind, _MUTED)}"
         )
+    state = view.state_by_path.get(path)
+    if state is not None and state.has_effective:
+        summary = format_row_value_summary(state.effective_value)
+    elif field.has_default:
+        summary = format_row_value_summary(field.default)
+    else:
+        summary = "(unset)"
+    text.append("  ")
+    text.append(summary, style=f"dim {_MUTED}")
     return text
 
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Literal
 
 
-EditorKind = Literal["bool", "enum", "int", "number", "string", "string_list", "yaml"]
+EditorKind = Literal[
+    "bool", "enum", "int", "number", "string", "text", "string_list", "yaml"
+]
 Stage = Literal["edit", "preview"]
 
 _OK_COLOR = "#5FAF5F"

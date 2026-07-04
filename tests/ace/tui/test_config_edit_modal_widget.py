@@ -9,6 +9,7 @@ and validation blocking the write. Writes land in a temporary ``sase.yml``
 
 from __future__ import annotations
 
+from dataclasses import replace
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+from textual.containers import VerticalScroll
 from textual.widgets import Input, TextArea
 
 from sase.ace.testing import AcePage
@@ -40,6 +42,15 @@ _SCHEMA: dict[str, Any] = {
             "type": "string",
             "default": "America/New_York",
             "description": "IANA timezone.",
+        },
+        "mode": {
+            "type": "string",
+            "enum": ["auto", "manual", "off"],
+            "default": "auto",
+        },
+        "notes": {
+            "type": "string",
+            "default": "line 1\nline 2",
         },
         "use_chezmoi": {"type": "boolean", "default": False},
         "axe": {
@@ -86,6 +97,8 @@ def _view(tmp_path: Path, user_data: dict[str, Any]) -> tuple[cp.ConfigPaneView,
             list_strategy="concatenate",
             data={
                 "timezone": "America/New_York",
+                "mode": "auto",
+                "notes": "line 1\nline 2",
                 "use_chezmoi": False,
                 "axe": {"max_hook_runners": 3, "chop_script_dirs": []},
                 "linked_repos": [],
@@ -168,6 +181,38 @@ async def test_edit_back_from_preview_returns_to_edit(tmp_path: Path) -> None:
         assert modal._plan is None
 
 
+async def test_preview_scroll_keys_move_preview_region(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"timezone": "US/Pacific"})
+    async with AcePage(size=(120, 24)) as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
+        await _open(page, modal)
+        modal.query_one("#config-edit-input", Input).value = "UTC"
+        modal.action_confirm()
+        await page.wait_for(lambda _s: modal._plan is not None)
+        assert modal._plan is not None
+        modal._plan = replace(
+            modal._plan,
+            text_diff="\n".join(
+                f"+expanded preview line {index:02d}" for index in range(80)
+            ),
+        )
+        modal._render_all()
+        await page.pause()
+
+        scroll = modal.query_one("#config-edit-preview-scroll", VerticalScroll)
+        await page.wait_for(lambda _s: scroll.max_scroll_y > 0)
+        assert scroll.scroll_y == 0
+
+        await page.press("j")
+        await page.wait_for(lambda _s: scroll.scroll_y > 0)
+        await page.press("g")
+        await page.wait_for(lambda _s: scroll.scroll_y == 0)
+        await page.press("G")
+        await page.wait_for(lambda _s: scroll.scroll_y == scroll.max_scroll_y)
+        await page.press("ctrl+u")
+        await page.wait_for(lambda _s: scroll.scroll_y < scroll.max_scroll_y)
+
+
 # --- boolean toggle via keystrokes ----------------------------------------
 
 
@@ -189,6 +234,39 @@ async def test_bool_toggle_and_write(tmp_path: Path) -> None:
     assert written["use_chezmoi"] is True
 
 
+async def test_enum_navigation_digits_and_space(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {})
+    field = view.fields_by_path["mode"]
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=field)
+        await _open(page, modal)
+        assert modal._editor_kind == "enum"
+        assert modal._enum_index == 0
+        assert "1. auto" in modal._value_text().plain
+
+        await page.press("j")
+        await page.wait_for(lambda _s: modal._enum_index == 1)
+        await page.press("k")
+        await page.wait_for(lambda _s: modal._enum_index == 0)
+        await page.press("3")
+        await page.wait_for(lambda _s: modal._enum_index == 2)
+        await page.press("space")
+        await page.wait_for(lambda _s: modal._enum_index == 0)
+
+
+async def test_bool_digit_picks_visible_option(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {})
+    field = view.fields_by_path["use_chezmoi"]
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=field)
+        await _open(page, modal)
+        assert "1. true" in modal._value_text().plain
+        await page.press("1")
+        await page.wait_for(lambda _s: modal._bool_value is True)
+        await page.press("2")
+        await page.wait_for(lambda _s: modal._bool_value is False)
+
+
 # --- scope cycling ---------------------------------------------------------
 
 
@@ -202,6 +280,23 @@ async def test_cycle_scope_changes_target(tmp_path: Path) -> None:
         await page.pause()
         assert modal._target != first
         assert modal._target in {s.name for s in view.inventory.sources if s.writable}
+        scope_text = modal._scope_text().plain
+        assert "user" in scope_text
+        assert "replace" in scope_text
+        assert "overlay:sase_extra.yml" in scope_text
+        assert "concatenate" in scope_text
+
+
+async def test_scope_selector_row_pick_changes_target(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"timezone": "US/Pacific"})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
+        await _open(page, modal)
+        writable = [s.name for s in modal._writable_sources()]
+        assert len(writable) > 1
+        modal._select_scope_index(1)
+        await page.pause()
+        assert modal._target == writable[1]
 
 
 async def test_new_overlay_switches_scope_to_created_overlay(tmp_path: Path) -> None:
@@ -260,6 +355,48 @@ async def test_client_constraint_blocks_plan(tmp_path: Path) -> None:
         assert modal._stage == "edit"  # never advanced to preview
         assert modal._plan is None
         assert modal._error is not None
+
+
+async def test_live_validation_error_appears_and_clears(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"axe": {"max_hook_runners": 3}})
+    field = view.fields_by_path["axe.max_hook_runners"]
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=field)
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-input", Input)
+        editor.value = "99"
+        await page.wait_for(lambda _s: modal._error is not None)
+        assert "must be" in (modal._error or "")
+        editor.value = "5"
+        await page.wait_for(lambda _s: modal._error is None)
+
+
+async def test_scalar_input_selects_all_on_open(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"timezone": "US/Pacific"})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-input", Input)
+        assert editor.selected_text == "US/Pacific"
+
+
+async def test_multiline_string_uses_textarea(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["notes"])
+        await _open(page, modal)
+        assert modal._editor_kind == "text"
+        editor = modal.query_one("#config-edit-textarea", TextArea)
+        assert editor.text == "line 1\nline 2"
+
+
+async def test_yaml_textarea_uses_yaml_language(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"linked_repos": [{"name": "core"}]})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["linked_repos"])
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-textarea", TextArea)
+        assert getattr(editor, "language", None) == "yaml"
 
 
 async def test_schema_validation_blocks_write(tmp_path: Path) -> None:

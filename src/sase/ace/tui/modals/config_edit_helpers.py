@@ -26,6 +26,8 @@ from .config_edit_types import (
 if TYPE_CHECKING:
     from sase.ace.tui.modals.config_pane import ConfigPaneView
 
+_LONG_STRING_TEXTAREA_MIN_LENGTH = 240
+
 
 def deref_schema_ref(schema_root: dict[str, Any], node: Any, _depth: int = 0) -> Any:
     """Resolve a local ``$ref`` against *schema_root* (best-effort)."""
@@ -101,6 +103,11 @@ def editor_kind_for(
             return "bool"
         if "string" not in types and types & {"integer", "number"}:
             return "number" if "number" in types else "int"
+        if isinstance(current_value, str) and "\n" in current_value:
+            return "text"
+        max_length = field.constraints.max_length
+        if max_length is not None and max_length >= _LONG_STRING_TEXTAREA_MIN_LENGTH:
+            return "text"
         return "string"
     if field.kind == "array":
         item_type = array_item_type(schema_root, field.path)
@@ -136,7 +143,7 @@ def yaml_loads(text: str) -> Any:
 
 def format_value_for_editor(kind: EditorKind, value: Any) -> str:
     """Render *value* as the initial text for a *kind* editor."""
-    if kind in ("int", "number", "string"):
+    if kind in ("int", "number", "string", "text"):
         if value is None:
             return ""
         if isinstance(value, bool):
@@ -171,7 +178,7 @@ def parse_editor_value(
             return check_constraints(float(stripped), field)
         except ValueError:
             return None, f"'{stripped}' is not a number"
-    if kind == "string":
+    if kind in ("string", "text"):
         return check_constraints(text, field)
     if kind == "string_list":
         items = [line.strip() for line in text.splitlines() if line.strip()]

@@ -68,6 +68,12 @@ def _config_schema(*, object_value: bool = False) -> dict[str, Any]:
                 "default": False,
                 "description": "Manage home-dir config via chezmoi.",
             },
+            "mode": {
+                "type": "string",
+                "enum": ["auto", "manual", "off"],
+                "default": "auto",
+                "description": "Default automation mode.",
+            },
             "axe": {
                 "type": "object",
                 "additionalProperties": False,
@@ -154,6 +160,7 @@ def _config_layers(
             data={
                 "timezone": "America/New_York",
                 "use_chezmoi": False,
+                "mode": "auto",
                 "axe": {
                     "max_hook_runners": 3,
                     "query": "",
@@ -183,6 +190,7 @@ def _config_layers(
             list_strategy="replace",
             data={
                 "timezone": "US/Pacific",
+                "mode": "manual",
                 "axe": user_axe,
                 **(
                     {
