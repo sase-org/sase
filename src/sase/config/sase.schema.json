@@ -404,6 +404,19 @@
         }
       }
     },
+    "update": {
+      "type": "object",
+      "description": "Configuration for SASE self-update and install-mode switching",
+      "additionalProperties": false,
+      "properties": {
+        "dev_root": {
+          "type": "string",
+          "description": "Directory where `sase update --to dev` materializes editable checkouts.",
+          "default": "~/projects/git",
+          "minLength": 1
+        }
+      }
+    },
     "mobile_gateway": {
       "type": "object",
       "description": "Configuration for the workstation-hosted mobile gateway",

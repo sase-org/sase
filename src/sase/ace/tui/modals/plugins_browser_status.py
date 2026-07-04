@@ -23,6 +23,7 @@ class PluginsBrowserStatusMixin:
         _loading: bool
         _now: float
         _offline: bool
+        _install_mode: str | None
         _uv_tool: object | None
         _verbose: bool
 
@@ -122,6 +123,8 @@ class PluginsBrowserStatusMixin:
             parts.append("i install")
         if self._can_update_sase():
             parts.append("u update")
+        if self._can_switch_mode():
+            parts.append("m switch")
         if self._can_update_highlighted():
             parts.append("U upd ↑")
         if self._can_uninstall_highlighted():
@@ -157,6 +160,10 @@ class PluginsBrowserStatusMixin:
 
     def _can_update_sase(self) -> bool:
         """Whether the top-level ``sase update`` action can be offered."""
+        return not isinstance(self._uv_tool, NotUvToolInstall)
+
+    def _can_switch_mode(self) -> bool:
+        """Whether install-mode switching can be offered."""
         return not isinstance(self._uv_tool, NotUvToolInstall)
 
     def _can_uninstall_highlighted(self) -> bool:

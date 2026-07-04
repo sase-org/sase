@@ -5,6 +5,9 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
+from sase.config import load_merged_config
+from sase.main.update_routing import update_mode
+from sase.mode_switch.repos import config_dev_root
 from sase.plugins.catalog import (
     PluginCatalog,
     PluginCatalogError,
@@ -17,6 +20,7 @@ from sase.uv_tool.detect import (
     UvToolInstall,
     probe_uv_tool_install,
 )
+from sase.uv_tool.receipt import load_receipt
 from sase.uv_tool.versions import (
     CoreVersions,
     collect_installed_core_versions,
@@ -46,6 +50,8 @@ class PluginsLoadResult:
     uv_tool: UvToolInstall | NotUvToolInstall | None = None
     core_versions: CoreVersions | None = None
     core_incoming_commits: dict[str, IncomingCommits] = field(default_factory=dict)
+    install_mode: str | None = None
+    dev_root: str | None = None
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -86,6 +92,8 @@ def load_plugins_catalog_for_pane(
     """
     load_now = time.time() if now is None else now
     uv_tool = probe_uv_tool()
+    install_mode = _detect_install_mode(uv_tool)
+    dev_root = str(config_dev_root(load_merged_config()))
     core_versions = _collect_core_versions_for_pane(offline=offline)
     core_incoming_commits = _fetch_core_incoming_commits_for_pane(
         core_versions,
@@ -103,6 +111,8 @@ def load_plugins_catalog_for_pane(
             uv_tool=uv_tool,
             core_versions=core_versions,
             core_incoming_commits=core_incoming_commits,
+            install_mode=install_mode,
+            dev_root=dev_root,
         )
     try:
         catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
@@ -115,7 +125,23 @@ def load_plugins_catalog_for_pane(
         uv_tool=uv_tool,
         core_versions=core_versions,
         core_incoming_commits=core_incoming_commits,
+        install_mode=install_mode,
+        dev_root=dev_root,
     )
+
+
+def _detect_install_mode(install: object | None) -> str | None:
+    """Classify the uv receipt as managed/dev/mixed for display."""
+    if not isinstance(install, UvToolInstall):
+        return None
+    try:
+        receipt = load_receipt(install.receipt_path)
+    except Exception:
+        return None
+    requirements = (receipt.primary, *receipt.deduped_injected_plugins())
+    has_dev = any(req.editable for req in requirements)
+    has_managed = any(not req.editable for req in requirements)
+    return update_mode(has_dev=has_dev, has_managed=has_managed)
 
 
 def _fetch_core_incoming_commits_for_pane(

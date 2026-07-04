@@ -47,12 +47,14 @@ class PluginsBrowserRenderingMixin:
         _filter_text: str
         _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
         _incoming_commits_enabled: bool
+        _install_mode: str | None
         _loading: bool
         _now: float
         _offline: bool
         _restore_name: str | None
         _uv_tool: object | None
         _verbose: bool
+        _dev_root: str | None
 
         def _detail_widget(self) -> Static | None: ...
 
@@ -274,6 +276,10 @@ class PluginsBrowserRenderingMixin:
     def _core_versions_panel(self) -> Panel:
         """Compact installed/latest display for SASE's own packages."""
         body: list[RenderableType] = [self._core_versions_table()]
+        mode_line = self._mode_line()
+        if mode_line is not None:
+            body.append(Text(""))
+            body.append(mode_line)
         incoming_sections = self._core_incoming_sections()
         if incoming_sections:
             body.append(Text(""))
@@ -292,8 +298,30 @@ class PluginsBrowserRenderingMixin:
             cta.append("u", style="bold #AF87FF")
             cta.append("  run `sase update`", style="cyan")
             cta.append("  ·  upgrades sase core + all plugins", style="dim")
+            cta.append("  ·  ", style="dim")
+            cta.append("m", style="bold #AF87FF")
+            cta.append(" switch", style="cyan")
             body.append(cta)
         return Panel(Group(*body), title="SASE Core", border_style="#AF87FF")
+
+    def _mode_line(self) -> Text | None:
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return None
+        mode = self._install_mode
+        if mode is None:
+            return None
+        labels = {
+            "managed": "PyPI (managed)",
+            "dev": "Dev (editable)",
+            "mixed": "Mixed",
+        }
+        line = Text()
+        line.append("Mode  ", style="dim")
+        line.append(labels.get(mode, mode), style="bold #AF87FF")
+        if mode == "dev" and self._dev_root:
+            line.append(f" · {self._dev_root}", style="dim")
+        line.append("     m  switch", style="dim")
+        return line
 
     def _core_incoming_sections(self) -> list[RenderableType]:
         if not self._incoming_commits_enabled:

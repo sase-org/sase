@@ -59,6 +59,11 @@ from .plugins_browser_loading import (
     load_plugins_catalog_for_pane,
     probe_uv_tool,
 )
+from .plugins_browser_mode_switch import (
+    ModeSwitchActionsMixin,
+    ModeSwitchPreview,
+    make_mode_switch_preview,
+)
 from .plugins_browser_operations import (
     PluginsBrowserOperationsMixin,
     callable_accepts_keyword,
@@ -102,6 +107,8 @@ _PluginsLoadResult = PluginsLoadResult
 _load_plugins_catalog = load_plugins_catalog_for_pane
 _collect_installed_core_versions = collect_installed_core_versions
 _probe_uv_tool = probe_uv_tool
+_ModeSwitchPreview = ModeSwitchPreview
+_make_mode_switch_preview = make_mode_switch_preview
 _DevUpdatePreview = DevUpdatePreview
 _execute_tui_dev_update = execute_tui_dev_update
 _make_plugin_dev_update_preview = make_plugin_dev_update_preview
@@ -128,6 +135,7 @@ _callable_accepts_keyword = callable_accepts_keyword
 
 
 class PluginsBrowserPane(
+    ModeSwitchActionsMixin,
     SaseUpdateActionsMixin,
     PluginInstallActionsMixin,
     PluginUninstallActionsMixin,
@@ -148,6 +156,7 @@ class PluginsBrowserPane(
         ("k", "prev_option", "Previous"),
         ("i", "install", "Install"),
         ("x", "uninstall", "Uninstall"),
+        ("m", "switch_mode", "Switch mode"),
         ("u", "update_sase", "Update"),
         ("U", "update", "Update plugin"),
         ("r", "refresh", "Refresh"),
@@ -189,6 +198,8 @@ class PluginsBrowserPane(
         self._uninstall_plan_worker: Worker[Any] | None = None
         #: Worker computing an editable-install dev update plan/preview for u.
         self._sase_update_plan_worker: Worker[Any] | None = None
+        #: Worker computing a PyPI/dev install-mode switch plan.
+        self._mode_switch_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None
@@ -206,6 +217,8 @@ class PluginsBrowserPane(
         self._incoming_commit_loading: set[IncomingCommitsCacheKey] = set()
         self._incoming_commit_workers: dict[int, IncomingCommitsCacheKey] = {}
         self._core_incoming_commits: dict[str, IncomingCommits] = {}
+        self._install_mode: str | None = None
+        self._dev_root: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Static(self._core_versions_panel(), id="sase-core-versions")
@@ -302,6 +315,17 @@ class PluginsBrowserPane(
                     severity="error",
                 )
             return
+        if event.worker is self._mode_switch_plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._mode_switch_plan_worker = None
+                self._on_mode_switch_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._mode_switch_plan_worker = None
+                self._notify(
+                    self._worker_error_text(event.worker, kind="mode switch"),
+                    severity="error",
+                )
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -318,6 +342,12 @@ class PluginsBrowserPane(
             core_versions = getattr(result, "core_versions", None)
             if core_versions is not None:
                 self._core_versions = core_versions
+            install_mode = getattr(result, "install_mode", None)
+            if install_mode is not None:
+                self._install_mode = install_mode
+            dev_root = getattr(result, "dev_root", None)
+            if dev_root is not None:
+                self._dev_root = dev_root
             self._core_incoming_commits = dict(
                 getattr(result, "core_incoming_commits", {}) or {}
             )

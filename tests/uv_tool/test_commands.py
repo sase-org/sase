@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.uv_tool.commands import (
     build_install,
+    build_reinstall_set,
     build_uninstall,
     build_upgrade_all,
     build_upgrade_packages,
@@ -74,6 +75,33 @@ def test_build_install_renders_git_plugin() -> None:
     argv = build_install(parse_receipt(_PYPI_RECEIPT))
     assert "--with" in argv
     assert "git+https://github.com/acme/sase-edge@v1" in argv
+
+
+def test_build_reinstall_set_for_mode_switch() -> None:
+    argv = build_reinstall_set(
+        Requirement(name="sase", editable="/src/sase"),
+        (
+            Requirement(name="sase-github", editable="/src/sase-github"),
+            Requirement(name="sase-telegram"),
+        ),
+        color="never",
+    )
+
+    assert argv == [
+        "uv",
+        "tool",
+        "install",
+        "--color",
+        "never",
+        "--force",
+        "--reinstall",
+        "--editable",
+        "/src/sase",
+        "--with-editable",
+        "/src/sase-github",
+        "--with",
+        "sase-telegram",
+    ]
 
 
 def test_build_install_with_added_plugin() -> None:

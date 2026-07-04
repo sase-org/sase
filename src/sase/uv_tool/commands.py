@@ -46,6 +46,20 @@ def build_install(
     return argv
 
 
+def build_reinstall_set(
+    primary: Requirement,
+    plugins: Iterable[Requirement] = (),
+    *,
+    color: ColorChoice | None = None,
+) -> list[str]:
+    """``uv tool install --force --reinstall`` for an explicit package set."""
+    argv = ["uv", "tool", "install", *_color_args(color), "--force", "--reinstall"]
+    argv += primary.primary_args()
+    for plugin in plugins:
+        argv += plugin.with_args()
+    return argv
+
+
 def build_uninstall(
     receipt: ToolReceipt,
     *,
@@ -92,6 +106,7 @@ def _color_args(color: ColorChoice | None) -> list[str]:
 __all__ = [
     "ColorChoice",
     "build_install",
+    "build_reinstall_set",
     "build_uninstall",
     "build_upgrade_all",
     "build_upgrade_packages",

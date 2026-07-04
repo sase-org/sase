@@ -3,6 +3,9 @@ use_chezmoi: false
 precommit_command: ""
 linked_repos: []
 
+update:
+  dev_root: "~/projects/git"
+
 chat_install:
   command: ""
   sync_workspace: true

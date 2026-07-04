@@ -64,6 +64,10 @@ class PostUpdateToastMixin:
 
 
 def _format_post_update_toast_title(receipt: UpdateToastReceipt) -> str:
+    if receipt.kind == "mode_switch_dev":
+        return f"{_SUCCESS_GLYPH} Switched to Dev (editable)"
+    if receipt.kind == "mode_switch_pypi":
+        return f"{_SUCCESS_GLYPH} Switched to PyPI (managed)"
     primary = receipt.primary
     if primary is not None and primary.new:
         return f"{_SUCCESS_GLYPH} Updated to sase {primary.new}"
@@ -222,6 +226,8 @@ def _tail_line(receipt: UpdateToastReceipt, *, show_diffstat: bool = False) -> s
 
 
 def _reload_tail_text(receipt: UpdateToastReceipt) -> str:
+    if receipt.kind.startswith("mode_switch_"):
+        return "Reloaded into the switched install mode."
     if receipt.primary is not None:
         return "Reloaded into the new version."
     plugin_count = len(receipt.plugins) + receipt.plugin_overflow

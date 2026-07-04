@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from sase.core.paths import sase_home
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult, RepoDiffStat
+from sase.mode_switch.models import ModeSwitchResult
 from sase.plugins.operations import (
     InstallOutcome,
     UninstallOutcome,
@@ -42,7 +43,7 @@ _PRIMARY_DIST_KEY = normalize_distribution_name("sase")
 # under ``sase_home()``, matching the small-state helpers in this package.
 _PENDING_UPDATE_TOAST_FILE: Path | None = None
 
-ReceiptKind = Literal["managed", "dev"]
+ReceiptKind = Literal["managed", "dev", "mode_switch_dev", "mode_switch_pypi"]
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,8 @@ def build_update_receipt(
         return _build_managed_receipt(payload, created_at=timestamp)
     if isinstance(payload, DevUpdateResult):
         return _build_dev_receipt(payload, created_at=timestamp)
+    if isinstance(payload, ModeSwitchResult):
+        return _build_mode_switch_receipt(payload, created_at=timestamp)
     if isinstance(payload, InstallOutcome):
         return _build_plugin_install_receipt(payload, created_at=timestamp)
     if isinstance(payload, PluginUpdateOutcome):
@@ -218,6 +221,50 @@ def _build_dev_receipt(
         return None
     return UpdateToastReceipt(
         kind="dev",
+        created_at=created_at,
+        primary=primary,
+        plugins=plugins,
+        plugin_overflow=plugin_overflow,
+        plugin_overflow_diffstat=plugin_overflow_diffstat,
+        dependency_count=dependency_count,
+    )
+
+
+def _build_mode_switch_receipt(
+    result: ModeSwitchResult, *, created_at: float
+) -> UpdateToastReceipt | None:
+    if not result.changed:
+        return None
+    primary = next(
+        (
+            UpdateVersionTransition(
+                name=outcome.name,
+                old=outcome.old_version,
+                new=outcome.new_version,
+            )
+            for outcome in result.outcomes
+            if outcome.role == "host"
+        ),
+        None,
+    )
+    plugin_transitions = [
+        UpdateVersionTransition(
+            name=outcome.name,
+            old=outcome.old_version,
+            new=outcome.new_version,
+        )
+        for outcome in result.outcomes
+        if outcome.role == "plugin"
+    ]
+    plugins, plugin_overflow, plugin_overflow_diffstat = _cap_plugin_transitions(
+        plugin_transitions
+    )
+    dependency_count = sum(1 for outcome in result.outcomes if outcome.role == "core")
+    kind: ReceiptKind = (
+        "mode_switch_dev" if result.plan.target_mode == "dev" else "mode_switch_pypi"
+    )
+    return UpdateToastReceipt(
+        kind=kind,
         created_at=created_at,
         primary=primary,
         plugins=plugins,
@@ -396,9 +443,14 @@ def _receipt_from_json(payload: object) -> UpdateToastReceipt | None:
         return None
     created_at = _float_value(payload.get("created_at"))
     kind = payload.get("kind")
-    if created_at is None or kind not in {"managed", "dev"}:
+    if created_at is None or kind not in {
+        "managed",
+        "dev",
+        "mode_switch_dev",
+        "mode_switch_pypi",
+    }:
         return None
-    receipt_kind: ReceiptKind = "managed" if kind == "managed" else "dev"
+    receipt_kind: ReceiptKind = kind  # type: ignore[assignment]
     primary = _transition_from_json(payload.get("primary"))
     if payload.get("primary") is not None and primary is None:
         return None

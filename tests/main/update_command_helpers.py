@@ -77,8 +77,10 @@ def _args(
     json: bool = False,
     dry_run: bool = False,
     quiet: bool = False,
+    to: str | None = None,
+    yes: bool = False,
 ) -> argparse.Namespace:
-    return argparse.Namespace(json=json, dry_run=dry_run, quiet=quiet)
+    return argparse.Namespace(json=json, dry_run=dry_run, quiet=quiet, to=to, yes=yes)
 
 
 def _console() -> Console:

@@ -64,6 +64,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "Removes a workspace checkout directory, not an agent artifact directory."
         ),
     ),
+    "src/sase/mode_switch/execute.py:_cleanup_failed_clone": DirOpReview(
+        exemption=(
+            "Removes only a just-created failed dev checkout clone under "
+            "update.dev_root, not an agent artifact directory."
+        ),
+    ),
     "src/sase/main/project_handler.py:delete_project_locked": DirOpReview(
         exemption=(
             "Deletes the entire SASE project state directory only after blocking "

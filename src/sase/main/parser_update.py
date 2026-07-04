@@ -23,17 +23,20 @@ def register_update_parser(subparsers: argparse._SubParsersAction) -> None:
             "instead of touching your environment.\n"
             "\n"
             "Use `-n|--dry-run` to preview the exact uv command and the package "
-            "set without changing anything."
+            "set without changing anything. Use `-t|--to dev|pypi` to switch "
+            "between editable development checkouts and published PyPI wheels."
         ),
         epilog=(
             "examples:\n"
             "  sase update            # upgrade sase + all plugins\n"
             "  sase update -n         # preview without changing anything\n"
             "  sase update -q         # only print a one-line summary\n"
-            "  sase update -j         # stable machine-readable JSON"
+            "  sase update -j         # stable machine-readable JSON\n"
+            "  sase update -t dev     # switch to editable checkouts\n"
+            "  sase update -t pypi -y # switch to published wheels without prompting"
         ),
     )
-    # Options are listed short-alias alphabetical (-j, -n, -q) to match the bar
+    # Options are listed short-alias alphabetical (-j, -n, -q, -t, -y) to match the bar
     # set by the `sase plugin install` / `sase plugin update` commands.
     update_parser.add_argument(
         "-j",
@@ -52,4 +55,16 @@ def register_update_parser(subparsers: argparse._SubParsersAction) -> None:
         "--quiet",
         action="store_true",
         help="Suppress progress output; print only a one-line summary",
+    )
+    update_parser.add_argument(
+        "-t",
+        "--to",
+        choices=("dev", "pypi"),
+        help="Switch install mode to editable checkouts or published PyPI wheels",
+    )
+    update_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the install-mode switch confirmation prompt",
     )

@@ -18,16 +18,22 @@ def test_update_is_registered_top_level() -> None:
     assert ns.dry_run is False
     assert ns.json is False
     assert ns.quiet is False
+    assert ns.to is None
+    assert ns.yes is False
 
 
 def test_update_accepts_each_flag() -> None:
-    short = create_parser().parse_args(["update", "-n", "-j", "-q"])
-    long = create_parser().parse_args(["update", "--dry-run", "--json", "--quiet"])
+    short = create_parser().parse_args(["update", "-n", "-j", "-q", "-t", "dev", "-y"])
+    long = create_parser().parse_args(
+        ["update", "--dry-run", "--json", "--quiet", "--to", "dev", "--yes"]
+    )
 
     for ns in (short, long):
         assert ns.dry_run is True
         assert ns.json is True
         assert ns.quiet is True
+        assert ns.to == "dev"
+        assert ns.yes is True
 
 
 def test_update_json_schema_version_is_pinned_to_dev_schema() -> None:
