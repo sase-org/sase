@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.9.0](https://github.com/sase-org/sase/compare/v0.8.0...v0.9.0) (2026-07-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* llm_provider.model_aliases is no longer a flat builtin-alias map, and llm_provider.custom_model_aliases is removed. Configure builtin role overrides under llm_provider.model_aliases.builtin and user aliases under llm_provider.model_aliases.custom.
+
+### Features
+
+* **ace:** show sase version instead of PID in the TUI title ([9deb012](https://github.com/sase-org/sase/commit/9deb01206b0de988b6de7827e4ff6253631f0bc8))
+* Add support for custom model aliases ([72c6264](https://github.com/sase-org/sase/commit/72c62642ad241a8931583ecbf9a7a1661a63ed97))
+* **init:** add skills check mode ([4a23371](https://github.com/sase-org/sase/commit/4a23371ec6fb28742d672b0057ba586e7e3a1e36))
+* Migrate SVG framework to fix screenshot test determinism ([ed95a7c](https://github.com/sase-org/sase/commit/ed95a7c303438c8c9c71db95584ef7673c0c3d89))
+* **plugin:** restart after plugin package changes ([6910d18](https://github.com/sase-org/sase/commit/6910d1842ad30eb3ed7876bedfced0dca5fbeaf5))
+* **tui:** add PRs onboarding empty state ([5ab9907](https://github.com/sase-org/sase/commit/5ab9907f2b45b34300c36e29c2a4a65a87427258))
+* **tui:** improve config edit navigation ([2e38f97](https://github.com/sase-org/sase/commit/2e38f97a8ca6dcb38148d0484c5ea53c27a729b5))
+* **tui:** surface slow tool calls in agent metadata ([4536419](https://github.com/sase-org/sase/commit/4536419035284fb5064c9a09a964986362f6a8f0))
+* unify model alias config ([8b0ff2c](https://github.com/sase-org/sase/commit/8b0ff2c9fc2bd6a3eb95e16aa2ad2bbe8f2999d0))
+* **update:** add install mode switching ([5131ec8](https://github.com/sase-org/sase/commit/5131ec849b03b3a00232d1ea5c4e04edc56ad0ab))
+* **xprompt:** diagnose unresolved xprompt references ([d698779](https://github.com/sase-org/sase/commit/d698779c60c01082a75f2a642dd9f23cd986994f))
+
+
+### Bug Fixes
+
+* Pin "local time" to the configured timezone everywhere ([c318af1](https://github.com/sase-org/sase/commit/c318af1e724b3bfced9347f4bbb3ce1b442e7e52))
+* Tests and limit 'just test' to 1/4 the CPUs ([6fb24ab](https://github.com/sase-org/sase/commit/6fb24ab6ac73dcc00810bdfa415cc40891dd1964))
+* **tui:** make Models-panel alias description strip visible ([5151906](https://github.com/sase-org/sase/commit/51519066ac93c7bd77467a917f1ca2e4d6f277d4))
+* **tui:** show configured PROJECT_NAME in VCS xprompt prefill surfaces ([2856003](https://github.com/sase-org/sase/commit/2856003484aac9950419951b94e25fd0c5afd095))
+
+
+### Documentation
+
+* add blog-launch audit of xprompts, agents tab, and TUI ([5ad8673](https://github.com/sase-org/sase/commit/5ad86738c375645de32abd05d41a08d11f69e2c7))
+* add launch audit infographic ([da99696](https://github.com/sase-org/sase/commit/da996960eb2df36067e18a5c3f5a8b47ea9ae1f8))
+* add launch blog TUI research audit ([8e25a3d](https://github.com/sase-org/sase/commit/8e25a3d050b4c654414a62fb37f32fde0efa40f9))
+* consolidate launch blog research audit ([9fd56bd](https://github.com/sase-org/sase/commit/9fd56bd62e77039834e10dcf58f33733919326ba))
+* refresh SASE quickstart workspace examples ([286446e](https://github.com/sase-org/sase/commit/286446e557d4ce1dd3dc1f5a0b23c6f0762d444d))
+* **research:** add blog launch readiness audit for xprompts, agents tab, and install flow ([67929ab](https://github.com/sase-org/sase/commit/67929abea95837d22b15b0a9d317100a70039a01))
+
 ## [0.8.0](https://github.com/sase-org/sase/compare/v0.7.1...v0.8.0) (2026-07-02)
 
 
