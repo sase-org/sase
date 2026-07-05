@@ -7,8 +7,9 @@ parent: AGENTS.md
 
 **Agent Family**  
 A `<name>` agent family refers to a group of agents that are all named with the same `<name>` prefix separated from the
-rest of its name by a dot. For example, agents named `foo`, `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
-same `foo` agent family.
+rest of its name by `--`. For example, agents named `foo--plan-0`, `foo--plan-1`, and `foo--code` are all apart of the
+same `foo` agent family. Agent families are all grouped under the same root agent/workflow entry in the "Agents" tab of
+the `sase ace` TUI.
 
 **Agent Hoods**  
 An agent hood is a group of agents that are all named with the same `<name>.` prefix. For example, agents named
