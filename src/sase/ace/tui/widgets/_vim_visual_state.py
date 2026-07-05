@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from textual.document._document import Selection
 
@@ -33,7 +33,7 @@ class VimVisualStateMixin(VimNormalOpsMixin):
         _visual_anchor: tuple[int, int] | None
         _visual_cursor: tuple[int, int] | None
 
-        def _find_prompt_bar(self) -> Any: ...
+        def _update_vim_mode_display(self, indicator: str = "") -> None: ...
 
         def _enter_normal_mode(self) -> None: ...
 
@@ -193,20 +193,12 @@ class VimVisualStateMixin(VimNormalOpsMixin):
             self.selection = Selection(end, start)
 
     def _update_visual_display(self) -> None:
-        """Update border title/subtitle for visual mode."""
-        bar = self._find_prompt_bar()
-        if not bar:
-            return
-        title_mode = "[V-LINE]" if self._visual_kind() == "linewise" else "[VISUAL]"
-        bar._refresh_title(title_mode)
-        subtitle = "[Esc] normal  [o] swap ends  [^C] cancel"
-        if self._count_prefix:
-            subtitle += f"  {self._count_prefix}"
-        setter = getattr(bar, "set_prompt_mode_subtitle", None)
-        if callable(setter):
-            setter(subtitle)
-        else:
-            bar.border_subtitle = subtitle
+        """Refresh the mode display for visual mode via the host hook.
+
+        The active visual kind is read from ``_vim_mode`` by the host hook, so
+        only the pending count prefix needs to be passed as the indicator.
+        """
+        self._update_vim_mode_display(self._count_prefix)
 
     def _move_visual_cursor(self, location: tuple[int, int]) -> None:
         """Move the visual cursor and extend the active selection."""

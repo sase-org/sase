@@ -21,12 +21,8 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
         def _update_count_display(self) -> None: ...
         def _record_insert_mutation_start(self, count: int) -> None: ...
-        def _notify_prompt_bar_text_undo(
-            self, before_text: str, after_text: str
-        ) -> None: ...
-        def _notify_prompt_bar_text_redo(
-            self, before_text: str, after_text: str
-        ) -> None: ...
+        def _notify_host_text_undo(self, before_text: str, after_text: str) -> None: ...
+        def _notify_host_text_redo(self, before_text: str, after_text: str) -> None: ...
 
     def _handle_normal_edit_key(
         self,
@@ -50,7 +46,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             # unstages the inputs that expansion auto-staged; any other undo is
             # untouched by this notification.
             if after != before:
-                self._notify_prompt_bar_text_undo(before, after)
+                self._notify_host_text_undo(before, after)
             return True
         if event.key == "ctrl+r":
             before = self.text
@@ -59,7 +55,7 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             # The mirror of ``u``: redoing an inline-expansion splice restages
             # its auto-staged inputs.
             if after != before:
-                self._notify_prompt_bar_text_redo(before, after)
+                self._notify_host_text_redo(before, after)
             return True
 
         if key == "v":

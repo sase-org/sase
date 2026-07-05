@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.events import Key
 
 from sase.ace.tui.widgets._vim_motions import (
@@ -24,6 +26,10 @@ from sase.ace.tui.widgets._vim_visual import VimVisualModeMixin
 class VimNormalPendingMixin(VimVisualModeMixin):
     """Mixin for normal-mode multi-key sequence resolution."""
 
+    if TYPE_CHECKING:
+
+        def _dispatch_host_g_prefix_key(self, key: str) -> bool: ...
+
     def _handle_normal_pending_key(self, key: str, event: Key) -> bool:
         """Handle a key after a pending normal-mode prefix."""
         pending = self._pending_keys
@@ -33,20 +39,16 @@ class VimNormalPendingMixin(VimVisualModeMixin):
         self._clear_count_prefix()
         doc = self.document
 
-        # Prompt-specific ``g`` continuations win over vim's own ``g`` commands:
-        # let the prompt bar try to dispatch ``g<enter>`` / ``gj`` / ``gk`` /
-        # ``gJ`` / ``gK`` / ``g-`` / ``g=`` / ``gs`` first. Anything
-        # it does not own (``gg``, ``ge``/``gE``,
-        # ``gu``/``gU``/``g~``) falls through to the vim branches below. The
-        # pending state is already cleared, so the trailing
+        # Host-specific ``g`` continuations win over vim's own ``g`` commands:
+        # let the host try to dispatch ``g<enter>`` / ``gj`` / ``gk`` / ``gJ`` /
+        # ``gK`` / ``g-`` / ``g=`` / ``gs`` first (the prompt bar forwards these
+        # to its stack actions). Anything the host does not own (``gg``,
+        # ``ge``/``gE``, ``gu``/``gU``/``g~``) falls through to the vim branches
+        # below. The pending state is already cleared, so the trailing
         # ``_update_count_display`` hides the ``g`` hint panel either way and an
         # unknown ``gX`` never leaves the hints stuck open.
         if pending == "g":
-            bar = self._find_prompt_bar()
-            dispatch = (
-                getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
-            )
-            if callable(dispatch) and dispatch(key):
+            if self._dispatch_host_g_prefix_key(key):
                 self._update_count_display()
                 return True
 

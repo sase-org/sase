@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _build_view,
     _config_layers,
@@ -77,7 +77,7 @@ async def test_config_center_edit_preview_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         modal = await _open_edit_modal(page, "timezone")
-        modal.query_one("#config-edit-input", Input).value = "UTC"
+        modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
         modal.action_confirm()  # plan -> preview
         await page.wait_for(lambda _s: modal._plan is not None)
         await wait_for_visual_idle(page)
@@ -86,6 +86,33 @@ async def test_config_center_edit_preview_png_snapshot(
             page,
             "config_center_edit_preview_120x40",
             title="ACE SASE Admin Center — edit preview (diff + validation)",
+        )
+
+
+async def test_config_center_edit_normal_mode_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The string editor after Escape: the ``[NORMAL]`` border + vim cursor."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        modal = await _open_edit_modal(page, "timezone")
+        editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
+        editor.focus()
+        await page.press("escape")  # INSERT -> NORMAL
+        await page.wait_for(lambda _s: editor._vim_mode == "normal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_edit_normal_mode_120x40",
+            title="ACE SASE Admin Center — edit field (vim NORMAL mode)",
         )
 
 

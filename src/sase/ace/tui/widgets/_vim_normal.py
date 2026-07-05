@@ -42,7 +42,12 @@ class VimNormalModeMixin(VimNormalEditingMixin):
         return not (self._pending_keys or self._pending_operator or self._count_prefix)
 
     def _handle_normal_mode_key(self, event: Key) -> bool:
-        """Handle a key event in NORMAL mode. Returns True if handled."""
+        """Handle a key event in NORMAL mode. Returns True if handled.
+
+        Marks *event* so a base ``VimTextArea._on_key`` reached later in
+        Textual's MRO handler walk does not re-dispatch it (see that method).
+        """
+        event._vim_tower_dispatched = True  # type: ignore[attr-defined]
         key = event.character or event.key
 
         if (

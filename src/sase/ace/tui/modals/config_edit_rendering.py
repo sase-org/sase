@@ -8,8 +8,10 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, Static, TextArea
+from textual.widgets import Label, Static
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.config import AppliedResult, ConfigField, ConfigSource, EditPlanResult
 
 from .config_edit_helpers import (
@@ -80,10 +82,10 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             yield Static("", id="config-edit-banner", markup=False)
             yield Static("", id="config-edit-value", markup=False)
             if self._uses_input():
-                yield Input(value=seed, id="config-edit-input")
+                yield SingleLineVimTextArea(seed, id="config-edit-input")
             elif self._uses_textarea():
                 language = "yaml" if self._editor_kind == "yaml" else None
-                yield TextArea(
+                yield VimTextArea(
                     seed,
                     id="config-edit-textarea",
                     language=language,
@@ -101,19 +103,30 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         return self._editor_kind in ("text", "string_list", "yaml")
 
     def _focus_editor(self) -> None:
-        """Focus the editor widget, or blur so the screen handles key bindings."""
+        """Focus the editor widget, or blur so the screen handles key bindings.
+
+        Both editors open in INSERT mode (the widgets' default), so the
+        mode-display hook is seeded here to surface ``[INSERT]`` on the editor
+        border. The single-line editor also selects its current value so typing
+        replaces it, preserving the plain ``Input``'s type-to-replace UX.
+        """
         if self._stage != "edit" or self._op_unset:
             self.set_focus(None)
             return
         try:
             if self._uses_input():
-                editor = self.query_one("#config-edit-input", Input)
+                editor: VimTextArea = self.query_one(
+                    "#config-edit-input", SingleLineVimTextArea
+                )
                 editor.focus()
                 editor.select_all()
             elif self._uses_textarea():
-                self.query_one("#config-edit-textarea", TextArea).focus()
+                editor = self.query_one("#config-edit-textarea", VimTextArea)
+                editor.focus()
             else:
                 self.set_focus(None)
+                return
+            editor._update_vim_mode_display()
         except Exception:
             self.set_focus(None)
 
@@ -401,9 +414,13 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         toggle = ""
         if self._editor_kind in ("bool", "enum"):
             toggle = "j/k: option  1-9: pick  space: next  "
+        vim = ""
+        if not self._op_unset and (self._uses_input() or self._uses_textarea()):
+            # The editors now support vim modes; surface the two-stage Escape.
+            vim = "vim: esc→normal (esc again backs out)  "
         reset = "ctrl+r: un-reset" if self._op_unset else "ctrl+r: reset"
         return (
-            f"{toggle}ctrl+t: scope  ctrl+n: new overlay  {reset}  "
+            f"{toggle}{vim}ctrl+t: scope  ctrl+n: new overlay  {reset}  "
             "ctrl+s: preview  esc: cancel"
         )
 

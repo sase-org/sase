@@ -18,12 +18,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 from textual.containers import VerticalScroll
-from textual.widgets import Input, TextArea
+from textual.widgets import TextArea
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_edit_modal as cem
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals.config_edit_modal import ConfigEditModal, _OverlayNameModal
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.config.core import ConfigLayer
 from sase.config.edit import (
     AppliedResult,
@@ -193,7 +195,7 @@ async def test_edit_string_writes_to_target(tmp_path: Path) -> None:
         result = await _open(page, modal)
         assert modal._editor_kind == "string"
         assert modal._target == "user"
-        modal.query_one("#config-edit-input", Input).value = "UTC"
+        modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
         modal.action_confirm()  # plan
         await page.wait_for(lambda _s: modal._plan is not None)
         plan = modal._plan
@@ -213,7 +215,7 @@ async def test_edit_back_from_preview_returns_to_edit(tmp_path: Path) -> None:
     async with AcePage() as page:
         modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
         await _open(page, modal)
-        modal.query_one("#config-edit-input", Input).value = "UTC"
+        modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
         modal.action_confirm()
         await page.wait_for(lambda _s: modal._plan is not None)
         modal.action_back()  # back to edit
@@ -227,7 +229,7 @@ async def test_preview_scroll_keys_move_preview_region(tmp_path: Path) -> None:
     async with AcePage(size=(120, 24)) as page:
         modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
         await _open(page, modal)
-        modal.query_one("#config-edit-input", Input).value = "UTC"
+        modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
         modal.action_confirm()
         await page.wait_for(lambda _s: modal._plan is not None)
         assert modal._plan is not None
@@ -350,7 +352,9 @@ async def test_new_overlay_switches_scope_to_created_overlay(tmp_path: Path) -> 
         name_modal = page.app.screen
         assert isinstance(name_modal, _OverlayNameModal)
         await page.wait_for(lambda _s: bool(name_modal.query("#overlay-name-input")))
-        name_modal.query_one("#overlay-name-input", Input).value = "scratch"
+        name_modal.query_one(
+            "#overlay-name-input", SingleLineVimTextArea
+        ).text = "scratch"
         name_modal.action_submit()
         await page.wait_for(lambda _s: modal._target == "overlay:sase_scratch.yml")
         # The created overlay is now a writable, not-yet-existing target.
@@ -390,7 +394,9 @@ async def test_client_constraint_blocks_plan(tmp_path: Path) -> None:
     async with AcePage() as page:
         modal = ConfigEditModal(view, field=field)
         await _open(page, modal)
-        modal.query_one("#config-edit-input", Input).value = "99"  # > maximum 9
+        modal.query_one(
+            "#config-edit-input", SingleLineVimTextArea
+        ).text = "99"  # > max 9
         modal.action_confirm()
         await page.pause()
         assert modal._stage == "edit"  # never advanced to preview
@@ -404,11 +410,11 @@ async def test_live_validation_error_appears_and_clears(tmp_path: Path) -> None:
     async with AcePage() as page:
         modal = ConfigEditModal(view, field=field)
         await _open(page, modal)
-        editor = modal.query_one("#config-edit-input", Input)
-        editor.value = "99"
+        editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
+        editor.text = "99"
         await page.wait_for(lambda _s: modal._error is not None)
         assert "must be" in (modal._error or "")
-        editor.value = "5"
+        editor.text = "5"
         await page.wait_for(lambda _s: modal._error is None)
 
 
@@ -417,7 +423,7 @@ async def test_scalar_input_selects_all_on_open(tmp_path: Path) -> None:
     async with AcePage() as page:
         modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
         await _open(page, modal)
-        editor = modal.query_one("#config-edit-input", Input)
+        editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
         assert editor.selected_text == "US/Pacific"
 
 
@@ -558,3 +564,102 @@ async def test_chezmoi_write_applies_home_target_not_source(tmp_path: Path) -> N
 
     apply_chezmoi_mock.assert_called_once_with(home_target)
     assert result[0] is not None
+
+
+# --- vim-mode editing in the text editors (sase vim adoption) -------------
+
+
+async def test_two_stage_escape_backs_out_of_modal(tmp_path: Path) -> None:
+    """Esc enters NORMAL mode; a second Esc (nothing pending) backs out."""
+    view, _ = _view(tmp_path, {"timezone": "US/Pacific"})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
+        result = await _open(page, modal)
+        editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
+        editor.focus()
+        await page.press("escape")  # INSERT -> NORMAL (consumed by the editor)
+        await page.pause()
+        assert editor._vim_mode == "normal"
+        await page.expect_modal("ConfigEditModal")  # still open
+        await page.press("escape")  # NORMAL, nothing pending -> modal backs out
+        await page.expect_no_modal()
+        assert result == [None]
+
+
+async def test_enter_submits_from_normal_mode(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"timezone": "US/Pacific"})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
+        editor.text = "UTC"
+        editor.focus()
+        await page.press("escape")  # INSERT -> NORMAL
+        await page.pause()
+        assert editor._vim_mode == "normal"
+        await page.press("enter")  # submit from NORMAL mode
+        await page.wait_for(lambda _s: modal._plan is not None)
+        assert modal._stage == "preview"
+        assert "UTC" in (modal._plan.text_diff if modal._plan else "")
+
+
+async def test_normal_mode_edit_fires_live_validation(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"axe": {"max_hook_runners": 3}})
+    field = view.fields_by_path["axe.max_hook_runners"]
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=field)
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
+        editor.text = "99"  # > maximum 9 -> invalid
+        await page.wait_for(lambda _s: modal._error is not None)
+        editor.cursor_location = (0, 0)
+        editor.focus()
+        await page.press("escape")  # INSERT -> NORMAL
+        await page.pause()
+        assert editor._vim_mode == "normal"
+        await page.press("x")  # delete a digit -> "9" (valid)
+        await page.wait_for(lambda _s: modal._error is None)
+        assert editor.text == "9"
+
+
+async def test_normal_mode_dd_edits_yaml_editor(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"linked_repos": [{"name": "core"}]})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["linked_repos"])
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-textarea", VimTextArea)
+        editor.text = "- name: core\n- name: extra"
+        editor.cursor_location = (0, 0)
+        editor.focus()
+        await page.press("escape")  # INSERT -> NORMAL
+        await page.pause()
+        assert editor._vim_mode == "normal"
+        await page.press("d", "d")  # delete the first line
+        await page.pause()
+        assert editor.text == "- name: extra"
+
+
+async def test_ctrl_s_confirms_from_yaml_editor(tmp_path: Path) -> None:
+    view, _ = _view(tmp_path, {"linked_repos": [{"name": "core"}]})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["linked_repos"])
+        await _open(page, modal)
+        assert modal._editor_kind == "yaml"
+        editor = modal.query_one("#config-edit-textarea", VimTextArea)
+        editor.focus()
+        await page.press("ctrl+s")  # bubbles past the editor to the modal binding
+        await page.wait_for(lambda _s: modal._stage == "preview")
+
+
+async def test_ctrl_r_toggles_reset_from_insert_mode(tmp_path: Path) -> None:
+    """NORMAL-mode ``ctrl+r`` is vim redo, but INSERT-mode reaches the modal."""
+    view, _ = _view(tmp_path, {"timezone": "US/Pacific"})
+    async with AcePage() as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["timezone"])
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
+        assert editor._vim_mode == "insert"
+        assert modal._op_unset is False
+        editor.focus()
+        await page.press("ctrl+r")  # not consumed in INSERT -> modal toggle_reset
+        await page.wait_for(lambda _s: modal._op_unset is True)

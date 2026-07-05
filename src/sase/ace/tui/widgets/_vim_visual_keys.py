@@ -30,7 +30,12 @@ class VimVisualKeyHandlingMixin(VimVisualPendingMixin):
         return (has_count, count)
 
     def _handle_visual_mode_key(self, event: Key) -> bool:
-        """Handle a key event in VISUAL or V-LINE mode."""
+        """Handle a key event in VISUAL or V-LINE mode.
+
+        Marks *event* so a base ``VimTextArea._on_key`` reached later in
+        Textual's MRO handler walk does not re-dispatch it (see that method).
+        """
+        event._vim_tower_dispatched = True  # type: ignore[attr-defined]
         key = event.character or event.key
 
         if event.key == "escape":

@@ -5,7 +5,9 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, Static
+from textual.widgets import Label, Static
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class _OverlayNameModal(ModalScreen[str | None]):
@@ -23,8 +25,10 @@ class _OverlayNameModal(ModalScreen[str | None]):
                 "name → ~/.config/sase/sase_<name>.yml",
                 id="overlay-name-help",
             )
-            yield Input(placeholder="work", id="overlay-name-input")
-            yield Static("enter / ctrl+s create · esc cancel", id="overlay-name-hints")
+            yield SingleLineVimTextArea(id="overlay-name-input")
+            yield Static(
+                "enter / ctrl+s create · esc esc cancel", id="overlay-name-hints"
+            )
 
     def on_mount(self) -> None:
         # A Screen's on_mount can fire before its children are mounted.
@@ -32,15 +36,21 @@ class _OverlayNameModal(ModalScreen[str | None]):
 
     def _focus_input(self) -> None:
         try:
-            self.query_one("#overlay-name-input", Input).focus()
+            editor = self.query_one("#overlay-name-input", SingleLineVimTextArea)
+            editor.focus()
+            editor._update_vim_mode_display()
         except Exception:
             pass
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         self.action_submit()
 
     def action_submit(self) -> None:
-        value = self.query_one("#overlay-name-input", Input).value.strip()
+        value = self.query_one(
+            "#overlay-name-input", SingleLineVimTextArea
+        ).text.strip()
         if value:
             self.dismiss(value)
 

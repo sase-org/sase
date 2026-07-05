@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from textual.events import Key
 
@@ -46,7 +46,11 @@ class VimNormalStateMixin(_MixinBase):
         _last_char_search: tuple[str, str] | None
         _vim_register: VimRegister
 
-        def _find_prompt_bar(self) -> Any: ...
+        def _update_vim_mode_display(self, indicator: str = "") -> None: ...
+
+        def _show_pending_g_hints(self) -> None: ...
+
+        def _hide_pending_g_hints(self) -> None: ...
 
         def _enter_normal_mode(self) -> None: ...
 
@@ -117,51 +121,39 @@ class VimNormalStateMixin(_MixinBase):
         return (op, key) in {("gu", "u"), ("gU", "U"), ("g~", "~")}
 
     def _update_count_display(self) -> None:
-        """Update border subtitle to show the pending count/operator."""
-        bar = self._find_prompt_bar()
-        if bar:
-            indicator = ""
-            if self._pending_operator:
-                if self._pending_operator_count > 1:
-                    indicator += str(self._pending_operator_count)
-                indicator += self._pending_operator
-            if self._pending_keys:
-                if self._pending_count is not None:
-                    indicator += str(self._pending_count)
-                if self._pending_keys == "surround":
-                    indicator += "ys"
-                elif self._pending_keys == "delete-surround":
-                    indicator += "ds"
-                elif self._pending_keys in {
-                    "change-surround-old",
-                    "change-surround-new",
-                }:
-                    indicator += "cs"
-                else:
-                    indicator += self._pending_keys
-            if self._count_prefix:
-                indicator += self._count_prefix
-            # Derive the base from the bar so a stacked prompt keeps advertising
-            # its stack keymaps while a count/operator/``g`` prefix is pending,
-            # instead of flipping back to the single-pane hints.
-            base = "[Esc] clear  [i] insert  [^C] cancel"
-            getter = getattr(bar, "normal_mode_subtitle", None)
-            if callable(getter):
-                base = getter()
-            subtitle = f"{base}  {indicator}" if indicator else base
-            setter = getattr(bar, "set_prompt_mode_subtitle", None)
-            if callable(setter):
-                setter(subtitle)
+        """Refresh the mode display with the pending count/operator indicator.
+
+        The indicator string is computed here (pure vim state) and handed to the
+        host ``_update_vim_mode_display`` hook, which renders it however the host
+        wants (the prompt bar's subtitle, or the widget's own border). The
+        ``g``-prefix hint surface is likewise delegated to host hooks.
+        """
+        indicator = ""
+        if self._pending_operator:
+            if self._pending_operator_count > 1:
+                indicator += str(self._pending_operator_count)
+            indicator += self._pending_operator
+        if self._pending_keys:
+            if self._pending_count is not None:
+                indicator += str(self._pending_count)
+            if self._pending_keys == "surround":
+                indicator += "ys"
+            elif self._pending_keys == "delete-surround":
+                indicator += "ds"
+            elif self._pending_keys in {
+                "change-surround-old",
+                "change-surround-new",
+            }:
+                indicator += "cs"
             else:
-                bar.border_subtitle = subtitle
-            if self._pending_keys == "g":
-                show_hints = getattr(bar, "show_g_prefix_hints", None)
-                if callable(show_hints):
-                    show_hints()
-            else:
-                hide_hints = getattr(bar, "hide_g_prefix_hints", None)
-                if callable(hide_hints):
-                    hide_hints()
+                indicator += self._pending_keys
+        if self._count_prefix:
+            indicator += self._count_prefix
+        self._update_vim_mode_display(indicator)
+        if self._pending_keys == "g":
+            self._show_pending_g_hints()
+        else:
+            self._hide_pending_g_hints()
 
     def _clear_count_prefix(self) -> None:
         """Clear count prefix and update display if needed."""

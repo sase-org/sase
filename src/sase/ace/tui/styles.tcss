@@ -1793,6 +1793,28 @@ PromptInputBar PromptTextArea.prompt-input.-vim-visual .text-area--cursor {
     text-style: bold;
 }
 
+/* Generalized vim cursor accents for any VimTextArea (config-tab editors,
+   etc.).  Textual type selectors match base classes, so these also cover
+   PromptTextArea, but the prompt-scoped rules above win there by specificity
+   and set identical colors.  Same palette as widgets/_line_rendering.py. */
+VimTextArea.-vim-normal .text-area--cursor {
+    color: #100F0F;
+    background: #D0A215;
+    text-style: bold;
+}
+
+VimTextArea.-vim-insert .text-area--cursor {
+    color: #100F0F;
+    background: #3AA99F;
+    text-style: bold;
+}
+
+VimTextArea.-vim-visual .text-area--cursor {
+    color: #FFFCF0;
+    background: #CE5D97;
+    text-style: bold;
+}
+
 /* Single-pane (solo) mode is visually identical to the pre-stack bar: the
    text area fills the bar and carries no border of its own. */
 PromptInputBar .prompt-input.solo {
@@ -3555,7 +3577,10 @@ ConfigEditModal #config-edit-value {
 
 ConfigEditModal #config-edit-input {
     width: 100%;
+    height: 3;
     margin-top: 1;
+    /* Border carries the vim mode title ([INSERT] / [NORMAL] / ...). */
+    border: solid $secondary;
 }
 
 ConfigEditModal #config-edit-textarea {
@@ -3648,7 +3673,10 @@ _OverlayNameModal #overlay-name-help {
 
 _OverlayNameModal #overlay-name-input {
     width: 100%;
+    height: 3;
     margin-top: 1;
+    /* Border carries the vim mode title ([INSERT] / [NORMAL] / ...). */
+    border: solid $secondary;
 }
 
 _OverlayNameModal #overlay-name-hints {

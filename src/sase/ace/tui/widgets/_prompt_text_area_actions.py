@@ -17,7 +17,7 @@ from sase.ace.tui.widgets._paired_text_editing import (
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 if TYPE_CHECKING:
-    from textual.widgets import TextArea as _MixinBase
+    from sase.ace.tui.widgets.vim_text_area import VimTextArea as _MixinBase
 
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 else:
@@ -98,13 +98,13 @@ class PromptTextAreaActionsMixin(_MixinBase):
             parent = parent.parent
         return None
 
-    def _notify_prompt_bar_text_undo(self, before_text: str, after_text: str) -> None:
+    def _notify_host_text_undo(self, before_text: str, after_text: str) -> None:
         """Tell the parent bar a NORMAL-mode undo changed this pane's text.
 
         Lets the bar unstage xprompt inputs an inline expansion auto-staged when
         (and only when) this undo reversed that expansion's body splice. A pane
         with no parent bar -- or an undo that matches no expansion transaction --
-        is a no-op.
+        is a no-op. Overrides :class:`VimTextArea`'s no-op host hook.
         """
         bar = self._find_prompt_bar()
         if bar is None:
@@ -113,7 +113,7 @@ class PromptTextAreaActionsMixin(_MixinBase):
         if callable(handler):
             handler(self, before_text, after_text)
 
-    def _notify_prompt_bar_text_redo(self, before_text: str, after_text: str) -> None:
+    def _notify_host_text_redo(self, before_text: str, after_text: str) -> None:
         """Tell the parent bar a NORMAL-mode redo changed this pane's text."""
         bar = self._find_prompt_bar()
         if bar is None:
@@ -121,6 +121,71 @@ class PromptTextAreaActionsMixin(_MixinBase):
         handler = getattr(bar, "handle_text_area_redo", None)
         if callable(handler):
             handler(self, before_text, after_text)
+
+    def _update_vim_mode_display(self, indicator: str = "") -> None:
+        """Route the vim mode + pending indicator to the parent ``PromptInputBar``.
+
+        Overrides :class:`VimTextArea`'s border-based default. Reproduces the
+        prompt bar's per-mode chrome: NORMAL shows the stack-aware
+        ``normal_mode_subtitle`` plus any pending indicator; VISUAL / V-LINE show
+        the selection hints; INSERT shows the (title-suffix-free)
+        ``insert_mode_subtitle``. A pane with no parent bar is a no-op.
+        """
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        mode = self._vim_mode
+        if mode in ("visual", "visual_line"):
+            title = "[V-LINE]" if mode == "visual_line" else "[VISUAL]"
+            bar._refresh_title(title)
+            subtitle = "[Esc] normal  [o] swap ends  [^C] cancel"
+            if indicator:
+                subtitle += f"  {indicator}"
+        elif mode == "insert":
+            bar._refresh_title()
+            subtitle = bar.insert_mode_subtitle()
+        else:
+            bar._refresh_title("[NORMAL]")
+            # Derive the base from the bar so a stacked prompt keeps advertising
+            # its stack keymaps while a count/operator/``g`` prefix is pending.
+            base = "[Esc] clear  [i] insert  [^C] cancel"
+            getter = getattr(bar, "normal_mode_subtitle", None)
+            if callable(getter):
+                base = getter()
+            subtitle = f"{base}  {indicator}" if indicator else base
+        setter = getattr(bar, "set_prompt_mode_subtitle", None)
+        if callable(setter):
+            setter(subtitle)
+        else:
+            bar.border_subtitle = subtitle
+
+    def _dispatch_host_g_prefix_key(self, key: str) -> bool:
+        """Forward a pending ``g<key>`` to the parent bar's stack dispatcher."""
+        bar = self._find_prompt_bar()
+        dispatch = (
+            getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
+        )
+        if callable(dispatch):
+            return bool(dispatch(key))
+        return False
+
+    def _show_pending_g_hints(self) -> None:
+        """Reveal the parent bar's vim ``g``-prefix continuation hint panel."""
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        show = getattr(bar, "show_g_prefix_hints", None)
+        if callable(show):
+            show()
+
+    def _hide_pending_g_hints(self) -> None:
+        """Hide the parent bar's vim ``g``-prefix continuation hint panel."""
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        hide = getattr(bar, "hide_g_prefix_hints", None)
+        if callable(hide):
+            hide()
 
     def _show_insert_g_prefix_hints(self) -> None:
         """Reveal prompt-local ``Ctrl+G`` continuation hints for INSERT mode."""
@@ -220,24 +285,6 @@ class PromptTextAreaActionsMixin(_MixinBase):
         """Insert a newline at the cursor position."""
         start, end = self.selection
         self._replace_via_keyboard("\n", start, end)
-
-    def action_cursor_line_end(self, select: bool = False) -> None:
-        """Move to end of line, or end of next line if already there."""
-        row, col = self.cursor_location
-        line_end = len(self.document.get_line(row))
-        if col >= line_end and row < self.document.line_count - 1:
-            next_end = len(self.document.get_line(row + 1))
-            self.move_cursor((row + 1, next_end), select=select)
-        else:
-            self.move_cursor((row, line_end), select=select)
-
-    def action_cursor_line_start(self, select: bool = False) -> None:
-        """Move to start of line, or start of previous line if already there."""
-        row, col = self.cursor_location
-        if col == 0 and row > 0:
-            self.move_cursor((row - 1, 0), select=select)
-        else:
-            self.move_cursor((row, 0), select=select)
 
     def _refresh_completion_after_text_delete(self) -> None:
         """Refresh prompt assist surfaces after TextArea delete actions."""
@@ -413,50 +460,31 @@ class PromptTextAreaActionsMixin(_MixinBase):
         )
 
     def _enter_normal_mode(self) -> None:
-        """Switch to vim NORMAL mode with relative line numbers."""
-        self._finish_dot_insert_capture()
+        """Switch to vim NORMAL mode, clearing prompt-only transient UI.
+
+        Extends :class:`VimTextArea`'s generic transition (mode / read-only /
+        cursor state plus the mode-display refresh routed through the bar) with
+        the prompt-only teardown: the ``Ctrl+G`` prefixes, incremental search,
+        completion menus, xprompt hints, snippet tabstops, and VCS MRU cycling.
+        None of these touch the bar subtitle, so the base's display refresh
+        stays authoritative.
+        """
+        super()._enter_normal_mode()
         self._clear_insert_g_prefix()
         self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
-        self._clear_visual_state()
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
         self._vcs_mru_index = None
-        self._vim_mode = "normal"
         self._clear_soft_completion(cancel_timer=True)
-        self._pending_operator = ""
-        self._pending_operator_count = 1
-        self._pending_surround_range = None
-        self._pending_change_surround_locations = None
         self._snippet_tabstops = []
-        self.read_only = True
-        self._sync_vim_cursor_class()
-        self.show_line_numbers = self.document.line_count > 1
-        self.highlight_cursor_line = True
-        bar = self._find_prompt_bar()
-        if bar:
-            bar._refresh_title("[NORMAL]")
-            bar.set_prompt_mode_subtitle(bar.normal_mode_subtitle())
 
     def _enter_insert_mode(self) -> None:
-        """Switch to vim INSERT mode."""
+        """Switch to vim INSERT mode, clearing the prompt prefix / search UI."""
+        super()._enter_insert_mode()
         self._clear_insert_g_prefix()
         self._clear_normal_g_prefix()
         self._clear_prompt_search(clear_highlights=True)
-        self._clear_visual_state()
-        self._vim_mode = "insert"
-        self._pending_operator = ""
-        self._pending_operator_count = 1
-        self._pending_surround_range = None
-        self._pending_change_surround_locations = None
-        self.read_only = False
-        self._sync_vim_cursor_class()
-        self.show_line_numbers = self.document.line_count > 1
-        self.highlight_cursor_line = False
-        bar = self._find_prompt_bar()
-        if bar:
-            bar._refresh_title()
-            bar.set_prompt_mode_subtitle(bar.insert_mode_subtitle())
 
     def _on_resize(self) -> None:
         """Scroll cursor into view after the parent resizes."""

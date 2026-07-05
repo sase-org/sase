@@ -13,8 +13,11 @@ from typing import TYPE_CHECKING, Any
 from textual import events
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.widgets import Input, TextArea
+from textual.widgets import TextArea
 from textual.worker import Worker, WorkerState
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 from sase.config import (
     AppliedResult,
@@ -364,16 +367,19 @@ class ConfigEditModal(ConfigEditModalBase):
         else:
             self._start_apply()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "config-edit-input" and self._stage == "edit":
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
+        if event.text_area.id == "config-edit-input" and self._stage == "edit":
             self._start_plan()
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id == "config-edit-input" and self._stage == "edit":
-            self._validate_live()
-
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        if event.text_area.id == "config-edit-textarea" and self._stage == "edit":
+        # Both editors are now TextAreas (single-line and multiline), so live
+        # validation fires for either one.
+        if (
+            event.text_area.id in {"config-edit-input", "config-edit-textarea"}
+            and self._stage == "edit"
+        ):
             self._validate_live()
 
     def on_click(self, event: events.Click) -> None:
@@ -403,9 +409,9 @@ class ConfigEditModal(ConfigEditModalBase):
             return
         kind = self._editor_kind
         if self._uses_input():
-            raw = self.query_one("#config-edit-input", Input).value
+            raw = self.query_one("#config-edit-input", SingleLineVimTextArea).text
         else:
-            raw = self.query_one("#config-edit-textarea", TextArea).text
+            raw = self.query_one("#config-edit-textarea", VimTextArea).text
         if (
             kind == "yaml"
             and len(raw.encode("utf-8", errors="replace")) > _LIVE_YAML_PARSE_MAX_BYTES
@@ -435,9 +441,9 @@ class ConfigEditModal(ConfigEditModalBase):
                 return None, "no enum values"
             return ConfigEditOp.set_value(values[self._enum_index]), None
         if self._uses_input():
-            raw = self.query_one("#config-edit-input", Input).value
+            raw = self.query_one("#config-edit-input", SingleLineVimTextArea).text
         else:
-            raw = self.query_one("#config-edit-textarea", TextArea).text
+            raw = self.query_one("#config-edit-textarea", VimTextArea).text
         value, error = parse_editor_value(kind, raw, field)
         if error is not None:
             return None, error
