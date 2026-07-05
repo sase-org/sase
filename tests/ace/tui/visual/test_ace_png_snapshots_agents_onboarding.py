@@ -67,6 +67,8 @@ async def test_agents_onboarding_png_snapshot(
 
         assert_page_svg_contains(page, "Welcome to sase ace")
         assert_page_svg_contains(page, "https://sase.sh")
+        assert_page_svg_contains(page, "https://sase.sh/ace/")
+        assert_page_svg_contains(page, "https://sase.sh/xprompt/")
         assert "pick a project or CL first." not in page.screen
         ace_png_visual.assert_page_png(
             page,

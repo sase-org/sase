@@ -41,6 +41,8 @@ async def test_tab_guide_axe_png_snapshot(
 
         assert_page_svg_contains(page, "Automation, always on")
         assert_page_svg_contains(page, "Background commands")
+        assert_page_svg_contains(page, "https://sase.sh/axe/")
+        assert_page_svg_contains(page, "https://sase.sh/workflow_spec/")
         ace_png_visual.assert_page_png(
             page,
             "tab_guide_axe_120x40",
@@ -73,6 +75,8 @@ async def test_tab_guide_agents_png_snapshot(
 
         assert_page_svg_contains(page, "Welcome to sase ace")
         assert_page_svg_contains(page, "esc closes")
+        assert_page_svg_contains(page, "https://sase.sh/ace/")
+        assert_page_svg_contains(page, "https://sase.sh/xprompt/")
         ace_png_visual.assert_page_png(
             page,
             "tab_guide_agents_120x40",

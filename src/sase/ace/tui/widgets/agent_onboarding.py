@@ -12,6 +12,7 @@ from textual.widgets import Static
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..tab_order import TAB_ORDER, TabName
 from ._onboarding_common import (
+    append_doc_link,
     append_keycap,
     append_leader_keycaps,
     append_section_heading,
@@ -19,6 +20,8 @@ from ._onboarding_common import (
 )
 
 _DOCS_URL = "https://sase.sh"
+_ACE_DOCS_URL = "https://sase.sh/ace/"
+_XPROMPT_DOCS_URL = "https://sase.sh/xprompt/"
 _AGENTS_ACCENT = "#87D7FF"
 _UPDATES_ACCENT = "#AF87FF"
 
@@ -298,6 +301,18 @@ class AgentOnboarding(VerticalScroll):
     def _build_help_card(registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
+        append_doc_link(
+            text,
+            _ACE_DOCS_URL,
+            "the full ACE TUI guide, tab by tab.",
+            accent=_AGENTS_ACCENT,
+        )
+        append_doc_link(
+            text,
+            _XPROMPT_DOCS_URL,
+            "supercharge prompts with #xprompts.",
+            accent=_AGENTS_ACCENT,
+        )
         append_keycap(text, key_display_name(app.show_help))
         text.append("open the help pop-up for this tab.")
         text.append("\n")
@@ -307,7 +322,7 @@ class AgentOnboarding(VerticalScroll):
         append_leader_keycaps(text, registry, "tab_guide")
         text.append("reopen this guide anytime; it works on every tab.", style="dim")
         text.append("\n")
-        text.append(_DOCS_URL, style=f"bold #87D7FF link {_DOCS_URL}")
+        text.append(_DOCS_URL, style=f"bold {_AGENTS_ACCENT} link {_DOCS_URL}")
         text.append(" full documentation.", style="dim")
         return text
 

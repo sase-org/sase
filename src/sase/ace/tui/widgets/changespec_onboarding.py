@@ -12,6 +12,7 @@ from textual.widgets import Static
 from ...display_helpers import get_status_color
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ._onboarding_common import (
+    append_doc_link,
     append_keycap,
     append_leader_keycaps,
     append_section_heading,
@@ -170,16 +171,27 @@ class ChangeSpecOnboarding(VerticalScroll):
         text.append("switch to the Agents tab and launch your first agent.")
         return text
 
-    @classmethod
-    def _build_learn_card(cls, registry: KeymapRegistry) -> Text:
+    @staticmethod
+    def _build_learn_card(registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
-        cls._append_doc_link(
-            text, _CHANGESPEC_DOCS_URL, "ChangeSpec anatomy & lifecycle."
+        append_doc_link(
+            text,
+            _CHANGESPEC_DOCS_URL,
+            "ChangeSpec anatomy & lifecycle.",
+            accent=_ACCENT,
         )
-        cls._append_doc_link(text, _VCS_DOCS_URL, "sase's pluggable VCS system.")
-        cls._append_doc_link(
-            text, _PLUGINS_DOCS_URL, "sase-github & other PR integrations."
+        append_doc_link(
+            text,
+            _VCS_DOCS_URL,
+            "sase's pluggable VCS system.",
+            accent=_ACCENT,
+        )
+        append_doc_link(
+            text,
+            _PLUGINS_DOCS_URL,
+            "sase-github & other PR integrations.",
+            accent=_ACCENT,
         )
         append_keycap(text, key_display_name(app.show_help))
         text.append("open the help pop-up for this tab.")
@@ -187,13 +199,6 @@ class ChangeSpecOnboarding(VerticalScroll):
         append_leader_keycaps(text, registry, "tab_guide")
         text.append("reopen this guide anytime; it works on every tab.", style="dim")
         return text
-
-    @staticmethod
-    def _append_doc_link(text: Text, url: str, description: str) -> None:
-        text.append(url, style=f"bold {_ACCENT} link {url}")
-        text.append(" ")
-        text.append(description, style="dim")
-        text.append("\n")
 
     @staticmethod
     def _build_footer(

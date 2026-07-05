@@ -12,6 +12,7 @@ from textual.widgets import Static
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ._axe_dashboard_render import CHOP_NAME_STYLE, LJ_NAME_STYLE
 from ._onboarding_common import (
+    append_doc_link,
     append_keycap,
     append_leader_keycaps,
     append_section_heading,
@@ -21,6 +22,9 @@ from ._onboarding_common import (
 
 _ACCENT = "#FF5F5F"
 _DOCS_URL = "https://sase.sh"
+_AXE_DOCS_URL = "https://sase.sh/axe/"
+_WORKFLOW_SPEC_DOCS_URL = "https://sase.sh/workflow_spec/"
+_MENTORS_DOCS_URL = "https://sase.sh/mentors/"
 
 
 class AxeOnboarding(VerticalScroll):
@@ -207,6 +211,24 @@ class AxeOnboarding(VerticalScroll):
     def _build_learn_card(registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
+        append_doc_link(
+            text,
+            _AXE_DOCS_URL,
+            "the full Axe guide: lumberjacks, chops & configuration.",
+            accent=_ACCENT,
+        )
+        append_doc_link(
+            text,
+            _WORKFLOW_SPEC_DOCS_URL,
+            "author the workflows that hooks & chops launch.",
+            accent=_ACCENT,
+        )
+        append_doc_link(
+            text,
+            _MENTORS_DOCS_URL,
+            "automated review mentors Axe keeps running.",
+            accent=_ACCENT,
+        )
         append_keycap(text, key_display_name(app.show_help))
         text.append("open the full keybinding reference for this tab.")
         text.append("\n")

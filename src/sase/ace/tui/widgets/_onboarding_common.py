@@ -18,6 +18,13 @@ def append_section_heading(text: Text, label: str, *, accent: str) -> None:
     text.append("\n")
 
 
+def append_doc_link(text: Text, url: str, description: str, *, accent: str) -> None:
+    text.append(url, style=f"bold {accent} link {url}")
+    text.append(" ")
+    text.append(description, style="dim")
+    text.append("\n")
+
+
 def key_sequence_display(*keys: str) -> str:
     """Format a prefix-key sequence for readable prose."""
     parts = [key_display_name(key) for key in keys]

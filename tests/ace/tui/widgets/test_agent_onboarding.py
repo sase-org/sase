@@ -22,6 +22,8 @@ def test_agent_onboarding_content_includes_tabs_and_docs_link() -> None:
     assert "Agents" in rendered
     assert "AXE" in rendered
     assert "https://sase.sh" in rendered
+    assert "https://sase.sh/ace/" in rendered
+    assert "https://sase.sh/xprompt/" in rendered
 
 
 def test_agent_onboarding_tab_rows_follow_visible_tab_order() -> None:

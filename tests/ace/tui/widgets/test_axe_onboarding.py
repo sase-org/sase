@@ -22,6 +22,9 @@ def test_axe_onboarding_content_describes_axe_chops_bgcmds_and_docs() -> None:
     assert "chops" in rendered
     assert "runs any shell command in a background slot" in rendered
     assert "https://sase.sh" in rendered
+    assert "https://sase.sh/axe/" in rendered
+    assert "https://sase.sh/workflow_spec/" in rendered
+    assert "https://sase.sh/mentors/" in rendered
     assert ",?" in rendered
 
 
