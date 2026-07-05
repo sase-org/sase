@@ -4,7 +4,7 @@ precommit_command: ""
 linked_repos: []
 
 update:
-  dev_root: "~/projects/git"
+  dev_root: "~/projects/github"
 
 chat_install:
   command: ""

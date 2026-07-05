@@ -412,7 +412,7 @@
         "dev_root": {
           "type": "string",
           "description": "Directory where `sase update --to dev` materializes editable checkouts.",
-          "default": "~/projects/git",
+          "default": "~/projects/github",
           "minLength": 1
         }
       }

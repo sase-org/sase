@@ -66,7 +66,7 @@ def test_mode_switch_dry_run_renders_plan(tmp_path: Path) -> None:
     assert "PyPI (managed)" in text
     assert "Dev (editable)" in text
     assert "uv tool install --color never --force --reinstall" in text
-    assert str(tmp_path / "dev" / "sase") in text
+    assert str(tmp_path / "dev" / "sase-org" / "sase") in text
 
 
 def test_mode_switch_json_dry_run_shape(

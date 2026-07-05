@@ -6,11 +6,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from sase.plugins.catalog import PluginCatalog, load_plugin_catalog
 from sase.version._utils import normalize_distribution_name
 
-DEFAULT_DEV_ROOT = "~/projects/git"
+DEFAULT_DEV_ROOT = "~/projects/github"
+LEGACY_FLAT_DEV_ROOT = "~/projects/git"
 SASE_ORG = "sase-org"
 
 
@@ -21,6 +23,14 @@ class RepoSpec:
     full_name: str
     url: str
     checkout_name: str
+
+    @property
+    def checkout_relpath(self) -> Path:
+        """Return the owner-nested checkout path relative to ``dev_root``."""
+        owner, separator, _repo = self.full_name.partition("/")
+        if not separator:
+            return Path(self.checkout_name)
+        return Path(owner) / self.checkout_name
 
 
 def config_dev_root(config: dict[str, Any] | None) -> Path:
@@ -55,7 +65,7 @@ def repo_for_package(
             if key in candidates and entry.full_name:
                 return RepoSpec(
                     full_name=entry.full_name,
-                    url=entry.url or f"https://github.com/{entry.full_name}",
+                    url=_catalog_clone_url(entry.full_name, entry.url),
                     checkout_name=entry.repo or entry.full_name.rsplit("/", 1)[-1],
                 )
 
@@ -76,6 +86,21 @@ def _repo(owner: str, repo: str) -> RepoSpec:
     full_name = f"{owner}/{repo}"
     return RepoSpec(
         full_name=full_name,
-        url=f"https://github.com/{full_name}",
+        url=_ssh_url(full_name),
         checkout_name=repo,
     )
+
+
+def _catalog_clone_url(full_name: str, url: str) -> str:
+    if not url or _is_github_url(url):
+        return _ssh_url(full_name)
+    return url
+
+
+def _ssh_url(full_name: str) -> str:
+    return f"git@github.com:{full_name}.git"
+
+
+def _is_github_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return (parsed.hostname or "").casefold() == "github.com"

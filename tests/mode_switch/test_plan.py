@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.mode_switch.plan import plan_mode_switch
 from sase.uv_tool.detect import UvToolInstall
 from sase.version.inventory import RuntimeVersionInventory, VersionPackageRecord
@@ -96,9 +98,33 @@ def test_plan_to_dev_builds_editable_reinstall_command(tmp_path: Path) -> None:
         "--reinstall",
     )
     assert "--editable" in uv_command.command
-    assert str(tmp_path / "dev" / "sase") in uv_command.command
+    assert str(tmp_path / "dev" / "sase-org" / "sase") in uv_command.command
     assert "--with-editable" in uv_command.command
-    assert str(tmp_path / "dev" / "sase-github") in uv_command.command
+    assert str(tmp_path / "dev" / "sase-org" / "sase-github") in uv_command.command
+
+    clone_commands = {
+        command.label: command.command
+        for command in plan.commands
+        if command.kind == "git_clone"
+    }
+    assert clone_commands["Clone sase"] == (
+        "git",
+        "clone",
+        "git@github.com:sase-org/sase.git",
+        str(tmp_path / "dev" / "sase-org" / "sase"),
+    )
+    assert clone_commands["Clone sase-core-rs"] == (
+        "git",
+        "clone",
+        "git@github.com:sase-org/sase-core.git",
+        str(tmp_path / "dev" / "sase-org" / "sase-core"),
+    )
+    assert clone_commands["Clone sase-github"] == (
+        "git",
+        "clone",
+        "git@github.com:sase-org/sase-github.git",
+        str(tmp_path / "dev" / "sase-org" / "sase-github"),
+    )
 
 
 def test_plan_to_pypi_swaps_editables_for_index_specs(tmp_path: Path) -> None:
@@ -140,3 +166,24 @@ def test_plan_current_mode_is_noop(tmp_path: Path) -> None:
 
     assert plan.changed is False
     assert plan.commands == ()
+
+
+def test_plan_to_dev_warns_about_legacy_flat_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    legacy_checkout = tmp_path / "projects" / "git" / "sase"
+    legacy_checkout.mkdir(parents=True)
+
+    plan = plan_mode_switch(
+        _install(tmp_path, _PYPI_RECEIPT),
+        target_mode="dev",
+        config={"update": {"dev_root": str(tmp_path / "dev")}},
+        inventory_fn=_inventory,
+        which_fn=lambda name: f"/usr/bin/{name}",
+    )
+
+    assert (
+        f"sase: existing checkout at {legacy_checkout} is no longer used "
+        f"(new location: {tmp_path / 'dev' / 'sase-org' / 'sase'})" in plan.warnings
+    )

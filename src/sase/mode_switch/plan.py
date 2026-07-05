@@ -20,6 +20,7 @@ from sase.mode_switch.models import (
     TargetMode,
 )
 from sase.mode_switch.repos import (
+    LEGACY_FLAT_DEV_ROOT,
     RepoSpec,
     config_dev_root,
     load_catalog_best_effort,
@@ -142,7 +143,7 @@ def _plan_to_dev(
 
     primary_spec = repo_for_package(receipt.primary.name, catalog=catalog)
     assert primary_spec is not None
-    primary_path = dev_root / primary_spec.checkout_name
+    primary_path = _checkout_path(dev_root, primary_spec)
     packages.append(
         _dev_package_row(
             receipt.primary.name,
@@ -150,6 +151,9 @@ def _plan_to_dev(
             records,
             spec=primary_spec,
             checkout_path=primary_path,
+            unused_checkout_paths=_unused_flat_checkout_paths(
+                dev_root, primary_spec, primary_path
+            ),
             fallback_version=receipt.primary.specifier,
             warnings=warnings,
             commands=clone_or_fetch,
@@ -160,7 +164,7 @@ def _plan_to_dev(
     cargo_available = which_fn("cargo") is not None
     core_spec = repo_for_package(_CORE_DIST, catalog=catalog)
     if cargo_available and core_spec is not None:
-        core_path = dev_root / core_spec.checkout_name
+        core_path = _checkout_path(dev_root, core_spec)
         packages.append(
             _dev_package_row(
                 _CORE_DIST,
@@ -168,6 +172,9 @@ def _plan_to_dev(
                 records,
                 spec=core_spec,
                 checkout_path=core_path,
+                unused_checkout_paths=_unused_flat_checkout_paths(
+                    dev_root, core_spec, core_path
+                ),
                 fallback_version=None,
                 warnings=warnings,
                 commands=clone_or_fetch,
@@ -207,7 +214,7 @@ def _plan_to_dev(
             managed_plugins.append(_index_requirement_for(receipt, plugin))
             continue
 
-        path = dev_root / spec.checkout_name
+        path = _checkout_path(dev_root, spec)
         packages.append(
             _dev_package_row(
                 plugin.name,
@@ -215,6 +222,7 @@ def _plan_to_dev(
                 records,
                 spec=spec,
                 checkout_path=path,
+                unused_checkout_paths=_unused_flat_checkout_paths(dev_root, spec, path),
                 fallback_version=plugin.specifier,
                 warnings=warnings,
                 commands=clone_or_fetch,
@@ -302,6 +310,7 @@ def _dev_package_row(
     *,
     spec: RepoSpec,
     checkout_path: Path,
+    unused_checkout_paths: tuple[Path, ...],
     fallback_version: str | None,
     warnings: list[str],
     commands: list[ModeSwitchCommand],
@@ -318,6 +327,13 @@ def _dev_package_row(
     warning = _checkout_warning(checkout_path) if exists else None
     if warning:
         warnings.append(f"{name}: {warning}")
+    if not exists:
+        for unused_path in unused_checkout_paths:
+            if unused_path.exists():
+                warnings.append(
+                    f"{name}: existing checkout at {unused_path} is no longer used "
+                    f"(new location: {checkout_path})"
+                )
     if exists:
         commands.append(
             ModeSwitchCommand(
@@ -345,6 +361,25 @@ def _dev_package_row(
         checkout_path=str(checkout_path),
         repo_url=spec.url,
         warning=warning,
+    )
+
+
+def _checkout_path(dev_root: Path, spec: RepoSpec) -> Path:
+    return dev_root / spec.checkout_relpath
+
+
+def _unused_flat_checkout_paths(
+    dev_root: Path, spec: RepoSpec, checkout_path: Path
+) -> tuple[Path, ...]:
+    candidates = (
+        config_dev_root({"update": {"dev_root": LEGACY_FLAT_DEV_ROOT}})
+        / spec.checkout_name,
+        dev_root / spec.checkout_name,
+    )
+    return tuple(
+        path
+        for index, path in enumerate(candidates)
+        if path != checkout_path and path not in candidates[:index]
     )
 
 
