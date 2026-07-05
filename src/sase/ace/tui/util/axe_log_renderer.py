@@ -66,6 +66,10 @@ _COUNT_RE = re.compile(
     r"(?<![A-Za-z_])(\d+)\s+(cycles?|chops?|errors?|runs?)\b",
     re.IGNORECASE,
 )
+_OSC_RE = re.compile(r"\x1b\].*?(?:\x07|\x1b\\)", re.DOTALL)
+_CSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_ESCAPE_RE = re.compile(r"\x1b[^\n\r]?")
+_STRIPPABLE_CONTROL_RE = re.compile(r"[\x00-\x08\x0b-\x1f]")
 
 # Hash window for tail-biased cache invalidation. Matches the legacy ANSI
 # cache so behavior on huge append-only logs is unchanged.
@@ -81,6 +85,17 @@ def _tail_hash(s: str) -> int:
     if len(s) <= _TAIL_HASH_BYTES:
         return hash(s)
     return hash(s[-_TAIL_HASH_BYTES:])
+
+
+def _strip_control_sequences(s: str) -> str:
+    """Remove terminal control bytes before semantic parsing."""
+    if _STRIPPABLE_CONTROL_RE.search(s) is None:
+        return s
+
+    stripped = _OSC_RE.sub("", s)
+    stripped = _CSI_RE.sub("", stripped)
+    stripped = _ESCAPE_RE.sub("", stripped)
+    return _STRIPPABLE_CONTROL_RE.sub("", stripped)
 
 
 def classify_source(source_id: str) -> SourceType:
@@ -116,9 +131,9 @@ def render_axe_output(
         return cached[2]
 
     if source_type == "lumberjack":
-        text = _render_lumberjack_log(capped)
+        text = _render_lumberjack_log(_strip_control_sequences(capped))
     elif source_type == "chop_controlled":
-        text = _render_controlled_chop(capped)
+        text = _render_controlled_chop(_strip_control_sequences(capped))
     else:
         text = Text.from_ansi(capped)
 

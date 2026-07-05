@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui.util import axe_log_renderer
@@ -42,6 +43,56 @@ def test_lumberjack_log_preserves_plain_text() -> None:
     )
     text = _render_lumberjack(sample)
     assert text.plain == sample
+
+
+def test_lumberjack_ansi_wrapped_line_strips_escapes_and_preserves_width() -> None:
+    sample = (
+        "\x1b[33m[2026-05-11 12:34:56] [hooks] "
+        "Tick overrun: took 6.0s but interval is 5s\x1b[0m"
+    )
+    expected = (
+        "[2026-05-11 12:34:56] [hooks] Tick overrun: took 6.0s but interval is 5s"
+    )
+
+    text = _render_lumberjack(sample)
+
+    assert text.plain == expected
+    assert "\x1b" not in text.plain
+    assert text.cell_len == cell_len(expected)
+
+
+def test_lumberjack_ansi_wrapped_header_keeps_semantic_styles() -> None:
+    text = _render_lumberjack(
+        "\x1b[33m[2026-05-11 12:34:56] [hooks] "
+        "Tick overrun: took 6.0s but interval is 5s\x1b[0m\n"
+    )
+
+    timestamp_styles = _styles_at(text, "2026-05-11 12:34:56")
+    name_styles = _styles_at(text, "hooks")
+
+    assert any("dim" in s for s in timestamp_styles)
+    assert any("#FFD700" in s for s in name_styles)
+
+
+def test_semantic_paths_strip_embedded_chop_ansi_codes() -> None:
+    body = "\x1b[33munsent=0 sent=0\x1b[0m failures=0"
+
+    lumberjack_text = _render_lumberjack(f"[2026-05-11 12:34:56] [telegram] {body}\n")
+    chop_text = _render_controlled_chop(f"{body}\n")
+
+    assert lumberjack_text.plain == (
+        "[2026-05-11 12:34:56] [telegram] unsent=0 sent=0 failures=0\n"
+    )
+    assert chop_text.plain == "unsent=0 sent=0 failures=0\n"
+    assert "\x1b" not in lumberjack_text.plain
+    assert "\x1b" not in chop_text.plain
+
+
+def test_lumberjack_crlf_input_strips_carriage_returns() -> None:
+    text = _render_lumberjack("[2026-05-11 12:34:56] [hooks] success\r\n")
+
+    assert text.plain == "[2026-05-11 12:34:56] [hooks] success\n"
+    assert "\r" not in text.plain
 
 
 def test_lumberjack_timestamp_dim() -> None:
