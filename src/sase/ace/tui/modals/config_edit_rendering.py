@@ -74,6 +74,7 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         # Only the editor widget the field actually needs is mounted (so a
         # hidden Input/TextArea can't steal focus from key-driven editors), and
         # it is seeded here because a Screen's on_mount can fire early.
+        self._sync_expanded_class()
         seed = format_value_for_editor(self._editor_kind, self._initial_value)
         with Container(id="config-edit-container"):
             yield Label("", id="config-edit-title")
@@ -101,6 +102,14 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
 
     def _uses_textarea(self) -> bool:
         return self._editor_kind in ("text", "string_list", "yaml")
+
+    def _should_expand_layout(self) -> bool:
+        return self._stage == "preview" or (
+            self._stage == "edit" and not self._op_unset and self._uses_textarea()
+        )
+
+    def _sync_expanded_class(self) -> None:
+        self.set_class(self._should_expand_layout(), "-expanded")
 
     def _focus_editor(self) -> None:
         """Focus the editor widget, or blur so the screen handles key bindings.
@@ -148,6 +157,7 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
             pass
 
     def _sync_visibility(self) -> None:
+        self._sync_expanded_class()
         edit_stage = self._stage == "edit"
         show_input = edit_stage and not self._op_unset and self._uses_input()
         show_area = edit_stage and not self._op_unset and self._uses_textarea()

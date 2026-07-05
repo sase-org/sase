@@ -154,6 +154,7 @@ class ConfigEditModal(ConfigEditModalBase):
         self._initial_value = current
 
     def on_mount(self) -> None:
+        self._sync_expanded_class()
         # Defer first render/focus until composed children are mounted.
         self.call_after_refresh(self._initialize)
 

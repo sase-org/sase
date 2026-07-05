@@ -3543,6 +3543,13 @@ ConfigEditModal > Container {
     padding: 1 2;
 }
 
+/* Near-fullscreen when a multiline editor or the preview needs room. */
+ConfigEditModal.-expanded > Container {
+    width: 95%;
+    height: 95%;
+    max-height: 95%;
+}
+
 ConfigEditModal #config-edit-title {
     text-style: bold;
     height: 1;
@@ -3590,6 +3597,10 @@ ConfigEditModal #config-edit-textarea {
     border: solid $secondary;
 }
 
+ConfigEditModal.-expanded #config-edit-textarea {
+    height: 1fr;
+}
+
 ConfigEditModal #config-edit-error {
     height: auto;
     margin-top: 1;
@@ -3600,6 +3611,11 @@ ConfigEditModal #config-edit-preview-scroll {
     height: auto;
     max-height: 24;
     margin-top: 1;
+}
+
+ConfigEditModal.-expanded #config-edit-preview-scroll {
+    height: 1fr;
+    max-height: 100%;
 }
 
 ConfigEditModal #config-edit-preview {
