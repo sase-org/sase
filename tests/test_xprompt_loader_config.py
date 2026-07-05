@@ -284,39 +284,37 @@ def test_get_all_xprompts_includes_md_files() -> None:
         assert result["hello"].content == "Hello from md"
 
 
-def testload_xprompts_from_default_files_includes_research_swarm() -> None:
+def testload_xprompts_from_default_files_loads_fixture(tmp_path: Path) -> None:
     """Package default_xprompts markdown files are built-in xprompts."""
-    result = load_xprompts_from_default_files()
-
-    assert "research_swarm" in result
-    assert "old_research_swarm" in result
-
-    xprompt = result["research_swarm"]
-    assert xprompt.name == "research_swarm"
-    assert "default_xprompts/research_swarm.md" in xprompt.source_path
-    assert "{{ prompt }} #research" in xprompt.content
-    # Shipped defaults must inline %model/%m directives: user-config xprompt
-    # aliases (e.g. #m_codex) are not available to other installs.
-    assert "%name:research.@.cdx %model:codex/gpt-5.5" in xprompt.content
-    assert "%name:research.@.cld %m:claude/opus" in xprompt.content
-    assert "%name:research.@.final" in xprompt.content
-    assert "%wait:research.@.cdx" in xprompt.content
-    assert "%wait:research.@.cld" in xprompt.content
-    assert "{% raw %}{{ wait_chats }}{% endraw %}" in xprompt.content
-    assert "delete the two intermediate `sdd/research/` markdown files" in (
-        xprompt.content
+    default_dir = tmp_path / "default_xprompts"
+    default_dir.mkdir()
+    fixture = default_dir / "fixture_default.md"
+    fixture.write_text(
+        "---\n"
+        "description: Fixture default xprompt.\n"
+        "input:\n"
+        "  - name: prompt\n"
+        "    type: text\n"
+        "    description: Prompt body.\n"
+        "---\n"
+        "Fixture default body for {{ prompt }}.\n",
+        encoding="utf-8",
     )
-    assert "%name:research.@.image %model:codex/gpt-5.5" in xprompt.content
-    assert "%wait:research.@.final" in xprompt.content
-    assert "#fork:research.@.final" in xprompt.content
-    assert "#research/image" in xprompt.content
 
-    legacy_xprompt = result["old_research_swarm"]
-    assert legacy_xprompt.name == "old_research_swarm"
-    assert "default_xprompts/old_research_swarm.md" in legacy_xprompt.source_path
-    assert "%g:research {{ prompt }} #research" in legacy_xprompt.content
-    assert "#research/more" in legacy_xprompt.content
-    assert "#research/image" in legacy_xprompt.content
+    with patch(
+        "sase.xprompt.loader_sources.get_sase_package_default_xprompts_dir",
+        return_value=default_dir,
+    ):
+        result = load_xprompts_from_default_files()
+
+    xprompt = result["fixture_default"]
+    assert xprompt.name == "fixture_default"
+    assert xprompt.source_path == str(fixture)
+    assert xprompt.description == "Fixture default xprompt."
+    assert xprompt.content == "Fixture default body for {{ prompt }}.\n"
+    assert len(xprompt.inputs) == 1
+    assert xprompt.inputs[0].name == "prompt"
+    assert xprompt.inputs[0].type is InputType.TEXT
 
 
 def testload_xprompts_from_internal_includes_packaged_skills() -> None:
@@ -364,6 +362,10 @@ def test_default_file_xprompt_not_project_namespaced(
 ) -> None:
     """Default file-backed xprompts stay global even when a project is set."""
     monkeypatch.chdir(tmp_path)
+    default_dir = tmp_path / "default_xprompts"
+    default_dir.mkdir()
+    fixture = default_dir / "fixture_default.md"
+    fixture.write_text("Fixture default body.\n", encoding="utf-8")
 
     with (
         patch("sase.xprompt.loader_sources.load_xprompts_by_source", return_value=[]),
@@ -374,13 +376,17 @@ def test_default_file_xprompt_not_project_namespaced(
             "sase.xprompt.loader_sources.get_xprompt_search_paths",
             return_value=[tmp_path / ".xprompts", tmp_path / "xprompts"],
         ),
+        patch(
+            "sase.xprompt.loader_sources.get_sase_package_default_xprompts_dir",
+            return_value=default_dir,
+        ),
     ):
         result = get_all_xprompts(project="sase")
 
-    assert not (tmp_path / "xprompts" / "research_swarm.md").exists()
-    assert "research_swarm" in result
-    assert "sase/research_swarm" not in result
-    assert "default_xprompts/research_swarm.md" in result["research_swarm"].source_path
+    assert not (tmp_path / "xprompts" / "fixture_default.md").exists()
+    assert "fixture_default" in result
+    assert "sase/fixture_default" not in result
+    assert result["fixture_default"].source_path == str(fixture)
 
 
 def test_config_xprompt_overrides_default_file_xprompt(tmp_path: Path) -> None:
@@ -403,8 +409,8 @@ def test_config_xprompt_overrides_default_file_xprompt(tmp_path: Path) -> None:
     assert result["research_swarm"].source_path == "config"
 
 
-def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:
-    """Research xprompts are built-ins and compose via the built-in name."""
+def test_review_xprompts_load_from_default_config(tmp_path: Path) -> None:
+    """Default config xprompts load as built-ins with parsed inputs."""
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path),
         patch("sase.config.core._get_local_config_path", return_value=None),
@@ -417,26 +423,23 @@ def test_research_xprompts_load_from_default_config(tmp_path: Path) -> None:
     ):
         prompts = get_all_prompts(project=None)
 
-    assert "research" in prompts
-    assert "research/more" in prompts
-    assert "research/prompt" in prompts
-    assert prompts["research"].source_path == "default_config"
-    assert prompts["research/more"].source_path == "default_config"
-    assert prompts["research/prompt"].source_path == "default_config"
+    assert "review" in prompts
+    assert "prompt/review" in prompts
+    assert prompts["review"].source_path == "default_config"
+    assert prompts["prompt/review"].source_path == "default_config"
 
-    research_prompt = prompts["research/prompt"]
-    assert len(research_prompt.inputs) == 1
-    prompt_input = research_prompt.inputs[0]
+    review_prompt = prompts["prompt/review"]
+    assert len(review_prompt.inputs) == 1
+    prompt_input = review_prompt.inputs[0]
     assert prompt_input.name == "prompt"
     assert prompt_input.type is InputType.TEXT
 
-    research_body = prompts["research"].steps[0].prompt_part or ""
-    assert "sdd/research/" in research_body
-    assert "$(date +%Y%m)" in research_body
+    review_body = prompts["review"].steps[0].prompt_part or ""
+    assert "fix any bugs" in review_body
 
-    body = research_prompt.steps[0].prompt_part or ""
-    assert "#research" in body
-    assert "#sase/research" not in body
+    body = review_prompt.steps[0].prompt_part or ""
+    assert "## THE PROMPT" in body
+    assert "{{ prompt }}" in body
 
 
 # Tests for load_xprompts_from_project

@@ -808,40 +808,34 @@ are always available without needing a project- or user-level definition. They'r
 [discovery order](#discovery-order), so any project, user, or config xprompt with the same name overrides the packaged
 defaults. Common entries include:
 
-| Reference             | Body summary                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------- |
-| `#cd`                 | Switch the agent into a resolved SASE workspace directory                                           |
-| `#git`                | Check out a git ref in an isolated workspace and show resulting changes                             |
-| `#commit`             | Create a normal commit from completed agent changes                                                 |
-| `#propose`            | Create a proposal from completed agent changes                                                      |
-| `#file`               | Require the agent to write its response to a named markdown artifact                                |
-| `#fork`               | Resume context from a prior agent conversation by name                                              |
-| `#fork_by_chat`       | Resume context from a specific chat transcript path                                                 |
-| `#mentor`             | Run a structured mentor review against a CL                                                         |
-| `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                          |
-| `#summarize`          | Summarize a file in a short phrase for a specified use                                              |
-| `#json`               | Require the agent response to satisfy a JSON schema                                                 |
-| `#!sync`              | Sync the current workspace and launch conflict-resolution help if needed                            |
-| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes     |
-| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                          |
-| `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics       |
-| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                    |
-| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan`   |
-| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                    |
-| `#research`           | Asks the agent to write a new `sdd/research/YYYYMM/` markdown file                                  |
-| `#research/image`     | Asks the agent to generate an infographic for an existing research markdown file                    |
-| `#research/more`      | Asks the agent to improve an existing research markdown file by filling missed gaps                 |
-| `#research/prompt`    | Wraps a `prompt` input and asks for prior art, alternatives, and a recommended solution             |
-| `#research_swarm`     | Fans out two independent research agents, consolidates their outputs, then generates an infographic |
-| `#old_research_swarm` | Legacy initial, follow-up, and image research workflow (all tagged `%g:research`)                   |
-| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                   |
-| `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                       |
-| `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`              |
-| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                     |
-| `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                    |
-| `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                                 |
-| `#bd/review/plan`     | Plan-review helper for an epic plan                                                                 |
-| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                               |
+| Reference             | Body summary                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `#cd`                 | Switch the agent into a resolved SASE workspace directory                                         |
+| `#git`                | Check out a git ref in an isolated workspace and show resulting changes                           |
+| `#commit`             | Create a normal commit from completed agent changes                                               |
+| `#propose`            | Create a proposal from completed agent changes                                                    |
+| `#file`               | Require the agent to write its response to a named markdown artifact                              |
+| `#fork`               | Resume context from a prior agent conversation by name                                            |
+| `#fork_by_chat`       | Resume context from a specific chat transcript path                                               |
+| `#mentor`             | Run a structured mentor review against a CL                                                       |
+| `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                        |
+| `#summarize`          | Summarize a file in a short phrase for a specified use                                            |
+| `#json`               | Require the agent response to satisfy a JSON schema                                               |
+| `#!sync`              | Sync the current workspace and launch conflict-resolution help if needed                          |
+| `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes   |
+| `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                        |
+| `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics     |
+| `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                  |
+| `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
+| `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
+| `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
+| `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
+| `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`            |
+| `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
+| `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                  |
+| `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                               |
+| `#bd/review/plan`     | Plan-review helper for an epic plan                                                               |
+| `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 
 When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior **user prompts** in that block are
 sanitized first: sase directives (`%name`, `%wait`, `%group`, ...), `#`/`#!` xprompt and workspace references, and any
