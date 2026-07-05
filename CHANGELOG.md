@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.10.0](https://github.com/sase-org/sase/compare/v0.9.1...v0.10.0) (2026-07-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* #research, #research/image, #research/more, #research/prompt, #research_swarm, and #old_research_swarm are no longer package defaults. Define them in user or project config when needed.
+* **mode-switch:** `sase update --to dev` now uses `~/projects/github/<owner>/<repo>` by default instead of flat checkouts under `~/projects/git/<repo>`. Configure `update.dev_root` or move existing checkouts to the owner-nested layout to keep using existing working trees.
+
+### Features
+
+* **mode-switch:** use GitHub dev checkout layout ([672c3ce](https://github.com/sase-org/sase/commit/672c3cea88582de76508080ff5a1639201a0efea))
+* remove packaged research xprompts ([bc6a9cc](https://github.com/sase-org/sase/commit/bc6a9cc87f2ef91166c3cd4b344f8afc3318f710))
+* **tui:** add guide learn-more links ([3767e7f](https://github.com/sase-org/sase/commit/3767e7ff71e12a042f7a3a8cf66f9a717733fc77))
+
+
+### Bug Fixes
+
+* **ace:** scope slow tool calls by source ([2bde0b5](https://github.com/sase-org/sase/commit/2bde0b594e11e540c33606870de3fc46781a5d8c))
+* **tui:** cap config edit modal value previews ([46f5f4c](https://github.com/sase-org/sase/commit/46f5f4c05fe17392d98b64d1bb4bce4bf071021c))
+
 ## [0.9.1](https://github.com/sase-org/sase/compare/v0.9.0...v0.9.1) (2026-07-04)
 
 
