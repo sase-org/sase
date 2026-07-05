@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.1](https://github.com/sase-org/sase/compare/v0.9.0...v0.9.1) (2026-07-04)
+
+
+### Features
+
+* **tui:** add tab guide modal ([bde2155](https://github.com/sase-org/sase/commit/bde21558c0028b4d4b012a25aa8642283fa0022a))
+
+
+### Bug Fixes
+
+* **axe:** check telegram token sources in chop doctor ([99d2435](https://github.com/sase-org/sase/commit/99d24356bbd93b1622aae2c90f4d2f0a2b8f79d0))
+
 ## [0.9.0](https://github.com/sase-org/sase/compare/v0.8.0...v0.9.0) (2026-07-04)
 
 
