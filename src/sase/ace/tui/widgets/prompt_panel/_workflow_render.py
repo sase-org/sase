@@ -1,5 +1,7 @@
 """Rich renderable construction for workflow detail display."""
 
+from datetime import datetime as DateTime
+
 from rich.console import Group, RenderableType
 from rich.syntax import Syntax
 from rich.text import Text
@@ -13,6 +15,7 @@ from sase.agent.status_buckets import (
 )
 
 from ...models.agent import Agent
+from ...tools import SlowToolSource
 from ...util.lazy_syntax import lazy_renderable
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
@@ -24,7 +27,10 @@ from ._workflow_types import WorkflowDetailSnapshot
 
 
 def build_workflow_detail_renderable(
-    agent: Agent, snapshot: WorkflowDetailSnapshot
+    agent: Agent,
+    snapshot: WorkflowDetailSnapshot,
+    *,
+    slow_tool_sources: tuple[SlowToolSource, ...] | None = None,
 ) -> Group:
     """Build the rich workflow-detail renderable from an existing snapshot."""
     header_text = Text()
@@ -152,6 +158,16 @@ def build_workflow_detail_renderable(
                 header_text.append(f'"{value}"\n', style="#5FD75F")
             else:
                 header_text.append(f"{value}\n", style="#5FD75F")
+
+    if slow_tool_sources is not None:
+        from ._agent_slow_tools import append_slow_tool_calls_section
+
+        append_slow_tool_calls_section(
+            header_text,
+            sources=slow_tool_sources,
+            agent=agent,
+            now=DateTime.now(),
+        )
 
     # Separator + WORKFLOW STEPS header
     steps_header = Text()

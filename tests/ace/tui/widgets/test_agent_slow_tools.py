@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
-from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
 from sase.ace.tui.tools._constants import MAX_VISIBLE_SLOW_TOOL_CALLS
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_slow_tools import (
@@ -40,12 +40,28 @@ def _entry(**overrides: object) -> ToolCallEntry:
     return ToolCallEntry(**kwargs)  # type: ignore[arg-type]
 
 
+def _source(
+    *entries: ToolCallEntry,
+    label: str | None = None,
+    active: bool = False,
+    end_reference: datetime | None = None,
+    palette_index: int = 0,
+) -> SlowToolSource:
+    return SlowToolSource(
+        label=label,
+        entries=tuple(entries),
+        agent_is_active=active,
+        end_reference=end_reference,
+        palette_index=palette_index,
+    )
+
+
 def test_empty_slow_tools_section_appends_nothing() -> None:
     text = Text()
 
     append_slow_tool_calls_section(
         text,
-        candidates=(),
+        sources=(),
         agent=SimpleNamespace(status="DONE", stop_time=None),
         now=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
     )
@@ -58,7 +74,7 @@ def test_slow_tools_section_renders_summary_and_completed_row() -> None:
 
     append_slow_tool_calls_section(
         text,
-        candidates=(_entry(duration_ms=92_000),),
+        sources=(_source(_entry(duration_ms=92_000)),),
         agent=SimpleNamespace(status="DONE", stop_time=None),
         now=datetime(2026, 7, 3, 14, 2, tzinfo=UTC),
     )
@@ -76,11 +92,14 @@ def test_slow_tools_section_renders_running_badge() -> None:
 
     append_slow_tool_calls_section(
         text,
-        candidates=(
-            _entry(
-                status="pending",
-                duration_ms=None,
-                recorded_at="2026-07-03T14:00:00+00:00",
+        sources=(
+            _source(
+                _entry(
+                    status="pending",
+                    duration_ms=None,
+                    recorded_at="2026-07-03T14:00:00+00:00",
+                ),
+                active=True,
             ),
         ),
         agent=SimpleNamespace(status="RUNNING", stop_time=None),
@@ -98,16 +117,18 @@ def test_slow_tools_section_renders_did_not_complete() -> None:
 
     append_slow_tool_calls_section(
         text,
-        candidates=(
-            _entry(
-                status="pending",
-                duration_ms=None,
-                recorded_at="2026-07-03T14:00:00+00:00",
+        sources=(
+            _source(
+                _entry(
+                    status="pending",
+                    duration_ms=None,
+                    recorded_at="2026-07-03T14:00:00+00:00",
+                ),
+                end_reference=datetime(2026, 7, 3, 14, 0, 45, tzinfo=UTC),
             ),
         ),
         agent=SimpleNamespace(status="DONE", stop_time=None),
         now=datetime(2026, 7, 3, 14, 10, tzinfo=UTC),
-        agent_end_reference=datetime(2026, 7, 3, 14, 0, 45, tzinfo=UTC),
     )
 
     plain = text.plain
@@ -124,7 +145,7 @@ def test_slow_tools_section_overflow_points_to_tools_timeline() -> None:
 
     append_slow_tool_calls_section(
         text,
-        candidates=entries,
+        sources=(_source(*entries),),
         agent=SimpleNamespace(status="DONE", stop_time=None),
         now=datetime(2026, 7, 3, 14, 2, tzinfo=UTC),
     )
@@ -140,7 +161,7 @@ def test_slow_tools_section_truncates_long_targets() -> None:
 
     append_slow_tool_calls_section(
         text,
-        candidates=(_entry(tool_input_summary={"command": long_command}),),
+        sources=(_source(_entry(tool_input_summary={"command": long_command})),),
         agent=SimpleNamespace(status="DONE", stop_time=None),
         now=datetime(2026, 7, 3, 14, 2, tzinfo=UTC),
     )
@@ -148,3 +169,106 @@ def test_slow_tools_section_truncates_long_targets() -> None:
     plain = text.plain
     assert long_command not in plain
     assert "…" in plain
+
+
+def test_slow_tools_section_renders_source_chips_and_agent_count() -> None:
+    text = Text()
+
+    append_slow_tool_calls_section(
+        text,
+        sources=(
+            _source(_entry(tool_use_id="plan", duration_ms=24_000), label="plan"),
+            _source(
+                _entry(
+                    tool_use_id="code",
+                    duration_ms=58_000,
+                    tool_input_summary={"command": "gh pr checks --watch"},
+                ),
+                label="code",
+                palette_index=1,
+            ),
+        ),
+        agent=SimpleNamespace(status="DONE", stop_time=None),
+        now=datetime(2026, 7, 3, 14, 2, tzinfo=UTC),
+    )
+
+    plain = text.plain
+    assert "SLOW TOOL CALLS · ≥20s · 2 calls · 2 agents" in plain
+    assert "✔ code" in plain
+    assert "✔ plan" in plain
+    assert "gh pr checks --watch" in plain
+
+
+def test_slow_tools_section_sorts_running_first_across_sources() -> None:
+    text = Text()
+
+    append_slow_tool_calls_section(
+        text,
+        sources=(
+            _source(
+                _entry(
+                    tool_use_id="running",
+                    status="pending",
+                    duration_ms=None,
+                    recorded_at="2026-07-03T14:00:00+00:00",
+                    tool_input_summary={"command": "running call"},
+                ),
+                label="code",
+                active=True,
+            ),
+            _source(
+                _entry(
+                    tool_use_id="completed",
+                    duration_ms=90_000,
+                    recorded_at="2026-07-03T14:00:10+00:00",
+                    tool_input_summary={"command": "completed call"},
+                ),
+                label="plan",
+                palette_index=1,
+            ),
+        ),
+        agent=SimpleNamespace(status="DONE", stop_time=None),
+        now=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
+    )
+
+    plain = text.plain
+    assert plain.index("running call") < plain.index("completed call")
+
+
+def test_slow_tools_section_uses_per_source_pending_state() -> None:
+    text = Text()
+
+    append_slow_tool_calls_section(
+        text,
+        sources=(
+            _source(
+                _entry(
+                    tool_use_id="dead",
+                    status="pending",
+                    duration_ms=None,
+                    recorded_at="2026-07-03T14:00:00+00:00",
+                    tool_input_summary={"command": "dead child"},
+                ),
+                label="plan",
+                end_reference=datetime(2026, 7, 3, 14, 0, 45, tzinfo=UTC),
+            ),
+            _source(
+                _entry(
+                    tool_use_id="live",
+                    status="pending",
+                    duration_ms=None,
+                    recorded_at="2026-07-03T14:00:30+00:00",
+                    tool_input_summary={"command": "live child"},
+                ),
+                label="code",
+                active=True,
+                palette_index=1,
+            ),
+        ),
+        agent=SimpleNamespace(status="RUNNING", stop_time=None),
+        now=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
+    )
+
+    plain = text.plain
+    assert "45s did not complete" in plain
+    assert "30s ● running" in plain

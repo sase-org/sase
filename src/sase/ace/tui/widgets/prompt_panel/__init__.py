@@ -4,7 +4,8 @@ from textual.timer import Timer
 from textual.widgets import Static
 
 from ...models.agent import Agent
-from ...tools.cache import cached_tool_calls_have_pending
+from ...tools import supports_slow_tool_sources
+from ...tools.cache import slow_tool_sources_have_pending
 from ._agent_display import AgentDisplayMixin
 from ._agent_display_hints import AgentHintsDisplayMixin
 from ._helpers import (
@@ -30,7 +31,9 @@ class AgentPromptPanel(
         if self.attempt_pinned_number is not None:
             self._cancel_slow_tool_render_tick()
             return
-        if not agent.is_agent_entry or not cached_tool_calls_have_pending(agent):
+        if not supports_slow_tool_sources(agent) or not slow_tool_sources_have_pending(
+            agent
+        ):
             self._cancel_slow_tool_render_tick()
             return
         if (
@@ -62,7 +65,7 @@ class AgentPromptPanel(
         if agent is None:
             self._cancel_slow_tool_render_tick()
             return
-        if not cached_tool_calls_have_pending(agent):
+        if not slow_tool_sources_have_pending(agent):
             self._cancel_slow_tool_render_tick()
             return
         if self._navigation_gate_is_active():

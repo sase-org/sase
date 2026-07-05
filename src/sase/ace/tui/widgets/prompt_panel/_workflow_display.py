@@ -8,6 +8,7 @@ from rich.console import Group
 from rich.text import Text
 from textual.worker import Worker, WorkerState
 
+from ...tools import build_slow_tool_sources, supports_slow_tool_sources
 from ...models._loaders._json_cache import load_json_cached
 from ...models.agent import Agent
 from ._workflow_data import (
@@ -24,6 +25,7 @@ from ._workflow_types import WorkflowDetailSnapshot
 class _WorkflowDetailRenderRequest:
     """State captured when an async workflow detail render is started."""
 
+    agent: Agent
     agent_identity: tuple[Any, ...]
     generation: int
     attempt_view_mode: str
@@ -41,7 +43,18 @@ class WorkflowDisplayMixin:
             agent: The workflow agent to display.
         """
         snapshot = _load_workflow_detail_snapshot(agent)
-        self.update(_build_workflow_detail_renderable(agent, snapshot))  # type: ignore[attr-defined]
+        slow_tool_sources = (
+            build_slow_tool_sources(agent)
+            if supports_slow_tool_sources(agent)
+            else None
+        )
+        self.update(  # type: ignore[attr-defined]
+            _build_workflow_detail_renderable(
+                agent,
+                snapshot,
+                slow_tool_sources=slow_tool_sources,
+            )
+        )
 
     def start_workflow_detail_render(
         self,
@@ -58,6 +71,7 @@ class WorkflowDisplayMixin:
             current_worker.cancel()
 
         request = _WorkflowDetailRenderRequest(
+            agent=agent,
             agent_identity=agent.identity,
             generation=generation,
             attempt_view_mode=attempt_view_mode,
@@ -68,7 +82,16 @@ class WorkflowDisplayMixin:
 
         def render_task() -> Group:
             snapshot = _load_workflow_detail_snapshot(agent)
-            return _build_workflow_detail_renderable(agent, snapshot)
+            slow_tool_sources = (
+                build_slow_tool_sources(agent)
+                if supports_slow_tool_sources(agent)
+                else None
+            )
+            return _build_workflow_detail_renderable(
+                agent,
+                snapshot,
+                slow_tool_sources=slow_tool_sources,
+            )
 
         self._workflow_detail_worker = self.run_worker(  # type: ignore[attr-defined]
             render_task, thread=True
@@ -105,6 +128,9 @@ class WorkflowDisplayMixin:
             return
 
         self.update(worker.result)  # type: ignore[attr-defined]
+        configure_slow_tick = getattr(self, "_configure_slow_tool_render_tick", None)
+        if callable(configure_slow_tick):
+            configure_slow_tick(request.agent)
 
     def _load_workflow_inputs(self, agent: Agent) -> dict[str, Any] | None:
         """Load workflow inputs from workflow_state.json."""

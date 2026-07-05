@@ -21,6 +21,32 @@ def _agent() -> Agent:
     )
 
 
+def _workflow_root_with_child() -> tuple[Agent, Agent]:
+    root = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="proj",
+        project_file="/tmp/proj/proj.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 3, 10, 0, 0),
+        artifacts_dir="/tmp/root-artifacts",
+        raw_suffix="20260703100000",
+        workflow="wf",
+    )
+    child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="plan",
+        project_file="/tmp/proj/proj.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 3, 10, 0, 0),
+        artifacts_dir="/tmp/child-artifacts",
+        raw_suffix="20260703100001",
+        parent_workflow="wf",
+        step_type="agent",
+    )
+    root.runtime_children.append(child)
+    return root, child
+
+
 def _entry(**overrides: object) -> ToolCallEntry:
     kwargs = {
         "recorded_at": "2026-07-03T14:00:00+00:00",
@@ -66,6 +92,25 @@ def test_slow_tool_tick_repaints_from_cache_without_artifact_read() -> None:
     assert panel.set_interval.call_count == 1  # type: ignore[attr-defined]
     panel.refresh_slow_tool_metadata_from_cache.assert_called_once_with(agent)  # type: ignore[attr-defined]
     read_mock.assert_not_called()
+
+
+def test_slow_tool_tick_stays_armed_for_pending_child_source() -> None:
+    root, child = _workflow_root_with_child()
+    child_cache_key = get_cache_key(child)
+    _tools_cache[child_cache_key] = _ToolsCacheEntry(
+        entries=(_entry(),),
+        fetch_time=datetime.now(),
+    )
+    panel = _panel()
+
+    try:
+        panel._configure_slow_tool_render_tick(root)
+        panel._on_slow_tool_render_tick()
+    finally:
+        _tools_cache.pop(child_cache_key, None)
+
+    assert panel.set_interval.call_count == 1  # type: ignore[attr-defined]
+    panel.refresh_slow_tool_metadata_from_cache.assert_called_once_with(root)  # type: ignore[attr-defined]
 
 
 def test_slow_tool_tick_disarms_when_no_pending_calls_remain() -> None:

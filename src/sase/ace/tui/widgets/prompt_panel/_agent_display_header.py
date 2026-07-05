@@ -415,10 +415,9 @@ def build_header_text(
 
         append_slow_tool_calls_section(
             header_text,
-            candidates=summary.slow_tool_candidates,
+            sources=summary.slow_tool_sources,
             agent=agent,
             now=DateTime.now(),
-            agent_end_reference=summary.slow_tool_end_reference,
         )
 
     # Error message (for failed agents)

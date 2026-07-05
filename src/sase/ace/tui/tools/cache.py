@@ -106,6 +106,21 @@ def cached_tool_calls_have_pending(agent: Agent) -> bool:
     return any(entry.status == "pending" for entry in entries)
 
 
+def slow_tool_sources_have_pending(agent: Agent) -> bool:
+    """Return whether any cached source entries include a pending tool call.
+
+    This is intentionally peek-only for event-loop callers. It checks the
+    selected row's cache key plus agent-entry runtime children, matching the
+    source builder's fetch scope without resolving artifact directories.
+    """
+    if cached_tool_calls_have_pending(agent):
+        return True
+    return any(
+        child.is_agent_entry and cached_tool_calls_have_pending(child)
+        for child in getattr(agent, "runtime_children", ())
+    )
+
+
 def should_throttle_tool_call_fetch(agent: Agent) -> bool:
     """Return whether a worker fetch was started too recently."""
     entry = peek_tool_calls_cache_entry(agent)
@@ -190,5 +205,6 @@ __all__ = [
     "peek_cached_tool_calls",
     "peek_tool_calls_cache_entry",
     "should_throttle_tool_call_fetch",
+    "slow_tool_sources_have_pending",
     "tools_cache",
 ]

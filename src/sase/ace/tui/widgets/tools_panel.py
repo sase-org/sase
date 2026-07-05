@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from collections.abc import Sequence
-from typing import Any
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, cast
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.message import Message
@@ -13,7 +15,13 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools import (
+    SlowToolSource,
+    ToolCallEntry,
+    build_cached_slow_tool_sources,
+    build_slow_tool_sources,
+    supports_slow_tool_sources,
+)
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.ace.tui.tools.cache import (
     ToolsCacheEntry,
@@ -29,9 +37,34 @@ from sase.ace.tui.tools.slow import format_long_duration
 from sase.core.time import get_timezone
 
 from ..util.trace import tui_trace
+from .prompt_panel._agent_context_common import truncate_display
 
 _ToolsCacheEntry = ToolsCacheEntry
 _tools_cache = tools_cache
+
+_CHIP_COLORS = (
+    "#87D7FF",
+    "#5FD75F",
+    "#D7AF5F",
+    "#AF87FF",
+    "#5FD7D7",
+    "#D787AF",
+)
+_SOURCE_CHIP_WIDTH = 7
+
+
+@dataclass(frozen=True)
+class _ToolTimelineRow:
+    entry: ToolCallEntry
+    source_label: str | None = None
+    palette_index: int = 0
+
+
+@dataclass(frozen=True)
+class _ToolsPanelFetchResult:
+    entries: tuple[ToolCallEntry, ...] | None
+    rows: tuple[_ToolTimelineRow, ...] | None
+    fetch_time: datetime
 
 
 class ToolsVisibilityChanged(Message):
@@ -95,11 +128,103 @@ def _append_bounded(
     text.append(value, style=style)
 
 
+def _pad_cells(value: str, width: int) -> str:
+    return value + (" " * max(0, width - cell_len(value)))
+
+
+def _append_source_chip(
+    text: Text,
+    label: str,
+    *,
+    palette_index: int,
+) -> None:
+    chip = _pad_cells(truncate_display(label, _SOURCE_CHIP_WIDTH), _SOURCE_CHIP_WIDTH)
+    text.append(
+        chip,
+        style=f"italic {_CHIP_COLORS[palette_index % len(_CHIP_COLORS)]}",
+    )
+
+
+def _rows_from_entries(
+    entries: Sequence[ToolCallEntry] | None,
+) -> tuple[_ToolTimelineRow, ...] | None:
+    if entries is None:
+        return None
+    return tuple(_ToolTimelineRow(entry=entry) for entry in entries)
+
+
+def _rows_from_sources(
+    sources: tuple[SlowToolSource, ...] | None,
+) -> tuple[_ToolTimelineRow, ...] | None:
+    if sources is None:
+        return None
+    rows = tuple(
+        _ToolTimelineRow(
+            entry=entry,
+            source_label=source.label,
+            palette_index=source.palette_index,
+        )
+        for source in sources
+        for entry in source.entries
+    )
+    return tuple(sorted(rows, key=_timeline_row_sort_key))
+
+
+def _timeline_row_sort_key(row: _ToolTimelineRow) -> tuple[object, ...]:
+    entry = row.entry
+    return (
+        entry._recorded_at_sort,
+        entry._file_order,
+        entry.line_number,
+        entry.tool_use_id or "",
+        row.palette_index,
+    )
+
+
+def _latest_cached_fetch_time(agent: Agent) -> datetime | None:
+    fetch_times = [
+        cache_entry.fetch_time
+        for row in (agent, *tuple(getattr(agent, "runtime_children", ())))
+        if row is agent or row.is_agent_entry
+        for cache_entry in (peek_tool_calls_cache_entry(row),)
+        if cache_entry is not None
+    ]
+    return max(fetch_times) if fetch_times else None
+
+
+def _source_cache_agents(agent: Agent) -> tuple[Agent, ...]:
+    return (
+        agent,
+        *tuple(
+            child
+            for child in getattr(agent, "runtime_children", ())
+            if child.is_agent_entry
+        ),
+    )
+
+
+def _should_throttle_tool_sources(agent: Agent) -> bool:
+    return any(
+        should_throttle_tool_call_fetch(row) for row in _source_cache_agents(agent)
+    )
+
+
+def _mark_tool_source_fetch_started(agent: Agent) -> None:
+    for row in _source_cache_agents(agent):
+        mark_tool_call_fetch_started(row)
+
+
+def _invalidate_tool_source_caches(agent: Agent) -> None:
+    for row in _source_cache_agents(agent):
+        invalidate_cached_tool_calls(row)
+
+
 def _build_tools_timeline_text(
     entries: Sequence[ToolCallEntry] | None,
     fetch_time: datetime,
     *,
     is_stale: bool = False,
+    rows: Sequence[_ToolTimelineRow] | None = None,
 ) -> Text:
     """Build the Rich Text timeline for tool-call entries."""
     if entries is None:
@@ -120,13 +245,22 @@ def _build_tools_timeline_text(
         style="dim",
     )
 
-    for entry in entries:
+    timeline_rows = tuple(rows) if rows is not None else _rows_from_entries(entries)
+    for row in timeline_rows or ():
+        entry = row.entry
         output.append(_format_timestamp(entry.recorded_at), style="dim")
         output.append("  ")
         output.append(
             _status_label(entry.status).ljust(5), style=_status_style(entry.status)
         )
         output.append("  ")
+        if row.source_label:
+            _append_source_chip(
+                output,
+                row.source_label,
+                palette_index=row.palette_index,
+            )
+            output.append("  ")
         _append_bounded(output, entry.display_tool_name, style="bold")
 
         target = entry.compact_target
@@ -157,6 +291,8 @@ def _build_tools_timeline_text(
 def _build_tools_timeline_markdown(
     entries: Sequence[ToolCallEntry] | None,
     fetch_time: datetime,
+    *,
+    rows: Sequence[_ToolTimelineRow] | None = None,
 ) -> str | None:
     """Build a plain markdown rendering for editor/export actions."""
     if entries is None:
@@ -170,12 +306,16 @@ def _build_tools_timeline_markdown(
         f"{len(entries)} calls · refreshed {fetch_time.strftime('%H:%M:%S')}",
         "",
     ]
-    for entry in entries:
+    timeline_rows = tuple(rows) if rows is not None else _rows_from_entries(entries)
+    for row in timeline_rows or ():
+        entry = row.entry
         pieces = [
             _format_timestamp(entry.recorded_at),
             _status_label(entry.status),
-            entry.display_tool_name,
         ]
+        if row.source_label:
+            pieces.append(row.source_label)
+        pieces.append(entry.display_tool_name)
         if entry.compact_target:
             pieces.append(entry.compact_target)
         if _format_duration(entry.duration_ms):
@@ -193,9 +333,10 @@ class AgentToolsPanel(Static):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._current_agent: Agent | None = None
-        self._current_worker: Worker[tuple[ToolCallEntry, ...] | None] | None = None
+        self._current_worker: Worker[_ToolsPanelFetchResult] | None = None
         self._has_displayed_content: bool = False
         self._last_entries: tuple[ToolCallEntry, ...] | None = None
+        self._last_rows: tuple[_ToolTimelineRow, ...] | None = None
         self._last_fetch_time: datetime | None = None
         self._is_background_refreshing: bool = False
 
@@ -211,53 +352,51 @@ class AgentToolsPanel(Static):
     ) -> None:
         del stale_threshold_seconds  # freshness now checked inside the worker
         self._current_agent = agent
-        cache_entry = peek_tool_calls_cache_entry(agent)
+        cached_result = self._cached_fetch_result(agent)
 
-        if cache_entry is not None:
-            self._display_tools_with_timestamp(
-                cache_entry.entries,
-                cache_entry.fetch_time,
+        if cached_result is not None:
+            self._display_tools_result(
+                cached_result,
                 post_visibility_message=True,
             )
         else:
             self._show_loading()
 
-        if should_throttle_tool_call_fetch(agent):
+        if _should_throttle_tool_sources(agent):
             return
 
         if self._current_worker is not None and self._current_worker.is_running:
             return
 
-        mark_tool_call_fetch_started(agent)
+        _mark_tool_source_fetch_started(agent)
 
-        def fetch_task() -> tuple[ToolCallEntry, ...] | None:
-            return self._fetch_tools_in_background(agent)
+        def fetch_task() -> _ToolsPanelFetchResult:
+            return self._fetch_tools_result_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
 
     def refresh_tools(self, agent: Agent) -> None:
         """Force refresh tool-call records for an agent."""
         self._current_agent = agent
-        cache_entry = peek_tool_calls_cache_entry(agent)
+        cached_result = self._cached_fetch_result(agent)
 
-        if cache_entry is not None:
+        if cached_result is not None:
             self._is_background_refreshing = True
-            self._display_tools_with_timestamp(
-                cache_entry.entries,
-                cache_entry.fetch_time,
+            self._display_tools_result(
+                cached_result,
                 post_visibility_message=True,
                 is_stale=True,
             )
             # Force a re-read by invalidating the mtime watermark.
-            invalidate_cached_tool_calls(agent)
+            _invalidate_tool_source_caches(agent)
         else:
             self._show_loading()
 
         if self._current_worker is not None and self._current_worker.is_running:
             self._current_worker.cancel()
 
-        def fetch_task() -> tuple[ToolCallEntry, ...] | None:
-            return self._fetch_tools_in_background(agent)
+        def fetch_task() -> _ToolsPanelFetchResult:
+            return self._fetch_tools_result_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
 
@@ -265,11 +404,18 @@ class AgentToolsPanel(Static):
         """Return a markdown/plain text timeline for editor actions."""
         if self._last_fetch_time is None:
             return None
-        return _build_tools_timeline_markdown(self._last_entries, self._last_fetch_time)
+        return _build_tools_timeline_markdown(
+            self._last_entries,
+            self._last_fetch_time,
+            rows=self._last_rows,
+        )
 
     def show_empty(self) -> None:
         """Show empty state."""
         self._has_displayed_content = False
+        self._last_entries = None
+        self._last_rows = None
+        self._last_fetch_time = None
         self.update(Text("No agent selected", style="dim italic"))
 
     def _show_loading(self) -> None:
@@ -304,15 +450,81 @@ class AgentToolsPanel(Static):
         *,
         post_visibility_message: bool = True,
         is_stale: bool = False,
+        rows: tuple[_ToolTimelineRow, ...] | None = None,
     ) -> None:
         self._last_entries = entries
+        self._last_rows = rows
         self._last_fetch_time = fetch_time
 
         if post_visibility_message:
             self.post_message(ToolsVisibilityChanged(has_tools=bool(entries)))
 
-        self.update(_build_tools_timeline_text(entries, fetch_time, is_stale=is_stale))
+        self.update(
+            _build_tools_timeline_text(
+                entries,
+                fetch_time,
+                is_stale=is_stale,
+                rows=rows,
+            )
+        )
         self._has_displayed_content = True
+
+    def _display_tools_result(
+        self,
+        result: _ToolsPanelFetchResult,
+        *,
+        post_visibility_message: bool = True,
+        is_stale: bool = False,
+    ) -> None:
+        self._display_tools_with_timestamp(
+            result.entries,
+            result.fetch_time,
+            post_visibility_message=post_visibility_message,
+            is_stale=is_stale,
+            rows=result.rows,
+        )
+
+    def _cached_fetch_result(self, agent: Agent) -> _ToolsPanelFetchResult | None:
+        if supports_slow_tool_sources(agent):
+            sources = build_cached_slow_tool_sources(agent)
+            if sources is None:
+                return None
+            rows = _rows_from_sources(sources)
+            fetch_time = _latest_cached_fetch_time(agent) or datetime.now()
+            return _ToolsPanelFetchResult(
+                entries=None if rows is None else tuple(row.entry for row in rows),
+                rows=rows,
+                fetch_time=fetch_time,
+            )
+
+        cache_entry = peek_tool_calls_cache_entry(agent)
+        if cache_entry is None:
+            return None
+        return _ToolsPanelFetchResult(
+            entries=cache_entry.entries,
+            rows=_rows_from_entries(cache_entry.entries),
+            fetch_time=cache_entry.fetch_time,
+        )
+
+    def _fetch_tools_result_in_background(self, agent: Agent) -> _ToolsPanelFetchResult:
+        if supports_slow_tool_sources(agent):
+            sources = build_slow_tool_sources(agent)
+            rows = _rows_from_sources(sources)
+            return _ToolsPanelFetchResult(
+                entries=None if rows is None else tuple(row.entry for row in rows),
+                rows=rows,
+                fetch_time=_latest_cached_fetch_time(agent) or datetime.now(),
+            )
+
+        entries = self._fetch_tools_in_background(agent)
+        cache_entry = peek_tool_calls_cache_entry(agent)
+        return _ToolsPanelFetchResult(
+            entries=entries,
+            rows=_rows_from_entries(entries),
+            fetch_time=(
+                cache_entry.fetch_time if cache_entry is not None else datetime.now()
+            ),
+        )
 
     def _fetch_tools_in_background(
         self, agent: Agent
@@ -327,17 +539,13 @@ class AgentToolsPanel(Static):
         self._is_background_refreshing = False
 
         if event.state == WorkerState.SUCCESS:
-            if self._current_agent:
-                cache_entry = peek_tool_calls_cache_entry(self._current_agent)
-                if cache_entry is not None:
-                    scroll_pos = self._save_scroll_position()
-                    self._display_tools_with_timestamp(
-                        cache_entry.entries,
-                        cache_entry.fetch_time,
-                        post_visibility_message=cache_entry.entries
-                        != self._last_entries,
-                    )
-                    self._restore_scroll_position(scroll_pos)
+            result = cast(_ToolsPanelFetchResult, event.worker.result)
+            scroll_pos = self._save_scroll_position()
+            self._display_tools_result(
+                result,
+                post_visibility_message=result.entries != self._last_entries,
+            )
+            self._restore_scroll_position(scroll_pos)
         elif event.state == WorkerState.ERROR:
             text = Text()
             text.append("Error fetching tool calls\n", style="bold red")

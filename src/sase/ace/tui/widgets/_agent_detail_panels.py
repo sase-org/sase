@@ -8,6 +8,7 @@ from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from ..tools import supports_slow_tool_sources
 from ..models.agent import Agent
 from .file_panel import (
     AgentFilePanel,
@@ -92,8 +93,8 @@ class AgentDetailPanelMixin(Static):
     def _next_panel_mode(self, *, reverse: bool = False) -> DetailPanelMode:
         """Compute the next panel mode in the fixed cycle.
 
-        For agent entries: AUTO -> TOOLS -> INFO -> AUTO.
-        For non-agent entries: AUTO -> INFO -> AUTO (no tools).
+        For entries with tool sources: AUTO -> TOOLS -> INFO -> AUTO.
+        For other entries: AUTO -> INFO -> AUTO (no tools).
 
         Args:
             reverse: If True, cycle in the reverse direction.
@@ -101,7 +102,7 @@ class AgentDetailPanelMixin(Static):
         Returns:
             The next mode to transition to.
         """
-        if self._current_agent and self._current_agent.is_agent_entry:
+        if self._current_agent and supports_slow_tool_sources(self._current_agent):
             cycle = [
                 DetailPanelMode.AUTO,
                 DetailPanelMode.TOOLS,
@@ -366,8 +367,8 @@ class AgentDetailPanelMixin(Static):
             text.append("○", style="dim")
             text.append(" files", style="dim")
 
-        # Tools indicator - only for agent entries
-        if self._current_agent and self._current_agent.is_agent_entry:
+        # Tools indicator - only for entries with tool sources
+        if self._current_agent and supports_slow_tool_sources(self._current_agent):
             text.append("  ")
 
             tools_active = (

@@ -8,6 +8,7 @@ from textual.widgets import Static
 
 from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
 
+from ..tools import supports_slow_tool_sources
 from ..models.agent import Agent, AgentType
 from ._agent_detail_panels import (
     AgentDetailPanelMixin,
@@ -137,7 +138,10 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             self._has_file_content = False
             self._has_tools_content = False
             # Reset from TOOLS mode when switching to non-agent entry
-            if not agent.is_agent_entry and self._panel_mode == DetailPanelMode.TOOLS:
+            if (
+                not supports_slow_tool_sources(agent)
+                and self._panel_mode == DetailPanelMode.TOOLS
+            ):
                 self._panel_mode = DetailPanelMode.AUTO
             if self._panel_mode != DetailPanelMode.TOOLS:
                 tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
@@ -197,7 +201,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         # INFO mode — the tools panel is hidden anyway and the cache will
         # be checked when the user toggles to tools mode.
         same_agent = prev_agent is not None and prev_agent.identity == agent.identity
-        if agent.is_agent_entry and not (
+        if supports_slow_tool_sources(agent) and not (
             same_agent and self._panel_mode == DetailPanelMode.INFO
         ):
             tools_panel.update_display(

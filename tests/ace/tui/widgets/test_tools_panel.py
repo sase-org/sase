@@ -186,6 +186,22 @@ def test_tools_timeline_renders_rich_response_detail() -> None:
     assert "12ms" in rendered
 
 
+def test_tools_timeline_renders_source_chips_for_root_aggregate() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_text(
+        [_entry(tool_use_id="plan"), _entry(tool_use_id="code")],
+        fetch_time,
+        rows=(
+            tools_panel_mod._ToolTimelineRow(_entry(tool_use_id="plan"), "plan", 0),
+            tools_panel_mod._ToolTimelineRow(_entry(tool_use_id="code"), "code", 1),
+        ),
+    ).plain
+
+    assert "ok     plan" in rendered
+    assert "ok     code" in rendered
+
+
 def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> None:
     """End-to-end: writer captures assistant+user events, panel renders the row."""
     artifacts_dir = tmp_path / "ace-run" / "20260514140000"
@@ -429,12 +445,115 @@ def test_tools_panel_and_header_fetch_share_cache_entry(tmp_path: Path) -> None:
     read_mock.assert_called_once_with(agent, artifact_dirs=[artifacts_dir])
 
 
+def test_tools_panel_background_fetch_aggregates_root_child_sources(
+    tmp_path: Path,
+) -> None:
+    root_dir = tmp_path / "ace-run" / "20260514140000"
+    code_dir = tmp_path / "ace-run" / "20260514140500"
+    root_dir.mkdir(parents=True)
+    code_dir.mkdir(parents=True)
+    (root_dir / TOOL_CALLS_FILENAME).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "recorded_at": "2026-05-14T14:00:00+00:00",
+                "runtime": "claude",
+                "event": "PostToolUse",
+                "status": "success",
+                "tool_name": "Bash",
+                "tool_use_id": "plan",
+                "duration_ms": 30_000,
+                "tool_input_summary": {"command": "plan command"},
+                "tool_response_summary": {"exit_code": 0},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (code_dir / TOOL_CALLS_FILENAME).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "recorded_at": "2026-05-14T14:01:00+00:00",
+                "runtime": "claude",
+                "event": "PostToolUse",
+                "status": "success",
+                "tool_name": "Bash",
+                "tool_use_id": "code",
+                "duration_ms": 40_000,
+                "tool_input_summary": {"command": "code command"},
+                "tool_response_summary": {"exit_code": 0},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    root = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="root",
+        project_file="/tmp/proj/proj.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(root_dir),
+        raw_suffix="root",
+        workflow="wf",
+    )
+    plan = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="plan",
+        project_file="/tmp/proj/proj.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(root_dir),
+        raw_suffix="plan",
+        parent_workflow="wf",
+        step_type="agent",
+        agent_family_role="plan",
+        role_suffix="--plan",
+    )
+    code = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="code",
+        project_file="/tmp/proj/proj.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 14, 10, 0, 0),
+        artifacts_dir=str(code_dir),
+        raw_suffix="code",
+        parent_timestamp="root",
+        agent_family_role="code",
+        role_suffix="--code",
+    )
+    root.runtime_children.extend([plan, code])
+
+    with patch(
+        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        side_effect=lambda _agent, artifacts_dir, **_kwargs: ([Path(artifacts_dir)], 1),
+    ):
+        try:
+            result = _build_panel()._fetch_tools_result_in_background(root)
+        finally:
+            tools_panel_mod._tools_cache.pop(get_cache_key(root), None)
+            tools_panel_mod._tools_cache.pop(get_cache_key(plan), None)
+            tools_panel_mod._tools_cache.pop(get_cache_key(code), None)
+
+    assert [entry.tool_use_id for entry in result.entries or ()] == ["plan", "code"]
+    assert [row.source_label for row in result.rows or ()] == ["plan", "code"]
+    rendered = _build_tools_timeline_text(
+        result.entries,
+        result.fetch_time,
+        rows=result.rows,
+    ).plain
+    assert "plan command" in rendered
+    assert "code command" in rendered
+
+
 def _build_panel() -> AgentToolsPanel:
     panel = AgentToolsPanel.__new__(AgentToolsPanel)
     panel._current_agent = None
     panel._current_worker = None
     panel._has_displayed_content = True
     panel._last_entries = None
+    panel._last_rows = None
     panel._last_fetch_time = None
     panel._is_background_refreshing = False
     panel.update = MagicMock()  # type: ignore[method-assign]

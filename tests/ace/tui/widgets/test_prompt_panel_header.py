@@ -15,7 +15,7 @@ from sase.ace.tui import memory_reads as memory_reads_module
 from sase.ace.tui import opened_workspaces as opened_workspaces_module
 from sase.ace.tui import skill_uses as skill_uses_module
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,
@@ -205,6 +205,16 @@ def _tool_entry(**overrides: object) -> ToolCallEntry:
     return ToolCallEntry(**kwargs)  # type: ignore[arg-type]
 
 
+def _slow_source(*entries: ToolCallEntry) -> SlowToolSource:
+    return SlowToolSource(
+        label=None,
+        entries=tuple(entries),
+        agent_is_active=False,
+        end_reference=None,
+        palette_index=0,
+    )
+
+
 def test_header_renders_workflow_variables_before_agent_context(
     tmp_path: Path,
 ) -> None:
@@ -335,7 +345,7 @@ def test_full_header_renders_slow_tool_calls_before_error(tmp_path: Path) -> Non
     workspace_dir.mkdir()
     agent = _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
     agent.error_message = "boom"
-    summary = DetailHeaderSummary(slow_tool_candidates=(_tool_entry(),))
+    summary = DetailHeaderSummary(slow_tool_sources=(_slow_source(_tool_entry()),))
 
     header, _ = build_header_text(agent, summary=summary)
     plain = header.plain
@@ -353,7 +363,7 @@ def test_cheap_header_omits_slow_tool_calls_even_with_summary(tmp_path: Path) ->
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     agent = _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
-    summary = DetailHeaderSummary(slow_tool_candidates=(_tool_entry(),))
+    summary = DetailHeaderSummary(slow_tool_sources=(_slow_source(_tool_entry()),))
 
     header, _ = build_header_text(agent, cheap=True, summary=summary)
 

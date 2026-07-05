@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
-from sase.ace.tui.tools.cache import (
-    cached_tool_calls_end_reference,
-    fetch_tool_calls_cached,
+from sase.ace.tui.tools import (
+    build_slow_tool_sources,
+    supports_slow_tool_sources,
 )
 from sase.ace.tui.widgets.file_panel._diff import DIFF_CACHE_TTL_SECONDS
 
@@ -109,11 +109,9 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
         if cached_display is not BEAD_DISPLAY_CACHE_MISS:
             bead_display = cast(str | None, cached_display)
 
-    slow_tool_candidates = None
-    slow_tool_end_reference = None
-    if agent.is_agent_entry:
-        slow_tool_candidates = fetch_tool_calls_cached(agent)
-        slow_tool_end_reference = cached_tool_calls_end_reference(agent)
+    slow_tool_sources = None
+    if supports_slow_tool_sources(agent):
+        slow_tool_sources = build_slow_tool_sources(agent)
 
     from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context
     from sase.ace.tui.opened_workspaces import (
@@ -138,8 +136,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
         memory_reads=load_memory_reads_for_agent_context(agent),
         skill_uses=load_skill_uses_for_agent_context(agent),
         opened_workspaces=load_opened_workspaces_for_agent_context(agent),
-        slow_tool_candidates=slow_tool_candidates,
-        slow_tool_end_reference=slow_tool_end_reference,
+        slow_tool_sources=slow_tool_sources,
     )
 
 

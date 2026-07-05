@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools import SlowToolSource
 from sase.ace.tui.tools._constants import (
     MAX_VISIBLE_SLOW_TOOL_CALLS,
     SLOW_TOOL_CALL_THRESHOLD_MS,
 )
 from sase.ace.tui.tools.slow import (
     SlowToolCall,
-    agent_is_active_for_slow_tool_calls,
     format_long_duration,
     select_slow_tool_calls,
 )
@@ -34,48 +34,56 @@ _COLOR_TARGET = "#D7D7AF"
 _COLOR_COMPLETED_DURATION = "bold #FFAF5F"
 _COLOR_RUNNING = "bold #FFD787"
 _COLOR_DID_NOT_COMPLETE = "dim #FFD787"
+_CHIP_COLORS = (
+    "#87D7FF",
+    "#5FD75F",
+    "#D7AF5F",
+    "#AF87FF",
+    "#5FD7D7",
+    "#D787AF",
+)
 _MAJOR_SECTION_RULE = "\u2500" * 50
 
 _TOOL_NAME_WIDTH = 12
 _TARGET_WIDTH = 44
+_LABELED_TARGET_WIDTH = 35
+_SOURCE_CHIP_WIDTH = 7
 _DURATION_WIDTH = 7
+
+
+@dataclass(frozen=True)
+class _SourcedSlowToolCall:
+    slow_call: SlowToolCall
+    source: SlowToolSource
 
 
 def append_slow_tool_calls_section(
     text: Text,
     *,
-    candidates: tuple[ToolCallEntry, ...] | None,
+    sources: tuple[SlowToolSource, ...] | None,
     agent: object,
     now: datetime,
-    agent_end_reference: datetime | None = None,
 ) -> None:
     """Append the SLOW TOOL CALLS section when any calls qualify."""
-    entries = candidates or ()
-    if not entries:
+    del agent
+    if not sources:
         return
 
-    agent_is_active = agent_is_active_for_slow_tool_calls(agent)
-    end_reference = (
-        None
-        if agent_is_active
-        else getattr(agent, "stop_time", None) or agent_end_reference
-    )
-    slow_calls = select_slow_tool_calls(
-        entries,
-        now=now,
-        agent_is_active=agent_is_active,
-        agent_end_reference=end_reference,
-    )
+    slow_calls = _select_sourced_slow_tool_calls(sources, now=now)
     if not slow_calls:
         return
 
-    running_count = sum(1 for item in slow_calls if item.is_running)
+    labeled = any(item.source.label for item in slow_calls)
+    running_count = sum(1 for item in slow_calls if item.slow_call.is_running)
     summary_parts = [
         f"\u2265{format_long_duration(SLOW_TOOL_CALL_THRESHOLD_MS)}",
         count_phrase(len(slow_calls), "call"),
     ]
     if running_count:
         summary_parts.append(f"{running_count} running")
+    if labeled:
+        source_count = len({item.source.palette_index for item in slow_calls})
+        summary_parts.append(count_phrase(source_count, "agent"))
 
     _append_major_section_divider(text)
     text.append("SLOW TOOL CALLS", style=_COLOR_HEADER)
@@ -84,7 +92,7 @@ def append_slow_tool_calls_section(
 
     visible = slow_calls[:MAX_VISIBLE_SLOW_TOOL_CALLS]
     for item in visible:
-        _append_slow_tool_call_row(text, item)
+        _append_slow_tool_call_row(text, item, labeled=labeled)
 
     overflow = len(slow_calls) - len(visible)
     if overflow > 0:
@@ -100,15 +108,45 @@ def _append_major_section_divider(text: Text) -> None:
     text.append("\n")
 
 
-def _append_slow_tool_call_row(text: Text, slow_call: SlowToolCall) -> None:
+def _select_sourced_slow_tool_calls(
+    sources: tuple[SlowToolSource, ...],
+    *,
+    now: datetime,
+) -> tuple[_SourcedSlowToolCall, ...]:
+    selected: list[_SourcedSlowToolCall] = []
+    for source in sources:
+        for slow_call in select_slow_tool_calls(
+            source.entries,
+            now=now,
+            agent_is_active=source.agent_is_active,
+            agent_end_reference=source.end_reference,
+        ):
+            selected.append(_SourcedSlowToolCall(slow_call=slow_call, source=source))
+    selected.sort(
+        key=lambda item: (
+            not item.slow_call.is_running,
+            -item.slow_call.effective_duration_ms,
+        )
+    )
+    return tuple(selected)
+
+
+def _append_slow_tool_call_row(
+    text: Text,
+    sourced: _SourcedSlowToolCall,
+    *,
+    labeled: bool,
+) -> None:
+    slow_call = sourced.slow_call
     entry = slow_call.entry
     glyph, glyph_style = _status_glyph_and_style(slow_call)
+    target_width = _LABELED_TARGET_WIDTH if labeled else _TARGET_WIDTH
     tool_name = _pad_cells(
         truncate_display(entry.display_tool_name, _TOOL_NAME_WIDTH),
         _TOOL_NAME_WIDTH,
     )
     target = _pad_cells(
-        truncate_display(entry.compact_target, _TARGET_WIDTH), _TARGET_WIDTH
+        truncate_display(entry.compact_target, target_width), target_width
     )
     duration = _left_pad_cells(
         format_long_duration(slow_call.effective_duration_ms),
@@ -118,6 +156,9 @@ def _append_slow_tool_call_row(text: Text, slow_call: SlowToolCall) -> None:
     text.append(f"  {format_local_hhmmss(entry.recorded_at)}  ", style=COLOR_TIMESTAMP)
     text.append(glyph, style=glyph_style)
     text.append(" ")
+    if labeled:
+        _append_source_chip(text, sourced.source)
+        text.append(" ")
     text.append(tool_name, style=_COLOR_TOOL_NAME)
     text.append("  ")
     text.append(target, style=_COLOR_TARGET)
@@ -131,6 +172,14 @@ def _append_slow_tool_call_row(text: Text, slow_call: SlowToolCall) -> None:
     else:
         text.append(duration, style=_COLOR_COMPLETED_DURATION)
     text.append("\n")
+
+
+def _append_source_chip(text: Text, source: SlowToolSource) -> None:
+    label = truncate_display(source.label or "agent", _SOURCE_CHIP_WIDTH)
+    text.append(
+        _pad_cells(label, _SOURCE_CHIP_WIDTH),
+        style=f"italic {_CHIP_COLORS[source.palette_index % len(_CHIP_COLORS)]}",
+    )
 
 
 def _status_glyph_and_style(slow_call: SlowToolCall) -> tuple[str, str]:
