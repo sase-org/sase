@@ -20,6 +20,7 @@ from .config_edit_helpers import (
 from .config_pane_rendering import (
     abbreviate_path,
     append_value_block,
+    format_row_value_summary,
     is_structured_value,
     kind_badge,
 )
@@ -33,6 +34,23 @@ from .config_edit_types import (
     _OK_COLOR,
     _WARN_COLOR,
 )
+
+
+_MODAL_VALUE_BLOCK_MAX_LINES = 3
+_MODAL_VALUE_BLOCK_MAX_LINE_WIDTH = 72
+_MODAL_INLINE_VALUE_MAX_WIDTH = 72
+
+
+def _modal_inline_value(value: Any) -> str:
+    """Compact one-line value rendering for fixed-height modal regions."""
+    rendered = format_value(value)
+    if (
+        is_structured_value(value)
+        or "\n" in rendered
+        or len(rendered) > _MODAL_INLINE_VALUE_MAX_WIDTH
+    ):
+        return format_row_value_summary(value, max_width=_MODAL_INLINE_VALUE_MAX_WIDTH)
+    return rendered
 
 
 class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
@@ -168,7 +186,7 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         self._append_current_value(text, field)
         if field.has_default:
             text.append("default: ", style=_MUTED)
-            text.append(format_value(field.default))
+            text.append(_modal_inline_value(field.default))
         if field.description:
             text.append(f"\n{field.description}", style=_MUTED)
         return text
@@ -195,9 +213,15 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         if has_value or field.has_default:
             if is_structured_value(value):
                 text.append("\n")
-                append_value_block(text, value, indent="  ")
+                append_value_block(
+                    text,
+                    value,
+                    indent="  ",
+                    max_lines=_MODAL_VALUE_BLOCK_MAX_LINES,
+                    max_line_width=_MODAL_VALUE_BLOCK_MAX_LINE_WIDTH,
+                )
             else:
-                text.append(format_value(value), style="bold")
+                text.append(_modal_inline_value(value), style="bold")
                 text.append("\n")
         else:
             text.append("(unset)\n", style=f"italic {_MUTED}")
@@ -327,12 +351,12 @@ class ConfigEditModalBase(ModalScreen["AppliedResult | None"]):
         text.append("  (after merge)\n", style=_MUTED)
         text.append("  ")
         text.append(
-            format_value(preview.before) if preview.has_before else "(unset)",
+            _modal_inline_value(preview.before) if preview.has_before else "(unset)",
             style=_MUTED,
         )
         text.append("  →  ", style=_MUTED)
         text.append(
-            format_value(preview.after) if preview.has_after else "(unset)",
+            _modal_inline_value(preview.after) if preview.has_after else "(unset)",
             style=f"bold {_OK_COLOR if preview.changed else _MUTED}",
         )
         text.append("\n\n")

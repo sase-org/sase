@@ -110,3 +110,31 @@ async def test_config_center_edit_enum_png_snapshot(
             "config_center_edit_enum_120x40",
             title="ACE SASE Admin Center — edit field (enum option list)",
         )
+
+
+async def test_config_center_edit_object_value_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Large object values show a capped current block plus the YAML editor."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    monkeypatch.setattr("sase.config.edit.get_use_chezmoi", lambda: False)
+    _patch_config_view(
+        monkeypatch,
+        _build_view(
+            _config_schema(object_value=True), _config_layers(object_value=True)
+        ),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await _open_edit_modal(page, "ace.lumberjack")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_edit_object_value_120x40",
+            title="ACE SASE Admin Center — edit object value (capped current block)",
+        )

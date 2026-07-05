@@ -11,14 +11,17 @@ and the backend itself by ``tests/test_config_edit.py``.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 from unittest.mock import patch
 
 import pytest
+from rich.text import Text
 
 from sase.ace.tui.modals import config_edit_modal as cem
 from sase.ace.tui.modals import config_pane as cp
 from sase.config import ConfigConstraints, ConfigField
+from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import build_config_inventory, config_field_model
 from tests.test_config_pane import _fixture_layers, _fixture_schema
 
@@ -30,6 +33,33 @@ def view() -> cp.ConfigPaneView:
         "sase.config.inventory.load_config_layers",
         return_value=_fixture_layers(),
     ):
+        inventory = build_config_inventory(schema=schema)
+    field_model = config_field_model(schema=schema)
+    return cp.ConfigPaneView.build(field_model, inventory)
+
+
+def _large_lumberjack_value(count: int = 50) -> dict[str, Any]:
+    return {
+        f"job_{index:03d}": {
+            "description": (
+                f"Background maintenance job {index:03d} with a deliberately "
+                "long sentence that should not soft-wrap inside the edit modal."
+            ),
+            "interval": f"{300 + index}s",
+            "command": f"sase axe chop job_{index:03d}",
+        }
+        for index in range(count)
+    }
+
+
+def _large_lumberjack_view() -> cp.ConfigPaneView:
+    schema = deepcopy(_fixture_schema())
+    large_value = _large_lumberjack_value()
+    schema["properties"]["ace"]["properties"]["lumberjack"]["default"] = large_value
+    layers = _fixture_layers()
+    layers[0].data["ace"]["lumberjack"] = large_value
+    layers[1].data["ace"]["lumberjack"] = large_value
+    with patch("sase.config.inventory.load_config_layers", return_value=layers):
         inventory = build_config_inventory(schema=schema)
     field_model = config_field_model(schema=schema)
     return cp.ConfigPaneView.build(field_model, inventory)
@@ -237,3 +267,65 @@ def test_initial_target_falls_back_for_unset_field(view: cp.ConfigPaneView) -> N
     # use_chezmoi is only the built-in default -> falls back to the user base.
     field = view.fields_by_path["use_chezmoi"]
     assert cem._initial_target(view.inventory, field, view) == "user"
+
+
+# --- modal rendering caps --------------------------------------------------
+
+
+def test_info_text_caps_large_current_value_and_summarizes_default() -> None:
+    view = _large_lumberjack_view()
+    modal = cem.ConfigEditModal(view, field=view.fields_by_path["ace.lumberjack"])
+
+    info = modal._info_text().plain
+    block_lines = [line for line in info.splitlines() if line.startswith("  ")]
+
+    assert "... " in info
+    assert "more line(s)" in info
+    assert "default: {...}" in info
+    assert len(info.splitlines()) <= 8
+    assert all(len(line) <= 74 for line in block_lines if "more line(s)" not in line)
+
+
+def test_preview_effective_values_use_compact_summaries() -> None:
+    view = _large_lumberjack_view()
+    large_before = _large_lumberjack_value()
+    large_after = _large_lumberjack_value()
+    large_after["job_999"] = {
+        "description": "New job",
+        "interval": "60s",
+        "command": "sase axe chop new_job",
+    }
+    plan = EditPlanResult(
+        schema_version=1,
+        write_plan=ConfigWritePlan(
+            file=None,
+            layer="user",
+            key_path=("ace", "lumberjack"),
+            op="set",
+            has_value=True,
+            new_value=large_after,
+        ),
+        candidate_config={},
+        effective_preview=ConfigEffectivePreview(
+            path="ace.lumberjack",
+            has_before=True,
+            before=large_before,
+            has_after=True,
+            after=large_after,
+            changed=True,
+        ),
+        validation=(),
+        diagnostics=(),
+        target_path=None,
+        used_chezmoi=False,
+        current_text="",
+        new_text="",
+        text_diff="",
+    )
+    text = Text()
+    modal = cem.ConfigEditModal(view, field=view.fields_by_path["ace.lumberjack"])
+
+    modal._append_effective(plan, text)
+
+    assert "{...}  →  {...}" in text.plain
+    assert "job_000" not in text.plain

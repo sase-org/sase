@@ -53,6 +53,20 @@ _LONG_QUERY = (
 )
 
 
+def _large_lumberjack_value(count: int = 24) -> dict[str, Any]:
+    return {
+        f"job_{index:03d}": {
+            "description": (
+                f"Background maintenance job {index:03d} with a deliberately "
+                "long sentence that should not soft-wrap inside the edit modal."
+            ),
+            "interval": f"{300 + index}s",
+            "command": f"sase axe chop job_{index:03d}",
+        }
+        for index in range(count)
+    }
+
+
 def _config_schema(*, object_value: bool = False) -> dict[str, Any]:
     return {
         "type": "object",
@@ -110,12 +124,7 @@ def _config_schema(*, object_value: bool = False) -> dict[str, Any]:
                                     "type": "object",
                                     "additionalProperties": True,
                                 },
-                                "default": {
-                                    "checks": {
-                                        "description": "Run checks.",
-                                        "interval": "300s",
-                                    }
-                                },
+                                "default": _large_lumberjack_value(),
                                 "description": "Named background lumberjack jobs.",
                             },
                         },
@@ -169,12 +178,7 @@ def _config_layers(
                 **(
                     {
                         "ace": {
-                            "lumberjack": {
-                                "checks": {
-                                    "description": "Run checks.",
-                                    "interval": "300s",
-                                },
-                            },
+                            "lumberjack": _large_lumberjack_value(),
                         }
                     }
                     if object_value
@@ -196,6 +200,7 @@ def _config_layers(
                     {
                         "ace": {
                             "lumberjack": {
+                                **_large_lumberjack_value(),
                                 "recent_audit": {
                                     "description": "Audit saves.",
                                     "interval": "900s",

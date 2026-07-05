@@ -3529,6 +3529,8 @@ ConfigEditModal #config-edit-title {
 
 ConfigEditModal #config-edit-info {
     height: auto;
+    /* Keep future info rows from starving the editor and hints. */
+    max-height: 14;
     color: $text-muted;
     margin-bottom: 1;
 }

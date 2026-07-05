@@ -70,6 +70,25 @@ _SCHEMA: dict[str, Any] = {
                 },
             },
         },
+        "ace": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "lumberjack": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    "default": {
+                        "checks": {
+                            "description": "Run checks.",
+                            "interval": "300s",
+                        }
+                    },
+                },
+            },
+        },
         "linked_repos": {
             "type": "array",
             "items": {"type": "object", "properties": {"name": {"type": "string"}}},
@@ -101,6 +120,14 @@ def _view(tmp_path: Path, user_data: dict[str, Any]) -> tuple[cp.ConfigPaneView,
                 "notes": "line 1\nline 2",
                 "use_chezmoi": False,
                 "axe": {"max_hook_runners": 3, "chop_script_dirs": []},
+                "ace": {
+                    "lumberjack": {
+                        "checks": {
+                            "description": "Run checks.",
+                            "interval": "300s",
+                        }
+                    }
+                },
                 "linked_repos": [],
             },
         ),
@@ -123,6 +150,20 @@ def _view(tmp_path: Path, user_data: dict[str, Any]) -> tuple[cp.ConfigPaneView,
         inventory = build_config_inventory(schema=_SCHEMA)
     field_model = config_field_model(schema=_SCHEMA)
     return cp.ConfigPaneView.build(field_model, inventory), user_file
+
+
+def _large_lumberjack_value(count: int = 50) -> dict[str, Any]:
+    return {
+        f"job_{index:03d}": {
+            "description": (
+                f"Background maintenance job {index:03d} with a deliberately "
+                "long sentence that should not soft-wrap inside the edit modal."
+            ),
+            "interval": f"{300 + index}s",
+            "command": f"sase axe chop job_{index:03d}",
+        }
+        for index in range(count)
+    }
 
 
 async def _open(page: AcePage, modal: ConfigEditModal) -> list[Any]:
@@ -397,6 +438,29 @@ async def test_yaml_textarea_uses_yaml_language(tmp_path: Path) -> None:
         await _open(page, modal)
         editor = modal.query_one("#config-edit-textarea", TextArea)
         assert getattr(editor, "language", None) == "yaml"
+
+
+async def test_large_yaml_value_keeps_editor_and_hints_visible(
+    tmp_path: Path,
+) -> None:
+    large_value = _large_lumberjack_value()
+    view, _ = _view(tmp_path, {"ace": {"lumberjack": large_value}})
+    async with AcePage(size=(120, 40)) as page:
+        modal = ConfigEditModal(view, field=view.fields_by_path["ace.lumberjack"])
+        await _open(page, modal)
+        editor = modal.query_one("#config-edit-textarea", TextArea)
+        hints = modal.query_one("#config-edit-hints")
+
+        await page.wait_for(
+            lambda _s: editor.region.height > 0 and hints.region.height > 0
+        )
+
+        assert editor.display is True
+        assert hints.display is True
+        assert editor.region.y < hints.region.y
+        assert hints.region.y + hints.region.height <= page.app.size.height
+        assert "more line(s)" in modal._info_text().plain
+        assert "job_049" in editor.text
 
 
 async def test_schema_validation_blocks_write(tmp_path: Path) -> None:

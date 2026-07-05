@@ -95,22 +95,43 @@ def format_value_block(value: Any) -> str:
         return format_value(value)
 
 
-def truncate_value_block(code: str) -> tuple[str, int]:
-    """Bound pathological config values before appending them to the UI text."""
+def _truncate_value_line(line: str, max_line_width: int | None) -> str:
+    """Return *line* capped to *max_line_width* display cells when requested."""
+    if max_line_width is None or len(line) <= max_line_width:
+        return line
+    if max_line_width <= 0:
+        return ""
+    if max_line_width <= 3:
+        return "." * max_line_width
+    return line[: max_line_width - 3].rstrip() + "..."
+
+
+def truncate_value_block(
+    code: str,
+    *,
+    max_lines: int = _VALUE_BLOCK_RENDER_MAX_LINES,
+    max_line_width: int | None = None,
+) -> tuple[str, int]:
+    """Bound config values before appending them to UI text."""
     lines = code.splitlines()
     if not lines:
         return code, 0
     shown: list[str] = []
     used_bytes = 0
+    changed = False
     for index, line in enumerate(lines):
+        line = _truncate_value_line(line, max_line_width)
+        changed = changed or line != lines[index]
         line_bytes = len(line.encode("utf-8", errors="replace")) + 1
         if (
-            len(shown) >= _VALUE_BLOCK_RENDER_MAX_LINES
+            len(shown) >= max_lines
             or used_bytes + line_bytes > _VALUE_BLOCK_RENDER_MAX_BYTES
         ):
             return "\n".join(shown), len(lines) - index
         shown.append(line)
         used_bytes += line_bytes
+    if changed:
+        return "\n".join(shown), 0
     return code, 0
 
 
@@ -141,9 +162,20 @@ def highlight_value_block(code: str) -> Text:
         return Text(code, no_wrap=False)
 
 
-def append_value_block(text: Text, value: Any, *, indent: str) -> None:
+def append_value_block(
+    text: Text,
+    value: Any,
+    *,
+    indent: str,
+    max_lines: int = _VALUE_BLOCK_RENDER_MAX_LINES,
+    max_line_width: int | None = None,
+) -> None:
     """Append an indented, capped YAML value block to *text*."""
-    code, omitted_lines = truncate_value_block(format_value_block(value))
+    code, omitted_lines = truncate_value_block(
+        format_value_block(value),
+        max_lines=max_lines,
+        max_line_width=max_line_width,
+    )
     block = highlight_value_block(code)
     for line in block.split("\n"):
         text.append(indent)

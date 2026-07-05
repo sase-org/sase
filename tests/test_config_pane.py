@@ -297,6 +297,27 @@ def test_format_value_block_uses_sorted_multiline_yaml() -> None:
     )
 
 
+def test_truncate_value_block_defaults_keep_large_detail_budget() -> None:
+    code = "\n".join(f"line {index:03d}" for index in range(20))
+    assert cp._truncate_value_block(code) == (code, 0)
+
+
+def test_truncate_value_block_accepts_smaller_line_budget() -> None:
+    code = "\n".join(f"line {index:03d}" for index in range(6))
+    truncated, omitted = cp._truncate_value_block(code, max_lines=3)
+
+    assert truncated == "line 000\nline 001\nline 002"
+    assert omitted == 3
+
+
+def test_truncate_value_block_caps_long_lines_before_rendering() -> None:
+    code = "short\n" + ("x" * 20) + "\nlast"
+    truncated, omitted = cp._truncate_value_block(code, max_line_width=10)
+
+    assert truncated.splitlines() == ["short", "xxxxxxx...", "last"]
+    assert omitted == 0
+
+
 def test_render_detail_shows_value_and_priority_ordered_provenance(
     view: cp.ConfigPaneView,
 ) -> None:
