@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.amd.constants import PROVIDER_SHIM_CONTENT
+from sase.amd.constants import PROVIDER_SHIM_CONTENT, PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from sase.main.init_memory.inventory import unreferenced_memory_files
 from sase.main.init_memory_handler import plan_init_memory
@@ -211,6 +211,86 @@ def test_memory_plan_stale_home_provider_shim_reports_overwrite(
     assert {(action.operation, action.path) for action in plan.actions} == {
         ("overwrite", home_root / "CLAUDE.md")
     }
+
+
+def test_memory_plan_creates_nested_agent_doc_provider_shims(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    nested = project_root / "demos" / "tapes"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    assert run_memory() == 0
+    write(nested / "AGENTS.md", "# Tape Instructions\n\nUse vhs for tapes.\n")
+
+    plan = plan_memory()
+
+    assert plan.blockers == ()
+    assert {(action.operation, action.path) for action in plan.actions} == {
+        ("create", nested / filename) for filename in PROVIDER_SHIM_FILES
+    }
+
+
+def test_memory_apply_creates_nested_agent_doc_provider_shims_idempotently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    nested = project_root / "demos" / "tapes"
+    agents_content = "# Tape Instructions\n\nUse vhs for tapes.\n"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    assert run_memory() == 0
+    write(nested / "AGENTS.md", agents_content)
+
+    assert run_memory() == 0
+
+    for filename in PROVIDER_SHIM_FILES:
+        assert (nested / filename).read_text(encoding="utf-8") == agents_content
+    assert plan_memory().actions == ()
+
+
+def test_memory_plan_prunes_ignored_nested_agent_docs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    assert run_memory() == 0
+    write(project_root / ".sase" / "AGENTS.md", "# Ignored\n")
+    write(project_root / "node_modules" / "pkg" / "AGENTS.md", "# Ignored\n")
+
+    plan = plan_memory()
+
+    assert plan.actions == ()
+    assert not (project_root / ".sase" / "CLAUDE.md").exists()
+    assert not (project_root / "node_modules" / "pkg" / "CLAUDE.md").exists()
 
 
 def test_memory_plan_preserves_existing_user_agents_file(

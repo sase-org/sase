@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 19:31:34
-status: wip
+status: done
 prompt: sdd/prompts/202607/nested_agent_docs_provider_shims.md
 ---
 # Plan: Nested Agent Document Provider Shims

@@ -146,6 +146,11 @@ def _iter_project_agents(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(agents, key=lambda path: path.as_posix()))
 
 
+def discover_project_agent_docs(root: Path) -> tuple[Path, ...]:
+    """Return project ``AGENTS.md`` files using agent-docs inventory pruning."""
+    return _iter_project_agents(root)
+
+
 def _h1_title(text: str | None) -> str | None:
     if text is None:
         return None

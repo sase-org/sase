@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import cast
 
 from sase.amd.init import AmdMemorySyncPlan, plan_amd_memory_sync
+from sase.amd.inventory import discover_project_agent_docs
 from sase.amd.inline_memory import inline_memory_section
 from sase.amd._shared import (
     ProviderShimPlan,
     apply_planned_delete,
     provider_shim_plan,
+    read_text,
 )
 from sase.memory.notes import (
     AGENTS_PARENT,
@@ -309,6 +311,48 @@ def _provider_shim_changes(plan: ProviderShimPlan) -> tuple[MemoryFileChange, ..
     return tuple(changes)
 
 
+def _resolved(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def _additional_agent_doc_shim_plans(root: Path) -> tuple[ProviderShimPlan, ...]:
+    root_resolved = _resolved(root)
+    root_agents = _resolved(root_resolved / "AGENTS.md")
+    plans: list[ProviderShimPlan] = []
+    for agents_path in discover_project_agent_docs(root_resolved):
+        if _resolved(agents_path) == root_agents:
+            continue
+        agents_content, read_error = read_text(agents_path)
+        if read_error is not None or agents_content is None:
+            plans.append(
+                ProviderShimPlan(
+                    writes=(),
+                    deletes=(),
+                    blockers=(read_error or f"{agents_path}: failed to read file",),
+                )
+            )
+            continue
+        plans.append(
+            provider_shim_plan(
+                agents_path.parent,
+                agents_content=agents_content,
+            )
+        )
+    return tuple(plans)
+
+
+def _provider_shim_plan_blockers(
+    plans: Iterable[ProviderShimPlan],
+) -> tuple[str, ...]:
+    return tuple(blocker for plan in plans for blocker in plan.blockers)
+
+
+def _provider_shim_plan_changes(
+    plans: Iterable[ProviderShimPlan],
+) -> tuple[MemoryFileChange, ...]:
+    return tuple(change for plan in plans for change in _provider_shim_changes(plan))
+
+
 def _write_expected_file(expected: MemoryExpectedFile) -> bool:
     if expected.write_policy == "create_if_missing" and expected.path.exists():
         return False
@@ -344,6 +388,10 @@ def _apply_provider_shim_plan(plan: ProviderShimPlan) -> tuple[Path, ...]:
     return tuple(written)
 
 
+def _apply_provider_shim_plans(plans: Iterable[ProviderShimPlan]) -> tuple[Path, ...]:
+    return tuple(path for plan in plans for path in _apply_provider_shim_plan(plan))
+
+
 def _delete_provider_shim_paths(plan: ProviderShimPlan) -> tuple[Path, ...]:
     deleted: list[Path] = []
     for delete in plan.deletes:
@@ -353,6 +401,12 @@ def _delete_provider_shim_paths(plan: ProviderShimPlan) -> tuple[Path, ...]:
         if did_delete:
             deleted.append(delete.path)
     return tuple(deleted)
+
+
+def _delete_provider_shim_plan_paths(
+    plans: Iterable[ProviderShimPlan],
+) -> tuple[Path, ...]:
+    return tuple(path for plan in plans for path in _delete_provider_shim_paths(plan))
 
 
 def _is_memory_markdown_path(root: Path, path: Path) -> bool:
@@ -419,6 +473,7 @@ def plan_memory_root(
     project_name: str | None = None,
     enable_amd: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
+    include_project_agent_docs: bool = False,
 ) -> MemoryRootPlan:
     generated_sase_body = _generated_sase_memory_body(
         linked_entries, project_name=project_name
@@ -440,15 +495,23 @@ def plan_memory_root(
         agents_content=_final_agents_content(root, expected_files),
         chezmoi_home_roots=chezmoi_home_roots,
     )
+    additional_shim_plans = (
+        _additional_agent_doc_shim_plans(root) if include_project_agent_docs else ()
+    )
     overlay = _validation_overlay_for_expected_files(root, expected_files)
     return MemoryRootPlan(
         root=root,
         changes=(
             _compare_expected_memory_files(expected_files)
             + _provider_shim_changes(shim_plan)
+            + _provider_shim_plan_changes(additional_shim_plans)
         ),
         unreferenced=unreferenced_memory_files(root, overlay=overlay),
-        blockers=((() if amd_sync is None else amd_sync.blockers) + shim_plan.blockers),
+        blockers=(
+            (() if amd_sync is None else amd_sync.blockers)
+            + shim_plan.blockers
+            + _provider_shim_plan_blockers(additional_shim_plans)
+        ),
     )
 
 
@@ -459,6 +522,7 @@ def initialize_memory_root(
     project_name: str | None = None,
     enable_amd: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
+    include_project_agent_docs: bool = False,
 ) -> MemoryRootResult:
     generated_sase_body = _generated_sase_memory_body(
         linked_entries, project_name=project_name
@@ -480,9 +544,14 @@ def initialize_memory_root(
         agents_content=_final_agents_content(root, expected_files),
         chezmoi_home_roots=chezmoi_home_roots,
     )
+    additional_shim_plans = (
+        _additional_agent_doc_shim_plans(root) if include_project_agent_docs else ()
+    )
     written = _apply_expected_memory_files(expected_files)
     written = (*written, *_apply_provider_shim_plan(shim_plan))
+    written = (*written, *_apply_provider_shim_plans(additional_shim_plans))
     deleted = _delete_provider_shim_paths(shim_plan)
+    deleted = (*deleted, *_delete_provider_shim_plan_paths(additional_shim_plans))
 
     return MemoryRootResult(
         root=root,

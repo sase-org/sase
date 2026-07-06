@@ -465,6 +465,7 @@ def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]
                 project_name=inputs.project_name,
                 enable_amd=True,
                 chezmoi_home_roots=chezmoi_home_roots,
+                include_project_agent_docs=True,
             )
         )
     home_plan = _plan_memory_root(
@@ -593,6 +594,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
             project_name=inputs.project_name,
             enable_amd=True,
             chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
+            include_project_agent_docs=True,
         )
     home_result = _initialize_memory_root(
         inputs.home_root,
