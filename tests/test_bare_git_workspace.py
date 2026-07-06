@@ -308,18 +308,39 @@ class TestResolveGitRef:
             mock_init.assert_not_called()
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
-    @patch(f"{_REF_MOD}.set_workspace_dir", return_value=True)
-    @patch(f"{_REF_MOD}.set_bare_repo_dir", return_value=True)
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_bare_repo_path_strips_git_suffix(
         self,
-        mock_set_bare: MagicMock,
-        mock_set_ws: MagicMock,
+        mock_init: MagicMock,
         mock_branch: MagicMock,
     ) -> None:
         with tempfile.TemporaryDirectory() as d:
-            with patch(f"{_REF_MOD}.Path.home", return_value=Path(d)):
+            home = Path(d)
+            project_file = home / ".sase" / "projects" / "foo" / "foo.sase"
+            clone_dir = str(home / "projects" / "git" / "foo") + "/"
+
+            def init_project(
+                project_name: str,
+                *,
+                existing_bare: str,
+                clone_dir: str,
+            ) -> str:
+                assert project_name == "foo"
+                assert existing_bare == "/repos/foo.git"
+                project_file.parent.mkdir(parents=True)
+                project_file.write_text(
+                    f"BARE_REPO_DIR: {existing_bare}\nWORKSPACE_DIR: {clone_dir}\n",
+                    encoding="utf-8",
+                )
+                return str(project_file)
+
+            mock_init.side_effect = init_project
+            with patch(f"{_REF_MOD}.Path.home", return_value=home):
                 result = resolve_git_ref("/repos/foo.git")
                 assert result.project_name == "foo"
+                assert result.primary_workspace_dir == clone_dir
+                assert result.bare_repo_dir == "/repos/foo.git"
+                mock_branch.assert_called_once_with(clone_dir)
 
     def test_invalid_empty_basename(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -327,20 +348,17 @@ class TestResolveGitRef:
                 with pytest.raises(ValueError, match="Cannot derive project name"):
                     resolve_git_ref("/.git")
 
-    @patch(f"{_REF_MOD}.set_workspace_dir", return_value=True)
-    @patch(f"{_REF_MOD}.set_bare_repo_dir", return_value=True)
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
     def test_bare_repo_path_hidden_basename_is_rejected(
         self,
-        mock_set_bare: MagicMock,
-        mock_set_ws: MagicMock,
+        mock_init: MagicMock,
     ) -> None:
         with tempfile.TemporaryDirectory() as d:
             with patch(f"{_REF_MOD}.Path.home", return_value=Path(d)):
                 with pytest.raises(ValueError, match="invalid SASE project name"):
                     resolve_git_ref("/repos/.sase.git")
 
-        mock_set_bare.assert_not_called()
-        mock_set_ws.assert_not_called()
+        mock_init.assert_not_called()
 
 
 # ── init_bare_git_project ────────────────────────────────────────────
@@ -389,9 +407,11 @@ class TestInitBareGitProject:
         mock_set_ws: MagicMock,
     ) -> None:
         # First call: git rev-parse --is-bare-repository → true
-        # Second call: git clone
+        # Second call: git show-ref --quiet → has refs
+        # Third call: git clone
         mock_run.side_effect = [
             MagicMock(returncode=0, stdout="true\n", stderr=""),
+            MagicMock(returncode=0, stdout="", stderr=""),
             MagicMock(returncode=0, stdout="", stderr=""),
         ]
         with tempfile.TemporaryDirectory() as d:
@@ -406,7 +426,7 @@ class TestInitBareGitProject:
                     "test", clone_dir=clone_dir, existing_bare=existing
                 )
                 assert result.endswith("test.sase")
-                assert mock_run.call_count == 2
+                assert mock_run.call_count == 3
                 # bare_dir should be the existing path
                 mock_set_bare.assert_called_once_with(result, existing)
                 ensure_sdd.assert_called_once_with(
@@ -421,11 +441,13 @@ class TestInitBareGitProject:
         mock_run.return_value = MagicMock(returncode=0, stdout="false\n", stderr="")
         with tempfile.TemporaryDirectory() as d:
             with patch(f"{_INIT_MOD}.Path.home", return_value=Path(d)):
+                existing = os.path.join(d, "some", "dir")
+                os.makedirs(existing)
                 with pytest.raises(RuntimeError, match="not a valid bare"):
                     init_bare_git_project(
                         "test",
                         clone_dir=os.path.join(d, "clone") + "/",
-                        existing_bare="/some/dir",
+                        existing_bare=existing,
                     )
 
     @patch(f"{_INIT_MOD}.subprocess.run")

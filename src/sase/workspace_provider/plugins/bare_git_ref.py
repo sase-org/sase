@@ -23,7 +23,6 @@ from sase.workspace_provider.utils import (
     get_default_branch,
     parse_bare_repo_dir,
     parse_workspace_dir,
-    set_workspace_dir,
 )
 
 
@@ -146,10 +145,7 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     Raises:
         ValueError: If the reference cannot be resolved.
     """
-    from sase.ace.changespec.project_spec_path import (
-        active_project_spec_filename,
-        preferred_project_spec_path,
-    )
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 
     projects_base = sase_projects_dir()
 
@@ -211,19 +207,35 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
         raise ValueError(f"Cannot derive project name from path '{git_ref}'")
     validate_sase_project_name(project_name)
 
-    project_file = str(
-        projects_base / project_name / active_project_spec_filename(project_name)
-    )
     clone_dir = str(Path.home() / "projects" / "git" / project_name) + "/"
 
-    set_bare_repo_dir(project_file, bare_path)
-    set_workspace_dir(project_file, clone_dir)
-    checkout_target = get_default_branch(clone_dir)
+    # Lazy import avoids a top-level cycle with bare_git_init importing
+    # project-file helpers from this module.
+    from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
+
+    project_file = init_bare_git_project(
+        project_name,
+        existing_bare=bare_path,
+        clone_dir=clone_dir,
+    )
+    bare_repo_dir = parse_bare_repo_dir(project_file)
+    if not bare_repo_dir:
+        raise RuntimeError(
+            f"Initialized git project '{project_name}' at {project_file} "
+            "but BARE_REPO_DIR is not set"
+        )
+    workspace_dir = parse_workspace_dir(project_file)
+    if not workspace_dir:
+        raise RuntimeError(
+            f"Initialized git project '{project_name}' at {project_file} "
+            "but WORKSPACE_DIR is not set"
+        )
+    checkout_target = get_default_branch(workspace_dir)
 
     return ResolvedGitRef(
         project_file=project_file,
         project_name=project_name,
-        primary_workspace_dir=clone_dir,
-        bare_repo_dir=bare_path,
+        primary_workspace_dir=workspace_dir,
+        bare_repo_dir=bare_repo_dir,
         checkout_target=checkout_target,
     )
