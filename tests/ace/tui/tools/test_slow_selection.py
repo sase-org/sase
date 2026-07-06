@@ -66,7 +66,7 @@ def test_completed_duration_threshold_is_inclusive() -> None:
         agent_end_reference=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
     )
 
-    assert [item.entry.tool_use_id for item in selected] == ["over", "exact"]
+    assert [item.entry.tool_use_id for item in selected] == ["exact", "over"]
 
 
 def test_completed_missing_duration_uses_completed_at() -> None:
@@ -143,32 +143,33 @@ def test_clock_skew_clamps_negative_duration() -> None:
     assert selected == ()
 
 
-def test_ordering_puts_running_first_then_slowest_completed() -> None:
+def test_ordering_uses_start_time_with_statuses_interleaved() -> None:
     selected = select_slow_tool_calls(
         (
-            _entry(tool_use_id="completed-slow", duration_ms=70_000),
             _entry(
-                tool_use_id="running-shorter",
-                status="pending",
-                duration_ms=None,
-                recorded_at="2026-07-03T14:00:30+00:00",
-            ),
-            _entry(tool_use_id="completed-fast", duration_ms=25_000),
-            _entry(
-                tool_use_id="running-longer",
-                status="pending",
-                duration_ms=None,
+                tool_use_id="completed-early",
+                duration_ms=70_000,
                 recorded_at="2026-07-03T14:00:00+00:00",
             ),
+            _entry(
+                tool_use_id="running-middle",
+                status="pending",
+                duration_ms=None,
+                recorded_at="2026-07-03T14:01:00+00:00",
+            ),
+            _entry(
+                tool_use_id="completed-late",
+                duration_ms=25_000,
+                recorded_at="2026-07-03T14:02:00+00:00",
+            ),
         ),
-        now=_dt("2026-07-03T14:01:00+00:00"),
+        now=_dt("2026-07-03T14:03:00+00:00"),
         agent_is_active=True,
         agent_end_reference=None,
     )
 
     assert [item.entry.tool_use_id for item in selected] == [
-        "running-longer",
-        "running-shorter",
-        "completed-slow",
-        "completed-fast",
+        "completed-early",
+        "running-middle",
+        "completed-late",
     ]

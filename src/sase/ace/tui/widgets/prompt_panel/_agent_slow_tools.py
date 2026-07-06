@@ -55,6 +55,7 @@ _DURATION_WIDTH = 7
 class _SourcedSlowToolCall:
     slow_call: SlowToolCall
     source: SlowToolSource
+    source_index: int
 
 
 def append_slow_tool_calls_section(
@@ -90,7 +91,7 @@ def append_slow_tool_calls_section(
     text.append(f" \u00b7 {' · '.join(summary_parts)}\n", style=COLOR_SUMMARY)
     text.append("\n")
 
-    visible = slow_calls[:MAX_VISIBLE_SLOW_TOOL_CALLS]
+    visible = _select_visible_slow_tool_calls(slow_calls)
     for item in visible:
         _append_slow_tool_call_row(text, item, labeled=labeled)
 
@@ -114,21 +115,54 @@ def _select_sourced_slow_tool_calls(
     now: datetime,
 ) -> tuple[_SourcedSlowToolCall, ...]:
     selected: list[_SourcedSlowToolCall] = []
-    for source in sources:
+    for source_index, source in enumerate(sources):
         for slow_call in select_slow_tool_calls(
             source.entries,
             now=now,
             agent_is_active=source.agent_is_active,
             agent_end_reference=source.end_reference,
         ):
-            selected.append(_SourcedSlowToolCall(slow_call=slow_call, source=source))
-    selected.sort(
-        key=lambda item: (
-            not item.slow_call.is_running,
-            -item.slow_call.effective_duration_ms,
-        )
-    )
+            selected.append(
+                _SourcedSlowToolCall(
+                    slow_call=slow_call,
+                    source=source,
+                    source_index=source_index,
+                )
+            )
+    selected.sort(key=_sourced_slow_tool_call_sort_key)
     return tuple(selected)
+
+
+def _select_visible_slow_tool_calls(
+    slow_calls: tuple[_SourcedSlowToolCall, ...],
+) -> tuple[_SourcedSlowToolCall, ...]:
+    if len(slow_calls) <= MAX_VISIBLE_SLOW_TOOL_CALLS:
+        return slow_calls
+
+    running = tuple(item for item in slow_calls if item.slow_call.is_running)
+    if len(running) >= MAX_VISIBLE_SLOW_TOOL_CALLS:
+        visible = running[-MAX_VISIBLE_SLOW_TOOL_CALLS:]
+    else:
+        remaining_slots = MAX_VISIBLE_SLOW_TOOL_CALLS - len(running)
+        non_running = tuple(
+            item for item in slow_calls if not item.slow_call.is_running
+        )
+        visible = (
+            *running,
+            *non_running[-remaining_slots:],
+        )
+
+    return tuple(sorted(visible, key=_sourced_slow_tool_call_sort_key))
+
+
+def _sourced_slow_tool_call_sort_key(
+    item: _SourcedSlowToolCall,
+) -> tuple[datetime, int, int]:
+    return (
+        item.slow_call.started_at,
+        item.source_index,
+        item.slow_call.entry.line_number,
+    )
 
 
 def _append_slow_tool_call_row(

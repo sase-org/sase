@@ -17,6 +17,7 @@ class SlowToolCall:
     """A tool-call entry paired with derived slow-call display state."""
 
     entry: ToolCallEntry
+    started_at: datetime
     effective_duration_ms: int
     is_running: bool = False
     did_not_complete: bool = False
@@ -59,7 +60,7 @@ def select_slow_tool_calls(
     agent_is_active: bool,
     agent_end_reference: datetime | None,
 ) -> tuple[SlowToolCall, ...]:
-    """Return tool calls whose effective in-flight duration is slow."""
+    """Return slow tool calls in ascending command start-time order."""
     now_utc = _coerce_datetime(now)
     assert now_utc is not None
     end_reference_utc = _coerce_datetime(agent_end_reference)
@@ -81,6 +82,7 @@ def select_slow_tool_calls(
                 duration_ms = _duration_ms(start, now_utc)
                 candidate = SlowToolCall(
                     entry=entry,
+                    started_at=start,
                     effective_duration_ms=duration_ms,
                     is_running=True,
                 )
@@ -88,6 +90,7 @@ def select_slow_tool_calls(
                 duration_ms = _duration_ms(start, end_reference_utc)
                 candidate = SlowToolCall(
                     entry=entry,
+                    started_at=start,
                     effective_duration_ms=duration_ms,
                     did_not_complete=True,
                 )
@@ -99,23 +102,16 @@ def select_slow_tool_calls(
                 continue
             candidate = SlowToolCall(
                 entry=entry,
+                started_at=start,
                 effective_duration_ms=completed_duration_ms,
             )
 
         if candidate.effective_duration_ms >= SLOW_TOOL_CALL_THRESHOLD_MS:
             slow_calls.append(candidate)
 
-    running = sorted(
-        (item for item in slow_calls if item.is_running),
-        key=lambda item: item.effective_duration_ms,
-        reverse=True,
+    return tuple(
+        sorted(slow_calls, key=lambda item: (item.started_at, item.entry.line_number))
     )
-    completed = sorted(
-        (item for item in slow_calls if not item.is_running),
-        key=lambda item: item.effective_duration_ms,
-        reverse=True,
-    )
-    return (*running, *completed)
 
 
 def _completed_duration_ms(entry: ToolCallEntry, start: datetime) -> int | None:

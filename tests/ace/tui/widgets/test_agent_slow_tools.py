@@ -139,7 +139,12 @@ def test_slow_tools_section_renders_did_not_complete() -> None:
 def test_slow_tools_section_overflow_points_to_tools_timeline() -> None:
     text = Text()
     entries = tuple(
-        _entry(tool_use_id=f"call_{index}", duration_ms=20_000 + index)
+        _entry(
+            tool_use_id=f"call_{index}",
+            duration_ms=20_000 + index,
+            recorded_at=f"2026-07-03T14:00:{index:02d}+00:00",
+            tool_input_summary={"command": f"call {index}"},
+        )
         for index in range(MAX_VISIBLE_SLOW_TOOL_CALLS + 2)
     )
 
@@ -152,7 +157,45 @@ def test_slow_tools_section_overflow_points_to_tools_timeline() -> None:
 
     plain = text.plain
     assert plain.count("✔ Bash") == MAX_VISIBLE_SLOW_TOOL_CALLS
+    assert "call 0" not in plain
+    assert "call 1" not in plain
+    assert "call 2" in plain
+    assert f"call {MAX_VISIBLE_SLOW_TOOL_CALLS + 1}" in plain
     assert "+ 2 more · press ] for the full tools timeline" in plain
+
+
+def test_slow_tools_section_keeps_running_call_when_capped() -> None:
+    text = Text()
+    running = _entry(
+        tool_use_id="running",
+        status="pending",
+        duration_ms=None,
+        recorded_at="2026-07-03T14:00:00+00:00",
+        tool_input_summary={"command": "running long"},
+    )
+    completed = tuple(
+        _entry(
+            tool_use_id=f"completed_{index}",
+            duration_ms=20_000,
+            recorded_at=f"2026-07-03T14:00:{index:02d}+00:00",
+            tool_input_summary={"command": f"completed {index}"},
+        )
+        for index in range(1, MAX_VISIBLE_SLOW_TOOL_CALLS + 1)
+    )
+
+    append_slow_tool_calls_section(
+        text,
+        sources=(_source(running, *completed, active=True),),
+        agent=SimpleNamespace(status="RUNNING", stop_time=None),
+        now=datetime(2026, 7, 3, 14, 10, tzinfo=UTC),
+    )
+
+    plain = text.plain
+    assert "running long" in plain
+    assert "completed 1" not in plain
+    assert "completed 2" in plain
+    assert f"completed {MAX_VISIBLE_SLOW_TOOL_CALLS}" in plain
+    assert "+ 1 more · press ] for the full tools timeline" in plain
 
 
 def test_slow_tools_section_truncates_long_targets() -> None:
@@ -199,7 +242,7 @@ def test_slow_tools_section_renders_source_chips_and_agent_count() -> None:
     assert "gh pr checks --watch" in plain
 
 
-def test_slow_tools_section_sorts_running_first_across_sources() -> None:
+def test_slow_tools_section_orders_by_start_time_across_sources() -> None:
     text = Text()
 
     append_slow_tool_calls_section(
@@ -210,18 +253,24 @@ def test_slow_tools_section_sorts_running_first_across_sources() -> None:
                     tool_use_id="running",
                     status="pending",
                     duration_ms=None,
-                    recorded_at="2026-07-03T14:00:00+00:00",
-                    tool_input_summary={"command": "running call"},
+                    recorded_at="2026-07-03T14:00:10+00:00",
+                    tool_input_summary={"command": "running middle"},
                 ),
                 label="code",
                 active=True,
             ),
             _source(
                 _entry(
-                    tool_use_id="completed",
+                    tool_use_id="completed-early",
                     duration_ms=90_000,
-                    recorded_at="2026-07-03T14:00:10+00:00",
-                    tool_input_summary={"command": "completed call"},
+                    recorded_at="2026-07-03T14:00:00+00:00",
+                    tool_input_summary={"command": "completed early"},
+                ),
+                _entry(
+                    tool_use_id="completed-late",
+                    duration_ms=90_000,
+                    recorded_at="2026-07-03T14:00:20+00:00",
+                    tool_input_summary={"command": "completed late"},
                 ),
                 label="plan",
                 palette_index=1,
@@ -232,7 +281,44 @@ def test_slow_tools_section_sorts_running_first_across_sources() -> None:
     )
 
     plain = text.plain
-    assert plain.index("running call") < plain.index("completed call")
+    assert plain.index("completed early") < plain.index("running middle")
+    assert plain.index("running middle") < plain.index("completed late")
+
+
+def test_slow_tools_section_ties_use_source_order() -> None:
+    text = Text()
+
+    append_slow_tool_calls_section(
+        text,
+        sources=(
+            _source(
+                _entry(
+                    tool_use_id="first",
+                    duration_ms=20_000,
+                    recorded_at="2026-07-03T14:00:00+00:00",
+                    line_number=99,
+                    tool_input_summary={"command": "first source"},
+                ),
+                label="first",
+            ),
+            _source(
+                _entry(
+                    tool_use_id="second",
+                    duration_ms=90_000,
+                    recorded_at="2026-07-03T14:00:00+00:00",
+                    line_number=1,
+                    tool_input_summary={"command": "second source"},
+                ),
+                label="second",
+                palette_index=1,
+            ),
+        ),
+        agent=SimpleNamespace(status="DONE", stop_time=None),
+        now=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
+    )
+
+    plain = text.plain
+    assert plain.index("first source") < plain.index("second source")
 
 
 def test_slow_tools_section_uses_per_source_pending_state() -> None:
