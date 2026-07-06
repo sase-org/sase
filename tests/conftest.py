@@ -16,6 +16,43 @@ from sase.ace.changespec import (
 )
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+_PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
+    Path(path)
+    for path in (
+        "tests/test_plan_rejection_response.py",
+        "tests/test_plan_approval_modal_title.py",
+        "tests/test_approve_options_modal_state.py",
+        "tests/test_plan_approve_cli.py",
+        "tests/main/test_parser_plan.py",
+        "tests/test_plan_utils.py",
+        "tests/test_axe_run_agent_exec_killed_iteration.py",
+        "tests/test_axe_run_agent_exec_plan_followup_approvals.py",
+        "tests/test_axe_run_agent_exec_plan_followup_coder_prompt.py",
+        "tests/test_axe_run_agent_exec_plan_followup_model_selection.py",
+        "tests/test_axe_run_agent_exec_plan_epic_refs.py",
+        "tests/test_axe_run_agent_exec_plan_chat_paths.py",
+        "tests/test_epic_approval.py",
+        "tests/test_followup_prompt_helpers.py",
+        "tests/test_axe_run_agent_exec_plan_followup_questions.py",
+        "tests/test_axe_run_agent_helpers_questions.py",
+        "tests/plan_chain_golden/test_marker_and_loop_golden.py",
+        "tests/plan_chain_golden/test_plan_approval_response_golden.py",
+    )
+)
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Attach the named plan/questions golden harness marker."""
+    for item in items:
+        try:
+            relpath = Path(item.path).resolve().relative_to(_REPO_ROOT)
+        except ValueError:
+            continue
+        if relpath in _PLAN_CHAIN_GOLDEN_TEST_FILES:
+            item.add_marker(pytest.mark.plan_chain_golden)
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(

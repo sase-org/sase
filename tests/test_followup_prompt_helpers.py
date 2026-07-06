@@ -45,6 +45,70 @@ def test_assemble_question_followup_prompt_keeps_runner_byte_shape() -> None:
     )
 
 
+def test_question_followup_prompt_golden_snapshot() -> None:
+    """Byte-level golden for accumulated Q&A prompt reconstruction."""
+    rounds = [
+        QARound(
+            questions=[
+                {
+                    "question": "Which API?",
+                    "options": [
+                        {"label": "REST", "description": "Stable"},
+                        {"label": "GraphQL"},
+                    ],
+                    "header": "API",
+                },
+                {
+                    "question": "Any concern?",
+                    "options": [{"label": "Low risk"}],
+                    "header": "Risk",
+                    "multiSelect": True,
+                },
+            ],
+            answers=[
+                {"selected": ["REST"]},
+                {
+                    "selected": ["Other"],
+                    "custom_feedback": "Migration #literal stays literal",
+                },
+            ],
+            global_note="First note loses.",
+        ),
+        QARound(
+            questions=[
+                {
+                    "question": "Where first?",
+                    "options": [{"label": "Staging"}],
+                    "header": "Deploy",
+                }
+            ],
+            answers=[{"selected": ["Staging"]}],
+            global_note="Final note wins.",
+        ),
+    ]
+
+    assert assemble_question_followup_prompt("Base prompt", rounds) == (
+        "Base prompt\n\n"
+        "%xprompts_enabled:false\n"
+        "### Questions and Answers\n\n"
+        "#### Q1: API\n\n"
+        "> Which API?\n\n"
+        "- [x] **REST** — Stable\n"
+        "- [ ] **GraphQL**\n\n"
+        "#### Q2: Risk\n\n"
+        "> Any concern?\n\n"
+        "- [ ] **Low risk**\n"
+        '- [x] **Other:** "Migration #literal stays literal"\n\n'
+        "*Multi-select*\n\n"
+        "#### Q3: Deploy\n\n"
+        "> Where first?\n\n"
+        "- [x] **Staging**\n\n"
+        "---\n\n"
+        "> **Global Note:** Final note wins.\n\n"
+        "%xprompts_enabled:true"
+    )
+
+
 def test_qa_rounds_from_payload_accepts_supported_shapes() -> None:
     multi_round = {
         "rounds": [
@@ -109,6 +173,43 @@ def test_assemble_feedback_replan_prompt_matches_runner_shape() -> None:
     assert out == (
         "Original prompt\n\n"
         f"{merge_qa_for_prompt(rounds)}\n\n"
+        "### Additional Requirements\n\n"
+        "- Add failure handling\n"
+        "- Add retries"
+    )
+
+
+def test_feedback_replan_prompt_golden_snapshot() -> None:
+    """Byte-level golden for feedback plus prior Q&A reconstruction."""
+    rounds = [
+        QARound(
+            questions=[
+                {
+                    "question": "Need DB?",
+                    "options": [{"label": "SQLite"}, {"label": "Postgres"}],
+                    "header": "Storage",
+                }
+            ],
+            answers=[{"selected": ["SQLite"]}],
+            global_note="Keep dependencies small.",
+        )
+    ]
+
+    assert assemble_feedback_replan_prompt(
+        "Original prompt",
+        ["Add failure handling", "Add retries"],
+        rounds,
+    ) == (
+        "Original prompt\n\n"
+        "%xprompts_enabled:false\n"
+        "### Questions and Answers\n\n"
+        "#### Q1: Storage\n\n"
+        "> Need DB?\n\n"
+        "- [x] **SQLite**\n"
+        "- [ ] **Postgres**\n\n"
+        "---\n\n"
+        "> **Global Note:** Keep dependencies small.\n\n"
+        "%xprompts_enabled:true\n\n"
         "### Additional Requirements\n\n"
         "- Add failure handling\n"
         "- Add retries"
