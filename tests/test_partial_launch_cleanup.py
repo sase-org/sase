@@ -25,6 +25,10 @@ def _launch_result() -> AgentLaunchResult:
     )
 
 
+def _clear_agent_launch_gate_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+
+
 def test_rollback_partial_launch_results_terminates_and_releases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -78,6 +82,7 @@ def test_launch_query_rolls_back_partial_multi_prompt_launch(
             released_workspaces=((result.project_file, result.workspace_num),),
         )
     )
+    _clear_agent_launch_gate_env(monkeypatch)
     monkeypatch.setattr(_launch, "launch_agents_from_cwd", fail_launch)
     monkeypatch.setattr(
         "sase.agent.partial_launch.rollback_partial_launch_results", rollback
@@ -103,6 +108,7 @@ def test_launch_query_prints_each_launched_agent_pid(
 
     first = _launch_result()
     second = replace(first, pid=5678, workspace_num=8)
+    _clear_agent_launch_gate_env(monkeypatch)
     monkeypatch.setattr(
         _launch,
         "launch_agents_from_cwd",
@@ -126,6 +132,7 @@ def test_launch_query_warns_on_unresolved_xprompt_and_still_launches(
     from sase.main.query_handler import _launch
 
     warnings: list[tuple[str, str]] = []
+    _clear_agent_launch_gate_env(monkeypatch)
     monkeypatch.setattr(
         "sase.xprompt.unresolved.scan_query_for_unresolved_references",
         lambda _query: ("reviewww",),

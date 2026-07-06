@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
+from typing import Any
 
+from sase.agent.launch_request import LaunchRequestCreationResult, LaunchRequestError
 from sase.launch_approval_actions import (
     LaunchApprovalActionError,
     LaunchApprovalActionResult,
@@ -35,12 +38,78 @@ def handle_launch_command(args: argparse.Namespace) -> None:
                 )
             )
             sys.exit(0)
+        if subcommand == "request":
+            _print_request_result(_create_request_from_cli(args), args.output)
+            sys.exit(0)
     except LaunchApprovalActionError as exc:
         Console(stderr=True).print(f"[red]Error:[/red] {exc}")
         sys.exit(2)
+    except LaunchRequestError as exc:
+        Console(stderr=True).print(f"[red]Error:[/red] {exc}")
+        sys.exit(2)
 
-    print("Usage: sase launch {approve,reject}", file=sys.stderr)
+    print("Usage: sase launch {approve,reject,request}", file=sys.stderr)
     sys.exit(1)
+
+
+def _create_request_from_cli(args: argparse.Namespace) -> LaunchRequestCreationResult:
+    from sase.agent.launch_request import create_launch_approval_request
+
+    payload = _launch_request_payload_from_args(args)
+    return create_launch_approval_request(
+        payload,
+        source_surface=getattr(args, "source", None),
+    )
+
+
+def _launch_request_payload_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    payload_arg = getattr(args, "payload", None)
+    payload_file = getattr(args, "payload_file", None)
+    prompt = getattr(args, "prompt", None)
+    if payload_arg and payload_file:
+        raise LaunchRequestError(
+            "invalid_request", "payload", "pass either PAYLOAD or --file, not both"
+        )
+    if payload_file:
+        return _read_payload_file(Path(payload_file))
+    if payload_arg:
+        if payload_arg.startswith("@"):
+            return _read_payload_file(Path(payload_arg[1:]))
+        return _parse_payload_json(payload_arg, "payload")
+    if not prompt:
+        raise LaunchRequestError(
+            "invalid_request", "prompt", "pass a JSON payload or --prompt"
+        )
+    return {
+        "schema_version": 1,
+        "prompt": prompt,
+        "reason": getattr(args, "reason", None) or "Detached launch requested.",
+        "approval": getattr(args, "approval", "required"),
+        "max_slots": getattr(args, "max_slots", 1),
+    }
+
+
+def _read_payload_file(path: Path) -> dict[str, Any]:
+    try:
+        return _parse_payload_json(path.read_text(encoding="utf-8"), str(path))
+    except OSError as exc:
+        raise LaunchRequestError(
+            "invalid_request", str(path), f"failed to read launch request: {exc}"
+        ) from exc
+
+
+def _parse_payload_json(raw: str, target: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise LaunchRequestError(
+            "invalid_request", target, f"invalid launch request JSON: {exc.msg}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise LaunchRequestError(
+            "invalid_request", target, "launch request JSON must be an object"
+        )
+    return payload
 
 
 def _resolve_launch_from_cli(
@@ -112,6 +181,27 @@ def _print_result(result: LaunchApprovalActionResult) -> None:
     Console().print(
         f"[green]{result.message}[/green] "
         f"[dim]{result.notification_id[:8]} -> {path}[/dim]"
+    )
+
+
+def _print_request_result(result: LaunchRequestCreationResult, output: str) -> None:
+    from rich.console import Console
+
+    request_id = result.request_id
+    payload = {
+        "request_id": request_id,
+        "notification_id": result.notification_id,
+        "response_dir": str(result.response_dir),
+        "request_file": str(result.request_path),
+        "preview_file": str(result.preview_path),
+        "response_file": str(result.response_path),
+    }
+    if output == "json":
+        print(json.dumps(payload, sort_keys=True))
+        return
+    Console().print(
+        f"[green]Launch approval requested[/green] "
+        f"[bold]{request_id}[/bold] [dim]{_display_path(Path(payload['response_dir']))}[/dim]"
     )
 
 

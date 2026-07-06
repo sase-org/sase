@@ -14,6 +14,8 @@ from sase.agent.launch_preview import (
     build_launch_preview_request,
     write_launch_preview_files,
 )
+from sase.agent.launch_request import create_launch_approval_request
+from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import plan_fake_fanout
 from sase.integrations.mobile_notifications import execute_mobile_launch_action
 from sase.launch_approval_actions import (
@@ -83,6 +85,104 @@ def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
     with pytest.raises(LaunchApprovalActionError) as exc_info:
         execute_launch_approval_response(context, "approve")
     assert exc_info.value.code == "conflict_already_handled"
+
+
+def test_create_launch_request_writes_preview_and_notification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.chdir(tmp_path)
+
+    result = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "%n(foo, reviewer)\nDo work",
+            "reason": "Need reviewer follow-up",
+            "approval": "required",
+            "max_slots": 1,
+        },
+        source_surface="agent_skill",
+    )
+
+    written = json.loads(result.request_path.read_text(encoding="utf-8"))
+    assert written["request_id"] == result.request_id
+    assert written["source_surface"] == "agent_skill"
+    assert written["launch_request"]["reason"] == "Need reviewer follow-up"
+    assert written["dispatch"] == {
+        "cwd": str(tmp_path),
+        "prompt": "%n(foo, reviewer)\nDo work",
+    }
+    assert result.preview_path.read_text(encoding="utf-8").startswith(
+        "# Launch Preview\n"
+    )
+
+    from sase.notifications.store import load_notifications
+
+    notifications = load_notifications(include_dismissed=False)
+    assert len(notifications) == 1
+    assert notifications[0].action == "LaunchApproval"
+    assert notifications[0].action_data["request_id"] == result.request_id
+
+
+def test_approve_launch_response_dispatches_stored_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response_dir = tmp_path / "launch"
+    launch_cwd = tmp_path / "workspace"
+    response_dir.mkdir()
+    launch_cwd.mkdir()
+    (response_dir / LAUNCH_REQUEST_FILE).write_text(
+        json.dumps(
+            {
+                "request_id": "launch-dispatch",
+                "dispatch": {
+                    "cwd": str(launch_cwd),
+                    "prompt": "%n(foo, reviewer)\nDo work",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    context = LaunchApprovalActionContext(
+        id="launch-notification",
+        host_files=(),
+        host_action_data={"response_dir": str(response_dir)},
+    )
+    seen: dict[str, object] = {}
+
+    def fake_launch(prompt: str) -> list[AgentLaunchResult]:
+        seen["prompt"] = prompt
+        seen["cwd"] = Path.cwd()
+        return [
+            AgentLaunchResult(
+                pid=123,
+                workspace_num=1,
+                workspace_dir=str(launch_cwd),
+                output_path="/tmp/out",
+            )
+        ]
+
+    monkeypatch.chdir(tmp_path)
+    with patch("sase.agent.launcher.launch_agents_from_cwd", fake_launch):
+        result = execute_launch_approval_response(context, "approve")
+
+    assert seen == {
+        "prompt": "%n(foo, reviewer)\nDo work",
+        "cwd": launch_cwd,
+    }
+    assert result.launched_count == 1
+    assert result.response_json == {
+        "action": "approve",
+        "dispatch_status": "launched",
+        "launched_count": 1,
+    }
+    assert json.loads(result.response_path.read_text(encoding="utf-8")) == {
+        "action": "approve",
+        "dispatch_status": "launched",
+        "launched_count": 1,
+    }
 
 
 def test_mobile_launch_action_writes_response_and_marks_dismissed(

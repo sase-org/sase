@@ -27,6 +27,7 @@ class LaunchApprovalActionResult:
     response_path: Path
     response_json: dict[str, Any]
     message: str
+    launched_count: int = 0
 
 
 class _NotificationLike(Protocol):
@@ -72,6 +73,27 @@ def execute_launch_approval_response(
     response_json, message = _launch_response_json(choice, feedback=feedback)
     response_path = response_dir / LAUNCH_RESPONSE_FILE
     _write_json_once(response_path, response_json, notification.id)
+    launched_count = 0
+    if choice == "approve":
+        try:
+            from sase.agent.launch_request import dispatch_approved_launch_request
+
+            dispatch_result = dispatch_approved_launch_request(response_dir)
+        except Exception as exc:
+            response_json["dispatch_status"] = "failed"
+            response_json["dispatch_error"] = str(exc)
+            _write_json_replace(response_path, response_json)
+            raise LaunchApprovalActionError(
+                "dispatch_failed", notification.id, str(exc)
+            ) from exc
+        launched_count = dispatch_result.launched_count
+        response_json["dispatch_status"] = "launched"
+        response_json["launched_count"] = launched_count
+        _write_json_replace(response_path, response_json)
+        message = (
+            f"Launch approved and dispatched {launched_count} agent"
+            f"{'s' if launched_count != 1 else ''}"
+        )
     run_launch_side_effects(notification, choice)
     return LaunchApprovalActionResult(
         notification_id=notification.id,
@@ -79,6 +101,7 @@ def execute_launch_approval_response(
         response_path=response_path,
         response_json=response_json,
         message=message,
+        launched_count=launched_count,
     )
 
 
@@ -173,6 +196,12 @@ def _write_json_once(
         raise LaunchApprovalActionError(
             "conflict_already_handled", notification_id, "response already exists"
         ) from exc
+
+
+def _write_json_replace(response_path: Path, response_json: dict[str, Any]) -> None:
+    with response_path.open("w", encoding="utf-8") as f:
+        json.dump(response_json, f, indent=2)
+        f.write("\n")
 
 
 def _normalize_launch_action(value: object) -> LaunchApprovalChoice | None:

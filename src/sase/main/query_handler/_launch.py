@@ -38,6 +38,26 @@ def launch_query(query: str) -> None:
     for name in scan_query_for_unresolved_references(query):
         print_status(format_unresolved_reference_warning(name), "warning")
 
+    from sase.agent.launch_request import (
+        LaunchRequestError,
+        create_launch_approval_request_from_prompt,
+        running_agent_context_requires_launch_approval,
+    )
+
+    if running_agent_context_requires_launch_approval():
+        try:
+            request = create_launch_approval_request_from_prompt(
+                query,
+                reason="Running agent requested a detached launch.",
+                source_surface="agent_skill",
+            )
+        except LaunchRequestError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Launch approval requested: {request.request_id}")
+        print(f"Response: {request.response_path}")
+        sys.exit(0)
+
     try:
         results = launch_agents_from_cwd(query)
     except RuntimeError as e:

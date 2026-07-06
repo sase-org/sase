@@ -179,6 +179,49 @@ def test_run_parsed_prompt_dispatches_fallthrough_namespace() -> None:
     mock_launch.assert_called_once_with("known_prompt_name")
 
 
+def test_launch_query_from_agent_context_requests_approval(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Running agents request approval instead of spawning children directly."""
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from sase.main.query_handler._launch import launch_query
+
+    monkeypatch.setenv("SASE_AGENT", "planner")
+    request = SimpleNamespace(
+        request_id="launch-test",
+        response_path=Path("/tmp/launch_response.json"),
+    )
+    with (
+        patch(
+            "sase.agent.prompt_inputs.missing_required_input_names",
+            return_value=[],
+        ),
+        patch(
+            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            return_value=[],
+        ),
+        patch(
+            "sase.agent.launch_request.create_launch_approval_request_from_prompt",
+            return_value=request,
+        ) as mock_request,
+        patch("sase.main.query_handler._launch.launch_agents_from_cwd") as mock_launch,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        launch_query("%n(foo, reviewer)\nDo work")
+
+    assert excinfo.value.code == 0
+    mock_request.assert_called_once_with(
+        "%n(foo, reviewer)\nDo work",
+        reason="Running agent requested a detached launch.",
+        source_surface="agent_skill",
+    )
+    mock_launch.assert_not_called()
+    assert "Launch approval requested: launch-test" in capsys.readouterr().out
+
+
 def test_entry_run_known_prompt_falls_through_to_run_branch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
