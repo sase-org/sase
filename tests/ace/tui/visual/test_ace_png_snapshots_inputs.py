@@ -9,10 +9,11 @@ core guidance with the optional section revealed). Goldens live in
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Button, Input
+from textual.widgets import Button
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.agent.prompt_inputs import parse_prompt_input_request
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -82,8 +83,10 @@ async def test_input_collection_modal_error_png_snapshot(
         await page.expect_modal("InputCollectionModal")
         await wait_for_visual_idle(page)
 
-        modal.query_one("#field-input-0", Input).value = "billing"
-        modal.query_one("#field-input-1", Input).value = "three"  # invalid int
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "billing"
+        modal.query_one(
+            "#field-input-1", SingleLineVimTextArea
+        ).text = "three"  # invalid int
         modal.query_one("#toggle-optional", Button).press()
         await wait_for_visual_idle(page)
 

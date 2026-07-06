@@ -7,16 +7,13 @@ from collections.abc import Sequence
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _ProjectAliasInput(Input):
-    """Input widget with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _ProjectAliasInput(SingleLineVimTextArea):
+    """Single-line vim editor for comma-separated aliases."""
 
 
 class ProjectAliasEditorModal(ModalScreen[list[str] | None]):
@@ -47,7 +44,8 @@ class ProjectAliasEditorModal(ModalScreen[list[str] | None]):
     def on_mount(self) -> None:
         alias_input = self.query_one("#project-alias-input", _ProjectAliasInput)
         alias_input.focus()
-        alias_input.cursor_position = len(alias_input.value)
+        alias_input.cursor_position = len(alias_input.text)
+        alias_input._update_vim_mode_display()
 
     def _aliases_from_value(self, value: str) -> list[str]:
         return [alias.strip() for alias in value.split(",") if alias.strip()]
@@ -57,12 +55,14 @@ class ProjectAliasEditorModal(ModalScreen[list[str] | None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save":
-            alias_input = self.query_one("#project-alias-input", Input)
-            self._submit_value(alias_input.value)
+            alias_input = self.query_one("#project-alias-input", _ProjectAliasInput)
+            self._submit_value(alias_input.text)
             return
         self.dismiss(None)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         self._submit_value(event.value)
 
     def action_cancel(self) -> None:

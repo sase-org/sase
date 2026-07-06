@@ -3,18 +3,13 @@
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _ModelInput(Input):
-    """Custom Input with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-        ("ctrl+a", "home", "Home"),
-        ("ctrl+e", "end", "End"),
-    ]
+class _ModelInput(SingleLineVimTextArea):
+    """Single-line vim editor for custom model identifiers."""
 
 
 class CustomModelInputModal(ModalScreen[str | None]):
@@ -57,15 +52,18 @@ class CustomModelInputModal(ModalScreen[str | None]):
                 id="custom-model-input",
             )
             yield Label(
-                "[green]enter[/green]=Confirm  [dim]esc[/dim]=Cancel",
+                "[green]enter[/green]=Confirm  [dim]esc esc[/dim]=Cancel",
                 id="custom-model-footer",
             )
 
     def on_mount(self) -> None:
         input_widget = self.query_one("#custom-model-input", _ModelInput)
         input_widget.focus()
+        input_widget._update_vim_mode_display()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         value = event.value.strip()
         if value:
             self.dismiss(value)

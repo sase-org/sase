@@ -3,18 +3,13 @@
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _CommandInput(Input):
-    """Custom Input with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-        ("ctrl+a", "home", "Home"),
-        ("ctrl+e", "end", "End"),
-    ]
+class _CommandInput(SingleLineVimTextArea):
+    """Single-line vim editor for shell commands."""
 
 
 class CommandInputModal(ModalScreen[str | None]):
@@ -62,8 +57,11 @@ class CommandInputModal(ModalScreen[str | None]):
         """Focus the input on mount."""
         command_input = self.query_one("#command-input", _CommandInput)
         command_input.focus()
+        command_input._update_vim_mode_display()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Handle Enter key in input."""
         command = event.value.strip()
         if command:

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Input, TextArea
 
 from sase.ace.tui.modals import AddableProperty, AddPropertyModal, XPromptItemModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 from ._frontmatter_panel_helpers import _PromptBarApp
 
@@ -85,10 +86,10 @@ async def test_add_property_accelerator_picks_scalar_field() -> None:
         await pilot.pause()
         await pilot.pause()
 
-        editor = panel.query_one("#frontmatter-inline", Input)
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
         assert panel._editing_field == "tags"
         assert app.focused is editor
-        assert editor.value == ""
+        assert editor.text == ""
         assert bar._frontmatter_panel_visible()
 
 
@@ -215,11 +216,11 @@ async def test_edit_existing_scalar_inline() -> None:
 
         await pilot.press("e")  # edit selected (description)
         await pilot.pause()
-        editor = panel.query_one("#frontmatter-inline", Input)
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
         assert app.focused is editor
 
         # Replace the value: select-none, just clear and retype via the model.
-        editor.value = "new"
+        editor.text = "new"
         await pilot.press("enter")
         await pilot.pause()
 
@@ -241,8 +242,8 @@ async def test_edit_tags_list_inline() -> None:
 
         panel.begin_add("tags")
         await pilot.pause()
-        editor = panel.query_one("#frontmatter-inline", Input)
-        editor.value = "refactor, backend"
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        editor.text = "refactor, backend"
         await pilot.press("enter")
         await pilot.pause()
 
@@ -286,12 +287,12 @@ async def test_raw_mode_round_trip() -> None:
 
         await pilot.press("R")
         await pilot.pause()
-        raw = panel.query_one("#frontmatter-raw", TextArea)
+        raw = panel.query_one("#frontmatter-raw", VimTextArea)
         assert app.focused is raw
 
         raw.text = "description: from raw\ntags:\n- x\n- y\n"
         await pilot.pause()
-        await pilot.press("escape")  # apply
+        await pilot.press("escape", "escape")  # INSERT -> NORMAL, then apply
         await pilot.pause()
 
         assert panel._edit_mode == "rows"

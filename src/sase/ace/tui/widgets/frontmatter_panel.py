@@ -42,8 +42,10 @@ from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.message import Message
-from textual.widgets import Input, Static, TextArea
+from textual.widgets import Static
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.ace.tui.widgets._frontmatter_panel_editing import (
     FrontmatterPanelEditingMixin,
 )
@@ -110,8 +112,8 @@ class FrontmatterPanel(
     def compose(self) -> ComposeResult:
         """A rows view plus the (hidden) inline and raw editors."""
         yield Static("", id="frontmatter-rows")
-        yield Input(id="frontmatter-inline", classes="hidden")
-        yield TextArea(
+        yield SingleLineVimTextArea(id="frontmatter-inline", classes="hidden")
+        yield VimTextArea(
             "",
             id="frontmatter-raw",
             classes="hidden",
@@ -201,16 +203,30 @@ class FrontmatterPanel(
             return
         if self._edit_mode == "edit":
             # Inline editing: literal text entry is preserved (``g`` / ``=`` type
-            # into the child ``Input``); only ``esc`` is intercepted here.
+            # into the child editor); only NORMAL-mode ``esc`` is intercepted here.
             self._pending_g = False
             if event.key == "escape":
+                inline_editor = self.query_one(
+                    "#frontmatter-inline", SingleLineVimTextArea
+                )
+                if (
+                    inline_editor._vim_mode != "normal"
+                    or inline_editor._has_pending_normal_state()
+                ):
+                    return
                 event.stop()
                 self._cancel_inline_edit()
             return
         if self._edit_mode == "raw":
-            # Raw YAML editing: likewise literal; only ``esc`` is intercepted.
+            # Raw YAML editing: likewise literal; only NORMAL-mode ``esc`` commits.
             self._pending_g = False
             if event.key == "escape":
+                raw_editor = self.query_one("#frontmatter-raw", VimTextArea)
+                if (
+                    raw_editor._vim_mode != "normal"
+                    or raw_editor._has_pending_normal_state()
+                ):
+                    return
                 event.stop()
                 self._commit_raw()
             return

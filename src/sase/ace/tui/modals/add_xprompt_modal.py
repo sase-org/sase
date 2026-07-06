@@ -5,16 +5,13 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _AddXPromptInput(Input):
-    """Custom Input with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _AddXPromptInput(SingleLineVimTextArea):
+    """Single-line vim editor for new xprompt paths."""
 
 
 class AddXPromptModal(ModalScreen[str | None]):
@@ -44,9 +41,12 @@ class AddXPromptModal(ModalScreen[str | None]):
     def on_mount(self) -> None:
         inp = self.query_one("#add-xprompt-input", _AddXPromptInput)
         inp.focus()
-        inp.cursor_position = len(inp.value)
+        inp.cursor_position = len(inp.text)
+        inp._update_vim_mode_display()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         value = event.value.strip()
         if not value:
             self.dismiss(None)

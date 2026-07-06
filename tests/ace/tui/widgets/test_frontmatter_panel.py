@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Input, TextArea
 
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 from ._frontmatter_panel_helpers import _PromptBarApp
 
@@ -329,7 +330,7 @@ async def test_g_equals_is_literal_during_inline_edit() -> None:
 
         panel.begin_add("name")
         await pilot.pause()
-        editor = panel.query_one("#frontmatter-inline", Input)
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
         assert app.focused is editor
 
         await pilot.press("g", "=")
@@ -338,7 +339,7 @@ async def test_g_equals_is_literal_during_inline_edit() -> None:
         # The chars are typed into the inline editor; the panel stays open in
         # edit mode (the in-panel ``g=`` sequence is rows-mode-only).
         assert panel._edit_mode == "edit"
-        assert "g=" in editor.value
+        assert "g=" in editor.text
         assert bar._frontmatter_panel_visible()
 
 
@@ -356,7 +357,7 @@ async def test_g_equals_is_literal_during_raw_edit() -> None:
 
         await pilot.press("R")
         await pilot.pause()
-        raw = panel.query_one("#frontmatter-raw", TextArea)
+        raw = panel.query_one("#frontmatter-raw", VimTextArea)
         assert app.focused is raw
 
         await pilot.press("g", "=")

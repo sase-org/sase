@@ -7,11 +7,12 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
-from textual.widgets import Input, OptionList
+from textual.widgets import OptionList
 
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.project_alias_editor_modal import ProjectAliasEditorModal
 from sase.ace.tui.modals.projects_pane import ProjectsPane
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 from .project_management_modal_test_helpers import (
     ProjectsPaneTestApp,
@@ -163,7 +164,9 @@ async def test_project_management_modal_alias_editor_updates_selected_project(
         await pilot.pause()
         assert isinstance(pilot.app.screen, ProjectAliasEditorModal)
         editor = cast(ProjectAliasEditorModal, pilot.app.screen)
-        editor.query_one("#project-alias-input", Input).value = "new, docs"
+        editor.query_one(
+            "#project-alias-input", SingleLineVimTextArea
+        ).text = "new, docs"
         await pilot.press("enter")
         await pilot.pause()
 
@@ -223,7 +226,7 @@ async def test_project_management_modal_alias_editor_empty_input_confirms_clear(
         await pilot.press("A")
         await pilot.pause()
         editor = cast(ProjectAliasEditorModal, pilot.app.screen)
-        editor.query_one("#project-alias-input", Input).value = ""
+        editor.query_one("#project-alias-input", SingleLineVimTextArea).text = ""
         await pilot.press("enter")
         await pilot.pause()
 
@@ -280,7 +283,9 @@ async def test_project_management_modal_alias_editor_targets_highlighted_not_mar
         await pilot.press("A")
         await pilot.pause()
         editor = cast(ProjectAliasEditorModal, pilot.app.screen)
-        editor.query_one("#project-alias-input", Input).value = "selected"
+        editor.query_one(
+            "#project-alias-input", SingleLineVimTextArea
+        ).text = "selected"
         await pilot.press("enter")
         await pilot.pause()
 
@@ -341,7 +346,9 @@ async def test_project_management_modal_alias_editor_errors_do_not_reload(
         await pilot.press("A")
         await pilot.pause()
         editor = cast(ProjectAliasEditorModal, pilot.app.screen)
-        editor.query_one("#project-alias-input", Input).value = alias_text
+        editor.query_one(
+            "#project-alias-input", SingleLineVimTextArea
+        ).text = alias_text
         await pilot.press("enter")
         await pilot.pause()
 
@@ -375,7 +382,7 @@ async def test_project_management_modal_alias_editor_cancel_leaves_records_untou
         await pilot.pause()
         assert isinstance(pilot.app.screen, ProjectAliasEditorModal)
 
-        await pilot.press("escape")
+        await pilot.press("escape", "escape")
         await pilot.pause()
 
         set_aliases.assert_not_called()

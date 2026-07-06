@@ -9,11 +9,10 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, Static
+from textual.widgets import Label, Static
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.xprompt.models import InputType
-
-from .base import FilterInput
 
 # Valid input type names for xprompt arguments.
 _VALID_TYPES = {t.value for t in InputType}
@@ -25,6 +24,10 @@ class XPromptConfigEntry:
 
     name: str
     inputs: list[tuple[str, str]] = field(default_factory=list)
+
+
+class _ConfigEntryInput(SingleLineVimTextArea):
+    """Single-line vim editor for config xprompt entry fields."""
 
 
 class XPromptConfigEntryModal(ModalScreen[XPromptConfigEntry | None]):
@@ -53,37 +56,40 @@ class XPromptConfigEntryModal(ModalScreen[XPromptConfigEntry | None]):
             yield Label("New Config XPrompt", id="modal-title")
             yield Label(f"File: {display_path}", id="config-entry-file-label")
             yield Label("XPrompt name:", id="config-entry-name-label")
-            yield FilterInput(
+            yield _ConfigEntryInput(
                 placeholder="my_prompt",
                 id="config-entry-name-input",
             )
             yield Label("", id="config-entry-phase-label")
-            yield FilterInput(
+            yield _ConfigEntryInput(
                 placeholder="arg_name type",
                 id="config-entry-input-input",
             )
             yield Static("", id="config-entry-inputs-display")
             yield Label("", id="config-entry-error")
             yield Static(
-                "Enter: submit  Esc: cancel",
+                "Enter: submit  Esc Esc: cancel",
                 id="config-entry-hints",
             )
 
     def on_mount(self) -> None:
-        name_input = self.query_one("#config-entry-name-input", FilterInput)
+        name_input = self.query_one("#config-entry-name-input", _ConfigEntryInput)
         name_input.focus()
+        name_input._update_vim_mode_display()
         # Hide input-phase elements initially
         self.query_one("#config-entry-phase-label", Label).update("")
-        input_input = self.query_one("#config-entry-input-input", FilterInput)
+        input_input = self.query_one("#config-entry-input-input", _ConfigEntryInput)
         input_input.display = False
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         if self._phase == "name":
             self._handle_name_submit(event)
         else:
             self._handle_input_submit(event)
 
-    def _handle_name_submit(self, event: Input.Submitted) -> None:
+    def _handle_name_submit(self, event: SingleLineVimTextArea.Submitted) -> None:
         value = event.value.strip()
         if not value:
             self.dismiss(None)
@@ -97,23 +103,24 @@ class XPromptConfigEntryModal(ModalScreen[XPromptConfigEntry | None]):
         self._phase = "inputs"
 
         # Disable name input, show and enable input field
-        name_input = self.query_one("#config-entry-name-input", FilterInput)
+        name_input = self.query_one("#config-entry-name-input", _ConfigEntryInput)
         name_input.disabled = True
 
         phase_label = self.query_one("#config-entry-phase-label", Label)
         phase_label.update("Add input (name type), empty to finish:")
 
-        input_input = self.query_one("#config-entry-input-input", FilterInput)
+        input_input = self.query_one("#config-entry-input-input", _ConfigEntryInput)
         input_input.display = True
         input_input.focus()
+        input_input._update_vim_mode_display()
 
         types_str = ", ".join(sorted(_VALID_TYPES))
         hints = self.query_one("#config-entry-hints", Static)
-        hints.update(f"Types: {types_str}  |  Enter: add/finish  Esc: cancel")
+        hints.update(f"Types: {types_str}  |  Enter: add/finish  Esc Esc: cancel")
 
         self._clear_error()
 
-    def _handle_input_submit(self, event: Input.Submitted) -> None:
+    def _handle_input_submit(self, event: SingleLineVimTextArea.Submitted) -> None:
         value = event.value.strip()
         if not value:
             # Empty submission = done adding inputs
@@ -138,8 +145,8 @@ class XPromptConfigEntryModal(ModalScreen[XPromptConfigEntry | None]):
         self._inputs.append((arg_name, arg_type))
 
         # Clear the input field
-        input_input = self.query_one("#config-entry-input-input", FilterInput)
-        input_input.value = ""
+        input_input = self.query_one("#config-entry-input-input", _ConfigEntryInput)
+        input_input.text = ""
 
         self._update_inputs_display()
         self._clear_error()

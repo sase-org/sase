@@ -17,21 +17,17 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label, TextArea
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets._local_xprompt_conversion import (
     normalize_local_xprompt_name,
     validate_local_xprompt_name,
 )
 
 
-class _NameInput(Input):
-    """Input with readline-style cursor bindings, matching the other modals."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _NameInput(SingleLineVimTextArea):
+    """Single-line vim editor for local xprompt names."""
 
 
 class LocalXPromptNameModal(ModalScreen["str | None"]):
@@ -57,12 +53,17 @@ class LocalXPromptNameModal(ModalScreen["str | None"]):
             yield Label("", id="local-xprompt-name-error")
 
     def on_mount(self) -> None:
-        self.query_one("#local-xprompt-name-input", _NameInput).focus()
+        editor = self.query_one("#local-xprompt-name-input", _NameInput)
+        editor.focus()
+        editor._update_vim_mode_display()
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        self._update_feedback(event.value)
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area.id == "local-xprompt-name-input":
+            self._update_feedback(event.text_area.text)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         name = normalize_local_xprompt_name(event.value)
         error = validate_local_xprompt_name(name, self._used_names)
         if error:

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol
 
-from textual.widgets import Input
+from textual.widgets import Static, TextArea
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.xprompt.frontmatter_schema import FrontmatterFieldKind
 from sase.xprompt.models import InputArg, XPrompt
 
@@ -228,18 +229,19 @@ class FrontmatterPanelEditingMixin(_MixinBase):
     def _begin_inline_edit(
         self, field: str, *, initial: str, adding: bool = False
     ) -> None:
-        """Reveal the inline ``Input`` prefilled with *initial* and focus it."""
+        """Reveal the inline editor prefilled with *initial* and focus it."""
         self._edit_mode = "edit"
         self._editing_field = field
         if not adding:
             self._adding_field = None
-        editor = self.query_one("#frontmatter-inline", Input)
-        editor.value = initial
+        editor = self.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        editor.text = initial
         editor.border_title = field
         editor.remove_class("hidden")
         self._refresh()
         editor.focus()
-        editor.cursor_position = len(editor.value)
+        editor.cursor_position = len(editor.text)
+        editor._update_vim_mode_display()
 
     def _cancel_inline_edit(self) -> None:
         """Abort the inline edit; discard a freshly added (unsaved) field."""
@@ -250,16 +252,18 @@ class FrontmatterPanelEditingMixin(_MixinBase):
         """Hide the inline editor and return to row navigation."""
         self._edit_mode = "rows"
         self._editing_field = None
-        editor = self.query_one("#frontmatter-inline", Input)
+        editor = self.query_one("#frontmatter-inline", SingleLineVimTextArea)
         editor.add_class("hidden")
         self._fields = self._model.present_fields()
         self._selected = min(self._selected, max(0, len(self._row_fields()) - 1))
         self._refresh()
         self.focus()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Apply the inline edit on ``enter`` and persist the change."""
-        if event.input.id != "frontmatter-inline":
+        if event.text_area.id != "frontmatter-inline":
             return
         event.stop()
         field = self._editing_field
@@ -269,17 +273,15 @@ class FrontmatterPanelEditingMixin(_MixinBase):
         self._finish_inline_edit()
         self._emit_changed()
 
-    def on_input_changed(self, event: Input.Changed) -> None:
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Swallow inline-editor change events so they never reach the bar."""
-        if event.input.id == "frontmatter-inline":
+        if event.text_area.id == "frontmatter-inline":
             event.stop()
 
     def _show_rows_only(self) -> None:
         """Show the rows view; hide the inline and raw editors."""
-        from textual.widgets import Static, TextArea
-
         self.query_one("#frontmatter-rows", Static).remove_class("hidden")
-        self.query_one("#frontmatter-inline", Input).add_class("hidden")
+        self.query_one("#frontmatter-inline", SingleLineVimTextArea).add_class("hidden")
         self.query_one("#frontmatter-raw", TextArea).add_class("hidden")
 
     def _close(self) -> None:

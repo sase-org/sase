@@ -16,10 +16,12 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.strip import Strip
-from textual.widgets import Input, OptionList, SelectionList, Static
+from textual.widgets import OptionList, SelectionList, Static
 from textual.widgets._option_list import OptionDoesNotExist
 from textual.widgets._toggle_button import ToggleButton
 from textual.widgets.option_list import Option
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
@@ -191,11 +193,11 @@ class UserQuestionModal(
                         *self._build_selections(self._questions[0]),
                         id="user-question-options",
                     )
-                    yield Input(
+                    yield SingleLineVimTextArea(
                         placeholder='Type your "Other" response and press Enter...',
                         id="user-question-other-input",
                     )
-                    yield Input(
+                    yield SingleLineVimTextArea(
                         placeholder="Type a global note and press Enter...",
                         id="user-question-global-input",
                     )
@@ -210,8 +212,12 @@ class UserQuestionModal(
             self.dismiss(UserQuestionResult())
             return
 
-        self.query_one("#user-question-other-input", Input).add_class("hidden")
-        self.query_one("#user-question-global-input", Input).add_class("hidden")
+        self.query_one("#user-question-other-input", SingleLineVimTextArea).add_class(
+            "hidden"
+        )
+        self.query_one("#user-question-global-input", SingleLineVimTextArea).add_class(
+            "hidden"
+        )
         self.query_one("#user-question-options", SelectionList).focus()
 
     # ------------------------------------------------------------------
@@ -375,8 +381,12 @@ class UserQuestionModal(
 
         # Hide inputs, exit input mode
         self._input_mode = None
-        self.query_one("#user-question-other-input", Input).add_class("hidden")
-        self.query_one("#user-question-global-input", Input).add_class("hidden")
+        self.query_one("#user-question-other-input", SingleLineVimTextArea).add_class(
+            "hidden"
+        )
+        self.query_one("#user-question-global-input", SingleLineVimTextArea).add_class(
+            "hidden"
+        )
         sel_list.focus()
 
     def _build_result(self) -> UserQuestionResult:
@@ -461,11 +471,14 @@ class UserQuestionModal(
         if self._input_mode:
             return
         self._input_mode = "global"
-        global_input = self.query_one("#user-question-global-input", Input)
+        global_input = self.query_one(
+            "#user-question-global-input", SingleLineVimTextArea
+        )
         if self._global_note:
-            global_input.value = self._global_note
+            global_input.text = self._global_note
         global_input.remove_class("hidden")
         global_input.focus()
+        global_input._update_vim_mode_display()
 
     def action_copy_questions(self) -> None:
         """Copy all questions and current answers as markdown to clipboard."""
@@ -529,14 +542,19 @@ class UserQuestionModal(
         # If "Other..." was toggled on, show the input
         if toggled_value == _OTHER_VALUE and _OTHER_VALUE in sel_list.selected:
             self._input_mode = "other"
-            other_input = self.query_one("#user-question-other-input", Input)
+            other_input = self.query_one(
+                "#user-question-other-input", SingleLineVimTextArea
+            )
             if self._current_idx in self._other_text:
-                other_input.value = self._other_text[self._current_idx]
+                other_input.text = self._other_text[self._current_idx]
             other_input.remove_class("hidden")
             other_input.focus()
+            other_input._update_vim_mode_display()
         elif toggled_value == _OTHER_VALUE and _OTHER_VALUE not in sel_list.selected:
             # "Other" was deselected
-            self.query_one("#user-question-other-input", Input).add_class("hidden")
+            self.query_one(
+                "#user-question-other-input", SingleLineVimTextArea
+            ).add_class("hidden")
             if self._input_mode == "other":
                 self._input_mode = None
 
@@ -546,17 +564,19 @@ class UserQuestionModal(
                 if val != toggled_value:
                     sel_list.deselect(val)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Handle input submission for Other and Global note inputs."""
-        if event.input.id == "user-question-other-input":
+        if event.text_area.id == "user-question-other-input":
             self._other_text[self._current_idx] = event.value.strip()
             self._input_mode = None
-            event.input.add_class("hidden")
+            event.text_area.add_class("hidden")
             self.query_one("#user-question-options", SelectionList).focus()
-        elif event.input.id == "user-question-global-input":
+        elif event.text_area.id == "user-question-global-input":
             self._global_note = event.value.strip() or None
             self._input_mode = None
-            event.input.add_class("hidden")
+            event.text_area.add_class("hidden")
             self.query_one("#user-question-options", SelectionList).focus()
 
     def on_key(self, event: object) -> None:
@@ -570,12 +590,26 @@ class UserQuestionModal(
         # Escape in input mode exits the input
         if self._input_mode and event.key == "escape":
             if self._input_mode == "other":
-                other_input = self.query_one("#user-question-other-input", Input)
-                self._other_text[self._current_idx] = other_input.value.strip()
+                other_input = self.query_one(
+                    "#user-question-other-input", SingleLineVimTextArea
+                )
+                if (
+                    other_input._vim_mode != "normal"
+                    or other_input._has_pending_normal_state()
+                ):
+                    return
+                self._other_text[self._current_idx] = other_input.text.strip()
                 other_input.add_class("hidden")
             elif self._input_mode == "global":
-                global_input = self.query_one("#user-question-global-input", Input)
-                self._global_note = global_input.value.strip() or None
+                global_input = self.query_one(
+                    "#user-question-global-input", SingleLineVimTextArea
+                )
+                if (
+                    global_input._vim_mode != "normal"
+                    or global_input._has_pending_normal_state()
+                ):
+                    return
+                self._global_note = global_input.text.strip() or None
                 global_input.add_class("hidden")
             self._input_mode = None
             self.query_one("#user-question-options", SelectionList).focus()

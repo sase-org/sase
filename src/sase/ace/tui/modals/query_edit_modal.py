@@ -5,16 +5,13 @@ from collections.abc import Callable
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _QueryInput(Input):
-    """Custom Input with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _QueryInput(SingleLineVimTextArea):
+    """Single-line vim editor for search query strings."""
 
 
 class QueryEditModal(ModalScreen[str | None]):
@@ -75,7 +72,8 @@ class QueryEditModal(ModalScreen[str | None]):
         query_input = self.query_one("#query-input", _QueryInput)
         query_input.focus()
         # Move cursor to end to clear the default selection
-        query_input.cursor_position = len(query_input.value)
+        query_input.cursor_position = len(query_input.text)
+        query_input._update_vim_mode_display()
 
     def _try_apply(self, value: str) -> None:
         """Run the validator (if any) and dismiss on success."""
@@ -100,12 +98,14 @@ class QueryEditModal(ModalScreen[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == "apply":
-            query_input = self.query_one("#query-input", Input)
-            self._try_apply(query_input.value)
+            query_input = self.query_one("#query-input", _QueryInput)
+            self._try_apply(query_input.text)
         else:
             self.dismiss(None)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Handle Enter key in input."""
         self._try_apply(event.value)
 

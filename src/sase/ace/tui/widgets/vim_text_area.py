@@ -47,6 +47,8 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     """
 
     BINDINGS = [
+        ("ctrl+a", "cursor_line_start", "Start"),
+        ("ctrl+e", "cursor_line_end", "End"),
         ("ctrl+f", "cursor_right", "Forward"),
         ("ctrl+b", "cursor_left", "Backward"),
         ("alt+f", "cursor_word_right", "Forward word"),

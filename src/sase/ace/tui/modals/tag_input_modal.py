@@ -5,17 +5,16 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, OptionList
+from textual.widgets import Label, OptionList
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.saved_tag_names import delete_tag
 
 
-class _TagNameInput(Input):
-    """Tag name input with readline-style key bindings and tag list navigation."""
+class _TagNameInput(SingleLineVimTextArea):
+    """Tag name vim editor with tag list navigation."""
 
     BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+n", "next_tag", "Next tag"),
         ("ctrl+p", "prev_tag", "Prev tag"),
         ("ctrl+d", "delete_tag", "Delete tag"),
@@ -40,22 +39,20 @@ class _TagNameInput(Input):
         modal._delete_highlighted_tag()
 
 
-class _TagValueInput(Input):
-    """Tag value input with readline-style key bindings and placeholder fill."""
+class _TagValueInput(SingleLineVimTextArea):
+    """Tag value vim editor with placeholder fill."""
 
     BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
         ("ctrl+e", "end_or_fill_placeholder", "End/Fill"),
     ]
 
     def action_end_or_fill_placeholder(self) -> None:
         """Fill placeholder if input is empty, otherwise move cursor to end."""
         if not self.value and self.placeholder:
-            self.value = self.placeholder
+            self.value = str(self.placeholder)
             self.cursor_position = len(self.value)
         else:
-            self.action_end()
+            self.action_cursor_line_end()
 
 
 class TagInputModal(ModalScreen[tuple[str, str] | None]):
@@ -97,7 +94,9 @@ class TagInputModal(ModalScreen[tuple[str, str] | None]):
 
     def on_mount(self) -> None:
         """Focus the tag name input on mount."""
-        self.query_one("#tag-name-input", _TagNameInput).focus()
+        editor = self.query_one("#tag-name-input", _TagNameInput)
+        editor.focus()
+        editor._update_vim_mode_display()
 
     def _navigate_tag_list(self, direction: int) -> None:
         """Navigate the tag name history list.
@@ -131,12 +130,16 @@ class TagInputModal(ModalScreen[tuple[str, str] | None]):
             value_input = self.query_one("#tag-value-input", _TagValueInput)
             value_input.placeholder = last_value if last_value else "e.g. 12345"
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Handle Enter key in inputs."""
-        if event.input.id == "tag-name-input":
+        if event.text_area.id == "tag-name-input":
             # Move focus to value input
-            self.query_one("#tag-value-input", _TagValueInput).focus()
-        elif event.input.id == "tag-value-input":
+            value_input = self.query_one("#tag-value-input", _TagValueInput)
+            value_input.focus()
+            value_input._update_vim_mode_display()
+        elif event.text_area.id == "tag-value-input":
             # Validate and dismiss
             name = self.query_one("#tag-name-input", _TagNameInput).value.strip()
             value = self.query_one("#tag-value-input", _TagValueInput).value.strip()

@@ -7,16 +7,13 @@ from pathlib import Path
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _FilenameInput(Input):
-    """Custom Input with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _FilenameInput(SingleLineVimTextArea):
+    """Single-line vim editor for xprompt filenames."""
 
 
 class XPromptFilenameModal(ModalScreen[str | None]):
@@ -59,8 +56,11 @@ class XPromptFilenameModal(ModalScreen[str | None]):
     def on_mount(self) -> None:
         inp = self.query_one("#filename-input", _FilenameInput)
         inp.focus()
+        inp._update_vim_mode_display()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         value = event.value.strip()
         if not value:
             self.dismiss(None)

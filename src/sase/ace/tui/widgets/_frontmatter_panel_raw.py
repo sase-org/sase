@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from textual.widgets import Input, Static, TextArea
+from textual.widgets import Static, TextArea
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.frontmatter_schema import validate_frontmatter
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
@@ -34,14 +36,15 @@ class FrontmatterPanelRawMixin(_MixinBase):
         """Enter raw-YAML mode: edit the canonical serialized frontmatter."""
         self._edit_mode = "raw"
         self._adding_field = None
-        editor = self.query_one("#frontmatter-raw", TextArea)
+        editor = self.query_one("#frontmatter-raw", VimTextArea)
         editor.text = self._model.serialize()
         rows = self.query_one("#frontmatter-rows", Static)
         rows.add_class("hidden")
-        self.query_one("#frontmatter-inline", Input).add_class("hidden")
+        self.query_one("#frontmatter-inline", SingleLineVimTextArea).add_class("hidden")
         editor.remove_class("hidden")
         self._refresh_chrome()
         editor.focus()
+        editor._update_vim_mode_display()
         self._update_raw_chip(editor.text)
 
     def _commit_raw(self) -> None:
@@ -50,7 +53,7 @@ class FrontmatterPanelRawMixin(_MixinBase):
         Unparseable structure (e.g. a non-underscore local xprompt name) keeps
         the user in raw mode with the core message rather than dropping data.
         """
-        editor = self.query_one("#frontmatter-raw", TextArea)
+        editor = self.query_one("#frontmatter-raw", VimTextArea)
         text = editor.text
         try:
             model = PromptFrontmatter.parse(text)
@@ -67,7 +70,10 @@ class FrontmatterPanelRawMixin(_MixinBase):
         self._emit_changed()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        """Live-validate the raw editor and keep its change off the bar."""
+        """Live-validate raw edits and keep child-editor changes off the bar."""
+        if event.text_area.id == "frontmatter-inline":
+            event.stop()
+            return
         if event.text_area.id != "frontmatter-raw":
             return
         event.stop()

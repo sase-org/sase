@@ -18,8 +18,10 @@ import re
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, Static, TextArea
+from textual.widgets import Label, Static, TextArea
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.loader_parsing import (
     LocalXPromptNameError,
     parse_input_type,
@@ -123,13 +125,8 @@ def _validate_local_xprompt_name(name: str) -> str:
     return ""
 
 
-class _ModalInput(Input):
-    """Input with readline-style cursor bindings, matching the other modals."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _ModalInput(SingleLineVimTextArea):
+    """Single-line vim editor for compact xprompt fields."""
 
 
 class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
@@ -161,7 +158,7 @@ class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
             yield Label("name  (must start with _)", classes="input-item-field-label")
             yield _ModalInput(value=name, placeholder="_rules", id="xprompt-item-name")
             yield Label("content", classes="input-item-field-label")
-            yield TextArea(
+            yield VimTextArea(
                 xprompt.content if xprompt else "",
                 id="xprompt-item-content",
                 show_line_numbers=False,
@@ -182,26 +179,25 @@ class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
                 id="xprompt-item-description",
             )
             yield Static("", id="xprompt-item-error")
-            yield Static("ctrl+s save · esc cancel", id="xprompt-item-footer")
+            yield Static("ctrl+s save · esc esc cancel", id="xprompt-item-footer")
 
     def on_mount(self) -> None:
         """Focus the name field and prime validation."""
         name = self.query_one("#xprompt-item-name", _ModalInput)
         name.focus()
-        name.cursor_position = len(name.value)
+        name.cursor_position = len(name.text)
+        name._update_vim_mode_display()
         self._refresh_error()
 
     # -- live feedback --------------------------------------------------------
 
-    def on_input_changed(self, event: Input.Changed) -> None:
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Re-validate on any single-line field edit."""
         self._refresh_error()
 
-    def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        """Re-validate on a content edit."""
-        self._refresh_error()
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Enter on a single-line field saves when valid."""
         self.action_save()
 
@@ -228,7 +224,7 @@ class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
     # -- validation -----------------------------------------------------------
 
     def _current_name(self) -> str:
-        return self.query_one("#xprompt-item-name", _ModalInput).value.strip()
+        return self.query_one("#xprompt-item-name", _ModalInput).text.strip()
 
     def _build(self) -> tuple[tuple[str, XPrompt] | None, str]:
         """Return ``(name, XPrompt)`` or a validation error string."""
@@ -243,14 +239,14 @@ class XPromptItemModal(ModalScreen["tuple[str, XPrompt] | None"]):
         if not content:
             return None, "content is required"
 
-        inputs_text = self.query_one("#xprompt-item-inputs", _ModalInput).value
+        inputs_text = self.query_one("#xprompt-item-inputs", _ModalInput).text
         try:
             inputs = _parse_compact_input_specs(inputs_text)
         except ValueError as exc:
             return None, str(exc)
 
         description = (
-            self.query_one("#xprompt-item-description", _ModalInput).value.strip()
+            self.query_one("#xprompt-item-description", _ModalInput).text.strip()
             or None
         )
         xprompt = XPrompt(

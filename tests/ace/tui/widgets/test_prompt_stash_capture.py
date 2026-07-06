@@ -13,11 +13,12 @@ all-empty ``gs`` and non-prompt bars remain no-ops for capture.
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, TextArea
 
 from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 
@@ -85,8 +86,8 @@ async def _add_local_xprompt_from_panel(
 
     modal = app.screen
     assert isinstance(modal, XPromptItemModal)
-    modal.query_one("#xprompt-item-name", Input).value = name
-    modal.query_one("#xprompt-item-content", TextArea).text = content
+    modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = name
+    modal.query_one("#xprompt-item-content", VimTextArea).text = content
     await pilot.pause()  # type: ignore[attr-defined]
     modal.action_save()
     await pilot.pause()  # type: ignore[attr-defined]

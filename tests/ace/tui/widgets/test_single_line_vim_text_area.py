@@ -2,8 +2,25 @@
 
 from __future__ import annotations
 
+from textual.app import App, ComposeResult
+
 from sase.ace.testing import VimEditorPage
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+
+
+class _PlaceholderApp(App[None]):
+    """Minimal app for rendering placeholder text."""
+
+    CSS = """
+    SingleLineVimTextArea {
+        width: 100%;
+        height: 3;
+        border: solid white;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield SingleLineVimTextArea("", placeholder="Type a value", id="ed")
 
 
 async def test_enter_posts_submitted_from_insert_mode() -> None:
@@ -74,3 +91,18 @@ async def test_typing_replaces_and_stays_single_line() -> None:
         await page.pause()
         assert page.text == "old!!"
         assert "\n" not in page.text
+
+
+async def test_placeholder_renders_in_insert_and_normal_mode() -> None:
+    app = _PlaceholderApp()
+    async with app.run_test(size=(40, 8)) as pilot:
+        editor = app.query_one("#ed", SingleLineVimTextArea)
+        editor.focus()
+        await pilot.pause()
+        insert_screen = "\n".join(editor.render_line(y).text for y in range(3))
+        assert "Type a value" in insert_screen
+
+        editor._enter_normal_mode()
+        await pilot.pause()
+        normal_screen = "\n".join(editor.render_line(y).text for y in range(3))
+        assert "Type a value" in normal_screen

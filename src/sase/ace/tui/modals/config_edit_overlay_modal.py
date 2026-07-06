@@ -25,7 +25,7 @@ class _OverlayNameModal(ModalScreen[str | None]):
                 "name → ~/.config/sase/sase_<name>.yml",
                 id="overlay-name-help",
             )
-            yield SingleLineVimTextArea(id="overlay-name-input")
+            yield SingleLineVimTextArea(placeholder="work", id="overlay-name-input")
             yield Static(
                 "enter / ctrl+s create · esc esc cancel", id="overlay-name-hints"
             )

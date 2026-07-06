@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Input, TextArea
 
 from sase.ace.tui.modals.input_item_modal import InputItemModal, default_to_text
 from sase.ace.tui.modals.xprompt_item_modal import (
@@ -18,6 +17,8 @@ from sase.ace.tui.modals.xprompt_item_modal import (
     _parse_compact_input_specs,
     _validate_local_xprompt_name,
 )
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.models import UNSET, InputArg, InputType, XPrompt
 
 
@@ -98,10 +99,12 @@ async def test_input_modal_saves_constructed_arg() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#input-item-name", Input).value = "service"
-        modal.query_one("#input-item-type", Input).value = "word"
-        modal.query_one("#input-item-default", Input).value = ""
-        modal.query_one("#input-item-description", Input).value = "target service"
+        modal.query_one("#input-item-name", SingleLineVimTextArea).text = "service"
+        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "word"
+        modal.query_one("#input-item-default", SingleLineVimTextArea).text = ""
+        modal.query_one(
+            "#input-item-description", SingleLineVimTextArea
+        ).text = "target service"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -125,9 +128,9 @@ async def test_input_modal_coerces_typed_default() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#input-item-name", Input).value = "retries"
-        modal.query_one("#input-item-type", Input).value = "int"
-        modal.query_one("#input-item-default", Input).value = "5"
+        modal.query_one("#input-item-name", SingleLineVimTextArea).text = "retries"
+        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "int"
+        modal.query_one("#input-item-default", SingleLineVimTextArea).text = "5"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -148,9 +151,11 @@ async def test_input_modal_refuses_save_while_invalid() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#input-item-name", Input).value = "retries"
-        modal.query_one("#input-item-type", Input).value = "int"
-        modal.query_one("#input-item-default", Input).value = "notanumber"
+        modal.query_one("#input-item-name", SingleLineVimTextArea).text = "retries"
+        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "int"
+        modal.query_one(
+            "#input-item-default", SingleLineVimTextArea
+        ).text = "notanumber"
         await pilot.pause()
         # Invalid default -> save is a no-op, the modal stays open.
         modal.action_save()
@@ -159,7 +164,7 @@ async def test_input_modal_refuses_save_while_invalid() -> None:
         assert pilot.app.screen is modal
 
         # Fixing the value lets the save through.
-        modal.query_one("#input-item-default", Input).value = "7"
+        modal.query_one("#input-item-default", SingleLineVimTextArea).text = "7"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -180,14 +185,14 @@ async def test_input_modal_rejects_duplicate_name() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#input-item-name", Input).value = "service"
-        modal.query_one("#input-item-type", Input).value = "word"
+        modal.query_one("#input-item-name", SingleLineVimTextArea).text = "service"
+        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "word"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
         assert result == "sentinel"
 
-        await pilot.press("escape")
+        await pilot.press("escape", "escape")
         await pilot.pause()
     assert result is None
 
@@ -207,10 +212,16 @@ async def test_xprompt_modal_saves_helper_with_inputs() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#xprompt-item-name", Input).value = "_rules"
-        modal.query_one("#xprompt-item-content", TextArea).text = "Follow the checklist"
-        modal.query_one("#xprompt-item-inputs", Input).value = "service:word"
-        modal.query_one("#xprompt-item-description", Input).value = "team rules"
+        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
+        modal.query_one(
+            "#xprompt-item-content", VimTextArea
+        ).text = "Follow the checklist"
+        modal.query_one(
+            "#xprompt-item-inputs", SingleLineVimTextArea
+        ).text = "service:word"
+        modal.query_one(
+            "#xprompt-item-description", SingleLineVimTextArea
+        ).text = "team rules"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -236,14 +247,14 @@ async def test_xprompt_modal_refuses_non_underscore_name() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#xprompt-item-name", Input).value = "rules"
-        modal.query_one("#xprompt-item-content", TextArea).text = "body"
+        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "rules"
+        modal.query_one("#xprompt-item-content", VimTextArea).text = "body"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
         assert result == "sentinel"
 
-        modal.query_one("#xprompt-item-name", Input).value = "_rules"
+        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -264,12 +275,12 @@ async def test_xprompt_modal_refuses_empty_content() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#xprompt-item-name", Input).value = "_rules"
+        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
         assert result == "sentinel"
 
-        await pilot.press("escape")
+        await pilot.press("escape", "escape")
         await pilot.pause()
     assert result is None

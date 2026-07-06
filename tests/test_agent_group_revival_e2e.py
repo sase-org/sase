@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from textual.widgets import Input, Static
+from textual.widgets import Static
 
 from sase.ace import dismissed_agents
 from sase.ace.testing import AcePage, make_changespec
@@ -22,6 +22,7 @@ from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.core.paths import sase_home
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -79,8 +80,8 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
         save_modal = page.app.screen
         assert isinstance(save_modal, SaveAgentGroupModal)
         save_modal.query_one(
-            "#save-agent-group-name-input", Input
-        ).value = "Visual backend"
+            "#save-agent-group-name-input", SingleLineVimTextArea
+        ).text = "Visual backend"
         await page.press("enter")
         await page.expect_no_modal()
         await page.expect_state("agent_count", 0)

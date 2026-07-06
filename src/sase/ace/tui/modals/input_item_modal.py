@@ -19,8 +19,9 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, Static
+from textual.widgets import Label, Static, TextArea
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.xprompt.frontmatter_schema import input_type_schema
 from sase.xprompt.loader_parsing import parse_input_type
 from sase.xprompt.models import (
@@ -63,13 +64,8 @@ def default_to_text(default: Any) -> str:
     return str(default)
 
 
-class _ModalInput(Input):
-    """Input with readline-style cursor bindings, matching the other modals."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _ModalInput(SingleLineVimTextArea):
+    """Single-line vim editor for input declaration fields."""
 
 
 class InputItemModal(ModalScreen[InputArg | None]):
@@ -124,22 +120,25 @@ class InputItemModal(ModalScreen[InputArg | None]):
                 id="input-item-description",
             )
             yield Static("", id="input-item-error")
-            yield Static("⏎ save · esc cancel", id="input-item-footer")
+            yield Static("⏎ save · esc esc cancel", id="input-item-footer")
 
     def on_mount(self) -> None:
         """Focus the name field and prime the live guidance / validation."""
         name = self.query_one("#input-item-name", _ModalInput)
         name.focus()
-        name.cursor_position = len(name.value)
+        name.cursor_position = len(name.text)
+        name._update_vim_mode_display()
         self._refresh_feedback()
 
     # -- live feedback --------------------------------------------------------
 
-    def on_input_changed(self, event: Input.Changed) -> None:
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Re-validate and refresh the type rule / error line on any edit."""
         self._refresh_feedback()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Enter saves when valid (otherwise the inline error stays visible)."""
         self.action_save()
 
@@ -172,7 +171,7 @@ class InputItemModal(ModalScreen[InputArg | None]):
     # -- validation -----------------------------------------------------------
 
     def _field(self, widget_id: str) -> str:
-        return self.query_one(f"#{widget_id}", _ModalInput).value
+        return self.query_one(f"#{widget_id}", _ModalInput).text
 
     def _build(self) -> tuple[InputArg | None, str]:
         """Return the constructed :class:`InputArg` or a validation error string."""

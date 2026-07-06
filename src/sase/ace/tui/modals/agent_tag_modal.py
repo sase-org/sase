@@ -9,8 +9,9 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.agent_tags import InvalidTagError, validate_tag_name
 
 
@@ -22,14 +23,10 @@ class AgentTagModalResult:
     tag: str | None  # None when action == "unset"
 
 
-class _TagInput(Input):
-    """Tag-name input with readline-style key bindings and tab completion."""
+class _TagInput(SingleLineVimTextArea):
+    """Tag-name vim editor with tab completion."""
 
     BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-        ("ctrl+a", "home", "Home"),
-        ("ctrl+e", "end", "End"),
         ("tab", "complete", "Complete"),
     ]
 
@@ -100,6 +97,7 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
         tag_input.focus()
         if tag_input.value:
             tag_input.select_all()
+        tag_input._update_vim_mode_display()
 
     def _complete_tag(self) -> None:
         """Tab-complete the input against ``known_tags``."""
@@ -128,7 +126,9 @@ class AgentTagModal(ModalScreen[AgentTagModalResult | None]):
         tag_input.value = next_match
         tag_input.cursor_position = len(next_match)
 
-    def on_input_submitted(self, _event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, _event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Enter on the input sets the typed tag."""
         self._submit_set()
 

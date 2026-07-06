@@ -7,7 +7,9 @@ from collections.abc import Callable
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class TextInputModal(ModalScreen[str | None]):
@@ -36,7 +38,7 @@ class TextInputModal(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Container(id="memory-review-input-modal"):
             yield Label(self._title, id="memory-review-input-title")
-            yield Input(
+            yield SingleLineVimTextArea(
                 value=self._value,
                 placeholder=self._placeholder,
                 id="memory-review-input",
@@ -49,9 +51,10 @@ class TextInputModal(ModalScreen[str | None]):
                 yield Button("Cancel", id="cancel", variant="default")
 
     def on_mount(self) -> None:
-        field = self.query_one("#memory-review-input", Input)
+        field = self.query_one("#memory-review-input", SingleLineVimTextArea)
         field.focus()
         field.select_all()
+        field._update_vim_mode_display()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "apply":
@@ -59,14 +62,16 @@ class TextInputModal(ModalScreen[str | None]):
             return
         self.dismiss(None)
 
-    def on_input_submitted(self, _event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, _event: SingleLineVimTextArea.Submitted
+    ) -> None:
         self._submit()
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
     def _submit(self) -> None:
-        value = self.query_one("#memory-review-input", Input).value
+        value = self.query_one("#memory-review-input", SingleLineVimTextArea).text
         if self._validator is not None:
             error = self._validator(value)
             if error:

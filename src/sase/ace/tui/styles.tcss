@@ -1278,7 +1278,7 @@ InputCollectionModal .field-error {
     color: $error;
 }
 
-InputCollectionModal Input {
+InputCollectionModal SingleLineVimTextArea {
     width: 100%;
     margin: 0;
 }
@@ -1815,6 +1815,13 @@ VimTextArea.-vim-visual .text-area--cursor {
     text-style: bold;
 }
 
+SingleLineVimTextArea {
+    width: 100%;
+    height: 3;
+    /* Border carries the vim mode title ([INSERT] / [NORMAL] / ...). */
+    border: solid $secondary;
+}
+
 /* Single-pane (solo) mode is visually identical to the pre-stack bar: the
    text area fills the bar and carries no border of its own. */
 PromptInputBar .prompt-input.solo {
@@ -1957,8 +1964,8 @@ XPromptItemModal .input-item-field-label {
     margin-top: 1;
 }
 
-InputItemModal Input,
-XPromptItemModal Input {
+InputItemModal SingleLineVimTextArea,
+XPromptItemModal SingleLineVimTextArea {
     width: 100%;
 }
 
@@ -3583,11 +3590,7 @@ ConfigEditModal #config-edit-value {
 }
 
 ConfigEditModal #config-edit-input {
-    width: 100%;
-    height: 3;
     margin-top: 1;
-    /* Border carries the vim mode title ([INSERT] / [NORMAL] / ...). */
-    border: solid $secondary;
 }
 
 ConfigEditModal #config-edit-textarea {
@@ -3688,11 +3691,7 @@ _OverlayNameModal #overlay-name-help {
 }
 
 _OverlayNameModal #overlay-name-input {
-    width: 100%;
-    height: 3;
     margin-top: 1;
-    /* Border carries the vim mode title ([INSERT] / [NORMAL] / ...). */
-    border: solid $secondary;
 }
 
 _OverlayNameModal #overlay-name-hints {

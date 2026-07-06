@@ -10,7 +10,7 @@ from ._event_base import EventHandlersBase
 from .navigation.jump_hints import normalize_jump_key
 
 if TYPE_CHECKING:
-    from textual.widgets import Input
+    from textual.widgets import Input, TextArea
 
 
 class EventKeyboardMixin(EventHandlersBase):
@@ -69,5 +69,14 @@ class EventKeyboardMixin(EventHandlersBase):
         preventing them from bubbling to the App's ``on_key()`` handler.
         The ``Input.Changed`` message still bubbles, so we catch it here
         to keep input-quiescence timing accurate while the user types.
+        """
+        self._record_input_event()
+
+    def on_text_area_changed(self, _event: TextArea.Changed) -> None:
+        """Record activity when user types in a focused TextArea widget.
+
+        ``VimTextArea``-based editors inherit Textual's ``TextArea.Changed``
+        message. Recording that message keeps the same input-quiescence timing
+        that plain ``Input`` widgets had before conversion.
         """
         self._record_input_event()

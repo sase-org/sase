@@ -15,18 +15,14 @@ from pathlib import Path
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label, TextArea
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.xprompt.snippet_bridge import is_valid_snippet_trigger
 
 
-class _NameInput(Input):
-    """Custom Input with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _NameInput(SingleLineVimTextArea):
+    """Single-line vim editor for snippet trigger names."""
 
 
 class SnippetNameModal(ModalScreen["str | None"]):
@@ -64,12 +60,17 @@ class SnippetNameModal(ModalScreen["str | None"]):
             yield Label("", id="snippet-name-error")
 
     def on_mount(self) -> None:
-        self.query_one("#snippet-name-input", _NameInput).focus()
+        editor = self.query_one("#snippet-name-input", _NameInput)
+        editor.focus()
+        editor._update_vim_mode_display()
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        self._update_feedback(event.value)
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area.id == "snippet-name-input":
+            self._update_feedback(event.text_area.text)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         value = event.value.strip()
         error = self._validation_error(value)
         if error is not None:

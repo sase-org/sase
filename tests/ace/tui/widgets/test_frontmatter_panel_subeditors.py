@@ -8,12 +8,13 @@ onto the panel model and persisted onto the prompt stack's frontmatter string.
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, TextArea
 
 from sase.ace.tui.modals.input_item_modal import InputItemModal
 from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.models import InputType
 
 
@@ -70,9 +71,9 @@ async def test_add_input_item_via_header_modal() -> None:
         await pilot.pause()
         modal = app.screen
         assert isinstance(modal, InputItemModal)
-        modal.query_one("#input-item-name", Input).value = "dry_run"
-        modal.query_one("#input-item-type", Input).value = "bool"
-        modal.query_one("#input-item-default", Input).value = "false"
+        modal.query_one("#input-item-name", SingleLineVimTextArea).text = "dry_run"
+        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "bool"
+        modal.query_one("#input-item-default", SingleLineVimTextArea).text = "false"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -125,8 +126,10 @@ async def test_begin_add_structured_field_opens_modal() -> None:
         await pilot.pause()
         modal = app.screen
         assert isinstance(modal, XPromptItemModal)
-        modal.query_one("#xprompt-item-name", Input).value = "_rules"
-        modal.query_one("#xprompt-item-content", TextArea).text = "Follow the checklist"
+        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
+        modal.query_one(
+            "#xprompt-item-content", VimTextArea
+        ).text = "Follow the checklist"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()
@@ -203,8 +206,10 @@ async def test_edit_input_subitem_updates_model() -> None:
         modal = app.screen
         assert isinstance(modal, InputItemModal)
         # Prefilled from the existing input.
-        assert modal.query_one("#input-item-name", Input).value == "service"
-        modal.query_one("#input-item-type", Input).value = "line"
+        assert (
+            modal.query_one("#input-item-name", SingleLineVimTextArea).text == "service"
+        )
+        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "line"
         await pilot.pause()
         modal.action_save()
         await pilot.pause()

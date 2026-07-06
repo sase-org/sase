@@ -12,10 +12,11 @@ from pathlib import Path
 
 import pytest
 from textual.app import App
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Label
 
 from sase.agent.prompt_inputs import parse_prompt_input_request
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal, _PathField
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class _TestApp(App[None]):
@@ -49,11 +50,11 @@ async def test_confirm_disabled_until_required_filled() -> None:
         # Confirm label reflects the agent count.
         assert "2 agents" in str(confirm.label)
 
-        modal.query_one("#field-input-0", Input).value = "billing"
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "billing"
         await pilot.pause()
         assert confirm.disabled is True  # second required input still empty
 
-        modal.query_one("#field-input-1", Input).value = "3"
+        modal.query_one("#field-input-1", SingleLineVimTextArea).text = "3"
         await pilot.pause()
         assert confirm.disabled is False
 
@@ -64,8 +65,10 @@ async def test_invalid_value_shows_error_and_blocks_confirm() -> None:
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        modal.query_one("#field-input-0", Input).value = "billing"
-        modal.query_one("#field-input-1", Input).value = "three"  # not an int
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "billing"
+        modal.query_one(
+            "#field-input-1", SingleLineVimTextArea
+        ).text = "three"  # not an int
         await pilot.pause()
 
         error = modal.query_one("#field-error-1", Label)
@@ -81,7 +84,7 @@ async def test_word_input_rejects_whitespace() -> None:
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        modal.query_one("#field-input-0", Input).value = "two words"
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "two words"
         await pilot.pause()
         assert modal.query_one("#field-error-0", Label).display is True
         assert modal._field_valid(0) is False
@@ -97,7 +100,7 @@ async def test_optional_inputs_hidden_until_revealed() -> None:
         assert optional_block.display is False
         # Required-only field empty -> confirm still disabled, but the optional
         # field being empty does not block (uses its default).
-        modal.query_one("#field-input-0", Input).value = "billing"
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "billing"
         await pilot.pause()
         assert modal.query_one("#confirm", Button).disabled is False
 
@@ -118,7 +121,7 @@ async def test_confirm_returns_required_values_and_omits_empty_optional() -> Non
         pilot.app.push_screen(modal, callback=_on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#field-input-0", Input).value = "billing"
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "billing"
         await pilot.pause()
         modal.query_one("#confirm", Button).press()
         await pilot.pause()
@@ -139,10 +142,10 @@ async def test_confirm_includes_filled_optional_value() -> None:
         pilot.app.push_screen(modal, callback=_on_dismiss)
         await pilot.pause()
 
-        modal.query_one("#field-input-0", Input).value = "billing"
+        modal.query_one("#field-input-0", SingleLineVimTextArea).text = "billing"
         modal.query_one("#toggle-optional", Button).press()
         await pilot.pause()
-        modal.query_one("#field-input-1", Input).value = "true"
+        modal.query_one("#field-input-1", SingleLineVimTextArea).text = "true"
         await pilot.pause()
         modal.query_one("#confirm", Button).press()
         await pilot.pause()
@@ -161,7 +164,7 @@ async def test_cancel_returns_none() -> None:
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal, callback=_on_dismiss)
         await pilot.pause()
-        await pilot.press("escape")
+        await pilot.press("escape", "escape")
         await pilot.pause()
 
     assert result is None
@@ -198,8 +201,8 @@ async def test_path_input_uses_ctrl_t_file_completion(
         await pilot.pause()
 
         field = modal.query_one("#field-input-0", _PathField)
-        field.value = "alph"
+        field.text = "alph"
         field.action_complete_path()  # the same engine the prompt panes use
         await pilot.pause()
 
-        assert field.value == "alpha.txt"
+        assert field.text == "alpha.txt"

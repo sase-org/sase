@@ -6,7 +6,8 @@ a widget that behaves like a Textual ``Input``: Enter submits (posting a
 to a single line -- ``o`` / ``O`` / ``ctrl+j`` are suppressed and any newline in
 inserted, pasted, or register text is flattened to a space. ``Changed`` is the
 inherited ``TextArea.Changed`` message, so hosts keep their event-driven
-validation flow with only the value read (``.value`` -> ``.text``) changing.
+validation flow with only the value read (prefer ``.text``; ``.value`` is a
+compatibility alias during the migration) changing.
 """
 
 from __future__ import annotations
@@ -20,12 +21,25 @@ from sase.ace.tui.widgets.vim_text_area import VimTextArea
 
 __all__ = ["SingleLineVimTextArea"]
 
+_UNSET = object()
+
 
 class SingleLineVimTextArea(VimTextArea):
     """A single-line ``VimTextArea`` that submits on Enter, like an ``Input``.
 
-    Use :attr:`text` to read the value and listen for :class:`Submitted` (Enter)
-    and ``TextArea.Changed`` (edits) to drive validation and submission.
+    Adoption recipe for replacing a Textual ``Input``:
+
+    - yield ``SingleLineVimTextArea`` and read ``.text`` instead of ``.value``;
+    - handle ``on_single_line_vim_text_area_submitted`` instead of
+      ``on_input_submitted``;
+    - handle ``on_text_area_changed`` instead of ``on_input_changed``;
+    - focus normally, then call ``_update_vim_mode_display()`` if the widget is
+      mounted hidden or the host wants the border title primed immediately;
+    - prefill positionally or via ``text`` / ``value``, move the cursor to the
+      end, and use ``select_all()`` where type-to-replace is desired;
+    - modal Escape bindings become two-stage: INSERT ``esc`` enters NORMAL,
+      NORMAL ``esc`` bubbles to the modal cancel action;
+    - leave ``tab_behavior`` at its default ``"focus"`` for multi-field forms.
     """
 
     class Submitted(Message):
@@ -42,11 +56,43 @@ class SingleLineVimTextArea(VimTextArea):
             return self.text_area
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        value = kwargs.pop("value", _UNSET)
+        if value is not _UNSET:
+            if args:
+                raise TypeError(
+                    "SingleLineVimTextArea accepts initial text positionally "
+                    "or via value=, not both"
+                )
+            args = (value,)
         # A one-line box never soft-wraps or shows line numbers.
         kwargs.setdefault("soft_wrap", False)
         kwargs.setdefault("show_line_numbers", False)
         super().__init__(*args, **kwargs)
         self.show_line_numbers = False
+
+    @property
+    def value(self) -> str:
+        """Compatibility alias for old ``Input`` callers; prefer ``.text``."""
+        return self.text
+
+    @value.setter
+    def value(self, new_value: str) -> None:
+        self.text = new_value
+
+    @property
+    def cursor_position(self) -> int:
+        """Compatibility alias for the single-line cursor column."""
+        return self.cursor_location[1]
+
+    @cursor_position.setter
+    def cursor_position(self, position: int) -> None:
+        line_end = len(self.document.get_line(0))
+        col = max(0, min(position, line_end))
+        self.move_cursor((0, col))
+
+    def action_select_all(self) -> None:
+        """Compatibility action matching ``Input.action_select_all``."""
+        self.select_all()
 
     async def _on_key(self, event: Key) -> None:
         """Submit on Enter and swallow every newline-producing key.

@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from textual.widgets import DataTable, Input, Static
+from textual.widgets import DataTable, Static
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.memory.proposals import (
     ProposalAuthor,
     ProposalReviewer,
@@ -197,8 +198,10 @@ async def test_memory_review_tui_reject_modal_dispatches_domain_rejection(
     async with app.run_test() as pilot:
         await pilot.press("r")
         await pilot.pause()
-        input_widget = app.screen.query_one("#memory-review-input", Input)
-        input_widget.value = "Not durable"
+        input_widget = app.screen.query_one(
+            "#memory-review-input", SingleLineVimTextArea
+        )
+        input_widget.text = "Not durable"
         await pilot.press("enter")
         await pilot.pause()
 
@@ -276,8 +279,10 @@ async def test_memory_review_tui_target_edit_feeds_approval_target(
     async with app.run_test() as pilot:
         await pilot.press("t")
         await pilot.pause()
-        input_widget = app.screen.query_one("#memory-review-input", Input)
-        input_widget.value = "renamed.md"
+        input_widget = app.screen.query_one(
+            "#memory-review-input", SingleLineVimTextArea
+        )
+        input_widget.text = "renamed.md"
         await pilot.press("enter")
         await pilot.pause()
         await pilot.press("a")

@@ -12,10 +12,10 @@ from __future__ import annotations
 from typing import Any
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input
 
 from sase.ace.tui.modals.local_xprompt_name_modal import LocalXPromptNameModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.xprompt.models import InputType
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
@@ -71,7 +71,7 @@ async def _open_convert_modal(
 
 async def _submit_name(pilot: Any, modal: LocalXPromptNameModal, name: str) -> None:
     """Type *name* into the modal and submit it."""
-    modal.query_one("#local-xprompt-name-input", Input).value = name
+    modal.query_one("#local-xprompt-name-input", SingleLineVimTextArea).text = name
     await pilot.pause()
     await pilot.press("enter")
     await pilot.pause()
@@ -259,7 +259,7 @@ async def test_gx_cancel_leaves_everything_unchanged() -> None:
 
         modal = await _open_convert_modal(pilot, app)
         assert modal is not None
-        await pilot.press("escape")  # cancel the modal
+        await pilot.press("escape", "escape")  # INSERT -> NORMAL, then cancel
         await pilot.pause()
         await pilot.pause()
 

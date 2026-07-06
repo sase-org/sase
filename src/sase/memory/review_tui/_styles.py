@@ -78,6 +78,12 @@ MEMORY_REVIEW_CSS = """
     margin-bottom: 1;
 }
 
+#memory-review-input {
+    width: 100%;
+    height: 3;
+    border: solid $secondary;
+}
+
 #memory-review-input-error {
     color: $error;
     margin-top: 1;

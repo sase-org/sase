@@ -2,8 +2,8 @@
 
 from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.testing import AcePage, make_changespec
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.changespec_detail import ChangeSpecDetail
-from textual.widgets import Input
 
 
 def _detail_plain(page: AcePage) -> str:
@@ -70,8 +70,8 @@ async def test_query_edit_modal_cancel() -> None:
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
 
-        # Press Escape to cancel
-        await page.press("escape")
+        # Press Escape twice: INSERT -> NORMAL, then modal cancel.
+        await page.press("escape", "escape")
 
         # Modal should be closed and query unchanged
         await page.expect_no_modal()
@@ -93,8 +93,8 @@ async def test_query_edit_modal_apply() -> None:
 
         # Get the input widget and set new query value
         modal = page.app.screen_stack[-1]
-        input_widget = modal.query_one("#query-input", Input)
-        input_widget.value = '"other"'
+        input_widget = modal.query_one("#query-input", SingleLineVimTextArea)
+        input_widget.text = '"other"'
 
         # Click Apply button
         await page.click("#apply")
@@ -115,8 +115,8 @@ async def test_query_edit_modal_invalid_query() -> None:
 
         # Set invalid query (unclosed quote)
         modal = page.app.screen_stack[-1]
-        input_widget = modal.query_one("#query-input", Input)
-        input_widget.value = '"unclosed'
+        input_widget = modal.query_one("#query-input", SingleLineVimTextArea)
+        input_widget.text = '"unclosed'
 
         # Click Apply
         await page.click("#apply")

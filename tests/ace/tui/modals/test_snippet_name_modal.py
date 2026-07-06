@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, Label, OptionList
+from textual.widgets import Label, OptionList
 
 from sase.ace.tui.modals.snippet_config_location_modal import (
     SnippetConfigLocation,
@@ -12,6 +12,7 @@ from sase.ace.tui.modals.snippet_config_location_modal import (
     load_snippet_config_locations,
 )
 from sase.ace.tui.modals.snippet_name_modal import SnippetNameModal
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class _NameApp(App[None]):
@@ -40,10 +41,13 @@ async def test_invalid_trigger_is_rejected_and_does_not_dismiss() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         modal = app.screen
         assert isinstance(modal, SnippetNameModal)
-        modal.query_one("#snippet-name-input", Input).value = "bad name!"
+        modal.query_one("#snippet-name-input", SingleLineVimTextArea).text = "bad name!"
         await pilot.pause()
-        modal.on_input_submitted(
-            Input.Submitted(modal.query_one("#snippet-name-input", Input), "bad name!")
+        modal.on_single_line_vim_text_area_submitted(
+            SingleLineVimTextArea.Submitted(
+                modal.query_one("#snippet-name-input", SingleLineVimTextArea),
+                "bad name!",
+            )
         )
         await pilot.pause()
 
@@ -58,10 +62,12 @@ async def test_valid_trigger_dismisses_with_value() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         modal = app.screen
         assert isinstance(modal, SnippetNameModal)
-        inp = modal.query_one("#snippet-name-input", Input)
-        inp.value = "my_snippet"
+        inp = modal.query_one("#snippet-name-input", SingleLineVimTextArea)
+        inp.text = "my_snippet"
         await pilot.pause()
-        modal.on_input_submitted(Input.Submitted(inp, "my_snippet"))
+        modal.on_single_line_vim_text_area_submitted(
+            SingleLineVimTextArea.Submitted(inp, "my_snippet")
+        )
         await pilot.pause()
 
     assert app.result == "my_snippet"
@@ -78,12 +84,14 @@ async def test_existing_name_shows_warning_but_allows_submit() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         modal = app.screen
         assert isinstance(modal, SnippetNameModal)
-        inp = modal.query_one("#snippet-name-input", Input)
-        inp.value = "foo"
+        inp = modal.query_one("#snippet-name-input", SingleLineVimTextArea)
+        inp.text = "foo"
         await pilot.pause()
         note = modal.query_one("#snippet-name-note", Label)
         assert "overwrite" in str(note.content)
-        modal.on_input_submitted(Input.Submitted(inp, "foo"))
+        modal.on_single_line_vim_text_area_submitted(
+            SingleLineVimTextArea.Submitted(inp, "foo")
+        )
         await pilot.pause()
 
     assert app.result == "foo"

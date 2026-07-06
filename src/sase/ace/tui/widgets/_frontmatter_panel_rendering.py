@@ -32,8 +32,8 @@ _SUBTITLE_POPULATED = (
     "a property · A item · e edit · d delete · R raw · h/l fold · esc done"
 )
 _SUBTITLE_EMPTY = "a property · R raw · esc done"
-_SUBTITLE_EDIT = "enter save · esc cancel"
-_SUBTITLE_RAW = "esc apply · live-validated"
+_SUBTITLE_EDIT = "enter save · esc esc cancel"
+_SUBTITLE_RAW = "esc esc apply · live-validated"
 
 
 class FrontmatterPanelRenderingMixin(_MixinBase):

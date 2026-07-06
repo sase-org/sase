@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from textual.app import App
-from textual.widgets import Input
 
 from sase.ace.tui.modals.save_agent_group_modal import (
     SaveAgentGroupModal,
     SaveAgentGroupResult,
 )
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class _TestApp(App[SaveAgentGroupResult | None]):
@@ -44,8 +44,8 @@ async def test_nonblank_enter_returns_trimmed_name() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
         modal.query_one(
-            "#save-agent-group-name-input", Input
-        ).value = "  Backend batch  "
+            "#save-agent-group-name-input", SingleLineVimTextArea
+        ).text = "  Backend batch  "
         await pilot.press("enter")
         await pilot.pause()
 
@@ -63,7 +63,7 @@ async def test_escape_cancels_without_result() -> None:
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
-        await pilot.press("escape")
+        await pilot.press("escape", "escape")
         await pilot.pause()
 
     assert result is None

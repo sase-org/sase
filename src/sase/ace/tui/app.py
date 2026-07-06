@@ -255,9 +255,9 @@ class AceApp(
 
             if isinstance(self.screen, ModalScreen):
                 return False
-            from .widgets.prompt_text_area import PromptTextArea
+            from .widgets.vim_text_area import VimTextArea
 
-            if isinstance(self.focused, PromptTextArea):
+            if isinstance(self.focused, VimTextArea):
                 return False
         if action in {"change_status", "bulk_change_status"}:
             if self.current_tab != "changespecs":

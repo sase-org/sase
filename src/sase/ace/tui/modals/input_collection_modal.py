@@ -20,18 +20,14 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Label, TextArea
 
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.xprompt.models import UNSET, InputArg, InputType, XPromptValidationError
 
 
-class _InputCollectionInput(Input):
-    """Single-line input with readline-style cursor bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _InputCollectionInput(SingleLineVimTextArea):
+    """Single-line vim editor for prompt input values."""
 
 
 class _PathField(_InputCollectionInput):
@@ -159,7 +155,7 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
         block.display = not hidden
         return block
 
-    def _build_input(self, idx: int, arg: InputArg) -> Input:
+    def _build_input(self, idx: int, arg: InputArg) -> SingleLineVimTextArea:
         placeholder = ""
         if arg.default is not UNSET and arg.default is not None:
             placeholder = f"default: {arg.default}"
@@ -198,19 +194,21 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
     def on_mount(self) -> None:
         self._refresh_confirm_enabled()
         try:
-            self.query_one("#field-input-0", Input).focus()
+            editor = self.query_one("#field-input-0", SingleLineVimTextArea)
+            editor.focus()
+            editor._update_vim_mode_display()
         except Exception:
             pass
 
     # -- validation -----------------------------------------------------------
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        idx = self._index_of(event.input)
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        idx = self._index_of(event.text_area)
         if idx is not None:
             self._validate_field(idx)
         self._refresh_confirm_enabled()
 
-    def _index_of(self, widget: Input) -> int | None:
+    def _index_of(self, widget: TextArea) -> int | None:
         widget_id = widget.id or ""
         prefix = "field-input-"
         if not widget_id.startswith(prefix):
@@ -221,7 +219,7 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
             return None
 
     def _field_value(self, idx: int) -> str:
-        return self.query_one(f"#field-input-{idx}", Input).value
+        return self.query_one(f"#field-input-{idx}", SingleLineVimTextArea).text
 
     def _is_required(self, idx: int) -> bool:
         return idx < len(self._required)
@@ -280,8 +278,10 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
         elif event.button.id == "toggle-optional":
             self._toggle_optional()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        idx = self._index_of(event.input)
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
+        idx = self._index_of(event.text_area)
         if idx is not None and self._focus_next_field(idx):
             return
         self._try_confirm()
@@ -291,7 +291,11 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
         for next_idx in range(idx + 1, len(self._fields)):
             block = self.query_one(f"#field-block-{next_idx}", Vertical)
             if block.display:
-                self.query_one(f"#field-input-{next_idx}", Input).focus()
+                editor = self.query_one(
+                    f"#field-input-{next_idx}", SingleLineVimTextArea
+                )
+                editor.focus()
+                editor._update_vim_mode_display()
                 return True
         return False
 
@@ -303,7 +307,11 @@ class InputCollectionModal(ModalScreen["dict[str, str] | None"]):
             block.display = self._optional_revealed
         self.query_one("#toggle-optional", Button).label = self._optional_toggle_label()
         if self._optional_revealed and self._optional:
-            self.query_one(f"#field-input-{len(self._required)}", Input).focus()
+            editor = self.query_one(
+                f"#field-input-{len(self._required)}", SingleLineVimTextArea
+            )
+            editor.focus()
+            editor._update_vim_mode_display()
 
     def _try_confirm(self) -> None:
         if not self._all_valid():

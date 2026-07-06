@@ -9,10 +9,11 @@ user can fix it without losing what they typed.
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, Label
+from textual.widgets import Label
 
 from sase.ace.agent_query import AgentQueryParseError, parse_agent_query
 from sase.ace.tui.modals.query_edit_modal import QueryEditModal
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 class _TestApp(App[str | None]):
@@ -121,8 +122,8 @@ async def test_no_validator_dismisses_unconditionally() -> None:
 
         # Even garbage dismisses cleanly — no validator means the legacy
         # CLs-tab behavior is preserved.
-        query_input = modal.query_one("#query-input", Input)
-        query_input.value = "(((bad"
+        query_input = modal.query_one("#query-input", SingleLineVimTextArea)
+        query_input.text = "(((bad"
         await pilot.press("enter")
         await pilot.pause()
 

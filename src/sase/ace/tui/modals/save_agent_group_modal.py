@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
 @dataclass(frozen=True)
@@ -17,15 +19,8 @@ class SaveAgentGroupResult:
     name: str | None
 
 
-class _GroupNameInput(Input):
-    """Input with readline-style cursor key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-        ("ctrl+a", "home", "Home"),
-        ("ctrl+e", "end", "End"),
-    ]
+class _GroupNameInput(SingleLineVimTextArea):
+    """Single-line vim editor for optional saved-group names."""
 
 
 class SaveAgentGroupModal(ModalScreen[SaveAgentGroupResult | None]):
@@ -66,9 +61,13 @@ class SaveAgentGroupModal(ModalScreen[SaveAgentGroupResult | None]):
     def on_mount(self) -> None:
         """Focus the name input."""
 
-        self.query_one("#save-agent-group-name-input", _GroupNameInput).focus()
+        editor = self.query_one("#save-agent-group-name-input", _GroupNameInput)
+        editor.focus()
+        editor._update_vim_mode_display()
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Submit a confirmed save result."""
 
         name = event.value.strip() or None

@@ -4,16 +4,13 @@ from sase.ace.changespec.project_spec_path import project_spec_basename
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Label
+
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
-class _RenameInput(Input):
-    """Custom Input with readline-style key bindings."""
-
-    BINDINGS = [
-        ("ctrl+f", "cursor_right", "Forward"),
-        ("ctrl+b", "cursor_left", "Backward"),
-    ]
+class _RenameInput(SingleLineVimTextArea):
+    """Single-line vim editor for ChangeSpec names."""
 
 
 class RenameCLModal(ModalScreen[str | None]):
@@ -65,6 +62,7 @@ class RenameCLModal(ModalScreen[str | None]):
         rename_input = self.query_one("#rename-input", _RenameInput)
         rename_input.focus()
         rename_input.select_all()
+        rename_input._update_vim_mode_display()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -73,7 +71,9 @@ class RenameCLModal(ModalScreen[str | None]):
         else:
             self.dismiss(None)
 
-    def on_input_submitted(self, _event: Input.Submitted) -> None:
+    def on_single_line_vim_text_area_submitted(
+        self, _event: SingleLineVimTextArea.Submitted
+    ) -> None:
         """Handle Enter key in input."""
         self._submit_value()
 
@@ -82,8 +82,8 @@ class RenameCLModal(ModalScreen[str | None]):
         from sase.workflows.commit.changespec_queries import changespec_exists
         from sase.core.changespec import has_suffix
 
-        rename_input = self.query_one("#rename-input", Input)
-        new_name = rename_input.value.strip()
+        rename_input = self.query_one("#rename-input", _RenameInput)
+        new_name = rename_input.text.strip()
 
         # Check empty
         if not new_name:
