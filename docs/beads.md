@@ -174,13 +174,18 @@ beads linked to the ChangeSpec they are intended to produce.
 ### `sase bead list`
 
 List issues with optional filtering. Without `--status`, the command lists `open` and `in_progress` issues; pass
-`--status=closed` when you need closed history. `--status`, `--type`, and `--tier` are repeatable.
+`--status=closed` when you need closed history. When the default open/in-progress query is empty and no explicit
+`--status` was given, the command falls back to listing closed beads. `--status`, `--type`, and `--tier` are repeatable.
 
-| Flag           | Values                          | Description                   |
-| -------------- | ------------------------------- | ----------------------------- |
-| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable) |
-| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)   |
-| `--tier`       | `plan`, `epic`, `legend`        | Filter by plan-bead tier      |
+| Flag           | Values                          | Description                                                                           |
+| -------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
+| `-s, --status` | `open`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `-t, --type`   | `plan`, `phase`                 | Filter by type (repeatable)                                                           |
+| `--tier`       | `plan`, `epic`, `legend`        | Filter by plan-bead tier                                                              |
+| `-n, --limit`  | integer                         | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+
+Open/in-progress listings are unlimited by default. Whenever the final status scope includes `closed` and `--limit` is
+omitted, only the newest 20 beads print; pass `--limit 0` for the full closed history.
 
 ### `sase bead search <query>`
 

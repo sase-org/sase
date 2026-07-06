@@ -50,8 +50,9 @@ If SASE is already installed, install plugins interactively from the TUI:
 5. Press `i` to install and confirm the preview modal. The preview shows the exact `uv` command and the resolved package
    set before anything runs.
 
-The install runs as a tracked background task (watch it on the **Tasks** tab) and the plugin's entry points are
-discovered on the next `sase` run. The same tab uninstalls plugins with `x`.
+The install runs as a tracked background task (watch it on the **Tasks** tab). When the install actually changes the
+package set, SASE automatically restarts the axe daemon (and shows a post-restart toast in ACE) so the plugin's entry
+points are picked up immediately. The same tab uninstalls plugins with `x`.
 
 The CLI equivalents are `sase plugin list`, `sase plugin show <plugin>`, `sase plugin install <plugin>`, and
 `sase plugin uninstall <plugin>` — see [docs/plugins.md](docs/plugins.md). Note that browsing the plugin catalog (in the
@@ -91,6 +92,8 @@ The **Updates** tab (press `#` in `sase ace`, then `5`) is also the recommended 
 - Press `U` to update only the highlighted installed plugin when its row shows an update available (SASE core stays
   pinned).
 - Press `r` to refresh the catalog and latest-version data, and `o` to toggle offline (cache-only) mode.
+- Press `m` to switch the install mode between managed PyPI wheels and dev (editable) checkouts — the TUI analog of
+  `sase update --to dev|pypi`.
 - Every mutation previews first: the confirm modal shows the exact `uv` command (or the git fast-forward plan for
   editable dev checkouts) before anything changes. The confirmation _is_ the dry run.
 - A successful update that changed code automatically restarts ACE and the axe daemon so running surfaces pick up the
@@ -101,12 +104,14 @@ The **Updates** tab (press `#` in `sase ace`, then `5`) is also the recommended 
 ```bash
 sase update            # update sase + all installed plugins together
 sase update -n         # dry run: preview the exact plan, change nothing
+sase update -t dev     # switch the install to dev (editable) checkouts
+sase update -t pypi    # switch the install back to managed PyPI wheels
 sase plugin update -a  # upgrade every installed plugin, leaving sase core pinned
 ```
 
 Both paths require the canonical `uv tool install sase` install method. See
 [docs/plugins.md](docs/plugins.md#updating-sase-and-plugins-sase-update) for details, including how editable / dev
-checkouts are updated.
+checkouts are updated and how install-mode switching works.
 
 ## System commands SASE uses at runtime
 

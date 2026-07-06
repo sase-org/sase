@@ -50,9 +50,17 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 | Tab                   | Description                                                |
 | --------------------- | ---------------------------------------------------------- |
-| **PRs** (ChangeSpecs) | Browse and act on ChangeSpecs matching the current query   |
 | **Agents**            | View running and completed agents, their files and prompts |
+| **PRs** (ChangeSpecs) | Browse and act on ChangeSpecs matching the current query   |
 | **Axe**               | Monitor the Axe daemon and background commands             |
+
+Agents is the first tab and the startup default. Each tab has a contextual guide: press `,?` (leader mode) to open the
+current tab's guide modal, which summarizes what the tab shows and its most useful keybindings.
+
+On first use, empty tabs render onboarding states instead of blank panels: the PRs tab shows a getting-started card when
+no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — its launch hint
+only appears when a launchable target exists, and it can recommend installing plugins from the Admin Center when no
+third-party plugins are installed. Onboarding cards carry "learn more" links into the published docs.
 
 ## Keybindings: PRs Tab
 
@@ -215,6 +223,7 @@ The modal supports live filtering as you type in the search box and displays las
 | `,<space>` | Run agent from current PR (skips project selection)                                  |
 | `,.`       | Open prompt history modal                                                            |
 | `,>`       | Open prompt history modal with cancelled prompts visible                             |
+| `,?`       | Open the current tab's guide modal                                                   |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
 project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; PR
@@ -547,16 +556,17 @@ visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric
-strip in the form `N Agents [S stopped · R running · W waiting · F failed · U unread · D done]`, with numeric counts in
-place of the letters and zero-count metrics omitted. `stopped` counts agents paused for plan approval, questions, or
-workflow human-input steps; `running` excludes waiting, failed, and stopped rows; `waiting` is the blocked/queued
-subset; `failed` is terminal failed work; `unread` counts terminal rows that still need acknowledgement; and `done` is
-completed visible work that has already been acknowledged. During startup the metric strip renders `Agents: …` until the
-first agent scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping;
-cycling only changes the current session. **Waiting** holds agents that are blocked but progressing on their own —
-`WAITING` with a time wait (`%wait(time=5m)`, `%wait(time=1430)`) or a non-empty `waiting_for` dependency. **Stopped**
-keeps the strict "you need to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there
-because it's parked waiting on the user.
+strip in the form `N [S stopped · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place
+of the letters and zero-count metrics omitted. The leading `N` is the top-level agent total, including agents still in
+the `STARTING` bucket. `stopped` counts agents paused for plan approval, questions, or workflow human-input steps;
+`running` excludes waiting, failed, and stopped rows; `waiting` is the blocked/queued subset; `failed` is terminal
+failed work; `unread` counts terminal rows that still need acknowledgement; and `done` is completed visible work that
+has already been acknowledged. During startup the metric strip renders `Agents: …` until the first agent scan has
+loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the
+current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a time wait
+(`%wait(time=5m)`, `%wait(time=1430)`) or a non-empty `waiting_for` dependency. **Stopped** keeps the strict "you need
+to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there because it's parked waiting on
+the user.
 
 ### Agent Row Glyphs
 
@@ -675,6 +685,7 @@ actions operate on terminal rows that are loaded in the Agents tab; `,j` only ta
 | `,<space>` | Run agent from current agent's PR (skips selection)                                          |
 | `,.`       | Open prompt history modal                                                                    |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                     |
+| `,?`       | Open the current tab's guide modal                                                           |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused
@@ -825,6 +836,7 @@ numerical identity.
 | `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
 | `,U` | Update sase, core, and plugins (opens Updates confirmation prompt)                   |
 | `,R` | Show runners info                                                                    |
+| `,?` | Open the current tab's guide modal                                                   |
 
 ### Bang Mode (`!` prefix)
 
@@ -881,7 +893,7 @@ These work on all tabs:
 
 | Key                 | Action                                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------------------ |
-| `Tab` / `Shift+Tab` | Switch between PRs, Agents, and Axe tabs                                                         |
+| `Tab` / `Shift+Tab` | Switch between Agents, PRs, and Axe tabs                                                         |
 | `#`                 | Open SASE Admin Center (Config, Logs, Projects, Tasks, Updates, XPrompts; `1`–`6` jump to a tab) |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                       |
@@ -921,7 +933,7 @@ can search by command label, key sequence (e.g. `%n`, `,A`, `zc`), category, or 
   row (not a group banner) is focused.
 - Each row shows the keybinding, the command label, and a category badge such as `Navigation`, `PR Actions`,
   `Agent Actions`, `Copy`, or `Leader`.
-- A title-bar badge (`PRs`, `Agents`, or `AXE`) reflects the current tab.
+- A title-bar badge (`Agents`, `PRs`, or `AXE`) reflects the current tab.
 
 **Keybindings inside the palette:**
 
@@ -1002,13 +1014,13 @@ the fix.
 
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted alias:
 
-| Key         | Action                                                                                     |
-| ----------- | ------------------------------------------------------------------------------------------ |
-| `o`         | **Override** — set/change a time-bound temporary override (model picker → duration picker) |
-| `x`         | **Clear** — remove the temporary override on this alias                                    |
-| `e`         | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
-| `r`         | **Reset** — unset the configured value back to its implicit fallback                       |
-| `Esc` / `q` | Close the panel                                                                            |
+| Key           | Action                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `o` / `Enter` | **Override** — set/change a time-bound temporary override (model picker → duration picker) |
+| `x`           | **Clear** — remove the temporary override on this alias                                    |
+| `e`           | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
+| `r`           | **Reset** — unset the configured value back to its implicit fallback                       |
+| `Esc` / `q`   | Close the panel                                                                            |
 
 ### Temporary overrides
 
@@ -1018,7 +1030,8 @@ Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlight
 - An override on **`default`** drives the no-`%model` launch default and renders in the existing gold top-bar pill — its
   behavior is unchanged.
 - An override on **any other alias** takes effect wherever that alias is resolved (e.g. `@coder`, `@phase_worker`), and
-  is surfaced by a distinct, concise violet top-bar pill summarizing how many non-default overrides are active.
+  is surfaced by a distinct, concise violet top-bar pill: a single active override renders as
+  `Override @<alias> <time-left>`, and several render as an `Overrides ×N` count.
 
 Overrides apply only to default selection: explicit prompt directives (`%model:codex/o3`,
 `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit `provider_name` argument always win, already-running
@@ -1055,7 +1068,8 @@ Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User ali
 - Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured
   `llm_provider.model_aliases.builtin.coder` value is updated and committed (and pushed / `chezmoi apply`-ed when
   `use_chezmoi` is set).
-- Highlight an alias, `x` — clear its temporary override; `r` — unset its configured value back to `@default`.
+- Highlight an alias, `x` — clear its temporary override; `r` — unset its configured value back to its implicit
+  fallback.
 
 See [docs/llms.md](llms.md#temporary-model-overrides) for the resolution order and state-file format.
 
@@ -1080,6 +1094,7 @@ notification action types are supported:
 | `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                            |
 | `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the PRs tab                               |
 | `JumpToMentorReview` | Mentors         | Jumps to the ChangeSpec and opens mentor review output when available           |
+| `LaunchApproval`     | Agent           | Opens the launch approval modal for an agent-requested launch                   |
 | `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
 | `Tmux`               | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`   |
 | `UserQuestion`       | Agent           | Opens the structured user-question response modal                               |
@@ -1159,7 +1174,7 @@ Press `Ctrl+O` to start the guided creation flow:
 
 ## Jump All Modal
 
-Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across PRs, Agents, and Axe tabs
+Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across Agents, PRs, and Axe tabs
 with single-keypress hint characters for instant navigation. Selecting an entry switches to the appropriate tab and
 focuses it.
 
@@ -1171,7 +1186,7 @@ many entries can still fit a unique single-keypress hint per row without resorti
 | Hint char   | Jump to the corresponding entry |
 | `Esc` / `q` | Close modal                     |
 
-The modal groups entries by tab (PRs, Agents, Axe) and shows contextual information for each: PR names and statuses,
+The modal groups entries by tab (Agents, PRs, Axe) and shows contextual information for each: PR names and statuses,
 agent names with running indicators, and Axe lumberjack/command labels.
 
 ### Jump Back
@@ -1199,7 +1214,7 @@ the Mentor Review modal.
 
 ## Tab Bar Display
 
-The tab bar renders plain tab labels (`PRs`, `Agents`, `AXE`). Per-bucket counts live inside each tab's body — for
+The tab bar renders plain tab labels (`Agents`, `PRs`, `AXE`). Per-bucket counts live inside each tab's body — for
 example the per-panel count summaries on the Agents tab — rather than as suffixes on the tab title itself.
 
 ### Background Task Indicator
@@ -1434,6 +1449,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
+- **Slow tool calls**: The metadata header lists the agent's slowest LLM tool calls (calls exceeding the slow-call
+  threshold), ordered by start time. For a root agent the list aggregates calls across its children while attributing
+  each call to the child that made it.
 - **Wait state**: For an agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view shows a
   `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
   known agents or agent-family roots, and marks unknown names with `?` so typos and stale references are obvious. Timed
@@ -1574,17 +1592,18 @@ Tale, Epic, or Legend. These choices map to the same response protocol used by e
 runs the coder without asking the runner to commit an SDD plan, Tale commits under `sdd/tales`, Epic commits under
 `sdd/epics`, and Legend commits under `sdd/legends`.
 
-| Key          | Action                        |
-| ------------ | ----------------------------- |
-| `Enter`      | Choose the highlighted action |
-| `a`          | Highlight Approve             |
-| `t`          | Highlight Tale                |
-| `e`          | Highlight Epic                |
-| `l`          | Highlight Legend              |
-| `m`          | Select coder model            |
-| `p`          | Edit additional coder prompt  |
-| `Ctrl+N`/`P` | Next / previous action        |
-| `q` / `Esc`  | Cancel                        |
+| Key          | Action                                    |
+| ------------ | ----------------------------------------- |
+| `Enter`      | Choose the highlighted action             |
+| `a`          | Highlight Approve                         |
+| `t`          | Highlight Tale                            |
+| `e`          | Highlight Epic                            |
+| `l`          | Highlight Legend                          |
+| `m`          | Select coder model                        |
+| `p`          | Edit additional coder prompt              |
+| `1`-`9`      | Toggle an "Also run" custom family member |
+| `Ctrl+N`/`P` | Next / previous action                    |
+| `q` / `Esc`  | Cancel                                    |
 
 The dialog keeps the custom coder prompt and follow-up model controls:
 
@@ -1603,6 +1622,21 @@ The dialog keeps the custom coder prompt and follow-up model controls:
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.
+
+When the family has defined custom lifecycle roles (see [Agent Families](agent_families.md)), the dialog also renders an
+**"Also run:"** section listing each defined member as `[x]/[ ] <label>  after <role>`. Digit keys `1`-`9` toggle
+members for this approval; the default-checked state comes from each role's `default` setting merged with the project's
+`agent_family.plan_approval.default_members` config. The same selection is available from the CLI with
+`sase plan approve --with <role> --without <role>`. While a custom-role member runs, its row shows the role's display
+`label` (for example `TESTING`), and its `done_label` after completion — presentation only, on top of the normal status
+buckets.
+
+### Launch Approval
+
+Launches requested by a running agent (see [Agent-initiated launches](agent_families.md#agent-initiated-launches))
+arrive as priority notifications with a `LaunchApproval` action. Selecting one opens the launch approval modal, which
+renders the request's human-readable preview (`launch_preview.md`): press `a` to approve, `r` to reject, and `q` or
+`Esc` to cancel. The CLI equivalents are `sase launch approve <selector>` and `sase launch reject <selector>`.
 
 ## Linked Chats in Multi-Step Workflows
 

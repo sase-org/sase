@@ -13,6 +13,7 @@ and CLI flags.
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
   - [ace](#ace)
+  - [agent_family](#agent_family)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
   - [linked_repos](#linked_repos)
@@ -31,6 +32,7 @@ and CLI flags.
   - [bead](#bead)
   - [workspace](#workspace)
   - [telemetry](#telemetry)
+  - [update](#update)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 - [Directory Sharding](#directory-sharding)
@@ -118,6 +120,7 @@ metadata; offline mode skips those remote checks. The context-sensitive keymaps 
 | `x`       | Uninstall the highlighted plugin (only when installed)                                      |
 | `u`       | Run `sase update` for SASE core plus all installed plugins                                  |
 | `U`       | Update the highlighted installed plugin when that row has an update available               |
+| `m`       | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)            |
 | `r`       | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)               |
 | `Ctrl+D`  | Scroll the detail panel down                                                                |
 | `Ctrl+U`  | Scroll the detail panel up                                                                  |
@@ -329,8 +332,8 @@ directly by the `+` token; it is not disabled by `auto_xprompt_menu`. Manual `Ct
 works regardless of these automatic-completion settings.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
-reserved aliases, and configured model aliases; provider short aliases are shown as filter/display hints but are not
-inserted.
+implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_creator`, `@epic_lander`, `@phase_worker`), and
+configured model aliases; provider short aliases are shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. A resolvable `#cd` reference takes
 precedence; without `#cd`, registered workspace-provider refs and known-project refs such as `#git:<project>` or
@@ -340,6 +343,25 @@ the manual `Ctrl+R` recursive finder.
 
 Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
 `src/sase/ace/tui/widgets/prompt_completion_root.py`, `src/sase/ace/tui/widgets/recursive_file_finder.py`
+
+### agent_family
+
+Configures dynamic agent-family behavior. See [docs/agent_families.md](agent_families.md) for the full agent-family
+reference, including custom `kind: agent_family` role definitions.
+
+```yaml
+agent_family:
+  plan_approval:
+    default_members: {}
+```
+
+| Field                                        | Type | Default | Description                                                                                                                                                                        |
+| -------------------------------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_family.plan_approval.default_members` | map  | `{}`    | Per-project sticky defaults for custom members at the plan-approval gate: role id → `true` (default on) or `false` (default off), overriding each role definition's own `default`. |
+
+Explicit selections at the gate (TUI toggles or `sase plan approve --with/--without`) always win over these defaults.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
 ### llm_provider
 
@@ -1095,6 +1117,21 @@ telemetry:
 | `telemetry.health_thresholds.p95_latency_critical` | float | `600.0`          | P95 latency threshold (seconds) for CRITICAL.    |
 
 Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
+
+### update
+
+Configures install-mode switching (see [Install mode switching](plugins.md#install-mode-switching)).
+
+```yaml
+update:
+  dev_root: "~/projects/github"
+```
+
+| Field             | Type | Default             | Description                                                                                               |
+| ----------------- | ---- | ------------------- | --------------------------------------------------------------------------------------------------------- |
+| `update.dev_root` | str  | `~/projects/github` | Base directory for dev-mode editable checkouts, materialized owner-nested as `<dev_root>/<owner>/<repo>`. |
+
+Source: `src/sase/default_config.yml`, `src/sase/mode_switch/repos.py`
 
 ## Environment Variables
 

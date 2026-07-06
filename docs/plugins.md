@@ -170,6 +170,8 @@ sase update            # update sase + all plugins
 sase update -n         # dry run: preview the uv or dev-update plan, change nothing
 sase update -q         # quiet: print only a one-line summary
 sase update -j         # stable machine-readable JSON
+sase update -t dev     # switch the install to dev (editable) mode; see below
+sase update -t pypi    # switch the install back to managed PyPI mode
 ```
 
 Typical output highlights what changed, marks what was already current, and reminds you to restart long-running agents:
@@ -204,7 +206,8 @@ Axe restarted (pid 12345) to load the updated code.
   daemon loads the new code. In the Admin Center Updates tab, SASE restarts ACE and axe through the same restart path as
   the `Q` restart action. No-op and failed updates do not restart anything.
 - **The Admin Center mirrors the split.** In the Updates tab, `u` runs the full SASE update for core plus installed
-  plugins, while `U` updates the highlighted installed plugin when that row has an update available.
+  plugins, `U` updates the highlighted installed plugin when that row has an update available, and `m` switches the
+  install mode (see [Install mode switching](#install-mode-switching)).
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would run and exits `0` without
   changing anything. uv itself has no dry-run, so sase resolves and prints the managed plan itself.
 - **`-j|--json`** emits `schema_version: 2` with a stable, sorted payload. Managed outcomes are reported under
@@ -235,6 +238,22 @@ those editable requirements from the receipt and upgrades each one in place from
 A normal `uv tool install sase` user is unaffected by this path, while a contributor running editable installs gets the
 same one-command update. `-n|--dry-run` previews the planned git/uv commands for both modes, and the `-j|--json` payload
 (schema version `2`) reports per-root dev outcomes alongside the managed package outcomes.
+
+### Install mode switching
+
+`sase update -t/--to dev|pypi` switches the whole install between the two modes instead of updating within one:
+
+- **`--to dev`** establishes the dev (editable) state for you: it clones (or fast-forwards) the SASE checkouts, runs the
+  editable reinstall, and rebuilds the local `sase-core-rs` extension. Dev checkouts materialize owner-nested under the
+  `update.dev_root` config key (default `~/projects/github`) as `<dev_root>/<owner>/<repo>` — for example
+  `~/projects/github/sase-org/sase` — cloned via SSH URLs. Legacy flat `~/projects/git/<repo>` checkouts are no longer
+  reused; SASE warns about them, and you can either set `update.dev_root` or move the tree into the owner-nested layout.
+- **`--to pypi`** returns the install to managed mode, reinstalling published wheels through `uv`.
+- Switching to the mode you are already in is a no-op. `-n|--dry-run` previews the plan; without `-y|--yes` an
+  interactive confirmation is required, and cancelling exits non-zero. A changed switch restarts axe (and ACE plus axe
+  when driven from the Updates tab) through the shared restart path.
+- **In the Admin Center Updates tab, press `m`** to switch mode interactively: it shows the current mode and dev root,
+  confirms, runs the switch as a background task, and shows a restart toast.
 
 ## Installing and updating plugins (`sase plugin install` / `sase plugin update`)
 
@@ -276,6 +295,9 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
 - **`-n|--dry-run`** prints the exact `uv` command (and, for install, the resulting plugin set) and exits `0` without
   changing anything. **`-j|--json`** emits a stable, sorted payload with `schema_version`, the resolved `command`, and
   per-package outcomes; **`-r|--refresh`** refetches the catalog before resolving a name.
+- **Restart after real package changes.** Like `sase update`, `sase plugin install`, `update`, and `uninstall` restart
+  the axe daemon from the CLI when uv actually changed installed packages, and show an operation-specific post-restart
+  toast when driven from ACE. The JSON payload carries the same restart status shape as `sase update`.
 
 ### Removing a plugin (`sase plugin uninstall`)
 

@@ -135,9 +135,10 @@ SASE keeps durable state outside any one chat session:
   checkout.
 - **Update workflow** - ACE caches latest-version checks by default, shows startup and top-bar update signals when SASE
   or installed plugins are behind, and uses the Admin Center **Updates** tab for review. That tab shows SASE core/plugin
-  versions, optional incoming commit previews, and dry-run confirmation modals; press `u` for full `sase update` or `U`
-  for the highlighted plugin when that row has an update available. Successful changed updates from ACE restart ACE and
-  axe, and self-updates can show a one-shot post-update confirmation toast.
+  versions, optional incoming commit previews, and dry-run confirmation modals; press `u` for full `sase update`, `U`
+  for the highlighted plugin when that row has an update available, or `m` to switch the install between managed PyPI
+  wheels and dev (editable) checkouts (the `sase update --to dev|pypi` analog). Successful changed updates from ACE
+  restart ACE and axe, and self-updates can show a one-shot post-update confirmation toast.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed
@@ -183,7 +184,10 @@ SASE keeps durable state outside any one chat session:
   write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without
   committing an SDD plan, commits the plan as a tale/epic/legend before the follow-up, or records the approved plan in
   SDD and stops there. A no-feedback rejection writes the response first, then attempts to kill and dismiss the matching
-  planner row when it can be found.
+  planner row when it can be found. Custom agent-family members defined in `kind: agent_family` YAML can be toggled per
+  approval (TUI digit toggles or `sase plan approve --with/--without`) with sticky per-project defaults, and launches
+  requested by running agents are gated behind `LaunchApproval` requests resolved in ACE or with
+  `sase launch approve/reject`.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and enforces only configured numbered Git linked-repo workspaces
   opened during the run with `sase workspace open -p ...`. Static linked repos (`workspace.strategy: none`) are reported
@@ -216,6 +220,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [ProjectSpec and project lifecycle](https://sase.sh/project_spec/) ([local](docs/project_spec.md))
 - [Beads](https://sase.sh/beads/) ([local](docs/beads.md))
 - [Workflows](https://sase.sh/workflow_spec/) ([local](docs/workflow_spec.md))
+- [Agent Families](https://sase.sh/agent_families/) ([local](docs/agent_families.md))
 - [Workspaces](https://sase.sh/workspace/) ([local](docs/workspace.md))
 - [Mentors](https://sase.sh/mentors/) ([local](docs/mentors.md))
 - [Commit Workflows](https://sase.sh/commit_workflows/) ([local](docs/commit_workflows.md))

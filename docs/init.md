@@ -77,6 +77,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase skill list`                     | Inspect generated skill sources, provider targets, and deployed-file drift without writing. |
 | `sase skill init`                     | Generate skill files; existing files require confirmation or `--force`.                     |
 | `sase skill init --dry-run`           | Preview generated skill target paths without writing files.                                 |
+| `sase skill init --check`             | Report generated skill-file drift without writing files.                                    |
 | `sase skill init --force`             | Generate and overwrite deployed skill files without confirmation.                           |
 | `sase skill init -p <provider>`       | Deploy only one provider's generated skill files.                                           |
 | `sase skill log`                      | Summarize or inspect audited generated skill-use events.                                    |
@@ -84,8 +85,8 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase init skills`                    | Compatibility alias for `sase skill init`.                                                  |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
-the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory or
-only SDD generated files.
+the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory,
+only SDD, or only skill generated files.
 
 ## Agent Documents
 
