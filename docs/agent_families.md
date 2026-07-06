@@ -28,7 +28,7 @@ Every family member records an `agent_family_role` derived from its name suffix:
 | Suffix                                          | Role                              | Status labels                                                                                               |
 | ----------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `plan`, `q`, `code`, `epic`, `legend`, `commit` | The corresponding built-in role   | Built-in role statuses (e.g. coder statuses)                                                                |
-| Numeric, or `@`                                 | `feedback` (a feedback/Q&A round) | Feedback-round statuses                                                                                     |
+| Numeric (`@` in `%n` allocates the next number) | `feedback` (a feedback/Q&A round) | Feedback-round statuses                                                                                     |
 | Any other word (`reviewer`, `tester`, ...)      | The word itself (open set)        | Generic RUNNING/DONE, unless a custom role definition supplies [display labels](#custom-role-status-labels) |
 
 The reserved suffixes are exactly the built-in plan-chain roles; custom role definitions may not reuse them.
@@ -54,9 +54,11 @@ The full grammar, parent-resolution rules, queueing semantics, error messages, a
 in the [XPrompts doc](xprompt.md#supported-directives); the `#with_feedback` / `#with_q_and_a` reference is under
 [Bundled Follow-Up XPrompts](xprompt.md#bundled-follow-up-xprompts).
 
-A manually attached member is metadata-identical to a runner-created follow-up, so custom roles attached with
-`%n(foo, improve_plan)` and roles inserted by the family evaluator are indistinguishable to the TUI (grouping, statuses,
-dismissal).
+A manually attached member writes the same family metadata as a runner-created follow-up, so ACE groups, statuses, and
+dismisses it like any other member. A manual attach does not run the custom lifecycle machinery, though: even when the
+suffix matches a defined custom role (`%n(foo, tester)`), the member runs your prompt with generic RUNNING/DONE labels.
+Display labels, prompt templates, and visit caps apply only to members the family evaluator inserts itself (see
+[Custom Lifecycle Roles](#custom-lifecycle-roles)).
 
 ## Custom Lifecycle Roles
 
@@ -81,18 +83,18 @@ Top-level fields:
 
 Per-role fields (unknown keys are load errors):
 
-| Field                 | Required | Values / default                                      | Notes                                                                                                                                          |
-| --------------------- | -------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `suffix`              | no       | default `--<role_id>`; must match `^--[A-Za-z0-9_]+$` | Must not collide with the reserved suffixes (`--plan`, `--q`, `--code`, `--epic`, `--legend`, `--commit`)                                      |
-| `prompt_template`     | yes      | an xprompt reference string                           | Validated against the xprompt catalog; format placeholders: `plan_file`, `source_artifacts`, `artifacts_ref`, `outcome`, `source_role`, `role` |
-| `placement`           | yes      | mapping with required `after: <role>`                 | `after: plan` binds to the plan-approval gate; `after: code` (and other terminal roles) binds to role completion                               |
-| `on_done`             | yes      | `re_review` \| `continue` \| `terminate`              | `re_review` sends the role's output back into the plan gate                                                                                    |
-| `on_failure`          | yes      | `notify_and_continue` \| `notify_and_stop`            |                                                                                                                                                |
-| `auto`                | yes      | `run` \| `skip` (no default)                          | Whether `%auto` flows include this role; definitions without it are rejected                                                                   |
-| `max_visits`          | no       | positive int, default `3`                             | Loop cap; at the cap the evaluator hard-stops the loop and terminates normally                                                                 |
-| `default`             | no       | bool, default `false`                                 | Whether the member is toggled on by default at the plan gate                                                                                   |
-| `label`, `done_label` | no       | ≤ 24 chars, `^[A-Za-z0-9][A-Za-z0-9 _/-]*$`           | Display-only status labels; see [Custom Role Status Labels](#custom-role-status-labels)                                                        |
-| `delegated_budget(s)` | no       | reserved                                              | Accepted and snapshotted but not yet interpreted                                                                                               |
+| Field                 | Required | Values / default                                      | Notes                                                                                                                                                |
+| --------------------- | -------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `suffix`              | no       | default `--<role_id>`; must match `^--[A-Za-z0-9_]+$` | Must not collide with the reserved suffixes (`--plan`, `--q`, `--code`, `--epic`, `--legend`, `--commit`)                                            |
+| `prompt_template`     | yes      | an xprompt reference string                           | Validated against the xprompt catalog; format placeholders: `plan_file`, `source_artifacts`, `artifacts_ref`, `outcome`, `source_role`, `role`       |
+| `placement`           | yes      | mapping with required `after: <role>`                 | `after: plan` binds to the plan-approval gate; `after: code` (and other terminal roles) binds to role completion                                     |
+| `on_done`             | yes      | `re_review` \| `continue` \| `terminate`              | Declared follow-on intent, validated and recorded in the run snapshot; looping is driven by the role's prompt template (see [Loop Caps](#loop-caps)) |
+| `on_failure`          | yes      | `notify_and_continue` \| `notify_and_stop`            |                                                                                                                                                      |
+| `auto`                | yes      | `run` \| `skip` (no default)                          | Whether `%auto` flows include this role; definitions without it are rejected                                                                         |
+| `max_visits`          | no       | positive int, default `3`                             | Loop cap; at the cap the evaluator hard-stops the loop and terminates normally                                                                       |
+| `default`             | no       | bool, default `false`                                 | Whether the member is toggled on by default at the plan gate                                                                                         |
+| `label`, `done_label` | no       | ≤ 24 chars, `^[A-Za-z0-9][A-Za-z0-9 _/-]*$`           | Display-only status labels; see [Custom Role Status Labels](#custom-role-status-labels)                                                              |
+| `delegated_budget(s)` | no       | reserved                                              | Accepted and snapshotted but not yet interpreted                                                                                                     |
 
 ### Discovery
 
@@ -111,8 +113,9 @@ Valid definitions appear in `sase xprompt list` JSON output with `"type": "agent
 ### Bundled Examples
 
 Two flagship examples ship as **inactive** templates under `src/sase/xprompts/examples/agent_families/` (deliberately
-outside the search path). Copy one into an active xprompts directory — together with its prompt-template xprompt — to
-enable it, then confirm it appears in `sase xprompt list`:
+outside the search path). Copy the `.yml` file into an active xprompts directory to enable it — the prompt templates it
+references (`#agent_family_improve_plan`, `#agent_family_tester`) are already bundled and discoverable — then confirm it
+appears in `sase xprompt list`:
 
 ```yaml
 # improve_plan.yml — re-review loop after the planner
@@ -164,8 +167,9 @@ change; testers do not block the propose step.
 When a family with defined custom members reaches plan approval, you choose which members run for that approval.
 
 - **ACE TUI:** press `c` on the plan-approval modal to open the custom-approval dialog; it renders an "Also run:"
-  section where digit keys `1`-`9` toggle members. Rows show `[x]/[ ] <label>  after <role>`. The default-checked state
-  comes from each role's `default` merged with the project config.
+  section where digit keys `1`-`9` toggle members. Each row shows its toggle digit, a checkbox, the role id, and the
+  role's placement — for example `1 [x] tester after code`. The default-checked state comes from each role's `default`
+  merged with the project config.
 - **CLI:** `sase plan approve <selector> --with <role>` and `--without <role>` (short forms `-w`/`-W`, both repeatable).
   Naming the same role in both flags or naming an unknown role fails with a clear error before the approval is written.
 
@@ -191,16 +195,18 @@ Precedence: explicit gate selection > project config override > the role definit
 
 - **Telegram/mobile approvals** have no member toggles; the notification preview appends `Also run: <ids>` so remote
   users see what will run, and the sticky defaults apply.
-- **`%auto` / `%a` flows** only enable members whose role declares `auto: run` (intersected with the default member
-  ids). Auto plan approval itself remains limited to the `approve`, `tale`, and `epic` kinds.
+- **`%auto` / `%a` flows** only enable members that are both default-enabled (after the sticky defaults are applied) and
+  declare `auto: run`. Auto plan approval itself remains limited to the `approve`, `tale`, and `epic` kinds.
 - The remote `run` choice (the Telegram/mobile "Run" button) archives the approved plan into `sdd/tales/YYYYMM/` exactly
   like an interactive Approve.
 
 ### Loop Caps
 
-Every role has a `max_visits` cap (default 3). Re-review loops (`on_done: re_review`) increment a per-role visit count
-in family state; at the cap the evaluator stops the loop and the run terminates through the normal finalize path,
-recording the exhausted role in the run artifacts. A custom role can never chain directly after itself.
+Every role has a `max_visits` cap (default 3). A re-review loop arises when the role's prompt template resubmits a plan
+(the bundled `improve_plan` template does exactly that), which brings the family back to the plan gate; each time the
+evaluator inserts the role, its per-role visit count in family state increments. At the cap the evaluator stops
+inserting it and the run terminates through the normal finalize path, recording the exhausted role in the run artifacts.
+A custom role can never chain directly after itself.
 
 ## Custom Role Status Labels
 
@@ -248,9 +254,10 @@ instead of spawning anyway.
 
 The plan/questions handoff routes through typed events (`plan_submitted`, `questions_submitted`, `role_completed`)
 evaluated against a family definition by the `standard_plan_chain` evaluator; "what happens next in a family" is
-answered by data instead of hard-coded branches. `role_completed` fires for every family follow-up that completes
-un-killed, which is the seam custom `after: code` roles hook into; the standard chain maps it to terminate, so default
-behavior is unchanged.
+answered by data instead of hard-coded branches. `role_completed` fires for every runner-spawned follow-up that
+completes un-killed, which is the seam custom `after: code` roles hook into; the standard chain maps it to terminate, so
+default behavior is unchanged. (Members attached by hand with `%n` run outside the runner loop, so their completion does
+not raise `role_completed`.)
 
 Family runs snapshot their definition (`agent_family_config_id`/`version`/`hash`) and track progress in additive
 `agent_meta.json` fields (`family_state` with current role, feedback/Q&A round counts, and per-role visit counts, plus
@@ -262,5 +269,6 @@ Two invariants worth knowing:
 
 - **No custom status strings.** Semantic status sets are closed; custom roles get generic RUNNING/DONE semantics with
   display labels layered on top.
-- **v1 metadata is the compatibility contract.** A member attached with `%n` is field-indistinguishable from a
-  runner-created follow-up, so the evaluator handles both without migration.
+- **v1 metadata is the compatibility contract.** A member attached with `%n` writes the same family metadata fields as a
+  runner-created follow-up, so grouping, statuses, and dismissal work identically without migration. Only
+  evaluator-inserted members additionally carry the custom-role snapshot that drives display labels and loop tracking.

@@ -58,9 +58,9 @@ Agents is the first tab and the startup default. Each tab has a contextual guide
 current tab's guide modal, which summarizes what the tab shows and its most useful keybindings.
 
 On first use, empty tabs render onboarding states instead of blank panels: the PRs tab shows a getting-started card when
-no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — its launch hint
-only appears when a launchable target exists, and it can recommend installing plugins from the Admin Center when no
-third-party plugins are installed. Onboarding cards carry "learn more" links into the published docs.
+no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the project/CL
+launch hint appears only when a launchable target exists — and can recommend installing plugins from the Admin Center
+when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published docs.
 
 ## Keybindings: PRs Tab
 
@@ -556,17 +556,17 @@ visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric
-strip in the form `N [S stopped · R running · W waiting · F failed · U unread · D done]`, with numeric counts in place
-of the letters and zero-count metrics omitted. The leading `N` is the top-level agent total, including agents still in
-the `STARTING` bucket. `stopped` counts agents paused for plan approval, questions, or workflow human-input steps;
-`running` excludes waiting, failed, and stopped rows; `waiting` is the blocked/queued subset; `failed` is terminal
-failed work; `unread` counts terminal rows that still need acknowledgement; and `done` is completed visible work that
-has already been acknowledged. During startup the metric strip renders `Agents: …` until the first agent scan has
-loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the
-current session. **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a time wait
-(`%wait(time=5m)`, `%wait(time=1430)`) or a non-empty `waiting_for` dependency. **Stopped** keeps the strict "you need
-to act" semantics: a `WAITING` agent with neither a timer nor a dependency stays there because it's parked waiting on
-the user.
+strip in the form `N [S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with numeric
+counts in place of the letters and zero-count metrics omitted. The leading `N` is the top-level agent total, including
+agents still in the `STARTING` bucket. `stopped` counts agents paused for plan approval, questions, or workflow
+human-input steps; `starting` counts just-launched agents that have not yet surfaced as visible rows; `running` excludes
+waiting, failed, and stopped rows; `waiting` is the blocked/queued subset; `failed` is terminal failed work; `unread`
+counts terminal rows that still need acknowledgement; and `done` is completed visible work that has already been
+acknowledged. During startup the metric strip renders `Agents: …` until the first agent scan has loaded, avoiding a
+misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the current session.
+**Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a time wait (`%wait(time=5m)`,
+`%wait(time=1430)`) or a non-empty `waiting_for` dependency. **Stopped** keeps the strict "you need to act" semantics: a
+`WAITING` agent with neither a timer nor a dependency stays there because it's parked waiting on the user.
 
 ### Agent Row Glyphs
 
@@ -1449,9 +1449,9 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **Slow tool calls**: The metadata header lists the agent's slowest LLM tool calls (calls exceeding the slow-call
-  threshold), ordered by start time. For a root agent the list aggregates calls across its children while attributing
-  each call to the child that made it.
+- **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
+  capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
+  root agent the list aggregates calls across its children while attributing each call to the child that made it.
 - **Wait state**: For an agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view shows a
   `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
   known agents or agent-family roots, and marks unknown names with `?` so typos and stale references are obvious. Timed
@@ -1624,14 +1624,14 @@ The custom approval dialog no longer exposes separate commit/run switches becaus
 commit location and follow-up behavior.
 
 When the family has defined custom lifecycle roles (see [Agent Families](agent_families.md)), the dialog also renders an
-**"Also run:"** section listing each defined member as `[x]/[ ] <label>  after <role>`. Digit keys `1`-`9` toggle
-members for this approval; the default-checked state comes from each role's `default` setting merged with the project's
-`agent_family.plan_approval.default_members` config. The same selection is available from the CLI with
-`sase plan approve --with <role> --without <role>`. While a custom-role member runs, its row shows the role's display
-`label` (for example `TESTING`), and its `done_label` after completion — presentation only, on top of the normal status
-buckets.
+**"Also run:"** section listing each defined member with its toggle digit, a checkbox, the role id, and its placement —
+for example `1 [x] tester after code`. Digit keys `1`-`9` toggle members for this approval; the default-checked state
+comes from each role's `default` setting merged with the project's `agent_family.plan_approval.default_members` config.
+The same selection is available from the CLI with `sase plan approve --with <role> --without <role>`. While a
+custom-role member runs, its Agents-tab row shows the role's display `label` (for example `TESTING`), and its
+`done_label` after completion — presentation only, on top of the normal status buckets.
 
-### Launch Approval
+## Launch Approval
 
 Launches requested by a running agent (see [Agent-initiated launches](agent_families.md#agent-initiated-launches))
 arrive as priority notifications with a `LaunchApproval` action. Selecting one opens the launch approval modal, which
