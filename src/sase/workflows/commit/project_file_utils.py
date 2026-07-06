@@ -31,6 +31,23 @@ def _project_ref_owner(project: str) -> str | None:
         return None
 
 
+def _linked_repo_primary_from_env(project: str) -> str | None:
+    try:
+        from sase.linked_repos import linked_repo_metadata_from_env
+
+        metadata = linked_repo_metadata_from_env(os.environ)
+    except Exception:  # pragma: no cover - creation must not depend on env lookup
+        log.warning("Failed to read linked-repo env metadata", exc_info=True)
+        return None
+
+    for item in metadata:
+        if item.get("name") != project:
+            continue
+        primary_dir = str(item.get("primary_dir") or "").strip()
+        return primary_dir or None
+    return None
+
+
 def create_project_file(project: str) -> bool:
     """Create a new project file if it doesn't exist.
 
@@ -51,8 +68,9 @@ def create_project_file(project: str) -> bool:
 
     project_file = get_project_file_path(project)
     project_dir = os.path.dirname(project_file)
+    linked_repo_primary = _linked_repo_primary_from_env(project)
 
-    if not os.path.isfile(project_file):
+    if not os.path.isfile(project_file) and linked_repo_primary is None:
         owner = _project_ref_owner(project)
         if owner is not None:
             print_status(
@@ -73,9 +91,14 @@ def create_project_file(project: str) -> bool:
     if not os.path.isfile(project_file):
         try:
             # Use atomic write for new file creation
+            content = ""
+            if linked_repo_primary is not None:
+                content = (
+                    f"PROJECT_STATE: sibling\nWORKSPACE_DIR: {linked_repo_primary}\n"
+                )
             write_changespec_atomic(
                 project_file,
-                "",
+                content,
                 f"Create project file for {project}",
             )
             _log_project_creation(project, project_file)

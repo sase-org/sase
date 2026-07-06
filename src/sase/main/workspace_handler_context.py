@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,14 @@ class ProjectContext:
     primary_workspace_dir: str
     store: WorkspaceStore
     is_sibling: bool = False
+
+
+@dataclass(frozen=True)
+class _LinkedRepoProject:
+    name: str
+    primary_dir: str
+    current_project_file: str | None = None
+    current_primary_workspace_dir: str | None = None
 
 
 def resolve_project_context(
@@ -79,6 +88,21 @@ def resolve_project_context(
         )
         raise SystemExit(2)
 
+    try:
+        sibling_ctx = _heal_sibling_project_context(
+            project_name,
+            project_file,
+            primary,
+            load_config=load_config,
+            read_project_lifecycle=read_project_lifecycle,
+            apply_project_lifecycle=apply_project_lifecycle,
+        )
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    if sibling_ctx is not None:
+        return sibling_ctx
+
     store = WorkspaceStore(primary, config=load_config())
     return ProjectContext(
         project_name=project_name,
@@ -105,7 +129,101 @@ def _materialize_sibling_project_context(
     The backing ProjectSpec lifecycle state is still named ``sibling`` (kept as
     legacy backing state for linked-repo bookkeeping during the migration).
     """
+    linked_repo = _configured_linked_repo(project_name, load_config=load_config)
+    if linked_repo is None:
+        return None
+
+    primary = _validate_linked_repo_primary(
+        project_name,
+        linked_repo.primary_dir,
+        current_primary_workspace_dir=linked_repo.current_primary_workspace_dir,
+    )
+    metadata = _sibling_project_metadata(
+        project_name=project_name,
+        project_file=project_file,
+        primary_workspace_dir=primary,
+        current_project_file=linked_repo.current_project_file,
+    )
+    _ensure_sibling_project_spec(
+        project_file,
+        metadata,
+        read_project_lifecycle=read_project_lifecycle,
+        apply_project_lifecycle=apply_project_lifecycle,
+    )
+
+    store = WorkspaceStore(primary, config=load_config())
+    return ProjectContext(
+        project_name=project_name,
+        project_file=project_file,
+        primary_workspace_dir=primary,
+        store=store,
+        is_sibling=True,
+    )
+
+
+def _heal_sibling_project_context(
+    project_name: str,
+    project_file: str,
+    primary_workspace_dir: str,
+    *,
+    load_config: ConfigLoader,
+    read_project_lifecycle: LifecycleReader,
+    apply_project_lifecycle: LifecycleApplier,
+) -> ProjectContext | None:
+    """Stamp configured linked-repo specs as ``sibling`` when needed."""
+    linked_repo = _configured_linked_repo(
+        project_name,
+        load_config=load_config,
+        require_loaded_config_match=True,
+    )
+    if linked_repo is None:
+        return None
+
+    primary = _validate_linked_repo_primary(
+        project_name,
+        primary_workspace_dir,
+        current_primary_workspace_dir=linked_repo.current_primary_workspace_dir,
+    )
+    metadata = _sibling_project_metadata(
+        project_name=project_name,
+        project_file=project_file,
+        primary_workspace_dir=primary,
+        current_project_file=linked_repo.current_project_file,
+    )
+    _ensure_sibling_project_spec(
+        project_file,
+        metadata,
+        read_project_lifecycle=read_project_lifecycle,
+        apply_project_lifecycle=apply_project_lifecycle,
+    )
+
+    store = WorkspaceStore(primary, config=load_config())
+    return ProjectContext(
+        project_name=project_name,
+        project_file=project_file,
+        primary_workspace_dir=primary,
+        store=store,
+        is_sibling=True,
+    )
+
+
+def _configured_linked_repo(
+    project_name: str,
+    *,
+    load_config: ConfigLoader,
+    require_loaded_config_match: bool = False,
+) -> _LinkedRepoProject | None:
     if not is_valid_sase_project_name(project_name):
+        return None
+
+    env_repo = _linked_repo_project_from_env(project_name)
+    if env_repo is not None:
+        return env_repo
+
+    if require_loaded_config_match and not _config_names_linked_repo(
+        project_name,
+        load_config=load_config,
+    ):
         return None
 
     current = _current_project_context(load_config=load_config)
@@ -131,38 +249,65 @@ def _materialize_sibling_project_context(
     if sibling is None:
         return None
 
-    primary = sibling.primary_dir.rstrip("/") or sibling.primary_dir
+    return _LinkedRepoProject(
+        name=sibling.name,
+        primary_dir=sibling.primary_dir,
+        current_project_file=current.project_file,
+        current_primary_workspace_dir=current.primary_workspace_dir,
+    )
+
+
+def _linked_repo_project_from_env(project_name: str) -> _LinkedRepoProject | None:
+    from sase.linked_repos import linked_repo_metadata_from_env
+
+    for item in linked_repo_metadata_from_env(os.environ):
+        if item.get("name") != project_name:
+            continue
+        primary_dir = str(item.get("primary_dir") or "").strip()
+        if not primary_dir:
+            return None
+        return _LinkedRepoProject(name=project_name, primary_dir=primary_dir)
+    return None
+
+
+def _config_names_linked_repo(
+    project_name: str,
+    *,
+    load_config: ConfigLoader,
+) -> bool:
+    try:
+        config = load_config() or {}
+    except Exception:
+        return False
+    for key in ("linked_repos", "sibling_repos"):
+        entries = config.get(key)
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict) and entry.get("name") == project_name:
+                return True
+    return False
+
+
+def _validate_linked_repo_primary(
+    project_name: str,
+    primary_workspace_dir: str,
+    *,
+    current_primary_workspace_dir: str | None,
+) -> str:
+    primary = primary_workspace_dir.rstrip("/") or primary_workspace_dir
     if not Path(primary).is_dir():
         raise RuntimeError(
             f"Configured linked repo '{project_name}' primary path does not exist: "
             f"{primary}"
         )
-    if _is_git_repo(current.primary_workspace_dir) and not _is_git_repo(primary):
+
+    git_reference_dir = current_primary_workspace_dir or os.getcwd()
+    if _is_git_repo(git_reference_dir) and not _is_git_repo(primary):
         raise RuntimeError(
             f"Configured linked repo '{project_name}' is not a Git checkout: {primary}"
         )
-
-    metadata = _sibling_project_metadata(
-        project_name=project_name,
-        project_file=project_file,
-        primary_workspace_dir=primary,
-        current_project_file=current.project_file,
-    )
-    _ensure_sibling_project_spec(
-        project_file,
-        metadata,
-        read_project_lifecycle=read_project_lifecycle,
-        apply_project_lifecycle=apply_project_lifecycle,
-    )
-
-    store = WorkspaceStore(primary, config=load_config())
-    return ProjectContext(
-        project_name=project_name,
-        project_file=project_file,
-        primary_workspace_dir=primary,
-        store=store,
-        is_sibling=True,
-    )
+    return primary
 
 
 def _current_project_context(*, load_config: ConfigLoader) -> ProjectContext | None:
@@ -206,7 +351,7 @@ def _sibling_project_metadata(
     project_name: str,
     project_file: str,
     primary_workspace_dir: str,
-    current_project_file: str,
+    current_project_file: str | None,
 ) -> dict[str, str]:
     metadata = {
         "WORKSPACE_DIR": primary_workspace_dir,
@@ -215,6 +360,9 @@ def _sibling_project_metadata(
     existing_bare_repo_dir = parse_bare_repo_dir(project_file)
     if existing_bare_repo_dir:
         metadata["BARE_REPO_DIR"] = existing_bare_repo_dir
+        return metadata
+
+    if current_project_file is None:
         return metadata
 
     current_bare_repo_dir = parse_bare_repo_dir(current_project_file)

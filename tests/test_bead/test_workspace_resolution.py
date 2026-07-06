@@ -356,6 +356,54 @@ def test_marker_resolves_project_name_from_xdg_state(
     assert infer_project_name_from_cwd() == project_name
 
 
+def test_marker_project_name_is_canonicalized_through_alias_map(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    project_name = "gh_acme__sase"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / "sase"
+    primary.mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(
+        f"PROJECT_NAME: sase\nWORKSPACE_DIR: {primary}\n"
+    )
+
+    managed = tmp_path / "state" / "sase" / "10"
+    managed.mkdir(parents=True)
+    _write_marker(
+        managed,
+        project_name="sase",
+        project_key="key",
+        primary_workspace_dir=primary,
+        workspace_num=10,
+    )
+
+    monkeypatch.chdir(managed)
+    assert infer_project_name_from_cwd() == project_name
+
+
+def test_provider_workspace_name_is_canonicalized_through_alias_map(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    project_name = "gh_acme__sase"
+    project_dir = tmp_path / ".sase" / "projects" / project_name
+    project_dir.mkdir(parents=True)
+    primary = tmp_path / "workspaces" / "sase"
+    primary.mkdir(parents=True)
+    (project_dir / f"{project_name}.sase").write_text(
+        f"PROJECT_NAME: sase\nWORKSPACE_DIR: {primary}\n"
+    )
+
+    monkeypatch.chdir(primary)
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_workspace_name", lambda cwd: "sase"
+    )
+
+    assert infer_project_name_from_cwd() == project_name
+
+
 def test_marker_primary_overrides_sibling_scan(tmp_path: Path, monkeypatch) -> None:
     """resolve_primary_workspace prefers the marker's primary over scanning."""
     monkeypatch.setenv("HOME", str(tmp_path))

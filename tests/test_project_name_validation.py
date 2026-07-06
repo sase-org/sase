@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -137,3 +138,57 @@ def test_ensure_project_file_read_only_returns_existing_project(
     assert project_file == created_file
     assert workspace_num == 1
     assert project_name == "myrepo"
+
+
+def test_ensure_project_file_canonicalizes_workspace_provider_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.main import utils as main_utils
+
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    canonical = "gh_acme__sase"
+    project_dir = sase_home / "projects" / canonical
+    project_dir.mkdir(parents=True)
+    project_file = project_dir / f"{canonical}.sase"
+    project_file.write_text("PROJECT_NAME: sase\nWORKSPACE_DIR: /tmp/sase\n")
+    monkeypatch.setattr(main_utils, "get_workspace_name", lambda _cwd: "sase")
+
+    resolved_file, workspace_num, project_name = (
+        main_utils.ensure_project_file_and_get_workspace_num(create_missing=False)
+    )
+
+    assert resolved_file == str(project_file)
+    assert workspace_num == 1
+    assert project_name == canonical
+    assert not (sase_home / "projects" / "sase").exists()
+
+
+def test_create_project_file_for_linked_repo_env_writes_sibling_spec(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    primary = tmp_path / "sase-core"
+    primary.mkdir()
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setenv(
+        "SASE_LINKED_REPOS_JSON",
+        json.dumps(
+            [
+                {
+                    "name": "sase-core",
+                    "primary_dir": str(primary),
+                    "workspace_strategy": "suffix",
+                }
+            ]
+        ),
+    )
+
+    assert create_project_file("sase-core") is True
+
+    project_file = sase_home / "projects" / "sase-core" / "sase-core.sase"
+    content = project_file.read_text(encoding="utf-8")
+    assert "PROJECT_STATE: sibling\n" in content
+    assert f"WORKSPACE_DIR: {primary}\n" in content

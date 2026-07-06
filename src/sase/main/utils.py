@@ -28,6 +28,15 @@ def _get_project_name() -> str | None:
         return None
     if project_name is not None and not is_valid_sase_project_name(project_name):
         return None
+    if project_name is not None:
+        try:
+            from sase.project_aliases import resolve_project_alias_ref
+
+            project_name = resolve_project_alias_ref(project_name)
+        except Exception:
+            pass
+    if project_name is not None and not is_valid_sase_project_name(project_name):
+        return None
     return project_name
 
 

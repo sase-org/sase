@@ -84,6 +84,7 @@ def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
 
         project_name = get_workspace_name(cwd_abs)
         if project_name and is_valid_sase_project_name(project_name):
+            project_name = _canonicalize_project_ref(project_name)
             project_dir = sase_projects_dir() / project_name
             project_file = Path(
                 preferred_project_spec_path(str(project_dir), project_name)
@@ -118,8 +119,21 @@ def _project_name_from_marker(cwd_abs: str) -> str | None:
     if not project_name or not is_valid_sase_project_name(project_name):
         return None
 
+    project_name = _canonicalize_project_ref(project_name)
     project_dir = sase_projects_dir() / project_name
     project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
     if not project_file.exists():
         return None
+    return project_name
+
+
+def _canonicalize_project_ref(project_name: str) -> str:
+    try:
+        from sase.project_aliases import resolve_project_alias_ref
+
+        canonical = resolve_project_alias_ref(project_name)
+    except Exception:
+        return project_name
+    if canonical and is_valid_sase_project_name(canonical):
+        return canonical
     return project_name

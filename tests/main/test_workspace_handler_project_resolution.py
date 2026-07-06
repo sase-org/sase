@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from types import SimpleNamespace
 from pathlib import Path
@@ -173,6 +174,74 @@ class TestWorkspaceProjectResolution:
         assert f"WORKSPACE_DIR: {sibling}\n" in content
         assert capsys.readouterr().out.strip() == checkout
 
+    def test_env_linked_repo_materializes_when_current_project_is_unknown(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        home = tmp_path / "home"
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.delenv("SASE_HOME", raising=False)
+        main = tmp_path / "main"
+        core = tmp_path / "core"
+        _git_init(main)
+        _git_init(core)
+        monkeypatch.chdir(main)
+        monkeypatch.setenv(
+            "SASE_LINKED_REPOS_JSON",
+            json.dumps(
+                [
+                    {
+                        "name": "core",
+                        "primary_dir": str(core),
+                        "workspace_strategy": "suffix",
+                    }
+                ]
+            ),
+        )
+        monkeypatch.setattr(
+            "sase.bead.project_name.infer_project_name_from_cwd",
+            lambda cwd=None: None,
+        )
+        config = {"workspace": {"root": str(tmp_path / "managed")}}
+        monkeypatch.setattr(
+            "sase.main.workspace_handler.load_merged_config", lambda: config
+        )
+        monkeypatch.setattr("sase.config.core.load_merged_config", lambda: config)
+        _install_lifecycle_stubs(monkeypatch)
+        args = make_args(workspace_subcommand="list", project="core", json=True)
+
+        with pytest.raises(SystemExit) as exc:
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        project_file = home / ".sase" / "projects" / "core" / "core.sase"
+        content = project_file.read_text(encoding="utf-8")
+        assert "PROJECT_STATE: sibling\n" in content
+        assert f"WORKSPACE_DIR: {core}\n" in content
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["project"] == "core"
+
+    def test_implicit_state_linked_repo_spec_is_healed_to_sibling(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        home, _, sibling = _setup_current_project(tmp_path, monkeypatch)
+        project_file = _write_project(
+            home,
+            "core",
+            f"WORKSPACE_DIR: {sibling}\nNAME: core\n",
+        )
+        args = make_args(workspace_subcommand="list", project="core", json=True)
+
+        with pytest.raises(SystemExit) as exc:
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        assert "PROJECT_STATE: sibling\n" in project_file.read_text(encoding="utf-8")
+
     def test_open_existing_sibling_project_spec_records_marker(
         self,
         tmp_path: Path,
@@ -242,6 +311,26 @@ class TestWorkspaceProjectResolution:
     ) -> None:
         home, _, _ = _setup_current_project(tmp_path, monkeypatch)
         _write_project(home, "core", "PROJECT_STATE: active\nNAME: core\n")
+        args = make_args(workspace_subcommand="list", project="core", json=False)
+
+        with pytest.raises(SystemExit) as exc:
+            handle_workspace_command(args)
+
+        assert exc.value.code == 2
+        assert "explicit PROJECT_STATE 'active'" in capsys.readouterr().err
+
+    def test_configured_sibling_with_workspace_dir_and_explicit_active_state_fails(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        home, _, sibling = _setup_current_project(tmp_path, monkeypatch)
+        _write_project(
+            home,
+            "core",
+            f"PROJECT_STATE: active\nWORKSPACE_DIR: {sibling}\nNAME: core\n",
+        )
         args = make_args(workspace_subcommand="list", project="core", json=False)
 
         with pytest.raises(SystemExit) as exc:
