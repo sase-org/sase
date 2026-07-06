@@ -118,6 +118,10 @@ def test_plan_command_pulse_mtime_advances(
         _invoke_plan(plan_file)
         first_mtime = pulse_path.stat().st_mtime_ns
 
+        # The first invocation consumes the scratch plan, so recreate it before
+        # proposing again.
+        plan_file.write_text("# Plan\n", encoding="utf-8")
+
         # Force the filesystem clock to advance so mtime resolution differences
         # don't cause flakes on filesystems with coarse mtime granularity.
         time.sleep(0.01)
@@ -125,3 +129,50 @@ def test_plan_command_pulse_mtime_advances(
         second_mtime = pulse_path.stat().st_mtime_ns
 
     assert second_mtime > first_mtime
+
+
+def test_plan_command_moves_source_into_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``sase plan propose`` archives the formatted plan and consumes the source."""
+    import json
+
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+
+    artifacts_dir = _make_artifacts_dir(sase_home)
+
+    plan_file = tmp_path / "sase_plan_feature.md"
+    plan_file.write_text("# Plan\n\nbody\n", encoding="utf-8")
+
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    formatted = "# Plan\n\nformatted body\n"
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+        ) as kill_mock,
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw.replace("body", "formatted body"),
+        ),
+    ):
+        kill_mock.side_effect = SystemExit(0)
+        _invoke_plan(plan_file)
+
+    # The scratch source file is consumed by the move into the archive.
+    assert not plan_file.exists()
+
+    marker = json.loads(
+        (artifacts_dir / ".sase_plan_pending").read_text(encoding="utf-8")
+    )
+    # ``plan_file`` points at the durable archive copy, which exists on disk.
+    archived_path = Path(marker["plan_file"])
+    assert archived_path.is_file()
+    assert archived_path.parent.parent == sase_home / "plans"
+    assert archived_path.name == "feature.md"  # "sase_plan_" prefix stripped
+    # The archive holds the prettier-formatted content, not the raw source.
+    assert archived_path.read_text(encoding="utf-8") == formatted
+    # ``original_file`` is retained as provenance even though it no longer exists.
+    assert marker["original_file"] == str(plan_file.resolve())

@@ -50,6 +50,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "None of these touch the tracked marker layer."
         ),
     ),
+    "src/sase/llm_provider/_plan_utils.py:move_plan_to_sase": DirOpReview(
+        exemption=(
+            "Moves a submitted scratch plan file into the machine-local "
+            "~/.sase/plans/YYYYMM/ archive, not an agent artifact directory."
+        ),
+    ),
     "src/sase/llm_provider/codex.py:_codex_subprocess_env": DirOpReview(
         exemption="Shadow CODEX_HOME cache, not an agent artifact directory.",
     ),

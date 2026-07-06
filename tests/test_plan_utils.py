@@ -11,7 +11,7 @@ from sase.llm_provider._plan_utils import (
     PlanApprovalResult,
     add_create_time_frontmatter,
     handle_plan_approval,
-    save_plan_to_sase,
+    move_plan_to_sase,
 )
 from sase.main.plan_approve_handler import (
     get_auto_plan_approval_action,
@@ -27,26 +27,48 @@ def _only_plan_approval_response_dir(sase_home: Path, session_id: str) -> Path:
     return matches[0]
 
 
-def test_save_plan_to_sase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that save_plan_to_sase copies to ~/.sase/plans/ with dedup counter."""
-    src_file = tmp_path / "source_plan.md"
+def test_move_plan_to_sase_moves_and_strips_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sase_plan_*.md input is moved into the archive, renamed, and consumed."""
+    src_file = tmp_path / "sase_plan_feature.md"
     src_file.write_text("plan content")
 
     sase_home = tmp_path / ".sase"
     redirect_sase_home(monkeypatch, sase_home)
-    dest1 = save_plan_to_sase(str(src_file))
+    dest = move_plan_to_sase(str(src_file))
 
-    assert dest1.exists()
-    assert dest1.read_text() == "plan content"
+    assert dest.exists()
+    assert dest.read_text() == "plan content"
     # Plans are sharded by YYYYMM; parent is <sase_home>/plans/<shard>.
-    assert dest1.parent.parent == sase_home / "plans"
-    assert dest1.name == "source_plan.md"
+    assert dest.parent.parent == sase_home / "plans"
+    # The "sase_plan_" prefix is stripped from the archived name.
+    assert dest.name == "feature.md"
+    # The scratch source file was consumed by the move.
+    assert not src_file.exists()
 
-    # Second copy should get dedup counter
-    dest2 = save_plan_to_sase(str(src_file))
 
-    assert dest2.exists()
-    assert dest2.name == "source_plan_1.md"
+def test_move_plan_to_sase_dedup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dedup counter still applies when the archive holds the target basename."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+
+    first = tmp_path / "feature.md"
+    first.write_text("first")
+    dest1 = move_plan_to_sase(str(first))
+    assert dest1.name == "feature.md"
+    assert not first.exists()
+
+    # A fresh scratch file with the same basename gets a dedup counter.
+    second = tmp_path / "feature.md"
+    second.write_text("second")
+    dest2 = move_plan_to_sase(str(second))
+
+    assert dest2.name == "feature_1.md"
+    assert dest2.read_text() == "second"
+    assert not second.exists()
 
 
 def test_add_create_time_frontmatter_no_existing() -> None:

@@ -145,8 +145,14 @@ def _mark_auto_approved_plan_handled(
         pass
 
 
-def save_plan_to_sase(plan_file: str) -> Path:
-    """Copy a plan file to a sharded ``~/.sase/plans/YYYYMM/`` location."""
+def move_plan_to_sase(plan_file: str) -> Path:
+    """Move a plan file into a sharded ``~/.sase/plans/YYYYMM/`` location.
+
+    The submitted scratch file is consumed: on a same-filesystem move this is a
+    rename, and a cross-filesystem move copies then unlinks the source. The
+    ``sase_plan_`` prefix is stripped from the archived name, and the existing
+    dedup counter keeps distinct copies when the target basename already exists.
+    """
     from sase.core.paths import find_sharded_file, sharded_path
 
     src = Path(plan_file)
@@ -171,7 +177,7 @@ def save_plan_to_sase(plan_file: str) -> Path:
                 dest = candidate
                 break
             counter += 1
-    shutil.copy2(src, dest)
+    shutil.move(str(src), str(dest))
     return dest
 
 

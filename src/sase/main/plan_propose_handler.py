@@ -17,7 +17,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
 
     1. Guard: verify SASE_AGENT and SASE_ARTIFACTS_DIR env vars
     2. Validate plan_file exists
-    3. Archive plan to ~/.sase/plans/
+    3. Move plan into the ~/.sase/plans/ archive (consumes the scratch file)
     4. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
     5. Kill the agent runner's process group via SIGTERM
     """
@@ -52,12 +52,14 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     if formatted != raw:
         plan_path.write_text(formatted, encoding="utf-8")
 
-    # Archive plan to ~/.sase/plans/
-    from sase.llm_provider._plan_utils import save_plan_to_sase
+    # Move plan into the ~/.sase/plans/ archive, consuming the scratch file.
+    from sase.llm_provider._plan_utils import move_plan_to_sase
 
-    archived_path = save_plan_to_sase(str(plan_path))
+    archived_path = move_plan_to_sase(str(plan_path))
 
-    # Write .sase_plan_pending marker JSON
+    # Write .sase_plan_pending marker JSON. ``plan_file`` points at the durable
+    # archive copy; ``original_file`` is retained for provenance/debugging even
+    # though the scratch file no longer exists after the move above.
     marker_path = Path(artifacts_dir) / ".sase_plan_pending"
     marker_data = {
         "plan_file": str(archived_path),
