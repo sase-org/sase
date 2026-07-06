@@ -8,6 +8,7 @@ from textual.widgets import OptionList
 from sase.ace.tui.modals.agent_artifacts_modal import (
     AgentArtifactSelectionModal,
     AgentArtifactSelectionResult,
+    _artifact_option_text,
     _artifact_selector_keys,
 )
 from tests.ace.tui.modals.agent_artifacts_modal_test_helpers import (
@@ -306,3 +307,12 @@ async def test_artifact_modal_rejects_misaligned_agent_labels() -> None:
             agent_labels=["only-one"],
             agent_count=2,
         )
+
+
+def test_artifact_modal_labels_video_suffix_as_video() -> None:
+    artifact = _artifact(1, path="/tmp/render.mp4", kind="file")
+
+    text = _artifact_option_text("1", artifact)
+
+    assert "[video]" in text.plain
+    assert "[file]" not in text.plain

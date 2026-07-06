@@ -4,10 +4,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from rich.console import Console
 from rich.console import Group
 from rich.text import Text
 
-from sase.ace.tui.graphics import ImageViewerResult
+from sase.ace.tui.graphics import ArtifactViewerResult
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.notifications import Notification
 
@@ -94,6 +95,46 @@ def test_notification_modal_current_image_path_tracks_file_index(
     assert modal._get_current_image_path() == str(image)
 
 
+def test_notification_modal_uses_video_placeholder_before_text_read(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    video = tmp_path / "notification.mp4"
+    video.write_bytes(b"video")
+    notification = Notification(
+        id="n1",
+        timestamp="2026-04-30T12:00:00-04:00",
+        sender="test",
+        files=[str(video)],
+    )
+    modal = NotificationModal([notification])
+    title = MagicMock()
+    content = MagicMock()
+    scroll = MagicMock()
+
+    def fake_query_one(selector, _type=None):
+        if selector == "#notification-file-title":
+            return title
+        if selector == "#notification-file-content":
+            return content
+        if selector == "#notification-file-scroll":
+            return scroll
+        raise AssertionError(selector)
+
+    monkeypatch.setattr(modal, "query_one", fake_query_one)
+
+    modal._display_file(notification)
+
+    content.update.assert_called_once()
+    console = Console(record=True, width=100, color_system=None)
+    console.print(content.update.call_args[0][0])
+    output = console.export_text()
+    assert "▶ video" in output
+    assert "notification.mp4" in output
+    assert "press V to play" in output
+    scroll.scroll_home.assert_called_once_with(animate=False)
+
+
 def test_notification_image_size_uses_scroll_viewport(monkeypatch) -> None:
     modal = NotificationModal([])
     content = MagicMock()
@@ -150,13 +191,13 @@ def test_notification_view_image_action_runs_viewer_inside_suspend(
     modal.notify = MagicMock()  # type: ignore[method-assign]
     calls: list[str] = []
 
-    def fake_viewer(path: str) -> ImageViewerResult:
+    def fake_viewer(path: str) -> ArtifactViewerResult:
         calls.append(path)
         assert suspend_recorder.entered is True
-        return ImageViewerResult(True)
+        return ArtifactViewerResult(True)
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.notification_modal_attachments.view_image_file",
+        "sase.ace.tui.modals.notification_modal_attachments.view_artifact_file",
         fake_viewer,
     )
 
@@ -168,6 +209,45 @@ def test_notification_view_image_action_runs_viewer_inside_suspend(
         modal.action_view_image()
 
     assert calls == [str(image)]
+    modal.notify.assert_not_called()
+
+
+def test_notification_view_image_action_runs_viewer_for_video(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    video = tmp_path / "notification.webm"
+    video.write_bytes(b"video")
+    notification = Notification(
+        id="n1",
+        timestamp="2026-04-30T12:00:00-04:00",
+        sender="test",
+        files=[str(video)],
+    )
+    modal = NotificationModal([notification])
+    modal._get_highlighted_notification = lambda: notification  # type: ignore[method-assign]
+    suspend_recorder = _SuspendRecorder()
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+    calls: list[str] = []
+
+    def fake_viewer(path: str) -> ArtifactViewerResult:
+        calls.append(path)
+        assert suspend_recorder.entered is True
+        return ArtifactViewerResult(True)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.notification_modal_attachments.view_artifact_file",
+        fake_viewer,
+    )
+
+    with patch.object(
+        NotificationModal,
+        "app",
+        new=SimpleNamespace(suspend=lambda: suspend_recorder),
+    ):
+        modal.action_view_image()
+
+    assert calls == [str(video)]
     modal.notify.assert_not_called()
 
 
@@ -183,11 +263,14 @@ def test_notification_view_image_action_warns_for_non_image(monkeypatch) -> None
     modal.notify = MagicMock()  # type: ignore[method-assign]
     viewer = MagicMock()
     monkeypatch.setattr(
-        "sase.ace.tui.modals.notification_modal_attachments.view_image_file",
+        "sase.ace.tui.modals.notification_modal_attachments.view_artifact_file",
         viewer,
     )
 
     modal.action_view_image()
 
     viewer.assert_not_called()
-    modal.notify.assert_called_once_with("No image visible", severity="warning")
+    modal.notify.assert_called_once_with(
+        "No image or video visible",
+        severity="warning",
+    )

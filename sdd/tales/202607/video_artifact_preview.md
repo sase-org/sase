@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 16:51:31
-status: wip
+status: done
 prompt: sdd/prompts/202607/video_artifact_preview.md
 ---
 # Plan: Terminal Video Preview for Agent Artifacts (mpv)

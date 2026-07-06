@@ -13,6 +13,7 @@ from sase.ace.tui.graphics import (
     image_render_context,
     image_preview_size_for_viewport,
     is_supported_image_path,
+    is_supported_video_path,
 )
 
 from ...util.lazy_syntax import lazy_renderable
@@ -273,6 +274,11 @@ class FilePanelDisplayMixin:
             self._static_request_id += 1
             self._display_static_image(expanded_path)
             return
+        if is_supported_video_path(expanded_path):
+            self._cancel_static_worker()
+            self._static_request_id += 1
+            self._display_static_video(expanded_path)
+            return
         self._schedule_static_read(file_path, mode="file")
 
     def _schedule_static_read(self, path: str, *, mode: str) -> None:
@@ -322,6 +328,9 @@ class FilePanelDisplayMixin:
             # between the schedule path and the worker. Re-route to the image
             # display now that we're back on the UI thread.
             self._display_static_image(result.expanded_path)
+            return
+        if result.status == "video":
+            self._display_static_video(result.expanded_path)
             return
         if result.mode == "file":
             self._render_static_file_result(result)
@@ -480,6 +489,26 @@ class FilePanelDisplayMixin:
         self._post_file_visibility(has_file=os.path.exists(expanded_path))  # type: ignore[attr-defined]
         self._post_trim_changed()  # type: ignore[attr-defined]
 
+    def _display_static_video(self, expanded_path: str) -> None:
+        """Display a static video placeholder instead of reading binary text."""
+        cleanup = self._consume_image_cleanup_segments()
+
+        self._full_content = None
+        self._full_content_lexer = "text"  # type: ignore[attr-defined]
+        self._content_mode = "video"  # type: ignore[attr-defined]
+        self._static_header_path = expanded_path
+        self._total_line_count = 6  # type: ignore[attr-defined]
+        self._visible_line_count = 6  # type: ignore[attr-defined]
+        self._base_trim_size = 0  # type: ignore[attr-defined]
+        self._is_trimmed = False  # type: ignore[attr-defined]
+
+        header = Text(expanded_path, style="bold #D7AF5F underline")
+        placeholder = _video_file_placeholder(expanded_path)
+        self.update(Group(*cleanup, header, Text(""), placeholder))  # type: ignore[attr-defined]
+        self._has_displayed_content = True  # type: ignore[attr-defined]
+        self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
+        self._post_trim_changed()  # type: ignore[attr-defined]
+
     def _image_render_context(self) -> ImageRenderContext:
         """Return the image preview rendering context."""
         return image_render_context()
@@ -496,3 +525,16 @@ class FilePanelDisplayMixin:
     def _consume_image_cleanup_segments(self) -> list[RenderableType]:
         """Compatibility no-op for surfaces that used image cleanup state."""
         return []
+
+
+def _video_file_placeholder(expanded_path: str) -> Text:
+    name = os.path.basename(expanded_path) or expanded_path
+    text = Text()
+    text.append("▶ video", style="bold #D7AF5F")
+    text.append("\n")
+    text.append(name, style="bold #87D7FF")
+    text.append("\n")
+    text.append(expanded_path, style="dim")
+    text.append("\n\n")
+    text.append("use the view key to play", style="dim italic")
+    return text

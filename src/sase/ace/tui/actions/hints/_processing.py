@@ -94,9 +94,11 @@ class InputProcessingMixin(HintMixinBase):
             )
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
         else:
-            from ...graphics import is_supported_image_path
+            from ...graphics import is_supported_image_path, is_supported_video_path
 
-            if any(is_supported_image_path(f) for f in files):
+            if any(
+                is_supported_image_path(f) or is_supported_video_path(f) for f in files
+            ):
                 self._view_files_with_artifact_viewer(files)  # type: ignore[attr-defined]
             else:
                 self._view_files_with_pager(files)  # type: ignore[attr-defined]

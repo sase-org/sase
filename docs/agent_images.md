@@ -69,8 +69,8 @@ Default artifact persistence also scans the saved prompt files in the agent arti
 Any path-like token ending in a common image suffix or supported video suffix is resolved as an absolute, home-relative,
 or workspace-relative path. Existing files are added after `done.json.image_paths` and `done.json.video_paths`,
 duplicates are removed, and the file does not need to appear in the agent's git diff. Images and GIFs are added as
-`image` artifacts. Prompt-referenced videos are added as ordinary `file` artifacts until ACE has dedicated video preview
-semantics.
+`image` artifacts. Prompt-referenced videos are added as ordinary `file` artifacts; ACE detects the video suffix at view
+time and opens them with the video preview path.
 
 This is useful when a prompt asks an agent to inspect or transform an existing screenshot, mockup, reference image, or
 reference video and the resulting run should keep that source media one keypress away in ACE.
@@ -156,9 +156,9 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 The Agents tab exposes completed agent artifacts through the `a` key. When artifacts exist, ACE opens the artifact panel
 for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos,
 prompt-referenced media, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]`
-all use the same list. Generated videos are stored as ordinary `file` artifacts until ACE has a dedicated video preview
-mode. The panel is shown even for a single artifact so users can confirm the artifact label, kind, and path before
-opening it.
+all use the same list. Generated videos are stored as ordinary `file` artifacts, but the picker labels supported video
+suffixes as `[video]` and the viewer opens them with terminal video playback. The panel is shown even for a single
+artifact so users can confirm the artifact label, kind, and path before opening it.
 
 The selected agent's prompt/detail header also includes an `ARTIFACTS` section for non-chat artifacts. Paths are shown
 relative to the agent workspace when possible, home-relative when appropriate, and with hint numbers when hint mode is
@@ -174,19 +174,50 @@ When ACE is running inside tmux, the artifact viewer launches in a right-side tm
 while the pane is live. Press `l` from the Agents tab to focus the tracked artifact pane, or press `a` again to close
 it. Row-changing navigation is guarded while the pane is open so the TUI does not drift to a different agent than the
 viewer. Outside tmux, ACE suspends and opens the viewer in the current terminal pane. The viewer chooses its mode from
-the artifact kind and file extension: supported images are displayed directly, PDFs are converted to PNG pages, and
-Markdown is rendered to PDF before paging. The page loop uses `j`/`k` to move between pages, wrapping at the first and
-last page, `n`/`p` to move between artifacts in a sequence, `r` to refresh, and `q` to close the viewer.
+the artifact kind and file extension: supported images are displayed directly, supported videos play with mpv, PDFs are
+converted to PNG pages, and Markdown is rendered to PDF before paging. The page loop uses `j`/`k` to move between pages,
+wrapping at the first and last page, `n`/`p` to move between artifacts in a sequence, `r` to refresh or replay the
+current artifact, and `q` to close the viewer.
 
 Only one plan artifact is listed for each agent. If run metadata contains both an archived plan path and an SDD tale
 path, committed plans prefer the SDD path; uncommitted plans prefer the archived path unless only the SDD path is
 available.
 
-Viewer dependencies are intentionally outside the agent completion path. `kitten` is required for terminal display,
-`pdftoppm` is required for PDF/Markdown paging, and Markdown rendering also needs `pandoc` plus one supported PDF
-engine. If a dependency is missing, ACE shows a warning instead of failing the TUI or changing the stored artifact list.
+Viewer dependencies are intentionally outside the agent completion path. `kitten` is required for image/PDF/Markdown
+terminal display, `mpv` is required for terminal video playback, `pdftoppm` is required for PDF/Markdown paging, and
+Markdown rendering also needs `pandoc` plus one supported PDF engine. If a dependency is missing, ACE shows a warning
+instead of failing the TUI or changing the stored artifact list.
 
 Source: `src/sase/ace/tui/graphics/viewer.py`
+
+### Video Preview
+
+ACE plays `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same artifact viewer used for images and PDFs. Inside
+tmux, selecting a video opens the tracked right-side artifact pane; outside tmux, ACE suspends and plays in the current
+terminal. Playback uses `mpv --vo=kitty` by default, bounded to the same cell area used for image artifacts.
+
+While mpv is running, mpv owns playback keys: `space` pauses or resumes, arrow keys seek, `m` toggles mute, and `q`
+stops playback. After playback exits, the artifact viewer footer returns with the usual navigation keys: `r` replays,
+`n`/`p` move through a multi-artifact sequence, `z` toggles tmux zoom when available, `<tab>` focuses the SASE TUI from
+a tmux artifact pane, and `q` closes the viewer.
+
+Videos are muted by default because SASE often runs on a remote host or inside tmux where the server audio device is not
+useful. Configure playback under `ace.artifact_viewer.video`:
+
+```yaml
+ace:
+  artifact_viewer:
+    video:
+      audio: false
+      loop: false
+      vo: "kitty"
+      extra_mpv_args: []
+```
+
+Set `audio: true` to start unmuted, `loop: true` to pass `--loop-file=inf`, `vo` to use another mpv video output such as
+`tct`, and `extra_mpv_args` to append additional mpv flags after SASE defaults. SASE launches mpv with `--no-config` so
+user mpv profiles cannot break the curated terminal preview; put viewer-specific customization in the SASE config
+instead.
 
 ## ACE Image Preview Foundation
 

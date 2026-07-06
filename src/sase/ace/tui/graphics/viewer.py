@@ -35,11 +35,14 @@ from ._viewer_launch import (
     view_image_file,
 )
 from ._viewer_loop import (
+    ArtifactVideoPlaybackConfig,
     artifact_image_area,
     artifact_header_panel,
     artifact_text_viewer_command,
+    artifact_video_player_command,
     format_artifact_header_path,
     kitten_icat_command,
+    load_artifact_video_playback_config,
     page_index_after_key,
     page_loop_available_keys,
     print_page_prompt,
@@ -62,6 +65,7 @@ from ._viewer_types import (
     ArtifactViewSpec,
     ImageViewerResult,
 )
+from .videos import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
 
 _artifact_header_panel = artifact_header_panel
 _artifact_viewer_module_command = artifact_viewer_module_command
@@ -103,6 +107,7 @@ def run_artifact_sequence_loop(
     select_pane: Callable[[str], ArtifactViewerResult] | None = None,
     tmux_zoom_available: bool | None = None,
     toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
+    video_config: ArtifactVideoPlaybackConfig | None = None,
 ) -> _viewer_loop._PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -119,6 +124,7 @@ def run_artifact_sequence_loop(
             select_pane=select_pane,
             tmux_zoom_available=tmux_zoom_available,
             toggle_zoom=toggle_zoom,
+            video_config=video_config,
         )
     finally:
         _viewer_loop.render_artifact_pages = original
@@ -168,16 +174,21 @@ __all__ = [
     "ArtifactViewSpec",
     "ArtifactViewerResult",
     "ArtifactViewerWarning",
+    "ArtifactVideoPlaybackConfig",
     "ImageViewerResult",
+    "SUPPORTED_VIDEO_EXTENSIONS",
     "artifact_image_area",
     "artifact_markdown_pdf_profile_for_image_area",
     "artifact_text_viewer_command",
+    "artifact_video_player_command",
     "artifact_tmux_pane_exists",
     "artifact_view_mode",
     "close_artifact_tmux_pane",
     "convert_pdf_to_png_pages",
     "is_tmux_session",
+    "is_supported_video_path",
     "kitten_icat_command",
+    "load_artifact_video_playback_config",
     "main",
     "page_index_after_key",
     "page_loop_available_keys",

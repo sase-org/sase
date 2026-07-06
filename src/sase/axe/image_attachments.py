@@ -7,8 +7,9 @@ import subprocess
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
+from sase.media_types import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
+
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
-SUPPORTED_VIDEO_EXTENSIONS = frozenset({".mp4", ".m4v", ".mov", ".webm"})
 SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
 _ATTACHMENT_STATUS_LETTERS = frozenset({"A", "C", "M", "R", "T"})
 
@@ -20,7 +21,7 @@ def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
 
 def _is_supported_video_path(path: str | os.PathLike[str]) -> bool:
     """Return whether *path* has a video extension SASE should attach."""
-    return Path(path).suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
+    return is_supported_video_path(Path(path))
 
 
 def _is_supported_markdown_path(path: str | os.PathLike[str]) -> bool:

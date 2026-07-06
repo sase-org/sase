@@ -3,7 +3,7 @@
 import os
 from dataclasses import dataclass
 
-from ...graphics import is_supported_image_path
+from ...graphics import is_supported_image_path, is_supported_video_path
 from ._messages import _EXTENSION_TO_LEXER
 
 
@@ -22,7 +22,7 @@ class StaticReadResult:
     mode: str  # "file" or "diff"
     path: str
     expanded_path: str
-    status: str  # "ok" | "missing" | "empty" | "image"
+    status: str  # "ok" | "missing" | "empty" | "image" | "video"
     content: str | None = None
     lexer: str = "text"
 
@@ -37,6 +37,14 @@ def read_static_file(request_id: int, path: str, mode: str) -> StaticReadResult:
             path=path,
             expanded_path=expanded_path,
             status="image",
+        )
+    if mode == "file" and is_supported_video_path(expanded_path):
+        return StaticReadResult(
+            request_id=request_id,
+            mode=mode,
+            path=path,
+            expanded_path=expanded_path,
+            status="video",
         )
     try:
         with open(expanded_path, encoding="utf-8") as f:

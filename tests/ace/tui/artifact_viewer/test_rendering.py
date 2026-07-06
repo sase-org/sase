@@ -8,17 +8,21 @@ from rich.console import Console
 from sase.ace.tui.graphics import _viewer_render
 from sase.ace.tui.graphics.viewer import (
     ArtifactImageArea,
+    ArtifactVideoPlaybackConfig,
     ArtifactViewSpec,
     _artifact_header_panel,
     _format_artifact_header_path,
     artifact_image_area,
     artifact_markdown_pdf_profile_for_image_area,
     artifact_text_viewer_command,
+    artifact_video_player_command,
     artifact_view_mode,
     convert_pdf_to_png_pages,
+    is_supported_video_path,
     kitten_icat_command,
     render_artifact_pages,
     run_artifact_text_viewer,
+    SUPPORTED_VIDEO_EXTENSIONS,
     validate_artifact_viewer_dependencies,
     view_artifact_file,
 )
@@ -134,6 +138,56 @@ def test_kitten_icat_command_targets_image_area(tmp_path: Path) -> None:
     ]
 
 
+def test_artifact_video_player_command_targets_image_area(tmp_path: Path) -> None:
+    video = tmp_path / "clip.mp4"
+
+    assert artifact_video_player_command(video, ArtifactImageArea(100, 33)) == [
+        "mpv",
+        "--no-config",
+        "--vo=kitty",
+        "--keep-open=yes",
+        "--vo-kitty-alt-screen=no",
+        "--vo-kitty-config-clear=no",
+        "--vo-kitty-left=0",
+        "--vo-kitty-top=0",
+        "--vo-kitty-cols=100",
+        "--vo-kitty-rows=33",
+        "--mute=yes",
+        "--",
+        str(video.resolve(strict=False)),
+    ]
+
+
+def test_artifact_video_player_command_honors_config(tmp_path: Path) -> None:
+    video = tmp_path / "clip.webm"
+    config = ArtifactVideoPlaybackConfig(
+        audio=True,
+        loop=True,
+        vo="tct",
+        extra_mpv_args=("--profile=low-latency", "--keep-open=no"),
+    )
+
+    command = artifact_video_player_command(
+        video,
+        ArtifactImageArea(100, 33),
+        config,
+    )
+
+    assert command == [
+        "mpv",
+        "--no-config",
+        "--vo=tct",
+        "--keep-open=yes",
+        "--loop-file=inf",
+        "--profile=low-latency",
+        "--keep-open=no",
+        "--",
+        str(video.resolve(strict=False)),
+    ]
+    assert "--mute=yes" not in command
+    assert not any(arg.startswith("--vo-kitty-") for arg in command)
+
+
 def test_artifact_markdown_pdf_profile_uses_image_area_aspect() -> None:
     profile = artifact_markdown_pdf_profile_for_image_area(
         ArtifactImageArea(columns=100, rows=33)
@@ -219,6 +273,18 @@ def test_validate_artifact_viewer_dependencies_reports_missing_tools(
         "missing_pandoc",
         "missing_pdf_engine",
     ]
+
+
+def test_validate_artifact_viewer_dependencies_reports_missing_mpv(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("sase.ace.tui.graphics.viewer.shutil.which", lambda _tool: None)
+
+    warnings = validate_artifact_viewer_dependencies("video")
+
+    assert [warning.code for warning in warnings] == ["missing_mpv"]
+    assert warnings[0].message == "mpv executable not found"
+    assert warnings[0].tool == "mpv"
 
 
 def test_render_markdown_artifact_uses_transient_pdf_and_pdf_pages(
@@ -329,6 +395,36 @@ def test_unknown_file_artifact_uses_text_mode_without_render_warnings(
     assert artifact_view_mode(artifact, kind="file") == "text"
     assert artifact_view_mode(artifact, kind="json") == "text"
     assert validate_artifact_viewer_dependencies("text") == ()
+
+
+def test_video_file_artifact_uses_video_mode_without_render_pages(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    artifact = tmp_path / "demo.mp4"
+    artifact.write_bytes(b"video")
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
+    )
+
+    result = render_artifact_pages(artifact, kind="file", cache_dir=tmp_path / "cache")
+
+    assert result.pages == ()
+    assert result.warnings == ()
+    assert artifact_view_mode(artifact, kind="file") == "video"
+    assert artifact_view_mode(artifact, kind=None) == "video"
+    assert artifact_view_mode(artifact.with_suffix(".webm"), kind="video") == "video"
+
+
+def test_video_suffix_helper_matches_axe_attachment_constant() -> None:
+    from sase.axe.image_attachments import (
+        SUPPORTED_VIDEO_EXTENSIONS as AXE_VIDEO_EXTENSIONS,
+    )
+
+    assert SUPPORTED_VIDEO_EXTENSIONS == AXE_VIDEO_EXTENSIONS
+    assert is_supported_video_path("render.MOV")
+    assert not is_supported_video_path("render.gif")
 
 
 def test_artifact_text_viewer_command_prefers_bat(tmp_path: Path, monkeypatch) -> None:

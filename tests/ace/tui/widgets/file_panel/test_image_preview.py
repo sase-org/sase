@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from rich.console import Console
 from rich.console import Group
 from rich.text import Text
 
@@ -40,6 +41,9 @@ def _make_file_panel() -> MagicMock:
     panel._image_preview_size = MagicMock(return_value=(33, 9))
     panel._display_static_image = types.MethodType(
         AgentFilePanel._display_static_image, panel
+    )
+    panel._display_static_video = types.MethodType(
+        AgentFilePanel._display_static_video, panel
     )
     # Async-static-read state used by display_static_file.
     panel._static_request_id = 0
@@ -102,6 +106,32 @@ def test_agent_file_panel_current_image_path_requires_visible_existing_image(
 
     panel._current_file_index = 3
     assert panel.get_current_image_path() is None
+
+
+def test_agent_file_panel_uses_video_placeholder_before_text_read(
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "render.mp4"
+    video.write_bytes(b"video")
+    panel = _make_file_panel()
+    panel.run_worker = MagicMock()
+
+    AgentFilePanel.display_static_file(panel, str(video))
+
+    panel.run_worker.assert_not_called()
+    assert panel._content_mode == "video"
+    assert panel._static_header_path == str(video)
+    assert panel._full_content is None
+    panel.post_message.assert_called()
+    assert panel.post_message.call_args[0][0].has_file is True
+    group = panel.update.call_args[0][0]
+    assert isinstance(group, Group)
+    console = Console(record=True, width=100, color_system=None)
+    console.print(group)
+    output = console.export_text()
+    assert "▶ video" in output
+    assert "render.mp4" in output
+    assert "use the view key to play" in output
 
 
 def test_agent_file_panel_image_size_uses_scroll_viewport() -> None:

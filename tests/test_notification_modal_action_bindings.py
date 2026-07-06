@@ -11,7 +11,7 @@ from tests._notification_modal_helpers import _make_notification
 
 
 def test_notification_modal_binds_capital_v_to_view_image() -> None:
-    assert ("V", "view_image", "View Image") in NotificationModal.BINDINGS
+    assert ("V", "view_image", "View") in NotificationModal.BINDINGS
 
 
 def test_notification_modal_binds_capital_y_to_copy_file_path() -> None:
@@ -46,6 +46,7 @@ def test_notification_modal_binds_brackets_to_tag_tabs() -> None:
 def test_notification_modal_footer_hint_advertises_tag_tab_brackets() -> None:
     """The default footer exposes square-bracket tag navigation."""
     assert "[]: tags" in DEFAULT_HINT_TEXT
+    assert "V: view" in DEFAULT_HINT_TEXT
     assert Content.from_markup(DEFAULT_HINT_TEXT).plain == DEFAULT_HINT_TEXT
 
 

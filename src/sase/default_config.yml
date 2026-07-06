@@ -37,6 +37,12 @@ mobile_gateway:
 ace:
   repro_output_dir: ""
   snippets: {}
+  artifact_viewer:
+    video:
+      audio: false
+      loop: false
+      vo: "kitty"
+      extra_mpv_args: []
   updates:
     startup_toast: true
     post_update_toast: true

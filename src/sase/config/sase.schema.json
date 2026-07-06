@@ -149,6 +149,50 @@
             "type": "string"
           }
         },
+        "artifact_viewer": {
+          "type": "object",
+          "description": "Settings for ACE's external artifact viewer panes",
+          "additionalProperties": false,
+          "properties": {
+            "video": {
+              "type": "object",
+              "description": "mpv-backed terminal video artifact playback settings",
+              "additionalProperties": false,
+              "properties": {
+                "audio": {
+                  "type": "boolean",
+                  "description": "Start video playback unmuted",
+                  "default": false
+                },
+                "loop": {
+                  "type": "boolean",
+                  "description": "Loop video playback with mpv --loop-file=inf",
+                  "default": false
+                },
+                "vo": {
+                  "type": "string",
+                  "description": "mpv video output driver for terminal video playback",
+                  "default": "kitty"
+                },
+                "extra_mpv_args": {
+                  "description": "Additional mpv arguments appended after SASE defaults",
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "default": []
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
         "updates": {
           "type": "object",
           "description": "Startup update-check behavior for the ACE Updates tab",

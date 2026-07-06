@@ -124,11 +124,11 @@ class FileViewingMixin(HintMixinBase):
     def _view_files_with_artifact_viewer(self, files: list[str]) -> None:
         """View selected files through the terminal artifact viewer.
 
-        Used when the selection contains at least one supported image so image
-        binaries render with ``kitten icat`` instead of being piped through
-        ``bat``/``cat``. Non-image files in a mixed selection keep the artifact
-        viewer's existing mode detection (markdown, PDF, text). Requires
-        suspend, matching the pager flow.
+        Used when the selection contains at least one supported image or video
+        so media binaries render through the artifact viewer instead of being
+        piped through ``bat``/``cat``. Non-media files in a mixed selection keep
+        the artifact viewer's existing mode detection (Markdown, PDF, text).
+        Requires suspend, matching the pager flow.
         """
         from ...graphics import (
             ArtifactViewSpec,

@@ -28,6 +28,7 @@ from ._viewer_types import (
     ArtifactViewMode,
 )
 from .images import is_supported_image_path
+from .videos import is_supported_video_path
 
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
 _MIN_ARTIFACT_PAGE_WIDTH_IN = 4.25
@@ -70,7 +71,7 @@ def render_artifact_pages(
                 ),
             ),
         )
-    if mode == "text":
+    if mode in {"text", "video"}:
         if not expanded.is_file():
             return ArtifactRenderResult(
                 (),
@@ -81,6 +82,10 @@ def render_artifact_pages(
                     ),
                 ),
             )
+        if mode == "video":
+            warnings = validate_artifact_viewer_dependencies(mode)
+            if warnings:
+                return ArtifactRenderResult((), tuple(warnings))
         return ArtifactRenderResult(())
 
     warnings = validate_artifact_viewer_dependencies(mode)
@@ -114,6 +119,8 @@ def artifact_view_mode(
     normalized = str(kind).lower() if kind is not None else ""
     if normalized == "image" or is_supported_image_path(path):
         return "image"
+    if normalized == "video" or is_supported_video_path(path):
+        return "video"
     if normalized == "pdf" or suffix == ".pdf":
         return "pdf"
     if normalized == "markdown" or suffix in _MARKDOWN_SUFFIXES:
@@ -129,12 +136,20 @@ def validate_artifact_viewer_dependencies(
     """Return missing terminal/rendering dependencies for *mode*."""
 
     warnings: list[ArtifactViewerWarning] = []
-    if mode != "text" and shutil.which("kitten") is None:
+    if mode in {"image", "markdown", "pdf"} and shutil.which("kitten") is None:
         warnings.append(
             ArtifactViewerWarning(
                 "missing_kitten",
                 "kitten executable not found",
                 tool="kitten",
+            )
+        )
+    if mode == "video" and shutil.which("mpv") is None:
+        warnings.append(
+            ArtifactViewerWarning(
+                "missing_mpv",
+                "mpv executable not found",
+                tool="mpv",
             )
         )
     if mode in {"markdown", "pdf"} and shutil.which("pdftoppm") is None:

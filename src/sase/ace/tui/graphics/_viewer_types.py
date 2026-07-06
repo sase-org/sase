@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-ArtifactViewMode = Literal["image", "markdown", "pdf", "text"]
+ArtifactViewMode = Literal["image", "markdown", "pdf", "text", "video"]
 
 
 class ArtifactLike(Protocol):

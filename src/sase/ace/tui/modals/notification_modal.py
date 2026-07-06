@@ -55,7 +55,7 @@ class NotificationModal(
         ("y", "confirm_dismiss_notification", "Confirm Dismiss"),
         ("n", "cancel_dismiss_notification", "Cancel Dismiss"),
         ("e", "open_in_editor", "Edit"),
-        ("V", "view_image", "View Image"),
+        ("V", "view_image", "View"),
         ("Y", "copy_file_path", "Copy path"),
         ("ctrl+n", "next_file", "Next File"),
         ("ctrl+p", "prev_file", "Previous File"),

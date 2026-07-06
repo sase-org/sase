@@ -19,6 +19,6 @@ ACTION_BADGES: dict[str | None, str] = {
 
 HEADER_ID_PREFIX = "hdr:"
 DEFAULT_HINT_TEXT = (
-    "Enter: select  m: mark  x: dismiss  M: mute  s: snooze  e: edit  V: image  Y: copy path  "
+    "Enter: select  m: mark  x: dismiss  M: mute  s: snooze  e: edit  V: view  Y: copy path  "
     "C-n/C-p: next/prev file  C-d/C-u: scroll  R: read all  []: tags  q: close"
 )

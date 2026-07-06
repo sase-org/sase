@@ -8,6 +8,8 @@ from sase.ace.tui.graphics.viewer import (
     ArtifactRenderResult,
     ArtifactViewerResult,
     ArtifactViewSpec,
+    ArtifactVideoPlaybackConfig,
+    artifact_video_player_command,
     run_artifact_sequence_loop,
 )
 
@@ -376,3 +378,168 @@ def test_run_artifact_sequence_loop_repeated_tab_does_not_re_render(
         _test_icat_command(page),
         ["clear"],
     ]
+
+
+def test_run_artifact_sequence_loop_plays_video_artifact(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"video")
+    specs = (ArtifactViewSpec(video, "file"),)
+    commands: list[list[str]] = []
+    keys = iter(["q"])
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics._viewer_render.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
+    )
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        video_config=ArtifactVideoPlaybackConfig(),
+    )
+
+    assert result.returncode == 0
+    assert commands == [
+        ["clear"],
+        artifact_video_player_command(video, _TEST_IMAGE_AREA),
+        ["clear"],
+    ]
+    output = capsys.readouterr().out
+    assert "Viewing artifact" in output
+    assert "▶ Video" in output
+    assert "r: refresh" in _strip_ansi(output)
+
+
+def test_run_artifact_sequence_loop_replays_video_artifact(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    video = tmp_path / "clip.webm"
+    video.write_bytes(b"video")
+    specs = (ArtifactViewSpec(video, "file"),)
+    commands: list[list[str]] = []
+    keys = iter(["r", "q"])
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics._viewer_render.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
+    )
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        video_config=ArtifactVideoPlaybackConfig(),
+    )
+
+    assert result.returncode == 0
+    assert commands == [
+        ["clear"],
+        artifact_video_player_command(video, _TEST_IMAGE_AREA),
+        ["clear"],
+        artifact_video_player_command(video, _TEST_IMAGE_AREA),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_sequence_loop_navigates_video_to_image(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    video = tmp_path / "clip.mov"
+    video.write_bytes(b"video")
+    image = tmp_path / "image.png"
+    image.write_bytes(b"png")
+    page = tmp_path / "page-1.png"
+    page.write_bytes(b"png")
+    specs = (
+        ArtifactViewSpec(video, "file"),
+        ArtifactViewSpec(image, "image"),
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics.viewer.render_artifact_pages",
+        lambda *args, **kwargs: ArtifactRenderResult((page,)),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics._viewer_render.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
+    )
+    commands: list[list[str]] = []
+    keys = iter(["n", "q"])
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        video_config=ArtifactVideoPlaybackConfig(),
+    )
+
+    assert result.returncode == 0
+    assert commands == [
+        ["clear"],
+        artifact_video_player_command(video, _TEST_IMAGE_AREA),
+        ["clear"],
+        _test_icat_command(page),
+        ["clear"],
+    ]
+
+
+def test_run_artifact_sequence_loop_keeps_prompt_after_mpv_failure(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    video = tmp_path / "clip.m4v"
+    video.write_bytes(b"video")
+    specs = (ArtifactViewSpec(video, "file"),)
+    commands: list[list[str]] = []
+    keys = iter(["q"])
+    monkeypatch.setattr(
+        "sase.ace.tui.graphics._viewer_render.shutil.which",
+        lambda tool: f"/usr/bin/{tool}" if tool == "mpv" else None,
+    )
+
+    def fake_run(cmd):
+        commands.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 2 if cmd[0] == "mpv" else 0)
+
+    result = run_artifact_sequence_loop(
+        specs,
+        cache_root=tmp_path / "cache",
+        read_key=lambda: next(keys),
+        run_command=fake_run,
+        image_area=_TEST_IMAGE_AREA,
+        video_config=ArtifactVideoPlaybackConfig(),
+    )
+
+    assert result.returncode == 0
+    assert commands == [
+        ["clear"],
+        artifact_video_player_command(video, _TEST_IMAGE_AREA),
+        ["clear"],
+    ]
+    output = capsys.readouterr().out
+    assert "mpv failed with exit code 2" in output
+    assert "q: quit" in _strip_ansi(output)

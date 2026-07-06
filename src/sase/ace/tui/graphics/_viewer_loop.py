@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from ._viewer_render import artifact_view_mode, render_artifact_pages
+from ._viewer_render import (
+    artifact_view_mode,
+    render_artifact_pages,
+    validate_artifact_viewer_dependencies,
+)
 from ._viewer_types import (
     ArtifactImageArea,
     ArtifactRenderResult,
@@ -38,6 +43,25 @@ class _PageLoopResult:
 @dataclass(frozen=True)
 class _TextDisplayResult:
     """Terminal text viewer subprocess status."""
+
+    command: tuple[str, ...] = ()
+    returncode: int = 0
+    warnings: tuple[ArtifactViewerWarning, ...] = ()
+
+
+@dataclass(frozen=True)
+class ArtifactVideoPlaybackConfig:
+    """Runtime settings for terminal video artifact playback."""
+
+    audio: bool = False
+    loop: bool = False
+    vo: str = "kitty"
+    extra_mpv_args: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _VideoDisplayResult:
+    """Terminal video player subprocess status."""
 
     command: tuple[str, ...] = ()
     returncode: int = 0
@@ -69,6 +93,98 @@ def artifact_text_viewer_command(path: str | Path) -> list[str]:
             str(expanded),
         ]
     return ["cat", str(expanded)]
+
+
+def artifact_video_player_command(
+    path: str | Path,
+    image_area: ArtifactImageArea,
+    config: ArtifactVideoPlaybackConfig | None = None,
+) -> list[str]:
+    """Build the bounded ``mpv`` command for a terminal video artifact."""
+
+    expanded = Path(path).expanduser().resolve(strict=False)
+    video_config = config or ArtifactVideoPlaybackConfig()
+    vo = video_config.vo.strip() or "kitty"
+    command = [
+        "mpv",
+        "--no-config",
+        f"--vo={vo}",
+        "--keep-open=yes",
+    ]
+    if _video_vo_uses_kitty_placement(vo):
+        command.extend(
+            [
+                "--vo-kitty-alt-screen=no",
+                "--vo-kitty-config-clear=no",
+                f"--vo-kitty-left={max(0, image_area.left)}",
+                f"--vo-kitty-top={max(0, image_area.top)}",
+                f"--vo-kitty-cols={max(1, image_area.columns)}",
+                f"--vo-kitty-rows={max(1, image_area.rows)}",
+            ]
+        )
+    if not video_config.audio:
+        command.append("--mute=yes")
+    if video_config.loop:
+        command.append("--loop-file=inf")
+    command.extend(video_config.extra_mpv_args)
+    command.extend(["--", str(expanded)])
+    return command
+
+
+def load_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
+    """Load terminal video playback settings from merged SASE config."""
+
+    try:
+        from sase.config import load_merged_config
+
+        merged = load_merged_config()
+    except Exception:
+        return ArtifactVideoPlaybackConfig()
+
+    if not isinstance(merged, dict):
+        return ArtifactVideoPlaybackConfig()
+    ace = merged.get("ace", {})
+    if not isinstance(ace, dict):
+        return ArtifactVideoPlaybackConfig()
+    artifact_viewer = ace.get("artifact_viewer", {})
+    if not isinstance(artifact_viewer, dict):
+        return ArtifactVideoPlaybackConfig()
+    raw_video = artifact_viewer.get("video", {})
+    if not isinstance(raw_video, dict):
+        return ArtifactVideoPlaybackConfig()
+
+    return ArtifactVideoPlaybackConfig(
+        audio=_coerce_bool(raw_video.get("audio"), default=False),
+        loop=_coerce_bool(raw_video.get("loop"), default=False),
+        vo=_coerce_str(raw_video.get("vo"), default="kitty"),
+        extra_mpv_args=_coerce_mpv_args(raw_video.get("extra_mpv_args")),
+    )
+
+
+def _video_vo_uses_kitty_placement(vo: str) -> bool:
+    return vo.split(",", 1)[0].strip() == "kitty"
+
+
+def _coerce_bool(value: object, *, default: bool) -> bool:
+    return value if isinstance(value, bool) else default
+
+
+def _coerce_str(value: object, *, default: str) -> str:
+    if not isinstance(value, str):
+        return default
+    stripped = value.strip()
+    return stripped or default
+
+
+def _coerce_mpv_args(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        try:
+            return tuple(shlex.split(value))
+        except ValueError:
+            return ()
+    if isinstance(value, (list, tuple)):
+        return tuple(str(item) for item in value if item is not None)
+    return ()
 
 
 def run_artifact_text_viewer(
@@ -233,6 +349,7 @@ def run_artifact_sequence_loop(
     select_pane: Callable[[str], ArtifactViewerResult] | None = None,
     tmux_zoom_available: bool | None = None,
     toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
+    video_config: ArtifactVideoPlaybackConfig | None = None,
 ) -> _PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -274,6 +391,7 @@ def run_artifact_sequence_loop(
         specs[artifact_index].path,
         kind=specs[artifact_index].kind,
     )
+    resolved_video_config = video_config
     while True:
         current_area = image_area or artifact_image_area()
         if needs_render:
@@ -309,6 +427,41 @@ def run_artifact_sequence_loop(
                     show_position=False,
                     return_pane_available=return_pane_available,
                 )
+            elif current_mode == "video":
+                page_index = 0
+                pages = ()
+                if resolved_video_config is None:
+                    resolved_video_config = load_artifact_video_playback_config()
+                video_displayed = _display_video_artifact(
+                    spec,
+                    current_area,
+                    run,
+                    video_config=resolved_video_config,
+                    artifact_index=artifact_index,
+                    artifact_count=len(specs),
+                )
+                if video_displayed.warnings:
+                    return _PageLoopResult(
+                        returncode=1,
+                        warnings=video_displayed.warnings,
+                    )
+                if video_displayed.returncode != 0:
+                    _print_artifact_warning(
+                        ArtifactViewerWarning(
+                            "mpv_failed",
+                            f"mpv failed with exit code {video_displayed.returncode}",
+                            tool="mpv",
+                        )
+                    )
+                print_page_prompt(
+                    index=0,
+                    page_count=1,
+                    artifact_index=artifact_index,
+                    artifact_count=len(specs),
+                    show_position=False,
+                    return_pane_available=return_pane_available,
+                    tmux_zoom_available=zoom_available,
+                )
             else:
                 rendered = pages_for(artifact_index, current_area)
                 if rendered.warnings:
@@ -340,9 +493,12 @@ def run_artifact_sequence_loop(
                 )
             needs_render = False
         is_text_mode = current_mode == "text"
+        is_video_mode = current_mode == "video"
+        page_key_index = 0 if is_text_mode or is_video_mode else page_index
+        page_key_count = 1 if is_text_mode or is_video_mode else len(pages)
         available_keys = page_loop_available_keys(
-            0 if is_text_mode else page_index,
-            1 if is_text_mode else len(pages),
+            page_key_index,
+            page_key_count,
             artifact_index=artifact_index,
             artifact_count=len(specs),
             return_pane_available=return_pane_available,
@@ -363,7 +519,7 @@ def run_artifact_sequence_loop(
             if not zoom_result.ok:
                 return _PageLoopResult(returncode=1, warnings=zoom_result.warnings)
         elif key in {"j", "k", "r"}:
-            if is_text_mode:
+            if is_text_mode or is_video_mode:
                 page_index = 0
                 continue
             next_page_index = page_index_after_key(page_index, key, len(pages))
@@ -477,6 +633,49 @@ def _display_text_artifact(
     return _TextDisplayResult(command=command, returncode=result.returncode)
 
 
+def _display_video_artifact(
+    spec: ArtifactViewSpec,
+    image_area: ArtifactImageArea,
+    run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]],
+    *,
+    video_config: ArtifactVideoPlaybackConfig,
+    artifact_index: int = 0,
+    artifact_count: int = 1,
+) -> _VideoDisplayResult:
+    path = Path(spec.path).expanduser().resolve(strict=False)
+    if not path.exists():
+        warning = ArtifactViewerWarning(
+            "artifact_not_found",
+            "Artifact file not found",
+        )
+        return _VideoDisplayResult(warnings=(warning,))
+    if not path.is_file():
+        warning = ArtifactViewerWarning(
+            "artifact_not_file",
+            "Artifact path is not a file",
+        )
+        return _VideoDisplayResult(warnings=(warning,))
+
+    warnings = validate_artifact_viewer_dependencies("video")
+    if warnings:
+        return _VideoDisplayResult(warnings=warnings)
+
+    _clear_terminal(run_command)
+    _print_artifact_header(
+        spec,
+        page_index=0,
+        page_count=1,
+        artifact_index=artifact_index,
+        artifact_count=artifact_count,
+        media_label="▶ Video",
+    )
+    _move_cursor_below_image(image_area)
+    command = tuple(artifact_video_player_command(path, image_area, video_config))
+    result = run_command(command)
+    _move_cursor_below_image(image_area)
+    return _VideoDisplayResult(command=command, returncode=result.returncode)
+
+
 def _text_viewer_command_needs_quit_key(command: Sequence[str]) -> bool:
     return bool(command) and Path(command[0]).name == "cat"
 
@@ -511,6 +710,7 @@ def artifact_header_panel(
     page_count: int,
     artifact_index: int = 0,
     artifact_count: int = 1,
+    media_label: str | None = None,
 ) -> Panel:
     metadata = Text()
     if artifact_count > 1:
@@ -522,6 +722,10 @@ def artifact_header_panel(
         if metadata:
             metadata.append("  ")
         metadata.append(f"Page {page_index + 1}/{page_count}", style="gold1")
+    if media_label:
+        if metadata:
+            metadata.append("  ")
+        metadata.append(media_label, style="gold1")
 
     body = Text()
     if metadata:
@@ -551,6 +755,7 @@ def _print_artifact_header(
     page_count: int,
     artifact_index: int = 0,
     artifact_count: int = 1,
+    media_label: str | None = None,
     console: Console | None = None,
 ) -> None:
     target = console or Console()
@@ -561,8 +766,13 @@ def _print_artifact_header(
             page_count=page_count,
             artifact_index=artifact_index,
             artifact_count=artifact_count,
+            media_label=media_label,
         )
     )
+
+
+def _print_artifact_warning(warning: ArtifactViewerWarning) -> None:
+    Console().print(Panel(warning.message, style="bold yellow", expand=False))
 
 
 def print_page_prompt(

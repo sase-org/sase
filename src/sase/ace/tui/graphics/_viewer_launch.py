@@ -213,6 +213,6 @@ def view_artifact_files(
 
 
 def view_image_file(path: str) -> ImageViewerResult:
-    """Compatibility wrapper for image-only notification/file-panel callers."""
+    """Compatibility wrapper for older image-only callers."""
 
     return view_artifact_file(path, kind="image")

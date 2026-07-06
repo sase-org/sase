@@ -15,6 +15,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.graphics import is_supported_video_path
+
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import OptionListNavigationMixin
 
@@ -168,6 +170,8 @@ def _is_markdown_path(path: Path) -> bool:
 
 
 def _artifact_kind(artifact: Any) -> str:
+    if is_supported_video_path(_artifact_display_path(artifact)):
+        return "video"
     return _short_text(
         getattr(artifact, "kind", "file") or "file", max_len=_MAX_KIND_LEN
     )

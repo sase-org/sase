@@ -26,6 +26,7 @@ _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
     _ToolRequirement("tmux", ("tmux",), "ACE tmux windows and artifact panes"),
     _ToolRequirement("bat", ("bat",), "syntax-highlighted file previews"),
     _ToolRequirement("kitten", ("kitten",), "terminal image artifact display"),
+    _ToolRequirement("mpv", ("mpv",), "terminal video artifact playback"),
     _ToolRequirement("pdftoppm", ("pdftoppm",), "PDF and Markdown artifact paging"),
     _ToolRequirement("pandoc", ("pandoc",), "Markdown-to-PDF artifact rendering"),
     _ToolRequirement(

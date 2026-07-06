@@ -19,7 +19,8 @@ from sase.ace.tui.graphics import (
     image_render_context,
     image_preview_size_for_viewport,
     is_supported_image_path,
-    view_image_file,
+    is_supported_video_path,
+    view_artifact_file,
 )
 from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
 from sase.notifications import Notification
@@ -53,6 +54,13 @@ class NotificationAttachmentMixin:
         if is_supported_image_path(expanded_path):
             self._set_image_preview_mode(True)
             self._display_image_file(expanded_path, content_widget)
+            return
+        if is_supported_video_path(expanded_path):
+            self._set_image_preview_mode(False)
+            cleanup = self._consume_image_cleanup_segments()
+            text = _video_attachment_placeholder(expanded_path)
+            content_widget.update(Group(*cleanup, text) if cleanup else text)
+            self._reset_file_scroll()
             return
 
         self._set_image_preview_mode(False)
@@ -208,6 +216,13 @@ class NotificationAttachmentMixin:
 
     def _get_current_image_path(self: Any) -> str | None:
         """Return the highlighted notification's current image attachment."""
+        artifact_path = self._get_current_viewable_artifact_path()
+        if artifact_path is None or not is_supported_image_path(artifact_path):
+            return None
+        return artifact_path
+
+    def _get_current_viewable_artifact_path(self: Any) -> str | None:
+        """Return the highlighted notification's current viewable attachment."""
         notification = self._get_highlighted_notification()
         if not notification or not notification.files:
             return None
@@ -215,20 +230,34 @@ class NotificationAttachmentMixin:
             self._current_file_index = 0
         file_path = notification.files[self._current_file_index]
         expanded = os.path.expanduser(file_path)
-        if not is_supported_image_path(expanded):
+        if not (is_supported_image_path(expanded) or is_supported_video_path(expanded)):
             return None
         if not os.path.exists(expanded):
             return None
         return expanded
 
     def action_view_image(self: Any) -> None:
-        """Open the currently displayed image attachment with kitten icat."""
-        image_path = self._get_current_image_path()
-        if image_path is None:
-            self.notify("No image visible", severity="warning")
+        """Open the currently displayed media attachment with the artifact viewer."""
+        artifact_path = self._get_current_viewable_artifact_path()
+        if artifact_path is None:
+            self.notify("No image or video visible", severity="warning")
             return
 
         with self.app.suspend():
-            result = view_image_file(image_path)
+            result = view_artifact_file(artifact_path)
         if result.warning is not None:
             self.notify(result.warning, severity="warning")
+
+
+def _video_attachment_placeholder(expanded_path: str) -> Text:
+    """Return a styled inline placeholder for a video attachment."""
+    name = os.path.basename(expanded_path) or expanded_path
+    text = Text()
+    text.append("▶ video", style="bold #D7AF5F")
+    text.append("\n")
+    text.append(name, style="bold #87D7FF")
+    text.append("\n")
+    text.append(expanded_path, style="dim")
+    text.append("\n\n")
+    text.append("press V to play", style="dim italic")
+    return text

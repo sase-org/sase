@@ -12,6 +12,7 @@ from .cell import (
 from .images import SUPPORTED_IMAGE_EXTENSIONS, is_supported_image_path
 from .renderable import ImageFallbackRenderable, image_preview
 from .sizing import image_preview_size_for_viewport
+from .videos import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
 from ._viewer_launch import (
     artifact_tmux_pane_exists,
     close_artifact_tmux_pane,
@@ -33,9 +34,12 @@ from ._viewer_launch import (
     view_image_file,
 )
 from ._viewer_loop import (
+    ArtifactVideoPlaybackConfig,
     artifact_image_area,
     artifact_text_viewer_command,
+    artifact_video_player_command,
     kitten_icat_command,
+    load_artifact_video_playback_config,
     page_index_after_key,
     print_text_prompt,
     run_artifact_page_loop,
@@ -67,14 +71,17 @@ __all__ = [
     "ArtifactViewSpec",
     "ArtifactViewerResult",
     "ArtifactViewerWarning",
+    "ArtifactVideoPlaybackConfig",
     "ImageViewerResult",
     "artifact_image_area",
     "artifact_markdown_pdf_profile_for_image_area",
     "artifact_text_viewer_command",
     "artifact_tmux_pane_exists",
+    "artifact_video_player_command",
     "MAX_CELL_IMAGE_FILE_BYTES",
     "MAX_CELL_IMAGE_PIXELS",
     "SUPPORTED_IMAGE_EXTENSIONS",
+    "SUPPORTED_VIDEO_EXTENSIONS",
     "UPPER_HALF_BLOCK",
     "CellImageRenderable",
     "artifact_view_mode",
@@ -87,8 +94,10 @@ __all__ = [
     "image_preview_size_for_viewport",
     "image_render_context",
     "is_supported_image_path",
+    "is_supported_video_path",
     "is_tmux_session",
     "kitten_icat_command",
+    "load_artifact_video_playback_config",
     "page_index_after_key",
     "print_text_prompt",
     "render_artifact_pages",
