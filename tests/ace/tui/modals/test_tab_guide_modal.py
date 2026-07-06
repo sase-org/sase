@@ -14,7 +14,7 @@ def test_tab_guide_modal_builds_changespec_guide_with_modal_footer() -> None:
     guide = modal._build_guide()
 
     assert isinstance(guide, ChangeSpecOnboarding)
-    sections = ChangeSpecOnboarding.render_content(registry, context="modal")
+    sections = ChangeSpecOnboarding.render_content(registry)
     assert "esc closes" in sections["#changespec-onboarding-footer"].plain
 
 

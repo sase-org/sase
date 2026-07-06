@@ -65,10 +65,9 @@ async def test_agents_onboarding_png_snapshot(
         await _wait_for_onboarding_plugins_refresh(page, plugin_calls)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "Welcome to sase ace")
-        assert_page_svg_contains(page, "https://sase.sh")
-        assert_page_svg_contains(page, "https://sase.sh/ace/")
-        assert_page_svg_contains(page, "https://sase.sh/xprompt/")
+        assert_page_svg_contains(page, "Every agent you launch")
+        assert_page_svg_contains(page, "SASE Admin Center")
+        assert_page_svg_contains(page, "The full tour of this tab")
         assert "pick a project or CL first." not in page.screen
         ace_png_visual.assert_page_png(
             page,
@@ -107,8 +106,9 @@ async def test_agents_onboarding_no_plugins_png_snapshot(
         await _wait_for_onboarding_plugins_refresh(page, plugin_calls)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "sase-github")
-        assert_page_svg_contains(page, "Updates")
+        assert_page_svg_contains(page, "Every agent you launch")
+        assert_page_svg_contains(page, "SASE Admin Center")
+        assert "sase-github" not in page.screen
         ace_png_visual.assert_page_png(
             page,
             "agents_onboarding_no_plugins_120x40",

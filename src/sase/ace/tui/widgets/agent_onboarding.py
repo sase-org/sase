@@ -1,8 +1,8 @@
-"""Onboarding panel for the empty Agents tab."""
+"""On-demand guide for the Agents tab."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -54,16 +54,13 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
 
 
 class AgentOnboarding(VerticalScroll):
-    """Right-pane guide shown when the Agents tab has no agents."""
+    """In-depth Agents tab guide shown by the leader ``tab_guide`` modal."""
 
-    def __init__(
-        self, *, context: Literal["tab", "modal"] = "tab", **kwargs: Any
-    ) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._registry: KeymapRegistry = load_keymap_registry({})
         self._launch_targets_available = False
         self._plugins_installed = True
-        self._guide_context = context
 
     def compose(self) -> ComposeResult:
         """Compose the fixed onboarding sections."""
@@ -105,7 +102,7 @@ class AgentOnboarding(VerticalScroll):
         yield help_card
 
         yield Static(
-            self._build_footer(self._registry, context=self._guide_context),
+            self._build_footer(self._registry),
             id="agent-onboarding-footer",
             classes="agent-onboarding-footer",
         )
@@ -217,9 +214,7 @@ class AgentOnboarding(VerticalScroll):
             "#agent-onboarding-tabs": self._build_tabs_card(registry),
             "#agent-onboarding-plugins": self._build_plugins_card(registry),
             "#agent-onboarding-help": self._build_help_card(registry),
-            "#agent-onboarding-footer": self._build_footer(
-                registry, context=self._guide_context
-            ),
+            "#agent-onboarding-footer": self._build_footer(registry),
         }
 
     @staticmethod
@@ -327,20 +322,9 @@ class AgentOnboarding(VerticalScroll):
         return text
 
     @staticmethod
-    def _build_footer(
-        registry: KeymapRegistry,
-        *,
-        context: Literal["tab", "modal"] = "tab",
-    ) -> Text:
+    def _build_footer(registry: KeymapRegistry) -> Text:
         text = Text(justify="center")
-        if context == "modal":
-            text.append("esc closes · ", style="dim italic")
-            text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
-            text.append(" reopens this guide on any tab", style="dim italic")
-        else:
-            text.append(
-                "Your first agent appears on the left; this guide moves aside "
-                "automatically.",
-                style="dim italic",
-            )
+        text.append("esc closes · ", style="dim italic")
+        text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
+        text.append(" reopens this guide on any tab", style="dim italic")
         return text

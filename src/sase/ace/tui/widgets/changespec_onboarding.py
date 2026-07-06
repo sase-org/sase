@@ -1,8 +1,8 @@
-"""Onboarding panel for the empty PRs tab."""
+"""On-demand guide for the PRs tab."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -27,14 +27,11 @@ _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 
 
 class ChangeSpecOnboarding(VerticalScroll):
-    """PRs-tab guide shown before the first ChangeSpec or saved query exists."""
+    """In-depth PRs tab guide shown by the leader ``tab_guide`` modal."""
 
-    def __init__(
-        self, *, context: Literal["tab", "modal"] = "tab", **kwargs: Any
-    ) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._registry: KeymapRegistry = load_keymap_registry({})
-        self._guide_context = context
 
     def compose(self) -> ComposeResult:
         """Compose the fixed onboarding sections."""
@@ -69,7 +66,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         yield learn
 
         yield Static(
-            self._build_footer(self._registry, context=self._guide_context),
+            self._build_footer(self._registry),
             id="changespec-onboarding-footer",
             classes="changespec-onboarding-footer",
         )
@@ -87,15 +84,13 @@ class ChangeSpecOnboarding(VerticalScroll):
         """Refresh static sections from the current keymap registry."""
         if not self.is_mounted:
             return
-        sections = self.render_content(self._registry, context=self._guide_context)
+        sections = self.render_content(self._registry)
         for selector, content in sections.items():
             self.query_one(selector, Static).update(content)
 
     @staticmethod
     def render_content(
         registry: KeymapRegistry,
-        *,
-        context: Literal["tab", "modal"] = "tab",
     ) -> dict[str, Text]:
         """Build all renderable sections for *registry*.
 
@@ -112,7 +107,7 @@ class ChangeSpecOnboarding(VerticalScroll):
                 registry
             ),
             "#changespec-onboarding-footer": ChangeSpecOnboarding._build_footer(
-                registry, context=context
+                registry
             ),
         }
 
@@ -201,19 +196,9 @@ class ChangeSpecOnboarding(VerticalScroll):
         return text
 
     @staticmethod
-    def _build_footer(
-        registry: KeymapRegistry,
-        *,
-        context: Literal["tab", "modal"] = "tab",
-    ) -> Text:
+    def _build_footer(registry: KeymapRegistry) -> Text:
         text = Text(justify="center")
-        if context == "modal":
-            text.append("esc closes · ", style="dim italic")
-            text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
-            text.append(" reopens this guide on any tab", style="dim italic")
-        else:
-            text.append(
-                "Your first ChangeSpec replaces this guide with the live PR list.",
-                style="dim italic",
-            )
+        text.append("esc closes · ", style="dim italic")
+        text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
+        text.append(" reopens this guide on any tab", style="dim italic")
         return text

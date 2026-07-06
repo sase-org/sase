@@ -121,18 +121,13 @@ def test_launch_card_omits_project_cl_hint_without_targets() -> None:
     assert "Works from any tab; shell: sase ace." in launch_text
 
 
-def test_agent_onboarding_modal_footer_replaces_empty_state_footer() -> None:
+def test_agent_onboarding_footer_is_modal_guide_footer() -> None:
     registry = load_keymap_registry({})
-    tab_widget = AgentOnboarding()
-    modal_widget = AgentOnboarding(context="modal")
+    widget = AgentOnboarding()
 
-    tab_sections = tab_widget.render_content(registry)
-    modal_sections = modal_widget.render_content(registry)
+    sections = widget.render_content(registry)
+    footer = _section_plain(sections, "#agent-onboarding-footer")
 
-    tab_footer = _section_plain(tab_sections, "#agent-onboarding-footer")
-    modal_footer = _section_plain(modal_sections, "#agent-onboarding-footer")
-
-    assert "Your first agent appears on the left" in tab_footer
-    assert "esc closes" in modal_footer
-    assert ",?" in modal_footer
-    assert "Your first agent" not in modal_footer
+    assert "esc closes" in footer
+    assert ",?" in footer
+    assert "Your first agent" not in footer

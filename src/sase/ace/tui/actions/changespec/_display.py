@@ -364,6 +364,10 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
         # Full refresh supersedes any pending debounced detail update.
         self._changespec_detail_debouncer.cancel()
 
+        search_panel = self._get_search_query_widget()
+        if search_panel is not None:
+            search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
+
         if self._sync_changespecs_onboarding():
             footer_widget = self._get_footer_widget()
             if footer_widget is not None:
@@ -373,7 +377,6 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
 
         list_widget = self._get_changespec_list_widget()
         detail_widget = self._get_changespec_detail_widget()
-        search_panel = self._get_search_query_widget()
         footer_widget = self._get_footer_widget()
         ancestors_panel = self._get_ancestors_children_widget()
         if (
@@ -421,7 +424,6 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
             current_group_key=current_group_key,
             banner_jump_hints=banner_jump_hints,
         )
-        search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
 
         # Calculate effective hide_reverted (disabled if query targets reverted)
         effective_hide_reverted = (

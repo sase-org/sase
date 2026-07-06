@@ -194,28 +194,8 @@ class DetailMixin:
     def _apply_agents_onboarding_launch_targets_available(
         self, available: bool
     ) -> None:
-        """Store and, if visible, apply launch-target availability to the card."""
-        from textual.css.query import NoMatches
-
-        from ...widgets import AgentOnboarding
-
-        changed = (
-            getattr(
-                self,
-                "_agents_onboarding_launch_targets_available",
-                False,
-            )
-            != available
-        )
+        """Store launch-target availability for the on-demand tab guide."""
         self._agents_onboarding_launch_targets_available = available
-        if not changed or not self._should_show_agents_onboarding():
-            return
-
-        try:
-            onboarding = self.query_one("#agent-onboarding-panel", AgentOnboarding)  # type: ignore[attr-defined]
-        except (NoMatches, LookupError):
-            return
-        onboarding.set_launch_targets_available(available)
 
     def _schedule_agents_onboarding_plugins_refresh(self) -> None:
         """Queue a coalesced off-thread refresh of plugin presence."""
@@ -260,28 +240,8 @@ class DetailMixin:
                 self._schedule_agents_onboarding_plugins_refresh()
 
     def _apply_agents_onboarding_plugins_installed(self, installed: bool) -> None:
-        """Store and, if visible, apply plugin presence to the recommendation."""
-        from textual.css.query import NoMatches
-
-        from ...widgets import AgentOnboarding
-
-        changed = (
-            getattr(
-                self,
-                "_agents_onboarding_plugins_installed",
-                True,
-            )
-            != installed
-        )
+        """Store plugin presence for the on-demand tab guide."""
         self._agents_onboarding_plugins_installed = installed
-        if not changed or not self._should_show_agents_onboarding():
-            return
-
-        try:
-            onboarding = self.query_one("#agent-onboarding-panel", AgentOnboarding)  # type: ignore[attr-defined]
-        except (NoMatches, LookupError):
-            return
-        onboarding.set_plugins_installed(installed)
 
     def _sync_agents_onboarding(
         self,
@@ -296,7 +256,7 @@ class DetailMixin:
         """
         from textual.css.query import NoMatches
 
-        from ...widgets import AgentDetail, AgentOnboarding
+        from ...widgets import AgentDetail, TabQuickStart
 
         show_onboarding = self._should_show_agents_onboarding()
         if (
@@ -309,36 +269,21 @@ class DetailMixin:
         try:
             if agent_detail is None:
                 agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            onboarding = self.query_one("#agent-onboarding-panel", AgentOnboarding)  # type: ignore[attr-defined]
+            quickstart = self.query_one("#agent-quickstart-panel", TabQuickStart)  # type: ignore[attr-defined]
         except (NoMatches, LookupError):
             return False
 
         set_widget_hidden(agent_detail, show_onboarding)
-        set_widget_hidden(onboarding, not show_onboarding)
+        set_widget_hidden(quickstart, not show_onboarding)
         self._set_agents_onboarding_layout(show_onboarding)
         if not show_onboarding:
             return False
 
         registry = getattr(self, "_keymap_registry", None)
-        onboarding.set_launch_targets_available(
-            getattr(
-                self,
-                "_agents_onboarding_launch_targets_available",
-                False,
-            ),
-            refresh=False,
-        )
-        onboarding.set_plugins_installed(
-            getattr(
-                self,
-                "_agents_onboarding_plugins_installed",
-                True,
-            )
-        )
         if registry is not None:
-            onboarding.set_keymap_registry(registry)
+            quickstart.set_keymap_registry(registry)
         else:
-            onboarding.refresh_content()
+            quickstart.refresh_content()
         self._schedule_agents_onboarding_launch_targets_refresh()
         self._schedule_agents_onboarding_plugins_refresh()
         if footer_widget is not None:

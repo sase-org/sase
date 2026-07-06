@@ -57,13 +57,12 @@ class TabGuideModal(ModalScreen[None]):
         """Build a new guide widget for the selected tab."""
         if self._current_tab == "changespecs":
             changespecs_guide = ChangeSpecOnboarding(
-                context="modal",
                 id="tab-guide-content",
             )
             changespecs_guide.set_keymap_registry(self._registry)
             return changespecs_guide
         elif self._current_tab == "agents":
-            agents_guide = AgentOnboarding(context="modal", id="tab-guide-content")
+            agents_guide = AgentOnboarding(id="tab-guide-content")
             agents_guide.set_launch_targets_available(
                 self._agents_launch_targets_available,
                 refresh=False,

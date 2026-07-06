@@ -20,7 +20,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 
 
 def _mounted_onboarding_plain(page: AcePage) -> str:
-    onboarding = page.query_one_widget("#agent-onboarding-panel")
+    onboarding = page.query_one_widget("#agent-quickstart-panel")
     return "\n".join(
         getattr(child.render(), "plain", "") for child in onboarding.query(Static)
     )
@@ -170,12 +170,12 @@ async def test_agents_onboarding_visible_after_empty_load_tab_switch(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 0)
 
-        onboarding = page.query_one_widget("#agent-onboarding-panel")
+        onboarding = page.query_one_widget("#agent-quickstart-panel")
         detail = page.query_one_widget("#agent-detail-panel")
         assert not onboarding.has_class("hidden")
         assert detail.has_class("hidden")
         _assert_agents_onboarding_layout(page, active=True)
-        assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
+        assert "Every agent you launch" in _mounted_onboarding_plain(page)
 
 
 async def test_agents_onboarding_visible_after_empty_load_direct_agents_tab(
@@ -192,15 +192,15 @@ async def test_agents_onboarding_visible_after_empty_load_direct_agents_tab(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 0)
 
-        onboarding = page.query_one_widget("#agent-onboarding-panel")
+        onboarding = page.query_one_widget("#agent-quickstart-panel")
         detail = page.query_one_widget("#agent-detail-panel")
         assert not onboarding.has_class("hidden")
         assert detail.has_class("hidden")
         _assert_agents_onboarding_layout(page, active=True)
-        assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
+        assert "Every agent you launch" in _mounted_onboarding_plain(page)
 
 
-async def test_agents_onboarding_project_cl_hint_visible_when_targets_exist(
+async def test_agents_onboarding_launch_target_refresh_stores_true(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[bool] = []
@@ -227,11 +227,12 @@ async def test_agents_onboarding_project_cl_hint_visible_when_targets_exist(
         await _wait_for_onboarding_launch_target_refresh(page, calls)
 
         plain = _mounted_onboarding_plain(page)
-        assert "Welcome to sase ace" in plain
-        assert "pick a project or CL first." in plain
+        assert page.app._agents_onboarding_launch_targets_available is True
+        assert "Every agent you launch" in plain
+        assert "pick a project or CL first." not in plain
 
 
-async def test_agents_onboarding_project_cl_hint_hidden_without_targets(
+async def test_agents_onboarding_launch_target_refresh_stores_false(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[bool] = []
@@ -258,13 +259,13 @@ async def test_agents_onboarding_project_cl_hint_hidden_without_targets(
         await _wait_for_onboarding_launch_target_refresh(page, calls)
 
         plain = _mounted_onboarding_plain(page)
-        assert "Welcome to sase ace" in plain
-        assert "open the prompt bar in your home workspace." in plain
-        assert "Works from any tab; shell: sase ace." in plain
+        assert page.app._agents_onboarding_launch_targets_available is False
+        assert "Every agent you launch" in plain
+        assert "Launch your first agent" in plain
         assert "pick a project or CL first." not in plain
 
 
-async def test_agents_onboarding_plugins_card_visible_when_no_plugins_installed(
+async def test_agents_onboarding_plugin_refresh_stores_false(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[bool] = []
@@ -290,15 +291,13 @@ async def test_agents_onboarding_plugins_card_visible_when_no_plugins_installed(
         await page.expect_state("agent_count", 0)
         await _wait_for_onboarding_plugins_refresh(page, calls)
 
-        plugins_card = page.query_one_widget("#agent-onboarding-plugins")
-        assert not plugins_card.has_class("hidden")
         plain = _mounted_onboarding_plain(page)
+        assert page.app._agents_onboarding_plugins_installed is False
         assert "SASE Admin Center" in plain
-        assert "Updates" in plain
-        assert "sase-github" in plain
+        assert "sase-github" not in plain
 
 
-async def test_agents_onboarding_plugins_card_hidden_when_plugins_installed(
+async def test_agents_onboarding_plugin_refresh_stores_true(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[bool] = []
@@ -324,10 +323,10 @@ async def test_agents_onboarding_plugins_card_hidden_when_plugins_installed(
         await page.expect_state("agent_count", 0)
         await _wait_for_onboarding_plugins_refresh(page, calls)
 
-        plugins_card = page.query_one_widget("#agent-onboarding-plugins")
-        help_card = page.query_one_widget("#agent-onboarding-help")
-        assert plugins_card.has_class("hidden")
-        assert help_card.border_title == "3 Get more help"
+        plain = _mounted_onboarding_plain(page)
+        assert page.app._agents_onboarding_plugins_installed is True
+        assert "SASE Admin Center" in plain
+        assert "sase-github" not in plain
 
 
 async def test_agents_onboarding_visible_for_hidden_only_workflow(
@@ -345,12 +344,12 @@ async def test_agents_onboarding_visible_for_hidden_only_workflow(
         await page.expect_state("agent_count", 0)
         assert len(page.app._agents_with_children) == 2
 
-        onboarding = page.query_one_widget("#agent-onboarding-panel")
+        onboarding = page.query_one_widget("#agent-quickstart-panel")
         detail = page.query_one_widget("#agent-detail-panel")
         assert not onboarding.has_class("hidden")
         assert detail.has_class("hidden")
         _assert_agents_onboarding_layout(page, active=True)
-        assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
+        assert "Every agent you launch" in _mounted_onboarding_plain(page)
 
 
 async def test_agents_onboarding_hidden_when_agents_exist(
@@ -364,7 +363,7 @@ async def test_agents_onboarding_hidden_when_agents_exist(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
 
-        onboarding = page.query_one_widget("#agent-onboarding-panel")
+        onboarding = page.query_one_widget("#agent-quickstart-panel")
         detail = page.query_one_widget("#agent-detail-panel")
         assert onboarding.has_class("hidden")
         assert not detail.has_class("hidden")
@@ -389,12 +388,12 @@ async def test_agents_onboarding_reappears_after_last_visible_agent_disappears(
         page.app._refilter_agents()
         await page.expect_state("agent_count", 0)
 
-        onboarding = page.query_one_widget("#agent-onboarding-panel")
+        onboarding = page.query_one_widget("#agent-quickstart-panel")
         detail = page.query_one_widget("#agent-detail-panel")
         assert not onboarding.has_class("hidden")
         assert detail.has_class("hidden")
         _assert_agents_onboarding_layout(page, active=True)
-        assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
+        assert "Every agent you launch" in _mounted_onboarding_plain(page)
 
 
 async def test_agents_onboarding_hides_after_first_agent_arrives(
@@ -406,13 +405,13 @@ async def test_agents_onboarding_hides_after_first_agent_arrives(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        assert "Welcome to sase ace" in _mounted_onboarding_plain(page)
+        assert "Every agent you launch" in _mounted_onboarding_plain(page)
 
         page.app._agents_with_children = [agents()[0]]
         page.app._refilter_agents()
         await page.expect_state("agent_count", 1)
 
-        onboarding = page.query_one_widget("#agent-onboarding-panel")
+        onboarding = page.query_one_widget("#agent-quickstart-panel")
         detail = page.query_one_widget("#agent-detail-panel")
         assert onboarding.has_class("hidden")
         assert not detail.has_class("hidden")

@@ -50,7 +50,6 @@ from .widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
-    AgentOnboarding,
     AncestorsChildrenPanel,
     AliasOverridesIndicator,
     AxeDashboard,
@@ -59,13 +58,13 @@ from .widgets import (
     ChangeSpecDetail,
     ChangeSpecInfoPanel,
     ChangeSpecList,
-    ChangeSpecOnboarding,
     KeybindingFooter,
     LLMOverrideIndicator,
     NotificationIndicator,
     SearchQueryPanel,
     StashedPromptsIndicator,
     TabBar,
+    TabQuickStart,
     TaskIndicator,
     UpdatesAvailableIndicator,
 )
@@ -297,9 +296,11 @@ class AceApp(
                     yield SearchQueryPanel(id="search-query-panel")
                     with VerticalScroll(id="detail-scroll"):
                         yield ChangeSpecDetail(id="detail-panel")
-                yield ChangeSpecOnboarding(
-                    id="changespec-onboarding-panel", classes="hidden"
-                )
+                    yield TabQuickStart(
+                        tab="changespecs",
+                        id="changespec-quickstart-panel",
+                        classes="hidden",
+                    )
             with Vertical(id="agents-view", classes=agents_classes):
                 yield AgentInfoPanel(id="agent-info-panel")
                 with Horizontal(id="agents-content"):
@@ -307,8 +308,10 @@ class AceApp(
                         yield AgentList(id="agent-list-panel")
                     with Vertical(id="agent-detail-container"):
                         yield AgentDetail(id="agent-detail-panel")
-                        yield AgentOnboarding(
-                            id="agent-onboarding-panel", classes="hidden"
+                        yield TabQuickStart(
+                            tab="agents",
+                            id="agent-quickstart-panel",
+                            classes="hidden",
                         )
             with Horizontal(id="axe-view", classes=axe_classes):
                 with Vertical(id="bgcmd-list-container"):

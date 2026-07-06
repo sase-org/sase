@@ -64,7 +64,7 @@
     display: none;
 }
 
-#changespecs-view.-onboarding-active #detail-container {
+#changespecs-view.-onboarding-active #detail-scroll {
     display: none;
 }
 
@@ -122,12 +122,57 @@
     height: auto;
 }
 
-#changespec-onboarding-panel {
-    width: 1fr;
-    height: 100%;
+#changespec-quickstart-panel {
+    width: 100%;
+    height: 1fr;
     padding: 1 2;
     align-horizontal: center;
     scrollbar-gutter: stable;
+}
+
+.tab-quickstart-callout {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    border: round #FFD700;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+.tab-quickstart-hero {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+
+.tab-quickstart-card {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    border: round $secondary;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+
+.tab-quickstart-card.-agents {
+    border-title-color: #87D7FF;
+}
+
+.tab-quickstart-card.-changespecs {
+    border-title-color: #00D7AF;
+}
+
+.tab-quickstart-footer {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    color: $text-muted;
+    margin-top: 1;
 }
 
 #changespec-onboarding-hero {
@@ -1529,7 +1574,7 @@ HintInputBar #hint-escape-hint {
     height: 1fr;
 }
 
-#agent-onboarding-panel {
+#agent-quickstart-panel {
     width: 100%;
     height: 1fr;
     padding: 1 2;

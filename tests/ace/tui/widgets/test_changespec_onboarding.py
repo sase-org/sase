@@ -40,16 +40,13 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
     assert "open the help pop-up" in learn_text
 
 
-def test_changespec_onboarding_modal_footer_replaces_empty_state_footer() -> None:
+def test_changespec_onboarding_footer_is_modal_guide_footer() -> None:
     registry = load_keymap_registry({})
 
-    tab_sections = ChangeSpecOnboarding.render_content(registry)
-    modal_sections = ChangeSpecOnboarding.render_content(registry, context="modal")
+    sections = ChangeSpecOnboarding.render_content(registry)
 
-    tab_footer = _section_plain(tab_sections, "#changespec-onboarding-footer")
-    modal_footer = _section_plain(modal_sections, "#changespec-onboarding-footer")
+    footer = _section_plain(sections, "#changespec-onboarding-footer")
 
-    assert "Your first ChangeSpec replaces this guide" in tab_footer
-    assert "esc closes" in modal_footer
-    assert ",?" in modal_footer
-    assert "Your first ChangeSpec" not in modal_footer
+    assert "esc closes" in footer
+    assert ",?" in footer
+    assert "Your first ChangeSpec" not in footer

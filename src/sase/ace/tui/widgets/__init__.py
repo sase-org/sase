@@ -23,6 +23,7 @@ from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
 from .stashed_prompts_indicator import StashedPromptsIndicator
 from .tab_bar import TabBar
+from .tab_quickstart import TabQuickStart
 from .task_indicator import TaskIndicator
 from .updates_indicator import UpdatesAvailableIndicator
 from .xprompt_arg_assist import (
@@ -66,6 +67,7 @@ __all__ = [
     "SearchQueryPanel",
     "StashedPromptsIndicator",
     "TabBar",
+    "TabQuickStart",
     "TaskIndicator",
     "ToolsVisibilityChanged",
     "UpdatesAvailableIndicator",

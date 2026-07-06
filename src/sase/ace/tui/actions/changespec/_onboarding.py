@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .._widget_visibility import set_widget_hidden, widget_has_class
+from .._widget_visibility import set_widget_hidden
 
 
 class ChangeSpecOnboardingMixin:
@@ -12,57 +12,46 @@ class ChangeSpecOnboardingMixin:
 
     _changespecs_first_load_done: bool
     _all_changespecs: list[Any]
-    _saved_queries: dict[str, str]
+    changespecs: list[Any]
 
     def _should_show_changespecs_onboarding(self) -> bool:
-        """Return True when the PRs tab should show first-use onboarding."""
+        """Return True when the PRs tab has no filtered rows to show."""
         if not getattr(self, "_changespecs_first_load_done", False):
             return False
-        if getattr(self, "_all_changespecs", []):
-            return False
-        return not bool(getattr(self, "_saved_queries", {}))
+        return not bool(getattr(self, "changespecs", []))
 
     def _sync_changespecs_onboarding(self) -> bool:
         """Toggle the PRs empty-state onboarding panel.
 
         Returns True when onboarding is visible and callers should skip normal
-        list/detail/search rendering.
+        list/detail rendering.
         """
         from textual.css.query import NoMatches
 
-        from ...widgets import ChangeSpecOnboarding
+        from ...widgets import TabQuickStart
 
         show_onboarding = self._should_show_changespecs_onboarding()
         query_one = getattr(self, "query_one", None)
         if not callable(query_one):
             return False
 
-        view: Any | None = None
-        if not show_onboarding:
-            try:
-                view = query_one("#changespecs-view")
-            except (NoMatches, LookupError):
-                return False
-            if not widget_has_class(view, "-onboarding-active"):
-                return False
-
         try:
-            if view is None:
-                view = query_one("#changespecs-view")
-            onboarding = query_one("#changespec-onboarding-panel", ChangeSpecOnboarding)
+            view = query_one("#changespecs-view")
+            quickstart = query_one("#changespec-quickstart-panel", TabQuickStart)
         except (NoMatches, LookupError):
             return False
 
-        set_widget_hidden(onboarding, not show_onboarding)
+        set_widget_hidden(quickstart, not show_onboarding)
         self._set_changespecs_onboarding_layout(view, show_onboarding)
         if not show_onboarding:
             return False
 
         registry = getattr(self, "_keymap_registry", None)
+        quickstart.set_no_match_context(len(getattr(self, "_all_changespecs", [])))
         if registry is not None:
-            onboarding.set_keymap_registry(registry)
+            quickstart.set_keymap_registry(registry)
         else:
-            onboarding.refresh_content()
+            quickstart.refresh_content()
         return True
 
     @staticmethod

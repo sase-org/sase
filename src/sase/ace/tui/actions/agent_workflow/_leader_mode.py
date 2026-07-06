@@ -268,6 +268,22 @@ class LeaderModeMixin:
         if isinstance(getattr(self, "screen", None), TabGuideModal):
             return
 
+        if self.current_tab == "agents":
+            schedule_launch_targets = getattr(
+                self,
+                "_schedule_agents_onboarding_launch_targets_refresh",
+                None,
+            )
+            if callable(schedule_launch_targets):
+                schedule_launch_targets()
+            schedule_plugins = getattr(
+                self,
+                "_schedule_agents_onboarding_plugins_refresh",
+                None,
+            )
+            if callable(schedule_plugins):
+                schedule_plugins()
+
         self.push_screen(  # type: ignore[attr-defined]
             TabGuideModal(
                 current_tab=self.current_tab,
