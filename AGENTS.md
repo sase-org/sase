@@ -134,16 +134,18 @@ Configured linked repositories for this context:
 - `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
 
-When you need to make changes to files in a numbered-workspace linked repository or need to review numbered-workspace
-linked repository code, agents MUST run:
+When you need to make changes to files in a numbered-workspace linked repo or need to review numbered-workspace linked
+repo code, agents MUST run:
 
 ```bash
 sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>
 ```
 
 `<workspace_num>` must be the workspace number assigned to the primary repo (check what directory you were started in to
-figure this out). Use the path printed by `sase workspace open` as the only repository path for numbered-workspace
+figure this out). Use the path printed by `sase workspace open` as the only linked repo path for numbered-workspace
 linked reads/writes.
+
+IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any other way than by using `sase workspace open`!
 
 ## Tier 2 (long-term) Memory
 

@@ -74,12 +74,17 @@ sibling_repos:
 
     linked_trigger = (
         "When you need to make changes to files in a numbered-workspace linked "
-        "repository or need to review numbered-workspace linked repository code, "
-        "agents MUST run:"
+        "repo or need to review numbered-workspace linked repo code, agents MUST "
+        "run:"
     )
     for memory in (project_memory, home_memory):
         assert linked_trigger in single_line(memory)
         assert "linked reads/writes" in memory
+        assert "the only linked repo path" in single_line(memory)
+        assert (
+            "IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any "
+            "other way than by using `sase workspace open`!"
+        ) in single_line(memory)
         assert "When a linked repository needs changes, agents MUST run:" not in memory
         assert "linked edits" not in memory
 
@@ -235,12 +240,13 @@ linked_repos:
         "- `dotfiles`: Static dotfiles source. This repo is defined in the "
         "`../dotfiles/` directory."
     ) in project_memory_line
-    assert "numbered-workspace linked repository" in project_memory
+    assert "numbered-workspace linked repo" in project_memory
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
         in project_memory
     )
     assert "numbered-workspace linked reads/writes" in project_memory_line
+    assert "the only linked repo path" in project_memory_line
 
 
 def test_init_memory_static_relative_paths_use_configured_display_path(
