@@ -36,6 +36,8 @@ class _FamilyAttachLaunchPlan:
     role_suffix: str
     agent_name: str
     agent_family_role: str
+    parent_project_name: str
+    parent_is_running: bool = False
     parent_cl_name: str | None = None
     parent_workspace_dir: str | None = None
     parent_workspace_num: int | None = None
@@ -142,7 +144,18 @@ def prepare_family_attach_launch(
     if plan.parent_cl_name:
         context_updates["cl_name"] = plan.parent_cl_name
         context_updates["history_sort_key"] = plan.parent_cl_name
-    if (
+    if plan.parent_is_running and not context.is_home_mode:
+        context_updates["deferred_workspace"] = True
+        context_updates["use_preallocated_workspace"] = False
+        if plan.parent_workspace_dir:
+            context_updates["workspace_dir"] = plan.parent_workspace_dir
+            env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_DIR"] = plan.parent_workspace_dir
+        if plan.parent_workspace_num is not None and plan.parent_workspace_num > 0:
+            context_updates["workspace_num"] = plan.parent_workspace_num
+            env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] = str(
+                plan.parent_workspace_num
+            )
+    elif (
         plan.parent_workspace_dir
         and plan.parent_workspace_num is not None
         and plan.parent_workspace_num > 0
@@ -183,6 +196,8 @@ def load_family_attach_plan_from_env(
         role_suffix=str(data["role_suffix"]),
         agent_name=str(data["agent_name"]),
         agent_family_role=str(data["agent_family_role"]),
+        parent_project_name=str(data.get("parent_project_name") or ""),
+        parent_is_running=bool(data.get("parent_is_running", False)),
         parent_cl_name=_str_or_none(data.get("parent_cl_name")),
         parent_workspace_dir=_str_or_none(data.get("parent_workspace_dir")),
         parent_workspace_num=_int_or_none(data.get("parent_workspace_num")),
@@ -207,12 +222,17 @@ def _resolve_family_attach_plan(
     binding = _resolve_binding()
     result = dict(binding(request))
     kind = result.get("kind")
-    if kind != "resolved":
+    if kind not in {"resolved", "running"}:
         raise _FamilyAttachError(
             _resolution_error_message(directive, result, project_name)
         )
 
-    parent = dict(result["parent"])
+    parent = dict(result.get("parent") or {})
+    if not parent:
+        raise _FamilyAttachError(
+            f"Cannot attach family member to '{directive.parent}': "
+            "resolved parent metadata is no longer available."
+        )
     parent_record = _record_by_artifact_dir(snapshot.records).get(
         parent["artifact_dir"]
     )
@@ -240,6 +260,8 @@ def _resolve_family_attach_plan(
         role_suffix=role_suffix,
         agent_name=agent_name,
         agent_family_role=role,
+        parent_project_name=project_name,
+        parent_is_running=kind == "running",
         parent_cl_name=_record_cl_name(parent_record),
         parent_workspace_dir=parent_meta.workspace_dir,
         parent_workspace_num=parent_meta.workspace_num,

@@ -176,11 +176,15 @@ def _load_done_agent_for_dir(
                 status = "FAILED"
             error_message = data.get("error")
             error_traceback = data.get("traceback")
-        elif data.get("repeat_stopped"):
+        elif outcome == "stopped" or data.get("repeat_stopped"):
             # Repeat-chain STOP: the slot was skipped by a predecessor's STOP
             # output variable. It keeps ``outcome: "completed"`` (so %wait
             # cascading still resolves it) but is a non-error terminal state,
             # so it must be checked before the generic completed mapping.
+            #
+            # Queued family children cancelled by a failed parent use
+            # ``outcome: "stopped"`` because they must render the same visible
+            # status without satisfying downstream wait dependencies.
             status = "STOPPED"
             error_message = None
             error_traceback = None
@@ -345,10 +349,12 @@ def _build_done_agent_from_record(
             status = "FAILED"
         error_message = done.error
         error_traceback = done.traceback
-    elif done.repeat_stopped:
+    elif outcome == "stopped" or done.repeat_stopped:
         # Repeat-chain STOP: skipped by a predecessor's STOP output variable.
         # Keeps ``outcome: "completed"`` for %wait cascading but renders as a
         # non-error terminal STOPPED row (checked before generic completed).
+        # Queue cancellation uses ``outcome: "stopped"`` for the same display
+        # status without the repeat-chain cascade semantics.
         status = "STOPPED"
         error_message = None
         error_traceback = None

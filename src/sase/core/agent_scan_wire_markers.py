@@ -22,7 +22,8 @@ class DoneMarkerWire:
 
     Attributes:
         outcome: ``"completed"`` / ``"failed"`` / ``"plan_rejected"`` /
-            ``"noop"``. ``None`` when the marker omits the field.
+            ``"stopped"`` / ``"noop"``. ``None`` when the marker omits the
+            field.
         finished_at: Unix epoch seconds. Float because some writers emit
             fractional seconds. ``None`` when the field is missing or
             non-numeric.

@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 import sase.scripts.sase_chop_wait_checks as wait_checks_module
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
-    dependencies_resolved,
+    dependency_resolution_status,
 )
 
 from tests._agent_names_fixtures import make_agent
@@ -166,7 +168,7 @@ def test_shared_resolver_matches_wait_checks_workflow_fixture(
         "proj",
         projects_root=tmp_path / ".sase/projects",
     )
-    assert dependencies_resolved(index, ["wf"])
+    assert dependency_resolution_status(index, ["wf"]).resolved
 
     run_wait_checks(tmp_path, monkeypatch)
 
@@ -194,6 +196,131 @@ def test_completed_named_agent_success_path_writes_ready(
     out = capsys.readouterr().out
     assert "[wait_checks] Dependencies satisfied for waiter-cl" in out
     assert "wait_checks: projects=1 artifacts=2 waiting=1 ready_written=1" in out
+
+
+def _identity_dep(artifact_dir: Path, *, name: str = "foo") -> dict[str, str]:
+    return {
+        "project_name": "proj",
+        "timestamp": artifact_dir.name,
+        "artifact_dir": str(artifact_dir),
+        "name": name,
+    }
+
+
+def test_identity_wait_running_parent_stays_unresolved(
+    tmp_path: Path, monkeypatch
+) -> None:
+    parent_dir = make_agent(tmp_path, "proj", "20260506010101", "foo")
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_artifacts=[_identity_dep(parent_dir)],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
+def test_identity_wait_completed_parent_writes_ready(
+    tmp_path: Path, monkeypatch
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_artifacts=[_identity_dep(parent_dir)],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["foo"]}
+
+
+def test_identity_wait_ignores_newer_same_named_agent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    parent_dir = make_agent(tmp_path, "proj", "20260506010101", "foo")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506020202",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_artifacts=[_identity_dep(parent_dir)],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
+@pytest.mark.parametrize("outcome", ["failed", "killed", "stopped"])
+def test_identity_wait_failed_parent_cancels(
+    tmp_path: Path, monkeypatch, outcome: str
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome=outcome,
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_artifacts=[_identity_dep(parent_dir)],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready["cancelled"] is True
+    assert ready["reason"] == "dependency_failed"
+    assert ready["failed_deps"][0]["name"] == "foo"
+    assert ready["failed_deps"][0]["timestamp"] == "20260506010101"
+
+
+def test_identity_wait_repeat_stopped_parent_cancels(
+    tmp_path: Path, monkeypatch
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+    done = json.loads((parent_dir / "done.json").read_text(encoding="utf-8"))
+    done["repeat_stopped"] = True
+    done["stopped_by"] = "foo.1"
+    (parent_dir / "done.json").write_text(json.dumps(done), encoding="utf-8")
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_artifacts=[_identity_dep(parent_dir)],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready["cancelled"] is True
+    assert ready["failed_deps"][0]["timestamp"] == "20260506010101"
 
 
 def test_concrete_indexed_wait_marker_resolves_without_template_marker(

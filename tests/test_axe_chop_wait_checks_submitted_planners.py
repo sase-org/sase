@@ -5,7 +5,7 @@ from pathlib import Path
 
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
-    dependencies_resolved,
+    dependency_resolution_status,
 )
 
 from tests._axe_chop_wait_checks_helpers import (
@@ -27,10 +27,10 @@ def test_submitted_planner_resolves_plan_row_wait(tmp_path: Path, monkeypatch) -
         "proj",
         projects_root=tmp_path / ".sase/projects",
     )
-    assert dependencies_resolved(index, ["planner--plan"])
+    assert dependency_resolution_status(index, ["planner--plan"]).resolved
     # The whole plan chain is still in review, so the family/root wait stays
     # parked even though the planner row resolves.
-    assert not dependencies_resolved(index, ["planner"])
+    assert not dependency_resolution_status(index, ["planner"]).resolved
 
     run_wait_checks(tmp_path, monkeypatch)
 

@@ -16,7 +16,7 @@ from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
-    dependencies_resolved,
+    dependency_resolution_status,
     read_json_dict as _read_json_dict,
 )
 
@@ -48,6 +48,7 @@ def main() -> None:
     artifacts = 0
     waiting_markers = 0
     ready_written = 0
+    cancelled = 0
     skipped_ready = 0
     skipped_invalid = 0
     unresolved = 0
@@ -68,7 +69,7 @@ def main() -> None:
 
             meta = _read_json_dict(artifact_dir / "agent_meta.json")
             if meta is not None:
-                dependency_index.add(artifact_dir, meta)
+                dependency_index.add(artifact_dir, meta, project_name=project_dir.name)
 
             waiting_path = artifact_dir / "waiting.json"
             if not waiting_path.exists():
@@ -101,11 +102,45 @@ def main() -> None:
             continue
 
         waiting_for = data.get("waiting_for", [])
-        if not isinstance(waiting_for, list) or not waiting_for:
+        wait_for_artifacts = data.get("wait_for_artifacts", [])
+        if not isinstance(wait_for_artifacts, list):
+            wait_for_artifacts = []
+        if not isinstance(waiting_for, list) or (
+            not waiting_for and not wait_for_artifacts
+        ):
             skipped_invalid += 1
             continue
 
-        if dependencies_resolved(dependency_index, waiting_for):
+        status = dependency_resolution_status(
+            dependency_index,
+            waiting_for,
+            wait_for_artifacts,
+        )
+        if status.failed:
+            failed_deps = list(status.failed_dependencies)
+            cl_name = data.get("cl_name", "unknown")
+            labels = ", ".join(_dependency_label(dep) for dep in failed_deps)
+            log(
+                f"[wait_checks] Cancelling wait for {cl_name}; "
+                f"failed dependency: {labels or 'unknown'}",
+            )
+            try:
+                with open(waiting_marker.ready_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "cancelled": True,
+                            "reason": "dependency_failed",
+                            "resolved_deps": waiting_for,
+                            "failed_deps": failed_deps,
+                        },
+                        f,
+                        indent=2,
+                    )
+            except OSError:
+                skipped_invalid += 1
+            else:
+                cancelled += 1
+        elif status.resolved:
             cl_name = data.get("cl_name", "unknown")
             log(
                 f"[wait_checks] Dependencies satisfied for {cl_name}, "
@@ -129,9 +164,9 @@ def main() -> None:
         "wait_checks: "
         f"projects={projects} artifacts={artifacts} waiting={waiting_markers} "
         f"ready_written={ready_written} already_ready={skipped_ready} "
-        f"invalid={skipped_invalid} unresolved={unresolved}"
+        f"cancelled={cancelled} invalid={skipped_invalid} unresolved={unresolved}"
     )
-    if ready_written == 0:
+    if ready_written == 0 and cancelled == 0:
         if projects == 0:
             reason = "no_project_dirs"
         elif waiting_markers == 0:
@@ -144,6 +179,12 @@ def main() -> None:
             reason = "no_ready_markers_written"
         summary += f" reason={reason}"
     log(summary)
+
+
+def _dependency_label(dependency: dict[str, str]) -> str:
+    name = dependency.get("name") or "unknown"
+    timestamp = dependency.get("timestamp") or "unknown"
+    return f"{name}@{timestamp}"
 
 
 if __name__ == "__main__":

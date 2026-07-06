@@ -218,6 +218,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
     "src/sase/axe/run_agent_wait.py:wait_for_dependencies": Review(
         mutation_calls=(
             "unlink",
+            "unlink",
             "open",
             "dump",
             "unlink",
@@ -252,10 +253,11 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/scripts/sase_chop_wait_checks.py:main": Review(
-        mutation_calls=("open", "dump"),
+        mutation_calls=("open", "dump", "open", "dump"),
         exemption=(
-            "Writes ready.json only; waiting.json and agent_meta.json are read "
-            "inputs, and ready.json is not Tier 1 indexed."
+            "Writes ready.json success/cancellation markers only; waiting.json "
+            "and agent_meta.json are read inputs, and ready.json is not Tier 1 "
+            "indexed."
         ),
     ),
     "src/sase/xprompt/workflow_executor.py:_save_state": Review(

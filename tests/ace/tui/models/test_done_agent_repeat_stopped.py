@@ -73,6 +73,25 @@ def test_fs_loader_completed_without_repeat_stopped_is_done(tmp_path: Path) -> N
     assert agent.status == "DONE"
 
 
+def test_fs_loader_maps_stopped_outcome_to_stopped(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "20260427125500"
+    artifact_dir.mkdir()
+    done = {
+        "cl_name": "feature_queue",
+        "project_file": "/tmp/project.sase",
+        "outcome": "stopped",
+        "queue_cancelled": True,
+    }
+    (artifact_dir / "done.json").write_text(json.dumps(done), encoding="utf-8")
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.status == "STOPPED"
+    assert agent.error_message is None
+    assert agent.error_traceback is None
+
+
 def test_snapshot_loader_maps_repeat_stopped_marker_to_stopped(
     tmp_path: Path,
 ) -> None:
@@ -89,6 +108,32 @@ def test_snapshot_loader_maps_repeat_stopped_marker_to_stopped(
             project_file="/tmp/project.sase",
             repeat_stopped=True,
             stopped_by="repeat_slot_1",
+        ),
+        has_done_marker=True,
+    )
+
+    agents = load_done_agents_from_snapshot(_snapshot(record, tmp_path), {}, {})
+
+    assert len(agents) == 1
+    assert agents[0].status == "STOPPED"
+    assert agents[0].error_message is None
+    assert agents[0].error_traceback is None
+
+
+def test_snapshot_loader_maps_stopped_outcome_to_stopped(
+    tmp_path: Path,
+) -> None:
+    record = AgentArtifactRecordWire(
+        project_name="myproj",
+        project_dir=str(tmp_path / "myproj"),
+        project_file=str(tmp_path / "myproj" / "myproj.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(tmp_path / "artifacts" / "ace-run" / "20260427125500"),
+        timestamp="20260427125500",
+        done=DoneMarkerWire(
+            outcome="stopped",
+            cl_name="feature_queue",
+            project_file="/tmp/project.sase",
         ),
         has_done_marker=True,
     )

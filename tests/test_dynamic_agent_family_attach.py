@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -9,6 +10,7 @@ from sase.agent.family_attach import (
     _FamilyAttachDirective,
     _FamilyAttachError,
     _extract_family_attach_directive,
+    _resolve_family_attach_plan,
 )
 from sase.agent.launch_validation import validate_launch_name_requests
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
@@ -108,3 +110,63 @@ def test_family_attach_resolution_error_mentions_running_parent() -> None:
 
     assert "still running" in message
     assert "Wait for it to finish" in message
+
+
+def test_family_attach_running_parent_builds_queued_plan(monkeypatch) -> None:
+    meta = SimpleNamespace(
+        name="foo",
+        workflow_name="foo",
+        agent_family=None,
+        role_suffix=None,
+        workspace_dir="/tmp/sase_7",
+        workspace_num=7,
+        cl_name="feature",
+        changespec_name=None,
+        parent_timestamp=None,
+        sdd_plan_path=None,
+        plan_path=None,
+    )
+    record = SimpleNamespace(
+        agent_meta=meta,
+        project_name="sase",
+        artifact_dir="/tmp/artifacts/foo",
+        timestamp="20260701010101",
+        has_done_marker=False,
+        done=None,
+        workflow_state=None,
+        running=SimpleNamespace(cl_name="feature"),
+        plan_path=None,
+    )
+    monkeypatch.setattr(
+        "sase.agent.family_attach._agent_family_snapshot",
+        lambda _project_name: SimpleNamespace(records=[record]),
+    )
+    monkeypatch.setattr(
+        "sase.agent.family_attach._dismissed_identity_dicts",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        "sase.agent.family_attach._resolve_binding",
+        lambda: (
+            lambda request: {
+                "kind": "running",
+                "parent": request["candidates"][0],
+                "candidates": [request["candidates"][0]],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_agent_names",
+        lambda: set(),
+    )
+
+    plan = _resolve_family_attach_plan(
+        _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+        project_name="sase",
+    )
+
+    assert plan.parent_is_running is True
+    assert plan.parent_project_name == "sase"
+    assert plan.parent_timestamp == "20260701010101"
+    assert plan.agent_name == "foo--reviewer"
+    assert plan.parent_workspace_num == 7

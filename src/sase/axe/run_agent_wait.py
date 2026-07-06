@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -14,8 +15,15 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
-    dependencies_resolved,
+    dependency_resolution_status,
 )
+
+
+@dataclass(frozen=True)
+class _WaitDependencyResult:
+    cancelled: bool = False
+    reason: str | None = None
+    failed_dependencies: tuple[dict[str, str], ...] = ()
 
 
 def remaining_until(wait_until: str) -> float:
@@ -66,19 +74,63 @@ def _record_wait_completed_at(
     return wait_completed_at
 
 
-def _all_dependencies_already_resolved(
+def _initial_dependency_result(
     wait_names: list[str],
+    wait_identity_deps: list[dict[str, str]],
     *,
     project_name: str | None,
-) -> bool:
+) -> _WaitDependencyResult | None:
     if not project_name:
-        return False
+        return None
 
     try:
         dependency_index = build_wait_dependency_index(project_name)
     except Exception:
-        return False
-    return dependencies_resolved(dependency_index, wait_names)
+        return None
+    status = dependency_resolution_status(
+        dependency_index,
+        wait_names,
+        wait_identity_deps,
+    )
+    if status.failed:
+        return _WaitDependencyResult(
+            cancelled=True,
+            reason="dependency_failed",
+            failed_dependencies=status.failed_dependencies,
+        )
+    if status.resolved:
+        return _WaitDependencyResult()
+    return None
+
+
+def _read_ready_result(ready_path: str) -> _WaitDependencyResult:
+    try:
+        with open(ready_path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return _WaitDependencyResult()
+    if not isinstance(data, dict) or not data.get("cancelled"):
+        return _WaitDependencyResult()
+    failed_deps = data.get("failed_deps", [])
+    if not isinstance(failed_deps, list):
+        failed_deps = []
+    normalized_failed: list[dict[str, str]] = []
+    for item in failed_deps:
+        if not isinstance(item, dict):
+            continue
+        normalized_failed.append(
+            {
+                str(key): str(value)
+                for key, value in item.items()
+                if isinstance(key, str) and value is not None
+            }
+        )
+    reason = data.get("reason")
+    return _WaitDependencyResult(
+        cancelled=True,
+        reason=reason if isinstance(reason, str) else "dependency_failed",
+        failed_dependencies=tuple(normalized_failed),
+    )
 
 
 def wait_for_dependencies(
@@ -89,9 +141,10 @@ def wait_for_dependencies(
     agent_meta: dict[str, Any],
     *,
     project_name: str | None = None,
+    wait_identity_deps: list[dict[str, str]] | None = None,
     duration: float | None = None,
     wait_until: str | None = None,
-) -> None:
+) -> _WaitDependencyResult:
     """Wait for named agent dependencies, a duration, or an absolute time.
 
     When *wait_names* is non-empty, writes waiting.json, polls for ready.json,
@@ -105,19 +158,32 @@ def wait_for_dependencies(
     _WAIT_POLL_INTERVAL = 2  # seconds
     _WAIT_MAX_TIMEOUT = 86400  # 24 hours
 
-    if (
-        wait_names
-        and duration is None
-        and wait_until is None
-        and _all_dependencies_already_resolved(
+    wait_identity_deps = list(wait_identity_deps or [])
+    has_agent_dependencies = bool(wait_names or wait_identity_deps)
+    initial_result = (
+        _initial_dependency_result(
             wait_names,
+            wait_identity_deps,
             project_name=project_name,
         )
+        if has_agent_dependencies and duration is None and wait_until is None
+        else None
+    )
+
+    if initial_result is not None and initial_result.cancelled:
+        return initial_result
+
+    if (
+        has_agent_dependencies
+        and duration is None
+        and wait_until is None
+        and initial_result is not None
     ):
         print("Dependencies already satisfied, proceeding without waiting")
         if not was_killed():
             _record_wait_completed_at(artifacts_dir, agent_meta)
-    elif wait_names:
+        return _WaitDependencyResult()
+    elif has_agent_dependencies:
         # --- Agent-name dependency path (with optional duration/time floor) ---
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
         waiting_data: dict[str, Any] = {
@@ -125,6 +191,8 @@ def wait_for_dependencies(
             "cl_name": cl_name,
             "timestamp": timestamp,
         }
+        if wait_identity_deps:
+            waiting_data["wait_for_artifacts"] = wait_identity_deps
         if duration is not None:
             waiting_data["wait_duration"] = duration
         if wait_until is not None:
@@ -154,6 +222,21 @@ def wait_for_dependencies(
             wait_elapsed += _WAIT_POLL_INTERVAL
 
         ready_observed = os.path.exists(ready_path)
+        ready_result = (
+            _read_ready_result(ready_path)
+            if ready_observed
+            else _WaitDependencyResult()
+        )
+        if ready_result.cancelled:
+            for path in (waiting_path, ready_path):
+                try:
+                    os.unlink(path)
+                    if path == waiting_path:
+                        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+                except OSError:
+                    pass
+            return ready_result
+
         post_dependency_wait_until = wait_until
         if (
             duration is not None
@@ -257,3 +340,4 @@ def wait_for_dependencies(
         sys.exit(128 + 15)  # SIGTERM
 
     print("All dependencies satisfied, proceeding with workflow")
+    return _WaitDependencyResult()

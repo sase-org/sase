@@ -14,6 +14,7 @@ class AgentInfo(NamedTuple):
 
     name: str | None
     wait_names: list[str]
+    wait_identity_deps: list[dict[str, str]]
     wait_duration: float | None
     wait_until: str | None
     model: str | None
@@ -102,9 +103,21 @@ def extract_directives_and_write_meta(
     from sase.agent.names import first_fork_agent_name
 
     wait_names = list(directives.wait)
+    wait_identity_deps: list[dict[str, str]] = []
     fork_wait_target = first_fork_agent_name(raw_resolved_prompt)
     if fork_wait_target and fork_wait_target not in wait_names:
         wait_names.append(fork_wait_target)
+    if family_attach_plan and family_attach_plan.parent_is_running:
+        if family_attach_plan.parent_name not in wait_names:
+            wait_names.append(family_attach_plan.parent_name)
+        wait_identity_deps.append(
+            {
+                "project_name": family_attach_plan.parent_project_name,
+                "timestamp": family_attach_plan.parent_timestamp,
+                "artifact_dir": family_attach_plan.parent_artifacts_dir,
+                "name": family_attach_plan.parent_name,
+            }
+        )
 
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
 
@@ -229,6 +242,8 @@ def extract_directives_and_write_meta(
             agent_meta["name"] = agent_name
         if wait_names:
             agent_meta["wait_for"] = wait_names
+        if wait_identity_deps:
+            agent_meta["wait_for_artifacts"] = wait_identity_deps
         if directives.wait_duration is not None:
             agent_meta["wait_duration"] = directives.wait_duration
         if directives.wait_until is not None:
@@ -335,6 +350,7 @@ def extract_directives_and_write_meta(
     return AgentInfo(
         name=agent_name,
         wait_names=wait_names,
+        wait_identity_deps=wait_identity_deps,
         wait_duration=directives.wait_duration,
         wait_until=directives.wait_until,
         model=agent_model,

@@ -66,9 +66,13 @@ def claim_deferred_workspace(
     last_error: BaseException | None = None
     workspace_num = 0
     workspace_dir = ""
+    target_workspace_num = _deferred_target_workspace_num()
+    target_workspace_dir = os.environ.get("SASE_AGENT_DEFERRED_TARGET_WORKSPACE_DIR")
     for _attempt in range(1, max_attempts + 1):
         try:
-            workspace_num = get_first_available_axe_workspace(project_file)
+            workspace_num = target_workspace_num or get_first_available_axe_workspace(
+                project_file
+            )
             if vcs_wf_type:
                 assert ws_get_dir is not None
                 workspace_dir = ws_get_dir(
@@ -78,8 +82,10 @@ def claim_deferred_workspace(
                     os.getcwd(),
                 )
             else:
-                workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, project_name
+                workspace_dir = (
+                    target_workspace_dir
+                    if target_workspace_num and target_workspace_dir
+                    else get_workspace_directory_for_num(workspace_num, project_name)[0]
                 )
 
             claim_result = claim_ws(
@@ -136,6 +142,17 @@ def claim_deferred_workspace(
     )
     print(f"Claimed workspace #{workspace_num}: {workspace_dir}")
     return workspace_num, workspace_dir
+
+
+def _deferred_target_workspace_num() -> int | None:
+    raw_value = os.environ.get("SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM")
+    if not raw_value:
+        return None
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return None
+    return value if value > 0 else None
 
 
 __all__ = [

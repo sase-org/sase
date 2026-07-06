@@ -13,6 +13,15 @@ from tests._axe_chop_wait_checks_helpers import (
 )
 
 
+def _identity_dep(artifact_dir: Path, *, name: str) -> dict[str, str]:
+    return {
+        "project_name": "proj",
+        "timestamp": artifact_dir.name,
+        "artifact_dir": str(artifact_dir),
+        "name": name,
+    }
+
+
 def test_successful_plan_family_dependency_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -45,6 +54,81 @@ def test_successful_plan_family_dependency_resolves(
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
     assert ready == {"resolved_deps": ["planfam"]}
+
+
+def test_identity_wait_successful_plan_family_generation_resolves(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "planfam",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="--plan",
+    )
+    write_workflow_state(root_dir)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "planfam--code",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="--code",
+        parent_timestamp="20260506010101",
+        done=True,
+        outcome="completed",
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "planfam",
+        wait_for_artifacts=[_identity_dep(root_dir, name="planfam")],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["planfam"]}
+
+
+def test_identity_wait_failed_plan_family_generation_cancels(
+    tmp_path: Path, monkeypatch
+) -> None:
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "planfam",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="--plan",
+    )
+    write_workflow_state(root_dir)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010202",
+        "planfam--code",
+        workflow_name="planfam",
+        agent_family="planfam",
+        role_suffix="--code",
+        parent_timestamp="20260506010101",
+        done=True,
+        outcome="failed",
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "planfam",
+        wait_for_artifacts=[_identity_dep(root_dir, name="planfam")],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready["cancelled"] is True
+    assert ready["failed_deps"][0]["name"] == "planfam"
 
 
 def test_completed_plan_chain_handoff_without_done_resolves_family_dependency(

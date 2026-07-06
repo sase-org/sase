@@ -154,6 +154,57 @@ def test_unresolved_named_wait_uses_slow_waiting_marker_path(
     assert not (waiter_dir / "ready.json").exists()
 
 
+def test_cancelled_wait_returns_failed_dependency_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waiter_dir = _make_waiter(tmp_path)
+    (waiter_dir / "ready.json").write_text(
+        json.dumps(
+            {
+                "cancelled": True,
+                "reason": "dependency_failed",
+                "failed_deps": [
+                    {
+                        "name": "foo",
+                        "timestamp": "20260506010101",
+                        "project_name": "proj",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
+    ):
+        result = wait_for_dependencies(
+            ["foo"],
+            str(waiter_dir),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+            project_name="proj",
+            wait_identity_deps=[
+                {
+                    "project_name": "proj",
+                    "timestamp": "20260506010101",
+                    "name": "foo",
+                }
+            ],
+        )
+
+    sleep_mock.assert_not_called()
+    assert result.cancelled is True
+    assert result.reason == "dependency_failed"
+    assert result.failed_dependencies[0]["name"] == "foo"
+    assert not (waiter_dir / "waiting.json").exists()
+    assert not (waiter_dir / "ready.json").exists()
+
+
 @pytest.mark.parametrize(
     "wait_kwargs",
     [

@@ -28,17 +28,23 @@ def write_context(tmp_path: Path) -> Path:
     return path
 
 
-def make_waiting_agent(base: Path, *waiting_for: str, suffix: str = "waiter") -> Path:
+def make_waiting_agent(
+    base: Path,
+    *waiting_for: str,
+    suffix: str = "waiter",
+    wait_for_artifacts: list[dict[str, str]] | None = None,
+) -> Path:
     artifact_dir = base / ".sase/projects/proj/artifacts/ace-run" / suffix
     artifact_dir.mkdir(parents=True)
+    marker = {
+        "waiting_for": list(waiting_for),
+        "cl_name": "waiter-cl",
+        "timestamp": "waiter",
+    }
+    if wait_for_artifacts is not None:
+        marker["wait_for_artifacts"] = wait_for_artifacts
     (artifact_dir / "waiting.json").write_text(
-        json.dumps(
-            {
-                "waiting_for": list(waiting_for),
-                "cl_name": "waiter-cl",
-                "timestamp": "waiter",
-            }
-        ),
+        json.dumps(marker),
         encoding="utf-8",
     )
     return artifact_dir

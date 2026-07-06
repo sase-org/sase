@@ -20,6 +20,8 @@ from sase.plan_chain import (
 )
 
 _SUCCESS_OUTCOME = "completed"
+_IDENTITY_SUCCESS_OUTCOMES = frozenset({"completed", "plan_rejected"})
+_FAILURE_OUTCOMES = frozenset({"failed", "killed", "stopped"})
 _HANDOFF_TERMINAL_STEP_STATUSES = frozenset({"completed", "skipped"})
 
 
@@ -28,15 +30,24 @@ class _WaitCandidate:
     timestamp: str
     is_resolved: bool
     is_done: bool
+    is_failed: bool = False
+    name: str = ""
+    project_name: str = ""
+    artifact_dir: str = ""
 
 
 @dataclass(frozen=True)
 class _ArtifactCandidate:
     name: str
     timestamp: str
+    project_name: str
+    artifact_dir: str
     parent_timestamp: str | None
+    family_name: str | None
     is_resolved: bool
     is_done: bool
+    is_identity_success: bool
+    is_failed: bool = False
 
 
 @dataclass(frozen=True)
@@ -44,6 +55,22 @@ class _FamilyCandidate:
     timestamp: str
     is_resolved: bool
     is_done: bool
+    is_identity_success: bool = False
+    is_failed: bool = False
+
+
+@dataclass(frozen=True)
+class _WaitDependencyStatus:
+    state: str
+    failed_dependencies: tuple[dict[str, str], ...] = ()
+
+    @property
+    def resolved(self) -> bool:
+        return self.state == "resolved"
+
+    @property
+    def failed(self) -> bool:
+        return self.state == "failed"
 
 
 @dataclass(frozen=True)
@@ -150,10 +177,18 @@ class WaitDependencyIndex:
     named: dict[str, _WaitCandidate]
     workflows: dict[str, list[_ArtifactCandidate]]
     families: dict[str, list[_ArtifactCandidate]]
+    artifacts: dict[tuple[str, str], _ArtifactCandidate]
+    artifacts_by_dir: dict[str, _ArtifactCandidate]
 
     @classmethod
     def empty(cls) -> WaitDependencyIndex:
-        return cls(named={}, workflows={}, families={})
+        return cls(
+            named={},
+            workflows={},
+            families={},
+            artifacts={},
+            artifacts_by_dir={},
+        )
 
     @classmethod
     def build(
@@ -170,13 +205,22 @@ class WaitDependencyIndex:
         ):
             meta = read_json_dict(artifact_dir / "agent_meta.json")
             if meta is not None:
-                index.add(artifact_dir, meta)
+                index.add(artifact_dir, meta, project_name=project_name)
         return index
 
-    def add(self, artifact_dir: Path, meta: dict[str, Any]) -> None:
-        outcome = _done_outcome(artifact_dir)
+    def add(
+        self,
+        artifact_dir: Path,
+        meta: dict[str, Any],
+        *,
+        project_name: str = "",
+    ) -> None:
+        done_data = read_json_dict(artifact_dir / "done.json")
+        outcome = _done_outcome_from_data(done_data)
         is_resolved = _artifact_is_resolved(artifact_dir, meta, outcome)
         is_done = outcome == _SUCCESS_OUTCOME
+        is_identity_success = _artifact_succeeded_for_identity(done_data)
+        is_failed = _artifact_failed_for_identity(done_data)
         timestamp = artifact_dir.name
 
         name = meta.get("name")
@@ -187,6 +231,10 @@ class WaitDependencyIndex:
                     timestamp=timestamp,
                     is_resolved=is_resolved,
                     is_done=is_done,
+                    is_failed=is_failed,
+                    name=name,
+                    project_name=project_name,
+                    artifact_dir=str(artifact_dir),
                 ),
             )
 
@@ -208,18 +256,29 @@ class WaitDependencyIndex:
             )
 
         workflow_name = meta.get("workflow_name")
+        family_name = _family_base_from_meta(meta)
+        artifact = _ArtifactCandidate(
+            name=name if isinstance(name, str) else str(workflow_name or ""),
+            timestamp=timestamp,
+            project_name=project_name,
+            artifact_dir=str(artifact_dir),
+            parent_timestamp=(
+                meta.get("parent_timestamp")
+                if isinstance(meta.get("parent_timestamp"), str)
+                else None
+            ),
+            family_name=family_name,
+            is_resolved=is_resolved,
+            is_done=is_done,
+            is_identity_success=is_identity_success,
+            is_failed=is_failed,
+        )
+        if project_name:
+            self.artifacts[(project_name, timestamp)] = artifact
+        self.artifacts_by_dir[str(artifact_dir)] = artifact
+
         if isinstance(workflow_name, str):
-            parent_value = meta.get("parent_timestamp")
-            parent_timestamp = parent_value if isinstance(parent_value, str) else None
-            artifact = _ArtifactCandidate(
-                name=name if isinstance(name, str) else workflow_name,
-                timestamp=timestamp,
-                parent_timestamp=parent_timestamp,
-                is_resolved=is_resolved,
-                is_done=is_done,
-            )
             self.workflows.setdefault(workflow_name, []).append(artifact)
-            family_name = _family_base_from_meta(meta)
             if family_name is not None:
                 self.families.setdefault(family_name, []).append(artifact)
 
@@ -247,6 +306,10 @@ class WaitDependencyIndex:
                 timestamp=newest_timestamp,
                 is_resolved=all(candidate.is_resolved for candidate in generation),
                 is_done=any(candidate.is_done for candidate in generation),
+                is_identity_success=any(
+                    candidate.is_identity_success for candidate in generation
+                ),
+                is_failed=any(candidate.is_failed for candidate in generation),
             )
 
         # Legacy recovery path: if only child artifacts remain, judge the known
@@ -256,6 +319,41 @@ class WaitDependencyIndex:
             timestamp=newest_timestamp,
             is_resolved=all(candidate.is_resolved for candidate in family_agents),
             is_done=any(candidate.is_done for candidate in family_agents),
+            is_identity_success=any(
+                candidate.is_identity_success for candidate in family_agents
+            ),
+            is_failed=any(candidate.is_failed for candidate in family_agents),
+        )
+
+    def family_candidate_for_root(
+        self,
+        root: _ArtifactCandidate,
+    ) -> _FamilyCandidate | None:
+        if root.parent_timestamp:
+            return None
+        family_name = root.family_name or root.name
+        if not family_name:
+            return None
+        family_agents = self.families.get(family_name)
+        if not family_agents:
+            return None
+        generation = [
+            candidate
+            for candidate in family_agents
+            if candidate.timestamp == root.timestamp
+            or candidate.parent_timestamp == root.timestamp
+        ]
+        if not generation:
+            return None
+        newest_timestamp = max(candidate.timestamp for candidate in generation)
+        return _FamilyCandidate(
+            timestamp=newest_timestamp,
+            is_resolved=all(candidate.is_resolved for candidate in generation),
+            is_done=any(candidate.is_done for candidate in generation),
+            is_identity_success=any(
+                candidate.is_identity_success for candidate in generation
+            ),
+            is_failed=any(candidate.is_failed for candidate in generation),
         )
 
     def workflow_candidate(self, name: str) -> _WaitCandidate | None:
@@ -341,6 +439,50 @@ class WaitDependencyIndex:
         latest = max(candidates, key=lambda candidate: candidate.timestamp)
         return latest.is_resolved and latest.is_done
 
+    def identity_status(
+        self,
+        dependency: Mapping[str, Any],
+    ) -> _WaitDependencyStatus:
+        candidate = self._identity_candidate(dependency)
+        if candidate is None:
+            return _WaitDependencyStatus("waiting")
+
+        family_candidate = self.family_candidate_for_root(candidate)
+        if family_candidate is not None:
+            if family_candidate.is_failed:
+                return _WaitDependencyStatus(
+                    "failed",
+                    (_failed_dependency_record(dependency, candidate),),
+                )
+            if family_candidate.is_resolved and family_candidate.is_identity_success:
+                return _WaitDependencyStatus("resolved")
+            return _WaitDependencyStatus("waiting")
+
+        if candidate.is_failed:
+            return _WaitDependencyStatus(
+                "failed",
+                (_failed_dependency_record(dependency, candidate),),
+            )
+        if candidate.is_identity_success:
+            return _WaitDependencyStatus("resolved")
+        return _WaitDependencyStatus("waiting")
+
+    def _identity_candidate(
+        self,
+        dependency: Mapping[str, Any],
+    ) -> _ArtifactCandidate | None:
+        artifact_dir = dependency.get("artifact_dir")
+        if isinstance(artifact_dir, str) and artifact_dir:
+            candidate = self.artifacts_by_dir.get(artifact_dir)
+            if candidate is not None:
+                return candidate
+
+        project_name = dependency.get("project_name")
+        timestamp = dependency.get("timestamp")
+        if isinstance(project_name, str) and isinstance(timestamp, str):
+            return self.artifacts.get((project_name, timestamp))
+        return None
+
 
 def build_wait_dependency_index(
     project_name: str,
@@ -350,14 +492,35 @@ def build_wait_dependency_index(
     return WaitDependencyIndex.build(project_name, projects_root=projects_root)
 
 
-def dependencies_resolved(
+def dependency_resolution_status(
     index: WaitDependencyIndex,
     wait_names: Iterable[object],
-) -> bool:
+    wait_identity_deps: Iterable[object] = (),
+) -> _WaitDependencyStatus:
+    failed: list[dict[str, str]] = []
+    identity_names: set[str] = set()
+    for dependency in wait_identity_deps:
+        if not isinstance(dependency, Mapping):
+            return _WaitDependencyStatus("waiting")
+        dependency_name = dependency.get("name")
+        if isinstance(dependency_name, str) and dependency_name:
+            identity_names.add(dependency_name)
+        status = index.identity_status(dependency)
+        if status.failed:
+            failed.extend(status.failed_dependencies)
+        elif not status.resolved:
+            return _WaitDependencyStatus("waiting")
+    if failed:
+        return _WaitDependencyStatus("failed", tuple(failed))
+
     for name in wait_names:
-        if not isinstance(name, str) or not index.is_resolved(name):
-            return False
-    return True
+        if not isinstance(name, str):
+            return _WaitDependencyStatus("waiting")
+        if name in identity_names:
+            continue
+        if not index.is_resolved(name):
+            return _WaitDependencyStatus("waiting")
+    return _WaitDependencyStatus("resolved")
 
 
 def read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -371,10 +534,43 @@ def read_json_dict(path: Path) -> dict[str, Any] | None:
 
 def _done_outcome(artifact_dir: Path) -> str | None:
     done_data = read_json_dict(artifact_dir / "done.json")
+    return _done_outcome_from_data(done_data)
+
+
+def _done_outcome_from_data(done_data: Mapping[str, Any] | None) -> str | None:
     if done_data is None:
         return None
     outcome = done_data.get("outcome")
     return outcome if isinstance(outcome, str) else None
+
+
+def _artifact_failed_for_identity(done_data: Mapping[str, Any] | None) -> bool:
+    if done_data is None:
+        return False
+    if bool(done_data.get("repeat_stopped")):
+        return True
+    outcome = _done_outcome_from_data(done_data)
+    return outcome in _FAILURE_OUTCOMES
+
+
+def _artifact_succeeded_for_identity(done_data: Mapping[str, Any] | None) -> bool:
+    if done_data is None or bool(done_data.get("repeat_stopped")):
+        return False
+    outcome = _done_outcome_from_data(done_data)
+    return outcome in _IDENTITY_SUCCESS_OUTCOMES
+
+
+def _failed_dependency_record(
+    dependency: Mapping[str, Any],
+    candidate: _ArtifactCandidate,
+) -> dict[str, str]:
+    record = {
+        "name": _first_nonempty_str(dependency.get("name"), candidate.name) or "",
+        "timestamp": candidate.timestamp,
+        "project_name": candidate.project_name,
+        "artifact_dir": candidate.artifact_dir,
+    }
+    return {key: value for key, value in record.items() if value}
 
 
 def _artifact_is_resolved(
@@ -449,7 +645,7 @@ def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
 __all__ = [
     "WaitDependencyIndex",
     "build_wait_dependency_index",
-    "dependencies_resolved",
+    "dependency_resolution_status",
     "read_json_dict",
     "submitted_plan_artifact",
     "submitted_plan_artifact_for_dir",
