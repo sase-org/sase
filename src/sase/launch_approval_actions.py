@@ -91,7 +91,7 @@ def execute_launch_approval_response(
             f"Launch approved and dispatched {launched_count} agent"
             f"{'s' if launched_count != 1 else ''}"
         )
-    run_launch_side_effects(notification, choice)
+    _run_launch_side_effects(notification, choice)
     return LaunchApprovalActionResult(
         notification_id=notification.id,
         response_file=LAUNCH_RESPONSE_FILE,
@@ -102,7 +102,7 @@ def execute_launch_approval_response(
     )
 
 
-def run_launch_side_effects(
+def _run_launch_side_effects(
     notification: LaunchApprovalActionContext,
     choice: str,
 ) -> None:
@@ -184,5 +184,4 @@ __all__ = [
     "LaunchApprovalActionResult",
     "execute_launch_approval_response",
     "launch_context_from_notification",
-    "run_launch_side_effects",
 ]
