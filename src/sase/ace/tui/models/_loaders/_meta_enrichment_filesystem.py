@@ -11,6 +11,7 @@ from ._meta_enrichment_common import (
     append_timestamp_field,
     apply_workflow_child_identity_from_meta,
     has_plan_submission_marker,
+    is_main_workflow_agent_step,
     meta_has_wait_directive,
     parent_timestamp_from_meta,
     parse_utc_to_local,
@@ -72,13 +73,20 @@ def enrich_agent_from_meta(
     if data.get("wait_for"):
         agent.waiting_for = data["wait_for"]
     raw_auto_action = data.get("auto_approve_plan_action")
-    if isinstance(raw_auto_action, str) and raw_auto_action:
-        agent.auto_approve_plan_action = raw_auto_action
+    auto_action = (
+        raw_auto_action
+        if isinstance(raw_auto_action, str) and raw_auto_action
+        else None
+    )
+    meta_auto_approved = agent.approve or bool(data.get("approve")) or bool(auto_action)
+    apply_meta_approve = not workflow_child or is_main_workflow_agent_step(agent)
+    if apply_meta_approve and auto_action:
+        agent.auto_approve_plan_action = auto_action
         agent.approve = True
     raw_plan_action = data.get("plan_action")
     if isinstance(raw_plan_action, str) and raw_plan_action:
         agent.plan_action = raw_plan_action
-    if data.get("approve"):
+    if apply_meta_approve and data.get("approve"):
         agent.approve = True
     if data.get("hidden"):
         agent.hidden = True
@@ -256,7 +264,7 @@ def enrich_agent_from_meta(
             plan_approved=bool(data.get("plan_approved")),
             plan_action=data.get("plan_action"),
             plan_submitted=has_plan_submission_marker(data.get("plan_submitted_at")),
-            auto_approved=agent.approve,
+            auto_approved=meta_auto_approved,
         )
         if plan_status is not None:
             agent.status = plan_status

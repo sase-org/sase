@@ -9,6 +9,7 @@ from sase.ace.tui.models.agent_status import (
     STOPPED_GLYPH,
     STOPPED_STATUS,
 )
+from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -98,6 +99,58 @@ class TestAgentListAutoApproveIcon:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "⚡" not in left.plain
+
+    def test_workflow_child_auto_approve_renders_after_connector(self) -> None:
+        agent = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            parent_workflow="visual-workflow",
+            parent_timestamp="20260509-100000-workflow",
+            step_type="agent",
+            approve=True,
+            auto_approve_plan_action="epic",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert left.plain.startswith("  └─ ⚡E ")
+        assert left.plain.index("⚡E") > left.plain.index("└─")
+
+    def test_workflow_child_auto_approve_keeps_connector_column_aligned(
+        self,
+    ) -> None:
+        approved = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            parent_workflow="visual-workflow",
+            parent_timestamp="20260509-100000-workflow",
+            step_type="agent",
+            approve=True,
+            auto_approve_plan_action="epic",
+            llm_provider=None,
+        )
+        sibling = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            parent_workflow="visual-workflow",
+            parent_timestamp="20260509-100000-workflow",
+            step_type="bash",
+            llm_provider=None,
+        )
+
+        approved_left, _, _ = format_agent_option(approved, 0, is_selected=False)
+        sibling_left, _, _ = format_agent_option(sibling, 1, is_selected=False)
+
+        assert approved_left.plain.index("└─") == sibling_left.plain.index("└─")
+
+    def test_root_auto_approve_keeps_leading_icon(self) -> None:
+        agent = make_agent(
+            approve=True,
+            auto_approve_plan_action="epic",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert left.plain.startswith("⚡E ")
 
 
 class TestAwareWaitUntilRendering:

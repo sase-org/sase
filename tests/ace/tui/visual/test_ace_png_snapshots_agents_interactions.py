@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -299,6 +300,76 @@ def _auto_approve_agents() -> list[Agent]:
     ]
 
 
+def _auto_approve_workflow_child_agents() -> list[Agent]:
+    """Expanded workflow family for auto-approve child-row alignment coverage."""
+    root_timestamp = "20260509-100000-workflow"
+    project_file = "/workspace/sase/visual_project.sase"
+    started = datetime(2026, 5, 9, 10, 0, 0)
+    return [
+        Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="visual-auto-workflow",
+            project_file=project_file,
+            status="EPIC APPROVED",
+            start_time=started,
+            raw_suffix=root_timestamp,
+            workflow="sase",
+            approve=True,
+            auto_approve_plan_action="epic",
+        ),
+        Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="main",
+            project_file=project_file,
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 0, 5),
+            raw_suffix=root_timestamp,
+            workflow="sase",
+            parent_workflow="sase",
+            parent_timestamp=root_timestamp,
+            step_name="main",
+            step_type="agent",
+            step_index=0,
+            total_steps=4,
+            agent_name="visual.sase--plan",
+            approve=True,
+            auto_approve_plan_action="epic",
+        ),
+        Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="setup",
+            project_file=project_file,
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 0, 10),
+            raw_suffix=root_timestamp,
+            workflow="sase",
+            parent_workflow="sase",
+            parent_timestamp=root_timestamp,
+            step_name="setup",
+            step_type="bash",
+            step_index=1,
+            total_steps=4,
+            agent_name="visual.setup",
+        ),
+        Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="diff",
+            project_file=project_file,
+            status="DONE",
+            start_time=datetime(2026, 5, 9, 10, 0, 15),
+            raw_suffix=root_timestamp,
+            workflow="sase",
+            parent_workflow="sase",
+            parent_timestamp=root_timestamp,
+            step_name="diff",
+            step_type="python",
+            step_index=2,
+            total_steps=4,
+            agent_name="visual.diff",
+        ),
+    ]
+
+
 async def test_agents_auto_approve_icons_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -321,6 +392,54 @@ async def test_agents_auto_approve_icons_png_snapshot(
             page,
             "agents_auto_approve_icons_120x40",
             title="ACE agents auto-approve icons",
+        )
+
+
+async def test_agents_auto_approve_workflow_child_alignment_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _auto_approve_workflow_child_agents()
+    patch_startup_loaders(monkeypatch, agents=agents)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        page.app._fold_manager.expand("20260509-100000-workflow")
+        page.app._refilter_agents()
+        await page.expect_state("agent_count", 4)
+        await wait_for_visual_idle(page)
+
+        svg_plain = page.export_svg(title="ACE auto child alignment").replace(
+            "&#160;",
+            " ",
+        )
+        assert svg_plain.count("⚡E ") == 2
+        for token in ("sase", "main", "setup", "diff", "🐚 ", "🐍 "):
+            assert token in svg_plain
+        connector_positions = re.findall(
+            r'x="([^"]+)" y="([^"]+)"[^>]*>  └─ </text>',
+            svg_plain,
+        )
+        assert len(connector_positions) == 3
+        assert len({x for x, _ in connector_positions}) == 1
+        connector_y = {y for _, y in connector_positions}
+        child_bolt_positions = [
+            (x, y)
+            for x, y in re.findall(
+                r'x="([^"]+)" y="([^"]+)"[^>]*>⚡E </text>',
+                svg_plain,
+            )
+            if y in connector_y
+        ]
+        assert len(child_bolt_positions) == 1
+        assert float(child_bolt_positions[0][0]) > float(connector_positions[0][0])
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_auto_approve_workflow_child_alignment_120x40",
+            title="ACE agents auto-approve workflow child alignment",
         )
 
 

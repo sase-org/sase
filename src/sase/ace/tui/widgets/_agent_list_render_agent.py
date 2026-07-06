@@ -93,16 +93,18 @@ def format_agent_option(
     if is_marked:
         text.append("[✓] ", style="bold #00D700")
 
-    # Approve icon for autonomous agents.  The bare ``⚡`` marks a normal-plan
+    # Approve icon for autonomous agents. The bare ``⚡`` marks a normal-plan
     # auto-approve; ``⚡E``/``⚡T`` distinguish the epic/tale plan actions.
+    approve_icon: str | None = None
     if agent.approve:
         if agent.auto_approve_plan_action == "epic":
-            icon = f"{_APPROVE_ICON}E"
+            approve_icon = f"{_APPROVE_ICON}E"
         elif agent.auto_approve_plan_action == "tale":
-            icon = f"{_APPROVE_ICON}T"
+            approve_icon = f"{_APPROVE_ICON}T"
         else:
-            icon = _APPROVE_ICON
-        text.append(f"{icon} ", style="bold #00FFFF")
+            approve_icon = _APPROVE_ICON
+    if approve_icon is not None and not agent.is_child_row:
+        text.append(f"{approve_icon} ", style="bold #00FFFF")
 
     # Indentation for retry-chain attempts: render under the chain
     # root so the user sees the lineage at a glance.  retry_attempt
@@ -114,6 +116,8 @@ def format_agent_option(
     # Indentation for rows linked under a parent agent/workflow.
     if agent.is_child_row:
         text.append(_CHILD_INDENT, style="dim #808080")
+        if approve_icon is not None:
+            text.append(f"{approve_icon} ", style="bold #00FFFF")
         if agent.is_workflow_step_child:
             step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
             if step_glyph is not None:

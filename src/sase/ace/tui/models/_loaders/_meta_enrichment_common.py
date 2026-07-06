@@ -213,7 +213,7 @@ def parent_timestamp_from_meta(
     return parent_timestamp
 
 
-def _is_main_workflow_agent_step(agent: Agent) -> bool:
+def is_main_workflow_agent_step(agent: Agent) -> bool:
     return (
         agent.parent_workflow is not None
         and agent.step_type == "agent"
@@ -250,7 +250,7 @@ def apply_workflow_child_identity_from_meta(
     data: dict[str, object],
 ) -> None:
     """Derive concrete family identity for the main agent workflow step."""
-    if not _is_main_workflow_agent_step(agent):
+    if not is_main_workflow_agent_step(agent):
         return
     family = _root_family_name_from_meta(data)
     if family is None:
