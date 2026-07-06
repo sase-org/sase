@@ -294,6 +294,54 @@ def test_execute_mobile_plan_action_writes_response_and_side_effects(
     mark_dismissed.assert_called_once_with("abcdef12-plan")
 
 
+def test_execute_mobile_run_plan_action_archives_plan(tmp_path: Path) -> None:
+    response_dir = tmp_path / "agent" / "plan_approval"
+    response_dir.mkdir(parents=True)
+    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+    row = _notification(
+        "abcdef12-plan",
+        "2026-05-06T13:00:00+00:00",
+        action="PlanApproval",
+        files=[str(plan_file)],
+        action_data={"response_dir": str(response_dir)},
+    )
+    saved_plan_path = str(tmp_path / "sdd" / "tales" / "202605" / "plan.md")
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            return_value=_snapshot([row]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch("sase.notifications.mark_dismissed"),
+        patch(
+            "sase.plan_approval_actions._archive_plan_for_approval",
+            return_value=saved_plan_path,
+        ) as archive_plan,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id="abcdef12-plan",
+            prefix="abcdef12",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_plan_action("abcdef12", "run")
+
+    assert result.response_json == {
+        "action": "approve",
+        "commit_plan": False,
+        "run_coder": True,
+        "saved_plan_path": saved_plan_path,
+    }
+    assert json.loads((response_dir / "plan_response.json").read_text()) == (
+        result.response_json
+    )
+    archive_plan.assert_called_once()
+    assert archive_plan.call_args.args[1] == "approve"
+
+
 def test_execute_mobile_plan_action_approval_refreshes_artifact_index(
     tmp_path: Path,
 ) -> None:

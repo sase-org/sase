@@ -4,6 +4,7 @@ import argparse
 
 from sase.main.parser_bead import nonnegative_int
 from sase.main.plan_search_handler import plan_date_arg
+from sase.plan_approval_choices import PLAN_APPROVAL_CLI_KINDS
 
 
 def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -62,7 +63,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     approve_parser.add_argument(
         "-k",
         "--kind",
-        choices=("approve", "commit", "epic", "legend", "tale"),
+        choices=PLAN_APPROVAL_CLI_KINDS,
         default="approve",
         help=(
             "Approval kind: approve runs coder without committing an SDD plan; "

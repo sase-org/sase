@@ -117,13 +117,17 @@ def test_shared_plan_response_writer_golden_json(
     )
 
 
-def test_run_choice_currently_skips_archive_side_effect(tmp_path: Path) -> None:
-    """Pin the current Telegram/mobile run-choice gap for Phase 2 to fix."""
+def test_run_choice_archives_plan_side_effect(tmp_path: Path) -> None:
+    """Telegram/mobile run approvals participate in plan archive side effects."""
     response_dir = _response_dir(tmp_path)
     plan = tmp_path / "plan.md"
     plan.write_text("# Plan\n", encoding="utf-8")
+    saved_plan_path = str(tmp_path / "sdd" / "tales" / "202607" / "plan.md")
 
-    with patch("sase.plan_approval_actions._archive_plan_for_approval") as archive:
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        return_value=saved_plan_path,
+    ) as archive:
         result = execute_plan_approval_response(
             _context(tmp_path, response_dir, plan),
             "run",
@@ -133,9 +137,13 @@ def test_run_choice_currently_skips_archive_side_effect(tmp_path: Path) -> None:
         "action": "approve",
         "commit_plan": False,
         "run_coder": True,
+        "saved_plan_path": saved_plan_path,
     }
-    assert "saved_plan_path" not in result.response_json
-    archive.assert_not_called()
+    assert json.loads((response_dir / "plan_response.json").read_text()) == (
+        result.response_json
+    )
+    archive.assert_called_once()
+    assert archive.call_args.args[1] == "approve"
     meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
     assert meta == {"plan_approved": True, "plan_action": "approve"}
 

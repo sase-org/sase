@@ -13,7 +13,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Literal, NoReturn
+from typing import Literal, NoReturn, cast
 
 from sase.core.shell import get_vendored_tool
 from sase.main.plan_pending import (
@@ -26,6 +26,7 @@ from sase.plan_approval_actions import (
     PlanApprovalActionResult,
     execute_plan_approval_response,
 )
+from sase.plan_approval_choices import PLAN_APPROVAL_AUTO_MODE_CHOICES
 
 PlanAutoApprovalAction = Literal["approve", "epic", "tale"]
 
@@ -34,12 +35,8 @@ def _normalize_plan_action(value: object) -> PlanAutoApprovalAction | None:
     if not isinstance(value, str):
         return None
     normalized = value.strip().lower()
-    if normalized == "approve":
-        return "approve"
-    if normalized == "epic":
-        return "epic"
-    if normalized == "tale":
-        return "tale"
+    if normalized in PLAN_APPROVAL_AUTO_MODE_CHOICES:
+        return cast(PlanAutoApprovalAction, normalized)
     return None
 
 

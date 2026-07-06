@@ -8,36 +8,16 @@ from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.plan_approval_choices import (
+    PLAN_APPROVAL_MODAL_CHOICES,
+    custom_modal_choice_for_key,
+    require_plan_approval_choice,
+)
+
 from .plan_approval_modal import (
     PlanApprovalChoice,
     approval_protocol_for_choice,
 )
-
-
-_CHOICE_ORDER: tuple[PlanApprovalChoice, ...] = (
-    "approve",
-    "tale",
-    "epic",
-    "legend",
-)
-_CHOICE_KEYS: dict[str, PlanApprovalChoice] = {
-    "a": "approve",
-    "t": "tale",
-    "e": "epic",
-    "l": "legend",
-}
-_CHOICE_LABELS: dict[PlanApprovalChoice, str] = {
-    "approve": "Approve",
-    "tale": "Tale",
-    "epic": "Epic",
-    "legend": "Legend",
-}
-_CHOICE_CONSEQUENCES: dict[PlanApprovalChoice, str] = {
-    "approve": "No SDD commit; run coder",
-    "tale": "Commit to sdd/tales; run coder",
-    "epic": "Commit to sdd/epics; launch bd/new_epic",
-    "legend": "Commit to sdd/legends; launch bd/new_legend",
-}
 
 
 def _contextual_epic_role_lane(
@@ -193,7 +173,7 @@ class ApproveOptionsModal(
                 id="approve-options-title",
             )
 
-            for choice in _CHOICE_ORDER:
+            for choice in PLAN_APPROVAL_MODAL_CHOICES:
                 yield Static(
                     self._choice_row_markup(choice),
                     id=f"approval-choice-{choice}",
@@ -229,11 +209,10 @@ class ApproveOptionsModal(
     def _choice_row_markup(self, choice: PlanApprovalChoice) -> str:
         """Render one selectable action row."""
         marker = ">" if choice == self._choice else " "
-        key = next(
-            k for k, mapped_choice in _CHOICE_KEYS.items() if mapped_choice == choice
-        )
-        label = _CHOICE_LABELS[choice]
-        consequence = _CHOICE_CONSEQUENCES[choice]
+        record = require_plan_approval_choice(choice)
+        key = record.custom_modal_key or "?"
+        label = record.display_label
+        consequence = record.consequence_text
         if choice == self._choice:
             return f"[bold green]{marker} {key} {label:<7}[/] [dim]{consequence}[/]"
         return (
@@ -242,7 +221,7 @@ class ApproveOptionsModal(
 
     def _refresh_choice_rows(self) -> None:
         """Refresh action rows after the current choice changes."""
-        for choice in _CHOICE_ORDER:
+        for choice in PLAN_APPROVAL_MODAL_CHOICES:
             row = self.query_one(f"#approval-choice-{choice}", Static)
             row.update(self._choice_row_markup(choice))
             row.set_class(choice == self._choice, "selected")
@@ -271,10 +250,10 @@ class ApproveOptionsModal(
             event.prevent_default()
             event.stop()
             self.action_cancel()
-        elif event.key in _CHOICE_KEYS:
+        elif (choice := custom_modal_choice_for_key(event.key)) is not None:
             event.prevent_default()
             event.stop()
-            self._select_choice(_CHOICE_KEYS[event.key])
+            self._select_choice(choice)
         elif event.key == "p":
             event.prevent_default()
             event.stop()
@@ -299,8 +278,12 @@ class ApproveOptionsModal(
             event.stop()
 
     def _select_relative_choice(self, offset: int) -> None:
-        index = _CHOICE_ORDER.index(self._choice)
-        self._select_choice(_CHOICE_ORDER[(index + offset) % len(_CHOICE_ORDER)])
+        index = PLAN_APPROVAL_MODAL_CHOICES.index(self._choice)
+        self._select_choice(
+            PLAN_APPROVAL_MODAL_CHOICES[
+                (index + offset) % len(PLAN_APPROVAL_MODAL_CHOICES)
+            ]
+        )
 
     def action_cancel(self) -> None:
         self.dismiss(None)

@@ -2,7 +2,6 @@
 
 import os
 from dataclasses import dataclass
-from typing import Literal, NamedTuple
 
 from rich.syntax import Syntax
 from textual.app import ComposeResult
@@ -10,51 +9,23 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.plan_approval_choices import (
+    PlanApprovalModalChoice as PlanApprovalChoice,
+    PlanApprovalProtocolFields,
+    approval_protocol_for_choice as _approval_protocol_for_choice,
+    review_modal_choice_bindings,
+    review_modal_choice_hints_markup,
+)
+
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
-
-PlanApprovalChoice = Literal["approve", "tale", "epic", "legend"]
-
-
-class _PlanApprovalProtocolFields(NamedTuple):
-    """Runner-facing response fields for an explicit approval choice."""
-
-    action: str
-    commit_plan: bool
-    run_coder: bool
-
-
-_PLAN_APPROVAL_CHOICE_PROTOCOL: dict[
-    PlanApprovalChoice, _PlanApprovalProtocolFields
-] = {
-    "approve": _PlanApprovalProtocolFields(
-        action="approve",
-        commit_plan=False,
-        run_coder=True,
-    ),
-    "tale": _PlanApprovalProtocolFields(
-        action="approve",
-        commit_plan=True,
-        run_coder=True,
-    ),
-    "epic": _PlanApprovalProtocolFields(
-        action="epic",
-        commit_plan=True,
-        run_coder=True,
-    ),
-    "legend": _PlanApprovalProtocolFields(
-        action="legend",
-        commit_plan=True,
-        run_coder=True,
-    ),
-}
 
 
 def approval_protocol_for_choice(
     choice: PlanApprovalChoice,
-) -> _PlanApprovalProtocolFields:
+) -> PlanApprovalProtocolFields:
     """Map a product-level approval choice to the existing response protocol."""
-    return _PLAN_APPROVAL_CHOICE_PROTOCOL[choice]
+    return _approval_protocol_for_choice(choice)
 
 
 def _plan_approval_result_for_choice(
@@ -120,14 +91,11 @@ class PlanApprovalModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
-        ("a", "approve", "Approve"),
-        ("t", "tale", "Tale"),
+        *review_modal_choice_bindings(),
         ("c", "custom", "Custom"),
         ("r", "reject", "Reject"),
         ("f", "feedback", "Feedback"),
         ("e", "edit", "Edit"),
-        ("E", "epic", "Epic"),
-        ("L", "legend", "Legend"),
         ("y", "copy_plan", "Copy"),
         ("Y", "copy_plan_path", "Copy path"),
         ("ctrl+d", "scroll_down", "Scroll down"),
@@ -174,11 +142,9 @@ class PlanApprovalModal(
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         hints = (
-            "[green]a[/green]=Approve  [green]t[/green]=Tale  [green]c[/green]=Custom  [red]r[/red]=Reject  "
+            f"{review_modal_choice_hints_markup()}  [green]c[/green]=Custom  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
-            "[magenta]E[/magenta]=Epic  "
-            "[magenta]L[/magenta]=Legend  "
             "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
             "[dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
         )

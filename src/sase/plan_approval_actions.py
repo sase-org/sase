@@ -11,8 +11,13 @@ from typing import Any
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.plan_approval_choices import (
+    PLAN_APPROVAL_CLI_KINDS,
+    approval_choice_archives_plan,
+    require_plan_approval_choice,
+)
 
-PLAN_APPROVAL_KINDS = ("approve", "tale", "epic", "legend", "commit")
+PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
 
 
 @dataclass(frozen=True)
@@ -104,51 +109,44 @@ def _plan_response_json(
     coder_model: str | None,
 ) -> tuple[dict[str, Any], str]:
     """Map a product-level plan choice to the existing runner protocol."""
-    response: dict[str, Any] = {}
-    if choice == "approve":
-        response.update({"action": "approve", "commit_plan": False, "run_coder": True})
-        if commit_plan is not None:
-            response["commit_plan"] = commit_plan
-        if run_coder is not None:
-            response["run_coder"] = run_coder
-        _add_optional_coder_fields(
-            response, coder_prompt=coder_prompt, coder_model=coder_model
-        )
-        return response, "Plan approved"
-    if choice == "run":
-        response.update({"action": "approve", "commit_plan": False, "run_coder": True})
-        _add_optional_coder_fields(
-            response, coder_prompt=coder_prompt, coder_model=coder_model
-        )
-        return response, "Running coder"
-    if choice == "tale":
-        response.update({"action": "approve", "commit_plan": True, "run_coder": True})
-        _add_optional_coder_fields(
-            response, coder_prompt=coder_prompt, coder_model=coder_model
-        )
-        return response, "Tale approved"
-    if choice in {"epic", "legend"}:
-        response.update({"action": choice, "commit_plan": True, "run_coder": True})
-        _add_optional_coder_fields(
-            response, coder_prompt=coder_prompt, coder_model=coder_model
-        )
-        return response, f"{choice.title()} approved"
-    if choice == "commit":
-        return (
-            {"action": "approve", "commit_plan": True, "run_coder": False},
-            "Plan committed",
-        )
+    try:
+        record = require_plan_approval_choice(choice)
+    except KeyError as exc:
+        raise PlanApprovalActionError(
+            "unsupported_action", choice, "unsupported plan action choice"
+        ) from exc
+
+    if record.protocol is not None:
+        protocol = record.protocol
+        response: dict[str, Any] = {
+            "action": protocol.action,
+            "commit_plan": protocol.commit_plan,
+            "run_coder": protocol.run_coder,
+        }
+        if record.allow_protocol_overrides:
+            if commit_plan is not None:
+                response["commit_plan"] = commit_plan
+            if run_coder is not None:
+                response["run_coder"] = run_coder
+        if record.allow_coder_options:
+            _add_optional_coder_fields(
+                response, coder_prompt=coder_prompt, coder_model=coder_model
+            )
+        return response, record.response_message
+
     if choice == "reject":
-        response["action"] = "reject"
+        response = {"action": "reject"}
         if feedback is not None:
             response["feedback"] = feedback
-        return response, "Plan rejected"
+        return response, record.response_message
+
     if choice == "feedback":
         if not feedback:
             raise PlanApprovalActionError(
                 "invalid_request", "feedback", "feedback text is required"
             )
-        return {"action": "reject", "feedback": feedback}, "Feedback received"
+        return {"action": "reject", "feedback": feedback}, record.response_message
+
     raise PlanApprovalActionError(
         "unsupported_action", choice, "unsupported plan action choice"
     )
@@ -214,7 +212,7 @@ def run_plan_side_effects(
     if persisted_action is None:
         return
 
-    if choice in PLAN_APPROVAL_KINDS:
+    if approval_choice_archives_plan(choice):
         saved_path = _archive_plan_for_approval(notification, persisted_action)
         if saved_path:
             try:

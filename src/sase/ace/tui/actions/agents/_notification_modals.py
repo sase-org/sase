@@ -22,6 +22,12 @@ from ._notification_utils import (
     refresh_notification_agent_from_cache,
     refresh_notification_agent_or_request,
 )
+from sase.plan_approval_choices import (
+    approval_choice_archives_plan,
+    approval_choice_persist_action,
+    approval_choice_status_label,
+    approval_protocol_for_choice,
+)
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -300,8 +306,6 @@ def _plan_approval_protocol_fields(
 ) -> tuple[str, bool, bool]:
     """Return runner-facing action, commit flag, and coder flag."""
     if result.choice is not None:
-        from ...modals.plan_approval_modal import approval_protocol_for_choice
-
         protocol = approval_protocol_for_choice(result.choice)
         return protocol.action, protocol.commit_plan, protocol.run_coder
 
@@ -365,16 +369,9 @@ def _archive_plan_for_approval(
 
 def _plan_approval_status(result: PlanApprovalResult) -> str | None:
     """Return the immediate status override for a plan approval result."""
-    if result.action == "approve" and not result.run_coder and result.commit_plan:
-        return "PLAN COMMITTED"
-    if _plan_approval_choice_for_status(result) == "tale":
-        return "TALE APPROVED"
-    if result.action == "approve":
-        return "PLAN APPROVED"
-    if result.action == "epic":
-        return "EPIC APPROVED"
-    if result.action == "legend":
-        return "LEGEND APPROVED"
+    choice = _plan_approval_choice_for_status(result)
+    if choice is not None:
+        return approval_choice_status_label(choice)
     if result.feedback is not None:
         return "RUNNING"
     return None
@@ -382,23 +379,16 @@ def _plan_approval_status(result: PlanApprovalResult) -> str | None:
 
 def _plan_approval_persist_action(result: PlanApprovalResult) -> str | None:
     """Return the persisted plan action marker for a result, if any."""
-    if result.action == "approve" and not result.run_coder and result.commit_plan:
-        return "commit"
-    if _plan_approval_choice_for_status(result) == "tale":
-        return "tale"
-    if result.action == "approve":
-        return "approve"
-    if result.action == "epic":
-        return "epic"
-    if result.action == "legend":
-        return "legend"
-    return None
+    choice = _plan_approval_choice_for_status(result)
+    return None if choice is None else approval_choice_persist_action(choice)
 
 
 def _plan_approval_choice_for_status(result: PlanApprovalResult) -> str | None:
     """Infer the product-level approval choice for status/persist labels."""
     if result.choice is not None:
         return result.choice
+    if result.action == "approve" and result.commit_plan and not result.run_coder:
+        return "commit"
     if result.action == "approve" and result.commit_plan and result.run_coder:
         return "tale"
     if result.action == "approve" and not result.commit_plan and result.run_coder:
@@ -441,7 +431,8 @@ def _start_plan_approval_background_worker(
             except Exception:
                 log.warning("Failed to persist plan approval marker", exc_info=True)
 
-        if result.action in ("approve", "epic", "legend"):
+        choice = _plan_approval_choice_for_status(result)
+        if choice is not None and approval_choice_archives_plan(choice):
             saved_plan_path = _archive_plan_for_approval(notification, result.action)
             if saved_plan_path is not None:
                 _add_saved_plan_to_response(plan_response_path, saved_plan_path)
