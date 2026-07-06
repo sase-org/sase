@@ -1,6 +1,7 @@
 """Plan approval modal for the ace TUI."""
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from rich.syntax import Syntax
@@ -10,6 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.plan_approval_choices import (
+    PlanApprovalMemberOption,
     PlanApprovalModalChoice as PlanApprovalChoice,
     PlanApprovalProtocolFields,
     approval_protocol_for_choice as _approval_protocol_for_choice,
@@ -70,6 +72,7 @@ class PlanApprovalResult:
     coder_prompt: str | None = None
     coder_model: str | None = None
     choice: PlanApprovalChoice | None = None
+    selected_member_ids: tuple[str, ...] | None = None
 
 
 @dataclass
@@ -81,6 +84,7 @@ class PendingApproveState:
     coder_prompt: str
     coder_model: str | None = None
     choice: PlanApprovalChoice | None = None
+    selected_member_ids: tuple[str, ...] | None = None
 
 
 class PlanApprovalModal(
@@ -111,6 +115,7 @@ class PlanApprovalModal(
         *,
         llm_provider: str | None = None,
         model: str | None = None,
+        member_options: Sequence[PlanApprovalMemberOption] = (),
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -129,6 +134,7 @@ class PlanApprovalModal(
         self._pending_approve_state = pending_approve_state
         self._llm_provider = llm_provider
         self._model = model
+        self._member_options = tuple(member_options)
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
@@ -178,6 +184,7 @@ class PlanApprovalModal(
                 coder_prompt=state.coder_prompt,
                 coder_model=state.coder_model,
                 choice=state.choice,
+                selected_member_ids=state.selected_member_ids,
             )
 
     def _read_plan_file(self) -> str:
@@ -230,6 +237,7 @@ class PlanApprovalModal(
         coder_prompt: str = "",
         coder_model: str | None = None,
         choice: PlanApprovalChoice | None = None,
+        selected_member_ids: Sequence[str] | None = None,
     ) -> None:
         """Push the custom approval modal with the given initial state."""
         from .approve_options_modal import (
@@ -252,16 +260,17 @@ class PlanApprovalModal(
                         coder_prompt=result.coder_prompt,
                         coder_model=result.coder_model,
                         choice=result.choice,
+                        selected_member_ids=result.selected_member_ids,
                     )
                 )
                 return
-            self.dismiss(
-                _plan_approval_result_for_choice(
-                    result.choice,
-                    coder_prompt=result.coder_prompt,
-                    coder_model=result.coder_model,
-                )
+            approval_result = _plan_approval_result_for_choice(
+                result.choice,
+                coder_prompt=result.coder_prompt,
+                coder_model=result.coder_model,
             )
+            approval_result.selected_member_ids = result.selected_member_ids
+            self.dismiss(approval_result)
 
         self.app.push_screen(
             ApproveOptionsModal(
@@ -271,6 +280,8 @@ class PlanApprovalModal(
                 coder_model=coder_model,
                 choice=choice,
                 planner_llm_provider=self._llm_provider,
+                member_options=self._member_options,
+                selected_member_ids=selected_member_ids,
             ),
             on_options_dismiss,
         )

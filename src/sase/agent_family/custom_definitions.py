@@ -60,6 +60,7 @@ _ROLE_KEYS = {
     "max_visits",
     "on_failure",
     "auto",
+    "default",
     # Reserved for the Phase 8 delegated-budget design. These are accepted
     # and snapshotted but intentionally not interpreted in Phase 5.
     "delegated_budget",
@@ -84,6 +85,7 @@ class AgentFamilyRoleDefinition:
     max_visits: int
     on_failure: RoleOnFailure
     auto: RoleAuto
+    default_enabled: bool
     config_id: str
     config_version: int
     config_hash: str
@@ -100,6 +102,7 @@ class AgentFamilyRoleDefinition:
             "max_visits": self.max_visits,
             "on_failure": self.on_failure,
             "auto": self.auto,
+            "default": self.default_enabled,
             "config_id": self.config_id,
             "config_version": self.config_version,
             "config_hash": self.config_hash,
@@ -144,6 +147,7 @@ def role_definition_from_snapshot(
                 "on_failure",
             ),
             auto=_literal_value(snapshot["auto"], {"run", "skip"}, "auto"),
+            default_enabled=_optional_bool(snapshot.get("default", False), "default"),
             config_id=str(snapshot["config_id"]),
             config_version=_positive_int(snapshot["config_version"], "config_version"),
             config_hash=str(snapshot["config_hash"]),
@@ -380,6 +384,10 @@ def _parse_role(
         {"run", "skip"},
         f"role {role_id!r} auto",
     )
+    default_enabled = _optional_bool(
+        raw_role.get("default", False),
+        f"role {role_id!r} default",
+    )
     max_visits = _positive_int(
         raw_role.get("max_visits", 3),
         f"role {role_id!r} max_visits",
@@ -396,6 +404,7 @@ def _parse_role(
         max_visits=max_visits,
         on_failure=on_failure,
         auto=auto,
+        default_enabled=default_enabled,
         config_id=definition_id,
         config_version=definition_version,
         config_hash=config_hash,
@@ -434,6 +443,12 @@ def _literal_value(
         choices = " | ".join(sorted(allowed))
         raise _AgentFamilyDefinitionError(f"{field_name} must be one of: {choices}")
     return value
+
+
+def _optional_bool(value: object, field_name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise _AgentFamilyDefinitionError(f"{field_name} must be true or false")
 
 
 def _parse_suffix(value: object, role_id: str) -> str:

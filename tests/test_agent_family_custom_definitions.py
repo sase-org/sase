@@ -340,6 +340,7 @@ def test_execution_loop_runs_after_code_custom_role(
     tmp_path: Path, monkeypatch
 ) -> None:
     tester = _role(role_id="tester", after="code")
+    reviewer = _role(role_id="reviewer", after="code")
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     executed_prompts: list[str] = []
     code_artifacts = tmp_path / "code_artifacts"
@@ -365,6 +366,7 @@ def test_execution_loop_runs_after_code_custom_role(
         state.current_prompt = "code prompt"
         state.current_role_suffix = "--code"
         state.current_artifacts_dir = str(code_artifacts)
+        state.selected_member_ids = ("tester",)
         state.agent_step = 2
         return None
 
@@ -386,7 +388,7 @@ def test_execution_loop_runs_after_code_custom_role(
 
     monkeypatch.setattr(
         "sase.axe.run_agent_exec.active_roles_after",
-        lambda after, **_kwargs: (tester,) if after == "code" else (),
+        lambda after, **_kwargs: (reviewer, tester) if after == "code" else (),
     )
     monkeypatch.setattr(
         "sase.axe.run_agent_exec_custom_roles.create_followup_artifacts",

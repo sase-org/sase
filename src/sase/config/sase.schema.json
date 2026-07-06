@@ -110,6 +110,28 @@
       "description": "Project-local H1 title that opts a repository into generated AMD-managed AGENTS.md. The generator ignores global values.",
       "default": null
     },
+    "agent_family": {
+      "type": "object",
+      "description": "Custom agent-family behavior.",
+      "additionalProperties": false,
+      "properties": {
+        "plan_approval": {
+          "type": "object",
+          "description": "Plan-approval custom member defaults.",
+          "additionalProperties": false,
+          "properties": {
+            "default_members": {
+              "type": "object",
+              "description": "Project-local sticky defaults for plan-approval member options. Keys are custom role ids and values choose whether each member is default-on.",
+              "additionalProperties": {
+                "type": "boolean"
+              },
+              "default": {}
+            }
+          }
+        }
+      }
+    },
     "ace": {
       "type": "object",
       "description": "Configuration for the ace TUI",

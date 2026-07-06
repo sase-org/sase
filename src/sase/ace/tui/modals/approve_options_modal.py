@@ -1,5 +1,6 @@
 """Custom approval modal for plan approval."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from textual import events
@@ -10,6 +11,7 @@ from textual.widgets import Static
 
 from sase.plan_approval_choices import (
     PLAN_APPROVAL_MODAL_CHOICES,
+    PlanApprovalMemberOption,
     custom_modal_choice_for_key,
     require_plan_approval_choice,
 )
@@ -40,7 +42,11 @@ def _contextual_epic_role_lane(
     alias = (
         EPIC_CREATOR_MODEL_ALIAS_NAME if choice == "epic" else DEFAULT_MODEL_ALIAS_NAME
     )
-    return resolve_model_provider(role_model_directive_value(alias))
+    directive = role_model_directive_value(alias)
+    try:
+        return resolve_model_provider(directive)
+    except Exception:
+        return None, directive
 
 
 def _contextual_coder_lane(planner_llm_provider: str | None) -> tuple[str | None, str]:
@@ -62,7 +68,11 @@ def _contextual_coder_lane(planner_llm_provider: str | None) -> tuple[str | None
     alias = (
         coder_model_alias_for_provider(provider) if provider else CODER_MODEL_ALIAS_NAME
     )
-    return resolve_model_provider(role_model_directive_value(alias))
+    directive = role_model_directive_value(alias)
+    try:
+        return resolve_model_provider(directive)
+    except Exception:
+        return None, directive
 
 
 def _model_display_label(
@@ -106,6 +116,7 @@ class ApproveOptionsResult:
     choice: PlanApprovalChoice
     coder_prompt: str | None
     coder_model: str | None = None
+    selected_member_ids: tuple[str, ...] | None = None
 
     @property
     def commit_plan(self) -> bool:
@@ -123,6 +134,7 @@ class ApproveOptionsEditPrompt:
     choice: PlanApprovalChoice
     coder_prompt: str
     coder_model: str | None = None
+    selected_member_ids: tuple[str, ...] | None = None
 
     @property
     def commit_plan(self) -> bool:
@@ -159,12 +171,25 @@ class ApproveOptionsModal(
         choice: PlanApprovalChoice | None = None,
         *,
         planner_llm_provider: str | None = None,
+        member_options: Sequence[PlanApprovalMemberOption] = (),
+        selected_member_ids: Sequence[str] | None = None,
     ) -> None:
         super().__init__()
         self._choice = choice or _choice_from_legacy_flags(commit_plan, run_coder)
         self._coder_prompt = coder_prompt
         self._coder_model = coder_model
         self._planner_llm_provider = planner_llm_provider
+        self._member_options = tuple(member_options)
+        if selected_member_ids is None:
+            self._selected_member_ids = {
+                option.id for option in self._member_options if option.default_enabled
+            }
+        else:
+            self._selected_member_ids = {
+                member_id
+                for member_id in selected_member_ids
+                if isinstance(member_id, str)
+            }
 
     def compose(self) -> ComposeResult:
         with Container(id="approve-options-container"):
@@ -192,11 +217,21 @@ class ApproveOptionsModal(
                 display = display[:57] + "..."
             yield Static(display, id="coder-prompt-display")
 
+            if self._member_options:
+                yield Static("Also run:", classes="approve-options-members-label")
+                for index, option in enumerate(self._member_options, start=1):
+                    yield Static(
+                        self._member_row_markup(option, index),
+                        id=f"approval-member-{option.id}",
+                        classes="approval-member-row",
+                    )
+
             yield Static(
                 "[green]enter[/green]=Choose  "
                 "[green]a/t/e/l[/green]=Action  "
                 "[magenta]m[/magenta]=Model  "
                 "[magenta]p[/magenta]=Edit prompt  "
+                "[cyan]1-9[/cyan]=Members  "
                 "[dim]ctrl+n[/dim]=Next  "
                 "[dim]ctrl+p[/dim]=Prev  "
                 "[dim]q/esc[/dim]=Back",
@@ -219,12 +254,36 @@ class ApproveOptionsModal(
             f"[dim]{marker}[/] [green]{key}[/green] {label:<7} [dim]{consequence}[/dim]"
         )
 
+    def _member_row_markup(
+        self,
+        option: PlanApprovalMemberOption,
+        index: int,
+    ) -> str:
+        """Render one custom-member toggle row."""
+        checked = option.id in self._selected_member_ids
+        marker = r"\[x]" if checked else r"\[ ]"
+        key = str(index) if index <= 9 else "-"
+        placement = (
+            f"after {option.placement_after}" if option.placement_after else "custom"
+        )
+        style = "bold cyan" if checked else "dim"
+        return (
+            f"[{style}]{key} {marker} {option.display_label}[/] [dim]{placement}[/dim]"
+        )
+
     def _refresh_choice_rows(self) -> None:
         """Refresh action rows after the current choice changes."""
         for choice in PLAN_APPROVAL_MODAL_CHOICES:
             row = self.query_one(f"#approval-choice-{choice}", Static)
             row.update(self._choice_row_markup(choice))
             row.set_class(choice == self._choice, "selected")
+
+    def _refresh_member_rows(self) -> None:
+        """Refresh member rows after a toggle changes."""
+        for index, option in enumerate(self._member_options, start=1):
+            row = self.query_one(f"#approval-member-{option.id}", Static)
+            row.update(self._member_row_markup(option, index))
+            row.set_class(option.id in self._selected_member_ids, "selected")
 
     def _select_choice(self, choice: PlanApprovalChoice) -> None:
         self._choice = choice
@@ -266,6 +325,10 @@ class ApproveOptionsModal(
             event.prevent_default()
             event.stop()
             self.action_cancel()
+        elif event.key.isdigit() and event.key != "0":
+            event.prevent_default()
+            event.stop()
+            self._toggle_member_by_key(event.key)
         elif event.key == "ctrl+n":
             event.prevent_default()
             event.stop()
@@ -283,6 +346,24 @@ class ApproveOptionsModal(
             PLAN_APPROVAL_MODAL_CHOICES[
                 (index + offset) % len(PLAN_APPROVAL_MODAL_CHOICES)
             ]
+        )
+
+    def _toggle_member_by_key(self, key: str) -> None:
+        index = int(key) - 1
+        if index < 0 or index >= len(self._member_options):
+            return
+        option = self._member_options[index]
+        if option.id in self._selected_member_ids:
+            self._selected_member_ids.remove(option.id)
+        else:
+            self._selected_member_ids.add(option.id)
+        self._refresh_member_rows()
+
+    def _selected_member_tuple(self) -> tuple[str, ...]:
+        return tuple(
+            option.id
+            for option in self._member_options
+            if option.id in self._selected_member_ids
         )
 
     def action_cancel(self) -> None:
@@ -355,6 +436,7 @@ class ApproveOptionsModal(
                 choice=self._choice,
                 coder_prompt=self._coder_prompt,
                 coder_model=self._coder_model,
+                selected_member_ids=self._selected_member_tuple(),
             )
         )
 
@@ -365,6 +447,7 @@ class ApproveOptionsModal(
                 choice=self._choice,
                 coder_prompt=coder_prompt,
                 coder_model=self._coder_model,
+                selected_member_ids=self._selected_member_tuple(),
             )
         )
 

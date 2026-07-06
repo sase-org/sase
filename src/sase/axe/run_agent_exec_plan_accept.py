@@ -47,6 +47,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     plan_chain_agent_name,
 )
+from sase.plan_approval_choices import filter_roles_by_selected_member_ids
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -241,6 +242,18 @@ def handle_accepted_plan(
         "plan_action",
         _accepted_plan_action_for_meta(plan_result),
     )
+    selected_member_ids = getattr(plan_result, "selected_member_ids", None)
+    if selected_member_ids is not None:
+        selected_member_ids = tuple(
+            member_id
+            for member_id in selected_member_ids
+            if isinstance(member_id, str) and member_id
+        )
+    state.selected_member_ids = selected_member_ids
+    active_after_plan = filter_roles_by_selected_member_ids(
+        active_roles_after("plan", project=ctx.project_name),
+        selected_member_ids,
+    )
     transition = evaluate_plan_approval_transition(
         action=plan_result.action,
         commit_plan=plan_result.commit_plan,
@@ -249,7 +262,7 @@ def handle_accepted_plan(
         qa_round_count=len(state.qa_rounds),
         saved_chat_suffixes=_saved_chat_suffixes(state),
         visit_counts=state.custom_role_visit_counts,
-        custom_roles=active_roles_after("plan", project=ctx.project_name),
+        custom_roles=active_after_plan,
         auto_mode=bool(getattr(plan_result, "auto_approved", False)),
     )
     record_family_runtime_metadata(
@@ -394,6 +407,9 @@ def handle_accepted_plan(
                 "plan_committed": plan_committed,
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": source_plan_agent_name,
+                "plan_approval_selected_member_ids": list(selected_member_ids)
+                if selected_member_ids is not None
+                else None,
             },
         )
         return None
@@ -446,6 +462,9 @@ def handle_accepted_plan(
                 ),
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": source_plan_agent_name,
+                "plan_approval_selected_member_ids": list(selected_member_ids)
+                if selected_member_ids is not None
+                else None,
                 **transition.runtime_metadata.as_followup_relationships(),
             },
         )
@@ -524,6 +543,9 @@ def handle_accepted_plan(
                 "plan_committed": plan_committed,
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": source_plan_agent_name,
+                "plan_approval_selected_member_ids": list(selected_member_ids)
+                if selected_member_ids is not None
+                else None,
                 **transition.runtime_metadata.as_followup_relationships(),
             },
         )

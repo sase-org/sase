@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 from uuid import uuid4
 
@@ -240,6 +241,7 @@ def notify_plan_approval(
     agent_model: str | None = None,
     agent_llm_provider: str | None = None,
     agent_runtime: str | None = None,
+    default_member_ids: Sequence[str] = (),
 ) -> None:
     """Send a notification when a Claude Code plan is ready for approval."""
     plan_name = plan_file.rsplit("/", 1)[-1] if "/" in plan_file else plan_file
@@ -265,11 +267,20 @@ def notify_plan_approval(
         action_data["llm_provider"] = agent_llm_provider
     if agent_runtime:
         action_data["runtime"] = agent_runtime
+    notes = [f"Plan ready for review: {plan_name}"]
+    default_members = [
+        member_id
+        for member_id in default_member_ids
+        if isinstance(member_id, str) and member_id.strip()
+    ]
+    if default_members:
+        notes.append(f"Also run: {', '.join(default_members)}")
+
     n = Notification(
         id=str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender="plan",
-        notes=[f"Plan ready for review: {plan_name}"],
+        notes=notes,
         files=[plan_file],
         action="PlanApproval",
         action_data=action_data,

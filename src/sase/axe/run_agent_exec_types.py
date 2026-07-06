@@ -76,6 +76,7 @@ class LoopState:
     agent_step: int = 1
     saved_chat_paths: list[tuple[str, str]] = field(default_factory=list)
     custom_role_visit_counts: dict[str, int] = field(default_factory=dict)
+    selected_member_ids: tuple[str, ...] | None = None
     # Snapshot of SASE_AGENT_TIMESTAMP at loop entry, restored after finalization.
     original_agent_timestamp: str | None = None
 

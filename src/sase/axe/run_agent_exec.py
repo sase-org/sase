@@ -46,6 +46,7 @@ from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import get_retry_config
+from sase.plan_approval_choices import filter_roles_by_selected_member_ids
 from sase.telemetry.metrics import AGENT_KILLS
 
 __all__ = [
@@ -217,6 +218,10 @@ def _handle_completed_followup(ctx: AgentExecContext, state: LoopState) -> bool:
         current_role_suffix=state.current_role_suffix,
         agent_family_role=family_role,
     )
+    active_custom_roles = filter_roles_by_selected_member_ids(
+        active_roles_after(event.interrupted_role, project=ctx.project_name),
+        state.selected_member_ids,
+    )
     evaluation = evaluate_handoff_event(
         event,
         family_state_snapshot(
@@ -229,9 +234,7 @@ def _handle_completed_followup(ctx: AgentExecContext, state: LoopState) -> bool:
             agent_family_role=event.interrupted_role,
             visit_counts=state.custom_role_visit_counts,
         ),
-        custom_roles=active_roles_after(
-            event.interrupted_role, project=ctx.project_name
-        ),
+        custom_roles=active_custom_roles,
         custom_role_snapshot=custom_role_snapshot_from_meta(
             state.current_artifacts_dir
         ),

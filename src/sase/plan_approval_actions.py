@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,7 @@ def execute_plan_approval_response(
     run_coder: bool | None = None,
     coder_prompt: str | None = None,
     coder_model: str | None = None,
+    selected_member_ids: Sequence[str] | None = None,
 ) -> PlanApprovalActionResult:
     """Write the runner response for a resolved PlanApproval notification."""
     raw_response_dir = notification.host_action_data.get("response_dir")
@@ -85,6 +87,7 @@ def execute_plan_approval_response(
         run_coder=run_coder,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
+        selected_member_ids=selected_member_ids,
     )
     response_path = response_dir / "plan_response.json"
     _write_json_once(response_path, response_json, notification.id)
@@ -107,6 +110,7 @@ def _plan_response_json(
     run_coder: bool | None,
     coder_prompt: str | None,
     coder_model: str | None,
+    selected_member_ids: Sequence[str] | None,
 ) -> tuple[dict[str, Any], str]:
     """Map a product-level plan choice to the existing runner protocol."""
     try:
@@ -132,6 +136,7 @@ def _plan_response_json(
             _add_optional_coder_fields(
                 response, coder_prompt=coder_prompt, coder_model=coder_model
             )
+        _add_selected_member_ids(response, selected_member_ids)
         return response, record.response_message
 
     if choice == "reject":
@@ -235,6 +240,19 @@ def _add_optional_coder_fields(
         response["coder_prompt"] = coder_prompt
     if coder_model is not None:
         response["coder_model"] = coder_model
+
+
+def _add_selected_member_ids(
+    response: dict[str, Any],
+    selected_member_ids: Sequence[str] | None,
+) -> None:
+    if selected_member_ids is None:
+        return
+    response["selected_member_ids"] = [
+        member_id
+        for member_id in selected_member_ids
+        if isinstance(member_id, str) and member_id.strip()
+    ]
 
 
 def _persist_plan_approved_metadata(
