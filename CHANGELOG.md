@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.10.2](https://github.com/sase-org/sase/compare/v0.10.1...v0.10.2) (2026-07-06)
+
+
+### Features
+
+* add approved agent launch requests (sase-5g.8) ([deaf571](https://github.com/sase-org/sase/commit/deaf571e08fbd1b1577308e4bffac627dcba23ce))
+* add file-backed custom agent-family roles (sase-5g.5) ([72fc527](https://github.com/sase-org/sase/commit/72fc527b2286b8eea4e122cda332f13b24f97455))
+* add launch approval pending-action infrastructure (sase-5g.7) ([19a0785](https://github.com/sase-org/sase/commit/19a07856d3dd8c7be92c828f478f87ea0cc4fc21))
+* add plan approval member selection (sase-5g.6) ([b762964](https://github.com/sase-org/sase/commit/b762964a53714994d8c578f7fc6475428b14ff24))
+* add typed plan-chain handoff evaluator (sase-5g.3) ([bfe4cc2](https://github.com/sase-org/sase/commit/bfe4cc29893c86e3a4a4efd661352be862fa7afd))
+* **agent-family:** display custom role status labels (sase-5g.9) ([5eb4508](https://github.com/sase-org/sase/commit/5eb450842dd30b31777259c202e4b722e83e2339))
+* **agent-family:** emit role completion lifecycle events ([19e780d](https://github.com/sase-org/sase/commit/19e780dd50ad288b23b280dd69ab36e3efe4bee4))
+* move consumed plan files into archive on propose ([8585d19](https://github.com/sase-org/sase/commit/8585d194d6bd805a79dcdf08820e5df7ce48177b))
+
+
+### Bug Fixes
+
+* **mode-switch:** fast-forward reusable dev checkouts ([a4edccd](https://github.com/sase-org/sase/commit/a4edccd46a18f6506a25d5ced975518b551cb2e8))
+* **plan:** archive run approvals through shared choice registry (sase-5g.2) ([5f39034](https://github.com/sase-org/sase/commit/5f390345a4398b549c87953ab4cae82cca21a1f8))
+* provider coder aliases inherit [@coder](https://github.com/coder) instead of [@default](https://github.com/default) ([54033e8](https://github.com/sase-org/sase/commit/54033e8b9ababb08d6152b400191bac599137cac))
+* recover bare git projects from partial init state ([dff269e](https://github.com/sase-org/sase/commit/dff269e3a8642a84609ae17d7b3c4ba91595f577))
+* refresh upstream refs before fast-forward merges ([#205](https://github.com/sase-org/sase/issues/205)) ([75e4470](https://github.com/sase-org/sase/commit/75e4470f2eea6e0d38e64987d9f977c7bee9e33d))
+* require core wheel with agent role metadata ([#207](https://github.com/sase-org/sase/issues/207)) ([01babf3](https://github.com/sase-org/sase/commit/01babf3a82e2efd3df7c0771e4eaa1241bab0797))
+* resolve standalone workflow scope from workspace ([1b6df81](https://github.com/sase-org/sase/commit/1b6df81760a819d4b1de431b56edcbdf46d60f91))
+* stop phantom projects from crashing ace startup ([91743c4](https://github.com/sase-org/sase/commit/91743c4802bffbf930d9013193a796746343b4ec))
+* **tui:** make config preview scrolling deterministic ([c1475be](https://github.com/sase-org/sase/commit/c1475bee0af886f4ca31cb53e60582df09bdd9d5))
+* **tui:** preserve live file hints across reloads ([c363142](https://github.com/sase-org/sase/commit/c3631420d355e99fe66658a8a3e0002380f93c83))
+
+
+### Documentation
+
+* add dynamic agent families infographic ([f424add](https://github.com/sase-org/sase/commit/f424add87b6a0a6005083dcbe9b3fc5842828d32))
+* add dynamic agent families user manual research ([b9d91d6](https://github.com/sase-org/sase/commit/b9d91d6161335356e4013d77950df00e12b42e6a))
+* correct verified inaccuracies in agent families and ACE docs ([9a784e2](https://github.com/sase-org/sase/commit/9a784e2cabc182c3d7c436bde01f939afcfa10f5))
+* note supersession of agent families research by docs/agent_families.md ([d735e80](https://github.com/sase-org/sase/commit/d735e80509ab592f9f4bb60a298ea66edcd3f1f9))
+* refresh docs for recent features and add agent families page ([2b4d8e9](https://github.com/sase-org/sase/commit/2b4d8e9aed2a8ccf6f802cd420a94b33a0152525))
+
 ## [0.10.1](https://github.com/sase-org/sase/compare/v0.10.0...v0.10.1) (2026-07-06)
 
 
