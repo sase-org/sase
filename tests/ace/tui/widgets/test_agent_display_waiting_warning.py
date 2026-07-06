@@ -231,3 +231,12 @@ def test_wait_dependencies_satisfied_requires_all_deps_done() -> None:
     )
     assert wait_dependencies_satisfied(agent, {"coder": "Done"}) is False
     assert wait_dependencies_satisfied(agent, None) is False
+
+
+def test_wait_dependencies_satisfied_uses_wait_display_source() -> None:
+    root = make_agent(status="WAITING")
+    child = make_agent(status="WAITING", cl_name="child", waiting_for=["coder"])
+    root.wait_display_source = child
+
+    assert wait_dependencies_satisfied(root, {"coder": "Done"}) is True
+    assert wait_dependencies_satisfied(root, {"coder": "Running"}) is False

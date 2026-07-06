@@ -144,6 +144,31 @@ def test_bundle_skips_retry_chain_siblings() -> None:
     assert restored.retry_chain_siblings == []
 
 
+def test_bundle_skips_wait_display_source() -> None:
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="parent",
+        project_file="/tmp/test.sase",
+        status="WAITING",
+        start_time=datetime(2025, 6, 15, 10, 0, 0),
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="child",
+        project_file="/tmp/test.sase",
+        status="WAITING",
+        start_time=datetime(2025, 6, 15, 10, 5, 0),
+    )
+    parent.wait_display_source = child
+
+    bundle = parent.to_bundle_dict()
+
+    assert "wait_display_source" not in bundle
+    json.dumps(bundle)
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.wait_display_source is None
+
+
 def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
     """Guard against future bundle fields leaking non-JSON-native values."""
     feedback_time = datetime(2025, 6, 15, 10, 6, 0)

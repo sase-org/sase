@@ -98,6 +98,11 @@ def format_compact_duration(seconds: float) -> str:
     return f"{s}s"
 
 
+def wait_display_agent(agent: "Agent") -> "Agent":
+    """Return the row whose wait fields should drive display for *agent*."""
+    return agent.wait_display_source or agent
+
+
 def _reference_for_target(target: datetime, now: datetime | None) -> datetime:
     """Return a timezone-compatible reference time for *target*."""
     if now is not None:
@@ -116,14 +121,18 @@ def _reference_for_target(target: datetime, now: datetime | None) -> datetime:
 
 def wait_remaining_seconds(agent: "Agent", now: datetime | None = None) -> float | None:
     """Return seconds left on an agent's wait time floor, if one is known."""
-    if agent.wait_until:
-        target, reference = wait_until_target_and_reference(agent.wait_until, now=now)
+    wait_agent = wait_display_agent(agent)
+    if wait_agent.wait_until:
+        target, reference = wait_until_target_and_reference(
+            wait_agent.wait_until,
+            now=now,
+        )
         return (target - reference).total_seconds()
-    if agent.wait_duration is None or agent.start_time is None:
+    if wait_agent.wait_duration is None or wait_agent.start_time is None:
         return None
-    if agent.waiting_for:
+    if wait_agent.waiting_for:
         return None
-    target = agent.start_time + timedelta(seconds=agent.wait_duration)
+    target = wait_agent.start_time + timedelta(seconds=wait_agent.wait_duration)
     reference = _reference_for_target(target, now)
     return (target - reference).total_seconds()
 
@@ -443,12 +452,13 @@ def wait_countdown_ticks(agent: "Agent") -> bool:
     """Return True when a ``WAITING`` row has a time floor countdown."""
     if agent.status != "WAITING":
         return False
-    if agent.wait_until:
+    wait_agent = wait_display_agent(agent)
+    if wait_agent.wait_until:
         return True
     return (
-        agent.wait_duration is not None
-        and agent.start_time is not None
-        and not agent.waiting_for
+        wait_agent.wait_duration is not None
+        and wait_agent.start_time is not None
+        and not wait_agent.waiting_for
     )
 
 

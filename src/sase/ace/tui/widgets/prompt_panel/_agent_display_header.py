@@ -257,7 +257,10 @@ def build_header_text(
         header_text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
     # Waiting info (when agent is waiting for dependencies, a duration, or absolute time)
-    if agent.waiting_for or agent.wait_duration or agent.wait_until:
+    from sase.ace.tui.models.agent import wait_display_agent
+
+    wait_agent = wait_display_agent(agent)
+    if wait_agent.waiting_for or wait_agent.wait_duration or wait_agent.wait_until:
         from sase.ace.tui.models.agent import (
             format_compact_duration,
             format_wait_until,
@@ -266,8 +269,8 @@ def build_header_text(
 
         header_text.append("Wait: ", style="bold #87D7FF")
         appended_dependency_names = False
-        if agent.waiting_for:
-            for index, name in enumerate(agent.waiting_for):
+        if wait_agent.waiting_for:
+            for index, name in enumerate(wait_agent.waiting_for):
                 if index:
                     header_text.append(", ", style=_WAITING_VALUE_STYLE)
                 header_text.append(name, style=_WAITING_VALUE_STYLE)
@@ -287,11 +290,11 @@ def build_header_text(
                     header_text.append(glyph, style=style)
             appended_dependency_names = True
         time_part: str | None = None
-        if agent.wait_until:
-            target_label = format_wait_until(agent.wait_until)
+        if wait_agent.wait_until:
+            target_label = format_wait_until(wait_agent.wait_until)
             time_part = f"until {target_label}"
-        elif agent.wait_duration:
-            time_part = format_compact_duration(agent.wait_duration)
+        elif wait_agent.wait_duration:
+            time_part = format_compact_duration(wait_agent.wait_duration)
         if time_part:
             if appended_dependency_names:
                 header_text.append(" + ", style=_WAITING_VALUE_STYLE)

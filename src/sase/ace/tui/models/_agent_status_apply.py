@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from datetime import datetime
 
-from sase.agent.status_buckets import FEEDBACK_STATUS
+from sase.agent.status_buckets import FEEDBACK_STATUS, agent_is_active
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
@@ -34,10 +34,33 @@ from ._agent_status_family import (
     sync_planner_child_from_parent,
 )
 from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
-from .agent import Agent
+from .agent import Agent, AgentType
 
 
 DiffBadgeClassifier = Callable[[list[Agent]], None]
+
+
+def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
+    """Copy the visible root status/metadata from a selected logical child."""
+    parent.status = child.status
+    parent.custom_role_label = child.custom_role_label
+    parent.custom_role_done_label = child.custom_role_done_label
+    copy_missing_display_metadata(parent, child)
+
+
+def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
+    """Return whether *agent* represents active work for root mirroring."""
+    if not agent_is_active(agent.status):
+        return False
+    if agent.stop_time is not None:
+        return False
+    if (
+        agent is not parent
+        and agent.raw_suffix is None
+        and canonical_plan_chain_suffix(agent.role_suffix) == root_child_suffix(parent)
+    ):
+        return False
+    return True
 
 
 def apply_status_overrides(
@@ -61,6 +84,7 @@ def apply_status_overrides(
     all_agents = [*agents, *(workflow_agent_steps or [])]
     for agent in all_agents:
         agent.followup_agents.clear()
+        agent.wait_display_source = None
 
     completed_statuses = {"DONE", "FAILED", "FAILED (RETRIED)", "PLAN REJECTED"}
 
@@ -275,23 +299,50 @@ def apply_status_overrides(
         if agent.followup_agents:
             agent.followup_agents.sort(key=lambda a: a.start_time or datetime.min)
 
-    # Agent-family roots mirror the newest logical child verbatim. The sticky
-    # approved status lives on the planner child row.
+    # Agent-family roots summarize live child activity first. Plan-workflow
+    # roots keep the historical newest-child fallback when no child is active
+    # or queued; plain-agent roots keep their own terminal status in that case.
     for parent in parent_by_suffix.values():
-        if not is_root_plan_workflow(parent):
+        if not parent.raw_suffix:
             continue
         children = [
             child
-            for child in children_by_parent.get(parent.raw_suffix or "", [])
+            for child in children_by_parent.get(parent.raw_suffix, [])
             if child is not parent and is_family_child(child, parent)
         ]
         if not children:
             continue
-        newest = max(children, key=child_launch_time)
-        parent.status = newest.status
-        parent.custom_role_label = newest.custom_role_label
-        parent.custom_role_done_label = newest.custom_role_done_label
-        copy_missing_display_metadata(parent, newest)
+
+        is_plan_root = is_root_plan_workflow(parent)
+        candidates = list(children)
+        if not is_plan_root and parent.agent_type == AgentType.RUNNING:
+            candidates.append(parent)
+
+        active = [
+            agent
+            for agent in candidates
+            if _is_active_root_mirror_candidate(parent, agent)
+        ]
+        if active:
+            newest_active = max(active, key=child_launch_time)
+            if newest_active is not parent:
+                _mirror_root_from_child(parent, newest_active)
+            continue
+
+        waiting = [agent for agent in candidates if agent.status == "WAITING"]
+        if waiting:
+            next_waiting = min(waiting, key=child_launch_time)
+            if next_waiting is not parent:
+                parent.status = "WAITING"
+                parent.wait_display_source = next_waiting
+                parent.custom_role_label = next_waiting.custom_role_label
+                parent.custom_role_done_label = next_waiting.custom_role_done_label
+                copy_missing_display_metadata(parent, next_waiting)
+            continue
+
+        if is_plan_root:
+            newest = max(children, key=child_launch_time)
+            _mirror_root_from_child(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a
     # backward pointer (retry_of_timestamp) to its immediate parent; we

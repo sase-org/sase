@@ -156,3 +156,79 @@ def test_wait_countdown_ticks_skips_plain_waiting_and_non_waiting() -> None:
     assert wait_countdown_ticks(plain_waiting) is False
     assert row_runtime_or_wait_ticks(plain_waiting) is False
     assert wait_countdown_ticks(running) is False
+
+
+def test_wait_display_source_waits_for_authoritative_dependency_deadline() -> None:
+    root = agent(status="WAITING", run_start=None)
+    child = agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        run_start=None,
+        raw_suffix="20260425143100",
+        cl_name="child",
+    )
+    child.waiting_for = ["dep"]
+    child.wait_duration = 300.0
+    root.wait_display_source = child
+
+    assert (
+        wait_remaining_seconds(
+            root,
+            now=datetime(2026, 4, 25, 14, 31, 0),
+        )
+        is None
+    )
+    assert wait_countdown_ticks(root) is False
+    assert row_runtime_or_wait_ticks(root) is False
+
+
+def test_wait_display_source_uses_child_wait_until_countdown() -> None:
+    root = agent(status="WAITING", run_start=None)
+    child = agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        run_start=None,
+        raw_suffix="20260425143100",
+        cl_name="child",
+    )
+    child.waiting_for = ["dep"]
+    child.wait_duration = 300.0
+    child.wait_until = "2026-04-25T14:40:00"
+    root.wait_display_source = child
+
+    assert (
+        wait_remaining_seconds(
+            root,
+            now=datetime(2026, 4, 25, 14, 38, 30),
+        )
+        == 90.0
+    )
+    assert wait_countdown_ticks(root) is True
+    assert row_runtime_or_wait_ticks(root) is True
+
+
+def test_wait_display_source_uses_child_duration_countdown() -> None:
+    root = agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 0, 0),
+        run_start=None,
+    )
+    child = agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        run_start=None,
+        raw_suffix="20260425143100",
+        cl_name="child",
+    )
+    child.wait_duration = 300.0
+    root.wait_display_source = child
+
+    assert (
+        wait_remaining_seconds(
+            root,
+            now=datetime(2026, 4, 25, 14, 31, 0),
+        )
+        == 240.0
+    )
+    assert wait_countdown_ticks(root) is True
+    assert row_runtime_or_wait_ticks(root) is True

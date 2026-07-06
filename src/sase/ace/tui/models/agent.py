@@ -18,6 +18,7 @@ from .agent_time import (
     row_runtime_or_wait_ticks,
     should_display_runtime_suffix,
     wait_countdown_ticks,
+    wait_display_agent,
     wait_remaining_seconds,
     wait_until_target_and_reference,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "row_runtime_or_wait_ticks",
     "should_display_runtime_suffix",
     "wait_countdown_ticks",
+    "wait_display_agent",
     "wait_remaining_seconds",
     "wait_until_target_and_reference",
     "load_attempt_history",
@@ -286,6 +288,14 @@ class Agent:
     # Child agents whose intervals contribute to this row's aggregate runtime
     # (populated at load time, not serialized).
     runtime_children: list["Agent"] = field(default_factory=list)
+
+    # WAITING child row whose wait metadata should drive this row's display.
+    # Runtime-only presentation plumbing; not serialized.
+    wait_display_source: "Agent | None" = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
 
     # Retry-chain lineage (spawn-on-retry).
     # retry_of_timestamp: backward pointer to the immediate parent in the

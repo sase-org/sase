@@ -43,6 +43,24 @@ WORKING_PLAN_STATUS_TO_APPROVED: dict[str, str] = {
     WORKING_TALE_STATUS: TALE_APPROVED_STATUS,
 }
 
+#: Statuses that mean an agent process is actually in flight.  This is
+#: deliberately narrower than the ``Running`` bucket used by filters: sticky
+#: approved planner statuses bucket as running for query purposes, but the
+#: planner process has finished by the time those labels are displayed.
+ACTIVE_AGENT_STATUSES: frozenset[str] = frozenset(
+    {
+        "STARTING",
+        "RUNNING",
+        "RETRYING",
+        "ANSWERED",
+        WORKING_PLAN_STATUS,
+        WORKING_TALE_STATUS,
+        EPIC_APPROVED_STATUS,
+        LEGEND_APPROVED_STATUS,
+        PLAN_COMMITTED_STATUS,
+    }
+)
+
 #: Statuses where an agent is paused for explicit human input.  This is
 #: intentionally narrower than ``needs:input`` query matching, which also
 #: includes execution states such as ``PLAN APPROVED``.
@@ -100,6 +118,11 @@ _NEEDS_INPUT_STATUSES: frozenset[str] = frozenset(
 def agent_is_asking(status: str | None) -> bool:
     """Return whether *status* represents a human-input pause."""
     return (status or "") in AGENT_ASKING_STATUSES
+
+
+def agent_is_active(status: str | None) -> bool:
+    """Return whether *status* represents an in-flight agent process."""
+    return (status or "") in ACTIVE_AGENT_STATUSES
 
 
 def status_bucket_for_values(

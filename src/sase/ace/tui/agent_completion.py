@@ -146,11 +146,14 @@ def wait_dependencies_satisfied(
     agent: Agent, status_buckets: Mapping[str, str] | None
 ) -> bool:
     """Return whether every waited-for agent is known done."""
-    if not agent.waiting_for:
+    from sase.ace.tui.models.agent_time import wait_display_agent
+
+    wait_agent = wait_display_agent(agent)
+    if not wait_agent.waiting_for:
         return True
     if status_buckets is None:
         return False
-    return all(status_buckets.get(name) == "Done" for name in agent.waiting_for)
+    return all(status_buckets.get(name) == "Done" for name in wait_agent.waiting_for)
 
 
 def build_agent_completion_candidates(

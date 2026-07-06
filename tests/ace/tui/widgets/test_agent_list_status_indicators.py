@@ -254,6 +254,67 @@ class TestRelativeWaitDurationRendering:
         assert "test_cl (WAITING 1m29s)" in left.plain
         assert "+5m" not in left.plain
 
+    def test_root_wait_display_source_renders_static_duration_hint(self) -> None:
+        root = make_agent(status="WAITING")
+        child = make_agent(
+            status="WAITING",
+            cl_name="child",
+            waiting_for=["dep"],
+            wait_duration=300,
+        )
+        root.wait_display_source = child
+
+        left, _, _ = format_agent_option(root, 0, is_selected=False)
+
+        assert left.plain.endswith("test_cl (WAITING +5m)")
+
+    def test_root_wait_display_source_renders_live_countdown(self) -> None:
+        now = datetime(2026, 4, 11, 14, 13, 31, tzinfo=UTC)
+        wait_until = datetime(2026, 4, 11, 14, 15, 0, tzinfo=UTC).isoformat()
+        root = make_agent(status="WAITING")
+        child = make_agent(
+            status="WAITING",
+            cl_name="child",
+            waiting_for=["dep"],
+            wait_duration=300,
+            wait_until=wait_until,
+        )
+        root.wait_display_source = child
+
+        left, _, _ = format_agent_option(
+            root,
+            0,
+            is_selected=False,
+            now=now,
+            wait_deps_satisfied=True,
+        )
+
+        assert "test_cl (WAITING 1m29s)" in left.plain
+        assert "+5m" not in left.plain
+
+    def test_root_wait_display_source_header_matches_child(self) -> None:
+        root = make_agent(status="WAITING")
+        child = make_agent(
+            status="WAITING",
+            cl_name="child",
+            waiting_for=["dep"],
+            wait_duration=300,
+        )
+        root.wait_display_source = child
+
+        root_header, _ = build_header_text(root, cheap=True)
+        child_header, _ = build_header_text(child, cheap=True)
+
+        root_wait = next(
+            line for line in root_header.plain.splitlines() if line.startswith("Wait: ")
+        )
+        child_wait = next(
+            line
+            for line in child_header.plain.splitlines()
+            if line.startswith("Wait: ")
+        )
+        assert root_wait == child_wait == "Wait: dep + 5m"
+
     def test_pure_duration_wait_still_renders_countdown(self) -> None:
         now = datetime(2026, 4, 11, 14, 13, 31)
         agent = make_agent(

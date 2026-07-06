@@ -21,6 +21,7 @@ from ..models.agent import (
     AgentType,
     format_compact_duration,
     format_wait_until,
+    wait_display_agent,
     wait_remaining_seconds,
 )
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
@@ -229,8 +230,9 @@ def format_agent_option(
         text.append(display_status, style="bold #D7AFFF")  # Lavender
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
+        wait_agent = wait_display_agent(agent)
         deps_satisfied = (
-            not agent.waiting_for
+            not wait_agent.waiting_for
             if wait_deps_satisfied is None
             else wait_deps_satisfied
         )
@@ -241,16 +243,16 @@ def format_agent_option(
                 style="#AF87FF",
             )
         elif (
-            agent.waiting_for
-            and agent.wait_duration is not None
-            and not agent.wait_until
+            wait_agent.waiting_for
+            and wait_agent.wait_duration is not None
+            and not wait_agent.wait_until
         ):
             text.append(
-                f" +{format_compact_duration(agent.wait_duration)}",
+                f" +{format_compact_duration(wait_agent.wait_duration)}",
                 style="#AF87FF",
             )
-        elif agent.wait_until:
-            target_label = format_wait_until(agent.wait_until, now=now)
+        elif wait_agent.wait_until:
+            target_label = format_wait_until(wait_agent.wait_until, now=now)
             if wait_remaining is not None and wait_remaining > 0:
                 text.append(
                     f" (until {target_label}, "

@@ -16,7 +16,7 @@ from textual.widgets.option_list import Option
 from ..models.agent import Agent
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
-from ..models.agent_time import row_runtime_or_wait_ticks
+from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
 from ._agent_list_helpers import ordered_row_providers
 
 _AGENT_CACHE_MAX = 512
@@ -92,6 +92,7 @@ def _runtime_signature(
     seen = _seen | {agent_id}
 
     time_sensitive = row_runtime_or_wait_ticks(agent)
+    wait_agent = wait_display_agent(agent)
     child_signature = tuple(
         _runtime_signature(child, now, seen)
         for child in getattr(agent, "runtime_children", ())
@@ -105,8 +106,9 @@ def _runtime_signature(
         agent.code_time,
         tuple(agent.questions_times),
         child_signature,
-        getattr(agent, "wait_until", None),
-        getattr(agent, "wait_duration", None),
+        getattr(wait_agent, "wait_until", None),
+        getattr(wait_agent, "wait_duration", None),
+        tuple(getattr(wait_agent, "waiting_for", ())),
         getattr(agent, "retry_next_at_epoch", None),
         agent.retry_count,
         agent.using_fallback,
@@ -137,6 +139,7 @@ def agent_render_key(
     intentionally explicit (no ``vars(agent)``) so adding a new visible
     field is a deliberate edit here rather than a silent cache desync.
     """
+    wait_agent = wait_display_agent(agent)
     return (
         agent.identity,
         index,
@@ -151,7 +154,7 @@ def agent_render_key(
         agent.auto_approve_plan_action,
         agent.tag,
         agent.agent_name,
-        tuple(agent.waiting_for),
+        tuple(wait_agent.waiting_for),
         wait_deps_satisfied,
         agent_file_change_hint(agent),
         agent.reverted,
