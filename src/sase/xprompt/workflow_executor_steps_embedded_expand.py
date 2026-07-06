@@ -164,6 +164,17 @@ class EmbeddedWorkflowExpandMixin:
                     if input_arg.name not in args:
                         args[input_arg.name] = value
 
+            from sase.agent.family_attach import (
+                default_with_feedback_parent_from_family_attach,
+            )
+
+            default_with_feedback_parent_from_family_attach(
+                name,
+                args,
+                prompt=prompt,
+                reference_offset=ref.start,
+            )
+
             explicit_args = dict(args)
 
             # Apply defaults

@@ -865,6 +865,40 @@ To see the exact body of any built-in inline xprompt, run `sase xprompt expand -
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
 name without a `#` or `#!` marker.
 
+### Bundled Follow-Up XPrompts
+
+SASE ships two embeddable follow-up prompt workflows for manual family rounds:
+
+| Reference        | Inputs                        | Purpose                                                                  |
+| ---------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| `#with_feedback` | `feedback`, optional `parent` | Append plan feedback using the same replan prompt renderer as the runner |
+| `#with_q_and_a`  | `prompt`, `qa_file`           | Append answered SASE questions using the same Q&A renderer as the runner |
+
+Both xprompts only assemble prompt text; `%n(parent, suffix)` is the launch directive that attaches the new agent to the
+family.
+
+For feedback, pass `parent=` explicitly or combine it with `%n(parent, suffix)` and let SASE infer the parent:
+
+```text
+%n(planner, @) #with_feedback:: Add failure handling before coding.
+%n(planner, reviewer) #with_feedback(parent=planner):: Re-check the API shape.
+```
+
+For Q&A, provide a JSON file containing one or more answered question rounds:
+
+```text
+%n(planner, @) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
+```
+
+The Q&A file should use the same structured request/response shape SASE writes for user questions: `questions` plus a
+`response`, or a top-level `rounds` list of those objects. Literal `#xprompt` text inside answers is protected so it
+does not expand accidentally.
+
+Glossary note: this feature uses the runner's double-dash plan-chain family model (`foo--reviewer`). The current memory
+glossary uses "agent family" for dot-separated TUI hoods. A proposed glossary rewording is: "Agent family: for
+plan-chain lineage, agents that share a `--` base such as `foo`, `foo--plan`, and `foo--code`; dot-separated names such
+as `foo.bar` are agent hoods/neighbors in the ACE TUI."
+
 ### Bundled Standalone Workflows
 
 The repo-level `xprompts/` directory also ships standalone YAML workflows that are normally invoked with `#!`:
@@ -965,7 +999,7 @@ the prompt before further processing.
 | --------- | ----- | ---------------------------------------------------------------- |
 | `%model`  | `%m`  | Override the LLM model for this prompt                           |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
-| `%name`   | `%n`  | Assign, auto-generate, or force-reuse an agent name              |
+| `%name`   | `%n`  | Assign an agent name or attach a member to an existing family    |
 | `%wait`   | `%w`  | Wait for another agent/workflow and/or a time floor              |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display               |
 | `%auto`   | `%a`  | Auto-approve the submitted plan as plan (default), tale, or epic |
@@ -991,6 +1025,8 @@ Directives use the same argument syntax as xprompt references:
 %{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
 %name:reviewer               # Short-form
 %n:reviewer                  # Same, using alias
+%n(parent, reviewer)         # Attach parent--reviewer to parent's family
+%n(parent, @)                # Attach the next free feedback/Q&A suffix
 %name                        # Bare — auto-generates a unique name
 %name:!reviewer              # Force reuse by wiping the previous owner
 %wait:agent1                 # Wait for agent1
@@ -1050,6 +1086,26 @@ Agent names are permanent IDs. A name that belongs to any existing agent state c
 the lowest free numeric suffix such as `<name>1`. To deliberately reuse a name, use `%name:!<name>` from the TUI; the
 `!` form is the explicit confirmation to wipe the previous owner and its persisted system state before launching the new
 agent with that name. Non-TUI launch surfaces reject `%name:!<name>` unless they provide an explicit confirmation path.
+
+The two-argument `%n(parent, suffix)` form attaches a new agent to an existing plan-chain family. SASE resolves `parent`
+to the newest visible root agent in the current project, composes the child name as `<family-base>--<suffix>`, writes
+the same family metadata as runner-created follow-ups, and strips the directive before the model sees the prompt. The
+suffix argument is a bare token: write `%n(foo, reviewer)`, not `%n(foo, --reviewer)`.
+
+Reserved suffixes (`plan`, `q`, `code`, `epic`, `legend`, `commit`) select their built-in family roles and status
+labels. Numeric suffixes and `@` are feedback/Q&A rounds; `@` allocates the next free suffix. Other alphanumeric
+suffixes such as `reviewer` or `tester` are allowed as custom roles and use ordinary running/done status labels while
+preserving the custom role in `agent_family_role` metadata for future family evaluators.
+
+If the parent is still running, the child is launched immediately as a WAITING child row under the parent and starts
+when that exact parent artifact completes successfully. If the parent fails, is stopped, or is killed, the queued child
+is cancelled to `STOPPED` and SASE sends a completion notification explaining the failed dependency. If the parent is
+absent, ambiguous, dismissed, or the composed child name already exists, launch preparation fails before spawning the
+child; collision errors suggest `%n(parent, @)`.
+
+The family-attach form works from every normal user launch surface because the constraint check runs in shared launch
+preparation. Multi-agent prompts keep `%n` segment-local: each `---` segment prepares and spawns through its own launch
+slot.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
 For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.

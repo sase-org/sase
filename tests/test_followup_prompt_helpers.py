@@ -19,6 +19,7 @@ from sase.main.qa_prompt import (
     qa_rounds_from_payload,
 )
 from sase.main.query_handler import expand_embedded_workflows_in_query
+from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import WorkflowExecutionError
 
 
@@ -233,6 +234,112 @@ def test_with_feedback_xprompt_expands_from_parent_artifacts(
         ["Add failure handling"],
     )
     assert workflows[0].workflow_name == "with_feedback"
+
+
+def test_with_feedback_xprompt_defaults_parent_from_family_attach(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / "sase-home"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    artifacts_dir = (
+        sase_home / "projects" / "myproj" / "artifacts" / "ace-run" / "20260706010101"
+    )
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "parent_agent", "stopped_at": "2026-07-06T01:01:01Z"}),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "done.json").write_text(
+        json.dumps({"outcome": "completed", "name": "parent_agent"}),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "workflow-main_prompt.md").write_text(
+        "Original parent prompt", encoding="utf-8"
+    )
+
+    expanded, workflows = expand_embedded_workflows_in_query(
+        "%n(parent_agent, @) #with_feedback:: Add failure handling"
+    )
+    cleaned, directives = extract_prompt_directives(expanded)
+    expected, _ = extract_prompt_directives(
+        assemble_feedback_replan_prompt(
+            "Original parent prompt",
+            ["Add failure handling"],
+        )
+    )
+
+    assert cleaned.lstrip() == expected
+    assert directives.family_attach_parent == "parent_agent"
+    assert directives.family_attach_suffix == "@"
+    assert workflows[0].context["parent"] == "parent_agent"
+    assert workflows[0].workflow_name == "with_feedback"
+
+
+def test_with_feedback_parent_default_is_multi_prompt_segment_local(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / "sase-home"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    artifacts_dir = (
+        sase_home / "projects" / "myproj" / "artifacts" / "ace-run" / "20260706020202"
+    )
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "parent_two", "stopped_at": "2026-07-06T02:02:02Z"}),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "done.json").write_text(
+        json.dumps({"outcome": "completed", "name": "parent_two"}),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "workflow-main_prompt.md").write_text(
+        "Original parent two prompt", encoding="utf-8"
+    )
+
+    expanded, workflows = expand_embedded_workflows_in_query(
+        "%n(parent_one, @) unrelated segment\n"
+        "---\n"
+        "%n(parent_two, @) #with_feedback:: Add launch-prep coverage"
+    )
+
+    assert "Original parent two prompt" in expanded
+    assert workflows[0].context["parent"] == "parent_two"
+
+
+def test_with_q_and_a_xprompt_composes_with_family_attach_directive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    qa_file = tmp_path / "qa.json"
+    payload = {
+        "questions": [_q("Which API?", "REST")],
+        "response": {
+            "answers": [{"question": "Which API?", "selected": ["REST"]}],
+            "global_note": "Keep it simple",
+        },
+    }
+    qa_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    expanded, workflows = expand_embedded_workflows_in_query(
+        f"%n(parent_agent, @) #with_q_and_a(qa_file={qa_file}):: Base prompt"
+    )
+    cleaned, directives = extract_prompt_directives(expanded)
+    expected, _ = extract_prompt_directives(
+        assemble_question_followup_prompt(
+            "Base prompt",
+            qa_rounds_from_payload(payload),
+        )
+    )
+
+    assert cleaned.lstrip() == expected
+    assert directives.family_attach_parent == "parent_agent"
+    assert directives.family_attach_suffix == "@"
+    assert workflows[0].workflow_name == "with_q_and_a"
 
 
 def test_with_feedback_unknown_parent_errors(

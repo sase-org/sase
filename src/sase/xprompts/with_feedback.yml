@@ -5,6 +5,7 @@ input:
     description: Feedback text to append as an additional requirement.
   parent:
     type: line
+    default: ""
     description: Parent agent or family name whose prompt should be extended.
 steps:
   - name: render

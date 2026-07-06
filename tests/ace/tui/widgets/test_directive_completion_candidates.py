@@ -62,6 +62,7 @@ def test_removed_auto_approval_directives_are_absent_from_completion() -> None:
 
 def test_directive_completion_includes_representative_descriptions() -> None:
     model, _ = single_directive_candidate("%mo")
+    name, _ = single_directive_candidate("%n")
     wait, _ = single_directive_candidate("%w")
     alt, _ = single_directive_candidate("%al")
     auto, _ = single_directive_candidate("%au")
@@ -69,6 +70,10 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(model).description == (
         "choose one or more provider/model targets"
     )
+    assert directive_metadata(name).description == (
+        "assign an agent name or attach a member to an existing family"
+    )
+    assert directive_metadata(name).argument_hint == ":agent or (parent, suffix)"
     assert directive_metadata(wait).description == (
         "defer launch until agents complete or a time floor passes"
     )

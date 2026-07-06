@@ -119,6 +119,58 @@ def _extract_family_attach_directive(prompt: str) -> _FamilyAttachDirective | No
     return None
 
 
+def _family_attach_parent_from_prompt(prompt: str) -> str | None:
+    """Return the parent named by a top-level ``%n(parent, suffix)`` directive."""
+    directive = _extract_family_attach_directive(prompt)
+    return None if directive is None else directive.parent
+
+
+def default_with_feedback_parent_from_family_attach(
+    workflow_name: str,
+    args: dict[str, Any],
+    *,
+    prompt: str,
+    reference_offset: int | None = None,
+    fenced_ranges: list[tuple[int, int]] | None = None,
+) -> None:
+    """Default ``#with_feedback``'s parent from a co-occurring family attach."""
+    if workflow_name != "with_feedback" or args.get("parent"):
+        return
+    if reference_offset is not None:
+        prompt = _prompt_segment_at_offset(
+            prompt,
+            reference_offset,
+            fenced_ranges or [],
+        )
+    parent = _family_attach_parent_from_prompt(prompt)
+    if parent:
+        args["parent"] = parent
+
+
+def _prompt_segment_at_offset(
+    prompt: str,
+    offset: int,
+    fenced_ranges: list[tuple[int, int]],
+) -> str:
+    """Return the top-level ``---`` segment containing *offset*."""
+    from sase.xprompt._parsing import _SEGMENT_SEPARATOR_RE
+
+    start = 0
+    end = len(prompt)
+    for match in _SEGMENT_SEPARATOR_RE.finditer(prompt):
+        if any(
+            range_start <= match.start() < range_end
+            for range_start, range_end in fenced_ranges
+        ):
+            continue
+        if match.end() <= offset:
+            start = match.end()
+            continue
+        end = match.start()
+        break
+    return prompt[start:end]
+
+
 def prepare_family_attach_launch(
     prompt: str,
     context: Any,

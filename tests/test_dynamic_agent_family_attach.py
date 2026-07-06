@@ -10,10 +10,13 @@ from sase.agent.family_attach import (
     _FamilyAttachDirective,
     _FamilyAttachError,
     _extract_family_attach_directive,
+    default_with_feedback_parent_from_family_attach,
     _resolve_family_attach_plan,
 )
+from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
 from sase.agent.launch_validation import validate_launch_name_requests
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
+from sase.core.agent_launch_facade import plan_fake_fanout
 from sase.plan_chain import agent_family_role_for_suffix, is_plan_chain_artifact_meta
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
@@ -63,6 +66,18 @@ def test_extract_family_attach_directive() -> None:
     directive = _extract_family_attach_directive("%model:codex/gpt-5\n%n(foo, @)")
 
     assert directive == _FamilyAttachDirective(parent="foo", suffix="@")
+
+
+def test_with_feedback_parent_default_uses_family_attach_directive() -> None:
+    args: dict[str, str] = {"feedback": "tighten tests"}
+
+    default_with_feedback_parent_from_family_attach(
+        "with_feedback",
+        args,
+        prompt="%n(foo, @) #with_feedback:: tighten tests",
+    )
+
+    assert args["parent"] == "foo"
 
 
 def test_custom_family_role_classifies_plan_chain_metadata() -> None:
@@ -170,3 +185,30 @@ def test_family_attach_running_parent_builds_queued_plan(monkeypatch) -> None:
     assert plan.parent_timestamp == "20260701010101"
     assert plan.agent_name == "foo--reviewer"
     assert plan.parent_workspace_num == 7
+
+
+def test_family_attach_prep_failure_prevents_spawn(monkeypatch) -> None:
+    spawned: list[object] = []
+
+    def fail_resolve(_directive: object, *, project_name: str) -> object:
+        assert project_name == "sase"
+        raise _FamilyAttachError("Cannot attach family member to 'missing'")
+
+    monkeypatch.setattr(
+        "sase.agent.family_attach._resolve_family_attach_plan",
+        fail_resolve,
+    )
+
+    with pytest.raises(_FamilyAttachError, match="Cannot attach family member"):
+        execute_launch_plan(
+            plan_fake_fanout("single", ["%n(missing, reviewer)\nDo work"]),
+            LaunchExecutionContext(
+                cl_name="sase",
+                project_file="/tmp/sase.sase",
+                project_name="sase",
+                is_home_mode=True,
+            ),
+            spawn=lambda request: spawned.append(request),  # type: ignore[arg-type]
+        )
+
+    assert spawned == []

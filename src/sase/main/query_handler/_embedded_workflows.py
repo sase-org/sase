@@ -76,6 +76,7 @@ def expand_embedded_workflows_in_query(
     # Normalize #gh_sase → #gh:sase so the workflow ref pattern can
     # correctly split VCS prefix from ref name.
     query = normalize_vcs_underscore_refs(query)
+    segment_source_query = query
 
     # Compute fenced code block ranges so we can skip references inside them.
     fenced_ranges = fenced_block_ranges(query)
@@ -115,6 +116,18 @@ def expand_embedded_workflows_in_query(
                 input_arg = workflow.inputs[i]
                 if input_arg.name not in args:
                     args[input_arg.name] = value
+
+        from sase.agent.family_attach import (
+            default_with_feedback_parent_from_family_attach,
+        )
+
+        default_with_feedback_parent_from_family_attach(
+            name,
+            args,
+            prompt=segment_source_query,
+            reference_offset=ref.start,
+            fenced_ranges=fenced_ranges,
+        )
 
         # Capture explicit args before applying defaults
         explicit_args = dict(args)
