@@ -22,7 +22,6 @@ from sase.launch_approval_actions import (
     LaunchApprovalActionContext,
     LaunchApprovalActionError,
     execute_launch_approval_response,
-    get_auto_launch_approval_action,
 )
 from sase.notifications import pending_actions
 from sase.notifications.models import Notification
@@ -222,22 +221,3 @@ def test_mobile_launch_action_writes_response_and_marks_dismissed(
             notification_store.load_notifications(include_dismissed=True)[0].dismissed
             is True
         )
-
-
-def test_auto_launch_approval_precedence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SASE_AGENT_AUTO_APPROVE", "1")
-    assert get_auto_launch_approval_action() == "approve"
-
-    monkeypatch.setenv("SASE_AGENT_AUTO_APPROVE_LAUNCH_ACTION", "reject")
-    assert get_auto_launch_approval_action() == "reject"
-
-    monkeypatch.delenv("SASE_AGENT_AUTO_APPROVE_LAUNCH_ACTION")
-    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
-    monkeypatch.delenv("SASE_AGENT_AUTO_APPROVE")
-    (tmp_path / "agent_meta.json").write_text(
-        '{"auto_approve_launch_action": "feedback"}',
-        encoding="utf-8",
-    )
-    assert get_auto_launch_approval_action() == "feedback"

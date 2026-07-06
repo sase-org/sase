@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Protocol
 
 from sase.agent.launch_preview import LAUNCH_REQUEST_FILE, LAUNCH_RESPONSE_FILE
-
-LaunchApprovalChoice = Literal["approve", "reject", "feedback"]
 
 
 @dataclass(frozen=True)
@@ -105,29 +102,6 @@ def execute_launch_approval_response(
     )
 
 
-def get_auto_launch_approval_action() -> LaunchApprovalChoice | None:
-    """Return the launch-specific auto-approval action, if one is active."""
-    for env_name in (
-        "SASE_AGENT_AUTO_APPROVE_LAUNCH_ACTION",
-        "SASE_AGENT_AUTO_LAUNCH_ACTION",
-    ):
-        action = _normalize_launch_action(os.environ.get(env_name))
-        if action is not None:
-            return action
-
-    meta = _read_agent_meta()
-    action = _normalize_launch_action(meta.get("auto_approve_launch_action"))
-    if action is not None:
-        return action
-
-    if os.environ.get("SASE_AGENT_AUTO_APPROVE_LAUNCH") or meta.get("approve_launch"):
-        return "approve"
-    if os.environ.get("SASE_AGENT_AUTO_APPROVE") or meta.get("approve"):
-        return "approve"
-
-    return None
-
-
 def run_launch_side_effects(
     notification: LaunchApprovalActionContext,
     choice: str,
@@ -204,34 +178,11 @@ def _write_json_replace(response_path: Path, response_json: dict[str, Any]) -> N
         f.write("\n")
 
 
-def _normalize_launch_action(value: object) -> LaunchApprovalChoice | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip().lower()
-    if normalized in {"approve", "reject", "feedback"}:
-        return normalized  # type: ignore[return-value]
-    return None
-
-
-def _read_agent_meta() -> dict[str, object]:
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        return {}
-    meta_path = Path(artifacts_dir) / "agent_meta.json"
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
 __all__ = [
     "LaunchApprovalActionContext",
     "LaunchApprovalActionError",
     "LaunchApprovalActionResult",
     "execute_launch_approval_response",
-    "get_auto_launch_approval_action",
     "launch_context_from_notification",
     "run_launch_side_effects",
 ]

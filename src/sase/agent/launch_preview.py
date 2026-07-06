@@ -23,7 +23,7 @@ LAUNCH_PREVIEW_FILE = "launch_preview.md"
 LAUNCH_RESPONSE_FILE = "launch_response.json"
 
 
-def new_launch_request_id() -> str:
+def _new_launch_request_id() -> str:
     """Return a globally unique host-side launch approval request id."""
     return f"launch-{uuid4()}"
 
@@ -46,7 +46,7 @@ def build_launch_preview_request(
     without claiming workspaces or spawning child processes.
     """
     created = time.time() if created_at_unix is None else created_at_unix
-    request_id = request_id or new_launch_request_id()
+    request_id = request_id or _new_launch_request_id()
     slots: list[dict[str, Any]] = []
     kinds: Counter[str] = Counter()
     models: Counter[str] = Counter()
@@ -124,7 +124,7 @@ def write_launch_preview_files(
         json.dumps(dict(request), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    preview_path.write_text(render_launch_preview_markdown(request), encoding="utf-8")
+    preview_path.write_text(_render_launch_preview_markdown(request), encoding="utf-8")
     if response_path.exists():
         response_path.unlink()
     return {
@@ -135,7 +135,7 @@ def write_launch_preview_files(
     }
 
 
-def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
+def _render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
     """Render a compact human-readable launch preview."""
     slot_count = int(request.get("slot_count") or 0)
     source = str(request.get("source_surface") or "unknown")
@@ -217,7 +217,5 @@ __all__ = [
     "LAUNCH_REQUEST_FILE",
     "LAUNCH_RESPONSE_FILE",
     "build_launch_preview_request",
-    "new_launch_request_id",
-    "render_launch_preview_markdown",
     "write_launch_preview_files",
 ]
