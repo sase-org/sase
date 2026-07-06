@@ -68,6 +68,7 @@ def _run_runner_with_wait_result(
         markdown_pdf_paths=[],
         markdown_source_count=0,
         image_paths=[],
+        video_paths=[],
         current_artifacts_dir=str(artifacts_dir),
         step_output=None,
     )

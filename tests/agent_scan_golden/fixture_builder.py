@@ -149,6 +149,7 @@ def _build_ace_run_done(root: Path) -> None:
             "diff_path": "/tmp/diff_alpha.diff",
             "markdown_pdf_paths": ["/tmp/markdown_pdfs/notes.pdf"],
             "image_paths": ["/tmp/images/alpha.png"],
+            "video_paths": ["/tmp/videos/alpha.mp4"],
             "response_path": "/tmp/resp_alpha.md",
             "output_path": "/tmp/out_alpha.log",
         },

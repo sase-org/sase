@@ -228,10 +228,11 @@ def _collect_default_artifacts(
     saved_path: str | None,
     diff_path: str | None,
     step_output: dict[str, Any] | None,
-) -> tuple[list[str], int, list[str], bool]:
+) -> tuple[list[str], int, list[str], list[str], bool]:
     from sase.axe.image_attachments import (
         collect_agent_image_paths,
         collect_agent_markdown_paths,
+        collect_agent_video_paths,
     )
 
     include_head_commit = bool(
@@ -256,6 +257,12 @@ def _collect_default_artifacts(
         include_head_commit=include_head_commit,
         existing_files=[*base_files, *markdown_pdf_paths],
     )
+    video_paths = collect_agent_video_paths(
+        workspace_dir,
+        diff_path=diff_path,
+        include_head_commit=include_head_commit,
+        existing_files=[*base_files, *markdown_pdf_paths, *image_paths],
+    )
 
     try:
         from sase.core.agent_artifact_facade import persist_default_agent_artifacts
@@ -263,6 +270,7 @@ def _collect_default_artifacts(
         persist_default_agent_artifacts(
             state.current_artifacts_dir,
             image_paths=image_paths,
+            video_paths=video_paths,
             workspace_dir=workspace_dir,
         )
         default_artifacts_persisted = True
@@ -274,6 +282,7 @@ def _collect_default_artifacts(
         markdown_pdf_paths,
         markdown_source_count,
         image_paths,
+        video_paths,
         default_artifacts_persisted,
     )
 
@@ -368,6 +377,7 @@ def finalize_loop(
     markdown_pdf_paths: list[str] = []
     markdown_source_count = 0
     image_paths: list[str] = []
+    video_paths: list[str] = []
     step_output: dict[str, Any] | None = None
 
     if state.loop_outcome == "completed":
@@ -401,6 +411,7 @@ def finalize_loop(
             markdown_pdf_paths,
             markdown_source_count,
             image_paths,
+            video_paths,
             default_artifacts_persisted,
         ) = _collect_default_artifacts(ctx, state, saved_path, diff_path, step_output)
 
@@ -427,6 +438,7 @@ def finalize_loop(
             plan_path=plan_path,
             markdown_pdf_paths=markdown_pdf_paths,
             image_paths=image_paths,
+            video_paths=video_paths,
             retry_metadata=retry_meta,
             default_artifacts_persisted=default_artifacts_persisted,
         )
@@ -484,6 +496,7 @@ def finalize_loop(
         markdown_pdf_paths=markdown_pdf_paths,
         markdown_source_count=markdown_source_count,
         image_paths=image_paths,
+        video_paths=video_paths,
         current_artifacts_dir=state.current_artifacts_dir,
         step_output=step_output,
     )

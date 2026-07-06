@@ -41,8 +41,9 @@ def test_synthesize_default_artifacts_from_done_and_agent_meta(tmp_path: Path) -
     plan = tmp_path / "plan.md"
     alternate_plan = tmp_path / "sdd_plan.md"
     image = tmp_path / "image.png"
+    video = tmp_path / "demo.mp4"
     pdf = tmp_path / "generated.pdf"
-    for path in (chat, plan, alternate_plan, image, pdf):
+    for path in (chat, plan, alternate_plan, image, video, pdf):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("artifact", encoding="utf-8")
 
@@ -52,6 +53,7 @@ def test_synthesize_default_artifacts_from_done_and_agent_meta(tmp_path: Path) -
             "response_path": str(chat),
             "plan_path": str(plan),
             "image_paths": [str(image)],
+            "video_paths": [str(video)],
             "markdown_pdf_paths": [str(pdf)],
             "name": "agent-name",
         },
@@ -72,6 +74,7 @@ def test_synthesize_default_artifacts_from_done_and_agent_meta(tmp_path: Path) -
         ("chat", str(chat)),
         ("plan", str(plan)),
         ("image", str(image)),
+        ("file", str(video)),
         ("pdf", str(pdf)),
     ]
     assert artifacts[0].agent_name == "agent-name"
@@ -440,16 +443,17 @@ def test_store_default_agent_artifact_returns_none_for_missing_source(
     assert indexed == []
 
 
-def test_persist_default_agent_artifacts_unions_image_paths_and_xprompt(
+def test_persist_default_agent_artifacts_unions_media_paths_and_xprompt(
     tmp_path: Path,
 ) -> None:
     artifacts_dir = _agent_dir(tmp_path)
     workspace = tmp_path / "workspace"
     diff_image = workspace / "out" / "diff_image.png"
     prompt_image = workspace / "screenshots" / "before.png"
-    for path in (diff_image, prompt_image):
+    video = workspace / "renders" / "demo.mp4"
+    for path in (diff_image, prompt_image, video):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"png")
+        path.write_bytes(path.suffix.encode())
     (artifacts_dir / "coder_prompt.md").write_text(
         "Use screenshots/before.png and a missing/absent.png\n",
         encoding="utf-8",
@@ -460,15 +464,21 @@ def test_persist_default_agent_artifacts_unions_image_paths_and_xprompt(
     persisted = persist_default_agent_artifacts(
         artifacts_dir,
         image_paths=[str(diff_image), str(workspace / "ghost.png")],
+        video_paths=[str(video), str(workspace / "missing.mp4")],
         workspace_dir=str(workspace),
         artifacts_root=artifacts_root,
         index_path=index_path,
     )
 
     persisted_sources = sorted(a.source_path or "" for a in persisted)
-    assert persisted_sources == sorted([str(diff_image), str(prompt_image)])
+    assert persisted_sources == sorted([str(diff_image), str(prompt_image), str(video)])
+    kinds_by_source = {artifact.source_path: artifact.kind for artifact in persisted}
+    assert kinds_by_source == {
+        str(diff_image): "image",
+        str(prompt_image): "image",
+        str(video): "file",
+    }
     for artifact in persisted:
-        assert artifact.kind == "image"
         assert artifact.explicit is False
         assert Path(artifact.path).is_file()
 
@@ -476,43 +486,57 @@ def test_persist_default_agent_artifacts_unions_image_paths_and_xprompt(
     persist_default_agent_artifacts(
         artifacts_dir,
         image_paths=[str(diff_image)],
+        video_paths=[str(video)],
         workspace_dir=str(workspace),
         artifacts_root=artifacts_root,
         index_path=index_path,
     )
     indexed = read_explicit_agent_artifact_index(index_path)
     assert sorted(a.source_path or "" for a in indexed) == sorted(
-        [str(diff_image), str(prompt_image)]
+        [str(diff_image), str(prompt_image), str(video)]
     )
 
 
-def test_list_agent_artifacts_uses_indexed_images_when_persisted(
+def test_list_agent_artifacts_uses_indexed_media_when_persisted(
     tmp_path: Path,
 ) -> None:
-    """When done.json marks artifacts as persisted, images come from the
+    """When done.json marks artifacts as persisted, media comes from the
     JSONL index (and survive workspace deletion)."""
 
     artifacts_dir = _agent_dir(tmp_path)
     workspace = tmp_path / "workspace"
     image = workspace / "sdd" / "research" / "diagram.png"
+    video = workspace / "renders" / "demo.mp4"
     image.parent.mkdir(parents=True)
+    video.parent.mkdir(parents=True)
     image.write_bytes(b"png")
+    video.write_bytes(b"mp4")
 
     artifacts_root = tmp_path / ".sase" / "artifacts"
     index_path = artifacts_root / "index.jsonl"
-    stored = store_default_agent_artifact(
+    stored_image = store_default_agent_artifact(
         image,
         artifacts_dir,
+        kind="image",
         artifacts_root=artifacts_root,
         workspace_dir=str(workspace),
     )
-    assert stored is not None
+    stored_video = store_default_agent_artifact(
+        video,
+        artifacts_dir,
+        kind="file",
+        artifacts_root=artifacts_root,
+        workspace_dir=str(workspace),
+    )
+    assert stored_image is not None
+    assert stored_video is not None
 
     _write_json(
         artifacts_dir / "done.json",
         {
             "workspace_dir": str(workspace),
             "image_paths": [str(image)],
+            "video_paths": [str(video)],
             "default_artifacts_persisted": True,
         },
     )
@@ -521,27 +545,33 @@ def test_list_agent_artifacts_uses_indexed_images_when_persisted(
     shutil.rmtree(workspace)
 
     artifacts = list_agent_artifacts(artifacts_dir, index_path=index_path)
-    image_rows = [a for a in artifacts if a.kind == "image"]
-    assert len(image_rows) == 1
-    row = image_rows[0]
-    assert row.path == stored.path
-    assert row.source_path == str(image)
-    assert Path(row.path).is_file()
+    rows_by_source = {
+        a.source_path: a for a in artifacts if a.kind in {"image", "file"}
+    }
+    assert rows_by_source[str(image)].path == stored_image.path
+    assert rows_by_source[str(image)].kind == "image"
+    assert rows_by_source[str(video)].path == stored_video.path
+    assert rows_by_source[str(video)].kind == "file"
+    assert Path(rows_by_source[str(image)].path).is_file()
+    assert Path(rows_by_source[str(video)].path).is_file()
 
 
 def test_list_agent_artifacts_falls_back_to_legacy_synthesis_without_marker(
     tmp_path: Path,
 ) -> None:
     """Legacy agents (no ``default_artifacts_persisted`` marker) still get
-    on-the-fly image synthesis from ``done.json``."""
+    on-the-fly media synthesis from ``done.json``."""
 
     artifacts_dir = _agent_dir(tmp_path)
     image = tmp_path / "legacy.png"
+    video = tmp_path / "legacy.mp4"
     image.write_bytes(b"png")
+    video.write_bytes(b"mp4")
     _write_json(
         artifacts_dir / "done.json",
         {
             "image_paths": [str(image)],
+            "video_paths": [str(video)],
         },
     )
 
@@ -549,7 +579,10 @@ def test_list_agent_artifacts_falls_back_to_legacy_synthesis_without_marker(
         artifacts_dir,
         index_path=tmp_path / ".sase" / "artifacts" / "index.jsonl",
     )
-    assert [(a.kind, a.path) for a in artifacts] == [("image", str(image))]
+    assert [(a.kind, a.path) for a in artifacts] == [
+        ("image", str(image)),
+        ("file", str(video)),
+    ]
 
 
 def test_list_indexed_agent_artifacts_returns_explicit_and_default_rows(

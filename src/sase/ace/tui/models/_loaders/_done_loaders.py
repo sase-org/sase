@@ -103,13 +103,15 @@ def _done_extra_files(
     plan_path: str | None,
     markdown_pdf_paths: object,
     image_paths: object,
+    video_paths: object,
 ) -> list[str]:
-    """Return plan/PDF/image attachments for the Agents tab file panel."""
+    """Return plan/PDF/image/video attachments for the Agents tab file panel."""
     files: list[str] = []
     seen: set[str] = set()
     markdown_pdfs = markdown_pdf_paths if isinstance(markdown_pdf_paths, list) else []
     images = image_paths if isinstance(image_paths, list) else []
-    for path in [plan_path, *markdown_pdfs, *images]:
+    videos = video_paths if isinstance(video_paths, list) else []
+    for path in [plan_path, *markdown_pdfs, *images, *videos]:
         if not isinstance(path, str):
             continue
         if not path:
@@ -200,6 +202,7 @@ def _load_done_agent_for_dir(
             data.get("plan_path"),
             data.get("markdown_pdf_paths"),
             data.get("image_paths"),
+            data.get("video_paths"),
         )
 
         agent = Agent(
@@ -370,6 +373,7 @@ def _build_done_agent_from_record(
         done.plan_path,
         done.markdown_pdf_paths,
         done.image_paths,
+        done.video_paths,
     )
 
     agent = Agent(

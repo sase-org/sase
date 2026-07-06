@@ -3,10 +3,10 @@
 ## Overview
 
 SASE treats files produced by agents as first-class completion artifacts. When a successful agent adds or modifies a
-supported image file, the completion path records the image in `done.json` and appends it to the notification file list
-after the standard chat and diff artifacts, and after any generated Markdown PDFs. When a successful agent adds or
-modifies up to 10 Markdown files, core SASE renders PDF artifacts and attaches those PDFs to the same completion
-notification. Explicit artifacts saved with `sase artifact create` are appended after generated images when the agent
+supported image or video file, the completion path records the media in `done.json` and appends it to the notification
+file list after the standard chat and diff artifacts, and after any generated Markdown PDFs. When a successful agent
+adds or modifies up to 10 Markdown files, core SASE renders PDF artifacts and attaches those PDFs to the same completion
+notification. Explicit artifacts saved with `sase artifact create` are appended after generated media when the agent
 completion notification is sent. Notification plugins can then deliver those files from `Notification.files` without
 re-scanning the workspace.
 
@@ -28,22 +28,33 @@ Supported image extensions are:
 - `.webp`
 - `.gif`
 
-## Image Attachment Contract
+Supported video extensions are:
+
+- `.mp4`
+- `.m4v`
+- `.mov`
+- `.webm`
+
+## Generated Media Attachment Contract
 
 Generated-image discovery runs when an agent finalizes successfully. This contract covers images added to
-`done.json.image_paths` and completion notifications. The collector checks candidate paths in stable order:
+`done.json.image_paths` and completion notifications. Generated-video discovery uses the same algorithm and writes
+videos to `done.json.video_paths`. The collector checks candidate paths in stable order:
 
 1. tracked files changed relative to `HEAD`
 2. untracked files in the agent workspace
 3. files named by the saved proposal or commit diff
 4. files touched by the latest commit when the agent committed or opened a PR
 
-Only existing files with supported image extensions are kept. Paths are resolved to absolute paths so outbound
+Only existing files with supported media extensions are kept. Paths are resolved to absolute paths so outbound
 notification processes can attach them even when they run outside the agent workspace. Duplicates are removed while
-preserving order, and image paths are appended after any already-attached chat, diff, or generated PDF files.
+preserving order. Generated images are appended after any already-attached chat, diff, or generated PDF files; generated
+videos are appended after generated images.
 
-The same list is persisted as `image_paths` in the agent's `done.json`. Agent metadata consumers should read that field
-instead of trying to infer generated images from arbitrary notification files.
+The same lists are persisted as `image_paths` and `video_paths` in the agent's `done.json`. Agent metadata consumers
+should read those fields instead of trying to infer generated media from arbitrary notification files. GIFs remain in
+`image_paths` for compatibility with image-preview consumers; downstream notification plugins can still choose an
+animation-specific transport based on the `.gif` suffix.
 
 Source: `src/sase/axe/image_attachments.py`
 
@@ -116,19 +127,20 @@ sase artifact create -p <path> [-n <label>] [-k <kind>]
 The CLI command is intended for agent processes: it requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR` so SASE knows which
 run owns the artifact. It moves the source file into persistent SASE artifact storage, records an association with the
 current agent, and lets ACE show the artifact even after the agent is dismissed and later revived. During completion
-notification delivery, SASE appends existing explicit artifact files after chat, diff, generated Markdown PDFs, and
-generated image attachments. Duplicate paths and missing files are ignored, and explicit-artifact index failures do not
-fail the completion path.
+notification delivery, SASE appends existing explicit artifact files after chat, diff, generated Markdown PDFs,
+generated image attachments, and generated video attachments. Duplicate paths and missing files are ignored, and
+explicit-artifact index failures do not fail the completion path.
 
 Source: `src/sase/core/agent_artifact_facade.py`
 
 ## Notification Delivery
 
-Core SASE stores generated PDFs, generated images, and explicit artifact attachments in the existing
+Core SASE stores generated PDFs, generated images, generated videos, and explicit artifact attachments in the existing
 `Notification.files` list. There is no separate notification schema field for typed attachments yet. This keeps the
 contract compatible with existing notification storage and lets downstream plugins decide how to render each file:
 
-- Telegram integrations can send images as photos and keep markdown/diff files as documents.
+- Telegram integrations can send static images as photos, GIFs as animations, videos as videos, and keep markdown/diff
+  files as documents.
 - Google Chat integrations can upload image files directly into the completion thread.
 - The ACE notification modal can still open attached files in `$EDITOR` with `e` and cycle them with `Ctrl+N` /
   `Ctrl+P`.
@@ -138,9 +150,11 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 ## ACE Artifact Viewer
 
 The Agents tab exposes completed agent artifacts through the `a` key. When artifacts exist, ACE opens the artifact panel
-for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, prompt-referenced images, and
-explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all use the same list. The
-panel is shown even for a single artifact so users can confirm the artifact label, kind, and path before opening it.
+for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos,
+prompt-referenced images, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]`
+all use the same list. Generated videos are stored as ordinary `file` artifacts until ACE has a dedicated video preview
+mode. The panel is shown even for a single artifact so users can confirm the artifact label, kind, and path before
+opening it.
 
 The selected agent's prompt/detail header also includes an `ARTIFACTS` section for non-chat artifacts. Paths are shown
 relative to the agent workspace when possible, home-relative when appropriate, and with hint numbers when hint mode is

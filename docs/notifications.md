@@ -107,24 +107,26 @@ The following events generate notifications:
 Agent completion notifications attach the standard chat transcript and diff first. On failures they also include the
 error report and output log when those files exist. When a successful agent added or modified 10 or fewer Markdown
 files, SASE renders best-effort PDF artifacts and appends those PDFs after the standard artifacts. When the run added or
-modified image files, SASE appends those generated images after any Markdown PDFs. Explicit artifacts created during the
-run with `sase artifact create -p <path> [-n <label>] [-k <kind>]` are read from the persistent artifact index and
-appended last when their stored files still exist. Supported Markdown extensions are `.md` and `.markdown`; supported
-image extensions are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`.
+modified image files, SASE appends those generated images after any Markdown PDFs. When the run added or modified video
+files, SASE appends those generated videos after generated images. Explicit artifacts created during the run with
+`sase artifact create -p <path> [-n <label>] [-k <kind>]` are read from the persistent artifact index and appended last
+when their stored files still exist. Supported Markdown extensions are `.md` and `.markdown`; supported image extensions
+are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`; supported video extensions are `.mp4`, `.m4v`, `.mov`, and `.webm`.
 
 Attachment paths are discovered from local git changes, untracked files, saved proposal/commit diffs, and the latest
 commit when the agent committed or opened a PR. Missing, deleted, unsupported, and duplicate paths are ignored. If more
 than 10 Markdown sources remain after filtering, SASE skips Markdown PDF rendering for that completion and includes a
-note explaining the limit. The final PDF and image lists are also written to `done.json` as `markdown_pdf_paths` and
-`image_paths` for agent metadata consumers. Explicit artifact paths are read from the explicit-artifact association
-index at notification time, deduplicated against the standard attachments, and ignored if the index is unavailable.
+note explaining the limit. The final PDF, image, and video lists are also written to `done.json` as
+`markdown_pdf_paths`, `image_paths`, and `video_paths` for agent metadata consumers. Explicit artifact paths are read
+from the explicit-artifact association index at notification time, deduplicated against the standard attachments, and
+ignored if the index is unavailable.
 
 In ACE, completion artifacts are opened from the Agents tab with `a`. The artifact panel supports marking multiple files
 and opening the full artifact sequence, so notification attachments, generated PDFs/images, plan files, and explicit
-artifacts use one selection workflow. ACE may also include image files referenced by saved prompt artifacts in that
-picker. Those prompt-referenced images are persisted or synthesized as ACE artifact-list entries, but they are not
-appended to notification delivery payloads unless they also appear in `done.json.image_paths` or were saved explicitly
-with `sase artifact create`.
+artifacts use one selection workflow. Generated videos are included as ordinary file artifacts. ACE may also include
+image files referenced by saved prompt artifacts in that picker. Those prompt-referenced images are persisted or
+synthesized as ACE artifact-list entries, but they are not appended to notification delivery payloads unless they also
+appear in `done.json.image_paths` or were saved explicitly with `sase artifact create`.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
 been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and

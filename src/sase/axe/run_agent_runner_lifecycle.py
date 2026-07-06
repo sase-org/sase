@@ -42,6 +42,7 @@ class RunnerShutdownState:
     markdown_pdf_paths: list[str]
     markdown_source_count: int
     image_paths: list[str]
+    video_paths: list[str]
     step_output: dict[str, Any] | None
     exec_outcome: str
     error_summary: str | None
@@ -160,6 +161,7 @@ def finalize_runner_shutdown(
             markdown_pdf_paths=state.markdown_pdf_paths,
             markdown_source_count=state.markdown_source_count,
             image_paths=state.image_paths,
+            video_paths=state.video_paths,
             output_path=context.output_path,
             step_output=state.step_output,
             prompt=context.prompt,

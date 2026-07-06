@@ -202,6 +202,7 @@ def main() -> None:
     markdown_pdf_paths: list[str] = []
     markdown_source_count = 0
     image_paths: list[str] = []
+    video_paths: list[str] = []
     step_output: dict[str, Any] | None = None
     exec_outcome = ""
     error_summary: str | None = None
@@ -391,6 +392,7 @@ def main() -> None:
                     markdown_pdf_paths = []
                     markdown_source_count = 0
                     image_paths = []
+                    video_paths = []
                     step_output = None
                     raise _CancelledWaitFinished()
 
@@ -502,6 +504,7 @@ def main() -> None:
                 markdown_pdf_paths = exec_result.markdown_pdf_paths
                 markdown_source_count = exec_result.markdown_source_count
                 image_paths = exec_result.image_paths
+                video_paths = exec_result.video_paths
                 current_artifacts_dir = exec_result.current_artifacts_dir
                 step_output = exec_result.step_output
 
@@ -590,6 +593,7 @@ def main() -> None:
                 markdown_pdf_paths=markdown_pdf_paths,
                 markdown_source_count=markdown_source_count,
                 image_paths=image_paths,
+                video_paths=video_paths,
                 step_output=step_output,
                 exec_outcome=exec_outcome,
                 error_summary=error_summary,

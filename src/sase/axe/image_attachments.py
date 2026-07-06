@@ -8,6 +8,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
+SUPPORTED_VIDEO_EXTENSIONS = frozenset({".mp4", ".m4v", ".mov", ".webm"})
 SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
 _ATTACHMENT_STATUS_LETTERS = frozenset({"A", "C", "M", "R", "T"})
 
@@ -15,6 +16,11 @@ _ATTACHMENT_STATUS_LETTERS = frozenset({"A", "C", "M", "R", "T"})
 def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
     """Return whether *path* has an image extension SASE should attach."""
     return Path(path).suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+
+
+def _is_supported_video_path(path: str | os.PathLike[str]) -> bool:
+    """Return whether *path* has a video extension SASE should attach."""
+    return Path(path).suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
 
 
 def _is_supported_markdown_path(path: str | os.PathLike[str]) -> bool:
@@ -55,6 +61,27 @@ def collect_agent_image_paths(
     return _collect_agent_attachment_paths(
         workspace_dir,
         is_supported_path=_is_supported_image_path,
+        diff_path=diff_path,
+        include_head_commit=include_head_commit,
+        existing_files=existing_files,
+    )
+
+
+def collect_agent_video_paths(
+    workspace_dir: str,
+    *,
+    diff_path: str | None = None,
+    include_head_commit: bool = False,
+    existing_files: Iterable[str] = (),
+) -> list[str]:
+    """Collect video files added or modified by an agent.
+
+    Sources and ordering match generated-image discovery. Returned paths are
+    absolute so notification senders can attach files outside the workspace.
+    """
+    return _collect_agent_attachment_paths(
+        workspace_dir,
+        is_supported_path=_is_supported_video_path,
         diff_path=diff_path,
         include_head_commit=include_head_commit,
         existing_files=existing_files,

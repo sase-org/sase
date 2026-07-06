@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from sase.axe.image_attachments import collect_agent_markdown_paths
+from sase.axe.image_attachments import collect_agent_video_paths
 
 
 def test_collect_agent_markdown_paths_from_working_tree(tmp_path: Path) -> None:
@@ -154,6 +155,117 @@ def test_collect_agent_markdown_paths_dedupes_against_existing_and_sources(
     )
 
     assert collect_agent_markdown_paths(
+        str(tmp_path),
+        diff_path=str(diff_path),
+        existing_files=[str(skipped)],
+    ) == [
+        str(tracked.resolve()),
+        str(untracked.resolve()),
+    ]
+
+
+def test_collect_agent_video_paths_from_working_tree(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "existing.txt").write_text("base\n")
+    (tmp_path / "changed.mp4").write_bytes(b"old")
+    _run(tmp_path, "git", "add", ".")
+    _run(tmp_path, "git", "commit", "-m", "base")
+
+    (tmp_path / "changed.mp4").write_bytes(b"new")
+    (tmp_path / "clip.webm").write_bytes(b"webm")
+    (tmp_path / "ignored.txt").write_text("ignore\n")
+
+    assert collect_agent_video_paths(str(tmp_path)) == [
+        str((tmp_path / "changed.mp4").resolve()),
+        str((tmp_path / "clip.webm").resolve()),
+    ]
+
+
+def test_collect_agent_video_paths_from_diff_file_when_tree_clean(
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "renders" / "result.mov"
+    video.parent.mkdir()
+    video.write_bytes(b"mov")
+    diff_path = tmp_path / "commit.diff"
+    diff_path.write_text(
+        "diff --git a/renders/result.mov b/renders/result.mov\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/renders/result.mov\n"
+    )
+
+    assert collect_agent_video_paths(str(tmp_path), diff_path=str(diff_path)) == [
+        str(video.resolve())
+    ]
+
+
+def test_collect_agent_video_paths_from_head_commit(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "base.txt").write_text("base\n")
+    _run(tmp_path, "git", "add", ".")
+    _run(tmp_path, "git", "commit", "-m", "base")
+
+    video = tmp_path / "committed.m4v"
+    video.write_bytes(b"m4v")
+    _run(tmp_path, "git", "add", ".")
+    _run(tmp_path, "git", "commit", "-m", "add video")
+
+    assert collect_agent_video_paths(str(tmp_path), include_head_commit=True) == [
+        str(video.resolve())
+    ]
+
+
+def test_collect_agent_video_paths_ignores_deleted_missing_and_unsupported(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "deleted.mp4").write_bytes(b"mp4")
+    (tmp_path / "notes.txt").write_text("base\n")
+    _run(tmp_path, "git", "add", ".")
+    _run(tmp_path, "git", "commit", "-m", "base")
+
+    (tmp_path / "deleted.mp4").unlink()
+    (tmp_path / "notes.txt").write_text("changed\n")
+    (tmp_path / "missing.webm").write_bytes(b"webm")
+    diff_path = tmp_path / "proposal.diff"
+    diff_path.write_text(
+        "diff --git a/missing.webm b/missing.webm\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/missing.webm\n"
+    )
+    (tmp_path / "missing.webm").unlink()
+
+    assert collect_agent_video_paths(str(tmp_path), diff_path=str(diff_path)) == []
+
+
+def test_collect_agent_video_paths_dedupes_against_existing_and_sources(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    tracked = tmp_path / "tracked.mp4"
+    skipped = tmp_path / "skipped.mp4"
+    tracked.write_bytes(b"base")
+    skipped.write_bytes(b"base")
+    _run(tmp_path, "git", "add", ".")
+    _run(tmp_path, "git", "commit", "-m", "base")
+
+    tracked.write_bytes(b"changed")
+    skipped.write_bytes(b"changed")
+    untracked = tmp_path / "untracked.mov"
+    untracked.write_bytes(b"new")
+    diff_path = tmp_path / "commit.diff"
+    diff_path.write_text(
+        "diff --git a/tracked.mp4 b/tracked.mp4\n"
+        "--- a/tracked.mp4\n"
+        "+++ b/tracked.mp4\n"
+        "diff --git a/untracked.mov b/untracked.mov\n"
+        "--- /dev/null\n"
+        "+++ b/untracked.mov\n"
+    )
+
+    assert collect_agent_video_paths(
         str(tmp_path),
         diff_path=str(diff_path),
         existing_files=[str(skipped)],

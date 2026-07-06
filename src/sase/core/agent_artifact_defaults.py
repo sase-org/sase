@@ -40,12 +40,12 @@ _IMAGE_PATH_RE = re.compile(
 def synthesize_default_agent_artifacts(
     agent_artifacts_dir: Path | str,
 ) -> list[AgentArtifact]:
-    """Synthesize chat/plan/image artifacts from existing run metadata.
+    """Synthesize chat/plan/media artifacts from existing run metadata.
 
     When ``done.json`` has ``default_artifacts_persisted: True`` the
-    image-discovery branches are skipped — those rows now live in the
+    generated-media branches are skipped — those rows now live in the
     persistent JSONL index. Legacy agents without that marker still get the
-    on-the-fly image synthesis as a best-effort fallback.
+    on-the-fly media synthesis as a best-effort fallback.
     """
 
     artifacts_dir = Path(agent_artifacts_dir).expanduser()
@@ -59,7 +59,7 @@ def synthesize_default_agent_artifacts(
         done.get("workspace_dir"), agent_meta.get("workspace_dir")
     )
     markdown_pdf_sources = read_markdown_pdf_source_paths(artifacts_dir)
-    images_persisted = bool(done.get("default_artifacts_persisted"))
+    default_artifacts_persisted = bool(done.get("default_artifacts_persisted"))
 
     artifacts: list[AgentArtifact] = []
 
@@ -93,7 +93,7 @@ def synthesize_default_agent_artifacts(
             )
         )
 
-    if not images_persisted:
+    if not default_artifacts_persisted:
         for index, image_path in enumerate(coerce_str_list(done.get("image_paths"))):
             artifacts.append(
                 _default_artifact(
@@ -102,6 +102,18 @@ def synthesize_default_agent_artifacts(
                     kind="image",
                     path=image_path,
                     ordinal=f"image-{index}",
+                    workspace_dir=workspace_dir,
+                )
+            )
+
+        for index, video_path in enumerate(coerce_str_list(done.get("video_paths"))):
+            artifacts.append(
+                _default_artifact(
+                    association,
+                    label=label_for_path(video_path, fallback="Video"),
+                    kind="file",
+                    path=video_path,
+                    ordinal=f"video-{index}",
                     workspace_dir=workspace_dir,
                 )
             )
@@ -141,16 +153,18 @@ def persist_default_agent_artifacts(
     agent_artifacts_dir: Path | str,
     *,
     image_paths: list[str] | None = None,
+    video_paths: list[str] | None = None,
     workspace_dir: str | None = None,
     artifacts_root: Path | str | None = None,
     index_path: Path | str | None = None,
 ) -> list[AgentArtifact]:
-    """Copy auto-discovered image artifacts into the persistent global store.
+    """Copy auto-discovered media artifacts into the persistent global store.
 
     Called by the agent finalization path while the workspace files still
     exist. Combines explicit ``image_paths`` (from ``done.json``) with xprompt
-    image discovery, deduplicates by resolved path, silently skips paths that
-    don't exist, and writes a row to the JSONL index for each persisted file.
+    image discovery and explicit ``video_paths`` (from ``done.json``),
+    deduplicates by resolved path, silently skips paths that don't exist, and
+    writes a row to the JSONL index for each persisted file.
 
     Idempotent: re-running over the same workspace yields the same set of
     persisted artifacts and the same index rows.
@@ -181,13 +195,22 @@ def persist_default_agent_artifacts(
     ):
         _add(path)
 
+    image_keys = set(seen)
+
+    for path in video_paths or []:
+        _add(path)
+
     persisted: list[AgentArtifact] = []
     for source in candidates:
+        try:
+            is_video = path_key(source) not in image_keys
+        except OSError:
+            is_video = False
         artifact = store_default_agent_artifact(
             source,
             artifacts_dir,
-            label=label_for_path(source, fallback="Image"),
-            kind="image",
+            label=label_for_path(source, fallback="Video" if is_video else "Image"),
+            kind="file" if is_video else "image",
             artifacts_root=artifacts_root,
             index_path=index_path,
             workspace_dir=workspace_dir,

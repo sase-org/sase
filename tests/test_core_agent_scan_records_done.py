@@ -37,6 +37,7 @@ def test_done_record_parses_done_marker(fixture_root: Path) -> None:
     assert rec.done.diff_path == "/tmp/diff_alpha.diff"
     assert rec.done.markdown_pdf_paths == ["/tmp/markdown_pdfs/notes.pdf"]
     assert rec.done.image_paths == ["/tmp/images/alpha.png"]
+    assert rec.done.video_paths == ["/tmp/videos/alpha.mp4"]
     assert rec.done.response_path == "/tmp/resp_alpha.md"
     assert rec.done.output_path == "/tmp/out_alpha.log"
     # The agent_meta.json adds a stopped_at timestamp.

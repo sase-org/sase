@@ -357,13 +357,14 @@ control over background resource usage.
 ## Agent Completion Artifacts
 
 When an agent run finalizes, axe writes the normal completion metadata and sends the workflow-complete notification.
-Successful runs also scan the agent workspace for generated image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) and
-Markdown files (`.md`, `.markdown`). When 10 or fewer Markdown sources are discovered after filtering, they are rendered
-to PDFs under the agent artifact directory, then the generated PDF paths are appended after the standard chat/diff
-notification attachments and before image attachments. The PDF list is persisted as `done.json.markdown_pdf_paths`; the
-image list is persisted as `done.json.image_paths`. Explicit artifacts created during the run with
-`sase artifact create -p <path> [-n <label>] [-k <kind>]` are appended after image attachments when their stored files
-still exist.
+Successful runs also scan the agent workspace for generated image files (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`),
+video files (`.mp4`, `.m4v`, `.mov`, `.webm`), and Markdown files (`.md`, `.markdown`). When 10 or fewer Markdown
+sources are discovered after filtering, they are rendered to PDFs under the agent artifact directory, then the generated
+PDF paths are appended after the standard chat/diff notification attachments and before image/video attachments. The PDF
+list is persisted as `done.json.markdown_pdf_paths`; the image and video lists are persisted as `done.json.image_paths`
+and `done.json.video_paths`. Explicit artifacts created during the run with
+`sase artifact create -p <path> [-n <label>] [-k <kind>]` are appended after generated media attachments when their
+stored files still exist.
 
 The scan uses git name-status output, untracked files, saved diff metadata, and the latest commit when the agent
 committed or opened a PR. Deleted, missing, unsupported, and duplicate paths are ignored. If more than 10 Markdown
@@ -372,12 +373,12 @@ is otherwise best-effort: missing conversion tools or render failures omit that 
 Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. As
 PDFs are prepared, axe updates `workflow_state.json.pdf_status` and a compact `activity` label so ACE can show live
 finalization progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)`. Successful runs also copy discovered
-image artifacts, including prompt-referenced images, into persistent SASE artifact storage for ACE. Prompt-referenced
-images are not appended to completion notifications unless they were also generated/modified files or explicit
-artifacts. See [`agent_images.md`](agent_images.md) for the full contract.
+media artifacts, plus prompt-referenced images, into persistent SASE artifact storage for ACE. Prompt-referenced images
+are not appended to completion notifications unless they were also generated/modified files or explicit artifacts. See
+[`agent_images.md`](agent_images.md) for the full contract.
 
 The Agents tab exposes completion artifacts through the `A` action. When artifacts exist, ACE opens the artifact panel
-for selection. Chat transcripts, plan files, generated PDFs/images, prompt-referenced images from saved prompt
+for selection. Chat transcripts, plan files, generated PDFs/images/videos, prompt-referenced images from saved prompt
 artifacts, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all participate
 in the same list. Explicit artifacts are stored under `~/.sase/artifacts/` with a persistent association so they remain
 available after dismissing and later reviving the agent. ACE shows the picker even for a single artifact; `m` marks

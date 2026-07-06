@@ -185,6 +185,7 @@ def send_completion_notification(
     markdown_pdf_paths: list[str] | None = None,
     markdown_source_count: int | None = None,
     image_paths: list[str] | None = None,
+    video_paths: list[str] | None = None,
     output_path: str,
     step_output: dict[str, Any] | None,
     prompt: str,
@@ -209,6 +210,7 @@ def send_completion_notification(
             extra_files.append(output_path)
     extra_files.extend(append_unique_paths(markdown_pdf_paths or [], extra_files))
     extra_files.extend(append_unique_paths(image_paths or [], extra_files))
+    extra_files.extend(append_unique_paths(video_paths or [], extra_files))
     explicit_artifact_paths = _completion_explicit_artifact_paths(current_artifacts_dir)
     extra_files.extend(append_unique_paths(explicit_artifact_paths, extra_files))
 

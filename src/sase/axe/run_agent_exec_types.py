@@ -47,6 +47,7 @@ class AgentExecResult:
     markdown_pdf_paths: list[str] = field(default_factory=list)
     markdown_source_count: int = 0
     image_paths: list[str] = field(default_factory=list)
+    video_paths: list[str] = field(default_factory=list)
     current_artifacts_dir: str = ""
     step_output: dict[str, Any] | None = None
 

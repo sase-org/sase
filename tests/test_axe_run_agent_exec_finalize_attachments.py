@@ -31,12 +31,14 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     research = workspace / "sdd" / "research" / "example.md"
     notes = workspace / "docs" / "notes.md"
     image = workspace / "assets" / "diagram.png"
+    video = workspace / "assets" / "demo.mp4"
     research.parent.mkdir(parents=True)
     notes.parent.mkdir()
     image.parent.mkdir()
     research.write_text("# Research\n")
     notes.write_text("# Notes\n")
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    video.write_bytes(b"mp4")
 
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -110,10 +112,12 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     ]
     assert result.markdown_pdf_paths == expected_pdfs
     assert result.image_paths == [str(image.resolve())]
+    assert result.video_paths == [str(video.resolve())]
 
     done = json.loads((artifacts / "done.json").read_text())
     assert done["markdown_pdf_paths"] == expected_pdfs
     assert done["image_paths"] == [str(image.resolve())]
+    assert done["video_paths"] == [str(video.resolve())]
     assert sorted(path.name for path in pdf_dir.glob("*.pdf")) == [
         "docs__notes.md.pdf",
         "sdd__research__example.md.pdf",
@@ -139,6 +143,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
             diff_path=result.diff_path,
             markdown_pdf_paths=result.markdown_pdf_paths,
             image_paths=result.image_paths,
+            video_paths=result.video_paths,
             output_path=ctx.output_path,
             step_output=result.step_output,
             prompt=state.original_prompt,
@@ -149,6 +154,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
         str(chat),
         *expected_pdfs,
         str(image.resolve()),
+        str(video.resolve()),
     ]
 
 

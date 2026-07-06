@@ -42,6 +42,7 @@ def base_kwargs(tmp_path):
         "markdown_pdf_paths": [],
         "markdown_source_count": None,
         "image_paths": [],
+        "video_paths": [],
         "output_path": str(tmp_path / "output.log"),
         "step_output": None,
         "prompt": "#gh:sase #!sase/pylimit_split %auto",
@@ -270,6 +271,30 @@ def test_completion_notification_appends_markdown_pdfs_before_images(
     ]
 
 
+def test_completion_notification_appends_videos_after_images(base_kwargs, tmp_path):
+    chat = tmp_path / "chat.md"
+    diff = tmp_path / "diff.diff"
+    pdf = tmp_path / "markdown_pdfs" / "docs__notes.md.pdf"
+    image = tmp_path / "screen.png"
+    video = tmp_path / "demo.mp4"
+    base_kwargs["saved_path"] = str(chat)
+    base_kwargs["diff_path"] = str(diff)
+    base_kwargs["markdown_pdf_paths"] = [str(pdf)]
+    base_kwargs["image_paths"] = [str(image)]
+    base_kwargs["video_paths"] = [str(video)]
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [
+        str(chat),
+        str(diff),
+        str(pdf),
+        str(image),
+        str(video),
+    ]
+
+
 def test_completion_notification_dedupes_markdown_pdfs(base_kwargs, tmp_path):
     pdf = tmp_path / "notes.pdf"
     base_kwargs["diff_path"] = str(pdf)
@@ -315,6 +340,17 @@ def test_completion_notification_dedupes_image_paths(base_kwargs, tmp_path):
     assert mock_notify.call_args.kwargs["extra_files"] == [str(image)]
 
 
+def test_completion_notification_dedupes_video_paths(base_kwargs, tmp_path):
+    video = tmp_path / "demo.mp4"
+    base_kwargs["diff_path"] = str(video)
+    base_kwargs["video_paths"] = [str(video)]
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [str(video)]
+
+
 def test_completion_notification_appends_explicit_artifact_paths(base_kwargs, tmp_path):
     chat = tmp_path / "chat.md"
     explicit = tmp_path / "result.png"
@@ -342,13 +378,15 @@ def test_completion_notification_dedupes_explicit_artifact_paths(base_kwargs, tm
     diff = tmp_path / "diff.diff"
     pdf = tmp_path / "notes.pdf"
     image = tmp_path / "screen.png"
+    video = tmp_path / "demo.mp4"
     explicit = tmp_path / "explicit.txt"
-    for path in (chat, diff, pdf, image, explicit):
+    for path in (chat, diff, pdf, image, video, explicit):
         path.write_text("content\n")
     base_kwargs["saved_path"] = str(chat)
     base_kwargs["diff_path"] = str(diff)
     base_kwargs["markdown_pdf_paths"] = [str(pdf)]
     base_kwargs["image_paths"] = [str(image)]
+    base_kwargs["video_paths"] = [str(video)]
 
     with (
         patch(
@@ -357,6 +395,7 @@ def test_completion_notification_dedupes_explicit_artifact_paths(base_kwargs, tm
                 SimpleNamespace(path=str(chat)),
                 SimpleNamespace(path=str(pdf)),
                 SimpleNamespace(path=str(image)),
+                SimpleNamespace(path=str(video)),
                 SimpleNamespace(path=str(explicit)),
             ],
         ),
@@ -369,6 +408,7 @@ def test_completion_notification_dedupes_explicit_artifact_paths(base_kwargs, tm
         str(diff),
         str(pdf),
         str(image),
+        str(video),
         str(explicit),
     ]
 
@@ -419,9 +459,11 @@ def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
         "/tmp/output.log",
         "completed",
         markdown_pdf_paths=[str(tmp_path / "notes.pdf")],
+        video_paths=[str(tmp_path / "demo.mp4")],
     )
 
     assert marker["markdown_pdf_paths"] == [str(tmp_path / "notes.pdf")]
+    assert marker["video_paths"] == [str(tmp_path / "demo.mp4")]
     assert marker["workspace_dir"] == "/tmp/workspace"
 
 
@@ -438,6 +480,7 @@ def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
     )
 
     assert marker["markdown_pdf_paths"] == []
+    assert marker["video_paths"] == []
 
 
 def test_collect_agent_image_paths_from_working_tree(tmp_path):

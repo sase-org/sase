@@ -41,6 +41,7 @@ class DoneMarkerWire:
         markdown_pdf_paths: Generated PDFs for Markdown files added or modified
             by the agent.
         image_paths: Image files added or modified by the agent.
+        video_paths: Video files added or modified by the agent.
         response_path: Path to the agent response transcript.
         output_path: Path to a per-agent log/output file.
         step_output: Last step's output dict, when the agent was a
@@ -75,6 +76,7 @@ class DoneMarkerWire:
     diff_path: str | None = None
     markdown_pdf_paths: list[str] = field(default_factory=list)
     image_paths: list[str] = field(default_factory=list)
+    video_paths: list[str] = field(default_factory=list)
     response_path: str | None = None
     output_path: str | None = None
     step_output: dict[str, Any] | None = None
