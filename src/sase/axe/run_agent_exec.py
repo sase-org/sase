@@ -30,7 +30,12 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.runner_utils import killed_at, reset_killed, was_killed
 from sase.agent.user_kill import has_user_kill_intent
-from sase.agent_family import HandoffEvent, build_handoff_event
+from sase.agent_family import (
+    HandoffEvent,
+    build_handoff_event,
+    evaluate_handoff_event,
+    family_state_snapshot,
+)
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
@@ -169,7 +174,56 @@ def _handle_handoff_event(
 ) -> str | None:
     if event.kind == "plan_submitted":
         return handle_plan_marker(event, ctx, state)
-    return handle_questions_marker(event, ctx, state)
+    if event.kind == "questions_submitted":
+        return handle_questions_marker(event, ctx, state)
+    return None
+
+
+def _current_agent_family_role(artifacts_dir: str) -> str | None:
+    import json
+
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    try:
+        with meta_path.open(encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(meta, dict):
+        return None
+    role = meta.get("agent_family_role")
+    return role if isinstance(role, str) and role else None
+
+
+def _handle_completed_followup(state: LoopState) -> bool:
+    """Return True when a normally completed phase should finish the loop."""
+
+    if state.agent_step <= 1 or not state.current_role_suffix:
+        return True
+
+    family_role = _current_agent_family_role(state.current_artifacts_dir)
+    event = build_handoff_event(
+        kind="role_completed",
+        artifacts_dir=state.current_artifacts_dir,
+        payload={
+            "outcome": "success",
+            "artifacts_ref": state.current_artifacts_dir,
+        },
+        current_role_suffix=state.current_role_suffix,
+        agent_family_role=family_role,
+    )
+    evaluation = evaluate_handoff_event(
+        event,
+        family_state_snapshot(
+            current_role_suffix=state.current_role_suffix,
+            feedback_bullets=state.feedback_bullets,
+            qa_round_count=len(state.qa_rounds),
+            saved_chat_suffixes=tuple(
+                suffix for suffix, _path in state.saved_chat_paths if suffix
+            ),
+            agent_family_role=event.interrupted_role,
+        ),
+    )
+    return evaluation.terminal
 
 
 def _marker_predates_kill(
@@ -240,6 +294,8 @@ def run_execution_loop(
             result = None
 
         if not was_killed():
+            if not _handle_completed_followup(state):
+                continue
             break
 
         outcome = _handle_killed_iteration(ctx, state)

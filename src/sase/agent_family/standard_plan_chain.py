@@ -27,8 +27,13 @@ from sase.plan_chain import (
 STANDARD_PLAN_CHAIN_ID = "standard_plan_chain"
 STANDARD_PLAN_CHAIN_VERSION = 1
 
-type HandoffEventKind = Literal["plan_submitted", "questions_submitted"]
+type HandoffEventKind = Literal[
+    "plan_submitted",
+    "questions_submitted",
+    "role_completed",
+]
 type GateRendererId = Literal["plan_approval", "user_question"]
+type RoleCompletedOutcome = Literal["success", "failed", "stopped"]
 
 
 @dataclass(frozen=True)
@@ -67,8 +72,10 @@ class _FamilyEventDefinition:
     """An event-to-gate mapping in the built-in family definition."""
 
     id: HandoffEventKind
-    gate_id: str
-    renderer: GateRendererId
+    gate_id: str | None = None
+    renderer: GateRendererId | None = None
+    terminal: bool = False
+    composition_rule: str | None = None
 
 
 @dataclass(frozen=True)
@@ -201,6 +208,13 @@ def standard_plan_chain_definition() -> _FamilyDefinition:
                 gate_id="user_questions",
                 renderer="user_question",
             ),
+            _FamilyEventDefinition(
+                id="role_completed",
+                terminal=True,
+                composition_rule=(
+                    "after_followup_workflow_including_embedded_vcs_refs"
+                ),
+            ),
         ),
     )
 
@@ -241,7 +255,12 @@ class FamilyStateSnapshot:
 
 @dataclass(frozen=True)
 class HandoffEvent:
-    """Typed marker event consumed by the standard-chain evaluator."""
+    """Typed lifecycle event consumed by the standard-chain evaluator.
+
+    ``role_completed`` is emitted after the follow-up workflow returns, so a
+    later post-code role naturally sequences after reconstructed embedded VCS
+    refs such as ``#propose`` and ``#commit``.
+    """
 
     kind: HandoffEventKind
     interrupted_role: str
@@ -278,12 +297,14 @@ class FamilyRuntimeMetadata:
 
 @dataclass(frozen=True)
 class FamilyEvaluation:
-    """Result of routing a handoff event to a compatibility gate."""
+    """Result of routing a lifecycle event through the standard chain."""
 
     event: HandoffEvent
-    gate_id: str
-    renderer: GateRendererId
+    gate_id: str | None
+    renderer: GateRendererId | None
     runtime_metadata: FamilyRuntimeMetadata
+    terminal: bool = False
+    composition_rule: str | None = None
 
 
 @dataclass(frozen=True)
@@ -378,7 +399,7 @@ def evaluate_handoff_event(
     event: HandoffEvent,
     family_state: FamilyStateSnapshot,
 ) -> FamilyEvaluation:
-    """Route a typed handoff event to the built-in compatibility gate."""
+    """Route a typed lifecycle event through the built-in standard chain."""
 
     event_def = _event_definition(event.kind)
     return FamilyEvaluation(
@@ -390,6 +411,8 @@ def evaluate_handoff_event(
             active_gate_renderer=event_def.renderer,
             family_state=family_state,
         ),
+        terminal=event_def.terminal,
+        composition_rule=event_def.composition_rule,
     )
 
 

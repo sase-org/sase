@@ -15,6 +15,9 @@ from sase.plan_approval_choices import PLAN_APPROVAL_CHOICE_IDS
 def test_standard_plan_chain_definition_exposes_current_protocol_choices() -> None:
     definition = standard_plan_chain_definition()
     plan_gate = next(gate for gate in definition.gates if gate.id == "plan_review")
+    completion_event = next(
+        event for event in definition.events if event.id == "role_completed"
+    )
 
     assert definition.id == STANDARD_PLAN_CHAIN_ID
     assert {role.id for role in definition.roles} >= {
@@ -35,6 +38,10 @@ def test_standard_plan_chain_definition_exposes_current_protocol_choices() -> No
         "run_coder": True,
     }
     assert run_choice.goto_role == "code"
+    assert completion_event.terminal is True
+    assert completion_event.composition_rule == (
+        "after_followup_workflow_including_embedded_vcs_refs"
+    )
 
 
 def test_handoff_event_routes_to_standard_chain_gate_metadata() -> None:
@@ -63,6 +70,34 @@ def test_handoff_event_routes_to_standard_chain_gate_metadata() -> None:
         "saved_chat_suffixes": [],
         "visit_counts": {"plan": 1},
     }
+
+
+def test_role_completed_event_terminates_standard_chain() -> None:
+    event = build_handoff_event(
+        kind="role_completed",
+        artifacts_dir="/tmp/artifacts-code",
+        payload={
+            "outcome": "success",
+            "artifacts_ref": "/tmp/artifacts-code",
+        },
+        current_role_suffix="--code",
+    )
+    snapshot = family_state_snapshot(current_role_suffix="--code")
+
+    evaluation = evaluate_handoff_event(event, snapshot)
+    meta = evaluation.runtime_metadata.as_meta_fields()
+
+    assert event.interrupted_role == "code"
+    assert event.payload["outcome"] == "success"
+    assert evaluation.gate_id is None
+    assert evaluation.renderer is None
+    assert evaluation.terminal is True
+    assert evaluation.composition_rule == (
+        "after_followup_workflow_including_embedded_vcs_refs"
+    )
+    assert meta["active_gate_id"] is None
+    assert meta["active_gate_renderer"] is None
+    assert meta["family_state"]["current_role"] == "code"
 
 
 def test_plan_approval_transition_selects_standard_roles() -> None:
