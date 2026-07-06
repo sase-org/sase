@@ -1,0 +1,370 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  printf 'usage: %s [empty-target-dir]\n' "${0##*/}" >&2
+}
+
+if [[ $# -gt 1 ]]; then
+  usage
+  exit 2
+fi
+
+if [[ $# -eq 0 ]]; then
+  root=$(mktemp -d "${TMPDIR:-/tmp}/sase-ace-demo.XXXXXXXX")
+else
+  root=$1
+  if [[ -e "$root" && ! -d "$root" ]]; then
+    printf 'error: target exists and is not a directory: %s\n' "$root" >&2
+    exit 1
+  fi
+  mkdir -p "$root"
+  if find "$root" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    printf 'error: refusing to seed non-empty directory: %s\n' "$root" >&2
+    exit 1
+  fi
+fi
+
+root=$(cd "$root" && pwd -P)
+demo_home="$root/home"
+sase_home="$root/sase-home"
+sase_tmpdir="$root/tmp"
+workspace="$root/workspaces/nova"
+bare_repo="$root/repos/nova.git"
+project_dir="$sase_home/projects/nova"
+project_file="$project_dir/nova.sase"
+
+mkdir -p \
+  "$demo_home/.config/sase" \
+  "$project_dir/artifacts/ace-run" \
+  "$sase_tmpdir" \
+  "$(dirname "$bare_repo")" \
+  "$workspace/src" \
+  "$workspace/tests" \
+  "$workspace/docs"
+
+cat >"$demo_home/.config/sase/sase.yml" <<'YAML'
+xprompts:
+  add_tests:
+    description: Add focused tests for a source file.
+    input:
+      file_path: path
+    content: |
+      Add focused tests for @{{ file_path }}. Cover the behavior that changed, include edge cases, and keep the test names
+      readable.
+  review_path:
+    description: Review one file for correctness and maintainability.
+    input:
+      file_path: path
+    content: |
+      Review @{{ file_path }} for correctness, edge cases, and maintainability. Report concrete issues first.
+  summarize_change:
+    description: Summarize a ChangeSpec for release notes.
+    input:
+      changespec: word
+      audience: { type: word, default: developers }
+    content: |
+      Summarize ChangeSpec {{ changespec }} for {{ audience }}. Keep it concise and mention user-visible behavior.
+YAML
+
+cat >"$workspace/README.md" <<'MARKDOWN'
+# Nova
+
+Nova is a small fictional parser service used for SASE demo recordings.
+MARKDOWN
+
+cat >"$workspace/pyproject.toml" <<'TOML'
+[project]
+name = "nova"
+version = "0.1.0"
+description = "Fictional parser service for SASE demos"
+TOML
+
+cat >"$workspace/src/parser.py" <<'PY'
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ParsedCommand:
+    name: str
+    args: tuple[str, ...]
+
+
+def parse_command(line: str) -> ParsedCommand:
+    parts = tuple(part for part in line.strip().split() if part)
+    if not parts:
+        raise ValueError("command line is empty")
+    return ParsedCommand(name=parts[0], args=parts[1:])
+PY
+
+cat >"$workspace/src/cli.py" <<'PY'
+from nova.parser import parse_command
+
+
+def main(argv: list[str]) -> int:
+    command = parse_command(" ".join(argv))
+    print(f"dispatching {command.name}")
+    return 0
+PY
+
+cat >"$workspace/tests/test_parser.py" <<'PY'
+import pytest
+
+from nova.parser import parse_command
+
+
+def test_parse_command_splits_name_and_args() -> None:
+    parsed = parse_command("deploy staging --dry-run")
+    assert parsed.name == "deploy"
+    assert parsed.args == ("staging", "--dry-run")
+
+
+def test_parse_command_rejects_empty_input() -> None:
+    with pytest.raises(ValueError):
+        parse_command("   ")
+PY
+
+cat >"$workspace/docs/prompt_input_notes.md" <<'MARKDOWN'
+# Prompt Input Notes
+
+- `#add_tests` demonstrates xprompt completion with a path input.
+- `@src/parser.py` demonstrates file completion rooted in the fake workspace.
+MARKDOWN
+
+git init -q --bare "$bare_repo"
+git init -q "$workspace"
+git -C "$workspace" checkout -q -B main
+git -C "$workspace" config user.name "SASE Demo"
+git -C "$workspace" config user.email "demo@example.test"
+git -C "$workspace" add README.md pyproject.toml src tests docs
+git -C "$workspace" commit -q -m "Initial demo workspace"
+git -C "$workspace" remote add origin "$bare_repo"
+git -C "$workspace" push -q -u origin main
+
+cat >"$project_file" <<EOF
+PROJECT_NAME: nova
+PROJECT_ALIASES: nova-demo
+PROJECT_STATE: active
+BARE_REPO_DIR: $bare_repo
+WORKSPACE_DIR: $workspace
+## ChangeSpec
+
+NAME: nova_prompt_input
+DESCRIPTION:
+  Improve the ACE prompt input widget demonstration path.
+  Keep completion, argument hints, and multi-agent prompt stacks visible.
+PARENT:
+PR: https://example.test/nova/pull/42
+BUG: DEMO-101
+STATUS: Ready
+COMMITS:
+  (1) [run] Seed prompt input demo data
+      | CHAT: $sase_home/chats/nova_prompt_input.md
+      | DIFF: $sase_home/diffs/nova_prompt_input.diff
+HOOKS:
+  just lint
+      | (1) [260706_090000] PASSED (6s)
+  just test
+      | (1) [260706_090030] PASSED (18s)
+COMMENTS:
+  [review] $sase_home/comments/nova_prompt_input.json - (!: Resolved demo note)
+TIMESTAMPS:
+  260706_085500 STATUS Draft -> Ready
+DELTAS:
+  + demos/tapes/sase_ace_prompt_input.tape
+  + demos/scripts/seed_sase_ace_demo
+
+
+NAME: nova_parser_edges
+DESCRIPTION: Add parser coverage for whitespace and quoted arguments.
+PARENT: nova_prompt_input
+PR:
+BUG: DEMO-102
+STATUS: Draft
+HOOKS:
+  just test tests/test_parser.py
+      | (1) [260706_091500] PASSED (5s)
+
+
+NAME: nova_cli_refresh
+DESCRIPTION: Refresh the CLI help text after parser option changes.
+PARENT: nova_prompt_input
+PR:
+STATUS: WIP
+
+
+NAME: nova_release_notes
+DESCRIPTION: Prepare concise release notes for the prompt input workflow.
+PARENT: nova_prompt_input
+PR: https://example.test/nova/pull/43
+STATUS: Mailed
+COMMITS:
+  (1) Draft release note copy
+      | CHAT: $sase_home/chats/nova_release_notes.md
+      | DIFF: $sase_home/diffs/nova_release_notes.diff
+
+
+NAME: nova_seed_cleanup
+DESCRIPTION: Remove obsolete fixture names from the demo seed.
+PARENT:
+PR: https://example.test/nova/pull/40
+STATUS: Submitted
+COMMITS:
+  (1) Cleanup demo seed data
+      | CHAT: $sase_home/chats/nova_seed_cleanup.md
+      | DIFF: $sase_home/diffs/nova_seed_cleanup.diff
+TIMESTAMPS:
+  260705_170000 STATUS Mailed -> Submitted
+EOF
+
+mkdir -p "$sase_home/chats" "$sase_home/diffs" "$sase_home/comments"
+cat >"$sase_home/chats/nova_prompt_input.md" <<'MARKDOWN'
+Demo chat transcript for the prompt input ChangeSpec.
+MARKDOWN
+cat >"$sase_home/diffs/nova_prompt_input.diff" <<'DIFF'
+diff --git a/demos/tapes/sase_ace_prompt_input.tape b/demos/tapes/sase_ace_prompt_input.tape
+new file mode 100644
+DIFF
+cat >"$sase_home/comments/nova_prompt_input.json" <<'JSON'
+{"comments": [{"author": "review", "body": "Demo-only note for visual variety."}]}
+JSON
+cat >"$sase_home/chats/nova_release_notes.md" <<'MARKDOWN'
+Demo chat transcript for release notes.
+MARKDOWN
+cat >"$sase_home/diffs/nova_release_notes.diff" <<'DIFF'
+diff --git a/docs/release.md b/docs/release.md
+new file mode 100644
+DIFF
+cat >"$sase_home/chats/nova_seed_cleanup.md" <<'MARKDOWN'
+Demo chat transcript for seed cleanup.
+MARKDOWN
+cat >"$sase_home/diffs/nova_seed_cleanup.diff" <<'DIFF'
+diff --git a/demos/scripts/seed_sase_ace_demo b/demos/scripts/seed_sase_ace_demo
+new file mode 100755
+DIFF
+
+write_agent() {
+  local ts=$1
+  local name=$2
+  local role=$3
+  local outcome=$4
+  local cl_name=$5
+  local model=$6
+  local provider=$7
+  local finished_at=$8
+  local stopped_at=$9
+  local summary=${10}
+  local dir="$project_dir/artifacts/ace-run/$ts"
+
+  mkdir -p "$dir"
+  cat >"$dir/agent_meta.json" <<EOF
+{
+  "name": "$name",
+  "changespec_name": "$cl_name",
+  "cl_name": "$cl_name",
+  "agent_family": "nova",
+  "agent_family_role": "$role",
+  "model": "$model",
+  "llm_provider": "$provider",
+  "vcs_provider": "git",
+  "workspace_dir": "$workspace",
+  "approve": false,
+  "stopped_at": "$stopped_at",
+  "run_started_at": "2026-07-06T13:00:00Z"
+}
+EOF
+  cat >"$dir/done.json" <<EOF
+{
+  "outcome": "$outcome",
+  "finished_at": $finished_at,
+  "cl_name": "$cl_name",
+  "project_file": "$project_file",
+  "workspace_dir": "$workspace",
+  "model": "$model",
+  "llm_provider": "$provider",
+  "vcs_provider": "git",
+  "name": "$name",
+  "diff_path": "$dir/diff.diff",
+  "response_path": "$dir/response.md",
+  "output_path": "$dir/output.log"
+}
+EOF
+  cat >"$dir/raw_xprompt.md" <<EOF
+%name $name
+
+$summary
+EOF
+  cat >"$dir/response.md" <<EOF
+# $name
+
+$summary
+
+This is deterministic demo output; no real agent was launched.
+EOF
+  cat >"$dir/output.log" <<EOF
+[$stopped_at] $name finished with outcome=$outcome
+EOF
+  cat >"$dir/diff.diff" <<EOF
+diff --git a/src/parser.py b/src/parser.py
+--- a/src/parser.py
++++ b/src/parser.py
+@@ -1 +1 @@
+-$summary
++Demo diff for $name
+EOF
+}
+
+write_agent \
+  "20260706130000" \
+  "nova--plan-0" \
+  "plan" \
+  "completed" \
+  "nova_prompt_input" \
+  "gpt-5-codex" \
+  "codex" \
+  "1783343100.0" \
+  "2026-07-06T13:05:00Z" \
+  "Planned the prompt-input demo beats and seed data."
+
+write_agent \
+  "20260706131000" \
+  "nova--plan-1" \
+  "plan" \
+  "completed" \
+  "nova_prompt_input" \
+  "claude-sonnet-4-6" \
+  "claude" \
+  "1783343760.0" \
+  "2026-07-06T13:16:00Z" \
+  "Refined the tape pacing and terminal geometry."
+
+write_agent \
+  "20260706132000" \
+  "nova--code" \
+  "code" \
+  "completed" \
+  "nova_parser_edges" \
+  "gpt-5-codex" \
+  "codex" \
+  "1783344420.0" \
+  "2026-07-06T13:27:00Z" \
+  "Added parser edge-case tests in the fictional workspace."
+
+write_agent \
+  "20260706133000" \
+  "nova--review" \
+  "review" \
+  "failed" \
+  "nova_cli_refresh" \
+  "gemini-2.5-pro" \
+  "gemini" \
+  "1783344960.0" \
+  "2026-07-06T13:36:00Z" \
+  "Found a deliberate demo failure for visual contrast."
+
+printf 'Seeded SASE ACE demo state under %s\n' "$root" >&2
+printf 'export HOME=%q\n' "$demo_home"
+printf 'export SASE_HOME=%q\n' "$sase_home"
+printf 'export SASE_TMPDIR=%q\n' "$sase_tmpdir"
+printf 'export SASE_DEMO_ROOT=%q\n' "$root"
+printf 'export SASE_DEMO_WORKSPACE=%q\n' "$workspace"

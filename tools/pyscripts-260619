@@ -81,6 +81,16 @@ def _is_python_package(directory: Path) -> bool:
 
 
 _SKIP_EXTENSIONS = frozenset({".md"})
+_EXTERNAL_REF_IGNORE_DIRS = frozenset({"sdd"})
+
+
+def _is_ignored_external_ref(ref_file: Path, repo_root: Path) -> bool:
+    """Return True for planning/docs refs that should not count as script users."""
+    try:
+        rel = ref_file.relative_to(repo_root)
+    except ValueError:
+        return False
+    return bool(rel.parts) and rel.parts[0] in _EXTERNAL_REF_IGNORE_DIRS
 
 
 def _collect_scripts(script_dir: Path) -> list[Path]:
@@ -167,8 +177,17 @@ def _find_refs_outside(
         if rel == ".":
             rel = ""
         all_refs = _git_grep(basename, rel or ".", git_root)
-        return [r for r in all_refs if not r.is_relative_to(parent_dir)]
-    return _manual_grep(basename, repo_root, exclude_subtree=parent_dir)
+        return [
+            r
+            for r in all_refs
+            if not r.is_relative_to(parent_dir)
+            and not _is_ignored_external_ref(r, repo_root)
+        ]
+    return [
+        r
+        for r in _manual_grep(basename, repo_root, exclude_subtree=parent_dir)
+        if not _is_ignored_external_ref(r, repo_root)
+    ]
 
 
 def _has_closer_target_dir(

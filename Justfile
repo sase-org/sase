@@ -246,6 +246,10 @@ check: _setup
     @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "test"               just test
 
+# Render the scripted ACE prompt-input demo video.
+demo-video:
+    vhs demos/tapes/sase_ace_prompt_input.tape
+
 # Run the PyPI release smoke harness in a fresh Docker Compose environment.
 pypi_smoke_compose := "docker compose --project-directory smoke/pypi -f smoke/pypi/docker-compose.yml"
 
