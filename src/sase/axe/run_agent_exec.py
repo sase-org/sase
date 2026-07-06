@@ -58,7 +58,12 @@ def _resolve_workflow_project(ctx: AgentExecContext) -> str | None:
     """Return project scope for xprompt/workflow resolution."""
     if ctx.is_home_mode:
         return None
-    return ctx.project_name
+    try:
+        from sase.workspace_provider import get_workspace_name
+
+        return get_workspace_name(ctx.workspace_dir)
+    except Exception:
+        return None
 
 
 def _publish_predicted_chat_path(ctx: AgentExecContext) -> None:

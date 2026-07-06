@@ -13,11 +13,48 @@ from sase.axe.run_agent_exec import (
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 
 
-def test_resolve_workflow_project_non_home_mode_returns_project(
+def test_resolve_workflow_project_non_home_mode_uses_workspace_provider(
     tmp_path: Path,
 ) -> None:
-    ctx = make_exec_ctx(tmp_path, is_home_mode=False, project_name="myproj")
-    assert _resolve_workflow_project(ctx) == "myproj"
+    ctx = make_exec_ctx(
+        tmp_path,
+        is_home_mode=False,
+        project_name="gh_sase-org__sase",
+    )
+
+    with patch(
+        "sase.workspace_provider.get_workspace_name",
+        return_value="sase",
+    ) as mock_get:
+        assert _resolve_workflow_project(ctx) == "sase"
+
+    mock_get.assert_called_once_with(ctx.workspace_dir)
+
+
+def test_resolve_workflow_project_non_home_mode_returns_none_for_unknown_workspace(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(
+        tmp_path,
+        is_home_mode=False,
+        project_name="gh_sase-org__sase",
+    )
+
+    with patch("sase.workspace_provider.get_workspace_name", return_value=None):
+        assert _resolve_workflow_project(ctx) is None
+
+
+def test_resolve_workflow_project_non_home_mode_returns_none_on_provider_error(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(
+        tmp_path,
+        is_home_mode=False,
+        project_name="gh_sase-org__sase",
+    )
+
+    with patch("sase.workspace_provider.get_workspace_name", side_effect=RuntimeError):
+        assert _resolve_workflow_project(ctx) is None
 
 
 def test_resolve_workflow_project_home_mode_returns_none(tmp_path: Path) -> None:
@@ -55,8 +92,14 @@ def test_run_execution_loop_home_mode_passes_none_project(tmp_path: Path) -> Non
     assert mock_execute.call_args.kwargs["project"] is None
 
 
-def test_run_execution_loop_non_home_mode_passes_project(tmp_path: Path) -> None:
-    ctx = make_exec_ctx(tmp_path, is_home_mode=False, project_name="sase")
+def test_run_execution_loop_non_home_mode_passes_workspace_provider_project(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(
+        tmp_path,
+        is_home_mode=False,
+        project_name="gh_sase-org__sase",
+    )
     anon_workflow = SimpleNamespace(name="anon", xprompts={})
     final_result = _AgentExecResult(
         success=True,
@@ -74,6 +117,10 @@ def test_run_execution_loop_non_home_mode_passes_project(tmp_path: Path) -> None
             return_value=anon_workflow,
         ),
         patch("sase.xprompt.workflow_runner.execute_workflow") as mock_execute,
+        patch(
+            "sase.workspace_provider.get_workspace_name",
+            return_value="sase",
+        ) as mock_get,
         patch("sase.axe.run_agent_exec.was_killed", return_value=False),
         patch("sase.axe.run_agent_exec.reset_killed"),
         patch("sase.axe.run_agent_exec._finalize_loop", return_value=final_result),
@@ -83,3 +130,4 @@ def test_run_execution_loop_non_home_mode_passes_project(tmp_path: Path) -> None
     assert result == final_result
     assert mock_execute.call_count == 1
     assert mock_execute.call_args.kwargs["project"] == "sase"
+    mock_get.assert_called_once_with(ctx.workspace_dir)
