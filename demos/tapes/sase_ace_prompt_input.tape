@@ -70,9 +70,7 @@ Sleep 800ms
 
 Enter
 Wait+Screen /Launch all/
-Sleep 1.5s
-Screenshot demos/out/sase_ace_prompt_input.png
-Sleep 1s
+Sleep 2.5s
 Escape
 Sleep 700ms
 

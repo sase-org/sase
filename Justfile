@@ -246,9 +246,46 @@ check: _setup
     @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "test"               just test
 
-# Render the scripted ACE prompt-input demo video.
-demo-video:
+# Render the scripted ACE prompt-input demo video (GIF + MP4), stamp
+# demos/out/last_generated_date.txt, and offer to commit the results.
+# Pass -y/--yes to skip the commit confirmation prompt.
+[positional-arguments]
+demo-video *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    auto_yes=false
+    for arg in "$@"; do
+        case "$arg" in
+            -y|--yes) auto_yes=true ;;
+            *) printf 'error: unknown argument: %s\n' "$arg" >&2; exit 2 ;;
+        esac
+    done
+
     vhs demos/tapes/sase_ace_prompt_input.tape
+    date +%Y-%m-%dT%H:%M:%S > demos/out/last_generated_date.txt
+
+    if ! git status --porcelain -- demos/out | grep -q .; then
+        printf '[demo-video] demos/out is unchanged; nothing to commit.\n'
+        exit 0
+    fi
+
+    git status --short -- demos/out
+    if [ "$auto_yes" = true ]; then
+        reply=y
+    elif [ -t 0 ]; then
+        read -r -p "Commit regenerated demos/out artifacts? [y/N] " reply
+    else
+        reply=n
+    fi
+
+    case "$reply" in
+        y|Y)
+            git add -A -- demos/out
+            git commit -m "doc: Regenerate ACE prompt-input demo artifacts" -- demos/out
+            ;;
+        *) printf '[demo-video] Skipping commit; demos/out changes left in the working tree.\n' ;;
+    esac
 
 # Run the PyPI release smoke harness in a fresh Docker Compose environment.
 pypi_smoke_compose := "docker compose --project-directory smoke/pypi -f smoke/pypi/docker-compose.yml"
