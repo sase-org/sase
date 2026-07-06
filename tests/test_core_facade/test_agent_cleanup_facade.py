@@ -1,0 +1,86 @@
+"""Tests for the agent cleanup facade and Rust binding parity."""
+
+from __future__ import annotations
+
+import sys
+import types
+from typing import Any
+
+import pytest
+
+from sase.core.agent_cleanup_facade import (
+    _plan_agent_cleanup_python,
+    agents_to_cleanup_targets,
+    plan_agent_cleanup,
+)
+from sase.core.agent_cleanup_wire import (
+    KILL_KIND_RUNNING,
+    agent_cleanup_wire_to_json_dict,
+)
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+
+from tests.test_core_facade._agent_cleanup_helpers import (
+    _SCENARIOS,
+    _scenario_marked_set,
+)
+
+
+def test_plan_agent_cleanup_uses_rust_binding_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents, request = _scenario_marked_set()
+    targets = agents_to_cleanup_targets(agents)
+    captured: list[tuple[list[dict[str, Any]], dict[str, Any]]] = []
+
+    def fake_plan(
+        target_payload: list[dict[str, Any]], request_payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        captured.append((target_payload, request_payload))
+        plan = _plan_agent_cleanup_python(target_payload, request_payload)
+        payload = agent_cleanup_wire_to_json_dict(plan)
+        payload["kill_items"][0]["kind"] = KILL_KIND_RUNNING
+        return payload
+
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.plan_agent_cleanup = fake_plan  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+
+    plan = plan_agent_cleanup(targets, request)
+
+    assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+        ("running", KILL_KIND_RUNNING)
+    ]
+    assert captured == [
+        (
+            agent_cleanup_wire_to_json_dict(targets),
+            agent_cleanup_wire_to_json_dict(request),
+        )
+    ]
+
+
+def test_plan_agent_cleanup_falls_back_when_binding_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    monkeypatch.setitem(sys.modules, RUST_EXTENSION_MODULE_NAME, fake)
+    agents, request = _scenario_marked_set()
+
+    plan = plan_agent_cleanup(agents_to_cleanup_targets(agents), request)
+
+    assert [item.identity.cl_name for item in plan.kill_items] == ["running"]
+    assert [item.identity.cl_name for item in plan.dismiss_items] == ["done"]
+
+
+@pytest.mark.parametrize("scenario", _SCENARIOS)
+def test_rust_cleanup_planner_matches_python_reference(scenario: Any) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not hasattr(rust_module, "plan_agent_cleanup"):
+        pytest.skip("sase_core_rs is too old (no plan_agent_cleanup).")
+
+    agents, request = scenario()
+    targets = agents_to_cleanup_targets(agents)
+
+    assert plan_agent_cleanup(targets, request) == _plan_agent_cleanup_python(
+        targets,
+        request,
+    )
