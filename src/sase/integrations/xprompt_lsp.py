@@ -80,7 +80,12 @@ def _resolve_xprompt_lsp_command(
                 f"{SASE_XPROMPT_LSP_CMD_ENV} is not a valid shell-style command: {exc}"
             ) from exc
         if command:
-            return command
+            recovered = _recover_unquoted_command_path_with_spaces(
+                override,
+                command,
+                which=which,
+            )
+            return recovered or command
 
     path = which(XPROMPT_LSP_BINARY)
     if path:
@@ -112,6 +117,28 @@ def _resolve_xprompt_lsp_command(
         "xprompt LSP binary not found; install `sase-xprompt-lsp` on PATH "
         f"or set {SASE_XPROMPT_LSP_CMD_ENV}"
     )
+
+
+def _recover_unquoted_command_path_with_spaces(
+    override: str,
+    command: tuple[str, ...],
+    *,
+    which: Callable[[str], str | None],
+) -> tuple[str, ...] | None:
+    """Recover ``/path/with spaces/bin args`` from an unquoted env override."""
+    if _command_head_exists(command[0], which=which):
+        return command
+
+    parts = override.split()
+    for end in range(len(parts), 0, -1):
+        candidate = " ".join(parts[:end])
+        if _command_head_exists(candidate, which=which):
+            return (candidate, *parts[end:])
+    return None
+
+
+def _command_head_exists(head: str, *, which: Callable[[str], str | None]) -> bool:
+    return Path(head).is_file() or which(head) is not None
 
 
 def _server_args_from_namespace(args: argparse.Namespace) -> list[str]:

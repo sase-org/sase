@@ -556,12 +556,6 @@ def _resolution_error_message(
             f"Cannot attach family member to dismissed parent '{directive.parent}'. "
             "Revive the parent from the Agents tab before using %n(parent, suffix)."
         )
-    if kind == "running":
-        return (
-            f"Cannot attach family member to '{directive.parent}' yet: the parent "
-            "is still running. Wait for it to finish and rerun the launch; queued "
-            "attach for running parents is handled by the next phase."
-        )
     if kind == "ambiguous":
         labels = ", ".join(_candidate_label(candidate) for candidate in candidates[:5])
         return (

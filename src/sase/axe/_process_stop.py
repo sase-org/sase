@@ -200,10 +200,18 @@ def _wait_for_all_exited(pids: set[int], timeout: float) -> set[int]:
     deadline = time.monotonic() + timeout
     remaining = set(pids)
     while remaining and time.monotonic() < deadline:
-        remaining = {pid for pid in remaining if process_probe.is_process_running(pid)}
+        remaining = {
+            pid
+            for pid in remaining
+            if process_probe.is_process_running(pid) and not _pid_is_zombie(pid)
+        }
         if remaining:
             time.sleep(0.1)
-    return {pid for pid in remaining if process_probe.is_process_running(pid)}
+    return {
+        pid
+        for pid in remaining
+        if process_probe.is_process_running(pid) and not _pid_is_zombie(pid)
+    }
 
 
 def _sweep_lumberjack_orphans(
@@ -353,7 +361,24 @@ def _wait_for_exit(pid: int, timeout: float) -> bool:
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if not process_probe.is_process_running(pid):
+        if not process_probe.is_process_running(pid) or _pid_is_zombie(pid):
             return True
         time.sleep(0.1)
-    return False
+    return not process_probe.is_process_running(pid) or _pid_is_zombie(pid)
+
+
+def _pid_is_zombie(pid: int) -> bool:
+    """Return True when ``ps`` reports *pid* as a zombie process."""
+    try:
+        completed = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if completed.returncode != 0:
+        return False
+    return completed.stdout.strip().startswith("Z")

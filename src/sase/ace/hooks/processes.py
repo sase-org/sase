@@ -36,8 +36,8 @@ def _try_kill_process_group(pid: int) -> bool:
 def is_process_running(pid: int) -> bool:
     """Check if a process with the given PID is still running.
 
-    Also detects zombie processes on Linux (state "Z" in /proc) which
-    appear alive to ``os.kill(pid, 0)`` but are effectively dead.
+    Also detects zombie processes, which appear alive to ``os.kill(pid, 0)``
+    but are effectively dead.
 
     Args:
         pid: The process ID to check.

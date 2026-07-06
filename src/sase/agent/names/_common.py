@@ -79,6 +79,8 @@ def is_process_alive(meta: dict[str, object], artifact_dir: Path) -> bool:
 
     if not isinstance(pid, int):
         return False
+    if pid <= 1:
+        return False
 
     # If the agent was explicitly stopped, it's dead regardless of PID state
     if meta.get("stopped_at"):

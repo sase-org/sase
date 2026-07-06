@@ -77,8 +77,8 @@ def test_convert_pdf_to_png_pages_reports_failure(
     assert "bad pdf" in result.warnings[0].message
 
 
-def test_artifact_header_panel_includes_path_and_positions(tmp_path: Path) -> None:
-    artifact = tmp_path / "missing artifact.png"
+def test_artifact_header_panel_includes_path_and_positions() -> None:
+    artifact = Path("/tmp/sase-artifact-header-missing.png")
     spec = ArtifactViewSpec(artifact, "image")
     console = Console(record=True, width=100, color_system=None)
 

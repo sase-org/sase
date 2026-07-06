@@ -177,11 +177,17 @@ def _derive_project_key(
 def _default_state_root() -> str:
     """Return the platform-specific workspaces state root directory.
 
-    - Linux/other POSIX: ``$XDG_STATE_HOME/sase/workspaces`` (falling
-      back to ``~/.local/state/sase/workspaces``).
-    - macOS: ``~/Library/Application Support/sase/workspaces``.
+    - If ``$XDG_STATE_HOME`` is set: ``$XDG_STATE_HOME/sase/workspaces``.
+    - macOS without ``$XDG_STATE_HOME``:
+      ``~/Library/Application Support/sase/workspaces``.
+    - Linux/other POSIX without ``$XDG_STATE_HOME``:
+      ``~/.local/state/sase/workspaces``.
     - Windows: ``%LOCALAPPDATA%\\sase\\workspaces``.
     """
+    xdg = os.environ.get("XDG_STATE_HOME")
+    if xdg:
+        return str(Path(xdg) / "sase" / "workspaces")
+
     if sys.platform == "darwin":
         return str(
             Path.home() / "Library" / "Application Support" / "sase" / "workspaces"
@@ -192,9 +198,6 @@ def _default_state_root() -> str:
             return str(Path(local) / "sase" / "workspaces")
         return str(Path.home() / "AppData" / "Local" / "sase" / "workspaces")
 
-    xdg = os.environ.get("XDG_STATE_HOME")
-    if xdg:
-        return str(Path(xdg) / "sase" / "workspaces")
     return str(Path.home() / ".local" / "state" / "sase" / "workspaces")
 
 
