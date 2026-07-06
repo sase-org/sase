@@ -29,7 +29,7 @@ and curated xprompts used by the tape.
 Run:
 
 ```bash
-just demo-video
+just demos
 ```
 
 The recipe renders the tape, updates `demos/out/last_generated_date.txt` after a successful render, and then prompts to

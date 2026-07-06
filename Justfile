@@ -250,7 +250,7 @@ check: _setup
 # demos/out/last_generated_date.txt, and offer to commit the results.
 # Pass -y/--yes to skip the commit confirmation prompt.
 [positional-arguments]
-demo-video *args:
+demos *args:
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -266,7 +266,7 @@ demo-video *args:
     date +%Y-%m-%dT%H:%M:%S > demos/out/last_generated_date.txt
 
     if ! git status --porcelain -- demos/out | grep -q .; then
-        printf '[demo-video] demos/out is unchanged; nothing to commit.\n'
+        printf '[demos] demos/out is unchanged; nothing to commit.\n'
         exit 0
     fi
 
@@ -284,7 +284,7 @@ demo-video *args:
             git add -A -- demos/out
             git commit -m "doc: Regenerate ACE prompt-input demo artifacts" -- demos/out
             ;;
-        *) printf '[demo-video] Skipping commit; demos/out changes left in the working tree.\n' ;;
+        *) printf '[demos] Skipping commit; demos/out changes left in the working tree.\n' ;;
     esac
 
 # Run the PyPI release smoke harness in a fresh Docker Compose environment.
