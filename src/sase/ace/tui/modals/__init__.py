@@ -95,6 +95,7 @@ from .approve_options_modal import (
 from .auto_approve_modal import AutoApproveChoice, AutoApproveModal
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import ModelPickerModal
+from .launch_approval_modal import LaunchApprovalModal, LaunchApprovalResult
 from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
 from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
@@ -197,6 +198,8 @@ __all__ = [
     "HookHistoryResult",
     "JumpAllModal",
     "JumpAllResult",
+    "LaunchApprovalModal",
+    "LaunchApprovalResult",
     "LocalXPromptNameModal",
     "RecursiveFileFinderModal",
     "ModelPickerModal",

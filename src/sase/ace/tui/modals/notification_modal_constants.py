@@ -9,6 +9,7 @@ ACTION_BADGES: dict[str | None, str] = {
     "JumpToMentorReview": "[mentor]",
     "Tmux": "[tmux]",
     "HITL": "[HITL]",
+    "LaunchApproval": "[launch]",
     "PlanApproval": "[plan]",
     "UserQuestion": "[question]",
     "ViewErrorReport": "[error]",

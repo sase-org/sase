@@ -148,7 +148,13 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
+        --epic-symbol 'sase-5g(build_launch_preview_request)' \
+        --epic-symbol 'sase-5g(get_auto_launch_approval_action)' \
+        --epic-symbol 'sase-5g(new_launch_request_id)' \
+        --epic-symbol 'sase-5g(notify_launch_approval)' \
+        --epic-symbol 'sase-5g(render_launch_preview_markdown)' \
+        --epic-symbol 'sase-5g(write_launch_preview_files)'
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted

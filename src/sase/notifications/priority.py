@@ -8,7 +8,9 @@ metrics, mobile, and other surfaces share the same classification.
 
 from sase.notifications.models import Notification
 
-_PRIORITY_ACTIONS = frozenset({"PlanApproval", "UserQuestion", "JumpToMentorReview"})
+_PRIORITY_ACTIONS = frozenset(
+    {"PlanApproval", "UserQuestion", "LaunchApproval", "JumpToMentorReview"}
+)
 _PRIORITY_SENDERS = frozenset({"axe", "crs"})
 _ERROR_SENDERS = frozenset({"axe", "user-agent"})
 

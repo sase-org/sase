@@ -13,6 +13,7 @@ from ._notification_handlers import (
 )
 from ._notification_modals import (
     handle_hitl as handle_hitl,
+    handle_launch_approval as handle_launch_approval,
     handle_plan_approval as handle_plan_approval,
     handle_user_question as handle_user_question,
     open_user_question_modal_from_marker as open_user_question_modal_from_marker,
@@ -32,6 +33,7 @@ __all__ = [
     "handle_jump_to_agent",
     "handle_jump_to_changespec",
     "handle_jump_to_mentor_review",
+    "handle_launch_approval",
     "handle_memory_review",
     "handle_plan_approval",
     "handle_tmux",

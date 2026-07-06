@@ -23,7 +23,7 @@ def test_dismiss_notification_direct_for_non_plan_question() -> None:
 
 
 def test_dismiss_notification_requires_confirmation_for_plan_question() -> None:
-    """x should require y/n confirmation for plan/question notifications."""
+    """x should require y/n confirmation for pending action notifications."""
     modal = NotificationModal([_make_notification("n1", action="PlanApproval")])
     modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
     modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -34,7 +34,22 @@ def test_dismiss_notification_requires_confirmation_for_plan_question() -> None:
     mock_mark.assert_not_called()
     assert modal._pending_confirm_notification_id == "n1"
     assert len(modal._notifications) == 1
-    modal.notify.assert_called_once_with("Dismiss plan/question notification? (y/n)")
+    modal.notify.assert_called_once_with("Dismiss pending action notification? (y/n)")
+
+
+def test_dismiss_notification_requires_confirmation_for_launch_approval() -> None:
+    """LaunchApproval rows use the same dismissal guard as other pending actions."""
+    modal = NotificationModal([_make_notification("n1", action="LaunchApproval")])
+    modal._get_selected_index = lambda: 0  # type: ignore[method-assign]
+    modal.notify = MagicMock()  # type: ignore[method-assign]
+
+    with patch("sase.ace.tui.modals.notification_modal.mark_dismissed") as mock_mark:
+        modal.action_dismiss_notification()
+
+    mock_mark.assert_not_called()
+    assert modal._pending_confirm_notification_id == "n1"
+    assert len(modal._notifications) == 1
+    modal.notify.assert_called_once_with("Dismiss pending action notification? (y/n)")
 
 
 def test_confirm_dismiss_notification_dismisses_pending_item() -> None:

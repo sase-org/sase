@@ -213,6 +213,71 @@ def handle_plan_approval(
     return True
 
 
+def handle_launch_approval(app: object, notification: Notification) -> bool:
+    """Show the launch approval modal for a pending launch request."""
+    from ...modals import LaunchApprovalModal, LaunchApprovalResult
+
+    response_dir = notification.action_data.get("response_dir")
+    if not response_dir:
+        app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    response_path = Path(response_dir).expanduser()
+    request_path = response_path / "launch_request.json"
+    if not request_path.exists():
+        app.notify("Launch approval request expired or not found", severity="warning")  # type: ignore[attr-defined]
+        return False
+
+    preview_file = next(
+        (path for path in notification.files if path.endswith("launch_preview.md")),
+        notification.files[0] if notification.files else None,
+    )
+    request_id = notification.action_data.get("request_id")
+
+    def on_dismiss(result: object) -> None:
+        if result is None or not isinstance(result, LaunchApprovalResult):
+            return
+
+        launch_response_path = response_path / "launch_response.json"
+        response_data: dict[str, object] = {"action": result.action}
+        if result.feedback is not None:
+            response_data["feedback"] = result.feedback
+        try:
+            write_workflow_action_response(
+                launch_response_path,
+                response_data,
+                action_kind="launch_approval",
+                notification_id=notification.id,
+            )
+            from sase.launch_approval_actions import (
+                LaunchApprovalActionContext,
+                run_launch_side_effects,
+            )
+
+            run_launch_side_effects(
+                LaunchApprovalActionContext(
+                    id=notification.id,
+                    host_files=tuple(notification.files),
+                    host_action_data=dict(notification.action_data),
+                ),
+                result.action,
+            )
+            app.notify(f"Sent launch {result.action} response")  # type: ignore[attr-defined]
+        except Exception as e:
+            app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
+            return
+
+        refresh_count = getattr(app, "_refresh_notification_count", None)
+        if callable(refresh_count):
+            refresh_count()
+
+    app.push_screen(  # type: ignore[attr-defined]
+        LaunchApprovalModal(preview_file=preview_file, request_id=request_id),
+        on_dismiss,
+    )
+    return True
+
+
 def _build_plan_approval_response(result: PlanApprovalResult) -> dict[str, object]:
     """Build the JSON response for a plan approval modal result."""
     action, commit_plan, run_coder = _plan_approval_protocol_fields(result)

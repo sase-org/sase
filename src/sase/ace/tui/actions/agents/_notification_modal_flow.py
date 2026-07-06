@@ -137,6 +137,7 @@ class AgentNotificationModalMixin:
             handle_jump_to_agent,
             handle_jump_to_changespec,
             handle_jump_to_mentor_review,
+            handle_launch_approval,
             handle_memory_review,
             handle_plan_approval,
             handle_tmux,
@@ -151,7 +152,11 @@ class AgentNotificationModalMixin:
         def _on_dismiss(result: Notification | None) -> None:
             if result is not None:
                 # PlanApproval/UserQuestion must stay unread until response.
-                if result.action not in ("PlanApproval", "UserQuestion"):
+                if result.action not in (
+                    "PlanApproval",
+                    "UserQuestion",
+                    "LaunchApproval",
+                ):
                     mark_read(result.id)
 
             self._refresh_notification_count()
@@ -162,7 +167,12 @@ class AgentNotificationModalMixin:
             detail = self._read_notification_detail_from_provider(result.id)
             if detail.notification is not None:
                 result = detail.notification
-            if result.action in ("PlanApproval", "UserQuestion", "HITL"):
+            if result.action in (
+                "PlanApproval",
+                "UserQuestion",
+                "HITL",
+                "LaunchApproval",
+            ):
                 self._read_notification_pending_actions_from_provider()
 
             if result.action == "JumpToChangeSpec":
@@ -179,6 +189,8 @@ class AgentNotificationModalMixin:
                 handle_plan_approval(self, result)
             elif result.action == "UserQuestion":
                 handle_user_question(self, result)
+            elif result.action == "LaunchApproval":
+                handle_launch_approval(self, result)
             elif result.action == "ViewErrorReport":
                 handle_view_error_report(self, result)
             elif result.action == "memory_review":

@@ -83,6 +83,9 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
     if action == "HITL":
         return (note or "HITL waiting for input", "warning")
 
+    if action == "LaunchApproval":
+        return (note or "Launch approval requested", "warning")
+
     if action == "ViewErrorReport":
         return (f"Axe: {note}" if note else "Axe errors", "error")
 
@@ -156,6 +159,7 @@ _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "PlanApproval": ("plan", "plans"),
     "UserQuestion": ("question", "questions"),
     "HITL": ("HITL", "HITLs"),
+    "LaunchApproval": ("launch approval", "launch approvals"),
     "ViewErrorReport": ("axe error", "axe errors"),
     "JumpToChangeSpec": ("sync", "syncs"),
     "JumpToMentorReview": ("mentor review", "mentor reviews"),

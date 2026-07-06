@@ -19,7 +19,7 @@ from sase.notifications.models import Notification
 
 PENDING_ACTIONS_PATH: Path | None = None
 LEGACY_TELEGRAM_PENDING_ACTIONS_PATH: Path | None = None
-PENDING_ACTION_SCHEMA_VERSION = 1
+PENDING_ACTION_SCHEMA_VERSION = 2
 PENDING_ACTION_PREFIX_LEN = 8
 STALE_THRESHOLD_SECONDS = 24 * 60 * 60
 
@@ -27,6 +27,7 @@ _ACTION_KIND_BY_NOTIFICATION_ACTION = {
     "PlanApproval": "plan_approval",
     "HITL": "hitl",
     "UserQuestion": "user_question",
+    "LaunchApproval": "launch_approval",
     "memory_review": "memory_review",
 }
 
@@ -333,11 +334,19 @@ def _externally_handled(notification: Notification) -> bool:
             response_dir.is_dir()
             and not (response_dir / "question_request.json").exists()
         )
+    if notification.action == "LaunchApproval":
+        response_dir = _action_path(notification, "response_dir")
+        if response_dir is None:
+            return False
+        return (response_dir / "launch_response.json").exists() or (
+            response_dir.is_dir()
+            and not (response_dir / "launch_request.json").exists()
+        )
     return False
 
 
 def _required_target_missing(notification: Notification) -> bool:
-    if notification.action in {"PlanApproval", "UserQuestion"}:
+    if notification.action in {"PlanApproval", "UserQuestion", "LaunchApproval"}:
         return _action_path(notification, "response_dir") is None
     if notification.action == "HITL":
         return _action_path(notification, "artifacts_dir") is None

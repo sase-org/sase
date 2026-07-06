@@ -17,6 +17,11 @@ from sase.integrations._mobile_notification_snapshot import (
 from sase.integrations._mobile_notification_side_effects import (
     dismiss_notification_best_effort,
 )
+from sase.launch_approval_actions import (
+    LaunchApprovalActionContext,
+    LaunchApprovalActionError,
+    execute_launch_approval_response,
+)
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     PlanApprovalActionError,
@@ -200,6 +205,49 @@ def execute_mobile_question_action(
         response_file="question_response.json",
         response_json=response_json,
         message="Question answered",
+    )
+
+
+def execute_mobile_launch_action(
+    prefix: str,
+    choice: str,
+    *,
+    feedback: str | None = None,
+) -> MobilePlanActionResult:
+    """Write a launch approval response and dismiss the notification."""
+    notification = _resolve_action_notification(prefix, "LaunchApproval")
+    response_dir = Path(
+        notification.host_action_data.get("response_dir", "")
+    ).expanduser()
+    if not response_dir.is_dir():
+        raise MobilePlanActionError(
+            "invalid_request", "response_dir", "response_dir is missing"
+        )
+    if not (response_dir / "launch_request.json").is_file():
+        raise MobilePlanActionError(
+            "conflict_already_handled",
+            notification.id,
+            "launch request was already consumed",
+        )
+
+    try:
+        action_result = execute_launch_approval_response(
+            LaunchApprovalActionContext(
+                id=notification.id,
+                host_files=tuple(notification.host_files),
+                host_action_data=dict(notification.host_action_data),
+            ),
+            choice,
+            feedback=feedback,
+        )
+    except LaunchApprovalActionError as exc:
+        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
+    return MobilePlanActionResult(
+        prefix=prefix,
+        notification_id=notification.id,
+        response_file=action_result.response_file,
+        response_json=action_result.response_json,
+        message=action_result.message,
     )
 
 

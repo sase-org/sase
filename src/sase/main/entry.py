@@ -198,6 +198,12 @@ def main() -> NoReturn:
 
         parser.error(f"unknown init subcommand: {args.init_subcommand}")
 
+    # --- launch ---
+    if args.command == "launch":
+        from .launch_handler import handle_launch_command
+
+        handle_launch_command(args)
+
     # --- logs ---
     if args.command == "logs":
         from sase.logs.cli import handle_logs_command

@@ -80,6 +80,33 @@ def test_pending_action_state_detects_external_handled_and_stale(
         )
 
 
+def test_launch_approval_pending_action_state(tmp_path: Path) -> None:
+    store_path = tmp_path / "pending_actions" / "actions.json"
+    response_dir = tmp_path / "launch"
+    response_dir.mkdir()
+    (response_dir / "launch_request.json").write_text("{}", encoding="utf-8")
+    notification = _notification(
+        "launch-row",
+        "LaunchApproval",
+        {"response_dir": str(response_dir), "request_id": "launch-1"},
+    )
+    with patch.object(pending_actions, "PENDING_ACTIONS_PATH", store_path):
+        pending_actions.register_notification(notification, now=10.0)
+
+        store = pending_actions.read_pending_action_store()
+        assert store["actions"]["launch-r"]["action_kind"] == "launch_approval"
+        assert (
+            pending_actions.action_state_for_notification(notification, now=11.0)
+            == "available"
+        )
+
+        (response_dir / "launch_response.json").write_text("{}", encoding="utf-8")
+        assert (
+            pending_actions.action_state_for_notification(notification, now=11.0)
+            == "already_handled"
+        )
+
+
 def test_pending_action_state_stales_unregistered_old_notification(
     tmp_path: Path,
 ) -> None:

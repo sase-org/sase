@@ -276,3 +276,39 @@ def notify_plan_approval(
     )
     append_notification(n)
     NOTIFICATIONS_SENT.labels(type="plan_approval", status="ok").inc()
+
+
+def notify_launch_approval(
+    *,
+    request_id: str,
+    response_dir: str,
+    source_surface: str,
+    slot_count: int,
+    preview_file: str | None = None,
+    request_file: str | None = None,
+) -> str:
+    """Send a notification for a pending launch approval request."""
+    notification_id = str(uuid4())
+    files = [path for path in (preview_file, request_file) if path]
+    n = Notification(
+        id=notification_id,
+        timestamp=datetime.now(get_timezone()).isoformat(),
+        sender="launch",
+        notes=[
+            f"Launch approval requested: {slot_count} slot"
+            f"{'s' if slot_count != 1 else ''}",
+            f"Source: {source_surface}",
+        ],
+        files=files,
+        action="LaunchApproval",
+        action_data={
+            "response_dir": response_dir,
+            "request_id": request_id,
+            "source_surface": source_surface,
+            "slot_count": str(slot_count),
+        },
+        tags=normalize_notification_tags(["launch"]),
+    )
+    append_notification(n)
+    NOTIFICATIONS_SENT.labels(type="launch_approval", status="ok").inc()
+    return notification_id

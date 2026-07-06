@@ -629,6 +629,41 @@ PlanApprovalModal {
     padding-top: 1;
 }
 
+/* Launch Approval Modal styling */
+LaunchApprovalModal {
+    align: center middle;
+}
+
+#launch-approval-container {
+    width: 90%;
+    max-width: 150;
+    height: 85%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#launch-approval-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#launch-approval-scroll {
+    height: 1fr;
+    scrollbar-gutter: stable;
+}
+
+#launch-approval-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 
 /* Custom Approval Modal styling */
 ApproveOptionsModal {

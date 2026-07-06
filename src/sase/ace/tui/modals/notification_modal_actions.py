@@ -27,9 +27,9 @@ class NotificationStateActionsMixin:
 
         notification = self._notifications[idx]
 
-        if notification.action in ("PlanApproval", "UserQuestion"):
+        if notification.action in ("PlanApproval", "UserQuestion", "LaunchApproval"):
             self._pending_confirm_notification_id = notification.id
-            self.notify("Dismiss plan/question notification? (y/n)")
+            self.notify("Dismiss pending action notification? (y/n)")
             return
 
         self._pending_confirm_notification_id = None
@@ -45,7 +45,7 @@ class NotificationStateActionsMixin:
             return
 
         needs_confirm = any(
-            n.action in ("PlanApproval", "UserQuestion")
+            n.action in ("PlanApproval", "UserQuestion", "LaunchApproval")
             for n in self._notifications
             if n.id in self._marked_notification_ids
         )
@@ -53,7 +53,7 @@ class NotificationStateActionsMixin:
             self._pending_confirm_notification_ids = marked_ids
             self.notify(
                 f"Dismiss {len(marked_ids)} notification(s)"
-                " including plan/question? (y/n)"
+                " including pending actions? (y/n)"
             )
             return
 
