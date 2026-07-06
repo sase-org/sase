@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from unittest.mock import patch
 
@@ -13,6 +14,8 @@ from sase.ace.tui.actions.agents._loading_compute import (
     PreparedFoldFiltering,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets._agent_list_render_cache import agent_file_change_hint
+from sase.ace.tui.widgets._agent_list_rendering import agent_render_key
 
 
 class _ApplyHarness(AgentLoadingApplyMixin):
@@ -43,6 +46,7 @@ class _ApplyHarness(AgentLoadingApplyMixin):
         self._agents_repro_capture = None
         self.finalize_calls = 0
         self.maintenance_calls: list[dict[str, object]] = []
+        self.live_hint_refresh_sources: list[str] = []
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
@@ -66,7 +70,7 @@ class _ApplyHarness(AgentLoadingApplyMixin):
         )
 
     def _schedule_live_hint_refresh(self, *, source: str = "unknown") -> None:
-        del source
+        self.live_hint_refresh_sources.append(source)
 
     def _schedule_bead_confirmation_warmup(self, *, source: str = "unknown") -> None:
         del source
@@ -75,6 +79,30 @@ class _ApplyHarness(AgentLoadingApplyMixin):
 def _fail_sync(*args: object, **kwargs: object) -> object:
     del args, kwargs
     raise AssertionError("apply path must not synchronously maintain the index")
+
+
+def _agent(cl_name: str, raw_suffix: str, *, status: str = "RUNNING") -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=cl_name,
+        project_file="/tmp/test.sase",
+        status=status,
+        start_time=datetime(2026, 7, 6, 8, 0, 0),
+        raw_suffix=raw_suffix,
+    )
+
+
+def _row_render_key(agent: Agent) -> tuple[object, ...]:
+    return agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 7, 6, 8, 1, 0),
+    )
 
 
 def test_apply_schedules_artifact_index_maintenance_offthread() -> None:
@@ -140,3 +168,95 @@ def test_apply_schedules_artifact_index_maintenance_offthread() -> None:
         }
     ]
     assert app.finalize_calls == 1
+
+
+def test_apply_carries_live_hint_before_finalize_and_schedules_revalidation() -> None:
+    app = _ApplyHarness()
+    previous = _agent("feat", "20260706080000")
+    previous.live_file_change_hint = True
+    fresh = _agent("feat", "20260706080000")
+    app._agents = [previous]
+    app._agents_with_children = [previous]
+    old_key = _row_render_key(previous)
+
+    prep = PreparedApplyData(
+        filtered_agents=[fresh],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[fresh],
+        dismissed_agent_objects=[],
+    )
+    boundary = PreparedApplyBoundary(
+        prep=prep,
+        fold=PreparedFoldFiltering(
+            unfiltered_agents=[fresh],
+            visible_agents=[fresh],
+            fold_counts={},
+        ),
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+        finalize=None,
+    )
+
+    app._apply_loaded_agents_prepared_inner(
+        prep,
+        on_agents_tab=False,
+        selected_identity=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels=None,
+    )
+
+    assert fresh.live_file_change_hint is True
+    assert agent_file_change_hint(fresh) is True
+    assert _row_render_key(fresh) == old_key
+    assert app.live_hint_refresh_sources == ["apply"]
+    assert app.finalize_calls == 1
+
+
+def test_apply_carry_over_tolerates_missing_prior_unfiltered_list() -> None:
+    app = _ApplyHarness()
+    previous = _agent("feat", "20260706090000")
+    previous.live_file_change_hint = True
+    fresh = _agent("feat", "20260706090000")
+    app._agents = [previous]
+    del app._agents_with_children
+
+    prep = PreparedApplyData(
+        filtered_agents=[fresh],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[fresh],
+        dismissed_agent_objects=[],
+    )
+    boundary = PreparedApplyBoundary(
+        prep=prep,
+        fold=PreparedFoldFiltering(
+            unfiltered_agents=[fresh],
+            visible_agents=[fresh],
+            fold_counts={},
+        ),
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+        finalize=None,
+    )
+
+    app._apply_loaded_agents_prepared_inner(
+        prep,
+        on_agents_tab=False,
+        selected_identity=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels=None,
+    )
+
+    assert fresh.live_file_change_hint is True
+    assert app.live_hint_refresh_sources == ["apply"]

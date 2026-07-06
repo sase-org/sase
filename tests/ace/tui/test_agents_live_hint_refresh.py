@@ -17,9 +17,12 @@ from sase.ace.tui.actions.agents import _loading_live_hints as live_hints_mod
 from sase.ace.tui.actions.agents._loading_live_hints import (
     AgentLiveHintMixin,
     _compute_live_hints,
+    carry_over_live_hints,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.nav_gate import NavigationGate
+from sase.ace.tui.widgets._agent_list_render_cache import agent_file_change_hint
+from sase.ace.tui.widgets._agent_list_rendering import agent_render_key
 
 
 class _FakeApp(AgentLiveHintMixin):
@@ -95,6 +98,19 @@ def _coder_child(
         parent_timestamp=parent_suffix,
         role_suffix="-code",
         diff_path=diff_path,
+    )
+
+
+def _row_render_key(agent: Agent) -> tuple[object, ...]:
+    return agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=datetime(2026, 6, 15, 19, 1, 0),
     )
 
 
@@ -218,6 +234,93 @@ def test_live_hint_candidates_excludes_ordinary_persisted_diff_row() -> None:
     assert app._live_hint_candidates() == []
 
 
+# --- carry-over across reloads ----------------------------------------------
+
+
+def test_carry_over_live_hints_copies_visible_and_unfiltered_rows() -> None:
+    previous_visible = _agent(cl_name="visible", raw_suffix="1")
+    previous_visible.live_file_change_hint = True
+    previous_unfiltered = _agent(cl_name="folded", raw_suffix="2")
+    previous_unfiltered.live_file_change_hint = False
+    fresh_visible = _agent(cl_name="visible", raw_suffix="1")
+    fresh_unfiltered = _agent(cl_name="folded", raw_suffix="2")
+    old_key = _row_render_key(previous_visible)
+
+    carry_over_live_hints(
+        [previous_unfiltered, previous_visible],
+        [fresh_unfiltered, fresh_visible],
+    )
+
+    assert fresh_visible.live_file_change_hint is True
+    assert fresh_unfiltered.live_file_change_hint is False
+    assert agent_file_change_hint(fresh_visible) is True
+    assert _row_render_key(fresh_visible) == old_key
+
+
+def test_carry_over_live_hints_skips_non_candidates_and_existing_values() -> None:
+    previous_with_diff = _agent(cl_name="with-diff", raw_suffix="1")
+    previous_with_diff.live_file_change_hint = True
+    fresh_with_diff = _agent(
+        cl_name="with-diff",
+        raw_suffix="1",
+        diff_path="/tmp/final.diff",
+    )
+
+    previous_done = _agent(cl_name="done", raw_suffix="2")
+    previous_done.live_file_change_hint = True
+    fresh_done = _agent(cl_name="done", raw_suffix="2", status="DONE")
+
+    previous_unknown = _agent(cl_name="unknown", raw_suffix="3")
+    fresh_unknown = _agent(cl_name="unknown", raw_suffix="3")
+
+    previous_loader_value = _agent(cl_name="loader", raw_suffix="4")
+    previous_loader_value.live_file_change_hint = True
+    fresh_loader_value = _agent(cl_name="loader", raw_suffix="4")
+    fresh_loader_value.live_file_change_hint = False
+
+    carry_over_live_hints(
+        [
+            previous_with_diff,
+            previous_done,
+            previous_unknown,
+            previous_loader_value,
+        ],
+        [fresh_with_diff, fresh_done, fresh_unknown, fresh_loader_value],
+    )
+
+    assert fresh_with_diff.live_file_change_hint is None
+    assert fresh_done.live_file_change_hint is None
+    assert fresh_unknown.live_file_change_hint is None
+    assert fresh_loader_value.live_file_change_hint is False
+
+
+def test_carry_over_live_hints_includes_redirected_root_plan() -> None:
+    previous_plan = _root_plan(raw_suffix="400", diff_path="/tmp/plan.diff")
+    previous_plan.followup_agents.append(_coder_child(parent_suffix="400"))
+    previous_plan.live_file_change_hint = True
+    fresh_plan = _root_plan(raw_suffix="400", diff_path="/tmp/plan.diff")
+    fresh_plan.followup_agents.append(_coder_child(parent_suffix="400"))
+
+    carry_over_live_hints([previous_plan], [fresh_plan])
+
+    assert fresh_plan.live_file_change_hint is True
+    assert agent_file_change_hint(fresh_plan) is True
+
+
+def test_carry_over_live_hints_skips_redirected_plan_when_child_has_diff() -> None:
+    previous_plan = _root_plan(raw_suffix="500", diff_path="/tmp/plan.diff")
+    previous_plan.followup_agents.append(_coder_child(parent_suffix="500"))
+    previous_plan.live_file_change_hint = True
+    fresh_plan = _root_plan(raw_suffix="500", diff_path="/tmp/plan.diff")
+    fresh_plan.followup_agents.append(
+        _coder_child(parent_suffix="500", diff_path="/tmp/child.diff")
+    )
+
+    carry_over_live_hints([previous_plan], [fresh_plan])
+
+    assert fresh_plan.live_file_change_hint is None
+
+
 # --- compute (off-thread body) -----------------------------------------------
 
 
@@ -269,6 +372,32 @@ def test_apply_rematches_current_object_by_identity() -> None:
     assert rebuilt.live_file_change_hint is True
     assert snapshot.live_file_change_hint is None
     assert app._patched == [rebuilt]
+
+
+def test_apply_retains_boolean_hint_when_result_has_no_signal() -> None:
+    app = _FakeApp()
+    agent = _agent(cl_name="feat", raw_suffix="1")
+    agent.live_file_change_hint = True
+    app._agents = [agent]
+    app._agents_with_children = [agent]
+
+    app._apply_live_hint_results({agent.identity: None})
+
+    assert agent.live_file_change_hint is True
+    assert app._patched == []
+
+
+def test_apply_false_result_overwrites_true_hint() -> None:
+    app = _FakeApp()
+    agent = _agent(cl_name="feat", raw_suffix="1")
+    agent.live_file_change_hint = True
+    app._agents = [agent]
+    app._agents_with_children = [agent]
+
+    app._apply_live_hint_results({agent.identity: False})
+
+    assert agent.live_file_change_hint is False
+    assert app._patched == [agent]
 
 
 # --- full async worker -------------------------------------------------------

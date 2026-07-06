@@ -39,6 +39,45 @@ def _status_allows_live_hint(status: str | None) -> bool:
     return bucket not in {"Done", "Failed"}
 
 
+def _agent_allows_live_hint(agent: Agent) -> bool:
+    from sase.ace.tui.widgets.file_panel._diff import resolve_agent_diff_source
+
+    source = resolve_agent_diff_source(agent)
+    return not source.diff_path and _status_allows_live_hint(source.status)
+
+
+def carry_over_live_hints(
+    previous_agents: list[Agent],
+    current_agents: list[Agent],
+) -> None:
+    """Carry stale-while-revalidate live hints onto freshly loaded rows.
+
+    Agents reloads rebuild ``Agent`` objects from disk, but the deferred live
+    hint is intentionally in-memory row state. Preserve the last known boolean
+    for rows that still qualify for a live hint; the scheduled background scan
+    revalidates and patches any genuine changes.
+    """
+    previous_hints: dict[tuple[AgentType, str, str | None], bool] = {}
+    for agent in previous_agents:
+        hint = agent.live_file_change_hint
+        if hint is None:
+            continue
+        previous_hints[agent.identity] = hint
+
+    if not previous_hints:
+        return
+
+    for agent in current_agents:
+        if agent.live_file_change_hint is not None:
+            continue
+        hint = previous_hints.get(agent.identity)
+        if hint is None:
+            continue
+        if not _agent_allows_live_hint(agent):
+            continue
+        agent.live_file_change_hint = hint
+
+
 class AgentLiveHintMixin(AgentLoadingStateMixin):
     """Schedule and apply deferred live-workspace pencil hints off startup."""
 
@@ -159,6 +198,8 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         for identity, hint in results.items():
             target = current_by_identity.get(identity)
             if target is None:
+                continue
+            if hint is None and target.live_file_change_hint is not None:
                 continue
             if target.live_file_change_hint == hint:
                 continue

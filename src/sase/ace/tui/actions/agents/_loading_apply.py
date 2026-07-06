@@ -19,6 +19,7 @@ from ._loading_compute import (
 )
 from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_helpers import is_always_visible
+from ._loading_live_hints import carry_over_live_hints
 from ._loading_state import AgentLoadingStateMixin
 from ._refresh_trace import classify_agents_data_cost, record_agents_refresh_trace
 
@@ -380,9 +381,14 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._has_always_visible = prep.has_always_visible
         self._hidden_count = prep.hidden_count
         self._hideable_agents = prep.hideable_agents
+        previous_agents_with_children = list(getattr(self, "_agents_with_children", []))
         previous_agents = list(self._agents)
         self._agents_with_children = boundary.fold.unfiltered_agents
         self._agents = boundary.fold.visible_agents
+        carry_over_live_hints(
+            [*previous_agents_with_children, *previous_agents],
+            [*self._agents_with_children, *self._agents],
+        )
         self._fold_counts = boundary.fold.fold_counts
 
         finalize_plan = self._select_finalize_plan(
