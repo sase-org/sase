@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.10.1](https://github.com/sase-org/sase/compare/v0.10.0...v0.10.1) (2026-07-06)
+
+
+### Features
+
+* add embedded follow-up prompt xprompts (sase-5f.2) ([41b27fb](https://github.com/sase-org/sase/commit/41b27fbaa8481568c1655feb561ac5a51063e0a2))
+* compose follow-up xprompts with family attach (sase-5f.5) ([a660d92](https://github.com/sase-org/sase/commit/a660d92277d2f348a4fb67c4025bc19fdd10763b))
+* queue family children behind running parents (sase-5f.4) ([dfd9f50](https://github.com/sase-org/sase/commit/dfd9f50f07181b96940a33c1987084c42f402df9))
+* support dynamic agent family attach launches (sase-5f.3) ([7b357a0](https://github.com/sase-org/sase/commit/7b357a097d70fb92bffe90c2659f2883a20a9b3b))
+* **tui:** add vim + readline editing to config edit inputs ([1c21d26](https://github.com/sase-org/sase/commit/1c21d266a286f0b52f505556813970862bb16788))
+* **tui:** adopt vim text areas for modal inputs ([085054e](https://github.com/sase-org/sase/commit/085054e325c5c32667f677eae30a2d04cf8771e6))
+* **tui:** expand config edit modal for multiline content ([f56f137](https://github.com/sase-org/sase/commit/f56f137fc88b637959f98cc54f944e8677d8408d))
+
+
+### Bug Fixes
+
+* **ace:** normalize family child rows (sase-5f.1) ([9caeb0d](https://github.com/sase-org/sase/commit/9caeb0d37921f403d0a9eb3e5a95f2136ba27e94))
+* close dynamic family edge cases (sase-5f) ([c5f18ae](https://github.com/sase-org/sase/commit/c5f18ae90c284e866aa79f1ffce9656886af1146))
+* harden dev update rust repair flow ([44c9096](https://github.com/sase-org/sase/commit/44c90960ceb99fe30e82bc16fffd690dc2a24b12))
+* order slow tool calls by start time ([5f29a7f](https://github.com/sase-org/sase/commit/5f29a7fddcf5afdb0ed24afc4b88fe59ec786530))
+* **tui:** align workflow child approval indicators ([3e4c53d](https://github.com/sase-org/sase/commit/3e4c53d359c795a9d80338b5b98fe018688ad99c))
+* **tui:** keep bead displays visible while revalidating ([47a7d5d](https://github.com/sase-org/sase/commit/47a7d5dad9ad317e2b4fa26116538d99bfc2266f))
+* **tui:** strip ANSI controls from semantic AXE logs ([d6855ae](https://github.com/sase-org/sase/commit/d6855ae890cbafadc80cc7f22d380a11fbf5779d))
+
+
+### Documentation
+
+* **research:** add dynamic agent families v1/v2 design ([43186b4](https://github.com/sase-org/sase/commit/43186b41b96b75124ee6d4228a75846fd23fc7a4))
+* **research:** critique dynamic agent families project note ([6b7b3e9](https://github.com/sase-org/sase/commit/6b7b3e98102d45762a2ce94160b69f553616e742))
+
 ## [0.10.0](https://github.com/sase-org/sase/compare/v0.9.1...v0.10.0) (2026-07-05)
 
 
