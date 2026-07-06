@@ -14,6 +14,7 @@ from sase.axe.run_agent_exec_plan import (
 )
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import (
+    assemble_question_followup_prompt,
     build_qa_round,
     create_followup_artifacts,
     finalize_handoff_artifacts_as_completed,
@@ -217,7 +218,10 @@ def handle_questions_marker(
     )
     # Rebuild from the current phase base (code/feedback/planner prompt) so a
     # code-phase question keeps the code prompt and its ``%model`` directive.
-    state.current_prompt = state.question_base_prompt + "\n\n" + merged_qa_text
+    state.current_prompt = assemble_question_followup_prompt(
+        state.question_base_prompt,
+        state.qa_rounds,
+    )
     _store_followup_prompt_artifact(
         state.current_artifacts_dir,
         state.current_prompt,

@@ -1,0 +1,26 @@
+description: Append plan feedback to a parent agent prompt using the replan renderer.
+input:
+  feedback:
+    type: text
+    description: Feedback text to append as an additional requirement.
+  parent:
+    type: line
+    description: Parent agent or family name whose prompt should be extended.
+steps:
+  - name: render
+    hidden: true
+    python: |
+      import json
+
+      from sase.main.feedback_prompt import _assemble_feedback_replan_prompt_from_parent
+
+      combined = _assemble_feedback_replan_prompt_from_parent(
+          {{ parent | tojson }},
+          {{ feedback | tojson }},
+      )
+      print(json.dumps({"combined": combined}))
+    output: { combined: text }
+
+  - name: emit
+    prompt_part: |-
+      {{ render.combined }}

@@ -7,16 +7,14 @@ import os
 import time
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sase.axe.runner_utils import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.paths import sase_subdir
-
-if TYPE_CHECKING:
-    from sase.main.qa_markdown import QARound
+from sase.main.qa_prompt import build_qa_round, merge_qa_for_prompt
 
 
 def handle_questions_flow(
@@ -118,37 +116,3 @@ def handle_questions_flow(
             update_agent_artifact_index_for_marker_mutation(artifacts_dir)
         except OSError:
             pass
-
-
-def build_qa_round(
-    questions: list[dict[str, Any]],
-    response: dict[str, Any],
-) -> QARound:
-    """Build a QARound from a question list and response dict."""
-    from sase.main.qa_markdown import QARound
-
-    response_answers = response.get("answers", []) or []
-    if len(response_answers) == len(questions):
-        aligned = list(response_answers)
-    else:
-        by_text: dict[str, dict[str, Any]] = {
-            a.get("question", ""): a for a in response_answers if a.get("question")
-        }
-        aligned = []
-        for q in questions:
-            match = by_text.get(q.get("question", ""))
-            aligned.append(match if match is not None else {})
-
-    return QARound(
-        questions=list(questions),
-        answers=aligned,
-        global_note=response.get("global_note") or None,
-    )
-
-
-def merge_qa_for_prompt(rounds: list[QARound]) -> str:
-    """Render accumulated Q&A rounds as a single prompt-bound section."""
-    from sase.main.qa_markdown import build_merged_qa_markdown
-
-    body = build_merged_qa_markdown(rounds)
-    return f"%xprompts_enabled:false\n{body}\n%xprompts_enabled:true"

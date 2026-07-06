@@ -13,9 +13,9 @@ from sase.axe.run_agent_exec_plan_artifacts import (
     write_plan_path_artifact,
 )
 from sase.axe.run_agent_helpers import (
+    assemble_feedback_replan_prompt,
     create_followup_artifacts,
     finalize_handoff_artifacts_as_completed,
-    merge_qa_for_prompt,
     normalize_handoff_interruption_state,
     promote_to_workflow,
     update_meta_field,
@@ -222,11 +222,11 @@ def handle_plan_marker(
         )
 
         # Reconstruct prompt: original + merged Q&A + requirements.
-        base = state.original_prompt
-        if state.qa_rounds:
-            base += "\n\n" + merge_qa_for_prompt(state.qa_rounds)
-        reqs = "\n".join(f"- {fb}" for fb in state.feedback_bullets)
-        state.current_prompt = f"{base}\n\n### Additional Requirements\n\n{reqs}"
+        state.current_prompt = assemble_feedback_replan_prompt(
+            state.original_prompt,
+            state.feedback_bullets,
+            state.qa_rounds,
+        )
         # A ``/sase_questions`` interruption from the replan phase rebuilds from
         # this feedback prompt rather than the bare planner prompt.
         state.question_base_prompt = state.current_prompt

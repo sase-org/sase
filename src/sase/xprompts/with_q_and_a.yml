@@ -1,0 +1,36 @@
+description: Append answered SASE user questions to a prompt using the follow-up renderer.
+input:
+  prompt:
+    type: text
+    description: Base prompt for the follow-up agent.
+  qa_file:
+    type: path
+    description: JSON file containing one or more Q&A rounds.
+steps:
+  - name: render
+    hidden: true
+    python: |
+      import json
+      from pathlib import Path
+
+      from sase.main.qa_prompt import (
+          assemble_question_followup_prompt,
+          qa_rounds_from_payload,
+      )
+
+      qa_path = Path({{ qa_file | tojson }}).expanduser()
+      try:
+          payload = json.loads(qa_path.read_text(encoding="utf-8"))
+      except FileNotFoundError as exc:
+          raise SystemExit(f"qa_file not found: {qa_path}") from exc
+      except json.JSONDecodeError as exc:
+          raise SystemExit(f"qa_file is not valid JSON: {qa_path}: {exc}") from exc
+
+      rounds = qa_rounds_from_payload(payload)
+      combined = assemble_question_followup_prompt({{ prompt | tojson }}, rounds)
+      print(json.dumps({"combined": combined}))
+    output: { combined: text }
+
+  - name: emit
+    prompt_part: |-
+      {{ render.combined }}

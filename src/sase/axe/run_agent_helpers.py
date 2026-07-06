@@ -20,6 +20,8 @@ from sase.axe.runner_utils import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.main.feedback_prompt import assemble_feedback_replan_prompt
+from sase.main.qa_prompt import assemble_question_followup_prompt
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX
 
 if TYPE_CHECKING:
@@ -27,6 +29,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "append_meta_list_field",
+    "assemble_feedback_replan_prompt",
+    "assemble_question_followup_prompt",
     "build_qa_round",
     "create_followup_artifacts",
     "extract_step_output_and_diff_path",

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.main.xprompt_handler import _handle_expand, _handle_list
+from sase.main.xprompt_handler import _handle_expand, _handle_explain, _handle_list
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -226,3 +226,26 @@ def test_xprompt_list_includes_prompt_and_input_descriptions(
 
     assert rows["review"]["description"] == "Review a selected diff."
     assert rows["review"]["inputs"][0]["description"] == "Diff file to inspect."
+
+
+def test_builtin_followup_xprompts_registered_and_explainable(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        _handle_explain(
+            argparse.Namespace(
+                workflow_name="with_q_and_a",
+                args=[],
+                named_args=["prompt=Base", "qa_file=/tmp/qa.json"],
+            )
+        )
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 0
+    assert "with_q_and_a" in captured.out
+    assert "qa_file" in captured.out
