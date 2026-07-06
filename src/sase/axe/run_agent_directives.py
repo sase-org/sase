@@ -88,6 +88,9 @@ def extract_directives_and_write_meta(
         extra_xprompts=multi.local_xprompts or None,
     )
     _, directives = extract_prompt_directives(expanded_for_directives)
+    from sase.agent.family_attach import load_family_attach_plan_from_env
+
+    family_attach_plan = load_family_attach_plan_from_env()
 
     # A top-level `#fork:<name>` implies `%wait:<name>`: the forked agent must
     # not start until its fork target finishes. We add the implied dependency as
@@ -105,7 +108,9 @@ def extract_directives_and_write_meta(
 
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
 
-    agent_name = directives.name
+    agent_name = (
+        family_attach_plan.agent_name if family_attach_plan else directives.name
+    )
     resume_name: str | None = None
     wait_name: str | None = None
     if not directives.name_explicit and not auto_dismiss:
@@ -122,7 +127,9 @@ def extract_directives_and_write_meta(
     # explicit %name directives as generated, silently skipping name
     # collision checks.
     generated_name = os.environ.pop("SASE_AGENT_GENERATED_NAME", None) == "1"
-    name_user_explicit = directives.name_explicit and not generated_name
+    name_user_explicit = (
+        bool(family_attach_plan) or directives.name_explicit
+    ) and not generated_name
     name_requires_lock = bool(
         agent_name or repeat_name or resume_name or wait_name or not auto_dismiss
     )
@@ -258,6 +265,29 @@ def extract_directives_and_write_meta(
         if cl_name:
             agent_meta["changespec_name"] = cl_name
             agent_meta.setdefault("cl_name", cl_name)
+        if family_attach_plan:
+            from sase.plan_chain import (
+                AGENT_FAMILY_FIELD,
+                AGENT_FAMILY_ROLE_FIELD,
+                PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
+            )
+
+            agent_meta["name"] = family_attach_plan.agent_name
+            agent_meta["workflow_name"] = family_attach_plan.parent_base
+            agent_meta["role_suffix"] = family_attach_plan.role_suffix
+            agent_meta["parent_timestamp"] = family_attach_plan.parent_timestamp
+            agent_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = (
+                family_attach_plan.parent_timestamp
+            )
+            agent_meta[AGENT_FAMILY_FIELD] = family_attach_plan.parent_base
+            agent_meta[AGENT_FAMILY_ROLE_FIELD] = family_attach_plan.agent_family_role
+            if family_attach_plan.parent_workspace_dir:
+                agent_meta["workspace_dir"] = family_attach_plan.parent_workspace_dir
+            if family_attach_plan.parent_workspace_num is not None:
+                agent_meta["workspace_num"] = family_attach_plan.parent_workspace_num
+            if family_attach_plan.parent_cl_name:
+                agent_meta["changespec_name"] = family_attach_plan.parent_cl_name
+                agent_meta["cl_name"] = family_attach_plan.parent_cl_name
 
         if agent_name:
             from sase.agent.names import claim_agent_name

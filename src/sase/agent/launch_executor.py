@@ -96,6 +96,14 @@ def execute_launch_plan(
         env = dict(extra_env or {})
         if slot_extra_env is not None:
             env.update(slot_extra_env(slot))
+        from sase.agent.family_attach import prepare_family_attach_launch
+
+        slot_ctx, prepared_env = prepare_family_attach_launch(
+            slot.prompt,
+            slot_ctx,
+            env,
+        )
+        env = dict(prepared_env or {})
         local_xprompts_file = (
             None if slot_local_xprompts_file is None else slot_local_xprompts_file(slot)
         )

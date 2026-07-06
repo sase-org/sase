@@ -98,6 +98,8 @@ class PromptDirectives:
     name: str | None = None
     name_explicit: bool = False
     name_force_reuse: bool = False
+    family_attach_parent: str | None = None
+    family_attach_suffix: str | None = None
     name_template: str | None = None
     name_template_base: str | None = None
     name_indexed_template: bool = False

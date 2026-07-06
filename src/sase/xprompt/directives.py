@@ -326,6 +326,7 @@ def extract_prompt_directives(
         str, list[str]
     ] = {}  # directive name -> raw arg values (multi-value)
     wait_time_args: list[str] = []
+    name_family_args: tuple[str, str] | None = None
     # Single-value directives whose argument came from a backtick literal
     # (e.g. ``%model:`literal@id` ``). Tracked so the ``@effort`` split bypasses
     # backtick-literal model values, preserving any ``@`` in the model id.
@@ -356,6 +357,40 @@ def extract_prompt_directives(
             if paren_end is not None:
                 paren_content = prompt[paren_start + 1 : paren_end]
                 positional_args, named_args = parse_args(paren_content)
+                if name == "name":
+                    from sase.agent.family_attach import parse_name_directive_args
+
+                    try:
+                        parsed_name = parse_name_directive_args(
+                            positional_args,
+                            named_args,
+                            source=f"%{match.group(1)}",
+                        )
+                    except ValueError as exc:
+                        raise DirectiveError(str(exc)) from exc
+                    if (
+                        parsed_name.family_parent is not None
+                        and parsed_name.family_suffix is not None
+                    ):
+                        name_family_args = (
+                            parsed_name.family_parent,
+                            parsed_name.family_suffix,
+                        )
+                        raw_args = [""]
+                        match_end = paren_end + 1
+                        if name in seen:
+                            raise DirectiveError(
+                                f"Duplicate directive '%{name}' in prompt"
+                            )
+                        seen[name] = ""
+                        seen_source[name] = prompt[match.start() : match_end]
+                        regions_to_remove.append((match.start(), match_end))
+                        continue
+                    positional_args = (
+                        [parsed_name.plain_name]
+                        if parsed_name.plain_name is not None
+                        else []
+                    )
                 if name == "wait":
                     unknown_keys = sorted(key for key in named_args if key != "time")
                     if unknown_keys:
@@ -422,14 +457,14 @@ def extract_prompt_directives(
     # Track whether %name was supplied with an explicit argument before any
     # auto-fill happens. Bare ``%name`` (no arg) and auto-named flows
     # (no %name at all) leave this False.
-    name_explicit = bool(seen.get("name"))
+    name_explicit = name_family_args is None and bool(seen.get("name"))
     name_force_reuse = False
     if name_explicit and seen.get("name", "").startswith("!"):
         name_force_reuse = True
         seen["name"] = seen["name"][1:]
 
     # Auto-generate name if %name was used bare (no argument)
-    if "name" in seen and not seen["name"]:
+    if name_family_args is None and "name" in seen and not seen["name"]:
         from sase.agent.names import get_next_auto_name
 
         seen["name"] = get_next_auto_name()
@@ -660,6 +695,12 @@ def extract_prompt_directives(
         name=expanded_args.get("name") or None,
         name_explicit=name_explicit,
         name_force_reuse=name_force_reuse,
+        family_attach_parent=(
+            name_family_args[0] if name_family_args is not None else None
+        ),
+        family_attach_suffix=(
+            name_family_args[1] if name_family_args is not None else None
+        ),
         name_template=name_template,
         name_template_base=name_template_base,
         name_indexed_template=name_indexed_template,

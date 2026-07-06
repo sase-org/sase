@@ -77,6 +77,10 @@ class AgentNameSyntaxError(_LaunchNameValidationError):
         )
 
 
+class _AgentNameDirectiveSyntaxError(_LaunchNameValidationError):
+    """Raised when a ``%name``/``%n`` directive has invalid arguments."""
+
+
 def validate_user_agent_name(name: str) -> None:
     """Validate a new user-specified agent name.
 
@@ -291,8 +295,20 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
             paren_end = find_matching_paren_for_args(protected, paren_start)
             if paren_end is not None:
                 inner = protected[paren_start + 1 : paren_end]
-                positional_args, _ = parse_args(inner)
-                value = positional_args[0] if positional_args else ""
+                positional_args, named_args = parse_args(inner)
+                from sase.agent.family_attach import parse_name_directive_args
+
+                try:
+                    parsed = parse_name_directive_args(
+                        positional_args,
+                        named_args,
+                        source=f"%{raw_name}",
+                    )
+                except ValueError as exc:
+                    raise _AgentNameDirectiveSyntaxError(str(exc)) from exc
+                if parsed.family_parent is not None:
+                    return None
+                value = parsed.plain_name or ""
         elif match.group(3) is not None:
             colon_arg = match.group(3)
             value = (

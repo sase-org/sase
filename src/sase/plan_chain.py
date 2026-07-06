@@ -99,7 +99,9 @@ def _plan_chain_feedback_suffix(feedback_round: int) -> str:
 def _stored_family_role(role: object) -> str | None:
     if not isinstance(role, str):
         return None
-    return role if role in _EXPLICIT_FAMILY_ROLES else None
+    if role in _EXPLICIT_FAMILY_ROLES:
+        return role
+    return role if _TOKEN_RE.match(role) else None
 
 
 def _plan_chain_feedback_round_from_raw_suffix(suffix: object) -> int | None:
