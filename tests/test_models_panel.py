@@ -145,6 +145,11 @@ def test_state_tag_implicit_role() -> None:
     assert text == "implicit → @default"
 
 
+def test_state_tag_implicit_provider_coder() -> None:
+    text, _ = _state_tag(_view("codex_coder", "provider_coder"), now=0.0)
+    assert text == "implicit → @coder"
+
+
 def test_state_tag_override_with_remaining() -> None:
     view = _view("coder", "role", override=_override(expires_at=3600.0))
     text, _ = _state_tag(view, now=0.0)

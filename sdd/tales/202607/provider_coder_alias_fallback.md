@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 12:52:30
-status: wip
+status: done
 prompt: sdd/prompts/202607/provider_coder_alias_fallback.md
 ---
 # Plan: Fix provider coder aliases so they inherit @coder

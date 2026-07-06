@@ -74,6 +74,8 @@ def state_tag(view: AliasView, now: float) -> tuple[str, str]:
         return "configured", _CONFIGURED_TAG_STYLE
     if view.name == DEFAULT_MODEL_ALIAS_NAME:
         return "implicit", _IMPLICIT_TAG_STYLE
+    if view.kind == "provider_coder":
+        return "implicit → @coder", _IMPLICIT_TAG_STYLE
     return "implicit → @default", _IMPLICIT_TAG_STYLE
 
 

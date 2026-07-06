@@ -481,7 +481,10 @@ def resolve_model_alias(model: str) -> str:
 
         fallback = _ROLE_ALIAS_FALLBACKS.get(bare)
         if fallback is None and _is_provider_coder_alias(bare):
-            fallback = _ROLE_ALIAS_FALLBACKS[CODER_MODEL_ALIAS_NAME]
+            # An unconfigured ``<provider>_coder`` inherits the generic ``coder``
+            # alias itself (not ``coder``'s own resolved fallback), so configuring
+            # ``coder`` once flows through to every provider-specific coder lane.
+            fallback = f"@{CODER_MODEL_ALIAS_NAME}"
         if fallback is not None:
             if bare in seen:
                 return original

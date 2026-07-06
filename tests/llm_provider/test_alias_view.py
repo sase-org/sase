@@ -105,6 +105,39 @@ def test_configured_value_shadows_role_alias(
     assert coder.configured_value == "codex/o3"
 
 
+def test_unconfigured_provider_coder_follows_configured_coder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An implicit ``<provider>_coder`` row resolves through a configured ``coder``.
+
+    This is what the Models panel displays for an unconfigured provider-coder
+    alias: its effective provider/model must match the generic ``coder`` alias,
+    not the ``@default`` target.
+    """
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "default": "codex/gpt-5.5",
+                    "coder": "claude/sonnet",
+                }
+            },
+        },
+    )
+    _patch_providers(monkeypatch)
+
+    by_name = {v.name: v for v in build_alias_views()}
+    codex_coder = by_name["codex_coder"]
+
+    assert codex_coder.kind == "provider_coder"
+    assert codex_coder.configured is False
+    # Effective target follows @coder (claude/sonnet), not @default.
+    assert codex_coder.provider == "claude"
+    assert codex_coder.model == "sonnet"
+
+
 def test_custom_alias_view_carries_source_and_description(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

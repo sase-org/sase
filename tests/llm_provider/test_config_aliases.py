@@ -251,6 +251,57 @@ def test_provider_coder_alias_chains_to_coder(
     assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.5")
 
 
+def test_provider_coder_alias_follows_configured_coder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unconfigured ``<provider>_coder`` inherits a configured ``coder``.
+
+    Regression: the implicit provider-coder fallback must reference ``@coder``
+    itself, not ``coder``'s resolved fallback. Otherwise configuring ``coder``
+    once fails to flow through to the provider-specific coder lanes and they
+    skip straight to ``@default``.
+    """
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "default": "codex/gpt-5.5",
+                    "coder": "claude/sonnet",
+                }
+            },
+        },
+    )
+
+    # codex_coder is unconfigured, so it inherits @coder (claude/sonnet) rather
+    # than skipping straight to @default (codex/gpt-5.5).
+    assert resolve_model_alias("codex_coder") == "claude/sonnet"
+    assert resolve_model_provider("codex_coder") == ("claude", "sonnet")
+
+
+def test_configured_provider_coder_shadows_generic_coder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit ``<provider>_coder`` still wins over the generic ``coder``."""
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "default": "codex/gpt-5.5",
+                    "coder": "claude/sonnet",
+                    "codex_coder": "codex/o3",
+                }
+            },
+        },
+    )
+
+    assert resolve_model_alias("codex_coder") == "codex/o3"
+    assert resolve_model_provider("codex_coder") == ("codex", "o3")
+
+
 def test_epic_role_aliases_chain_to_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
