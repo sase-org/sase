@@ -6,6 +6,19 @@ status: research
 
 # Dynamic Agent Families: User-Manual Research (Design + Usage)
 
+> **Status update (2026-07-06):** the user guide this research supports has shipped as `docs/agent_families.md`
+> (commit `2b4d8e9ae`, wired into the mkdocs nav), with companion updates to `docs/cli.md`, `docs/configuration.md`,
+> and `docs/ace.md` covering every gap listed in §5. A follow-up verification pass (`9a784e2ca`) corrected two claims
+> that also appear below — prefer the shipped doc on these points:
+>
+> 1. **§3.4 "v1 interop" overstates parity.** A manual `%n(foo, <custom_role>)` attach shares family metadata,
+>    grouping, and dismissal with an evaluator-inserted member, but it runs outside the runner loop: it never emits
+>    `role_completed` and never gets an `agent_family_custom_role` snapshot, so it shows generic RUNNING/DONE labels
+>    even when the suffix matches a defined role.
+> 2. **`on_done` has no runtime consumer.** It is validated and recorded in the role snapshot only; the
+>    `improve_plan`-style re-review loop is driven by the role's prompt template resubmitting a plan, with the
+>    evaluator enforcing `max_visits`.
+
 ## Scope
 
 Research to support writing a user manual for the **dynamic agent families** feature, implemented across two closed
