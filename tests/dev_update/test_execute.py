@@ -149,7 +149,7 @@ def test_execute_dev_update_fetches_preflights_merges_and_reconciles() -> None:
                 "--tags",
                 "--force",
                 "origin",
-                "main",
+                "+refs/heads/main:refs/remotes/origin/main",
             ),
             None,
         ),
@@ -337,7 +337,7 @@ def test_execute_dev_update_fetch_failure_aborts_before_preflight() -> None:
                 "--tags",
                 "--force",
                 "origin",
-                "main",
+                "+refs/heads/main:refs/remotes/origin/main",
             ): DevCommandResult(1, stderr="network down")
         }
     )
