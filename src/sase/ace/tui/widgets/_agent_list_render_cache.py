@@ -167,6 +167,7 @@ def agent_render_key(
         agent.is_pre_prompt_step,
         agent.agent_type,
         agent.display_name,
+        agent.display_status,
         agent.cl_name,
         agent.activity,
         tuple(sorted(agent.pdf_status.items())) if agent.pdf_status else None,

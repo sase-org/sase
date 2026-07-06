@@ -54,6 +54,8 @@ _RESERVED_SUFFIXES = {
 }
 _ROLE_KEYS = {
     "suffix",
+    "label",
+    "done_label",
     "prompt_template",
     "placement",
     "on_done",
@@ -67,6 +69,8 @@ _ROLE_KEYS = {
     "delegated_budgets",
 }
 _RESERVED_ROLE_KEYS = {"delegated_budget", "delegated_budgets"}
+_DISPLAY_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _/-]*$")
+_DISPLAY_LABEL_MAX_LEN = 24
 
 
 class _AgentFamilyDefinitionError(ValueError):
@@ -90,6 +94,8 @@ class AgentFamilyRoleDefinition:
     config_version: int
     config_hash: str
     source_path: str
+    label: str | None = None
+    done_label: str | None = None
     reserved: Mapping[str, object] = field(default_factory=dict)
 
     def as_snapshot(self) -> dict[str, object]:
@@ -107,6 +113,8 @@ class AgentFamilyRoleDefinition:
             "config_version": self.config_version,
             "config_hash": self.config_hash,
             "source_path": self.source_path,
+            "label": self.label,
+            "done_label": self.done_label,
             "reserved": dict(self.reserved),
         }
 
@@ -152,6 +160,10 @@ def role_definition_from_snapshot(
             config_version=_positive_int(snapshot["config_version"], "config_version"),
             config_hash=str(snapshot["config_hash"]),
             source_path=str(snapshot.get("source_path") or "<snapshot>"),
+            label=_optional_display_label(snapshot.get("label"), "label"),
+            done_label=_optional_display_label(
+                snapshot.get("done_label"), "done_label"
+            ),
             reserved=reserved if isinstance(reserved, Mapping) else {},
         )
     except (KeyError, TypeError, ValueError):
@@ -392,6 +404,11 @@ def _parse_role(
         raw_role.get("max_visits", 3),
         f"role {role_id!r} max_visits",
     )
+    label = _optional_display_label(raw_role.get("label"), f"role {role_id!r} label")
+    done_label = _optional_display_label(
+        raw_role.get("done_label"),
+        f"role {role_id!r} done_label",
+    )
     reserved = {
         str(key): value for key, value in raw_role.items() if key in _RESERVED_ROLE_KEYS
     }
@@ -409,6 +426,8 @@ def _parse_role(
         config_version=definition_version,
         config_hash=config_hash,
         source_path=source_path,
+        label=label,
+        done_label=done_label,
         reserved=reserved,
     )
 
@@ -449,6 +468,25 @@ def _optional_bool(value: object, field_name: str) -> bool:
     if isinstance(value, bool):
         return value
     raise _AgentFamilyDefinitionError(f"{field_name} must be true or false")
+
+
+def _optional_display_label(value: object, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _AgentFamilyDefinitionError(f"{field_name} must be a string")
+    text = value.strip()
+    if not text:
+        raise _AgentFamilyDefinitionError(f"{field_name} must not be empty")
+    if len(text) > _DISPLAY_LABEL_MAX_LEN:
+        raise _AgentFamilyDefinitionError(
+            f"{field_name} must be {_DISPLAY_LABEL_MAX_LEN} characters or fewer"
+        )
+    if not _DISPLAY_LABEL_RE.fullmatch(text):
+        raise _AgentFamilyDefinitionError(
+            f"{field_name} must use letters, numbers, spaces, _, -, or /"
+        )
+    return text
 
 
 def _parse_suffix(value: object, role_id: str) -> str:

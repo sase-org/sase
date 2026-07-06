@@ -183,24 +183,25 @@ def format_agent_option(
         text.append(f" #{tag_label}", style="bold #FFD75F")
 
     # Status (wrapped in parentheses, parens are dim)
+    display_status = agent.display_status
     text.append(" (", style="dim")
     if agent.status == "STARTING":
-        text.append(agent.status, style="bold #87D7FF")  # Sky blue
+        text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
-        text.append(agent.status, style="bold #FFD700")  # Gold
+        text.append(display_status, style="bold #FFD700")  # Gold
     elif agent.status in ("DONE", "PLAN DONE", "TALE DONE"):
-        text.append(agent.status, style="bold #5FD75F")  # Green
+        text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == "PLAN REJECTED":
-        text.append(agent.status, style="bold #D7AF5F")  # Muted gold
+        text.append(display_status, style="bold #D7AF5F")  # Muted gold
     elif agent.status == STOPPED_STATUS:
         text.append(
-            f"{STOPPED_GLYPH} {agent.status}",
+            f"{STOPPED_GLYPH} {display_status}",
             style=f"bold {STOPPED_COLOR}",
         )
     elif agent.status == "EPIC CREATED":
-        text.append(agent.status, style="bold #5FD7AF")  # Sea-green
+        text.append(display_status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == "FAILED":
-        text.append(agent.status, style="bold #FF5F5F")  # Red
+        text.append(display_status, style="bold #FF5F5F")  # Red
     elif agent.status == "FAILED (RETRIED)":
         # Spawn-on-retry: dim red + warm yellow ↻ glyph indicates a
         # terminal failure that handed off to a downstream retry, as
@@ -209,25 +210,25 @@ def format_agent_option(
         text.append("↻", style="bold #FFAF00")
         text.append(" (RETRIED)", style="dim #FF5F5F")
     elif agent.status == "PLAN":
-        text.append(agent.status, style="bold #FF87AF")  # Pink
+        text.append(display_status, style="bold #FF87AF")  # Pink
     elif agent.status == FEEDBACK_STATUS:
-        text.append(agent.status, style="bold #FF5FD7")  # Magenta
+        text.append(display_status, style="bold #FF5FD7")  # Magenta
     elif agent.status == PLAN_APPROVED_STATUS:
-        text.append(agent.status, style="bold #00D7AF")  # Green-blue (teal)
+        text.append(display_status, style="bold #00D7AF")  # Green-blue (teal)
     elif agent.status == TALE_APPROVED_STATUS:
-        text.append(agent.status, style="bold #00D7D7")  # Turquoise
+        text.append(display_status, style="bold #00D7D7")  # Turquoise
     elif agent.status == WORKING_PLAN_STATUS:
-        text.append(agent.status, style="bold #00AF87")  # Deep teal
+        text.append(display_status, style="bold #00AF87")  # Deep teal
     elif agent.status == WORKING_TALE_STATUS:
-        text.append(agent.status, style="bold #00AFAF")  # Deep turquoise
+        text.append(display_status, style="bold #00AFAF")  # Deep turquoise
     elif agent.status == "PLAN COMMITTED":
-        text.append(agent.status, style="bold #5FD75F")  # Green
+        text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == "EPIC APPROVED":
-        text.append(agent.status, style="bold #5FD7AF")  # Sea-green
+        text.append(display_status, style="bold #5FD7AF")  # Sea-green
     elif agent.status == "LEGEND APPROVED":
-        text.append(agent.status, style="bold #D7AFFF")  # Lavender
+        text.append(display_status, style="bold #D7AFFF")  # Lavender
     elif agent.status == "WAITING":
-        text.append(agent.status, style="bold #AF87FF")  # Amethyst
+        text.append(display_status, style="bold #AF87FF")  # Amethyst
         deps_satisfied = (
             not agent.waiting_for
             if wait_deps_satisfied is None
@@ -250,11 +251,11 @@ def format_agent_option(
             else:
                 text.append(f" (until {target_label})", style="#AF87FF")
     elif agent.status == "QUESTION":
-        text.append(agent.status, style="bold #FFAF00")  # Amber/orange
+        text.append(display_status, style="bold #FFAF00")  # Amber/orange
     elif agent.status == "ANSWERED":
         # Transient post-answer state: distinct bright azure, set apart from
         # QUESTION amber, RUNNING gold, and approved-plan teal.
-        text.append(agent.status, style="bold #5FD7FF")  # Bright cyan/azure
+        text.append(display_status, style="bold #5FD7FF")  # Bright cyan/azure
     elif agent.status == "RETRYING":
         countdown = ""
         if agent.retry_next_at_epoch:
@@ -264,7 +265,7 @@ def format_agent_option(
             countdown = f" ({remaining}s)"
         text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
     else:
-        text.append(agent.status, style="dim")
+        text.append(display_status, style="dim")
     text.append(")", style="dim")
 
     # Retry/fallback annotations for RUNNING agents that have retried

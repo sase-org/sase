@@ -6,6 +6,8 @@ extends: standard_plan_chain
 roles:
   tester:
     suffix: "--tester"
+    label: "TESTING"
+    done_label: "TESTED"
     prompt_template: "agent_family_tester:{source_artifacts}"
     placement:
       after: code

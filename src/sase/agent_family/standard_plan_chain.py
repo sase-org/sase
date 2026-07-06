@@ -46,6 +46,8 @@ class _FamilyRoleDefinition:
 
     id: str
     suffix: str | None = None
+    label: str | None = None
+    done_label: str | None = None
     prompt_template: str | None = None
     terminal: bool = False
 

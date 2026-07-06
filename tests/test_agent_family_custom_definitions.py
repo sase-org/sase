@@ -29,6 +29,8 @@ def _definition_mapping(
     *,
     role_id: str = "tester",
     suffix: str | None = "--tester",
+    label: str | None = None,
+    done_label: str | None = None,
     prompt_template: str = "agent_family_tester:{source_artifacts}",
     after: str = "code",
     on_done: str = "terminate",
@@ -46,6 +48,10 @@ def _definition_mapping(
     }
     if suffix is not None:
         role["suffix"] = suffix
+    if label is not None:
+        role["label"] = label
+    if done_label is not None:
+        role["done_label"] = done_label
     return {
         "kind": "agent_family",
         "schema_version": 1,
@@ -68,7 +74,13 @@ def _role(**kwargs: object) -> AgentFamilyRoleDefinition:
 
 def test_agent_family_loader_accepts_valid_custom_role() -> None:
     definition = load_agent_family_definition_from_mapping(
-        _definition_mapping(role_id="improve_plan", suffix=None, after="plan"),
+        _definition_mapping(
+            role_id="improve_plan",
+            suffix=None,
+            label="IMPROVING PLAN",
+            done_label="PLAN IMPROVED",
+            after="plan",
+        ),
         "memory.yml",
         validate_prompt_refs=False,
     )
@@ -78,11 +90,15 @@ def test_agent_family_loader_accepts_valid_custom_role() -> None:
     assert role.id == "improve_plan"
     assert role.suffix == "--improve_plan"
     assert role.placement_after == "plan"
+    assert role.label == "IMPROVING PLAN"
+    assert role.done_label == "PLAN IMPROVED"
     assert role.config_id == "improve_plan"
     assert (
         role.as_snapshot()["prompt_template"]
         == "agent_family_tester:{source_artifacts}"
     )
+    assert role.as_snapshot()["label"] == "IMPROVING PLAN"
+    assert role.as_snapshot()["done_label"] == "PLAN IMPROVED"
 
 
 def test_agent_family_loader_reports_validation_issues() -> None:
@@ -115,6 +131,18 @@ def test_agent_family_loader_reports_unknown_xprompt_reference() -> None:
 
     assert definition is None
     assert "unknown xprompt 'missing_template'" in issues[0].error
+
+
+def test_agent_family_loader_validates_display_label() -> None:
+    with collect_xprompt_load_issues() as issues:
+        definition = load_agent_family_definition_from_mapping(
+            _definition_mapping(label="bad(label)"),
+            "bad-label.yml",
+            validate_prompt_refs=False,
+        )
+
+    assert definition is None
+    assert "role 'tester' label must use letters" in issues[0].error
 
 
 def test_agent_family_discovery_uses_xprompt_dirs_without_workflow_noise(

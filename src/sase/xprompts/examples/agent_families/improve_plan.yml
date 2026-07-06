@@ -6,6 +6,8 @@ extends: standard_plan_chain
 roles:
   improve_plan:
     suffix: "--improve_plan"
+    label: "IMPROVING PLAN"
+    done_label: "PLAN IMPROVED"
     prompt_template: "agent_family_improve_plan:{plan_file}"
     placement:
       after: plan

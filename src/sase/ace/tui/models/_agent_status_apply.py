@@ -289,6 +289,8 @@ def apply_status_overrides(
             continue
         newest = max(children, key=child_launch_time)
         parent.status = newest.status
+        parent.custom_role_label = newest.custom_role_label
+        parent.custom_role_done_label = newest.custom_role_done_label
         copy_missing_display_metadata(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a

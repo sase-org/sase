@@ -268,6 +268,10 @@ class Agent:
     agent_family: str | None = None
     agent_family_role: str | None = None
     plan_chain_root: bool = False
+    # Display-only status labels from custom role definitions. These never
+    # replace the semantic ``status`` string used for bucketing/actions.
+    custom_role_label: str | None = None
+    custom_role_done_label: str | None = None
 
     # User-managed tag (no '@' prefix; at most one per agent).
     # Populated from ``~/.sase/agent_tags.json`` after agents are loaded.
@@ -405,6 +409,15 @@ class Agent:
     def display_label(self) -> str:
         """Combined label for list display: Type + name."""
         return f"[{self.display_type}] {self.display_name}"
+
+    @property
+    def display_status(self) -> str:
+        """Presentation status label, keeping ``status`` semantic."""
+        if self.status == "RUNNING" and self.custom_role_label:
+            return self.custom_role_label
+        if self.status == "DONE" and self.custom_role_done_label:
+            return self.custom_role_done_label
+        return self.status
 
     @property
     def start_time_display(self) -> str:
