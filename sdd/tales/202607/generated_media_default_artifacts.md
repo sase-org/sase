@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 16:33:18
-status: wip
+status: done
 prompt: sdd/prompts/202607/generated_media_default_artifacts.md
 ---
 # Plan: Generated Media Default Artifacts

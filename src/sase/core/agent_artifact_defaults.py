@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core.agent_artifact_explicit import (
@@ -31,10 +32,30 @@ from sase.core.agent_artifact_types import (
     AgentArtifactKind,
 )
 
-_IMAGE_PATH_RE = re.compile(
-    r"""(?P<path>(?:~|/|\.{1,2}/|[A-Za-z0-9_.-]+)[^\s"'`<>]*?\.(?:png|jpe?g|gif|webp|bmp|tiff?))""",
+_PROMPT_IMAGE_SUFFIXES = frozenset(
+    {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff"}
+)
+_PROMPT_VIDEO_SUFFIXES = frozenset({".mp4", ".m4v", ".mov", ".webm"})
+_PROMPT_MEDIA_SUFFIX_PATTERN = "|".join(
+    re.escape(suffix.lstrip("."))
+    for suffix in sorted(
+        _PROMPT_IMAGE_SUFFIXES | _PROMPT_VIDEO_SUFFIXES,
+        key=len,
+        reverse=True,
+    )
+)
+_PROMPT_MEDIA_PATH_RE = re.compile(
+    rf"""(?P<path>(?:~|/|\.{{1,2}}/|[A-Za-z0-9_.-]+)[^\s"'`<>]*?\.(?:{_PROMPT_MEDIA_SUFFIX_PATTERN}))""",
     re.IGNORECASE,
 )
+
+
+@dataclass(frozen=True)
+class _MediaCandidate:
+    path: str
+    kind: AgentArtifactKind
+    label_fallback: str
+    ordinal: str
 
 
 def synthesize_default_agent_artifacts(
@@ -94,40 +115,21 @@ def synthesize_default_agent_artifacts(
         )
 
     if not default_artifacts_persisted:
-        for index, image_path in enumerate(coerce_str_list(done.get("image_paths"))):
-            artifacts.append(
-                _default_artifact(
-                    association,
-                    label=label_for_path(image_path, fallback="Image"),
-                    kind="image",
-                    path=image_path,
-                    ordinal=f"image-{index}",
-                    workspace_dir=workspace_dir,
-                )
-            )
-
-        for index, video_path in enumerate(coerce_str_list(done.get("video_paths"))):
-            artifacts.append(
-                _default_artifact(
-                    association,
-                    label=label_for_path(video_path, fallback="Video"),
-                    kind="file",
-                    path=video_path,
-                    ordinal=f"video-{index}",
-                    workspace_dir=workspace_dir,
-                )
-            )
-
-        for index, image_path in enumerate(
-            _discover_prompt_image_paths(artifacts_dir, workspace_dir=workspace_dir)
+        for candidate in _media_candidates(
+            artifacts_dir,
+            image_paths=coerce_str_list(done.get("image_paths")),
+            video_paths=coerce_str_list(done.get("video_paths")),
+            workspace_dir=workspace_dir,
         ):
             artifacts.append(
                 _default_artifact(
                     association,
-                    label=label_for_path(image_path, fallback="Image"),
-                    kind="image",
-                    path=image_path,
-                    ordinal=f"prompt-image-{index}",
+                    label=label_for_path(
+                        candidate.path, fallback=candidate.label_fallback
+                    ),
+                    kind=candidate.kind,
+                    path=candidate.path,
+                    ordinal=candidate.ordinal,
                     workspace_dir=workspace_dir,
                 )
             )
@@ -161,10 +163,10 @@ def persist_default_agent_artifacts(
     """Copy auto-discovered media artifacts into the persistent global store.
 
     Called by the agent finalization path while the workspace files still
-    exist. Combines explicit ``image_paths`` (from ``done.json``) with xprompt
-    image discovery and explicit ``video_paths`` (from ``done.json``),
-    deduplicates by resolved path, silently skips paths that don't exist, and
-    writes a row to the JSONL index for each persisted file.
+    exist. Combines explicit ``image_paths`` and ``video_paths`` (from
+    ``done.json``) with prompt media discovery, deduplicates by resolved path,
+    silently skips paths that don't exist, and writes a row to the JSONL index
+    for each persisted file.
 
     Idempotent: re-running over the same workspace yields the same set of
     persisted artifacts and the same index rows.
@@ -172,45 +174,18 @@ def persist_default_agent_artifacts(
 
     artifacts_dir = Path(agent_artifacts_dir).expanduser()
 
-    candidates: list[str] = []
-    seen: set[str] = set()
-
-    def _add(path: str | None) -> None:
-        if not path:
-            return
-        try:
-            key = path_key(path)
-        except OSError:
-            return
-        if key in seen:
-            return
-        seen.add(key)
-        candidates.append(path)
-
-    for path in image_paths or []:
-        _add(path)
-
-    for path in _discover_prompt_image_paths(
-        artifacts_dir, workspace_dir=workspace_dir
-    ):
-        _add(path)
-
-    image_keys = set(seen)
-
-    for path in video_paths or []:
-        _add(path)
-
     persisted: list[AgentArtifact] = []
-    for source in candidates:
-        try:
-            is_video = path_key(source) not in image_keys
-        except OSError:
-            is_video = False
+    for candidate in _media_candidates(
+        artifacts_dir,
+        image_paths=image_paths or [],
+        video_paths=video_paths or [],
+        workspace_dir=workspace_dir,
+    ):
         artifact = store_default_agent_artifact(
-            source,
+            candidate.path,
             artifacts_dir,
-            label=label_for_path(source, fallback="Video" if is_video else "Image"),
-            kind="file" if is_video else "image",
+            label=label_for_path(candidate.path, fallback=candidate.label_fallback),
+            kind=candidate.kind,
             artifacts_root=artifacts_root,
             index_path=index_path,
             workspace_dir=workspace_dir,
@@ -218,6 +193,43 @@ def persist_default_agent_artifacts(
         if artifact is not None:
             persisted.append(artifact)
     return persisted
+
+
+def _media_candidates(
+    artifacts_dir: Path,
+    *,
+    image_paths: list[str],
+    video_paths: list[str],
+    workspace_dir: str | None,
+) -> list[_MediaCandidate]:
+    candidates: list[_MediaCandidate] = []
+    candidates.extend(
+        _MediaCandidate(
+            path=path,
+            kind="image",
+            label_fallback="Image",
+            ordinal=f"image-{index}",
+        )
+        for index, path in enumerate(image_paths)
+        if path
+    )
+    candidates.extend(
+        _MediaCandidate(
+            path=path,
+            kind="file",
+            label_fallback="Video",
+            ordinal=f"video-{index}",
+        )
+        for index, path in enumerate(video_paths)
+        if path
+    )
+    candidates.extend(
+        _discover_prompt_media_candidates(
+            artifacts_dir,
+            workspace_dir=workspace_dir,
+        )
+    )
+    return _dedupe_media_candidates(candidates)
 
 
 def list_agent_artifacts(
@@ -243,31 +255,44 @@ def list_agent_artifacts(
     )
 
 
-def _discover_prompt_image_paths(
+def _discover_prompt_media_candidates(
     artifacts_dir: Path,
     *,
     workspace_dir: str | None,
-) -> list[str]:
-    image_paths: list[str] = []
+) -> list[_MediaCandidate]:
+    candidates: list[_MediaCandidate] = []
     seen: set[str] = set()
+    prompt_indexes = {"image": 0, "video": 0}
     for prompt_path in _prompt_artifact_files(artifacts_dir):
         try:
             prompt = prompt_path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        for match in _IMAGE_PATH_RE.finditer(prompt):
-            image_path = _resolve_prompt_image_path(
+        for match in _PROMPT_MEDIA_PATH_RE.finditer(prompt):
+            media_path = _resolve_prompt_media_path(
                 match.group("path"),
                 workspace_dir=workspace_dir,
             )
-            if image_path is None:
+            if media_path is None:
                 continue
-            key = path_key(image_path)
+            key = path_key(media_path)
             if key in seen:
                 continue
             seen.add(key)
-            image_paths.append(image_path)
-    return image_paths
+            kind, label_fallback, ordinal_prefix = _media_candidate_attributes(
+                media_path
+            )
+            index = prompt_indexes[ordinal_prefix]
+            prompt_indexes[ordinal_prefix] = index + 1
+            candidates.append(
+                _MediaCandidate(
+                    path=media_path,
+                    kind=kind,
+                    label_fallback=label_fallback,
+                    ordinal=f"prompt-{ordinal_prefix}-{index}",
+                )
+            )
+    return candidates
 
 
 def _prompt_artifact_files(artifacts_dir: Path) -> list[Path]:
@@ -289,7 +314,7 @@ def _prompt_artifact_files(artifacts_dir: Path) -> list[Path]:
     return prompt_files
 
 
-def _resolve_prompt_image_path(
+def _resolve_prompt_media_path(
     path: str,
     *,
     workspace_dir: str | None,
@@ -309,6 +334,32 @@ def _resolve_prompt_image_path(
     if not resolved.is_file():
         return None
     return str(resolved)
+
+
+def _media_candidate_attributes(
+    path: str,
+) -> tuple[AgentArtifactKind, str, str]:
+    suffix = Path(path).suffix.lower()
+    if suffix in _PROMPT_VIDEO_SUFFIXES:
+        return "file", "Video", "video"
+    return "image", "Image", "image"
+
+
+def _dedupe_media_candidates(
+    candidates: list[_MediaCandidate],
+) -> list[_MediaCandidate]:
+    deduped: list[_MediaCandidate] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            key = path_key(candidate.path)
+        except OSError:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(candidate)
+    return deduped
 
 
 def _dedupe_plan_artifacts(artifacts: list[AgentArtifact]) -> list[AgentArtifact]:

@@ -13,12 +13,13 @@ re-scanning the workspace.
 ACE is SASE's terminal UI. It has two image surfaces: lightweight in-panel previews for notification and file-panel
 attachments, and the separate `a` artifact viewer for opening completed agent artifacts.
 
-ACE can also surface image files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
-image itself was not part of the agent's git diff. For current successful runs, those prompt-referenced images are
-copied into persistent SASE artifact storage with the other default image artifacts so the Agents-tab artifact picker
-can still open them after a workspace is cleaned up. Legacy runs without persisted default artifacts fall back to
-prompt-file discovery at view time. Prompt-referenced images are not notification delivery attachments unless they also
-appear in `done.json.image_paths` or were saved explicitly with `sase artifact create`.
+ACE can also surface media files referenced in saved prompt artifacts (`raw_xprompt.md` and `*_prompt.md`) even when the
+media itself was not part of the agent's git diff. For current successful runs, those prompt-referenced media files are
+copied into persistent SASE artifact storage with the other default generated-media artifacts so the Agents-tab artifact
+picker can still open them after a workspace is cleaned up. Legacy runs without persisted default artifacts fall back to
+prompt-file discovery at view time. Prompt-referenced media are not notification delivery attachments unless they also
+appear in `done.json.image_paths`, appear in `done.json.video_paths`, or were saved explicitly with
+`sase artifact create`.
 
 Supported image extensions are:
 
@@ -58,23 +59,26 @@ animation-specific transport based on the `.gif` suffix.
 
 Source: `src/sase/axe/image_attachments.py`
 
-### Prompt-Referenced Images
+### Prompt-Referenced Media Default Artifacts
 
 Default artifact persistence also scans the saved prompt files in the agent artifacts directory:
 
 - `raw_xprompt.md`
 - every sibling `*_prompt.md` file
 
-Any path-like token ending in a common image suffix is resolved as an absolute, home-relative, or workspace-relative
-path. Existing files are added as ACE image artifacts after `done.json.image_paths`, duplicates are removed, and the
-file does not need to appear in the agent's git diff. This is useful when a prompt asks an agent to inspect or transform
-an existing screenshot, mockup, or reference image and the resulting run should keep that image one keypress away in
-ACE.
+Any path-like token ending in a common image suffix or supported video suffix is resolved as an absolute, home-relative,
+or workspace-relative path. Existing files are added after `done.json.image_paths` and `done.json.video_paths`,
+duplicates are removed, and the file does not need to appear in the agent's git diff. Images and GIFs are added as
+`image` artifacts. Prompt-referenced videos are added as ordinary `file` artifacts until ACE has dedicated video preview
+semantics.
 
-Prompt-referenced images are ACE artifact-list entries, not notification delivery attachments. Current runs persist them
+This is useful when a prompt asks an agent to inspect or transform an existing screenshot, mockup, reference image, or
+reference video and the resulting run should keep that source media one keypress away in ACE.
+
+Prompt-referenced media are ACE artifact-list entries, not notification delivery attachments. Current runs persist them
 to the global artifact index during finalization; legacy runs can still synthesize them from prompt artifacts when ACE
-loads the row. Downstream notification plugins should continue to use `done.json.image_paths` for the generated-image
-notification contract.
+loads the row. Downstream notification plugins should continue to use `done.json.image_paths` and
+`done.json.video_paths` for the generated-media notification contract.
 
 Source: `src/sase/core/agent_artifact_defaults.py`
 
@@ -151,7 +155,7 @@ See [`notifications.md`](notifications.md) for the notification model and modal 
 
 The Agents tab exposes completed agent artifacts through the `a` key. When artifacts exist, ACE opens the artifact panel
 for selection. Chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos,
-prompt-referenced images, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]`
+prompt-referenced media, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]`
 all use the same list. Generated videos are stored as ordinary `file` artifacts until ACE has a dedicated video preview
 mode. The panel is shown even for a single artifact so users can confirm the artifact label, kind, and path before
 opening it.

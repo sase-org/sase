@@ -10,6 +10,7 @@ from sase.attachments.markdown_pdf import MarkdownPdfProgressEvent
 from sase.axe.run_agent_exec import AgentExecContext, LoopState, _finalize_loop
 from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.axe.run_agent_runner_finalize import send_completion_notification
+from sase.core.agent_artifact_facade import list_agent_artifacts
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests._axe_run_agent_exec_helpers import run_command
@@ -32,6 +33,8 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     notes = workspace / "docs" / "notes.md"
     image = workspace / "assets" / "diagram.png"
     video = workspace / "assets" / "demo.mp4"
+    image_source = str(image.resolve())
+    video_source = str(video.resolve())
     research.parent.mkdir(parents=True)
     notes.parent.mkdir()
     image.parent.mkdir()
@@ -111,13 +114,13 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
         str(pdf_dir / "sdd__research__example.md.pdf"),
     ]
     assert result.markdown_pdf_paths == expected_pdfs
-    assert result.image_paths == [str(image.resolve())]
-    assert result.video_paths == [str(video.resolve())]
+    assert result.image_paths == [image_source]
+    assert result.video_paths == [video_source]
 
     done = json.loads((artifacts / "done.json").read_text())
     assert done["markdown_pdf_paths"] == expected_pdfs
-    assert done["image_paths"] == [str(image.resolve())]
-    assert done["video_paths"] == [str(video.resolve())]
+    assert done["image_paths"] == [image_source]
+    assert done["video_paths"] == [video_source]
     assert sorted(path.name for path in pdf_dir.glob("*.pdf")) == [
         "docs__notes.md.pdf",
         "sdd__research__example.md.pdf",
@@ -126,6 +129,29 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
         {"source_path": str(notes.resolve()), "pdf_path": expected_pdfs[0]},
         {"source_path": str(research.resolve()), "pdf_path": expected_pdfs[1]},
     ]
+
+    artifact_rows = list_agent_artifacts(artifacts)
+    rows_by_source = {
+        artifact.source_path: artifact
+        for artifact in artifact_rows
+        if artifact.source_path
+    }
+    assert rows_by_source[image_source].kind == "image"
+    video_artifact = rows_by_source[video_source]
+    assert video_artifact.kind == "file"
+    assert video_artifact.explicit is False
+    persisted_video_path = Path(video_artifact.path)
+    assert persisted_video_path.is_file()
+
+    video.unlink()
+    artifact_rows_after_cleanup = list_agent_artifacts(artifacts)
+    rows_after_cleanup = {
+        artifact.source_path: artifact
+        for artifact in artifact_rows_after_cleanup
+        if artifact.source_path
+    }
+    assert rows_after_cleanup[video_source].path == str(persisted_video_path)
+    assert Path(rows_after_cleanup[video_source].path).is_file()
 
     with patch("sase.notifications.senders.notify_workflow_complete") as notify:
         send_completion_notification(
@@ -153,8 +179,8 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     assert notify.call_args.kwargs["extra_files"] == [
         str(chat),
         *expected_pdfs,
-        str(image.resolve()),
-        str(video.resolve()),
+        image_source,
+        video_source,
     ]
 
 

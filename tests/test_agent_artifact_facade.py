@@ -210,6 +210,27 @@ def test_prompt_absolute_image_path_is_default_image_artifact(
     assert artifacts[0].label == "image.jpg"
 
 
+def test_prompt_referenced_gif_is_default_image_artifact(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    image = workspace / "references" / "animation.gif"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"gif")
+    _write_json(artifacts_dir / "agent_meta.json", {"workspace_dir": str(workspace)})
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "Use references/animation.gif as the reference.\n",
+        encoding="utf-8",
+    )
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("image", str(image.resolve()))
+    ]
+
+
 def test_prompt_workspace_relative_image_path_uses_workspace_dir(
     tmp_path: Path,
 ) -> None:
@@ -229,6 +250,29 @@ def test_prompt_workspace_relative_image_path_uses_workspace_dir(
     assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
         ("image", str(image.resolve()))
     ]
+    assert artifacts[0].workspace_dir == str(workspace)
+
+
+def test_prompt_workspace_relative_video_path_is_default_file_artifact(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    video = workspace / "renders" / "demo.webm"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"webm")
+    _write_json(artifacts_dir / "agent_meta.json", {"workspace_dir": str(workspace)})
+    (artifacts_dir / "coder_prompt.md").write_text(
+        "Review renders/demo.webm before editing.\n",
+        encoding="utf-8",
+    )
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("file", str(video.resolve()))
+    ]
+    assert artifacts[0].label == "demo.webm"
     assert artifacts[0].workspace_dir == str(workspace)
 
 
@@ -497,6 +541,67 @@ def test_persist_default_agent_artifacts_unions_media_paths_and_xprompt(
     )
 
 
+def test_persist_default_agent_artifacts_persists_prompt_video_as_file(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    video = workspace / "references" / "input.mov"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"mov")
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "Use references/input.mov as the source clip.\n",
+        encoding="utf-8",
+    )
+    artifacts_root = tmp_path / ".sase" / "artifacts"
+
+    persisted = persist_default_agent_artifacts(
+        artifacts_dir,
+        workspace_dir=str(workspace),
+        artifacts_root=artifacts_root,
+        index_path=artifacts_root / "index.jsonl",
+    )
+
+    assert [
+        (artifact.kind, artifact.source_path, artifact.label) for artifact in persisted
+    ] == [("file", str(video.resolve()), "input.mov")]
+    assert persisted[0].explicit is False
+    assert Path(persisted[0].path).is_file()
+
+
+def test_persist_default_agent_artifacts_dedupes_media_candidates_stably(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    shared_image = workspace / "out" / "shared.gif"
+    direct_video = workspace / "out" / "demo.mp4"
+    prompt_video = workspace / "refs" / "reference.webm"
+    for path in (shared_image, direct_video, prompt_video):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(path.suffix.encode())
+    (artifacts_dir / "coder_prompt.md").write_text(
+        "Compare out/shared.gif, out/demo.mp4, and refs/reference.webm.\n",
+        encoding="utf-8",
+    )
+    artifacts_root = tmp_path / ".sase" / "artifacts"
+
+    persisted = persist_default_agent_artifacts(
+        artifacts_dir,
+        image_paths=[str(shared_image)],
+        video_paths=[str(shared_image), str(direct_video)],
+        workspace_dir=str(workspace),
+        artifacts_root=artifacts_root,
+        index_path=artifacts_root / "index.jsonl",
+    )
+
+    assert [(artifact.source_path, artifact.kind) for artifact in persisted] == [
+        (str(shared_image), "image"),
+        (str(direct_video), "file"),
+        (str(prompt_video.resolve()), "file"),
+    ]
+
+
 def test_list_agent_artifacts_uses_indexed_media_when_persisted(
     tmp_path: Path,
 ) -> None:
@@ -582,6 +687,30 @@ def test_list_agent_artifacts_falls_back_to_legacy_synthesis_without_marker(
     assert [(a.kind, a.path) for a in artifacts] == [
         ("image", str(image)),
         ("file", str(video)),
+    ]
+
+
+def test_list_agent_artifacts_legacy_synthesis_includes_prompt_video(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _agent_dir(tmp_path)
+    workspace = tmp_path / "workspace"
+    video = workspace / "clips" / "reference.m4v"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"m4v")
+    _write_json(artifacts_dir / "done.json", {"workspace_dir": str(workspace)})
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "Reference clip: clips/reference.m4v\n",
+        encoding="utf-8",
+    )
+
+    artifacts = list_agent_artifacts(
+        artifacts_dir,
+        index_path=tmp_path / ".sase" / "artifacts" / "index.jsonl",
+    )
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("file", str(video.resolve()))
     ]
 
 
