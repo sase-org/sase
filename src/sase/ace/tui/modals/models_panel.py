@@ -23,41 +23,34 @@ offer a ``use_chezmoi``-aware commit+push. Temporary-override state lives in
 
 from __future__ import annotations
 
-import time
-from collections.abc import Iterable
-from dataclasses import dataclass
-
-from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 
-from sase.ace.tui.provider_styles import provider_model_badge_markup
 from sase.config import ConfigEditOp
 from sase.llm_provider import (
     AliasView,
     build_alias_views,
     clear_alias_override,
-    parse_override_duration,
     set_alias_override,
 )
-from sase.llm_provider.config import (
-    DEFAULT_MODEL_ALIAS_NAME,
-)
 from sase.llm_provider.registry import format_provider_model_label
-from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
 from .base import OptionListNavigationMixin
 from .custom_model_input_modal import CustomModelInputModal
 from .duration_choice_modal import (
     DURATION_CHOICE_CANCELLED,
-    DurationChoice,
     DurationChoiceCancelled,
-    DurationChoiceModal,
 )
 from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
+from .models_panel_duration import (
+    DurationPickerModal as _DurationPickerModal,
+    format_duration_chosen as _format_duration_chosen,
+    format_remaining as _format_remaining,
+    now as _now,
+)
 from .models_panel_edit import AliasEditPreviewModal
 from .models_panel_edit_helpers import (
     AliasCommitOffer,
@@ -66,261 +59,23 @@ from .models_panel_edit_helpers import (
     alias_reset_path,
     build_alias_commit_offer,
 )
+from .models_panel_rendering import (
+    PROVIDER_MODEL_CELL_MAX as _PROVIDER_MODEL_CELL_MAX,
+    description_text_for_view as _description_text_for_view,
+    kind_label as _kind_label,
+    provider_model_column_width as _provider_model_column_width,
+    render_alias_row as _render_alias_row,
+    state_tag as _state_tag,
+)
+from .models_panel_types import ModelsPanelResult
 
-
-# ---------------------------------------------------------------------------
-# Result type
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class ModelsPanelResult:
-    """Outcome of a Models panel session.
-
-    ``changed`` is ``True`` when at least one temporary override was set or
-    cleared while the panel was open, so the caller knows to refresh top-bar
-    override indicators.
-    """
-
-    changed: bool = False
-
-
-# ---------------------------------------------------------------------------
-# Duration / time formatting helpers
-# ---------------------------------------------------------------------------
-
-
-def _now() -> float:
-    """Return the current wall-clock time (indirection lets tests pin it)."""
-    return time.time()
-
-
-def _format_remaining(seconds: float) -> str:
-    """Format an integer-second remaining duration as ``"1h30m"`` etc."""
-    total = max(0, int(seconds))
-    hours, rem = divmod(total, 3600)
-    minutes, secs = divmod(rem, 60)
-    parts: list[str] = []
-    if hours:
-        parts.append(f"{hours}h")
-    if minutes:
-        parts.append(f"{minutes}m")
-    if secs and not hours and not minutes:
-        parts.append(f"{secs}s")
-    return "".join(parts) or "0s"
-
-
-def _format_duration_chosen(seconds: float | None) -> str:
-    """Render the chosen duration for the success notification."""
-    if seconds is None:
-        return "until cleared"
-    return _format_remaining(seconds)
-
-
-def _parse_override_custom(raw: str) -> float | None:
-    try:
-        return parse_override_duration(raw)
-    except ValueError as exc:
-        raise ValueError(f"Invalid duration: {exc}") from exc
-
-
-# ---------------------------------------------------------------------------
-# Duration picker modal (shared with the old default-override flow)
-# ---------------------------------------------------------------------------
-
-
-class _DurationPickerModal(DurationChoiceModal[float | None, DurationChoiceCancelled]):
-    """Pick how long the override should last.
-
-    Dismisses with one of:
-
-    - ``float`` (seconds) — a finite duration was chosen.
-    - ``None`` — "Until cleared" (no expiry).
-    - shared cancel sentinel — user cancelled.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            title="Override Duration",
-            choices=[
-                DurationChoice(
-                    key="1",
-                    title="15 minutes",
-                    subtitle="Use for quick model checks.",
-                    value=15 * 60.0,
-                    tone="primary",
-                ),
-                DurationChoice(
-                    key="2",
-                    title="30 minutes",
-                    subtitle="Keep the override through a short task.",
-                    value=30 * 60.0,
-                ),
-                DurationChoice(
-                    key="3",
-                    title="1 hour",
-                    subtitle="Cover a focused coding session.",
-                    value=60 * 60.0,
-                ),
-                DurationChoice(
-                    key="4",
-                    title="2 hours",
-                    subtitle="Use for a longer implementation block.",
-                    value=2 * 60 * 60.0,
-                ),
-                DurationChoice(
-                    key="5",
-                    title="4 hours",
-                    subtitle="Keep the override for half a day.",
-                    value=4 * 60 * 60.0,
-                ),
-                DurationChoice(
-                    key="6",
-                    title="Until cleared",
-                    subtitle="Persist until you remove it.",
-                    value=None,
-                    tone="accent",
-                ),
-            ],
-            parse_custom=_parse_override_custom,
-            custom_placeholder="e.g., 30m, 2h, 1h30m, until cleared",
-            cancel_result=DURATION_CHOICE_CANCELLED,
-            id_prefix="override-duration",
-        )
-
-
-# ---------------------------------------------------------------------------
-# Row rendering
-# ---------------------------------------------------------------------------
-
-_KIND_CELL = 13
-_NAME_CELL = 16
-
-# The provider/model badge is treated as its own column so the rightmost
-# state/provenance tag lines up across rows. The column is sized to the widest
-# badge currently visible, capped so the state tag stays inside the 84-column
-# modal budget: content width (78, after the double border and 1 2 padding)
-# minus the fixed kind/name columns and their inner spaces (31), minus the
-# fixed gap before the state tag (3), minus the longest state tag
-# ("override · until cleared", 24) leaves 20 columns for the badge.
-_PROVIDER_MODEL_CELL_MAX = 20
-_STATE_GAP = "   "
-
-_KIND_LABELS: dict[str, str] = {
-    "default": "default",
-    "role": "role",
-    "provider_coder": "coder",
-    "user": "user",
-}
-
-_KIND_STYLES: dict[str, str] = {
-    "default": "bold #87D7FF",
-    "role": "bold #87D7AF",
-    "provider_coder": "bold #AFAFFF",
-    "user": "bold #D7AF87",
-}
-
-_OVERRIDE_TAG_STYLE = "bold #AF87FF"
-_CONFIGURED_TAG_STYLE = "#87D787"
-_IMPLICIT_TAG_STYLE = "dim #9E9E9E"
-_DESCRIPTION_STYLE = "italic #B0B0B0"
-_DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
-
-
-def _pad(value: str, width: int) -> str:
-    """Truncate-or-pad *value* to exactly *width* columns."""
-    if len(value) > width:
-        return value[: max(0, width - 1)] + "…"
-    return value.ljust(width)
-
-
-def _kind_label(view: AliasView) -> str:
-    """Return the small kind badge text for *view*."""
-    return _KIND_LABELS.get(view.kind, view.kind)
-
-
-def _override_chip(override: TemporaryLLMOverride, now: float) -> str:
-    """Render the active-override state chip (``override · 15m left``)."""
-    if override.expires_at is None:
-        return "override · until cleared"
-    return f"override · {_format_remaining(override.expires_at - now)} left"
-
-
-def _state_tag(view: AliasView, now: float) -> tuple[str, str]:
-    """Return ``(text, style)`` for the provenance / override state column."""
-    if view.override is not None:
-        return _override_chip(view.override, now), _OVERRIDE_TAG_STYLE
-    if view.configured:
-        return "configured", _CONFIGURED_TAG_STYLE
-    if view.name == DEFAULT_MODEL_ALIAS_NAME:
-        return "implicit", _IMPLICIT_TAG_STYLE
-    return "implicit → @default", _IMPLICIT_TAG_STYLE
-
-
-def _provider_model_text(view: AliasView) -> Text:
-    """Build the themed ``PROVIDER(model)`` badge for *view* as a Rich ``Text``.
-
-    Building a ``Text`` (rather than leaving the raw markup string) keeps the
-    badge measurable and truncatable while preserving provider styling — and
-    ensures no markup ever leaks into a rendered row.
-    """
-    return Text.from_markup(provider_model_badge_markup(view.provider, view.model))
-
-
-def _provider_model_column_width(views: Iterable[AliasView]) -> int:
-    """Return the provider/model column width (in cells) for *views*.
-
-    Sized to the widest badge currently visible, capped by
-    :data:`_PROVIDER_MODEL_CELL_MAX` so the state tag stays on-screen. Rich cell
-    widths are used (not ``len``) so wide glyphs and future badges are measured
-    correctly. Collapses to ``0`` when no row has a badge.
-    """
-    widest = 0
-    for view in views:
-        widest = max(widest, _provider_model_text(view).cell_len)
-    return min(widest, _PROVIDER_MODEL_CELL_MAX)
-
-
-def _render_alias_row(
-    view: AliasView, *, now: float, provider_model_width: int
-) -> Text:
-    """Render one alias row as a single-line Rich ``Text``.
-
-    Layout: ``<kind badge> <alias name> <PROVIDER(model) badge> <state tag>``.
-    The provider/model badge is fitted to *provider_model_width* — padded when
-    short and ellipsized when it exceeds the cap — so the rightmost state tag
-    starts at the same cell across every row. Building a ``Text`` (rather than a
-    markup string) keeps alias/model values literal so a stray bracket in a
-    config value can never break rendering.
-    """
-    text = Text(no_wrap=True, overflow="ellipsis")
-    text.append(_pad(_kind_label(view), _KIND_CELL), style=_KIND_STYLES.get(view.kind))
-    text.append(" ")
-    text.append(_pad(view.name, _NAME_CELL), style="bold")
-    text.append(" ")
-    badge = _provider_model_text(view)
-    badge.truncate(provider_model_width, overflow="ellipsis", pad=True)
-    text.append_text(badge)
-    text.append(_STATE_GAP)
-    tag_text, tag_style = _state_tag(view, now)
-    text.append(tag_text, style=tag_style)
-    return text
-
-
-def _description_text_for_view(view: AliasView | None) -> Text:
-    """Return the two-line description strip content for *view*."""
-    if view is None:
-        return Text("", style=_DESCRIPTION_STYLE)
-    if view.description:
-        return Text(view.description, style=_DESCRIPTION_STYLE)
-    if view.kind == "user":
-        return Text(
-            "no description - set "
-            f"llm_provider.model_aliases.custom.{view.name}.description",
-            style=_DESCRIPTION_MISSING_STYLE,
-        )
-    return Text("", style=_DESCRIPTION_STYLE)
-
+_LEGACY_TEST_EXPORTS = (
+    DURATION_CHOICE_CANCELLED,
+    _PROVIDER_MODEL_CELL_MAX,
+    _format_remaining,
+    _kind_label,
+    _state_tag,
+)
 
 # ---------------------------------------------------------------------------
 # Models panel
