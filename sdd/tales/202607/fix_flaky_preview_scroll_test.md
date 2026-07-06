@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 12:53:53
-status: wip
+status: done
 prompt: sdd/prompts/202607/fix_flaky_preview_scroll_test.md
 ---
 # Fix flaky `test_preview_scroll_keys_move_preview_region` CI failure

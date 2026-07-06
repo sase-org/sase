@@ -268,7 +268,7 @@ class ConfigEditModal(ConfigEditModalBase):
     def action_preview_top(self) -> None:
         try:
             self.query_one("#config-edit-preview-scroll", VerticalScroll).scroll_home(
-                animate=False
+                animate=False, immediate=True, force=True
             )
         except Exception:
             pass
@@ -276,7 +276,7 @@ class ConfigEditModal(ConfigEditModalBase):
     def action_preview_bottom(self) -> None:
         try:
             self.query_one("#config-edit-preview-scroll", VerticalScroll).scroll_end(
-                animate=False
+                animate=False, immediate=True, force=True
             )
         except Exception:
             pass
@@ -292,7 +292,9 @@ class ConfigEditModal(ConfigEditModalBase):
         if page_delta:
             height = scroll.scrollable_content_region.height
             delta += page_delta * max(1, height // 2)
-        scroll.scroll_relative(y=delta, animate=False)
+        # Textual's deferred scroll path can drop keypresses while scrollbar
+        # state is stale during preview relayout; apply preview keys directly.
+        scroll.scroll_relative(y=delta, animate=False, immediate=True, force=True)
 
     def _can_choose_option(self) -> bool:
         return (

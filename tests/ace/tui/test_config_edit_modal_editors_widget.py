@@ -77,7 +77,9 @@ async def test_preview_scroll_keys_move_preview_region(tmp_path: Path) -> None:
         await page.pause()
 
         scroll = modal.query_one("#config-edit-preview-scroll", VerticalScroll)
-        await page.wait_for(lambda _s: scroll.max_scroll_y > 0)
+        await page.wait_for(
+            lambda _s: scroll.allow_vertical_scroll and scroll.max_scroll_y > 0
+        )
         assert scroll.scroll_y == 0
 
         await page.press("j")
