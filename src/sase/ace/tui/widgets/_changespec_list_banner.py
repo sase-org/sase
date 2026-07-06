@@ -14,6 +14,8 @@ from rich.cells import cell_len
 from rich.text import Text
 from textual.widgets.option_list import Option
 
+from sase.project_display_names import humanize_cl_name
+
 from ..models.changespec_groups import ChangeSpecGroupRow
 from ._agent_list_styling import (
     _CHANGESPEC_BANNER_BAR_STYLE,
@@ -43,7 +45,7 @@ def _banner_label(group: ChangeSpecGroupRow) -> str:
     """Visible heading text for *group*."""
     if not group.group_key:
         return ""
-    return group.group_key[-1]
+    return humanize_cl_name(group.group_key[-1])
 
 
 def _banner_chip(group: ChangeSpecGroupRow) -> str:

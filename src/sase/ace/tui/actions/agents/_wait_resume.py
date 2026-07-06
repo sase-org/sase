@@ -10,6 +10,7 @@ from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     visible_agent_completion_agents,
 )
+from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
 
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
@@ -149,15 +150,15 @@ def _resolve_vcs_tag(
 
     # Use actual branch name if agent has one (not just the project name)
     if not agent.is_project_agent:
-        return replace_ref_in_vcs_tag(vcs_tag, agent.cl_name)
+        return humanize_vcs_refs_in_text(replace_ref_in_vcs_tag(vcs_tag, agent.cl_name))
 
     # Use @<name> if prompt contains #pr (will resolve to agent's branch)
     from sase.xprompt.workflow_validator_extract import extract_xprompt_calls
 
     if any(call.name == "pr" for call in extract_xprompt_calls(raw_content)):
-        return replace_ref_in_vcs_tag(vcs_tag, f"@{name}")
+        return humanize_vcs_refs_in_text(replace_ref_in_vcs_tag(vcs_tag, f"@{name}"))
 
-    return vcs_tag
+    return humanize_vcs_refs_in_text(vcs_tag)
 
 
 class AgentWaitResumeMixin:
@@ -390,7 +391,9 @@ class AgentWaitResumeMixin:
 
         desc_parts = [f"Kill and restart {_wait_spec_label(result)}"]
         if agent.cl_name:
-            desc_parts.append(f"CL: {agent.cl_name}")
+            desc_parts.append(
+                f"CL: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+            )
         if agent.pid:
             desc_parts.append(f"PID: {agent.pid}")
         agent_description = "\n".join(desc_parts)

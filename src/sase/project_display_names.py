@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any
 
 from sase.core.paths import sase_projects_dir
@@ -19,6 +20,11 @@ class _ProjectDisplayNameCacheEntry:
 
 
 _PROJECT_DISPLAY_NAME_CACHE: _ProjectDisplayNameCacheEntry | None = None
+_CL_NAME_TOKEN_RE = re.compile(
+    r"(?P<prefix>^|(?<=[\s(\[{]))"
+    r"(?P<name>[A-Za-z0-9_.~-]+)"
+    r"(?P<suffix>(?=$|[\s)\]},.!?;:\"']))"
+)
 
 
 def _projects_dir_signature(projects_root: Path) -> tuple[str, int] | None:
@@ -98,6 +104,56 @@ def project_display_name_for(
     return _project_display_name_map_cached(projects_root).get(key, key)
 
 
+def _humanize_cl_name_with_map(name: str, display_names: dict[str, str]) -> str:
+    if not display_names or not name:
+        return name
+
+    if name in display_names:
+        return display_names[name]
+    if "_" not in name:
+        return name
+
+    for key, display in sorted(
+        display_names.items(),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    ):
+        prefix = f"{key}_"
+        if name.startswith(prefix):
+            return f"{display}_{name[len(prefix) :]}"
+    return name
+
+
+def humanize_cl_name(
+    name: str,
+    projects_root: Path | str | None = None,
+) -> str:
+    """Rewrite a ChangeSpec/agent name that starts with a project key."""
+    return _humanize_cl_name_with_map(
+        name,
+        _project_display_name_map_cached(projects_root),
+    )
+
+
+def humanize_cl_names_in_text(
+    text: str,
+    projects_root: Path | str | None = None,
+) -> str:
+    """Rewrite standalone ChangeSpec/agent name tokens in display text."""
+    display_names = _project_display_name_map_cached(projects_root)
+    if not text or not display_names:
+        return text
+
+    def replace(match: re.Match[str]) -> str:
+        return (
+            match.group("prefix")
+            + _humanize_cl_name_with_map(match.group("name"), display_names)
+            + match.group("suffix")
+        )
+
+    return _CL_NAME_TOKEN_RE.sub(replace, text)
+
+
 def humanize_vcs_refs_in_text(
     text: str,
     projects_root: Path | str | None = None,
@@ -119,6 +175,8 @@ def humanize_vcs_refs_in_text(
 
 __all__ = [
     "attach_project_display_names",
+    "humanize_cl_names_in_text",
+    "humanize_cl_name",
     "humanize_vcs_refs_in_text",
     "project_display_name_map_signature",
     "project_display_name_for",

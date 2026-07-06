@@ -51,6 +51,87 @@ def test_project_display_name_for_resolves_and_falls_back(
     assert pdn.project_display_name_for("missing", root) == "missing"
 
 
+def test_humanize_cl_name_rewrites_exact_key_and_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [_record("gh_acme__widgets", "widgets")]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert pdn.humanize_cl_name("gh_acme__widgets", root) == "widgets"
+    assert (
+        pdn.humanize_cl_name("gh_acme__widgets_fix_button_1", root)
+        == "widgets_fix_button_1"
+    )
+
+
+def test_humanize_cl_name_prefers_longest_project_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [
+        _record("gh_acme__widgets", "widgets"),
+        _record("gh_acme__widgets_extra", "widgets_extra"),
+    ]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert (
+        pdn.humanize_cl_name("gh_acme__widgets_extra_fix_button", root)
+        == "widgets_extra_fix_button"
+    )
+
+
+def test_humanize_cl_name_unknown_and_empty_map_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: [])
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert pdn.humanize_cl_name("gh_acme__widgets_fix_button", root) == (
+        "gh_acme__widgets_fix_button"
+    )
+
+    records = [_record("gh_acme__widgets", "widgets")]
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert pdn.humanize_cl_name("other_fix_button", root) == "other_fix_button"
+
+
+def test_humanize_cl_names_in_text_rewrites_tokens_but_not_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [_record("gh_acme__widgets", "widgets")]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    text = (
+        "Sync done for gh_acme__widgets_fix_button_1: "
+        "/tmp/gh_acme__widgets/gh_acme__widgets_fix_button_1"
+    )
+
+    assert pdn.humanize_cl_names_in_text(text, root) == (
+        "Sync done for widgets_fix_button_1: "
+        "/tmp/gh_acme__widgets/gh_acme__widgets_fix_button_1"
+    )
+
+
 def test_project_display_name_cache_invalidates_on_projects_dir_mtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

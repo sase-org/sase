@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from typing import Literal, TYPE_CHECKING
 
+from sase.project_display_names import (
+    humanize_cl_names_in_text,
+    humanize_vcs_refs_in_text,
+)
+
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -35,7 +40,7 @@ def _truncate(text: str, limit: int = _MAX_NOTE_LEN) -> str:
 
 def _first_note(n: Notification) -> str:
     if n.notes:
-        return n.notes[0].strip()
+        return _humanize_text(n.notes[0].strip())
     return ""
 
 
@@ -71,9 +76,10 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
         return ("Plan ready for review", "warning")
 
     if action == "UserQuestion":
-        agent_name = n.action_data.get("agent_name") or n.action_data.get(
+        raw_agent_name = n.action_data.get("agent_name") or n.action_data.get(
             "agent_cl_name"
         )
+        agent_name = _humanize_text(str(raw_agent_name)) if raw_agent_name else ""
         if agent_name and note:
             return (f"Question from @{agent_name}: {_truncate(note)}", "warning")
         if note:
@@ -103,6 +109,10 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
 
     # Tmux, None, or unknown actions
     return (note or _FALLBACK_MESSAGE, "information")
+
+
+def _humanize_text(text: str) -> str:
+    return humanize_cl_names_in_text(humanize_vcs_refs_in_text(text))
 
 
 def _severity_bucket(severity: Severity) -> str:

@@ -7,6 +7,7 @@ from typing import Any
 from sase.integrations.changespec_tags import list_changespec_xprompt_tags
 from sase.xprompt.loader import inactive_project_message_for_ref
 from sase.xprompt.catalog import build_structured_xprompts_catalog
+from sase.project_display_names import project_display_name_for
 
 from ._mobile_helper_common import (
     GATEWAY_WIRE_SCHEMA_VERSION,
@@ -49,7 +50,7 @@ def changespec_tags_response(request: dict[str, Any]) -> dict[str, Any]:
         "tags": [
             {
                 "tag": entry.tag,
-                "project": entry.project,
+                "project": project_display_name_for(entry.project),
                 "changespec": entry.name,
                 "title": None,
                 "status": entry.status,

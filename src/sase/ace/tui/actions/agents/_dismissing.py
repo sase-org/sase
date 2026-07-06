@@ -298,7 +298,7 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         if agent.agent_type == AgentType.WORKFLOW:
             self._notify_after_refresh(f"Dismissed workflow {agent.workflow}")
         else:
-            self._notify_after_refresh(f"Dismissed agent for {agent.cl_name}")
+            self._notify_after_refresh(f"Dismissed agent for {agent.display_name}")
         self._apply_dismissal_in_memory([agent])
         clear_completion_notifications = getattr(
             self,

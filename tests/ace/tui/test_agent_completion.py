@@ -126,6 +126,47 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     assert candidate.vcs_workflow.provider_display == "GitHub"
 
 
+def test_build_agent_completion_candidates_humanizes_vcs_badge_and_searches_raw(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    monkeypatch.setattr(
+        "sase.project_display_names._project_display_name_map_cached",
+        lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.extract_vcs_workflow_tag",
+        lambda prompt: (
+            "#gh:gh_acme__widgets "
+            if prompt.startswith("#gh:gh_acme__widgets ")
+            else None
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.strip_vcs_workflow_tag",
+        lambda prompt: prompt.removeprefix("#gh:gh_acme__widgets "),
+    )
+
+    agent = _agent(
+        tmp_path,
+        agent_name="coder",
+        raw_prompt=(
+            "#gh:gh_acme__widgets Review #gh:gh_acme__widgets_fix_parser_1 docs"
+        ),
+    )
+
+    candidates = build_agent_completion_candidates([agent])
+
+    candidate = candidates[0]
+    assert candidate.vcs_workflow is not None
+    assert candidate.vcs_workflow.display == "#gh:widgets"
+    assert candidate.vcs_workflow.project == "widgets"
+    assert candidate.prompt_snippet == "Review #gh:widgets_fix_parser_1 docs"
+    assert "gh_acme__widgets_fix_parser_1" in candidate.search_text
+    assert "widgets_fix_parser_1" in candidate.search_text
+
+
 def test_filter_agent_completion_candidates_uses_name_prefix(tmp_path: Path) -> None:
     candidates = build_agent_completion_candidates(
         [

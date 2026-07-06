@@ -155,8 +155,14 @@ def _show_prompt_history_picker() -> str | None:
         print("Error: fzf is not installed. Please install fzf to use prompt history.")
         return None
 
-    # Build display lines for fzf
-    display_lines = "\n".join(display for display, _ in items)
+    # Build display lines for fzf with a stable selection key. The preview
+    # text is display-only and may be humanized, truncated, or duplicated.
+    indexed_items = [
+        (f"{index:04d}  {display}", entry)
+        for index, (display, entry) in enumerate(items)
+    ]
+    entry_by_key = {line.split(maxsplit=1)[0]: entry for line, entry in indexed_items}
+    display_lines = "\n".join(line for line, _ in indexed_items)
 
     cmd = [
         "fzf",
@@ -182,13 +188,8 @@ def _show_prompt_history_picker() -> str | None:
     if not selected_display:
         return None
 
-    # Find the matching entry (strip display to handle padding whitespace)
-    selected_entry = None
-    for display, entry in items:
-        if display.strip() == selected_display:
-            selected_entry = entry
-            break
-
+    selected_key = selected_display.split(maxsplit=1)[0]
+    selected_entry = entry_by_key.get(selected_key)
     if selected_entry is None:
         return None
 

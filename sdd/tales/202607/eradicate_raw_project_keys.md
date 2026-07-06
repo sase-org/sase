@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 14:44:02
-status: wip
+status: done
 prompt: sdd/prompts/202607/eradicate_raw_project_keys.md
 ---
 # Plan: Eradicate Raw Project Directory Keys From Every User-Facing Surface

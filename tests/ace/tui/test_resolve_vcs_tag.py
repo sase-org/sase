@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sase.ace.tui.actions.agents._wait_resume import (
     _is_coder_followup_suffix,
     _resolve_vcs_tag,
@@ -73,6 +75,25 @@ class TestResolveVcsTag:
         result = _resolve_vcs_tag(agent, "agentname")
         assert result is not None
         assert "#git:my_project " == result
+
+    def test_project_agent_tag_uses_display_project_name(
+        self, monkeypatch: Any
+    ) -> None:
+        """Project agent prefill tags use the configured display project name."""
+        monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"git"})
+        monkeypatch.setattr(
+            "sase.project_display_names._project_display_name_map_cached",
+            lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
+        )
+        agent = _make_agent(
+            cl_name="gh_acme__widgets",
+            project_dir="gh_acme__widgets",
+            raw_content="#git:gh_acme__widgets do stuff",
+        )
+
+        result = _resolve_vcs_tag(agent, "agentname")
+
+        assert result == "#git:widgets "
 
     def test_paren_format_branch_substitution(self) -> None:
         """Parenthesized VCS tag format also gets branch substitution."""

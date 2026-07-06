@@ -12,6 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.core.time import local_now
+from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
 from ._runners_data import RunnerInfo, collect_runners, get_runner_count
 from .base import CopyModeForwardingMixin
@@ -390,7 +391,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         content_len += len(ws_str) + 1
 
         # CL name (no truncation)
-        cl_name = runner.cl_name
+        cl_name = humanize_cl_name(runner.cl_name)
         parts.append((cl_name, "bold #87D7FF"))
         parts.append((" ", ""))
         content_len += len(cl_name) + 1
@@ -459,7 +460,11 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
 
         # Show prompt preview on a second line for manual agents
         if runner.prompt_preview:
-            self._add_prompt_preview_row(text, runner.prompt_preview, color)
+            self._add_prompt_preview_row(
+                text,
+                humanize_vcs_refs_in_text(runner.prompt_preview),
+                color,
+            )
 
     def _add_prompt_preview_row(self, text: Text, preview: str, color: str) -> None:
         """Add a prompt preview row below a runner entry.
@@ -509,9 +514,10 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
             content_len += len(hint_str)
 
         # CL name
-        parts.append((task.cl_name, "bold #87D7FF"))
+        cl_name = humanize_cl_name(task.cl_name)
+        parts.append((cl_name, "bold #87D7FF"))
         parts.append((" ", ""))
-        content_len += len(task.cl_name) + 1
+        content_len += len(cl_name) + 1
 
         # Type badge with status-dependent background color
         match task.status:

@@ -76,6 +76,42 @@ def test_quick_agent_skips_save_for_non_launchable_project(
     assert len(app.prompt_launches) == 1
 
 
+def test_quick_agent_uses_cl_name_not_agent_display_name_for_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Workflow display labels must not replace the launchable CL/ref name."""
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.is_launchable_project",
+        lambda _name, projects_dir=None: True,
+    )
+    saved = _patch_save_recorder(monkeypatch)
+
+    agent = SimpleNamespace(
+        project_file="/tmp/project/project.sase",
+        cl_name="branch",
+        display_name="workflow_label",
+        is_project_agent=False,
+    )
+
+    class _AppWithAgent(_App):
+        def _get_selected_agent(self) -> Any:
+            return agent
+
+    app = _AppWithAgent()
+
+    app._start_agent_from_agent_quick()
+
+    assert len(saved) == 1
+    assert saved[0].display_name == "branch"
+    assert saved[0].cl_name == "branch"
+    assert app.prompt_launches[0]["initial_text"] == "#gh:branch "
+    assert app.prompt_launches[0]["display_name"] == "branch"
+
+
 def test_edit_and_relaunch_skips_save_for_non_launchable_project(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

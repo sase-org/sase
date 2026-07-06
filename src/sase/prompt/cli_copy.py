@@ -1,4 +1,4 @@
-"""``sase prompt copy`` — copy a stored prompt's exact text to the clipboard."""
+"""``sase prompt copy`` — copy a stored prompt to the clipboard."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ import sys
 
 from sase.core.clipboard import copy_to_system_clipboard
 from sase.history.prompt import PromptSelectorError, resolve_prompt_selector
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 
 def handle_prompt_copy(args: argparse.Namespace) -> None:
-    """Copy the exact text of the selected prompt to the system clipboard.
+    """Copy display-safe text of the selected prompt to the system clipboard.
 
-    ``copy`` is an intentional full-text escape hatch (like ``show``). When no
-    clipboard command is available it exits nonzero and points at
-    ``sase prompt show <id> -f raw`` as a pipe-friendly fallback.
+    When no clipboard command is available it exits nonzero and points at
+    ``sase prompt show <id> -f raw`` as a pipe-friendly canonical fallback.
     """
     selector: str = getattr(args, "id", "")
 
@@ -24,7 +24,8 @@ def handle_prompt_copy(args: argparse.Namespace) -> None:
         print(f"sase prompt copy: {exc}", file=sys.stderr)
         sys.exit(2)
 
-    if not copy_to_system_clipboard(record.text):
+    text = humanize_vcs_refs_in_text(record.text)
+    if not copy_to_system_clipboard(text):
         print(
             "sase prompt copy: no system clipboard command available."
             f" Use 'sase prompt show {record.id} -f raw' instead.",
@@ -32,4 +33,4 @@ def handle_prompt_copy(args: argparse.Namespace) -> None:
         )
         sys.exit(1)
 
-    print(f"Copied {record.id} ({record.text_chars} chars) to the clipboard.")
+    print(f"Copied {record.id} ({len(text)} chars) to the clipboard.")

@@ -48,6 +48,7 @@ from sase.prompt.search.model import (
     PromptSource,
 )
 from sase.prompt.search.sources import collect_prompt_hits
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 # Longest single snippet line shown under a hit, centered on the match.
 _SNIPPET_CHARS = 96
@@ -245,6 +246,7 @@ def _snippet_line(match: PromptSearchMatch, query: str) -> Text | None:
     snippet = _single_line_snippet(value, query)
     if not snippet:
         return None
+    snippet = humanize_vcs_refs_in_text(snippet)
 
     line = Text("  ")
     if field in _BODY_FIELDS:
@@ -426,7 +428,8 @@ def _render_full_local(hit: PromptHit) -> None:
     try:
         record = resolve_prompt_selector(hit.id)
     except PromptSelectorError:
-        sys.stdout.write(hit.text if hit.text.endswith("\n") else hit.text + "\n")
+        text = humanize_vcs_refs_in_text(hit.text)
+        sys.stdout.write(text if text.endswith("\n") else text + "\n")
         return
     sys.stdout.write(render_prompt_markdown(record))
 
@@ -440,7 +443,10 @@ def _render_full_sdd(console: Console, match: PromptSearchMatch, query: str) -> 
         meta.append(value, style="dim")
         console.print(meta, soft_wrap=True)
     console.print()
-    console.print(highlight_match(hit.text, query), soft_wrap=True)
+    console.print(
+        highlight_match(humanize_vcs_refs_in_text(hit.text), query),
+        soft_wrap=True,
+    )
 
 
 def _sdd_metadata(hit: PromptHit) -> list[tuple[str, str]]:

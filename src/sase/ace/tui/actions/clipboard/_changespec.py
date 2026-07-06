@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING
 
 from ....changespec import get_raw_changespec_text
+from sase.project_display_names import humanize_cl_name
 
 from ._base import ClipboardBase
 from ._helpers import (
@@ -88,7 +89,7 @@ class ClipboardChangeSpecMixin(ClipboardBase):
     def _copy_cl_name(self) -> None:
         """Copy the CL name from the current changespec (%n)."""
         changespec = self.changespecs[self.current_idx]
-        cl_name = changespec.name
+        cl_name = humanize_cl_name(changespec.name)
 
         if copy_to_system_clipboard(cl_name):
             self.notify(f"Copied: CL Name ({cl_name})")  # type: ignore[attr-defined]

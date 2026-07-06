@@ -217,6 +217,9 @@ def test_load_project_alias_map_includes_display_name(
     assert canonicalize_project_aliases_in_prompt("#gh:widgets fix") == (
         "#gh:gh_acme__widgets fix"
     )
+    assert canonicalize_project_aliases_in_prompt("#gh:widgets_fix_1 fix") == (
+        "#gh:gh_acme__widgets_fix_1 fix"
+    )
 
 
 def test_humanize_project_refs_in_prompt_rewrites_only_vcs_refs(
@@ -240,6 +243,19 @@ def test_humanize_project_refs_in_prompt_rewrites_only_vcs_refs(
     assert "#gh(widgets) inspect" in result
     assert "path: /tmp/gh_acme__widgets/file" in result
     assert "#gh:gh_acme__widgets fenced" in result
+
+
+def test_humanize_project_refs_in_prompt_rewrites_prefixed_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+
+    result = humanize_project_refs_in_prompt(
+        "#gh:gh_acme__widgets_fix_1 fix",
+        {"gh_acme__widgets": "widgets"},
+    )
+
+    assert result == "#gh:widgets_fix_1 fix"
 
 
 def test_load_project_alias_map_drops_display_name_collision(

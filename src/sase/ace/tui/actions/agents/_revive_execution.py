@@ -142,7 +142,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                 selection_scope=scope,
             )
             self.notify(  # type: ignore[attr-defined]
-                f"Failed to revive {agent.cl_name}: {exc}", severity="error"
+                f"Failed to revive {agent.display_name}: {exc}", severity="error"
             )
             return
 
@@ -153,7 +153,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             selection_scope=scope,
         )
 
-        self.notify(f"Revived agent for {agent.cl_name}")  # type: ignore[attr-defined]
+        self.notify(f"Revived agent for {agent.display_name}")  # type: ignore[attr-defined]
 
         # Patch visible rows from the cached list while the async load
         # reconciles dismissed-set removal off-thread, then run the

@@ -13,7 +13,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.project_display_names import humanize_vcs_refs_in_text
+from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 from sase.ace.dismissed_agents import (
     load_dismissed_agents,
     load_dismissed_bundle_summaries,
@@ -202,7 +202,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
         total = len(self._agents)
         with Container(id="agent-log-container"):
             yield Label(
-                f"Agent Run Log for: {self._cl_name}  [{total} runs]",
+                f"Agent Run Log for: {humanize_cl_name(self._cl_name)}  [{total} runs]",
                 id="agent-log-title",
             )
             with Horizontal(id="agent-log-panels"):
@@ -563,7 +563,8 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
         try:
             title = self.query_one("#agent-log-title", Label)
             title.update(
-                f"Agent Run Log for: {self._cl_name}  [{len(self._agents)} runs]"
+                f"Agent Run Log for: {humanize_cl_name(self._cl_name)}  "
+                f"[{len(self._agents)} runs]"
             )
         except Exception:
             pass

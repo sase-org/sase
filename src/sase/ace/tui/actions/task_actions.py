@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
+from sase.project_display_names import humanize_cl_name, humanize_cl_names_in_text
+
 from ..task_queue import TaskInfo, TaskQueue, redirect_print_to
 from ..task_subprocess import TaskReporter
 from ..widgets.task_indicator import TaskIndicator
@@ -150,7 +152,8 @@ class TaskActionsMixin:
         )
         if existing is not None:
             msg = duplicate_message or (
-                f"A {existing.task_type} task is already running for {cl_name}"
+                f"A {existing.task_type} task is already running for "
+                f"{humanize_cl_name(cl_name)}"
             )
             self.notify(msg, severity="warning")  # type: ignore[attr-defined]
             return None
@@ -246,11 +249,12 @@ class TaskActionsMixin:
 
         # Notify user
         if config.notify_on_complete:
+            display_message = humanize_cl_names_in_text(task_result.message)
             if task_result.success:
-                self.notify(task_result.message)  # type: ignore[attr-defined]
+                self.notify(display_message)  # type: ignore[attr-defined]
             else:
                 self.notify(  # type: ignore[attr-defined]
-                    f"Task failed: {task_result.message}",
+                    f"Task failed: {display_message}",
                     severity="error",
                 )
 

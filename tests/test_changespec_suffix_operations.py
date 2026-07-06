@@ -148,6 +148,36 @@ def test_compute_suffixed_cl_name_adds_project_prefix() -> None:
         os.unlink(project_file)
 
 
+def test_compute_suffixed_cl_name_uses_display_project_prefix() -> None:
+    """Reservation uses the canonical project file but returns display NAME."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with (
+            patch(
+                "sase.workflows.commit.changespec_operations.get_project_file_path",
+                return_value=project_file,
+            ),
+            patch(
+                "sase.project_display_names.project_display_name_for",
+                return_value="widgets",
+            ),
+            patch(
+                "sase.project_display_names.humanize_cl_name",
+                side_effect=lambda name: name.replace("gh_acme__widgets", "widgets"),
+            ),
+        ):
+            result = compute_suffixed_cl_name("gh_acme__widgets", "fix_bug")
+
+        assert result == "widgets_fix_bug_1"
+        with open(project_file, encoding="utf-8") as f:
+            assert "NAME: widgets_fix_bug_1" in f.read()
+    finally:
+        os.unlink(project_file)
+
+
 def test_compute_suffixed_cl_name_no_double_prefix() -> None:
     """compute_suffixed_cl_name does not double-prefix when already present."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:

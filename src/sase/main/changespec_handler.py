@@ -16,6 +16,7 @@ from sase.core.changespec import (
     changespec_name_to_branch_with_suffix,
     strip_reverted_suffix,
 )
+from sase.project_display_names import humanize_cl_name, project_display_name_for
 from sase.vcs_provider import VCSProvider, get_vcs_provider
 from sase.workflows.utils import get_project_file_path, get_project_from_workspace
 
@@ -216,21 +217,21 @@ def _display_current_markdown(cs: ChangeSpec) -> None:
     """Print one ChangeSpec in compact agent-friendly markdown."""
     print("# Current ChangeSpec")
     print("")
-    print(f"## {cs.name}")
+    print(f"## {humanize_cl_name(cs.name)}")
     print("")
-    print(f"- **Project:** {cs.project_basename}")
+    print(f"- **Project:** {project_display_name_for(cs.project_basename)}")
     print(f"- **Status:** {cs.status}")
-    print(f"- **Parent:** {cs.parent or 'None'}")
+    print(f"- **Parent:** {humanize_cl_name(cs.parent) if cs.parent else 'None'}")
     print(f"- **PR/CL:** {cs.cl or 'None'}")
     print(f"- **Location:** `{_file_location(cs)}`")
 
 
 def _display_current_plain(cs: ChangeSpec) -> None:
     """Print one ChangeSpec as stable key/value lines."""
-    print(f"NAME: {cs.name}")
-    print(f"PROJECT: {cs.project_basename}")
+    print(f"NAME: {humanize_cl_name(cs.name)}")
+    print(f"PROJECT: {project_display_name_for(cs.project_basename)}")
     print(f"STATUS: {cs.status}")
-    print(f"PARENT: {cs.parent or 'None'}")
+    print(f"PARENT: {humanize_cl_name(cs.parent) if cs.parent else 'None'}")
     print(f"CL: {cs.cl or 'None'}")
     print(f"FILE: {cs.file_path}")
     print(f"LINE: {cs.line_number}")
@@ -244,7 +245,7 @@ def _display_current_json(cs: ChangeSpec) -> None:
 def _diagnostic_lines(context: _CurrentContext) -> list[str]:
     """Diagnostic context for resolver failures."""
     return [
-        f"project: {context.project or 'unknown'}",
+        f"project: {project_display_name_for(context.project) if context.project else 'unknown'}",
         f"project_file: {context.project_file or 'unknown'}",
         f"branch: {context.branch or 'unknown'}",
         f"change_url: {context.change_url or 'unknown'}",
@@ -277,7 +278,10 @@ def _handle_current(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         for cs in matches:
-            print(f"  {cs.name} ({_file_location(cs)})", file=sys.stderr)
+            print(
+                f"  {humanize_cl_name(cs.name)} ({_file_location(cs)})",
+                file=sys.stderr,
+            )
         for line in _diagnostic_lines(context):
             print(f"  {line}", file=sys.stderr)
         return 1

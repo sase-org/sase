@@ -21,6 +21,7 @@ from sase.history.prompt import (
     resolve_prompt_selector,
 )
 from sase.prompt.render import format_timestamp, prompt_preview
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 
 def handle_prompt_run(args: argparse.Namespace) -> None:
@@ -134,7 +135,7 @@ def _pick_record(
     by_id = {record.id: record for record in records}
     display_lines = "\n".join(
         f"{record.id}  {format_timestamp(record.last_used)}  "
-        f"{prompt_preview(record.text)}"
+        f"{prompt_preview(humanize_vcs_refs_in_text(record.text))}"
         for record in records
     )
 

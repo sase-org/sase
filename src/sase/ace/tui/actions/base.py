@@ -14,6 +14,7 @@ from ...saved_queries import (
     load_saved_queries,
     save_query,
 )
+from sase.project_display_names import humanize_cl_name
 from ..modals import (
     QueryEditModal,
     WorkflowSelectModal,
@@ -205,6 +206,7 @@ class BaseActionsMixin:
 
         # Non-interactive phase: submit reword as background task
         cl_name = changespec.name
+        display_cl_name = humanize_cl_name(cl_name)
         project_file = changespec.file_path
 
         def task_callable() -> tuple[bool, str]:
@@ -225,7 +227,7 @@ class BaseActionsMixin:
         )
 
         if submitted:
-            self.notify(f"Rewording {cl_name}...")  # type: ignore[attr-defined]
+            self.notify(f"Rewording {display_cl_name}...")  # type: ignore[attr-defined]
 
     def action_add_tag(self) -> None:
         """Add a tag to the current ChangeSpec's CL description in the background.
@@ -276,6 +278,7 @@ class BaseActionsMixin:
             from ...handlers.reword import add_tag_task
 
             cl_name = changespec.name
+            display_cl_name = humanize_cl_name(cl_name)
             project_file = changespec.file_path
 
             def task_callable() -> tuple[bool, str]:
@@ -298,7 +301,7 @@ class BaseActionsMixin:
 
             if submitted:
                 self.notify(  # type: ignore[attr-defined]
-                    f"Adding tag {tag_name}={tag_value} to {cl_name}..."
+                    f"Adding tag {tag_name}={tag_value} to {display_cl_name}..."
                 )
 
         self.push_screen(TagInputModal(saved_tags), on_dismiss)  # type: ignore[attr-defined]
@@ -383,7 +386,7 @@ class BaseActionsMixin:
         )
 
         if submitted:
-            self.notify(f"Mailing {cl_name}...")  # type: ignore[attr-defined]
+            self.notify(f"Mailing {humanize_cl_name(cl_name)}...")  # type: ignore[attr-defined]
         else:
             # Dedup rejected — release workspace since task won't run
             release_workspace(project_file, workspace_num, "mail", cl_name)

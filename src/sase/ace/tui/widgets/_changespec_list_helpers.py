@@ -13,6 +13,8 @@ from typing import Any
 from rich.text import Text
 from textual.widgets.option_list import Option
 
+from sase.project_display_names import humanize_cl_name
+
 from ...changespec import (
     ChangeSpec,
     get_base_status,
@@ -182,7 +184,7 @@ def calculate_entry_display_width(
     if is_marked:
         parts.append("[✓] ")
     parts.append(f"[{indicator}] ")
-    parts.append(changespec.name)
+    parts.append(humanize_cl_name(changespec.name))
     if changespec.cl:
         parts.append(f" ({changespec.cl})")
     if mentor_stats:
@@ -256,7 +258,7 @@ def row_signature(
         else None
     )
     return (
-        changespec.name,
+        humanize_cl_name(changespec.name),
         changespec.cl,
         changespec.status,
         indicator,
@@ -317,7 +319,7 @@ def format_changespec_option(
 
     # Name
     name_style = "bold #00D7AF" if is_selected else "#00D7AF"
-    text.append(changespec.name, style=name_style)
+    text.append(humanize_cl_name(changespec.name), style=name_style)
 
     # CL number if present
     if changespec.cl:

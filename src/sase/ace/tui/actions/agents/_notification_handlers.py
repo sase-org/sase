@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.memory.review_tui import MemoryReviewTuiApp
+from sase.project_display_names import humanize_cl_name
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -45,7 +46,8 @@ def handle_jump_to_agent(app: object, notification: Notification) -> bool:
         app.current_idx = idx  # type: ignore[attr-defined]
         return True
 
-    app.notify(f"Agent '{cl_name}' not found", severity="warning")  # type: ignore[attr-defined]
+    message = f"Agent '{humanize_cl_name(str(cl_name))}' not found"
+    app.notify(message, severity="warning")  # type: ignore[attr-defined]
     return False
 
 

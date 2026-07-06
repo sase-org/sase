@@ -14,6 +14,7 @@ from sase.core.paths import (
     shorten_path,
 )
 from sase.core.time import generate_timestamp
+from sase.project_display_names import humanize_cl_name, project_display_name_for
 from sase.workflows.commit.plan_paths import format_sase_plan_reference
 from sase.workflows.utils import get_initial_hooks_for_changespec
 
@@ -163,12 +164,13 @@ def create_changespec_for_workflow(
     if not commits:
         return None
 
+    display_project = project_display_name_for(project_name)
     if cl_name is None:
-        cl_name = _derive_cl_name(project_name, commits)
+        cl_name = _derive_cl_name(display_project, commits)
     else:
         from sase.core.changespec import ensure_project_prefix
 
-        cl_name = ensure_project_prefix(project_name, cl_name)
+        cl_name = ensure_project_prefix(display_project, humanize_cl_name(cl_name))
 
     # Prefer the full commit_description (PR message) when available,
     # falling back to git-log subjects for non-PR or legacy paths.

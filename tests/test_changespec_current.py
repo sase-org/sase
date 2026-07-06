@@ -53,11 +53,12 @@ def _cs(
     project: str = "proj",
     cl: str | None = None,
     status: str = "Ready",
+    parent: str | None = "parent_spec",
 ) -> ChangeSpec:
     return ChangeSpec(
         name=name,
         description="test",
-        parent="parent_spec",
+        parent=parent,
         cl=cl,
         status=status,
         file_path=f"/home/user/.sase/projects/{project}/{project}.sase",
@@ -134,6 +135,68 @@ def test_changespec_current_matches_provider_url(monkeypatch: Any, capsys: Any) 
     assert code == 0
     assert err == ""
     assert json.loads(out)["name"] == "proj_feature"
+
+
+def test_changespec_current_humanizes_plain_and_markdown_not_json(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_display_names._project_display_name_map_cached",
+        lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
+    )
+    cs = _cs(
+        "gh_acme__widgets_fix_1",
+        project="gh_acme__widgets",
+        cl="https://example.test/pr/1",
+        parent="gh_acme__widgets_parent_1",
+    )
+
+    code, plain, err = _run_current(
+        monkeypatch,
+        capsys,
+        changespecs=[cs],
+        provider=_FakeProvider(url="https://example.test/pr/1"),
+        project="gh_acme__widgets",
+        output_format="plain",
+    )
+    assert code == 0
+    assert err == ""
+    assert "NAME: widgets_fix_1" in plain
+    assert "PROJECT: widgets" in plain
+    assert "PARENT: widgets_parent_1" in plain
+    assert "NAME: gh_acme__widgets" not in plain
+    assert "PROJECT: gh_acme__widgets" not in plain
+    assert "PARENT: gh_acme__widgets" not in plain
+
+    code, markdown, err = _run_current(
+        monkeypatch,
+        capsys,
+        changespecs=[cs],
+        provider=_FakeProvider(url="https://example.test/pr/1"),
+        project="gh_acme__widgets",
+        output_format="markdown",
+    )
+    assert code == 0
+    assert err == ""
+    assert "## widgets_fix_1" in markdown
+    assert "- **Project:** widgets" in markdown
+    assert "## gh_acme__widgets" not in markdown
+    assert "- **Project:** gh_acme__widgets" not in markdown
+
+    code, raw_json, err = _run_current(
+        monkeypatch,
+        capsys,
+        changespecs=[cs],
+        provider=_FakeProvider(url="https://example.test/pr/1"),
+        project="gh_acme__widgets",
+        output_format="json",
+    )
+    assert code == 0
+    assert err == ""
+    payload = json.loads(raw_json)
+    assert payload["name"] == "gh_acme__widgets_fix_1"
+    assert payload["project"] == "gh_acme__widgets"
 
 
 def test_changespec_current_matches_exact_branch(monkeypatch: Any, capsys: Any) -> None:

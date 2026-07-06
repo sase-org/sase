@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_diffs
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
@@ -54,6 +56,49 @@ class TestWorkflowVariablesHeader:
         assert "COMMITS:\n" in header.plain
         assert "  ▣ test\n" in header.plain
         assert "    1234567890ab feat: add primary\n" in header.plain
+
+    def test_commit_primary_repo_label_uses_project_display_name(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.ace.tui.widgets.prompt_panel._agent_commits.project_display_name_for",
+            lambda key: "widgets" if key == "gh_acme__widgets" else key,
+        )
+        project_dir = tmp_path / "gh_acme__widgets"
+        workspace = tmp_path / "gh_acme__widgets_7"
+        agent = make_agent(
+            project_file=str(project_dir / "gh_acme__widgets.sase"),
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commit_message": "feat: display project\n",
+                "meta_new_commit": "1234567890abcdef",
+                "meta_commit_cwd": str(workspace),
+            },
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+        commit_diffs = agent_commit_diffs(
+            make_agent(
+                project_file=str(project_dir / "gh_acme__widgets.sase"),
+                workspace_dir=str(workspace),
+                step_output={
+                    "meta_commits": [
+                        {
+                            "message": "feat: display project",
+                            "sha": "1234567890abcdef",
+                            "cwd": str(workspace),
+                            "diff_path": str(tmp_path / "001.diff"),
+                        }
+                    ],
+                },
+            )
+        )
+
+        assert "  ▣ widgets\n" in header.plain
+        assert "gh_acme__widgets" not in header.plain
+        assert [diff.repo_name for diff in commit_diffs] == ["widgets"]
 
     def test_commit_cwd_matching_linked_workspace_renders_linked_group(
         self,

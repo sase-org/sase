@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from sase.project_display_names import humanize_cl_name
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -445,7 +447,9 @@ class AgentKillMixin:
 
         # Build description for confirmation dialog
         desc_parts = [f"Type: {agent.agent_type.value}"]
-        desc_parts.append(f"CL: {agent.cl_name}")
+        desc_parts.append(
+            f"CL: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+        )
         if agent.workspace_num is not None:
             desc_parts.append(f"Workspace: #{agent.workspace_num}")
         desc_parts.append(f"PID: {agent.pid}")

@@ -18,6 +18,8 @@ from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.project_display_names import humanize_cl_name
+
 from ..actions.navigation.jump_hints import JUMP_HINT_CHARS, normalize_jump_key
 from ..bgcmd import get_slot_info
 from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
@@ -120,14 +122,21 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         for i, cs in enumerate(changespecs):
             style = _CS_STATUS_STYLES.get(cs.status, "")
             entries.append(
-                _Entry("changespecs", i, cs.name, cs.status, style, name_style=cl_color)
+                _Entry(
+                    "changespecs",
+                    i,
+                    humanize_cl_name(cs.name),
+                    cs.status,
+                    style,
+                    name_style=cl_color,
+                )
             )
 
         # Agents
         _, ag_color = _TAB_STYLES["agents"]
         for idx, ag in enumerate(agents):
             style = _AGENT_STATUS_STYLES.get(ag.status, "")
-            name = ag.cl_name
+            name = ag.display_name or humanize_cl_name(ag.cl_name)
             if ag.raw_suffix:
                 name = f"{name}/{ag.raw_suffix}"
             entries.append(

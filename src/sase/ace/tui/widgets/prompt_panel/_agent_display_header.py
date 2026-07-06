@@ -10,6 +10,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
+from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent
 from ...models.agent_bead import cached_bead_display
@@ -190,7 +191,7 @@ def build_header_text(
     else:
         # ChangeSpec name
         header_text.append("ChangeSpec: ", style="bold #87D7FF")
-        header_text.append(f"{agent.cl_name}", style="#00D7AF")
+        header_text.append(humanize_cl_name(agent.cl_name), style="#00D7AF")
         if agent.cl_num:
             header_text.append(" (")
             header_text.append(agent.cl_num, style="bold underline #569CD6")

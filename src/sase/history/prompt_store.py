@@ -683,7 +683,11 @@ def format_prompt_for_display(entry: PromptEntry) -> str:
         Formatted display string.
     """
     # Format prompt text: replace newlines with spaces, truncate if needed
-    preview = entry.text.replace("\n", " ").replace("\r", " ")
+    from sase.project_display_names import humanize_vcs_refs_in_text
+
+    preview = (
+        humanize_vcs_refs_in_text(entry.text).replace("\n", " ").replace("\r", " ")
+    )
     if len(preview) > _PROMPT_PREVIEW_LENGTH:
         preview = preview[:_PROMPT_PREVIEW_LENGTH] + "..."
 

@@ -16,6 +16,10 @@ from sase.agent.running import (
     list_all_agents,
     list_running_agents,
 )
+from sase.project_display_names import (
+    project_display_name_for,
+    humanize_vcs_refs_in_text,
+)
 
 _STATUS_COLORS: dict[str, str] = {
     "STARTING": "cyan",
@@ -118,13 +122,16 @@ def _print_pretty(agents: list[RunningAgentInfo], *, include_all: bool) -> None:
     for agent in agents:
         table.add_row(
             agent.name or "-",
-            agent.project,
+            project_display_name_for(agent.project),
             "-" if agent.workspace_num is None else str(agent.workspace_num),
             agent.model or "-",
             _provider_badge(agent.provider),
             agent.duration,
             _status_badge(agent.status),
-            _truncate_prompt(agent.prompt, _PROMPT_PRETTY_MAX_CHARS),
+            _truncate_prompt(
+                humanize_vcs_refs_in_text(agent.prompt) if agent.prompt else None,
+                _PROMPT_PRETTY_MAX_CHARS,
+            ),
         )
 
     console.print(Panel(table, title=title, border_style="cyan"))

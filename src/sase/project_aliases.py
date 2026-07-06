@@ -581,7 +581,7 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
 
     def replace(match: re.Match[str]) -> str:
         ref = match.group("ref") or match.group("paren") or ""
-        canonical = alias_map.get(ref)
+        canonical = _rewrite_ref_with_known_prefix(ref, alias_map)
         if canonical is None:
             return match.group(0)
 
@@ -595,6 +595,26 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
 
     canonicalized = pattern.sub(replace, protected)
     return unprotect_fenced_blocks(canonicalized, fenced_blocks)
+
+
+def _rewrite_ref_with_known_prefix(
+    ref: str,
+    replacement_by_ref: Mapping[str, str],
+) -> str | None:
+    replacement = replacement_by_ref.get(ref)
+    if replacement is not None:
+        return replacement
+    if "_" not in ref:
+        return None
+    for known_ref, known_replacement in sorted(
+        replacement_by_ref.items(),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    ):
+        prefix = f"{known_ref}_"
+        if ref.startswith(prefix):
+            return f"{known_replacement}_{ref[len(prefix) :]}"
+    return None
 
 
 def humanize_project_refs_in_prompt(
@@ -615,7 +635,7 @@ def humanize_project_refs_in_prompt(
 
     def replace(match: re.Match[str]) -> str:
         ref = match.group("ref") or match.group("paren") or ""
-        display_name = display_name_by_project.get(ref)
+        display_name = _rewrite_ref_with_known_prefix(ref, display_name_by_project)
         if not display_name or display_name == ref:
             return match.group(0)
 

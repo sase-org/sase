@@ -185,8 +185,13 @@ def compute_suffixed_cl_name(
 
     try:
         from sase.core.changespec import ensure_project_prefix
+        from sase.project_display_names import (
+            humanize_cl_name,
+            project_display_name_for,
+        )
 
-        cl_name = ensure_project_prefix(project, cl_name)
+        display_project = project_display_name_for(project)
+        cl_name = ensure_project_prefix(display_project, humanize_cl_name(cl_name))
 
         with changespec_lock(project_file):
             with open(project_file, encoding="utf-8") as f:

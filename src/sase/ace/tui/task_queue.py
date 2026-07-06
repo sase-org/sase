@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
+from sase.project_display_names import humanize_cl_name
+
 TaskLogStream = Literal["stdout", "stderr", "progress", "header", "result"]
 
 _MAX_TASK_LOG_LINES = 5_000
@@ -168,7 +170,7 @@ class TaskInfo:
         if self.display_name:
             return self.display_name
         if self.cl_name:
-            return f"{self.task_type} {self.cl_name}"
+            return f"{self.task_type} {humanize_cl_name(self.cl_name)}"
         return self.task_type
 
     def get_live_output(self) -> str:
@@ -240,7 +242,7 @@ class TaskQueue:
         Returns the new TaskInfo. Callers should check get_running_for_cl()
         first to enforce deduplication.
         """
-        label = display_name or f"{task_type} {cl_name}".strip()
+        label = display_name or f"{task_type} {humanize_cl_name(cl_name)}".strip()
         task_id = uuid.uuid4().hex
         info = TaskInfo(
             task_id=task_id,

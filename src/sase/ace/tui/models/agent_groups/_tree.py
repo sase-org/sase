@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from sase.core.time import local_now
+from sase.project_display_names import humanize_cl_name
 
 from ..agent import Agent
 from ..agent_group_fold import AgentGroupFoldRegistry, GroupKey
@@ -443,7 +444,7 @@ def banner_label(group: GroupRow) -> str:
         return proj if proj else "(no project)"
     suffix = group.group_key[-1]
     if suffix:
-        return suffix
+        return humanize_cl_name(suffix)
     return NO_CHANGESPEC_LABEL
 
 

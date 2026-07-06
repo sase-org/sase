@@ -12,6 +12,7 @@ from sase.history.prompt import (
     resolve_prompt_selector,
 )
 from sase.prompt.render import record_to_json
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 
 def handle_prompt_show(args: argparse.Namespace) -> None:
@@ -58,7 +59,8 @@ def render_prompt_markdown(record: PromptHistoryRecord) -> str:
         f"- chars: {record.text_chars}",
         "",
     ]
-    body = record.text if record.text.endswith("\n") else record.text + "\n"
+    text = humanize_vcs_refs_in_text(record.text)
+    body = text if text.endswith("\n") else text + "\n"
     return "\n".join(lines) + "\n" + body
 
 

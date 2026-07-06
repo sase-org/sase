@@ -11,6 +11,10 @@ from sase.notifications.catalog import (
     list_notification_infos,
     notification_info_to_json,
 )
+from sase.project_display_names import (
+    humanize_cl_names_in_text,
+    humanize_vcs_refs_in_text,
+)
 
 _PRETTY_NOTES_MAX_CHARS = 80
 
@@ -61,7 +65,10 @@ def _print_pretty(infos: list[NotificationInfo]) -> None:
                     info.sender,
                     ",".join(info.tags) if info.tags else "-",
                     _state_label(info),
-                    _truncate(" | ".join(info.notes), _PRETTY_NOTES_MAX_CHARS),
+                    _truncate(
+                        _humanize_text(" | ".join(info.notes)),
+                        _PRETTY_NOTES_MAX_CHARS,
+                    ),
                 ]
             )
         )
@@ -88,3 +95,7 @@ def _truncate(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return text[: max(limit - 3, 1)] + "..."
+
+
+def _humanize_text(text: str) -> str:
+    return humanize_cl_names_in_text(humanize_vcs_refs_in_text(text))

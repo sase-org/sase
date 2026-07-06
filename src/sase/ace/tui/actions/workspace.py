@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.project_display_names import humanize_cl_name
+
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
 
@@ -179,7 +181,10 @@ class WorkspaceActionsMixin:
             if not success:
                 return (False, f"checkout failed: {error}")
 
-            return (True, f"Checked out {changespec.name} in {workspace_dir}")
+            return (
+                True,
+                f"Checked out {humanize_cl_name(changespec.name)} in {workspace_dir}",
+            )
 
         with self.suspend():  # type: ignore[attr-defined]
             success, message = run_checkout()

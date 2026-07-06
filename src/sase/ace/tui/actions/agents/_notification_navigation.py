@@ -12,6 +12,7 @@ from typing import Protocol
 from sase.notifications.agent_matching import (
     agent_matches_notification_identity as agent_matches_notification_identity,
 )
+from sase.project_display_names import humanize_cl_name
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -164,7 +165,7 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
             app.current_idx = idx  # type: ignore[attr-defined]
             return True
 
-    app.notify(f"Agent '{cl_name}' not found", severity="warning")  # type: ignore[attr-defined]
+    app.notify(f"Agent '{humanize_cl_name(cl_name)}' not found", severity="warning")  # type: ignore[attr-defined]
     return False
 
 

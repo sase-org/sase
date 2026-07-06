@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
+from sase.project_display_names import humanize_cl_name
 
 from ...hooks.history import get_last_accepted_history_entry_id
 from ..widgets import HintInputBar
@@ -20,7 +21,7 @@ def _format_parent_for_timestamp(parent_name: str | None) -> str:
     """Return the user-facing parent name for TIMESTAMPS entries."""
     if not parent_name or parent_name == _ROOT_PARENT_SENTINEL:
         return "root"
-    return parent_name
+    return humanize_cl_name(parent_name)
 
 
 def _rebase_task(
@@ -171,7 +172,7 @@ def _accept_task(
         conflict_result = workflow.conflict_result
         if conflict_result is not None and not conflict_result.success:
             return (False, format_conflict_message(conflict_result))
-        return (False, f"Accept failed for {cl_name}")
+        return (False, f"Accept failed for {humanize_cl_name(cl_name)}")
 
 
 class ProposalRebaseMixin:
@@ -535,4 +536,7 @@ class ProposalRebaseMixin:
         )
 
         if submitted:
-            self.notify(f"Rebase onto {new_parent_display} started for {cl_name}")  # type: ignore[attr-defined]
+            self.notify(  # type: ignore[attr-defined]
+                f"Rebase onto {new_parent_display} started for "
+                f"{humanize_cl_name(cl_name)}"
+            )

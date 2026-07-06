@@ -16,6 +16,7 @@ from sase.history.prompt import (
     compute_prompt_stats,
 )
 from sase.prompt.render import format_size, format_timestamp
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 
 def handle_prompt_stats(args: argparse.Namespace) -> None:
@@ -83,7 +84,11 @@ def _print_pretty(stats: PromptHistoryStats) -> None:
         largest.add_column("CHARS", justify="right", style="dim", no_wrap=True)
         largest.add_column("PREVIEW")
         for item in stats.largest:
-            largest.add_row(item.id, str(item.text_chars), item.preview)
+            largest.add_row(
+                item.id,
+                str(item.text_chars),
+                humanize_vcs_refs_in_text(item.preview),
+            )
         panels.append(Panel(largest, title="Largest Prompts", border_style="cyan"))
 
     if stats.top_chips:

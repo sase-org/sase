@@ -6,6 +6,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.project_display_names import humanize_cl_name
 
 
 class _CommandInput(SingleLineVimTextArea):
@@ -41,7 +42,7 @@ class CommandInputModal(ModalScreen[str | None]):
             # Build context line
             context = f"Project: {self._project}"
             if self._cl_name:
-                context += f" | CL: {self._cl_name}"
+                context += f" | CL: {humanize_cl_name(self._cl_name)}"
             context += f" | Workspace: {self._workspace_num}"
             yield Label(context, id="command-context")
             yield Label(

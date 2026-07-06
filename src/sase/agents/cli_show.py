@@ -14,6 +14,10 @@ from rich.text import Text
 from sase.agent.names import find_named_agent
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.llm_provider.model_label import append_model_field
+from sase.project_display_names import (
+    project_display_name_for,
+    humanize_vcs_refs_in_text,
+)
 
 
 def handle_agents_show(args: argparse.Namespace) -> None:
@@ -47,7 +51,7 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         else artifacts_dir.parent.parent.parent.name
     )
     body.append("Project: ", style="bold")
-    body.append(f"{project}\n")
+    body.append(f"{project_display_name_for(project)}\n")
 
     # Uniform ``Model: PROVIDER(model) @ <effort>`` shape shared with the ACE
     # TUI so the effective model/provider/reasoning-effort reads identically.
@@ -76,7 +80,7 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         except OSError:
             prompt_text = "<failed to read prompt>"
         body.append("\nPrompt:\n", style="bold")
-        body.append(prompt_text + "\n")
+        body.append(humanize_vcs_refs_in_text(prompt_text) + "\n")
 
     if not agent.is_done:
         body.append("\nLive tail: ", style="bold")

@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.text import Text
 from sase.workspace_provider import get_change_label
 from sase.running_field import get_claimed_workspaces
+from sase.project_display_names import humanize_cl_name
 from textual.widgets import Static
 
 from ...changespec import ChangeSpec
@@ -380,7 +381,10 @@ class ChangeSpecDetail(Static):
                 text.append(wf_col, style="#FFD787")  # Gold/amber for workflow
                 if cl_name:
                     text.append(" | ", style="dim")
-                    text.append(cl_name, style="#87D7AF")  # Green for CL name
+                    text.append(
+                        humanize_cl_name(cl_name),
+                        style="#87D7AF",
+                    )  # Green for CL name
                 text.append("\n")
             text.append("\n\n")  # Separator after RUNNING
 
@@ -392,12 +396,20 @@ class ChangeSpecDetail(Static):
         """Build basic ChangeSpec fields (NAME, DESCRIPTION, etc.)."""
         # NAME field
         text.append("NAME: ", style="bold #87D7FF")
-        text.append(f"{changespec.name}\n", style="bold #00D7AF")
+        text.append(f"{humanize_cl_name(changespec.name)}\n", style="bold #00D7AF")
 
         # DESCRIPTION field
         text.append("DESCRIPTION:\n", style="bold #87D7FF")
         for line in changespec.description.split("\n"):
             text.append(f"  {line}\n", style="#D7D7AF")
+
+        # PARENT field (only display if present)
+        if changespec.parent:
+            text.append("PARENT: ", style="bold #87D7FF")
+            text.append(
+                f"{humanize_cl_name(changespec.parent)}\n",
+                style="bold #00D7AF",
+            )
 
         # CL/PR field (only display if present)
         if changespec.cl:

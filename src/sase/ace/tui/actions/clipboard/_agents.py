@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from sase.plan_chain import agent_family_base
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ._base import ClipboardBase
 from ._helpers import copy_to_system_clipboard
@@ -79,8 +80,9 @@ class ClipboardAgentsMixin(ClipboardBase):
             self.notify("No prompt available for this agent", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if copy_to_system_clipboard(content.strip()):
-            lines = len(content.strip().split("\n"))
+        display_content = humanize_vcs_refs_in_text(content).strip()
+        if copy_to_system_clipboard(display_content):
+            lines = len(display_content.split("\n"))
             self.notify(f"Copied: Agent Prompt ({lines} lines)")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
+from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
 from ._types import PromptContext
 
@@ -103,7 +104,9 @@ class EntryRelaunchMixin:
 
         # Build description for confirmation dialog
         desc_parts = [f"Type: {agent.agent_type.value}"]
-        desc_parts.append(f"CL: {agent.cl_name}")
+        desc_parts.append(
+            f"CL: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+        )
         if agent.workspace_num is not None:
             desc_parts.append(f"Workspace: #{agent.workspace_num}")
         desc_parts.append(f"PID: {agent.pid}")
@@ -192,14 +195,20 @@ class EntryRelaunchMixin:
 
         from ...modals import SelectionItem
         from ...widgets import PromptInputBar
+        from sase.project_display_names import project_display_name_for
 
         project_name = Path(project_file).parent.name
+        display_name = (
+            project_display_name_for(project_name)
+            if is_project_agent
+            else humanize_cl_name(cl_name)
+        )
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
 
         # Save for Ctrl+Space repeat
         selection = SelectionItem(
-            display_name=cl_name,
+            display_name=display_name,
             item_type="project" if is_project_agent else "cl",
             project_name=project_name,
             cl_name=cl_name if not is_project_agent else None,
@@ -226,17 +235,23 @@ class EntryRelaunchMixin:
             workflow_name=workflow_name,
             timestamp=timestamp,
             history_sort_key=cl_name,
-            display_name=cl_name,
+            display_name=display_name,
             update_target="",
             is_home_mode=True,
         )
 
-        # Show prompt input bar with the raw prompt(s). Soft wrapping is visual
-        # only; bulk panes are seeded verbatim (no ``---`` splitting).
+        # Show prompt input bar with display-safe prompt text. Soft wrapping is
+        # visual only; bulk panes are seeded without ``---`` splitting.
         if initial_panes is not None:
-            bar = PromptInputBar(initial_panes=initial_panes, id="prompt-input-bar")
+            bar = PromptInputBar(
+                initial_panes=[
+                    humanize_vcs_refs_in_text(pane) for pane in initial_panes
+                ],
+                id="prompt-input-bar",
+            )
         else:
             bar = PromptInputBar(
-                initial_value=initial_value or "", id="prompt-input-bar"
+                initial_value=humanize_vcs_refs_in_text(initial_value or ""),
+                id="prompt-input-bar",
             )
         self.mount(bar)  # type: ignore[attr-defined]

@@ -16,6 +16,7 @@ from sase.workspace_provider.registry import (
     load_or_init_registry,
 )
 from sase.workspace_provider.utils import ensure_workspace_checkout
+from sase.project_display_names import project_display_name_for
 
 from .workspace_handler_context import ConfigLoader, ProjectContext
 
@@ -81,8 +82,8 @@ def _print_list_human(
     rows: list[dict[str, Any]],
 ) -> None:
     header = (
-        f"Project: {ctx.project_name}  "
-        f"key={ctx.store.project_key}  policy={ctx.store.root_policy}"
+        f"Project: {project_display_name_for(ctx.store.project_key)}  "
+        f"policy={ctx.store.root_policy}"
     )
     print(header)
     print(f"Root: {ctx.store.root_dir}")

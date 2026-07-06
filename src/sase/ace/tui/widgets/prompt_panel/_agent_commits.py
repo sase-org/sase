@@ -10,6 +10,8 @@ from typing import Any
 
 from rich.text import Text
 
+from sase.project_display_names import project_display_name_for
+
 from ...models.agent import Agent
 from ._agent_context_common import (
     COLOR_WORKSPACE_GLYPH,
@@ -67,11 +69,13 @@ def _short_sha(value: str) -> str:
 def _primary_repo_name(agent: Agent, step_output: dict[str, Any] | None) -> str:
     meta_project = step_output.get("meta_project") if step_output is not None else None
     if meta_project:
-        return _display_text(meta_project)
+        return project_display_name_for(_display_text(meta_project))
+    if agent.project_display_name:
+        return agent.project_display_name
     if agent.project_file:
-        stem = Path(agent.project_file).stem
-        if stem:
-            return stem
+        key = Path(agent.project_file).stem
+        if key:
+            return project_display_name_for(key)
     return "primary"
 
 
@@ -130,7 +134,7 @@ def _path_is_same_or_inside(child: str | None, parent: str | None) -> bool:
 def _repo_name_from_cwd(cwd: str) -> str:
     basename = os.path.basename(os.path.normpath(os.path.expanduser(cwd)))
     repo_name = re.sub(r"_\d+$", "", basename).strip()
-    return repo_name or "repository"
+    return project_display_name_for(repo_name) if repo_name else "repository"
 
 
 def _repo_name_for_commit_cwd(

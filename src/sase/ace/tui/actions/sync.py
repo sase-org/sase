@@ -8,8 +8,9 @@ import threading
 from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import project_spec_basename
-from sase.workflows.commit_utils import run_sase_hg_clean
+from sase.project_display_names import humanize_cl_name
 from sase.vcs_provider import get_vcs_provider
+from sase.workflows.commit_utils import run_sase_hg_clean
 
 if TYPE_CHECKING:
     from ...changespec import ChangeSpec
@@ -224,4 +225,4 @@ class SyncMixin:
         )
 
         if submitted:
-            self.notify(f"Sync started for {cl_name}")  # type: ignore[attr-defined]
+            self.notify(f"Sync started for {humanize_cl_name(cl_name)}")  # type: ignore[attr-defined]

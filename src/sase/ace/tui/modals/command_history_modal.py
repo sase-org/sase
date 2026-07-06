@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from rich.text import Text
 from sase.history.command import CommandEntry, get_commands_for_display
-from sase.project_display_names import project_display_name_for
+from sase.project_display_names import humanize_cl_name, project_display_name_for
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
@@ -66,7 +66,9 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
 
         def context_for(entry: CommandEntry) -> str:
             project = display_projects.get(entry.project, entry.project)
-            return f"{project}/{entry.cl_name}" if entry.cl_name else project
+            if entry.cl_name:
+                return f"{project}/{humanize_cl_name(entry.cl_name)}"
+            return project
 
         max_context_len = max(len(context_for(entry)) for _, entry in items)
 
@@ -254,7 +256,7 @@ class CommandHistoryModal(OptionListNavigationMixin, ModalScreen[str | None]):
             meta_text.append(f"{item.display_project}\n")
             if item.entry.cl_name:
                 meta_text.append("CL: ", style="bold")
-                meta_text.append(f"{item.entry.cl_name}\n")
+                meta_text.append(f"{humanize_cl_name(item.entry.cl_name)}\n")
             meta_text.append("Created: ", style="bold")
             meta_text.append(f"{item.entry.timestamp}\n")
             meta_text.append("Last Used: ", style="bold")

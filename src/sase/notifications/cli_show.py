@@ -11,6 +11,10 @@ from sase.notifications.catalog import (
     notification_info_to_json,
     resolve_notification_ref,
 )
+from sase.project_display_names import (
+    humanize_cl_names_in_text,
+    humanize_vcs_refs_in_text,
+)
 
 
 def handle_notify_show(args: argparse.Namespace) -> None:
@@ -60,7 +64,7 @@ def _print_markdown(info: NotificationInfo) -> None:
     sys.stdout.write("- notes:\n")
     if info.notes:
         for note in info.notes:
-            sys.stdout.write(f"  - {note}\n")
+            sys.stdout.write(f"  - {_humanize_text(note)}\n")
     else:
         sys.stdout.write("  - none\n")
     sys.stdout.write("- files:\n")
@@ -75,7 +79,7 @@ def _print_markdown(info: NotificationInfo) -> None:
     sys.stdout.write("- action_data:\n")
     if info.action_data:
         for key, data_value in info.action_data.items():
-            sys.stdout.write(f"  - {key}: `{data_value}`\n")
+            sys.stdout.write(f"  - {key}: `{_humanize_text(str(data_value))}`\n")
     else:
         sys.stdout.write("  - none\n")
     sys.stdout.write("- state:\n")
@@ -95,3 +99,7 @@ def _print_markdown(info: NotificationInfo) -> None:
 
 def _bool_text(value: bool) -> str:
     return "true" if value else "false"
+
+
+def _humanize_text(text: str) -> str:
+    return humanize_cl_names_in_text(humanize_vcs_refs_in_text(text))

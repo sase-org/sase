@@ -7,6 +7,7 @@ from datetime import datetime
 
 from sase.ace.changespec import ChangeSpec
 from sase.core.changespec import strip_reverted_suffix
+from sase.project_display_names import project_display_name_for
 
 from ._buckets import (
     ChangeSpecGroupingMode,
@@ -56,7 +57,7 @@ def _l0_value_for(
     latest_map: LatestTimestampMap | None = None,
 ) -> str:
     if mode is ChangeSpecGroupingMode.BY_PROJECT:
-        return cs.project_name
+        return project_display_name_for(cs.project_name)
     if mode is ChangeSpecGroupingMode.BY_DATE:
         return date_bucket_for_changespec(cs, now, latest_map=latest_map)
     return status_bucket_for_changespec(cs)

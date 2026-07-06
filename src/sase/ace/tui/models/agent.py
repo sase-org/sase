@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
+from sase.project_display_names import humanize_cl_name
 
 from .agent_attempt import AttemptRecord, load_attempt_history
 from .agent_source import agent_source
@@ -413,7 +414,7 @@ class Agent:
             return self.workflow
         if self.is_project_agent and self.project_display_name:
             return self.project_display_name
-        return self.cl_name
+        return humanize_cl_name(self.cl_name)
 
     @property
     def display_label(self) -> str:

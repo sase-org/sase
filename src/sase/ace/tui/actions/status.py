@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.project_display_names import humanize_cl_name
+
 from ..modals import StatusModal
 
 if TYPE_CHECKING:
@@ -169,6 +171,7 @@ class StatusActionsMixin:
         from ...status import STATUS_ARCHIVED, STATUS_REVERTED, STATUS_SUBMITTED
 
         cl_name = changespec.name
+        display_cl_name = humanize_cl_name(cl_name)
         project_file = changespec.file_path
 
         # Special handling for "Reverted" status → background task
@@ -181,7 +184,7 @@ class StatusActionsMixin:
                 "revert", cl_name, project_file, task_callable
             )
             if submitted:
-                self.notify(f"Reverting {cl_name}...")  # type: ignore[attr-defined]
+                self.notify(f"Reverting {display_cl_name}...")  # type: ignore[attr-defined]
             return
 
         # Special handling for "Submitted" status (git/gh projects) → background task
@@ -201,7 +204,7 @@ class StatusActionsMixin:
                     "submit", cl_name, project_file, task_callable
                 )
                 if submitted:
-                    self.notify(f"Submitting {cl_name}...")  # type: ignore[attr-defined]
+                    self.notify(f"Submitting {display_cl_name}...")  # type: ignore[attr-defined]
                 return
 
         # Special handling for "Archived" status → background task
@@ -214,7 +217,7 @@ class StatusActionsMixin:
                 "archive", cl_name, project_file, task_callable
             )
             if submitted:
-                self.notify(f"Archiving {cl_name}...")  # type: ignore[attr-defined]
+                self.notify(f"Archiving {display_cl_name}...")  # type: ignore[attr-defined]
             return
 
         # Special handling for transitioning FROM "Reverted" status → background task
@@ -231,7 +234,7 @@ class StatusActionsMixin:
                 "restore", cl_name, project_file, task_callable
             )
             if submitted:
-                self.notify(f"Restoring {cl_name}...")  # type: ignore[attr-defined]
+                self.notify(f"Restoring {display_cl_name}...")  # type: ignore[attr-defined]
             return
 
         # Kill running processes when transitioning to WIP
@@ -262,7 +265,7 @@ class StatusActionsMixin:
                 "status", cl_name, project_file, task_callable
             )
             if submitted:
-                self.notify(f"Transitioning {cl_name} to {new_status}...")  # type: ignore[attr-defined]
+                self.notify(f"Transitioning {display_cl_name} to {new_status}...")  # type: ignore[attr-defined]
             return
 
         # Standard transition (synchronous, fast)

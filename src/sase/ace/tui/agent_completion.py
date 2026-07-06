@@ -44,6 +44,7 @@ class AgentCompletionCandidate:
     tag: str | None = None
     vcs_workflow: AgentVcsWorkflow | None = None
     prompt_snippet: str = ""
+    search_aliases: tuple[str, ...] = ()
 
     @property
     def wait_name(self) -> str:
@@ -52,7 +53,9 @@ class AgentCompletionCandidate:
 
     @property
     def search_text(self) -> str:
-        return " ".join((self.name, self.label, self.prompt_snippet)).lower()
+        return " ".join(
+            (self.name, self.label, self.prompt_snippet, *self.search_aliases)
+        ).lower()
 
 
 _WORKFLOW_STYLES = (
@@ -223,6 +226,7 @@ def _candidate_from_agent(
 ) -> AgentCompletionCandidate:
     role = agent.agent_family_role or agent.role_suffix
     raw_prompt = _raw_prompt_for_agent(agent, all_agents)
+    canonical_snippet = _prompt_snippet(raw_prompt, humanize=False)
     return AgentCompletionCandidate(
         name=name,
         label=agent.agent_name or agent.display_name or agent.cl_name or name,
@@ -235,6 +239,14 @@ def _candidate_from_agent(
         tag=f"#{agent.tag}" if agent.tag else None,
         vcs_workflow=_vcs_workflow_from_prompt(raw_prompt),
         prompt_snippet=_prompt_snippet(raw_prompt),
+        search_aliases=tuple(
+            alias
+            for alias in (
+                canonical_snippet,
+                _raw_vcs_tag_for_prompt(raw_prompt),
+            )
+            if alias
+        ),
     )
 
 
@@ -271,22 +283,38 @@ def _vcs_workflow_from_prompt(raw_prompt: str) -> AgentVcsWorkflow | None:
         return None
 
     from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
+    from sase.project_display_names import (
+        humanize_vcs_refs_in_text,
+        project_display_name_for,
+    )
 
     body = _strip_leading_prompt_directives(_strip_frontmatter(raw_prompt))
     tag = extract_vcs_workflow_tag(body)
     if not tag:
         return None
 
-    display_tag = tag.strip()
+    raw_tag = tag.strip()
+    display_tag = humanize_vcs_refs_in_text(raw_tag)
     workflow_type = _workflow_type_from_vcs_tag(display_tag)
     provider_display = _provider_display(workflow_type)
+    project = extract_project_from_vcs_tag(raw_tag)
     return AgentVcsWorkflow(
         tag=display_tag,
         workflow_type=workflow_type,
-        project=extract_project_from_vcs_tag(display_tag),
+        project=project_display_name_for(project) if project else None,
         provider_display=provider_display,
         style=_workflow_style(workflow_type),
     )
+
+
+def _raw_vcs_tag_for_prompt(raw_prompt: str) -> str:
+    if not raw_prompt:
+        return ""
+    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+
+    body = _strip_leading_prompt_directives(_strip_frontmatter(raw_prompt))
+    tag = extract_vcs_workflow_tag(body) or find_vcs_workflow_tag(body)
+    return tag.strip() if tag else ""
 
 
 def _workflow_type_from_vcs_tag(tag: str) -> str | None:
@@ -323,12 +351,18 @@ def _workflow_style(workflow_type: str | None) -> str:
     return f"bold {_WORKFLOW_STYLES[index]}"
 
 
-def _prompt_snippet(raw_prompt: str, *, max_len: int = 96) -> str:
+def _prompt_snippet(
+    raw_prompt: str, *, max_len: int = 96, humanize: bool = True
+) -> str:
     cleaned = _strip_frontmatter(raw_prompt)
     cleaned = _strip_leading_prompt_directives(cleaned)
     cleaned = _strip_leading_vcs_tag(cleaned)
     cleaned = _strip_leading_prompt_directives(cleaned)
     snippet = " ".join(cleaned.split())
+    if humanize:
+        from sase.project_display_names import humanize_vcs_refs_in_text
+
+        snippet = humanize_vcs_refs_in_text(snippet)
     if len(snippet) <= max_len:
         return snippet
     if max_len <= 3:

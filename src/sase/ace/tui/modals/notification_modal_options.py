@@ -19,6 +19,10 @@ from sase.notifications import (
     format_relative_until,
 )
 from sase.notifications.sort import timestamp_sort_key
+from sase.project_display_names import (
+    humanize_cl_names_in_text,
+    humanize_vcs_refs_in_text,
+)
 
 from .notification_modal_constants import (
     ACTION_BADGES,
@@ -77,7 +81,7 @@ class NotificationOptionMixin:
             text.append(" ", style="")
 
         if notification.notes:
-            note = notification.notes[0]
+            note = _humanize_notification_text(notification.notes[0])
             if len(note) > 50:
                 note = note[:47] + "..."
             text.append(note, style=body_style)
@@ -259,3 +263,7 @@ class NotificationOptionMixin:
         if self._handle_entry_jump_key(key):
             event.prevent_default()
             event.stop()
+
+
+def _humanize_notification_text(text: str) -> str:
+    return humanize_cl_names_in_text(humanize_vcs_refs_in_text(text))

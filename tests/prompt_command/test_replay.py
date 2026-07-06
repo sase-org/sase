@@ -14,6 +14,7 @@ from sase.prompt.cli_run import (
     handle_prompt_run,
     handle_prompt_select,
 )
+from sase.prompt.cli_show import handle_prompt_show
 
 from ._helpers import _entry, _prompt_id, _run_ns, _seed, _select_ns
 
@@ -210,6 +211,49 @@ def test_copy_copies_exact_text(
 
     mock_copy.assert_called_once_with(text)
     assert _prompt_id(text) in capsys.readouterr().out
+
+
+def test_show_markdown_humanizes_vcs_refs_but_raw_stays_exact(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    monkeypatch.setattr(
+        "sase.project_display_names._project_display_name_map_cached",
+        lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
+    )
+    text = "#gh:gh_acme__widgets fix the parser"
+    _seed(_entry(text, "260603_000000"))
+
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="markdown"))
+    markdown = capsys.readouterr().out
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="raw"))
+    raw = capsys.readouterr().out
+
+    assert "#gh:widgets" in markdown
+    assert "gh_acme__widgets" not in markdown
+    assert raw == text
+
+
+def test_copy_humanizes_vcs_refs(
+    history_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    monkeypatch.setattr(
+        "sase.project_display_names._project_display_name_map_cached",
+        lambda _projects_root=None: {"gh_acme__widgets": "widgets"},
+    )
+    text = "#gh:gh_acme__widgets fix the parser"
+    _seed(_entry(text, "260603_000000"))
+
+    with patch(
+        "sase.prompt.cli_copy.copy_to_system_clipboard", return_value=True
+    ) as mock_copy:
+        handle_prompt_copy(argparse.Namespace(id=_prompt_id(text)))
+
+    mock_copy.assert_called_once_with("#gh:widgets fix the parser")
 
 
 def test_copy_no_clipboard_exits_nonzero_with_suggestion(

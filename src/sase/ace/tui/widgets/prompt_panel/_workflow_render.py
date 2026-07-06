@@ -13,7 +13,7 @@ from sase.agent.status_buckets import (
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
 )
-from sase.project_display_names import humanize_vcs_refs_in_text
+from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
 from ...models.agent import Agent
 from ...tools import SlowToolSource
@@ -62,10 +62,12 @@ def build_workflow_detail_renderable(
         )
     elif meta_changespec:
         header_text.append("ChangeSpec: ", style="bold #87D7FF")
-        header_text.append(f"{meta_changespec}\n", style="#00D7AF")
+        header_text.append(
+            f"{humanize_cl_name(str(meta_changespec))}\n", style="#00D7AF"
+        )
     else:
         header_text.append("ChangeSpec: ", style="bold #87D7FF")
-        header_text.append(f"{agent.cl_name}\n", style="#00D7AF")
+        header_text.append(f"{humanize_cl_name(agent.cl_name)}\n", style="#00D7AF")
 
     # Workspace (if available) - check meta_workspace first, then agent field
     workspace_num = meta_workspace or agent.workspace_num

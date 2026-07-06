@@ -23,6 +23,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
+from sase.project_display_names import humanize_cl_name, project_display_name_for
 
 from .base import OptionListNavigationMixin
 
@@ -116,10 +117,14 @@ def build_agent_workspace_tmux_choices(
     ``(name, workspace_dir)`` so an agent-family context yields one option per
     repo destination, keeping the newest event's reason / role label.
     """
-    project_name = Path(agent.project_file).parent.name if agent.project_file else None
+    project_name = (
+        project_display_name_for(Path(agent.project_file).parent.name)
+        if agent.project_file
+        else None
+    )
     current = AgentWorkspaceTmuxChoice(
         kind="current",
-        label=agent.cl_name or agent.display_name or "workspace",
+        label=agent.display_name or humanize_cl_name(agent.cl_name) or "workspace",
         window_name="",
         project_name=project_name,
         workspace_dir=current_workspace_dir,

@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.project_display_names import humanize_cl_name, project_display_name_for
+
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
     from ...modals import SelectionItem
@@ -37,13 +39,14 @@ class EntryQuickLaunchMixin:
 
         changespec = self.changespecs[self.current_idx]
         cl_name = changespec.name
-        prefix = self._vcs_prompt_prefix_or_notify(changespec.file_path, cl_name)
+        display_name = humanize_cl_name(cl_name)
+        prefix = self._vcs_prompt_prefix_or_notify(changespec.file_path, display_name)
         if prefix is None:
             return
 
         # Save for Ctrl+Space repeat (so leader-Space selections are also available)
         selection = SelectionItem(
-            display_name=cl_name,
+            display_name=display_name,
             item_type="cl",
             project_name=changespec.project_basename,
             cl_name=cl_name,
@@ -57,7 +60,7 @@ class EntryQuickLaunchMixin:
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
-            display_name=cl_name,
+            display_name=display_name,
             history_sort_key=cl_name,
         )
 
@@ -75,13 +78,18 @@ class EntryQuickLaunchMixin:
             return
         cl_name = agent.cl_name
         project_name = Path(agent.project_file).parent.name
-        prefix = self._vcs_prompt_prefix_or_notify(agent.project_file, cl_name)
+        display_name = (
+            project_display_name_for(project_name)
+            if agent.is_project_agent
+            else humanize_cl_name(cl_name)
+        )
+        prefix = self._vcs_prompt_prefix_or_notify(agent.project_file, display_name)
         if prefix is None:
             return
 
         # Save for Ctrl+Space repeat
         selection = SelectionItem(
-            display_name=cl_name,
+            display_name=display_name,
             item_type="project" if agent.is_project_agent else "cl",
             project_name=project_name,
             cl_name=cl_name if not agent.is_project_agent else None,
@@ -95,6 +103,6 @@ class EntryQuickLaunchMixin:
 
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=prefix,
-            display_name=cl_name,
+            display_name=display_name,
             history_sort_key=cl_name,
         )
