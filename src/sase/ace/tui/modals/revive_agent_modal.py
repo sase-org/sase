@@ -14,6 +14,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.project_display_names import humanize_vcs_refs_in_text
+
 from ..models.agent import Agent
 from .base import OptionListNavigationMixin
 from .revive_agent_rendering import (
@@ -27,6 +29,22 @@ from .revive_agent_rendering import (
 )
 
 _DismissedPageLoader = Callable[[], tuple[list[Agent], list[Agent], bool]]
+
+
+def _response_filter_corpus(content: str) -> str:
+    """Return lowercased response text containing canonical and displayed refs."""
+    display = humanize_vcs_refs_in_text(content)
+    if display != content:
+        content = f"{content}\n{display}"
+    return content.lower()
+
+
+def _agent_filter_label(agent: Agent) -> str:
+    """Return searchable row text, including display and canonical names."""
+    parts = [f"[{agent.display_type}] {agent.display_name}", agent.cl_name]
+    if agent.agent_name:
+        parts.append(f"@{agent.agent_name}")
+    return " ".join(part for part in parts if part)
 
 
 class _ReviveFilterInput(Input):
@@ -120,7 +138,7 @@ class DismissedAgentSelectModal(
         for i, agent in enumerate(self.agents):
             content = agent.get_response_content()
             if content:
-                self._chat_contents[i] = content.lower()
+                self._chat_contents[i] = _response_filter_corpus(content)
 
         filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
         filter_input.focus()
@@ -190,7 +208,7 @@ class DismissedAgentSelectModal(
         for i, agent in enumerate(self.agents):
             content = agent.get_response_content()
             if content:
-                self._chat_contents[i] = content.lower()
+                self._chat_contents[i] = _response_filter_corpus(content)
 
         try:
             filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
@@ -259,9 +277,7 @@ class DismissedAgentSelectModal(
         filter_lower = filter_text.lower()
         results: list[tuple[int, Agent]] = []
         for i, agent in enumerate(self.agents):
-            label = f"[{agent.display_type}] {agent.display_name}"
-            if agent.agent_name:
-                label += f" @{agent.agent_name}"
+            label = _agent_filter_label(agent)
             if filter_lower in label.lower():
                 results.append((i, agent))
                 continue

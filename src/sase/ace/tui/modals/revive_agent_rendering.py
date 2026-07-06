@@ -5,6 +5,8 @@ from __future__ import annotations
 from rich.text import Text
 from textual.widgets.option_list import Option
 
+from sase.project_display_names import humanize_vcs_refs_in_text
+
 from ..models.agent import Agent, AgentType
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 
@@ -201,7 +203,8 @@ def build_response_preview(agent: Agent) -> Text:
         "\n  \u2500\u2500 Response " + "\u2500" * 26 + "\n",
         style="dim",
     )
-    preview.append(content[:5000])
+    preview_content = humanize_vcs_refs_in_text(content[:5000])
+    preview.append(preview_content)
     if len(content) > 5000:
         preview.append("\n... (truncated)", style="dim")
     return preview

@@ -13,6 +13,10 @@ from sase.core.agent_group_archive_wire import (
     SavedAgentGroupSummaryWire,
     SavedAgentGroupWire,
 )
+from sase.project_display_names import (
+    humanize_vcs_refs_in_text,
+    project_display_name_for,
+)
 
 from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 
@@ -230,7 +234,9 @@ def _append_ref_line(
     idx: int,
     ref: SavedAgentGroupRefWire,
 ) -> None:
-    name = ref.display_name or ref.agent_name or ref.cl_name or "agent"
+    name = project_display_name_for(
+        ref.display_name or ref.agent_name or ref.cl_name or "agent"
+    )
     preview.append(f"  {idx:>2}. ", style="dim")
     preview.append(name, style="bold")
     if ref.agent_name:
@@ -245,7 +251,7 @@ def _append_ref_line(
     preview.append("\n")
     if ref.prompt_preview:
         preview.append("      prompt: ", style="dim")
-        preview.append(ref.prompt_preview, style="dim")
+        preview.append(humanize_vcs_refs_in_text(ref.prompt_preview), style="dim")
         preview.append("\n")
 
 

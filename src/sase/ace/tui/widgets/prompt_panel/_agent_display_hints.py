@@ -2,6 +2,8 @@
 
 from rich.text import Text
 
+from sase.project_display_names import humanize_vcs_refs_in_text
+
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
 from ._agent_display_content import (
@@ -39,6 +41,7 @@ def _render_reply_with_hints(
             target.append_text(render_timestamp_divider(ts))
             content = chunk_text.strip()
             if content:
+                content = humanize_vcs_refs_in_text(content)
                 hint_counter = append_text_with_file_hints(
                     target,
                     content + "\n",
@@ -50,6 +53,7 @@ def _render_reply_with_hints(
         return hint_counter
     live_reply = agent.get_live_reply_content()
     if live_reply:
+        live_reply = humanize_vcs_refs_in_text(live_reply)
         return append_text_with_file_hints(
             target,
             live_reply + "\n",
@@ -59,6 +63,7 @@ def _render_reply_with_hints(
         )
     response_content = agent.get_response_content()
     if response_content:
+        response_content = humanize_vcs_refs_in_text(response_content)
         return append_text_with_file_hints(
             target,
             response_content + "\n",
@@ -148,6 +153,7 @@ class AgentHintsDisplayMixin:
         # AGENT XPROMPT section (with file path hints)
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
+            raw_xprompt = humanize_vcs_refs_in_text(raw_xprompt)
             header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
             header_text.append("\n")
             hint_counter = append_text_with_file_hints(
@@ -167,6 +173,7 @@ class AgentHintsDisplayMixin:
 
         prompt_content = get_prompt_content(agent)
         if prompt_content:
+            prompt_content = humanize_vcs_refs_in_text(prompt_content)
             hint_counter = append_text_with_file_hints(
                 header_text,
                 prompt_content + "\n",
@@ -238,6 +245,7 @@ class AgentHintsDisplayMixin:
                         header_text.append_text(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
+                            content = humanize_vcs_refs_in_text(content)
                             hint_counter = append_text_with_file_hints(
                                 header_text,
                                 content + "\n",
@@ -247,6 +255,7 @@ class AgentHintsDisplayMixin:
                             )
                             header_text.append("\n")
                 elif response_content:
+                    response_content = humanize_vcs_refs_in_text(response_content)
                     hint_counter = append_text_with_file_hints(
                         header_text,
                         response_content + "\n",
@@ -271,6 +280,7 @@ class AgentHintsDisplayMixin:
                         header_text.append_text(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
+                            content = humanize_vcs_refs_in_text(content)
                             hint_counter = append_text_with_file_hints(
                                 header_text,
                                 content + "\n",
@@ -280,6 +290,7 @@ class AgentHintsDisplayMixin:
                             )
                             header_text.append("\n")
                 elif live_reply:
+                    live_reply = humanize_vcs_refs_in_text(live_reply)
                     hint_counter = append_text_with_file_hints(
                         header_text,
                         live_reply + "\n",

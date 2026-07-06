@@ -115,6 +115,18 @@ def test_prompt_history_label_renders_project_tags_and_clean_preview(
     assert any("yellow" in str(span.style) for span in label.spans)
 
 
+def test_prompt_history_label_summarizes_humanized_display_text(
+    workflow_names: None,
+) -> None:
+    item = _item(text="#gh:gh_acme__widgets Fix the parser")
+    item.display_text = "#gh:widgets Fix the parser"
+
+    label = _create_prompt_history_label(item)
+
+    assert "gh:widgets" in label.plain
+    assert "gh_acme__widgets" not in label.plain
+
+
 def test_prompt_history_label_uses_fixed_grid_for_prompt_column(
     workflow_names: None,
 ) -> None:
@@ -199,6 +211,36 @@ def test_prompt_history_filter_matches_prompt_text_only() -> None:
     assert modal._get_filtered_items("tests") == [matching_item]
 
 
+def test_prompt_history_filter_matches_display_and_canonical_text() -> None:
+    item = _item(text="#gh:gh_acme__widgets Fix parser")
+    item.display_text = "#gh:widgets Fix parser"
+    modal = object.__new__(PromptHistoryModal)
+    modal._all_items = [item]
+    modal._show_cancelled = False
+
+    assert modal._get_filtered_items("widgets") == [item]
+    assert modal._get_filtered_items("gh_acme__widgets") == [item]
+
+
+def test_prompt_history_selected_prompt_uses_display_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeOptionList:
+        highlighted = 0
+
+    item = _item(text="#gh:gh_acme__widgets Fix parser")
+    item.display_text = "#gh:widgets Fix parser"
+    modal = object.__new__(PromptHistoryModal)
+    modal._filtered_items = [item]
+    monkeypatch.setattr(
+        modal,
+        "query_one",
+        lambda _selector, _widget_type: FakeOptionList(),
+    )
+
+    assert modal._get_selected_prompt_text() == "#gh:widgets Fix parser"
+
+
 def test_prompt_history_initial_filter_prefilters_items(monkeypatch) -> None:
     entries = [
         _item(text="fix auth login").entry,
@@ -217,6 +259,29 @@ def test_prompt_history_initial_filter_prefilters_items(monkeypatch) -> None:
 
     assert modal._initial_filter == "auth"
     assert [item.entry.text for item in modal._filtered_items] == ["fix auth login"]
+
+
+def test_prompt_history_append_page_keeps_canonical_entry_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = "#gh:gh_acme__widgets Fix parser"
+    monkeypatch.setattr(
+        prompt_history_modal,
+        "humanize_vcs_refs_in_text",
+        lambda text: text.replace("gh_acme__widgets", "widgets"),
+    )
+    modal = PromptHistoryModal()
+
+    modal._append_page(
+        PromptHistoryPage(
+            records=[record_from_entry(_item(text=raw).entry)],
+            next_cursor=None,
+            exhausted=True,
+        )
+    )
+
+    assert modal._all_items[0].entry.text == raw
+    assert modal._all_items[0].display_text == "#gh:widgets Fix parser"
 
 
 def test_prompt_history_count_label_updates(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -419,3 +484,34 @@ def test_prompt_history_preview_metadata_includes_prompt_metadata(
     assert "Directives: %model:opus" in metadata.value.plain
     assert "Created:    260501_140000" in metadata.value.plain
     assert "Last Used:  260501_142530" in metadata.value.plain
+
+
+def test_prompt_history_preview_uses_display_text(
+    workflow_names: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStatic:
+        def __init__(self) -> None:
+            self.value = ""
+
+        def update(self, value: object) -> None:
+            self.value = value
+
+    preview = FakeStatic()
+    metadata = FakeStatic()
+    modal = object.__new__(PromptHistoryModal)
+    item = _item(text="#gh:gh_acme__widgets Fix parser")
+    item.display_text = "#gh:widgets Fix parser"
+
+    def fake_query_one(selector: str, _widget_type: object) -> FakeStatic:
+        if selector == "#prompt-history-preview":
+            return preview
+        return metadata
+
+    monkeypatch.setattr(modal, "query_one", fake_query_one)
+
+    modal._update_preview(item)
+
+    assert preview.value == "#gh:widgets Fix parser"
+    assert "Project:    #gh:widgets" in metadata.value.plain
+    assert "gh_acme__widgets" not in metadata.value.plain

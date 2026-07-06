@@ -13,10 +13,12 @@ from typing import Any
 
 import pytest
 
+from sase import project_display_names as pdn
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
     PreparedApplySelectionInputs,
     PreparedApplySnapshot,
+    compute_apply_loaded_agents,
     merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
 )
@@ -25,6 +27,33 @@ from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
 from sase.ace.tui.models.agent_loader import AgentLoadState
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
+
+
+def test_compute_apply_attaches_project_display_names_to_dismissed_loader_objects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dismissed = _make_agent(
+        cl_name="gh_acme__widgets",
+        project_file="/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase",
+        raw_suffix="20260706120000",
+        status="DONE",
+    )
+    monkeypatch.setattr(
+        pdn,
+        "_project_display_name_map_cached",
+        lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+    )
+
+    prep = compute_apply_loaded_agents(
+        all_agents=[],
+        dismissed_from_loader=[dismissed],
+        dismissed_snapshot={dismissed.identity},
+        hide_non_run_agents=False,
+    )
+
+    assert prep.dismissed_agent_objects == [dismissed]
+    assert dismissed.project_display_name == "widgets"
+    assert dismissed.display_name == "widgets"
 
 
 def test_prepared_apply_boundary_matches_apply_projection_for_folded_data() -> None:

@@ -30,3 +30,4 @@ class PromptDisplayItem:
     entry: PromptEntry
     marker: str  # " " or "x"
     summary: PromptListSummary | None = None
+    display_text: str | None = None

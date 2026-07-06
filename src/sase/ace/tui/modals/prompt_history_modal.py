@@ -11,6 +11,7 @@ from sase.history.prompt_metadata import (
     summarize_prompt_for_list,
     summarize_prompt_for_preview,
 )
+from sase.project_display_names import humanize_vcs_refs_in_text
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -45,6 +46,11 @@ from .base import FilterInput, OptionListNavigationMixin
 
 _PROMPT_HISTORY_PAGE_SIZE = 250
 _PromptDisplayItem = PromptDisplayItem
+
+
+def _display_text_for_item(item: _PromptDisplayItem) -> str:
+    """Return the humanized prompt text for display and user-facing actions."""
+    return item.display_text if item.display_text is not None else item.entry.text
 
 
 def _create_prompt_history_label(
@@ -113,6 +119,7 @@ class PromptHistoryModal(
                 _PromptDisplayItem(
                     entry=entry,
                     marker="x" if entry.cancelled else " ",
+                    display_text=humanize_vcs_refs_in_text(entry.text),
                 )
             )
         self._next_cursor = page.next_cursor
@@ -261,7 +268,10 @@ class PromptHistoryModal(
             item
             for item in self._all_items
             if (self._show_cancelled or not item.entry.cancelled)
-            and filter_lower in item.entry.text.lower()
+            and (
+                filter_lower in _display_text_for_item(item).lower()
+                or filter_lower in item.entry.text.lower()
+            )
         ]
 
     def _get_selected_prompt_text(self) -> str | None:
@@ -271,8 +281,8 @@ class PromptHistoryModal(
         option_list = self.query_one("#prompt-history-list", OptionList)
         highlighted = option_list.highlighted
         if highlighted is not None and 0 <= highlighted < len(self._filtered_items):
-            return self._filtered_items[highlighted].entry.text
-        return self._filtered_items[0].entry.text
+            return _display_text_for_item(self._filtered_items[highlighted])
+        return _display_text_for_item(self._filtered_items[0])
 
     def on_key(self, event: events.Key) -> None:
         """Intercept keys that focused widgets consume before bindings.
@@ -384,7 +394,7 @@ class PromptHistoryModal(
                 self.dismiss(
                     PromptHistoryResult(
                         action=PromptHistoryAction.SUBMIT,
-                        prompt_text=self._filtered_items[idx].entry.text,
+                        prompt_text=_display_text_for_item(self._filtered_items[idx]),
                     )
                 )
 
@@ -440,7 +450,7 @@ class PromptHistoryModal(
             preview = self.query_one("#prompt-history-preview", Static)
             metadata = self.query_one("#prompt-history-metadata", Static)
 
-            preview.update(item.entry.text)
+            preview.update(_display_text_for_item(item))
             metadata.update(
                 build_prompt_history_metadata(
                     item,

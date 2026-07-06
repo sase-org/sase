@@ -13,6 +13,7 @@ from sase.agent.status_buckets import (
     WORKING_PLAN_STATUS,
     WORKING_TALE_STATUS,
 )
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ...models.agent import Agent
 from ...tools import SlowToolSource
@@ -191,6 +192,7 @@ def build_workflow_detail_renderable(
     # AGENT PROMPT section - show the prompt that was attempted
     prompt_content = snapshot.prompt_content
     if prompt_content:
+        prompt_content = humanize_vcs_refs_in_text(prompt_content)
         prompt_header = Text()
         prompt_header.append("\n")
         prompt_header.append("─" * 50 + "\n", style="dim")

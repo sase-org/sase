@@ -335,6 +335,8 @@ def load_dismissed_bundles(ctx: Any, suffixes: set[str] | None = None) -> list[A
 
 def _load_bundle_paths(ctx: Any, bundle_paths: list[Path]) -> list[Agent]:
     """Load dismissed agents from already-resolved bundle paths."""
+    from sase.project_display_names import attach_project_display_names
+
     from .tui.models._loaders._json_cache import (
         get_loader_executor,
         is_loader_executor_shutdown_error,
@@ -347,11 +349,14 @@ def _load_bundle_paths(ctx: Any, bundle_paths: list[Path]) -> list[Agent]:
             if agent is not None:
                 agents.append(agent)
     except CancelledError:
+        attach_project_display_names(agents)
         return agents
     except RuntimeError as exc:
         if is_loader_executor_shutdown_error(exc):
+            attach_project_display_names(agents)
             return agents
         raise
+    attach_project_display_names(agents)
     return agents
 
 

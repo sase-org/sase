@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase import project_display_names as pdn
 from sase.ace.dismissed_agents import (
     has_dismissed_bundle,
     load_dismissed_bundle_summaries,
@@ -35,6 +36,41 @@ def test_bundle_save_load_round_trip(tmp_path: Path) -> None:
         assert loaded[0].cl_name == "test_cl"
         assert loaded[0].tag == "backend"
         assert loaded[0].start_time == datetime(2025, 6, 15, 10, 30, 0)
+
+
+def test_bundle_load_attaches_project_display_name_without_serializing_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dismissed bundles stay canonical while rehydrated agents render nicely."""
+    bundles_dir = tmp_path / "bundles"
+    monkeypatch.setattr(
+        pdn,
+        "_project_display_name_map_cached",
+        lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+    )
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
+        patch("sase.ace.dismissed_agents._OLD_BUNDLES_FILE", tmp_path / "old.json"),
+    ):
+        agent = make_agent(
+            cl_name="gh_acme__widgets",
+            raw_suffix="20250615103000",
+        )
+        agent.project_file = "/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase"
+        agent.project_display_name = "widgets"
+        assert save_dismissed_bundle(agent)
+
+        bundle_path = bundles_dir / "202506" / "20250615103000.json"
+        bundle = json.loads(bundle_path.read_text())
+        assert "project_display_name" not in bundle
+
+        loaded = load_dismissed_bundles({"20250615103000"})
+
+    assert len(loaded) == 1
+    assert loaded[0].cl_name == "gh_acme__widgets"
+    assert loaded[0].project_display_name == "widgets"
+    assert loaded[0].display_name == "widgets"
 
 
 def test_bundle_save_load_round_trip_with_linked_repos(tmp_path: Path) -> None:

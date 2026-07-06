@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 
-from sase.project_aliases import humanize_project_refs_in_prompt
+from sase.project_display_names import (
+    humanize_vcs_refs_in_text,
+    project_display_name_map_signature,
+)
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
@@ -33,6 +35,9 @@ from ._agent_display_header_summary import (
     publish_opened_workspaces_cache,
 )
 from ._helpers import format_output
+
+_HUMANIZED_TEXT_CACHE_LIMIT = 24
+_HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...]]
 
 
 class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
@@ -58,18 +63,39 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             cache = getattr(self, "_agent_markdown_render_cache", None)
             if cache is not None:
                 cache.clear()
+            humanize_cache = getattr(self, "_agent_humanized_text_cache", None)
+            if humanize_cache is not None:
+                humanize_cache.clear()
             self._agent_markdown_render_cache_identity = identity
 
     def _display_raw_xprompt(self, agent: Agent, raw_xprompt: str) -> str:
-        if not agent.project_file or not agent.project_display_name:
-            return raw_xprompt
-        project_key = Path(agent.project_file).parent.name
-        return humanize_project_refs_in_prompt(
-            raw_xprompt,
-            {project_key: agent.project_display_name},
-        )
+        del agent
+        return self._humanize_display_text(raw_xprompt)
+
+    def _humanized_text_cache(self) -> dict[_HumanizedTextCacheKey, str]:
+        cache = getattr(self, "_agent_humanized_text_cache", None)
+        if cache is None:
+            cache = {}
+            self._agent_humanized_text_cache = cache
+        return cache
+
+    def _humanize_display_text(self, content: str) -> str:
+        if "#" not in content:
+            return content
+        signature = project_display_name_map_signature()
+        key = (len(content), hash(content), signature)
+        cache = self._humanized_text_cache()
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        humanized = humanize_vcs_refs_in_text(content)
+        cache[key] = humanized
+        if len(cache) > _HUMANIZED_TEXT_CACHE_LIMIT:
+            cache.pop(next(iter(cache)))
+        return humanized
 
     def _render_markdown(self, content: str) -> object:
+        content = self._humanize_display_text(content)
         return lazy_renderable(
             content,
             "markdown",

@@ -124,7 +124,8 @@ def _get_prompt_list_summary(
         summarizer: _ListSummaryFactory = summarize_prompt_for_list
         if summarize_for_list is not None:
             summarizer = summarize_for_list
-        item.summary = summarizer(item.entry.text)
+        text = item.display_text if item.display_text is not None else item.entry.text
+        item.summary = summarizer(text)
     return item.summary
 
 

@@ -25,7 +25,8 @@ def build_prompt_history_metadata(
     if summarize_for_preview is not None:
         summarizer = summarize_for_preview
 
-    summary = summarizer(item.entry.text)
+    text = item.display_text if item.display_text is not None else item.entry.text
+    summary = summarizer(text)
     meta_text = Text()
     meta_text.append("\n--- Metadata ---\n", style="dim")
     if item.entry.cancelled:

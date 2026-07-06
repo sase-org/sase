@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+import sase.ace.tui.modals.saved_agent_group_revival_rendering as revival_rendering
 from sase.ace.tui.models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from sase.ace.tui.modals.saved_agent_group_revival_rendering import (
     _saved_group_time_label,
@@ -92,6 +93,59 @@ def test_preview_rendering_shows_only_roots_with_prompt_preview() -> None:
     assert "prompt: Restore only the root worker." in text
     assert "child-worker" not in text
     assert "This child should be implicit." not in text
+
+
+def test_preview_rendering_humanizes_saved_project_name_and_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = SavedAgentGroupSummaryWire(
+        group_id="group-project-preview",
+        created_at="2026-05-27T12:00:00Z",
+        source="marked_agents",
+        title="1 agent from backend",
+        agent_count=1,
+        top_level_agent_count=1,
+        status_counts={"DONE": 1},
+        project_names=("widgets",),
+        cl_names=(),
+    )
+    group = SavedAgentGroupWire(
+        group_id="group-project-preview",
+        created_at="2026-05-27T12:00:00Z",
+        source="marked_agents",
+        title="1 agent from backend",
+        agent_count=1,
+        top_level_agent_count=1,
+        status_counts={"DONE": 1},
+        project_names=("widgets",),
+        cl_names=(),
+        agent_refs=(
+            SavedAgentGroupRefWire(
+                agent_type="run",
+                cl_name="gh_acme__widgets",
+                raw_suffix="20260527120000",
+                display_name="gh_acme__widgets",
+                status="DONE",
+                prompt_preview="#gh:gh_acme__widgets Restore project.",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        revival_rendering,
+        "project_display_name_for",
+        lambda value: "widgets" if value == "gh_acme__widgets" else value,
+    )
+    monkeypatch.setattr(
+        revival_rendering,
+        "humanize_vcs_refs_in_text",
+        lambda text: text.replace("gh_acme__widgets", "widgets"),
+    )
+
+    text = build_saved_group_preview(summary, group).plain
+
+    assert "widgets" in text
+    assert "#gh:widgets Restore project." in text
+    assert "gh_acme__widgets" not in text
 
 
 def test_named_preview_uses_name_with_generated_summary_context() -> None:

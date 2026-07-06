@@ -6,6 +6,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from sase import project_display_names as pdn
+
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
     make_artifact_agent,
@@ -44,6 +46,11 @@ class TestAgentXPromptRendering:
         monkeypatch,
     ) -> None:
         monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+        monkeypatch.setattr(
+            pdn,
+            "_project_display_name_map_cached",
+            lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+        )
         panel = FakePromptPanel()
         agent = make_artifact_agent(
             tmp_path,
@@ -64,6 +71,69 @@ class TestAgentXPromptRendering:
         assert "#gh(widgets) inspect" in plain
         assert "path: /tmp/gh_acme__widgets/file" in plain
         assert "#gh:gh_acme__widgets fix" not in plain
+
+    def test_agent_prompt_and_chat_use_logical_project_name(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+        monkeypatch.setattr(
+            pdn,
+            "_project_display_name_map_cached",
+            lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+        )
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        Path(agent.artifacts_dir, "01_prompt.md").write_text(
+            "Prompt says #gh:gh_acme__widgets inspect.\n",
+            encoding="utf-8",
+        )
+        Path(agent.response_path).write_text(
+            "Response echoes #gh:gh_acme__widgets now.\n",
+            encoding="utf-8",
+        )
+
+        panel.update_display(agent)
+
+        plain = plain_of(panel.captured[-1])
+        assert "Prompt says #gh:widgets inspect." in plain
+        assert "Response echoes #gh:widgets now." in plain
+        assert "#gh:gh_acme__widgets" not in plain
+
+    def test_hint_mode_prompt_and_chat_use_logical_project_name(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+        monkeypatch.setattr(
+            pdn,
+            "_project_display_name_map_cached",
+            lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+        )
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            raw_xprompt="#gh:gh_acme__widgets raw",
+        )
+        Path(agent.artifacts_dir, "01_prompt.md").write_text(
+            "#gh:gh_acme__widgets prompt\n",
+            encoding="utf-8",
+        )
+        Path(agent.response_path).write_text(
+            "#gh:gh_acme__widgets response\n",
+            encoding="utf-8",
+        )
+
+        panel.update_display_with_hints(agent)
+
+        plain = plain_of(panel.captured[-1])
+        assert "#gh:widgets raw" in plain
+        assert "#gh:widgets prompt" in plain
+        assert "#gh:widgets response" in plain
+        assert "#gh:gh_acme__widgets" not in plain
 
     def test_hint_mode_renders_raw_xprompt_for_terminal_agent(
         self,

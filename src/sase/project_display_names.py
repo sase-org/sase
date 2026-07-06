@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
@@ -57,6 +59,37 @@ def _project_display_name_map_cached(
     return dict(display_names)
 
 
+def project_display_name_map_signature(
+    projects_root: Path | str | None = None,
+) -> tuple[tuple[str, str], ...]:
+    """Return a stable signature for the current display-name map."""
+    return tuple(sorted(_project_display_name_map_cached(projects_root).items()))
+
+
+def attach_project_display_names(
+    agents: Iterable[Any],
+    projects_root: Path | str | None = None,
+) -> None:
+    """Populate display-only project names on duck-typed agent objects."""
+    candidates: list[tuple[Any, str]] = []
+    for agent in agents:
+        if not hasattr(agent, "project_display_name"):
+            continue
+        project_file = getattr(agent, "project_file", None)
+        if not project_file:
+            continue
+        key = Path(str(project_file)).parent.name
+        candidates.append((agent, key))
+
+    if not candidates:
+        return
+
+    display_names = _project_display_name_map_cached(projects_root)
+    for agent, key in candidates:
+        display = display_names.get(key)
+        agent.project_display_name = display if display and display != key else None
+
+
 def project_display_name_for(
     key: str,
     projects_root: Path | str | None = None,
@@ -85,6 +118,8 @@ def humanize_vcs_refs_in_text(
 
 
 __all__ = [
+    "attach_project_display_names",
     "humanize_vcs_refs_in_text",
+    "project_display_name_map_signature",
     "project_display_name_for",
 ]

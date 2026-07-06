@@ -12,6 +12,7 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.history.prompt import PromptHistoryRecord, list_prompt_records
+from sase.project_display_names import humanize_vcs_refs_in_text
 from sase.prompt.render import format_timestamp, prompt_preview, record_to_json
 
 
@@ -49,7 +50,7 @@ def _hints_text(record: PromptHistoryRecord) -> Text:
     try:
         from sase.history.prompt_metadata import summarize_prompt_for_list
 
-        summary = summarize_prompt_for_list(record.text)
+        summary = summarize_prompt_for_list(humanize_vcs_refs_in_text(record.text))
     except Exception:
         return text
 
@@ -106,7 +107,10 @@ def _print_pretty(records: list[PromptHistoryRecord]) -> None:
             status,
             str(record.text_chars),
             _hints_text(record),
-            Text(prompt_preview(record.text), style=preview_style),
+            Text(
+                prompt_preview(humanize_vcs_refs_in_text(record.text)),
+                style=preview_style,
+            ),
         )
 
     console.print(Panel(table, title=title, border_style="cyan"))

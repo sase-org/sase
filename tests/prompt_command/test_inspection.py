@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import sase.prompt.cli_list as cli_list
 from sase.prompt.cli_list import handle_prompt_list
 from sase.prompt.cli_show import handle_prompt_show
 from sase.prompt.cli_stats import handle_prompt_stats
@@ -57,6 +58,28 @@ def test_list_never_prints_full_long_prompt(
 
     out = capsys.readouterr().out
     assert "x" * 5000 not in out
+
+
+def test_list_pretty_humanizes_project_refs(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = "#gh:gh_acme__widgets Fix parser"
+    _seed(_entry(text, "260603_000000"))
+    monkeypatch.setattr(
+        cli_list,
+        "humanize_vcs_refs_in_text",
+        lambda value: value.replace("gh_acme__widgets", "widgets"),
+    )
+
+    handle_prompt_list(
+        argparse.Namespace(all=False, cancelled=False, query=None, limit=20, json=False)
+    )
+
+    out = capsys.readouterr().out
+    assert "gh:widgets" in out
+    assert "gh_acme__widgets" not in out
 
 
 def test_show_raw_is_byte_exact(

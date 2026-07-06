@@ -13,6 +13,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.project_display_names import humanize_vcs_refs_in_text
 from sase.ace.dismissed_agents import (
     load_dismissed_agents,
     load_dismissed_bundle_summaries,
@@ -442,6 +443,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             lines = xprompt_content.split("\n")
             if len(lines) > 50:
                 xprompt_content = "\n".join(lines[:50]) + "\n... (truncated)"
+            xprompt_content = humanize_vcs_refs_in_text(xprompt_content)
             text.append(f"{xprompt_content}\n")
 
         # AGENT CHAT section
@@ -456,6 +458,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             preview = "\n".join(lines[:200])
             if len(lines) > 200:
                 preview += "\n... (truncated, press Enter to view full chat)"
+            preview = humanize_vcs_refs_in_text(preview)
 
             text.append(f"{preview}\n")
 

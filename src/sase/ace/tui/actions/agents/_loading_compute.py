@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from sase.project_display_names import attach_project_display_names
+
 from ._loading_compute_finalize import (
     attach_finalize_plan_to_boundary,
     make_finalize_stale_token,
@@ -82,34 +84,6 @@ class PreparedFoldFiltering:
     unfiltered_agents: list[Agent]
     visible_agents: list[Agent]
     fold_counts: dict[str, tuple[int, int]]
-
-
-def _attach_project_display_names(agents: list[Agent]) -> None:
-    """Populate display-only project names for agent rows in one batched read."""
-    project_keys = {
-        Path(agent.project_file).parent.name for agent in agents if agent.project_file
-    }
-    if not project_keys:
-        return
-    try:
-        from sase.core.paths import sase_projects_dir
-        from sase.core.project_lifecycle_facade import list_project_records
-        from sase.core.project_lifecycle_wire import project_display_name_map
-
-        display_names = project_display_name_map(
-            list_project_records(sase_projects_dir(), "all", include_home=True)
-        )
-    except Exception:
-        return
-
-    for agent in agents:
-        if not agent.project_file:
-            continue
-        key = Path(agent.project_file).parent.name
-        if key not in project_keys:
-            continue
-        display = display_names.get(key)
-        agent.project_display_name = display if display and display != key else None
 
 
 def compute_loader_cleanup(
@@ -299,7 +273,7 @@ def compute_apply_loaded_agents(
         result_agents = filtered
         hidden_count = 0
 
-    _attach_project_display_names(result_agents)
+    attach_project_display_names([*result_agents, *dismissed_from_loader])
 
     return PreparedApplyData(
         filtered_agents=result_agents,

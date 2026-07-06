@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -81,3 +82,38 @@ def test_project_display_name_cache_invalidates_on_projects_dir_mtime(
 
     assert pdn.project_display_name_for("gh_acme__widgets", root) == "gadgets"
     assert calls == 2
+
+
+def test_attach_project_display_names_duck_types_and_clears_fallbacks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [
+        _record("gh_acme__widgets", "widgets"),
+        _record("gh_acme__plain", "gh_acme__plain"),
+    ]
+    widgets = SimpleNamespace(
+        project_file="/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase",
+        project_display_name=None,
+    )
+    equal = SimpleNamespace(
+        project_file="/tmp/projects/gh_acme__plain/gh_acme__plain.sase",
+        project_display_name="stale",
+    )
+    missing = SimpleNamespace(
+        project_file="/tmp/projects/missing/missing.sase",
+        project_display_name="stale",
+    )
+    ignored = SimpleNamespace(project_file="/tmp/projects/ignored/ignored.sase")
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    pdn.attach_project_display_names([widgets, equal, missing, ignored], root)
+
+    assert widgets.project_display_name == "widgets"
+    assert equal.project_display_name is None
+    assert missing.project_display_name is None
+    assert not hasattr(ignored, "project_display_name")

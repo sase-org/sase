@@ -117,6 +117,33 @@ class TestProjectDisplayNameRendering:
         assert "Project: widgets" in plain
         assert "Project: gh_acme__widgets" not in plain
 
+    def test_workflow_prompt_uses_logical_project_name(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "sase.ace.tui.widgets.prompt_panel._workflow_render.humanize_vcs_refs_in_text",
+            lambda text: text.replace("gh_acme__widgets", "widgets"),
+        )
+        agent = _project_agent()
+        agent.agent_type = AgentType.WORKFLOW
+        agent.workflow = "status"
+        snapshot = WorkflowDetailSnapshot(
+            artifacts_path=None,
+            workflow_state=None,
+            inputs=None,
+            meta_raw={},
+            meta_fields=[],
+            steps=[],
+            error=None,
+            traceback=None,
+            prompt_content="#gh:gh_acme__widgets inspect",
+            embedded_markers={},
+            embedded_meta={},
+        )
+
+        plain = plain_of(build_workflow_detail_renderable(agent, snapshot))
+
+        assert "#gh:widgets inspect" in plain
+        assert "#gh:gh_acme__widgets" not in plain
+
     def test_dotless_logical_project_name_keeps_empty_grouping_name_root(
         self,
     ) -> None:

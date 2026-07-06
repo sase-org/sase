@@ -8,6 +8,9 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Input, OptionList
 
+import sase.ace.tui.modals.revive_agent_modal as revive_agent_modal
+import sase.ace.tui.modals.revive_agent_rendering as revive_agent_rendering
+from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -15,6 +18,8 @@ from sase.ace.tui.models.agent_status import (
 )
 from sase.ace.tui.modals.revive_agent_modal import DismissedAgentSelectModal
 from sase.ace.tui.modals.revive_agent_rendering import (
+    build_metadata_preview,
+    build_response_preview,
     format_agent_label,
     get_status_style,
 )
@@ -67,6 +72,51 @@ def test_filter_matches_agent_label_and_response_content(tmp_path: Path) -> None
     assert modal._get_filtered_agents("named") == [(0, agent)]
     assert modal._get_filtered_agents("needle") == [(0, agent)]
     assert modal._get_filtered_agents("missing") == []
+
+
+def test_project_agent_label_metadata_response_and_filter_are_humanized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response_path = tmp_path / "response.md"
+    response_path.write_text(
+        "Recorded prompt: #gh:gh_acme__widgets fix it.",
+        encoding="utf-8",
+    )
+    agent = make_agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="gh_acme__widgets",
+        workflow=None,
+        project_file="/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase",
+        project_display_name="widgets",
+        response_path=str(response_path),
+    )
+    monkeypatch.setattr(
+        revive_agent_rendering,
+        "humanize_vcs_refs_in_text",
+        lambda text: text.replace("gh_acme__widgets", "widgets"),
+    )
+    monkeypatch.setattr(
+        revive_agent_modal,
+        "humanize_vcs_refs_in_text",
+        lambda text: text.replace("gh_acme__widgets", "widgets"),
+    )
+
+    label = format_agent_label(agent)
+    metadata = build_metadata_preview(agent, [])
+    response = build_response_preview(agent)
+    modal = DismissedAgentSelectModal([agent])
+    modal._chat_contents[0] = revive_agent_modal._response_filter_corpus(
+        response_path.read_text(encoding="utf-8")
+    )
+
+    assert "widgets" in label.plain
+    assert "gh_acme__widgets" not in label.plain
+    assert "[agent] widgets" in metadata.plain
+    assert "#gh:widgets fix it." in response.plain
+    assert "#gh:gh_acme__widgets" not in response.plain
+    assert modal._get_filtered_agents("widgets") == [(0, agent)]
+    assert modal._get_filtered_agents("gh_acme__widgets") == [(0, agent)]
 
 
 def test_marked_agents_return_original_order() -> None:

@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import patch
 
-from sase.ace.tui.modals.agent_run_log_modal import _load_agents_for_cl
+import pytest
+
+import sase.ace.tui.modals.agent_run_log_modal as agent_run_log_modal
+from sase.ace.tui.modals.agent_run_log_modal import (
+    AgentRunLogModal,
+    _load_agents_for_cl,
+)
 from sase.ace.tui.models.agent import AgentType
 from tests.ace.agent_artifact_startup_fixtures import make_agent
 
@@ -81,3 +88,44 @@ def test_run_log_loads_active_dismissed_and_meta_created_agents() -> None:
     mock_load_dismissed_bundles.assert_called_once_with(
         suffixes={dismissed_direct.raw_suffix, dismissed_child.raw_suffix}
     )
+
+
+def test_run_log_detail_humanizes_xprompt_and_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStatic:
+        def __init__(self) -> None:
+            self.value: Any = None
+
+        def update(self, value: object) -> None:
+            self.value = value
+
+    agent = make_agent(cl_name="target_cl", raw_suffix="20250101120000")
+    monkeypatch.setattr(
+        agent,
+        "get_raw_xprompt_content",
+        lambda: "#gh:gh_acme__widgets inspect",
+    )
+    monkeypatch.setattr(
+        agent,
+        "get_response_content",
+        lambda: "## Prompt\n#gh:gh_acme__widgets fix\n",
+    )
+    monkeypatch.setattr(
+        agent_run_log_modal,
+        "humanize_vcs_refs_in_text",
+        lambda text: text.replace("gh_acme__widgets", "widgets"),
+    )
+    detail = FakeStatic()
+    modal = object.__new__(AgentRunLogModal)
+    modal._dismissed_identities = set()
+    modal._dismissed_suffixes = set()
+    monkeypatch.setattr(modal, "query_one", lambda *_args: detail)
+
+    modal._update_detail(agent)
+
+    assert detail.value is not None
+    plain = detail.value.plain
+    assert "#gh:widgets inspect" in plain
+    assert "#gh:widgets fix" in plain
+    assert "gh_acme__widgets" not in plain
