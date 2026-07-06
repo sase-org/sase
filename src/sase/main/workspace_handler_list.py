@@ -217,7 +217,7 @@ def handle_open_clean(
     ):
         return 1
 
-    if ctx.is_sibling:
+    if ctx.is_sibling or _is_configured_linked_repo(ctx.project_name):
         from sase.linked_repos import record_opened_linked_repo
 
         record_opened_linked_repo(
@@ -229,3 +229,16 @@ def handle_open_clean(
 
     print(path)
     return 0
+
+
+def _is_configured_linked_repo(project_name: str) -> bool:
+    from sase.linked_repos import linked_repo_metadata_from_env
+
+    normalized = project_name.strip()
+    if not normalized:
+        return False
+    for item in linked_repo_metadata_from_env(os.environ):
+        name = item.get("name")
+        if isinstance(name, str) and name.strip() == normalized:
+            return True
+    return False

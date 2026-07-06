@@ -13,7 +13,7 @@ import pytest
 
 from sase.main.workspace_handler import handle_workspace_command
 from sase.main.workspace_handler_context import ProjectContext
-from sase.linked_repos import opened_linked_repo_records
+from sase.linked_repos import LINKED_REPOS_JSON_ENV, opened_linked_repo_records
 from sase.sibling_repos import OPENED_SIBLINGS_FILENAME, opened_sibling_names
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 from sase.workspace_provider.registry import record_workspace
@@ -275,6 +275,53 @@ class TestOpen:
         assert opened_at.tzinfo is not None
         assert opened_at.astimezone(UTC).tzinfo == UTC
 
+    def test_open_records_configured_linked_repo_without_sibling_state(
+        self,
+        project_layout: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _, project_file, primary = project_layout
+        artifacts_dir = tmp_path / "artifacts"
+        checkout = str(tmp_path / "managed" / "core_10")
+        monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+        monkeypatch.setenv(
+            LINKED_REPOS_JSON_ENV,
+            json.dumps(
+                [
+                    {
+                        "name": "core",
+                        "workspace_dir": checkout,
+                        "workspace_strategy": "suffix",
+                    }
+                ]
+            ),
+        )
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=project_file,
+            primary_workspace_dir=str(primary),
+            store=WorkspaceStore(str(primary)),
+            is_sibling=False,
+        )
+        args = make_args(
+            workspace_subcommand="open",
+            project="core",
+            reason="prepare linked workspace",
+            workspace_num=10,
+            print_path=False,
+            clean=True,
+        )
+
+        code = self._open_with_context(args=args, ctx=ctx, checkout=checkout)
+
+        assert code == 0
+        assert capsys.readouterr().out.strip() == checkout
+        record = opened_linked_repo_records(artifacts_dir)["core"]
+        assert record["workspace_dir"] == checkout
+        assert record["reason"] == "prepare linked workspace"
+
     def test_open_does_not_record_primary_when_artifacts_dir_is_set(
         self,
         project_layout: tuple[str, str, Path],
@@ -285,6 +332,18 @@ class TestOpen:
         project_name, project_file, primary = project_layout
         artifacts_dir = tmp_path / "artifacts"
         monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+        monkeypatch.setenv(
+            LINKED_REPOS_JSON_ENV,
+            json.dumps(
+                [
+                    {
+                        "name": "core",
+                        "workspace_dir": str(tmp_path / "managed" / "core_10"),
+                        "workspace_strategy": "suffix",
+                    }
+                ]
+            ),
+        )
         checkout = str(tmp_path / "managed" / "primary_10")
         ctx = ProjectContext(
             project_name=project_name,

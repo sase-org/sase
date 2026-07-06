@@ -73,6 +73,58 @@ def test_dirty_configured_linked_env_triggers_follow_up_turn(
     assert "/sase_git_commit" in prompts[0]
 
 
+def test_dirty_configured_linked_env_without_open_marker_triggers_follow_up_turn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Suffix-strategy linked workspaces block even if no opened marker exists."""
+    main = tmp_path / "sase_10"
+    linked = tmp_path / "sase-core_10"
+    main.mkdir()
+    init_git_repo(linked)
+    dirty_file = linked / "dirty.txt"
+    dirty_file.write_text("dirty\n", encoding="utf-8")
+    set_agent_env(monkeypatch, main)
+    set_clean_main(monkeypatch)
+    monkeypatch.setenv(
+        LINKED_REPOS_JSON_ENV,
+        json.dumps(
+            [
+                {
+                    "name": "core",
+                    "primary_dir": str(tmp_path / "sase-core"),
+                    "workspace_dir": str(linked),
+                    "workspace_num": 10,
+                    "workspace_strategy": "suffix",
+                }
+            ]
+        ),
+    )
+    artifacts_dir = tmp_path / "artifacts"
+    assert not (artifacts_dir / "opened_linked_workspaces.json").exists()
+
+    prompts: list[str] = []
+    provider = MagicMock()
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        dirty_file.unlink()
+        return InvokeResult(content="finalized linked")
+
+    provider.invoke.side_effect = invoke
+
+    result = run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    assert result.content == "primary response\n\nfinalized linked"
+    assert "linked repo core" in prompts[0]
+    assert "dirty.txt" in prompts[0]
+    assert f"cd {linked.resolve()}" in prompts[0]
+    result_json = read_result_json(artifacts_dir)
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "clean_after_pass"
+
+
 def test_legacy_sibling_env_and_legacy_only_marker_drive_finalizer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

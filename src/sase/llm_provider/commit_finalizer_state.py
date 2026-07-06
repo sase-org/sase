@@ -106,26 +106,13 @@ def _dirty_configured_sibling_repos(
     seen_names: set[str] = set()
     seen_paths: set[str] = set()
 
-    for raw_name, recorded_workspace_dir in opened_workspace_dirs.items():
-        name = raw_name.strip()
-        if not name or name in seen_names:
+    for name, workspace_dir in _blocking_sibling_candidates(
+        sibling_targets,
+        opened_workspace_dirs=opened_workspace_dirs,
+        targets_by_name=targets_by_name,
+    ):
+        if name in seen_names or workspace_dir in seen_paths:
             continue
-
-        target = targets_by_name.get(name)
-        if target is not None and target.workspace_strategy == "none":
-            continue
-
-        workspace_dir = recorded_workspace_dir.strip()
-        if workspace_dir:
-            workspace_dir = finalizer_git._normalize_path(workspace_dir)
-        elif target is not None:
-            workspace_dir = target.workspace_dir
-        else:
-            continue
-
-        if workspace_dir in seen_paths:
-            continue
-
         changed_files = git_changed_files(workspace_dir)
         if not changed_files:
             continue
@@ -141,6 +128,41 @@ def _dirty_configured_sibling_repos(
         seen_names.add(name)
         seen_paths.add(workspace_dir)
     return dirty
+
+
+def _blocking_sibling_candidates(
+    sibling_targets: list[SiblingTarget],
+    *,
+    opened_workspace_dirs: Mapping[str, str],
+    targets_by_name: Mapping[str, SiblingTarget],
+) -> list[tuple[str, str]]:
+    candidates: list[tuple[str, str]] = []
+
+    for raw_name, recorded_workspace_dir in opened_workspace_dirs.items():
+        name = raw_name.strip()
+        if not name:
+            continue
+
+        target = targets_by_name.get(name)
+        if target is not None and target.workspace_strategy == "none":
+            continue
+
+        workspace_dir = recorded_workspace_dir.strip()
+        if workspace_dir:
+            workspace_dir = finalizer_git._normalize_path(workspace_dir)
+        elif target is not None:
+            workspace_dir = target.workspace_dir
+        else:
+            continue
+
+        candidates.append((name, workspace_dir))
+
+    for target in sibling_targets:
+        if target.workspace_strategy == "none":
+            continue
+        candidates.append((target.name, target.workspace_dir))
+
+    return candidates
 
 
 def _dirty_configured_advisory_sibling_repos(

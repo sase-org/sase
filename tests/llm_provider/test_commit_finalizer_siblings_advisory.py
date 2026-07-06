@@ -161,7 +161,6 @@ def test_config_fallback_checks_managed_root_sibling(
     monkeypatch.setenv("SASE_AGENT_PROJECT_FILE", str(project_file))
     monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
     artifacts_dir = tmp_path / "artifacts"
-    mark_opened_sibling(monkeypatch, artifacts_dir, "core", managed_sibling)
 
     prompts: list[str] = []
     provider = MagicMock()

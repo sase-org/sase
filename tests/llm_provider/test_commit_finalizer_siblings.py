@@ -29,7 +29,7 @@ from ._commit_finalizer_sibling_helpers import (
 )
 
 
-def test_dirty_configured_sibling_without_open_marker_is_ignored(
+def test_dirty_configured_sibling_without_open_marker_triggers_follow_up_turn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -55,17 +55,29 @@ def test_dirty_configured_sibling_without_open_marker_is_ignored(
             ]
         ),
     )
-    provider = MagicMock()
     artifacts_dir = tmp_path / "artifacts"
+
+    prompts: list[str] = []
+    provider = MagicMock()
+
+    def invoke(prompt: str, **_: object) -> InvokeResult:
+        prompts.append(prompt)
+        dirty_file.unlink()
+        return InvokeResult(content="finalized sibling")
+
+    provider.invoke.side_effect = invoke
 
     result = run_finalizer(provider, artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
-    assert dirty_file.exists()
+    assert provider.invoke.call_count == 1
+    assert result.content == "primary response\n\nfinalized sibling"
+    assert "linked repo core" in prompts[0]
+    assert "dirty.txt" in prompts[0]
+    assert f"cd {sibling.resolve()}" in prompts[0]
+    assert not dirty_file.exists()
     result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "clean"
-    assert result_json["reason"] == "no_changes"
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "clean_after_pass"
 
 
 def test_dirty_configured_sibling_triggers_follow_up_turn(
@@ -112,6 +124,7 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
     assert provider.invoke.call_count == 1
     assert result.content == "primary response\n\nfinalized sibling"
     assert "linked repo core" in prompts[0]
+    assert prompts[0].count("linked repo core") == 1
     assert "dirty.txt" in prompts[0]
     assert f"cd {sibling.resolve()}" in prompts[0]
     assert "/sase_git_commit" in prompts[0]
@@ -284,7 +297,7 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
     ).read_text(encoding="utf-8")
 
 
-def test_only_opened_dirty_configured_siblings_are_listed(
+def test_dirty_configured_suffix_siblings_are_listed_without_open_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -318,7 +331,8 @@ def test_only_opened_dirty_configured_siblings_are_listed(
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
         alpha_file.unlink()
-        return InvokeResult(content="finalized alpha")
+        beta_file.unlink()
+        return InvokeResult(content="finalized siblings")
 
     provider.invoke.side_effect = invoke
 
@@ -327,6 +341,6 @@ def test_only_opened_dirty_configured_siblings_are_listed(
     assert provider.invoke.call_count == 1
     assert "linked repo alpha" in prompts[0]
     assert "alpha.txt" in prompts[0]
-    assert "linked repo beta" not in prompts[0]
-    assert "beta.txt" not in prompts[0]
-    assert beta_file.exists()
+    assert "linked repo beta" in prompts[0]
+    assert "beta.txt" in prompts[0]
+    assert not beta_file.exists()
