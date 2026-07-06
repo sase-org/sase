@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 06:48:21
-status: wip
+status: done
 prompt: sdd/prompts/202607/sase_github_mit_license.md
 ---
 # Plan: MIT License for the sase-github Repo
