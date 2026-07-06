@@ -406,7 +406,7 @@ def test_execute_dev_update_repairs_failed_core_health_check() -> None:
         "--python",
         "/tool/bin/python",
         "--force-reinstall",
-        "sase-core-rs<0.4.0,>=0.3.0",
+        "sase-core-rs<0.4.0,>=0.3.2",
     )
     health_step = DevReconcileStep(
         kind="rust_health_check",

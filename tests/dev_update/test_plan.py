@@ -127,7 +127,7 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
         """
         [project]
         dependencies = [
-            "sase-core-rs>=0.3.0,<0.4.0",
+            "sase-core-rs>=0.3.2,<0.4.0",
         ]
         """,
         encoding="utf-8",
@@ -160,7 +160,7 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
         "--python",
         "/tool/bin/python",
         "--force-reinstall",
-        "sase-core-rs<0.4.0,>=0.3.0",
+        "sase-core-rs<0.4.0,>=0.3.2",
     )
 
 

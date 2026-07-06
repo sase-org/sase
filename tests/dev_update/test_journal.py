@@ -78,7 +78,7 @@ def _plan() -> DevUpdatePlan:
                     "--python",
                     "/tool/bin/python",
                     "--force-reinstall",
-                    "sase-core-rs<0.4.0,>=0.3.0",
+                    "sase-core-rs<0.4.0,>=0.3.2",
                 ),
                 repair_label="Restore published sase-core-rs wheel",
             ),
@@ -120,7 +120,7 @@ def test_dev_update_journal_record_summarizes_plan_result_and_command_tails() ->
     assert record["schema_version"] == 1
     assert record["plan"]["reconcile_steps"][0]["kind"] == "rust_health_check"
     assert record["plan"]["reconcile_steps"][0]["repair_command"][-1] == (
-        "sase-core-rs<0.4.0,>=0.3.0"
+        "sase-core-rs<0.4.0,>=0.3.2"
     )
     assert record["result"]["status"] == "failed"
     assert record["result"]["counts"] == {"updated": 0, "skipped": 0, "failed": 1}
