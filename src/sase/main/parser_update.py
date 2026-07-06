@@ -24,7 +24,9 @@ def register_update_parser(subparsers: argparse._SubParsersAction) -> None:
             "\n"
             "Use `-n|--dry-run` to preview the exact uv command and the package "
             "set without changing anything. Use `-t|--to dev|pypi` to switch "
-            "between editable development checkouts and published PyPI wheels."
+            "between editable development checkouts and published PyPI wheels. "
+            "Switching to dev fast-forwards clean existing checkouts to their "
+            "configured upstream before reinstalling editables."
         ),
         epilog=(
             "examples:\n"

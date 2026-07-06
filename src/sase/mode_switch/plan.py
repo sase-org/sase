@@ -32,7 +32,11 @@ from sase.uv_tool.detect import UvToolInstall
 from sase.uv_tool.errors import ReceiptError, UvToolError
 from sase.uv_tool.receipt import Requirement, ToolReceipt, load_receipt
 from sase.version._display import derive_display_version
-from sase.version._git import classify_git_upstream, probe_git_metadata_at_ref
+from sase.version._git import (
+    GitUpstreamStatus,
+    classify_git_upstream,
+    probe_git_metadata_at_ref,
+)
 from sase.version._models import RuntimeVersionInventory, VersionPackageRecord
 from sase.version._sources import python_source_version, rust_source_version
 from sase.version._utils import normalize_distribution_name
@@ -316,6 +320,10 @@ def _dev_package_row(
     commands: list[ModeSwitchCommand],
 ) -> SwitchPackagePlan:
     exists = checkout_path.exists()
+    status = _classify_checkout(checkout_path) if exists else None
+    upstream_to_sync = (
+        status.upstream if status is not None and _can_fast_forward(status) else None
+    )
     action = "reuse" if exists else "clone"
     source = f"{action} {checkout_path}" if exists else f"clone {spec.full_name}"
     target = _target_dev_version(
@@ -323,8 +331,9 @@ def _dev_package_row(
         role=role,
         current=_current_version(records, name),
         fallback=fallback_version,
+        ref=upstream_to_sync or "HEAD",
     )
-    warning = _checkout_warning(checkout_path) if exists else None
+    warning = _checkout_warning(status) if exists else None
     if warning:
         warnings.append(f"{name}: {warning}")
     if not exists:
@@ -339,10 +348,19 @@ def _dev_package_row(
             ModeSwitchCommand(
                 kind="git_fetch",
                 label=f"Fetch {name}",
-                command=("git", "fetch", "--quiet", "--tags"),
+                command=_fetch_command(status),
                 cwd=str(checkout_path),
             )
         )
+        if upstream_to_sync is not None:
+            commands.append(
+                ModeSwitchCommand(
+                    kind="git_merge_ff",
+                    label=f"Fast-forward {name}",
+                    command=("git", "merge", "--ff-only", upstream_to_sync),
+                    cwd=str(checkout_path),
+                )
+            )
     else:
         commands.append(
             ModeSwitchCommand(
@@ -405,6 +423,7 @@ def _target_dev_version(
     role: str,
     current: str | None,
     fallback: str | None,
+    ref: str,
 ) -> str:
     if not checkout_path.exists():
         return "dev @ main (will clone)"
@@ -413,16 +432,21 @@ def _target_dev_version(
         if role == "core"
         else python_source_version(checkout_path)
     )
-    result = probe_git_metadata_at_ref(checkout_path, "HEAD")
+    result = probe_git_metadata_at_ref(checkout_path, ref)
     if result.metadata is None:
         return base or current or fallback or "dev checkout"
     return derive_display_version(base or current or fallback, result.metadata)
 
 
-def _checkout_warning(path: Path) -> str | None:
+def _classify_checkout(path: Path) -> GitUpstreamStatus | None:
     try:
-        status = classify_git_upstream(path)
+        return classify_git_upstream(path)
     except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        return None
+
+
+def _checkout_warning(status: GitUpstreamStatus | None) -> str | None:
+    if status is None:
         return "git state unavailable"
     if status.detached:
         return "checkout is detached"
@@ -432,7 +456,31 @@ def _checkout_warning(path: Path) -> str | None:
         return "checkout has diverged from upstream; reused as-is"
     if not status.has_upstream:
         return "checkout has no upstream; reused as-is"
+    if status.ahead is None or status.behind is None:
+        return "upstream ancestry unavailable; reused as-is"
+    if status.ahead > 0:
+        return "checkout is ahead of upstream; reused as-is"
     return None
+
+
+def _can_fast_forward(status: GitUpstreamStatus) -> bool:
+    return (
+        not status.detached
+        and status.has_upstream
+        and not status.dirty
+        and not status.diverged
+        and status.ahead == 0
+        and status.behind is not None
+    )
+
+
+def _fetch_command(status: GitUpstreamStatus | None) -> tuple[str, ...]:
+    args = ["git", "fetch", "--quiet", "--tags", "--force"]
+    if status is not None and status.remote and status.remote_branch:
+        args.extend([status.remote, status.remote_branch])
+    elif status is not None and status.remote:
+        args.append(status.remote)
+    return tuple(args)
 
 
 def _index_requirement_for(

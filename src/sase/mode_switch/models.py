@@ -10,7 +10,11 @@ DetectedMode = Literal["managed", "dev", "mixed"]
 SwitchRole = Literal["host", "core", "plugin"]
 RepoAction = Literal["clone", "reuse", "stays-managed", "none"]
 CommandKind = Literal[
-    "git_clone", "git_fetch", "uv_tool_install", "rust_install_uv_tool"
+    "git_clone",
+    "git_fetch",
+    "git_merge_ff",
+    "uv_tool_install",
+    "rust_install_uv_tool",
 ]
 OutcomeStatus = Literal["switched", "stayed-managed", "failed"]
 

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 06:36:41
-status: wip
+status: done
 prompt: sdd/prompts/202607/mode_switch_sync_dev_checkouts.md
 ---
 # Sync Existing Dev Checkouts With Upstream During PyPI → Dev Mode Switch
