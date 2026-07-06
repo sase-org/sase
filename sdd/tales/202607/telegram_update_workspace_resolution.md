@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 15:03:38
-status: wip
+status: done
 prompt: sdd/prompts/202607/telegram_update_workspace_resolution.md
 ---
 # Fix Telegram `/update` Workspace Resolution

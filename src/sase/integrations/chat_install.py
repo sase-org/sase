@@ -91,13 +91,18 @@ def _resolve_primary_workspace_for_chat_install() -> Path | None:
 def _resolve_registered_sase_workspace() -> Path | None:
     """Resolve the registered ``sase`` project workspace without consulting CWD."""
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
-
-    project_dir = sase_projects_dir() / "sase"
-    project_file = Path(preferred_project_spec_path(str(project_dir), "sase"))
-
+    from sase.project_aliases import resolve_project_alias_ref
     from sase.workspace_provider.utils import parse_workspace_dir
 
-    workspace_dir = parse_workspace_dir(str(project_file))
+    projects_root = sase_projects_dir()
+    try:
+        project_name = resolve_project_alias_ref("sase", projects_root=projects_root)
+        project_dir = projects_root / project_name
+        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
+        workspace_dir = parse_workspace_dir(str(project_file))
+    except Exception:
+        return None
+
     if not workspace_dir:
         return None
 

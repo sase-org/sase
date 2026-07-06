@@ -105,6 +105,31 @@ def test_resolves_registered_sase_workspace_outside_workspace(
     fallback.assert_not_called()
 
 
+def test_resolves_registered_sase_workspace_via_project_name(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    workspace = tmp_path / "sase"
+    workspace.mkdir()
+    _write_project_file(
+        tmp_path,
+        "gh_sase-org__sase",
+        workspace,
+        logical_project_name="sase",
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+
+    with (
+        patch("sase.integrations.chat_install.Path.home", return_value=tmp_path),
+        patch("sase.bead.workspace.resolve_primary_workspace") as fallback,
+    ):
+        result = _resolve_primary_workspace_for_chat_install()
+
+    assert result == workspace
+    fallback.assert_not_called()
+
+
 def test_resolves_registered_sase_workspace_over_cwd_project(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
@@ -137,6 +162,29 @@ def test_resolves_registered_sase_workspace_falls_back_when_unavailable(
 
     with (
         patch("sase.integrations.chat_install.Path.home", return_value=tmp_path),
+        patch(
+            "sase.bead.workspace.resolve_primary_workspace",
+            return_value=fallback_workspace,
+        ) as fallback,
+    ):
+        result = _resolve_primary_workspace_for_chat_install()
+
+    assert result == fallback_workspace
+    fallback.assert_called_once_with()
+
+
+def test_resolves_registered_sase_workspace_falls_back_when_alias_resolution_fails(
+    tmp_path: Path,
+) -> None:
+    fallback_workspace = tmp_path / "current-project"
+    fallback_workspace.mkdir()
+
+    with (
+        patch("sase.integrations.chat_install.Path.home", return_value=tmp_path),
+        patch(
+            "sase.project_aliases.resolve_project_alias_ref",
+            side_effect=RuntimeError("alias lookup failed"),
+        ),
         patch(
             "sase.bead.workspace.resolve_primary_workspace",
             return_value=fallback_workspace,
@@ -517,9 +565,19 @@ def test_run_worker_marks_restart_failure_as_failed_completion(
     assert record["message"] == "Update failed with exit code 5; axe restart failed."
 
 
-def _write_project_file(home: Path, project_name: str, workspace: Path) -> Path:
+def _write_project_file(
+    home: Path,
+    project_name: str,
+    workspace: Path,
+    *,
+    logical_project_name: str | None = None,
+) -> Path:
     project_dir = home / ".sase" / "projects" / project_name
     project_dir.mkdir(parents=True)
     project_file = project_dir / f"{project_name}.sase"
-    project_file.write_text(f"WORKSPACE_DIR: {workspace}\nNAME: example\n")
+    content = ""
+    if logical_project_name is not None:
+        content += f"PROJECT_NAME: {logical_project_name}\n"
+    content += f"WORKSPACE_DIR: {workspace}\nNAME: example\n"
+    project_file.write_text(content)
     return project_file
