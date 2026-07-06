@@ -79,6 +79,7 @@ def _initial_dependency_result(
     wait_identity_deps: list[dict[str, str]],
     *,
     project_name: str | None,
+    artifacts_dir: str,
 ) -> _WaitDependencyResult | None:
     if not project_name:
         return None
@@ -91,6 +92,7 @@ def _initial_dependency_result(
         dependency_index,
         wait_names,
         wait_identity_deps,
+        self_artifact_dir=artifacts_dir,
     )
     if status.failed:
         return _WaitDependencyResult(
@@ -165,6 +167,7 @@ def wait_for_dependencies(
             wait_names,
             wait_identity_deps,
             project_name=project_name,
+            artifacts_dir=artifacts_dir,
         )
         if has_agent_dependencies and duration is None and wait_until is None
         else None

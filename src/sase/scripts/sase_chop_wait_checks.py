@@ -115,6 +115,7 @@ def main() -> None:
             dependency_index,
             waiting_for,
             wait_for_artifacts,
+            self_artifact_dir=waiting_marker.waiting_path.parent,
         )
         if status.failed:
             failed_deps = list(status.failed_dependencies)

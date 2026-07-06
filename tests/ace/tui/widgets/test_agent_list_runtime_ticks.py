@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent_time import (
     row_runtime_or_wait_ticks,
     runtime_suffix_ticks,
     wait_countdown_ticks,
+    wait_remaining_seconds,
 )
 
 from .agent_list_runtime_helpers import (
@@ -102,6 +103,47 @@ def test_wait_countdown_ticks_waiting_with_relative_time_floor() -> None:
     result.wait_duration = 300.0
 
     assert runtime_suffix_ticks(result) is False
+    assert wait_countdown_ticks(result) is True
+    assert row_runtime_or_wait_ticks(result) is True
+
+
+def test_wait_countdown_waits_for_authoritative_post_dependency_deadline() -> None:
+    result = agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        run_start=None,
+    )
+    result.waiting_for = ["dep"]
+    result.wait_duration = 300.0
+
+    assert (
+        wait_remaining_seconds(
+            result,
+            now=datetime(2026, 4, 25, 14, 31, 0),
+        )
+        is None
+    )
+    assert wait_countdown_ticks(result) is False
+    assert row_runtime_or_wait_ticks(result) is False
+
+
+def test_wait_countdown_ticks_after_post_dependency_deadline_is_written() -> None:
+    result = agent(
+        status="WAITING",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        run_start=None,
+    )
+    result.waiting_for = ["dep"]
+    result.wait_duration = 300.0
+    result.wait_until = "2026-04-25T14:40:00"
+
+    assert (
+        wait_remaining_seconds(
+            result,
+            now=datetime(2026, 4, 25, 14, 38, 30),
+        )
+        == 90.0
+    )
     assert wait_countdown_ticks(result) is True
     assert row_runtime_or_wait_ticks(result) is True
 

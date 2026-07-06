@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 13:35:55
-status: wip
+status: done
 prompt: sdd/prompts/202607/fix_wait_time_countdown_and_family_queue_deadlock.md
 ---
 # Fix `%wait` time countdown + queued family child launch deadlock

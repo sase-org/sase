@@ -22,6 +22,24 @@ def _identity_dep(artifact_dir: Path, *, name: str) -> dict[str, str]:
     }
 
 
+def _write_waiting_marker(
+    artifact_dir: Path,
+    *waiting_for: str,
+    wait_for_artifacts: list[dict[str, str]] | None = None,
+) -> None:
+    marker: dict[str, object] = {
+        "waiting_for": list(waiting_for),
+        "cl_name": "waiter-cl",
+        "timestamp": artifact_dir.name,
+    }
+    if wait_for_artifacts is not None:
+        marker["wait_for_artifacts"] = wait_for_artifacts
+    (artifact_dir / "waiting.json").write_text(
+        json.dumps(marker),
+        encoding="utf-8",
+    )
+
+
 def test_successful_plan_family_dependency_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -129,6 +147,129 @@ def test_identity_wait_failed_plan_family_generation_cancels(
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
     assert ready["cancelled"] is True
     assert ready["failed_deps"][0]["name"] == "planfam"
+
+
+@pytest.mark.parametrize("parent_has_family_meta", [False, True])
+def test_queued_family_child_does_not_block_its_parent_dependency(
+    tmp_path: Path,
+    monkeypatch,
+    parent_has_family_meta: bool,
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706130831",
+        "b",
+        workflow_name="b" if parent_has_family_meta else None,
+        agent_family="b" if parent_has_family_meta else None,
+        done=True,
+        outcome="completed",
+    )
+    child_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706131004",
+        "b--launch",
+        workflow_name="b",
+        agent_family="b",
+        parent_timestamp=parent_dir.name,
+    )
+    _write_waiting_marker(
+        child_dir,
+        "b",
+        wait_for_artifacts=[_identity_dep(parent_dir, name="b")],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((child_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["b"]}
+
+
+def test_queued_family_siblings_do_not_mutually_block_parent_dependency(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706130831",
+        "b",
+        done=True,
+        outcome="completed",
+    )
+    first_child_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706131004",
+        "b--launch",
+        workflow_name="b",
+        agent_family="b",
+        parent_timestamp=parent_dir.name,
+    )
+    second_child_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706131105",
+        "b--review",
+        workflow_name="b",
+        agent_family="b",
+        parent_timestamp=parent_dir.name,
+    )
+    for child_dir in (first_child_dir, second_child_dir):
+        _write_waiting_marker(
+            child_dir,
+            "b",
+            wait_for_artifacts=[_identity_dep(parent_dir, name="b")],
+        )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert json.loads((first_child_dir / "ready.json").read_text()) == {
+        "resolved_deps": ["b"]
+    }
+    assert json.loads((second_child_dir / "ready.json").read_text()) == {
+        "resolved_deps": ["b"]
+    }
+
+
+def test_stale_waiting_marker_on_failed_family_member_still_cancels(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706130831",
+        "b",
+        workflow_name="b",
+        agent_family="b",
+        done=True,
+        outcome="completed",
+    )
+    failed_child_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706131004",
+        "b--launch",
+        workflow_name="b",
+        agent_family="b",
+        parent_timestamp=parent_dir.name,
+        done=True,
+        outcome="killed",
+    )
+    _write_waiting_marker(failed_child_dir, "old-dep")
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "b",
+        wait_for_artifacts=[_identity_dep(parent_dir, name="b")],
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready["cancelled"] is True
+    assert ready["failed_deps"][0]["name"] == "b"
 
 
 def test_completed_plan_chain_handoff_without_done_resolves_family_dependency(

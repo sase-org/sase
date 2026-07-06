@@ -124,6 +124,56 @@ def test_submitted_plan_row_wait_skips_waiting_marker(
     assert isinstance(agent_meta.get("wait_completed_at"), str)
 
 
+def test_initial_identity_wait_excludes_waiter_from_family_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706130831",
+        "b",
+        done=True,
+        outcome="completed",
+    )
+    waiter_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706131004",
+        "b--launch",
+        workflow_name="b",
+        agent_family="b",
+        parent_timestamp=parent_dir.name,
+    )
+    agent_meta = {"pid": 123}
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
+    ):
+        wait_for_dependencies(
+            ["b"],
+            str(waiter_dir),
+            "cl",
+            "20260706131004",
+            agent_meta,
+            project_name="proj",
+            wait_identity_deps=[
+                {
+                    "project_name": "proj",
+                    "timestamp": parent_dir.name,
+                    "artifact_dir": str(parent_dir),
+                    "name": "b",
+                }
+            ],
+        )
+
+    sleep_mock.assert_not_called()
+    assert not (waiter_dir / "waiting.json").exists()
+    assert isinstance(agent_meta.get("wait_completed_at"), str)
+
+
 def test_unresolved_named_wait_uses_slow_waiting_marker_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

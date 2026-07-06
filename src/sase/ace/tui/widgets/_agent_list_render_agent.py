@@ -240,6 +240,15 @@ def format_agent_option(
                 f" {format_compact_duration(wait_remaining)}",
                 style="#AF87FF",
             )
+        elif (
+            agent.waiting_for
+            and agent.wait_duration is not None
+            and not agent.wait_until
+        ):
+            text.append(
+                f" +{format_compact_duration(agent.wait_duration)}",
+                style="#AF87FF",
+            )
         elif agent.wait_until:
             target_label = format_wait_until(agent.wait_until, now=now)
             if wait_remaining is not None and wait_remaining > 0:

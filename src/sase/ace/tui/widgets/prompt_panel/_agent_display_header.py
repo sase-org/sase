@@ -261,7 +261,7 @@ def build_header_text(
         from sase.ace.tui.models.agent import (
             format_compact_duration,
             format_wait_until,
-            wait_until_target_and_reference,
+            wait_remaining_seconds,
         )
 
         header_text.append("Wait: ", style="bold #87D7FF")
@@ -296,27 +296,12 @@ def build_header_text(
             if appended_dependency_names:
                 header_text.append(" + ", style=_WAITING_VALUE_STYLE)
             header_text.append(time_part, style=_WAITING_VALUE_STYLE)
-        # Show live countdown for absolute-time waits
-        if agent.wait_until:
-            target, reference = wait_until_target_and_reference(agent.wait_until)
-            remaining = (target - reference).total_seconds()
-            if remaining > 0:
-                header_text.append(
-                    f" ({format_compact_duration(remaining)} left)",
-                    style="dim #AF87FF",
-                )
-        # Show live countdown for duration waits
-        elif agent.wait_duration and agent.start_time and not agent.waiting_for:
-            from datetime import timedelta
-
-            from sase.core.time import local_now
-
-            target = agent.start_time + timedelta(seconds=agent.wait_duration)
-            remaining = (target - local_now()).total_seconds()
-            if remaining > 0:
-                header_text.append(
-                    f" ({format_compact_duration(remaining)} left)", style="dim #AF87FF"
-                )
+        remaining = wait_remaining_seconds(agent)
+        if remaining is not None and remaining > 0:
+            header_text.append(
+                f" ({format_compact_duration(remaining)} left)",
+                style="dim #AF87FF",
+            )
         header_text.append("\n")
 
     # Retry info (for agents that have retried or are using fallback)

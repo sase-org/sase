@@ -121,6 +121,8 @@ def wait_remaining_seconds(agent: "Agent", now: datetime | None = None) -> float
         return (target - reference).total_seconds()
     if agent.wait_duration is None or agent.start_time is None:
         return None
+    if agent.waiting_for:
+        return None
     target = agent.start_time + timedelta(seconds=agent.wait_duration)
     reference = _reference_for_target(target, now)
     return (target - reference).total_seconds()
@@ -443,7 +445,11 @@ def wait_countdown_ticks(agent: "Agent") -> bool:
         return False
     if agent.wait_until:
         return True
-    return agent.wait_duration is not None and agent.start_time is not None
+    return (
+        agent.wait_duration is not None
+        and agent.start_time is not None
+        and not agent.waiting_for
+    )
 
 
 def row_runtime_or_wait_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:

@@ -48,6 +48,7 @@ class _ArtifactCandidate:
     is_done: bool
     is_identity_success: bool
     is_failed: bool = False
+    is_queued: bool = False
 
 
 @dataclass(frozen=True)
@@ -215,12 +216,14 @@ class WaitDependencyIndex:
         *,
         project_name: str = "",
     ) -> None:
-        done_data = read_json_dict(artifact_dir / "done.json")
+        done_path = artifact_dir / "done.json"
+        done_data = read_json_dict(done_path)
         outcome = _done_outcome_from_data(done_data)
         is_resolved = _artifact_is_resolved(artifact_dir, meta, outcome)
         is_done = outcome == _SUCCESS_OUTCOME
         is_identity_success = _artifact_succeeded_for_identity(done_data)
         is_failed = _artifact_failed_for_identity(done_data)
+        is_queued = (artifact_dir / "waiting.json").exists() and not done_path.exists()
         timestamp = artifact_dir.name
 
         name = meta.get("name")
@@ -272,6 +275,7 @@ class WaitDependencyIndex:
             is_done=is_done,
             is_identity_success=is_identity_success,
             is_failed=is_failed,
+            is_queued=is_queued,
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact
@@ -282,8 +286,16 @@ class WaitDependencyIndex:
             if family_name is not None:
                 self.families.setdefault(family_name, []).append(artifact)
 
-    def family_candidate(self, name: str) -> _FamilyCandidate | None:
-        family_agents = self.families.get(name)
+    def family_candidate(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> _FamilyCandidate | None:
+        family_agents = self._aggregate_candidates(
+            self.families.get(name),
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
         if not family_agents:
             return None
 
@@ -328,13 +340,18 @@ class WaitDependencyIndex:
     def family_candidate_for_root(
         self,
         root: _ArtifactCandidate,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
     ) -> _FamilyCandidate | None:
         if root.parent_timestamp:
             return None
         family_name = root.family_name or root.name
         if not family_name:
             return None
-        family_agents = self.families.get(family_name)
+        family_agents = self._aggregate_candidates(
+            self.families.get(family_name),
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
         if not family_agents:
             return None
         generation = [
@@ -356,8 +373,16 @@ class WaitDependencyIndex:
             is_failed=any(candidate.is_failed for candidate in generation),
         )
 
-    def workflow_candidate(self, name: str) -> _WaitCandidate | None:
-        workflow_agents = self.workflows.get(name)
+    def workflow_candidate(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> _WaitCandidate | None:
+        workflow_agents = self._aggregate_candidates(
+            self.workflows.get(name),
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
         if not workflow_agents:
             return None
 
@@ -410,6 +435,21 @@ class WaitDependencyIndex:
         ):
             self.named[name] = candidate
 
+    @staticmethod
+    def _aggregate_candidates(
+        candidates: list[_ArtifactCandidate] | None,
+        *,
+        exclude_artifact_dir: str | Path | None,
+    ) -> list[_ArtifactCandidate]:
+        if not candidates:
+            return []
+        return [
+            candidate
+            for candidate in candidates
+            if not candidate.is_queued
+            and not _same_artifact_dir(candidate.artifact_dir, exclude_artifact_dir)
+        ]
+
     def _planner_row_candidate(self, name: str) -> _WaitCandidate | None:
         """Return a submitted-planner-row candidate for a legacy-spelled wait.
 
@@ -422,12 +462,20 @@ class WaitDependencyIndex:
             return None
         return self.named.get(alias)
 
-    def is_resolved(self, name: str) -> bool:
+    def is_resolved(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> bool:
         candidates = [
             candidate
             for candidate in (
-                self.family_candidate(name),
-                self.workflow_candidate(name),
+                self.family_candidate(name, exclude_artifact_dir=exclude_artifact_dir),
+                self.workflow_candidate(
+                    name,
+                    exclude_artifact_dir=exclude_artifact_dir,
+                ),
                 self.named.get(name),
                 self._planner_row_candidate(name),
             )
@@ -442,12 +490,17 @@ class WaitDependencyIndex:
     def identity_status(
         self,
         dependency: Mapping[str, Any],
+        *,
+        exclude_artifact_dir: str | Path | None = None,
     ) -> _WaitDependencyStatus:
         candidate = self._identity_candidate(dependency)
         if candidate is None:
             return _WaitDependencyStatus("waiting")
 
-        family_candidate = self.family_candidate_for_root(candidate)
+        family_candidate = self.family_candidate_for_root(
+            candidate,
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
         if family_candidate is not None:
             if family_candidate.is_failed:
                 return _WaitDependencyStatus(
@@ -496,6 +549,8 @@ def dependency_resolution_status(
     index: WaitDependencyIndex,
     wait_names: Iterable[object],
     wait_identity_deps: Iterable[object] = (),
+    *,
+    self_artifact_dir: str | Path | None = None,
 ) -> _WaitDependencyStatus:
     failed: list[dict[str, str]] = []
     identity_names: set[str] = set()
@@ -505,7 +560,10 @@ def dependency_resolution_status(
         dependency_name = dependency.get("name")
         if isinstance(dependency_name, str) and dependency_name:
             identity_names.add(dependency_name)
-        status = index.identity_status(dependency)
+        status = index.identity_status(
+            dependency,
+            exclude_artifact_dir=self_artifact_dir,
+        )
         if status.failed:
             failed.extend(status.failed_dependencies)
         elif not status.resolved:
@@ -518,7 +576,7 @@ def dependency_resolution_status(
             return _WaitDependencyStatus("waiting")
         if name in identity_names:
             continue
-        if not index.is_resolved(name):
+        if not index.is_resolved(name, exclude_artifact_dir=self_artifact_dir):
             return _WaitDependencyStatus("waiting")
     return _WaitDependencyStatus("resolved")
 
@@ -571,6 +629,19 @@ def _failed_dependency_record(
         "artifact_dir": candidate.artifact_dir,
     }
     return {key: value for key, value in record.items() if value}
+
+
+def _same_artifact_dir(left: str, right: str | Path | None) -> bool:
+    if right is None:
+        return False
+    return _artifact_dir_key(left) == _artifact_dir_key(str(right))
+
+
+def _artifact_dir_key(value: str) -> str:
+    try:
+        return str(Path(value).expanduser().resolve(strict=False))
+    except (OSError, RuntimeError, ValueError):
+        return value
 
 
 def _artifact_is_resolved(

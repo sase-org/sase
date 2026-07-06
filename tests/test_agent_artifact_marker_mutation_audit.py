@@ -48,6 +48,17 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         lifecycle_calls=(_DELETE_INDEX,),
     ),
     (
+        "src/sase/ace/tui/actions/agents/_killing_utils.py:"
+        "_resolve_waiters_before_artifact_delete"
+    ): Review(
+        mutation_calls=("open", "dump"),
+        exemption=(
+            "Writes ready.json success/cancellation markers only; waiting.json, "
+            "agent_meta.json, and done.json are read inputs, and ready.json is "
+            "not Tier 1 indexed."
+        ),
+    ),
+    (
         "src/sase/ace/tui/actions/agents/_notification_plan_persistence.py:"
         "persist_plan_approved"
     ): Review(

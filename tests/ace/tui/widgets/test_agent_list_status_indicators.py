@@ -222,9 +222,37 @@ class TestRelativeWaitDurationRendering:
             start_time=datetime.now() + timedelta(minutes=5),
         )
 
-        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_deps_satisfied=True,
+        )
 
-        assert left.plain.endswith("test_cl (WAITING)")
+        assert left.plain.endswith("test_cl (WAITING +5m)")
+
+    def test_agent_row_renders_duration_countdown_after_wait_until_written(
+        self,
+    ) -> None:
+        now = datetime(2026, 4, 11, 14, 13, 31, tzinfo=UTC)
+        wait_until = datetime(2026, 4, 11, 14, 15, 0, tzinfo=UTC).isoformat()
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["dep"],
+            wait_duration=300,
+            wait_until=wait_until,
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            now=now,
+            wait_deps_satisfied=True,
+        )
+
+        assert "test_cl (WAITING 1m29s)" in left.plain
+        assert "+5m" not in left.plain
 
     def test_pure_duration_wait_still_renders_countdown(self) -> None:
         now = datetime(2026, 4, 11, 14, 13, 31)
