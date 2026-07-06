@@ -78,7 +78,7 @@ def _install_hint() -> str:
         python = _venv_python(Path(sys.prefix))
         return (
             "repair the uv-tool venv with "
-            f"`uv pip install --python \"{python}\" --force-reinstall "
+            f'`uv pip install --python "{python}" --force-reinstall '
             "sase-core-rs` (or reinstall the tool with "
             "`uv tool install --force sase`)"
         )
