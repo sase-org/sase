@@ -60,6 +60,7 @@ from sase.axe.run_agent_runner_setup import (
     build_output_variable_namespaces,
     enter_agent_workspace,
     load_retry_handoff_from_env,
+    prepare_linked_repo_workspaces_if_needed,
     prepare_workspace_if_needed,
     preprocess_prompt_xprompts,
     print_agent_start_banner,
@@ -303,6 +304,21 @@ def main() -> None:
                     is_home_mode=is_home_mode,
                     retry_handoff=retry_handoff,
                 )
+                if update_target and not is_home_mode and retry_handoff is None:
+                    prompt = refresh_linked_repos_for_workspace(
+                        project_file=project_file,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        artifacts_dir=artifacts_dir,
+                        agent_meta=agent_meta,
+                        prompt=prompt,
+                    )
+                    prepare_linked_repo_workspaces_if_needed(
+                        linked_repos=agent_meta.get("linked_repos"),
+                        cl_name=cl_name,
+                        is_home_mode=is_home_mode,
+                        retry_handoff=retry_handoff,
+                    )
 
             bump_spawn_telemetry(
                 agent_llm_provider=agent_llm_provider,
@@ -438,6 +454,13 @@ def main() -> None:
                             agent_meta=agent_meta,
                             prompt=prompt,
                         )
+                        if update_target and retry_handoff is None:
+                            prepare_linked_repo_workspaces_if_needed(
+                                linked_repos=agent_meta.get("linked_repos"),
+                                cl_name=cl_name,
+                                is_home_mode=is_home_mode,
+                                retry_handoff=retry_handoff,
+                            )
 
                 prompt, vcs_tag = resolve_agent_refs_in_prompt(prompt)
 

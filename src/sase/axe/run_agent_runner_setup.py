@@ -68,6 +68,71 @@ def prepare_workspace_if_needed(
     print()
 
 
+def prepare_linked_repo_workspaces_if_needed(
+    *,
+    linked_repos: object,
+    cl_name: str,
+    is_home_mode: bool,
+    retry_handoff: object | None,
+) -> None:
+    """Prepare suffix-strategy linked repo workspaces for a launch."""
+    if is_home_mode:
+        return
+
+    if retry_handoff is not None:
+        return
+
+    repos = _workspace_backed_linked_repos(linked_repos)
+    if not repos:
+        return
+
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+    print("=== Preparing Linked Repo Workspaces ===")
+    for repo in repos:
+        name = repo["name"]
+        workspace_dir = repo["workspace_dir"]
+        print(f"Preparing linked repo {name}: {workspace_dir}")
+        if not prepare_workspace(
+            workspace_dir,
+            cl_name,
+            VCS_DEFAULT_REVISION,
+            backup_suffix=f"linked-{name}",
+        ):
+            raise RuntimeError(
+                f"Failed to prepare linked repo {name!r} workspace: {workspace_dir}"
+            )
+    print("========================================")
+    print()
+
+
+def _workspace_backed_linked_repos(
+    linked_repos: object,
+) -> list[dict[str, str]]:
+    if not isinstance(linked_repos, list):
+        return []
+
+    repos: list[dict[str, str]] = []
+    for item in linked_repos:
+        if not isinstance(item, dict):
+            continue
+        if item.get("workspace_strategy") != "suffix":
+            continue
+        workspace_dir = item.get("workspace_dir")
+        primary_dir = item.get("primary_dir")
+        if not isinstance(workspace_dir, str) or not workspace_dir:
+            continue
+        if not isinstance(primary_dir, str) or workspace_dir == primary_dir:
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            name = item.get("env_name")
+        if not isinstance(name, str) or not name.strip():
+            name = "linked-repo"
+        repos.append({"name": name.strip(), "workspace_dir": workspace_dir})
+    return repos
+
+
 def setup_artifacts_directory(
     *,
     timestamp: str,

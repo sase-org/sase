@@ -135,6 +135,60 @@ class TestRunStartedAtRecording:
         if meta_path.exists():
             assert "run_started_at" not in json.loads(meta_path.read_text())
 
+    def test_linked_repo_prep_failure_stops_before_execution(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        workspace_dir = tmp_path / "workspace"
+        linked_workspace_dir = tmp_path / "sase-core_7"
+        workspace_dir.mkdir()
+        linked_workspace_dir.mkdir()
+        patches = base_patches(str(artifacts_dir))
+        run_loop = MagicMock()
+        write_error = MagicMock()
+
+        def refresh_linked_repos_for_workspace(
+            *_args: Any, agent_meta: dict[str, Any], prompt: str, **_kwargs: Any
+        ) -> str:
+            agent_meta["linked_repos"] = [
+                {
+                    "name": "core",
+                    "primary_dir": str(tmp_path / "sase-core"),
+                    "workspace_dir": str(linked_workspace_dir),
+                    "workspace_strategy": "suffix",
+                }
+            ]
+            return prompt
+
+        def prepare_workspace(
+            workspace_dir_arg: str, *_args: Any, **_kwargs: Any
+        ) -> bool:
+            return workspace_dir_arg == str(workspace_dir)
+
+        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = (
+            refresh_linked_repos_for_workspace
+        )
+        patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{RUNNER}.write_error_done_marker"] = write_error
+
+        run_main(
+            patches,
+            tmp_path,
+            update_target="main",
+            workspace_dir=workspace_dir,
+            workspace_num="7",
+        )
+
+        run_loop.assert_not_called()
+        assert (
+            "Failed to prepare linked repo 'core' workspace"
+            in (write_error.call_args.kwargs["error"])
+        )
+        meta_path = artifacts_dir / "agent_meta.json"
+        if meta_path.exists():
+            assert "run_started_at" not in json.loads(meta_path.read_text())
+
     def test_killed_while_waiting_does_not_record_run_started_at(
         self, tmp_path: Path
     ) -> None:

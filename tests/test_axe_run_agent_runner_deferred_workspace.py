@@ -280,6 +280,26 @@ class TestDeferredWorkspacePreparation:
             events.append(("prepare", workspace_dir))
             return True
 
+        def refresh_linked_repos(
+            *_args: Any, agent_meta: dict[str, Any], prompt: str, **_kwargs: Any
+        ) -> str:
+            assert_no_run_started_at()
+            events.append("refresh-linked")
+            agent_meta["linked_repos"] = [
+                {
+                    "name": "core",
+                    "primary_dir": str(tmp_path / "sase-core"),
+                    "workspace_dir": str(tmp_path / "sase-core_3"),
+                    "workspace_strategy": "suffix",
+                }
+            ]
+            return prompt
+
+        def prepare_linked_repos(**kwargs: Any) -> None:
+            assert_no_run_started_at()
+            linked_repos = kwargs["linked_repos"]
+            events.append(("prepare-linked", linked_repos[0]["workspace_dir"]))
+
         def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
             meta = json.loads(meta_path.read_text())
             assert meta["run_started_at"] == ctx.agent_meta["run_started_at"]
@@ -290,6 +310,10 @@ class TestDeferredWorkspacePreparation:
         patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{RUNNER}.claim_deferred_workspace"] = claim_deferred
         patches[f"{SETUP}.prepare_workspace"] = prepare_ws
+        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = refresh_linked_repos
+        patches[f"{RUNNER}.prepare_linked_repo_workspaces_if_needed"] = (
+            prepare_linked_repos
+        )
         patches[f"{RUNNER}.run_execution_loop"] = run_loop
 
         run_main(
@@ -305,6 +329,8 @@ class TestDeferredWorkspacePreparation:
             "wait",
             "claim",
             ("prepare", str(real_ws)),
+            "refresh-linked",
+            ("prepare-linked", str(tmp_path / "sase-core_3")),
             ("run", 3, str(real_ws)),
         ]
 

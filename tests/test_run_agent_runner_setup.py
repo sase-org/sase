@@ -12,6 +12,7 @@ from sase.axe.run_agent_exec_markers import (
 )
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
+    prepare_linked_repo_workspaces_if_needed,
     preprocess_prompt_xprompts,
     refresh_linked_repos_for_workspace,
     setup_artifacts_directory,
@@ -251,6 +252,91 @@ def test_refresh_linked_repos_for_workspace_preserves_meta_on_empty_resolution(
     written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
     assert written["linked_repos"] == meta["linked_repos"]
     assert written["sibling_repos"] == meta["sibling_repos"]
+
+
+def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel() -> None:
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    linked_repos = [
+        {
+            "name": "core",
+            "primary_dir": "/repos/sase-core",
+            "workspace_dir": "/repos/sase-core_7",
+            "workspace_strategy": "suffix",
+        }
+    ]
+
+    with patch(
+        "sase.axe.run_agent_runner_setup.prepare_workspace",
+        side_effect=lambda *args, **kwargs: calls.append((args, kwargs)) or True,
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            linked_repos=linked_repos,
+            cl_name="feature",
+            is_home_mode=False,
+            retry_handoff=None,
+        )
+
+    assert calls == [
+        (
+            ("/repos/sase-core_7", "feature", VCS_DEFAULT_REVISION),
+            {"backup_suffix": "linked-core"},
+        )
+    ]
+
+
+def test_prepare_linked_repo_workspaces_skips_static_and_primary_paths() -> None:
+    linked_repos = [
+        {
+            "name": "static-core",
+            "primary_dir": "/repos/sase-core",
+            "workspace_dir": "/repos/sase-core",
+            "workspace_strategy": "none",
+        },
+        {
+            "name": "first-workspace",
+            "primary_dir": "/repos/plugin",
+            "workspace_dir": "/repos/plugin",
+            "workspace_strategy": "suffix",
+        },
+    ]
+
+    with patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare:
+        prepare_linked_repo_workspaces_if_needed(
+            linked_repos=linked_repos,
+            cl_name="feature",
+            is_home_mode=False,
+            retry_handoff=None,
+        )
+
+    prepare.assert_not_called()
+
+
+def test_prepare_linked_repo_workspaces_failure_names_workspace() -> None:
+    linked_repos = [
+        {
+            "name": "core",
+            "primary_dir": "/repos/sase-core",
+            "workspace_dir": "/repos/sase-core_7",
+            "workspace_strategy": "suffix",
+        }
+    ]
+
+    with (
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace", return_value=False),
+        pytest.raises(RuntimeError) as exc_info,
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            linked_repos=linked_repos,
+            cl_name="feature",
+            is_home_mode=False,
+            retry_handoff=None,
+        )
+
+    assert "Failed to prepare linked repo 'core' workspace: /repos/sase-core_7" in str(
+        exc_info.value
+    )
 
 
 def test_done_marker_write_updates_artifact_index(tmp_path: Path) -> None:
