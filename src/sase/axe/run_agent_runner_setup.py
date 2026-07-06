@@ -9,7 +9,7 @@ counters, and the home-mode running marker.
 import json
 import os
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import (
     convert_timestamp_to_artifacts_format,
@@ -32,6 +32,9 @@ from sase.telemetry.metrics import (
     AGENT_SPAWNS,
     WORKSPACE_ACTIVE,
 )
+
+if TYPE_CHECKING:
+    from sase.linked_repos import LinkedRepoResolution
 
 
 def prepare_workspace_if_needed(
@@ -70,19 +73,17 @@ def prepare_workspace_if_needed(
 
 def prepare_linked_repo_workspaces_if_needed(
     *,
-    linked_repos: object,
+    resolution: "LinkedRepoResolution",
     cl_name: str,
-    is_home_mode: bool,
-    retry_handoff: object | None,
 ) -> None:
     """Prepare suffix-strategy linked repo workspaces for a launch."""
-    if is_home_mode:
-        return
-
-    if retry_handoff is not None:
-        return
-
-    repos = _workspace_backed_linked_repos(linked_repos)
+    repos = [
+        repo
+        for repo in resolution.repos
+        if repo.workspace_strategy == "suffix"
+        and repo.workspace_dir
+        and repo.workspace_dir != repo.primary_dir
+    ]
     if not repos:
         return
 
@@ -90,8 +91,8 @@ def prepare_linked_repo_workspaces_if_needed(
 
     print("=== Preparing Linked Repo Workspaces ===")
     for repo in repos:
-        name = repo["name"]
-        workspace_dir = repo["workspace_dir"]
+        name = repo.name
+        workspace_dir = repo.workspace_dir
         print(f"Preparing linked repo {name}: {workspace_dir}")
         if not prepare_workspace(
             workspace_dir,
@@ -104,33 +105,6 @@ def prepare_linked_repo_workspaces_if_needed(
             )
     print("========================================")
     print()
-
-
-def _workspace_backed_linked_repos(
-    linked_repos: object,
-) -> list[dict[str, str]]:
-    if not isinstance(linked_repos, list):
-        return []
-
-    repos: list[dict[str, str]] = []
-    for item in linked_repos:
-        if not isinstance(item, dict):
-            continue
-        if item.get("workspace_strategy") != "suffix":
-            continue
-        workspace_dir = item.get("workspace_dir")
-        primary_dir = item.get("primary_dir")
-        if not isinstance(workspace_dir, str) or not workspace_dir:
-            continue
-        if not isinstance(primary_dir, str) or workspace_dir == primary_dir:
-            continue
-        name = item.get("name")
-        if not isinstance(name, str) or not name.strip():
-            name = item.get("env_name")
-        if not isinstance(name, str) or not name.strip():
-            name = "linked-repo"
-        repos.append({"name": name.strip(), "workspace_dir": workspace_dir})
-    return repos
 
 
 def setup_artifacts_directory(
@@ -326,8 +300,7 @@ def refresh_linked_repos_for_workspace(
     workspace_num: int,
     artifacts_dir: str,
     agent_meta: dict[str, Any],
-    prompt: str,
-) -> str:
+) -> "LinkedRepoResolution":
     """Refresh linked-repo env/meta after a workspace claim changes."""
     from sase.linked_repos import (
         apply_linked_repo_env,
@@ -346,7 +319,7 @@ def refresh_linked_repos_for_workspace(
         agent_meta["linked_repos"] = resolution.to_jsonable()
         agent_meta["sibling_repos"] = resolution.to_jsonable()
     write_agent_meta(artifacts_dir, agent_meta)
-    return prompt
+    return resolution
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:

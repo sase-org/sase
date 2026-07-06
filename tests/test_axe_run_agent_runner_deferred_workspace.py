@@ -12,6 +12,7 @@ import pytest
 from sase.running_field import ClaimResult
 
 from sase.axe.run_agent_repeat_stop import RepeatStopDecision
+from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
     AGENT_INFO,
@@ -280,25 +281,26 @@ class TestDeferredWorkspacePreparation:
             events.append(("prepare", workspace_dir))
             return True
 
-        def refresh_linked_repos(
-            *_args: Any, agent_meta: dict[str, Any], prompt: str, **_kwargs: Any
-        ) -> str:
+        def refresh_linked_repos(*_args: Any, **_kwargs: Any) -> LinkedRepoResolution:
             assert_no_run_started_at()
             events.append("refresh-linked")
-            agent_meta["linked_repos"] = [
-                {
-                    "name": "core",
-                    "primary_dir": str(tmp_path / "sase-core"),
-                    "workspace_dir": str(tmp_path / "sase-core_3"),
-                    "workspace_strategy": "suffix",
-                }
-            ]
-            return prompt
+            return LinkedRepoResolution(
+                repos=(
+                    _ResolvedLinkedRepo(
+                        name="core",
+                        env_name="CORE",
+                        primary_dir=str(tmp_path / "sase-core"),
+                        workspace_dir=str(tmp_path / "sase-core_3"),
+                        workspace_num=3,
+                        workspace_strategy="suffix",
+                    ),
+                )
+            )
 
         def prepare_linked_repos(**kwargs: Any) -> None:
             assert_no_run_started_at()
-            linked_repos = kwargs["linked_repos"]
-            events.append(("prepare-linked", linked_repos[0]["workspace_dir"]))
+            resolution = kwargs["resolution"]
+            events.append(("prepare-linked", resolution.repos[0].workspace_dir))
 
         def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
             meta = json.loads(meta_path.read_text())

@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
+
 from tests._axe_run_agent_runner_retry_helpers import (
     AGENT_INFO,
     RUNNER,
@@ -148,17 +150,20 @@ class TestRunStartedAtRecording:
         write_error = MagicMock()
 
         def refresh_linked_repos_for_workspace(
-            *_args: Any, agent_meta: dict[str, Any], prompt: str, **_kwargs: Any
-        ) -> str:
-            agent_meta["linked_repos"] = [
-                {
-                    "name": "core",
-                    "primary_dir": str(tmp_path / "sase-core"),
-                    "workspace_dir": str(linked_workspace_dir),
-                    "workspace_strategy": "suffix",
-                }
-            ]
-            return prompt
+            *_args: Any, **_kwargs: Any
+        ) -> LinkedRepoResolution:
+            return LinkedRepoResolution(
+                repos=(
+                    _ResolvedLinkedRepo(
+                        name="core",
+                        env_name="CORE",
+                        primary_dir=str(tmp_path / "sase-core"),
+                        workspace_dir=str(linked_workspace_dir),
+                        workspace_num=7,
+                        workspace_strategy="suffix",
+                    ),
+                )
+            )
 
         def prepare_workspace(
             workspace_dir_arg: str, *_args: Any, **_kwargs: Any

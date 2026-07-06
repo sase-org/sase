@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 14:51:14
-status: wip
+status: done
 prompt: sdd/prompts/202607/typed_linked_repo_prep.md
 ---
 # Thread Typed Linked-Repo Resolution into Launch-Time Workspace Prep
