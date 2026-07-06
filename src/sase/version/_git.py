@@ -173,12 +173,26 @@ def fetch_git_upstream(
     """Fetch the resolved upstream for ``status``."""
     runner = run_git if run_git_fn is None else run_git_fn
     root = Path(status.root)
+    runner(root, *git_fetch_upstream_args(status), timeout=_GIT_MUTATE_TIMEOUT_SECONDS)
+
+
+def git_fetch_upstream_args(status: GitUpstreamStatus) -> tuple[str, ...]:
+    """Return argv fragments that refresh ``status``'s upstream tracking ref."""
     args = ["fetch", "--quiet", "--tags", "--force"]
     if status.remote and status.remote_branch:
-        args.extend([status.remote, status.remote_branch])
+        args.extend([status.remote, _remote_tracking_refspec(status)])
     elif status.remote:
         args.append(status.remote)
-    runner(root, *args, timeout=_GIT_MUTATE_TIMEOUT_SECONDS)
+    return tuple(args)
+
+
+def _remote_tracking_refspec(status: GitUpstreamStatus) -> str:
+    assert status.remote is not None
+    assert status.remote_branch is not None
+    return (
+        f"+refs/heads/{status.remote_branch}:"
+        f"refs/remotes/{status.remote}/{status.remote_branch}"
+    )
 
 
 def merge_git_ff_only(

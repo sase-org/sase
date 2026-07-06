@@ -35,6 +35,7 @@ from sase.version._display import derive_display_version
 from sase.version._git import (
     GitUpstreamStatus,
     classify_git_upstream,
+    git_fetch_upstream_args,
     probe_git_metadata_at_ref,
 )
 from sase.version._models import RuntimeVersionInventory, VersionPackageRecord
@@ -475,12 +476,9 @@ def _can_fast_forward(status: GitUpstreamStatus) -> bool:
 
 
 def _fetch_command(status: GitUpstreamStatus | None) -> tuple[str, ...]:
-    args = ["git", "fetch", "--quiet", "--tags", "--force"]
-    if status is not None and status.remote and status.remote_branch:
-        args.extend([status.remote, status.remote_branch])
-    elif status is not None and status.remote:
-        args.append(status.remote)
-    return tuple(args)
+    if status is None:
+        return ("git", "fetch", "--quiet", "--tags", "--force")
+    return ("git", *git_fetch_upstream_args(status))
 
 
 def _index_requirement_for(

@@ -239,7 +239,7 @@ def test_plan_to_dev_fast_forwards_clean_existing_checkout(
         "--tags",
         "--force",
         "origin",
-        "master",
+        "+refs/heads/master:refs/remotes/origin/master",
     )
     assert plan.commands[0].cwd == str(checkout)
     assert plan.commands[1].command == (
