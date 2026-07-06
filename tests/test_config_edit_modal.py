@@ -5,7 +5,7 @@ editors without standing up a Textual app: editor-kind selection from the
 schema, schema-path walking (incl. ``$ref``), value formatting/parsing with
 constraint enforcement, the YAML escape hatch round-trip, the list-strategy
 banner, and the default-target rules. The modal widget wiring (worker plan +
-preview + write) is covered by ``tests/ace/tui/test_config_edit_modal_widget.py``
+preview + write) is covered by ``tests/ace/tui/test_config_edit_modal_*_widget.py``
 and the backend itself by ``tests/test_config_edit.py``.
 """
 
