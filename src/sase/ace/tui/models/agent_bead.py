@@ -48,19 +48,26 @@ class _BeadDisplayCache:
         self._lock = RLock()
 
     def get(self, key: BeadDisplayCacheKey) -> str | None | object:
-        now = monotonic()
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
                 return BEAD_DISPLAY_CACHE_MISS
 
-            expires_at, value = entry
-            if expires_at <= now:
-                self._entries.pop(key, None)
-                return BEAD_DISPLAY_CACHE_MISS
-
+            _, value = entry
             self._entries.move_to_end(key)
             return value
+
+    def should_resolve(self, key: BeadDisplayCacheKey) -> bool:
+        """Return whether *key* has no entry or needs TTL revalidation."""
+        now = monotonic()
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return True
+
+            expires_at, _ = entry
+            self._entries.move_to_end(key)
+            return expires_at <= now
 
     def set(self, key: BeadDisplayCacheKey, value: str | None) -> None:
         expires_at = monotonic() + self._ttl_seconds
@@ -107,11 +114,11 @@ def agent_has_confirmed_bead(agent: Agent) -> bool:
 
 
 def should_resolve_bead_display(agent: Agent) -> bool:
-    """Return True when the agent has an uncached bead display."""
+    """Return True when the agent's bead display is uncached or expired."""
     key = _bead_display_cache_key(agent)
     if key is None:
         return False
-    return _BEAD_DISPLAY_CACHE.get(key) is BEAD_DISPLAY_CACHE_MISS
+    return _BEAD_DISPLAY_CACHE.should_resolve(key)
 
 
 def resolve_bead_display(agent: Agent) -> str | None:
@@ -139,15 +146,17 @@ def resolve_bead_display(agent: Agent) -> str | None:
 def warm_confirmed_bead_displays(
     candidates: Iterable[Agent],
 ) -> dict[tuple[AgentType, str, str | None], bool]:
-    """Resolve uncached bead candidates off the event loop.
+    """Resolve uncached/expired bead candidates off the event loop.
 
     Deduplicates the underlying bead-store lookups by cache key so each store
     is read once per warmup even when several visible rows share a candidate.
-    Returns a mapping of agent identity to ``True`` for the candidates that
-    resolved to a confirmed display; identities whose candidate is missing (or
-    has no candidate id) are omitted so callers patch only rows whose confirmed
-    state actually changed. Must only be called off the Textual event loop.
+    Returns a mapping of agent identity to the new confirmed state for
+    candidates whose confirmed state changed. Cold/missing candidates that
+    resolve missing stay omitted, while expired confirmed candidates whose bead
+    was deleted are included with ``False`` so callers patch away their glyph.
+    Must only be called off the Textual event loop.
     """
+    previous_by_key: dict[BeadDisplayCacheKey, str | None | object] = {}
     resolved_by_key: dict[BeadDisplayCacheKey, str | None] = {}
     results: dict[tuple[AgentType, str, str | None], bool] = {}
     for agent in candidates:
@@ -155,9 +164,12 @@ def warm_confirmed_bead_displays(
         if key is None:
             continue
         if key not in resolved_by_key:
+            previous_by_key[key] = _BEAD_DISPLAY_CACHE.get(key)
             resolved_by_key[key] = resolve_bead_display(agent)
-        if resolved_by_key[key] is not None:
-            results[agent.identity] = True
+        previous_confirmed = isinstance(previous_by_key[key], str)
+        current_confirmed = resolved_by_key[key] is not None
+        if previous_confirmed != current_confirmed:
+            results[agent.identity] = current_confirmed
     return results
 
 

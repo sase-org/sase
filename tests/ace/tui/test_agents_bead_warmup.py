@@ -3,8 +3,8 @@
 Row and header rendering can only show bead UI from a warm confirmation cache,
 so ``AgentBeadWarmupMixin`` confirms visible bead candidates off the
 startup-critical loader path: a coalesced background worker resolves the
-uncached candidates among the visible rows after a load applies, then patches
-the rows that became confirmed in place by identity.
+uncached or expired candidates among the visible rows after a load applies,
+then patches rows whose confirmed state changed in place by identity.
 """
 
 from __future__ import annotations
@@ -146,6 +146,32 @@ def test_warmup_candidates_only_uncached_bead_candidates() -> None:
     assert app._bead_warmup_candidates() == [cold]
 
 
+def test_warmup_candidates_include_expired_cached_bead_candidates() -> None:
+    app = _FakeApp()
+    expired_confirmed = _agent(
+        agent_name="sase-a.1", cl_name="expired-confirmed", raw_suffix="1"
+    )
+    expired_missing = _agent(
+        agent_name="sase-b.2", cl_name="expired-missing", raw_suffix="2"
+    )
+    fresh_confirmed = _agent(
+        agent_name="sase-c.3", cl_name="fresh-confirmed", raw_suffix="3"
+    )
+    for agent, value in (
+        (expired_confirmed, "sase-a.1 - desc"),
+        (expired_missing, None),
+    ):
+        key = _bead_display_cache_key(agent)
+        assert key is not None
+        _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, value)
+    fresh_key = _bead_display_cache_key(fresh_confirmed)
+    assert fresh_key is not None
+    _BEAD_DISPLAY_CACHE.set(fresh_key, "sase-c.3 - desc")
+    app._agents = [expired_confirmed, expired_missing, fresh_confirmed]
+
+    assert app._bead_warmup_candidates() == [expired_confirmed, expired_missing]
+
+
 # --- compute (off-thread body) -----------------------------------------------
 
 
@@ -188,10 +214,43 @@ def test_warm_confirmed_bead_displays_omits_missing_and_non_candidates(
     assert results == {}
 
 
+def test_warm_confirmed_bead_displays_reports_deleted_confirmed_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _agent(agent_name="sase-x.3", cl_name="deleted", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3 - stale description")
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue",
+        lambda candidate_id, **_: None,
+    )
+
+    results = warm_confirmed_bead_displays([agent])
+
+    assert results == {agent.identity: False}
+    assert agent_has_confirmed_bead(agent) is False
+
+
+def test_warm_confirmed_bead_displays_omits_unchanged_expired_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = _agent(agent_name="sase-x.3", cl_name="same", raw_suffix="1")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3")
+    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", _confirmed_lookup)
+
+    results = warm_confirmed_bead_displays([agent])
+
+    assert results == {}
+    assert agent_has_confirmed_bead(agent) is True
+
+
 # --- apply by identity -------------------------------------------------------
 
 
-def test_apply_patches_only_confirmed_rows() -> None:
+def test_apply_patches_only_result_rows() -> None:
     app = _FakeApp()
     confirmed = _agent(agent_name="sase-x.3", cl_name="confirmed", raw_suffix="1")
     other = _agent(agent_name="sase-y.4", cl_name="other", raw_suffix="2")
@@ -201,6 +260,18 @@ def test_apply_patches_only_confirmed_rows() -> None:
     app._apply_bead_warmup_results({confirmed.identity: True})
 
     assert app._patched == [confirmed]
+
+
+def test_apply_patches_rows_losing_confirmed_bead() -> None:
+    app = _FakeApp()
+    removed = _agent(agent_name="sase-x.3", cl_name="removed", raw_suffix="1")
+    other = _agent(agent_name="sase-y.4", cl_name="other", raw_suffix="2")
+    app._agents = [removed, other]
+    app._agents_with_children = [removed, other]
+
+    app._apply_bead_warmup_results({removed.identity: False})
+
+    assert app._patched == [removed]
 
 
 def test_apply_rematches_current_object_by_identity() -> None:

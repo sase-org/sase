@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from sase.ace.tui.models.agent_bead import resolve_bead_display
+import sase.ace.tui.models.agent_bead as agent_bead_model
+from sase.ace.tui.models.agent_bead import (
+    _BeadDisplayCache,
+    _bead_display_cache_key,
+    resolve_bead_display,
+    should_resolve_bead_display,
+)
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from tests.ace.tui.widgets._agent_display_helpers import (
     clear_bead_display_cache,
@@ -13,6 +19,18 @@ from tests.ace.tui.widgets._agent_display_helpers import (
 )
 
 pytestmark = pytest.mark.usefixtures("clear_bead_display_cache")
+
+
+def _install_expired_cache(
+    agent,
+    value: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache = _BeadDisplayCache(ttl_seconds=60.0, max_entries=16)
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+    cache._entries[key] = (-1.0, value)
+    monkeypatch.setattr(agent_bead_model, "_BEAD_DISPLAY_CACHE", cache)
 
 
 class TestAgentListBeadBadge:
@@ -56,6 +74,17 @@ class TestAgentListBeadBadge:
 
         assert " ◆ 260428.sase-x.3" in left.plain
 
+    def test_expired_confirmed_bead_row_keeps_badge_and_revalidates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = make_agent(agent_name="sase-x.3")
+        _install_expired_cache(agent, "sase-x.3 - stale description", monkeypatch)
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert " ◆ sase-x.3" in left.plain
+        assert should_resolve_bead_display(agent) is True
+
     def test_cold_bead_candidate_row_omits_bead_badge(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -82,6 +111,21 @@ class TestAgentListBeadBadge:
         )
         resolve_bead_display(agent)
 
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "◆" not in left.plain
+
+    def test_deleted_bead_candidate_row_drops_badge_after_reresolve(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = make_agent(agent_name="sase-x.3")
+        _install_expired_cache(agent, "sase-x.3 - stale description", monkeypatch)
+        monkeypatch.setattr(
+            "sase.agent.bead_display._lookup_bead_issue",
+            lambda candidate_id, **_: None,
+        )
+
+        resolve_bead_display(agent)
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "◆" not in left.plain

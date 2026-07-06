@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from textual.worker import Worker, WorkerState
 
 from ...models.agent import Agent
-from ...models.agent_bead import resolve_bead_display, should_resolve_bead_display
+from ...models.agent_bead import (
+    cached_bead_display,
+    resolve_bead_display,
+    should_resolve_bead_display,
+)
 from ._agent_display_header_summary import (
     build_detail_header_summary,
     cache_detail_header_summary,
+    get_cached_detail_header_summary,
     should_refresh_detail_header_summary,
 )
 from ..file_panel._linked_deltas import (
@@ -434,5 +439,16 @@ class AgentDisplayWorkerMixin:
             request.attempt_pinned_number,
         ):
             return
+
+        summary = get_cached_detail_header_summary(self, request.agent)
+        if summary is not None:
+            cached_display = cached_bead_display(request.agent)
+            bead_display = cached_display if isinstance(cached_display, str) else None
+            if summary.bead_display != bead_display:
+                cache_detail_header_summary(
+                    self,
+                    request.agent,
+                    replace(summary, bead_display=bead_display),
+                )
 
         self._update_display_impl(request.agent)  # type: ignore[attr-defined]

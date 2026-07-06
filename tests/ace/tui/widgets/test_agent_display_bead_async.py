@@ -10,8 +10,13 @@ from rich.text import Text
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_bead import _BEAD_DISPLAY_CACHE
+from sase.ace.tui.models.agent_bead import _BEAD_DISPLAY_CACHE, _bead_display_cache_key
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
+    cache_detail_header_summary,
+    get_cached_detail_header_summary,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 from sase.ace.tui.widgets.prompt_panel._workflow_display import WorkflowDisplayMixin
 from sase.bead.model import Issue
 from tests.ace.tui.widgets._agent_display_helpers import make_agent, plain_of
@@ -122,6 +127,66 @@ def test_successful_bead_worker_rerenders_cached_description(
     )
 
     assert "Bead: sase-x.3 - First line\n" in plain_of(panel.captured[-1])
+
+
+def test_expired_bead_display_renders_stale_while_worker_revalidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(agent_name="sase-x.3")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3 - stale description")
+    panel = _BeadPanel()
+    _set_context(panel, agent, current=True)
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue",
+        lambda bead_id, **_: Issue(
+            id=bead_id,
+            title="Phase title",
+            description="stale description",
+        ),
+    )
+
+    panel.update_display(agent)
+
+    rendered = plain_of(panel.captured[-1])
+    assert "Bead: sase-x.3 - stale description\n" in rendered
+    assert panel.worker_fn is not None
+    assert panel.worker_fn() == "sase-x.3 - stale description"
+
+
+def test_deleted_bead_worker_discards_cached_summary_before_rerender(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(agent_name="sase-x.3")
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+    _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3 - stale description")
+    panel = _BeadPanel()
+    _set_context(panel, agent, current=True)
+    cache_detail_header_summary(
+        panel,
+        agent,
+        DetailHeaderSummary(bead_display="sase-x.3 - stale description"),
+    )
+    monkeypatch.setattr(
+        "sase.agent.bead_display._lookup_bead_issue",
+        lambda bead_id, **_: None,
+    )
+
+    panel.update_display(agent)
+    assert "Bead: sase-x.3 - stale description\n" in plain_of(panel.captured[-1])
+    assert panel.worker_fn is not None
+    assert panel.worker_fn() is None
+
+    panel._apply_agent_bead_display_worker_result(
+        cast(Worker[Any], panel.worker), WorkerState.SUCCESS
+    )
+
+    assert "Bead:" not in plain_of(panel.captured[-1])
+    summary = get_cached_detail_header_summary(panel, agent)
+    assert summary is not None
+    assert summary.bead_display is None
 
 
 def test_missing_bead_worker_stays_silent_and_does_not_reschedule(

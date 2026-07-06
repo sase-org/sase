@@ -14,9 +14,13 @@ from pathlib import Path
 
 import pytest
 
+import sase.ace.tui.models.agent_bead as agent_bead_model
 from sase.ace.tui.models.agent_bead import (
     BEAD_DISPLAY_CACHE_MISS,
     _BEAD_DISPLAY_CACHE,
+    _BeadDisplayCache,
+    _bead_display_cache_key,
+    agent_has_confirmed_bead,
     cached_bead_display,
     resolve_bead_display,
     should_resolve_bead_display,
@@ -55,6 +59,18 @@ def _full_header(agent):
         cheap=False,
         summary=build_detail_header_summary(agent),
     )
+
+
+def _install_expired_cache(
+    agent,
+    value: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache = _BeadDisplayCache(ttl_seconds=60.0, max_entries=16)
+    key = _bead_display_cache_key(agent)
+    assert key is not None
+    cache._entries[key] = (-1.0, value)
+    monkeypatch.setattr(agent_bead_model, "_BEAD_DISPLAY_CACHE", cache)
 
 
 class TestConfirmedBeadMetadata:
@@ -315,6 +331,71 @@ class TestConfirmedBeadMetadata:
         assert (
             "Name: bob-cli-1.4\nBead: bob-cli-1.4 - Workspace phase title\n"
         ) in header.plain
+
+    def test_expired_confirmed_bead_stays_visible_and_requests_revalidation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = make_agent(agent_name="sase-x.3")
+        _install_expired_cache(agent, "sase-x.3 - stale description", monkeypatch)
+
+        assert cached_bead_display(agent) == "sase-x.3 - stale description"
+        assert agent_has_confirmed_bead(agent) is True
+        assert should_resolve_bead_display(agent) is True
+
+        cheap_header, _ = build_header_text(agent, cheap=True)
+        full_header, _ = _full_header(agent)
+
+        assert_metadata_prefix(
+            cheap_header,
+            "Name: sase-x.3",
+            "Bead: sase-x.3 - stale description",
+        )
+        assert_metadata_prefix(
+            full_header,
+            "Name: sase-x.3",
+            "Bead: sase-x.3 - stale description",
+        )
+
+    def test_reresolve_same_confirmed_bead_refreshes_expired_entry(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = make_agent(agent_name="sase-x.3")
+        _install_expired_cache(agent, "sase-x.3 - First line", monkeypatch)
+        monkeypatch.setattr(
+            "sase.agent.bead_display._lookup_bead_issue",
+            lambda bead_id, **_: Issue(
+                id=bead_id,
+                title="Phase title",
+                description="First line",
+            ),
+        )
+
+        assert should_resolve_bead_display(agent) is True
+        assert resolve_bead_display(agent) == "sase-x.3 - First line"
+
+        assert cached_bead_display(agent) == "sase-x.3 - First line"
+        assert should_resolve_bead_display(agent) is False
+
+    def test_reresolve_deleted_bead_removes_confirmed_metadata(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        agent = make_agent(agent_name="sase-x.3")
+        _install_expired_cache(agent, "sase-x.3 - stale description", monkeypatch)
+        monkeypatch.setattr(
+            "sase.agent.bead_display._lookup_bead_issue",
+            lambda bead_id, **_: None,
+        )
+
+        assert agent_has_confirmed_bead(agent) is True
+        assert resolve_bead_display(agent) is None
+
+        assert cached_bead_display(agent) is None
+        assert agent_has_confirmed_bead(agent) is False
+        assert should_resolve_bead_display(agent) is False
+        cheap_header, _ = build_header_text(agent, cheap=True)
+        full_header, _ = _full_header(agent)
+        assert "Bead:" not in cheap_header.plain
+        assert "Bead:" not in full_header.plain
 
 
 class TestUnconfirmedBeadMetadata:

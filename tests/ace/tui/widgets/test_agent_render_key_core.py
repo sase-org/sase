@@ -269,6 +269,28 @@ def test_render_key_changes_when_confirmed_bead_state_changes(
         _BEAD_DISPLAY_CACHE.clear()
 
 
+def test_render_key_preserves_confirmed_bead_state_after_cache_expiry() -> None:
+    from sase.ace.tui.models.agent_bead import (
+        _BEAD_DISPLAY_CACHE,
+        _bead_display_cache_key,
+    )
+
+    _BEAD_DISPLAY_CACHE.clear()
+    try:
+        a = _agent(agent_name="sase-x.3")
+        key = _bead_display_cache_key(a)
+        assert key is not None
+        _BEAD_DISPLAY_CACHE.set(key, "sase-x.3")
+        k_fresh = _bead_key(a)
+
+        _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3")
+        k_expired = _bead_key(a)
+
+        assert k_expired == k_fresh
+    finally:
+        _BEAD_DISPLAY_CACHE.clear()
+
+
 def test_render_key_changes_each_second_for_waiting_time_floor() -> None:
     a = _agent(status="WAITING")
     a.wait_until = "2026-04-25T14:35:00"
