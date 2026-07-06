@@ -368,10 +368,33 @@ class AgentKillMixin:
         )
 
     def _notify_no_focused_cleanup_action(
-        self, plan: AgentCleanupPlanWire | None
+        self, plan: AgentCleanupPlanWire | None, agent: Agent | None = None
     ) -> None:
         skipped_items = getattr(plan, "skipped_items", ()) if plan is not None else ()
-        skipped = next(iter(skipped_items), None)
+        focused_identity = None
+        if agent is not None:
+            focused_identity = (
+                agent.agent_type.value,
+                agent.cl_name,
+                agent.raw_suffix,
+            )
+        skipped = None
+        if focused_identity is not None:
+            skipped = next(
+                (
+                    item
+                    for item in skipped_items
+                    if (
+                        item.identity.agent_type,
+                        item.identity.cl_name,
+                        item.identity.raw_suffix,
+                    )
+                    == focused_identity
+                ),
+                None,
+            )
+        if skipped is None:
+            skipped = next(iter(skipped_items), None)
         if skipped is None:
             self.notify("No selected agents can be cleaned up", severity="warning")  # type: ignore[attr-defined]
             return
@@ -417,7 +440,7 @@ class AgentKillMixin:
             return
 
         if not cleanup_plan.kill_items:
-            self._notify_no_focused_cleanup_action(cleanup_plan)
+            self._notify_no_focused_cleanup_action(cleanup_plan, agent)
             return
 
         # Build description for confirmation dialog

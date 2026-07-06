@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents import AgentsMixin
@@ -58,11 +59,12 @@ def _cleanup_plan(agent: Agent, *, action: str, kind: str = "running") -> object
 
 
 class _ActionApp(AgentsMixin):
-    def __init__(self, agent: Agent) -> None:
+    def __init__(self, agent: Agent | list[Agent], *, current_idx: int = 0) -> None:
+        agents = list(agent) if isinstance(agent, list) else [agent]
         self.current_tab = "agents"
-        self.current_idx = 0
-        self._agents = [agent]
-        self._agents_with_children = [agent]
+        self.current_idx = current_idx
+        self._agents = agents
+        self._agents_with_children = list(agents)
         self._marked_agents = set()
         self._current_group_key = None
         self._notifications: list[tuple[str, str]] = []
@@ -166,6 +168,139 @@ def test_action_kill_single_pidless_running_is_planned_as_dismissable() -> None:
     mock_dismiss.assert_called_once_with(agent, plan)
 
 
+def test_action_kill_running_child_opens_confirmation_for_child() -> None:
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="parent_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=111,
+        raw_suffix="parent-12345",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="child_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=222,
+        raw_suffix="child-12345",
+        parent_timestamp="parent-12345",
+    )
+    app = _ActionApp([parent, child], current_idx=1)
+    plan = _cleanup_plan(child, action="kill")
+
+    with (
+        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan),
+        patch.object(app, "_do_kill_agent") as mock_do_kill,
+    ):
+        app.action_kill_agent()
+        assert app.pushed
+        app.pushed[0][1](True)  # type: ignore[index,operator]
+
+    mock_do_kill.assert_called_once_with(child, plan)
+
+
+def test_action_kill_completed_child_dismisses_child() -> None:
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="parent_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=111,
+        raw_suffix="parent-12345",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="child_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=None,
+        workflow=None,
+        pid=None,
+        raw_suffix="child-12345",
+        parent_timestamp="parent-12345",
+    )
+    app = _ActionApp([parent, child], current_idx=1)
+    plan = _cleanup_plan(child, action="dismiss")
+
+    with (
+        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan),
+        patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
+    ):
+        app.action_kill_agent()
+
+    mock_dismiss.assert_called_once_with(child, plan)
+    assert app.pushed == []
+
+
+def test_no_focused_cleanup_action_prefers_focused_skip_reason() -> None:
+    from sase.core.agent_cleanup_wire import (
+        AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        SKIPPED_NOT_IN_SCOPE,
+        SKIPPED_NOT_KILLABLE,
+        AgentCleanupIdentityWire,
+        AgentCleanupPlanWire,
+        AgentCleanupSkippedItemWire,
+    )
+
+    other = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="other_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=None,
+        raw_suffix="other-12345",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="child_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=None,
+        raw_suffix="child-12345",
+        parent_timestamp="parent-12345",
+    )
+    app = _ActionApp([other, child], current_idx=1)
+    plan = AgentCleanupPlanWire(
+        schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        skipped_items=(
+            AgentCleanupSkippedItemWire(
+                identity=AgentCleanupIdentityWire(
+                    agent_type=other.agent_type.value,
+                    cl_name=other.cl_name,
+                    raw_suffix=other.raw_suffix,
+                ),
+                reason=SKIPPED_NOT_IN_SCOPE,
+            ),
+            AgentCleanupSkippedItemWire(
+                identity=AgentCleanupIdentityWire(
+                    agent_type=child.agent_type.value,
+                    cl_name=child.cl_name,
+                    raw_suffix=child.raw_suffix,
+                ),
+                reason=SKIPPED_NOT_KILLABLE,
+                detail="RUNNING",
+            ),
+        ),
+    )
+
+    app._notify_no_focused_cleanup_action(plan, child)
+
+    assert app._notifications == [
+        ("Agent cannot be cleaned up (not_killable: RUNNING)", "warning")
+    ]
+
+
 def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None:
     """Kill path should update UI state immediately and defer persistence work."""
     from sase.ace.tui.actions.agents import AgentsMixin
@@ -234,6 +369,95 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
     assert task["task_type"] == "kill"
     assert task["display_name"] == f"kill {agent.display_name}"
     assert agent.identity in app._kill_persistence_inflight
+
+
+def test_do_kill_agent_child_removes_child_only() -> None:
+    """Planner-backed child kills should leave the parent and siblings visible."""
+    from sase.ace.tui.actions.agents import AgentsMixin
+
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+        def __init__(self) -> None:
+            self._init_tracked_task_recorder()
+            self._notifications: list[tuple[str, str]] = []
+            self.current_tab = "agents"
+            self.current_idx = 1
+            self._agents_refresh_pending = False
+            self._agents_refresh_scheduled = False
+            self._agents_loading = False
+            self._kill_persistence_inflight = set()
+            self._agent_status_overrides = {}
+            self._agent_pre_question_status = {}
+            self._dismissed_agents = set()
+            self._agents_with_children = []
+            self._agents = []
+            self.refresh_calls: list[tuple[bool, bool]] = []
+
+        def notify(self, msg: str, severity: str = "information") -> None:
+            self._notifications.append((msg, severity))
+
+        def _refresh_notification_count(self) -> None:
+            return
+
+        def _refresh_agents_display(
+            self, *, list_changed: bool = False, defer_detail: bool = False
+        ) -> None:
+            self.refresh_calls.append((list_changed, defer_detail))
+
+        def call_later(self, callback: object, *args: object) -> None:
+            return
+
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
+            return
+
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="parent_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=111,
+        raw_suffix="parent-12345",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="child_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=222,
+        raw_suffix="child-12345",
+        parent_timestamp="parent-12345",
+    )
+    sibling = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sibling_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow=None,
+        pid=333,
+        raw_suffix="sibling-12345",
+        parent_timestamp="parent-12345",
+    )
+    app = MockApp()
+    app._agents = [parent, child, sibling]
+    app._agents_with_children = [parent, child, sibling]
+
+    with patch(
+        "sase.ace.tui.actions.agents._killing.request_user_kill",
+        return_value=SimpleNamespace(success=True, status="killed", error=None),
+    ):
+        app._do_kill_agent(child, _cleanup_plan(child, action="kill"))
+
+    assert app._agents == [parent, sibling]
+    assert app._agents_with_children == [parent, sibling]
+    assert child.identity in app._dismissed_agents
+    assert parent.identity not in app._dismissed_agents
+    assert sibling.identity not in app._dismissed_agents
+    assert app.refresh_calls == [(True, True)]
 
 
 def test_do_kill_agent_hook_persistence_runs_async() -> None:

@@ -49,6 +49,7 @@ DISMISSABLE_STATUSES = {
     "TALE DONE",
     "PLAN REJECTED",
     "EPIC CREATED",
+    "STOPPED",
 }
 
 

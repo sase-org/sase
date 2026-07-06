@@ -170,6 +170,63 @@ def _selected_by_scope(
     return False
 
 
+def _scope_allows_direct_child_targets(scope: str) -> bool:
+    return scope in {
+        CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        CLEANUP_SCOPE_CUSTOM_SELECTION,
+    }
+
+
+def _parent_matches_child(
+    parent: AgentCleanupTargetWire,
+    child: AgentCleanupTargetWire,
+) -> bool:
+    if _is_workflow_child(parent):
+        return False
+    if parent.raw_suffix != child.parent_timestamp:
+        return False
+    if child.parent_workflow is not None:
+        return parent.workflow == child.parent_workflow
+    return True
+
+
+def _parent_selected_for_child(
+    child: AgentCleanupTargetWire,
+    targets: Sequence[AgentCleanupTargetWire],
+    request: AgentCleanupRequestWire,
+    selected_ids: set[AgentCleanupIdentityWire],
+    parent_tags: dict[str, str | None],
+) -> bool:
+    if child.parent_timestamp is None:
+        return False
+    return any(
+        _parent_matches_child(candidate, child)
+        and _selected_by_scope(candidate, request, selected_ids, parent_tags)
+        for candidate in targets
+    )
+
+
+def _is_direct_child_target(
+    target: AgentCleanupTargetWire,
+    targets: Sequence[AgentCleanupTargetWire],
+    request: AgentCleanupRequestWire,
+    selected_ids: set[AgentCleanupIdentityWire],
+    parent_tags: dict[str, str | None],
+) -> bool:
+    return (
+        _is_workflow_child(target)
+        and _scope_allows_direct_child_targets(request.scope)
+        and target.identity in selected_ids
+        and not _parent_selected_for_child(
+            target,
+            targets,
+            request,
+            selected_ids,
+            parent_tags,
+        )
+    )
+
+
 def _classify_kill_kind(target: AgentCleanupTargetWire) -> str | None:
     workflow = target.workflow or ""
     if target.agent_type == "workflow":
@@ -308,16 +365,14 @@ def _build_cleanup_side_effects(
                 )
             )
         elif kind == KILL_KIND_WORKFLOW:
-            workflow_name = (
-                target.parent_workflow or target.workflow
-                if target.is_workflow_child
-                else target.workflow
-            )
+            if _is_workflow_child(target):
+                return
+            workflow_name = target.workflow
             if workflow_name is None:
                 return
             lookup_cl_name = (
                 target.identity.cl_name
-                if not target.is_workflow_child and target.identity.cl_name != "unknown"
+                if target.identity.cl_name != "unknown"
                 else None
             )
             workspace_releases.append(
@@ -424,7 +479,14 @@ def _plan_agent_cleanup_python(
             _add_skip(skipped_items, target, SKIPPED_NOT_IN_SCOPE)
             continue
 
-        if _is_workflow_child(target):
+        direct_child_target = _is_direct_child_target(
+            target,
+            wire_targets,
+            wire_request,
+            selected_ids,
+            parent_tags,
+        )
+        if _is_workflow_child(target) and not direct_child_target:
             _add_skip(skipped_items, target, SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY)
             continue
 

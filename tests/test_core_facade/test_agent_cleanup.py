@@ -20,12 +20,15 @@ from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     CLEANUP_MODE_DISMISS_COMPLETED,
     CLEANUP_MODE_KILL_AND_DISMISS,
+    CLEANUP_SCOPE_ALL_PANELS,
+    CLEANUP_SCOPE_CUSTOM_SELECTION,
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_GROUP,
     CLEANUP_SCOPE_FOCUSED_PANEL,
     CLEANUP_SCOPE_TAG,
     KILL_KIND_RUNNING,
     KILL_KIND_WORKFLOW,
+    SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY,
     AgentCleanupIdentityWire,
     AgentCleanupRequestWire,
     agent_cleanup_wire_to_json_dict,
@@ -283,6 +286,71 @@ def _scenario_duplicate_child_inputs() -> tuple[list[Agent], AgentCleanupRequest
     )
 
 
+def _scenario_explicit_child_running() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    parent = _agent(cl_name="parent", raw_suffix="parent-ts", pid=1001)
+    child = _agent(
+        cl_name="child",
+        raw_suffix="child-ts",
+        pid=1002,
+        parent_timestamp="parent-ts",
+        workspace_num=8,
+    )
+    sibling = _agent(
+        cl_name="sibling",
+        raw_suffix="sibling-ts",
+        pid=1003,
+        parent_timestamp="parent-ts",
+        workspace_num=9,
+    )
+    return [
+        parent,
+        child,
+        sibling,
+    ], _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(child),),
+    )
+
+
+def _scenario_explicit_child_done() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    parent = _agent(cl_name="parent", raw_suffix="parent-ts", pid=1001)
+    child = _agent(
+        cl_name="child",
+        raw_suffix="child-ts",
+        status="DONE",
+        pid=None,
+        parent_timestamp="parent-ts",
+        stop_time=_STOP,
+    )
+    return [
+        parent,
+        child,
+    ], _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(child),),
+    )
+
+
+def _scenario_custom_child_running() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    parent = _agent(cl_name="parent", raw_suffix="parent-ts", pid=1001)
+    child = _agent(
+        cl_name="child",
+        raw_suffix="child-ts",
+        pid=1002,
+        parent_timestamp="parent-ts",
+    )
+    return [
+        parent,
+        child,
+    ], _request(
+        scope=CLEANUP_SCOPE_CUSTOM_SELECTION,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(child),),
+    )
+
+
 _SCENARIOS = [
     pytest.param(_scenario_focused_panel_dismiss, id="focused-panel-dismiss-done"),
     pytest.param(
@@ -298,6 +366,9 @@ _SCENARIOS = [
     ),
     pytest.param(_scenario_pidless_dismiss_fallback, id="pidless-dismiss-fallback"),
     pytest.param(_scenario_duplicate_child_inputs, id="duplicate-child-inputs"),
+    pytest.param(_scenario_explicit_child_running, id="explicit-child-running"),
+    pytest.param(_scenario_explicit_child_done, id="explicit-child-done"),
+    pytest.param(_scenario_custom_child_running, id="custom-child-running"),
 ]
 
 
@@ -365,6 +436,21 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
         assert [item.reason for item in plan.skipped_items].count(
             "workflow_child_cascade_only"
         ) == 2
+    elif scenario is _scenario_explicit_child_running:
+        assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+            ("child", KILL_KIND_RUNNING)
+        ]
+        assert plan.dismiss_items == ()
+        assert plan.cascaded_workflow_children == ()
+    elif scenario is _scenario_explicit_child_done:
+        assert plan.kill_items == ()
+        assert [item.identity.cl_name for item in plan.dismiss_items] == ["child"]
+        assert plan.cascaded_workflow_children == ()
+    elif scenario is _scenario_custom_child_running:
+        assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+            ("child", KILL_KIND_RUNNING)
+        ]
+        assert plan.dismiss_items == ()
 
 
 def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> None:
@@ -447,6 +533,114 @@ def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
     assert [
         item.workspace for item in plan.side_effects.workspace_release_requests
     ] == [9]
+
+
+def test_python_cleanup_planner_direct_child_side_effects_exclude_siblings() -> None:
+    agents, request = _scenario_explicit_child_running()
+
+    plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
+
+    assert [item.identity.cl_name for item in plan.kill_items] == ["child"]
+    assert [item.cl_name for item in plan.side_effects.dismissed_index_additions] == [
+        "child"
+    ]
+    assert [
+        item.identity.cl_name for item in plan.side_effects.workspace_release_requests
+    ] == ["child"]
+    assert [
+        item.identity.cl_name
+        for item in plan.side_effects.notification_dismiss_candidates
+    ] == ["child"]
+
+
+def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> None:
+    child = _agent(
+        cl_name="child",
+        raw_suffix="child-ts",
+        pid=1002,
+        parent_timestamp="parent-ts",
+        tag="ops",
+    )
+    focused_request = _request(
+        scope=CLEANUP_SCOPE_FOCUSED_PANEL,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        focused_panel_tag="ops",
+    )
+    tag_request = _request(
+        scope=CLEANUP_SCOPE_TAG,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        tag="ops",
+    )
+
+    for request in (
+        _request(
+            scope=CLEANUP_SCOPE_ALL_PANELS,
+            mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        ),
+        focused_request,
+        tag_request,
+    ):
+        plan = _plan_agent_cleanup_python(agents_to_cleanup_targets([child]), request)
+
+        assert plan.kill_items == ()
+        assert plan.dismiss_items == ()
+        assert [item.reason for item in plan.skipped_items] == [
+            SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY
+        ]
+
+
+def test_python_cleanup_planner_direct_workflow_child_keeps_parent_workspace() -> None:
+    parent = _agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="workflow",
+        status="RUNNING",
+        pid=1001,
+        raw_suffix="parent-ts",
+        workflow="release",
+        workspace_num=1,
+    )
+    child = _agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="child",
+        status="RUNNING",
+        pid=1002,
+        raw_suffix="child-ts",
+        workflow="release",
+        parent_workflow="release",
+        parent_timestamp="parent-ts",
+        workspace_num=2,
+    )
+    request = _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(child),),
+    )
+
+    plan = _plan_agent_cleanup_python(
+        agents_to_cleanup_targets([parent, child]), request
+    )
+
+    assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+        ("child", KILL_KIND_WORKFLOW)
+    ]
+    assert [item.cl_name for item in plan.side_effects.dismissed_index_additions] == [
+        "child"
+    ]
+    assert plan.side_effects.workspace_release_requests == ()
+
+
+def test_python_cleanup_planner_treats_stopped_as_dismissable() -> None:
+    stopped = _agent(cl_name="stopped", status="STOPPED", pid=None)
+    request = _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(stopped),),
+    )
+
+    plan = _plan_agent_cleanup_python(agents_to_cleanup_targets([stopped]), request)
+
+    assert plan.kill_items == ()
+    assert [item.identity.cl_name for item in plan.dismiss_items] == ["stopped"]
 
 
 def test_plan_agent_cleanup_uses_rust_binding_when_available(
