@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from sase.core.time import local_now
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import (
     is_canonical_duration,
@@ -117,7 +118,7 @@ def test_parse_absolute_time_hhmm_past_wraps_to_tomorrow() -> None:
     assert result is not None
     target = datetime.fromisoformat(result)
     # Should be tomorrow (since 00:00 today has passed)
-    assert target.date() == (datetime.now() + timedelta(days=1)).date()
+    assert target.date() == (local_now() + timedelta(days=1)).date()
 
 
 def test_parse_absolute_time_yymmdd_hhmm_future() -> None:

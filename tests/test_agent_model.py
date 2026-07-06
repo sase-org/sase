@@ -389,14 +389,14 @@ def test_wait_until_none_by_default() -> None:
 
 def test_format_wait_until_same_day() -> None:
     """Same-day target shows only time."""
-    today = datetime.now().replace(hour=14, minute=30, second=0, microsecond=0)
+    today = local_now().replace(hour=14, minute=30, second=0, microsecond=0)
     result = format_wait_until(today.isoformat())
     assert result == "14:30"
 
 
 def test_format_wait_until_different_day() -> None:
     """Different-day target shows month, day, and time."""
-    tomorrow = (datetime.now() + timedelta(days=1)).replace(
+    tomorrow = (local_now() + timedelta(days=1)).replace(
         hour=9, minute=0, second=0, microsecond=0
     )
     result = format_wait_until(tomorrow.isoformat())
