@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove stale native ``sase_core_rs`` extension artifacts before rebuilds."""
+"""Remove stale native ``sase_core_rs`` extension artifacts."""
 
 from __future__ import annotations
 
@@ -48,10 +48,17 @@ def _native_extension_paths(site_package_dirs: Iterable[Path]) -> list[Path]:
 
 def purge_sase_core_rs_extensions(
     site_package_dirs: Iterable[Path],
+    *,
+    exclude_newer_than: Path | None = None,
 ) -> list[Path]:
     """Delete native ``sase_core_rs`` artifacts and return removed paths."""
+    cutoff_mtime = (
+        exclude_newer_than.stat().st_mtime if exclude_newer_than is not None else None
+    )
     removed: list[Path] = []
     for path in _native_extension_paths(site_package_dirs):
+        if cutoff_mtime is not None and path.stat().st_mtime >= cutoff_mtime:
+            continue
         path.unlink()
         removed.append(path)
     return removed
@@ -68,6 +75,14 @@ def _parse_args() -> argparse.Namespace:
             "purelib/platlib paths"
         ),
     )
+    parser.add_argument(
+        "--exclude-newer-than",
+        type=Path,
+        help=(
+            "marker file whose mtime protects artifacts written at or after the "
+            "marker from deletion"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -75,7 +90,10 @@ def main() -> int:
     args = _parse_args()
     site_package_dirs = args.site_packages or _default_site_package_dirs()
     try:
-        removed = purge_sase_core_rs_extensions(site_package_dirs)
+        removed = purge_sase_core_rs_extensions(
+            site_package_dirs,
+            exclude_newer_than=args.exclude_newer_than,
+        )
     except OSError as exc:
         print(f"[purge_sase_core_rs_extensions] failed: {exc}", file=sys.stderr)
         return 1

@@ -200,9 +200,27 @@ def _run_reconcile_steps(
     run: DevCommandRunner,
     commands: list[DevExecutedCommand],
 ) -> str | None:
-    for step in steps:
+    pending_failure: str | None = None
+    for index, step in enumerate(steps):
+        if step.kind == "rust_health_check":
+            health_failure = _run_rust_health_check_step(
+                step,
+                run,
+                commands,
+                prior_failure=pending_failure,
+            )
+            if health_failure is not None:
+                return health_failure
+            continue
+
         if not step.available:
-            return step.reason or f"{step.label} unavailable"
+            failure = step.reason or f"{step.label} unavailable"
+            if step.kind == "rust_install_uv_tool" and _has_later_rust_health_check(
+                steps, index
+            ):
+                pending_failure = _join_failures(pending_failure, failure)
+                continue
+            return failure
         result = _run(
             run,
             step.command,
@@ -211,7 +229,97 @@ def _run_reconcile_steps(
             commands=commands,
         )
         if result.returncode != 0:
-            return _command_failure(f"{step.label} failed", result)
+            failure = _command_failure(f"{step.label} failed", result)
+            if step.kind == "rust_install_uv_tool" and _has_later_rust_health_check(
+                steps, index
+            ):
+                pending_failure = _join_failures(pending_failure, failure)
+                continue
+            return failure
+    return pending_failure
+
+
+def _has_later_rust_health_check(
+    steps: tuple[DevReconcileStep, ...], current_index: int
+) -> bool:
+    return any(step.kind == "rust_health_check" for step in steps[current_index + 1 :])
+
+
+def _run_rust_health_check_step(
+    step: DevReconcileStep,
+    run: DevCommandRunner,
+    commands: list[DevExecutedCommand],
+    *,
+    prior_failure: str | None,
+) -> str | None:
+    if not step.available:
+        failure = step.reason or f"{step.label} unavailable"
+        return _join_failures(prior_failure, failure)
+
+    health = _run(
+        run,
+        step.command,
+        cwd=Path(step.cwd) if step.cwd else None,
+        label=step.label,
+        commands=commands,
+    )
+    if health.returncode == 0:
+        if prior_failure is None:
+            return None
+        version = _version_from_health_check(health.stdout)
+        suffix = "existing sase-core-rs remains importable"
+        if version:
+            suffix = f"{suffix} ({version})"
+        return _join_failures(prior_failure, suffix)
+
+    health_failure = _command_failure(f"{step.label} failed", health)
+    if not step.repair_command:
+        repair_reason = step.repair_reason or "repair command unavailable"
+        return _join_failures(prior_failure, f"{health_failure}; {repair_reason}")
+
+    repair_label = step.repair_label or "Restore published sase-core-rs wheel"
+    repair = _run(
+        run,
+        step.repair_command,
+        cwd=Path(step.repair_cwd) if step.repair_cwd else None,
+        label=repair_label,
+        commands=commands,
+    )
+    if repair.returncode != 0:
+        repair_failure = _command_failure(f"{repair_label} failed", repair)
+        return _join_failures(prior_failure, f"{health_failure}; {repair_failure}")
+
+    repaired_health = _run(
+        run,
+        step.command,
+        cwd=Path(step.cwd) if step.cwd else None,
+        label=f"{step.label} after repair",
+        commands=commands,
+    )
+    if repaired_health.returncode != 0:
+        repaired_failure = _command_failure(
+            f"{step.label} after repair failed", repaired_health
+        )
+        return _join_failures(prior_failure, f"{health_failure}; {repaired_failure}")
+
+    version = _version_from_health_check(repaired_health.stdout)
+    restored = "environment restored to a published sase-core-rs wheel"
+    if version:
+        restored = f"environment restored to published sase-core-rs {version}"
+    return _join_failures(prior_failure, f"{health_failure}; {restored}")
+
+
+def _join_failures(first: str | None, second: str) -> str:
+    if not first:
+        return second
+    return f"{first}; {second}"
+
+
+def _version_from_health_check(stdout: str) -> str | None:
+    for line in stdout.splitlines():
+        candidate = line.strip()
+        if candidate:
+            return candidate
     return None
 
 

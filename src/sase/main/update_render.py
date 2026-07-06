@@ -128,6 +128,8 @@ def _dev_reconcile_table(steps: tuple[DevReconcileStep, ...]) -> Table:
         command = (
             " ".join(step.command) if step.command else step.reason or "unavailable"
         )
+        if step.repair_command:
+            command = f"{command} (fallback: {' '.join(step.repair_command)})"
         table.add_row(Text("reconcile", style="cyan"), Text(step.label), Text(command))
     return table
 

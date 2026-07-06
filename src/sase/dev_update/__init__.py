@@ -2,6 +2,7 @@
 
 from sase.dev_update.detect import detect_dev_latest
 from sase.dev_update.execute import execute_dev_update, run_dev_update_command
+from sase.dev_update.journal import append_dev_update_journal, dev_update_journal_path
 from sase.dev_update.models import (
     DevCommandResult,
     DevExecutedCommand,
@@ -30,6 +31,8 @@ __all__ = [
     "DevUpdateRootPlan",
     "RepoDiffStat",
     "detect_dev_latest",
+    "append_dev_update_journal",
+    "dev_update_journal_path",
     "execute_dev_update",
     "plan_dev_update",
     "run_dev_update_command",

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from sase.axe.process import AxeStartResult
+import sase.dev_update.journal as journal_mod
 from sase.dev_update.models import DevUpdateOutcome, DevUpdatePlan, DevUpdateResult
 from sase.main.update_handler import handle_update_command
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
@@ -27,7 +28,10 @@ from tests.main.update_command_helpers import (
 )
 
 
-def test_dev_update_runs_backend_and_restarts_axe(tmp_path: Path) -> None:
+def test_dev_update_runs_backend_and_restarts_axe(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     host = _record("sase", role="host", source_root="/home/u/sase")
     github = _record("sase-github", role="plugin", source_root="/home/u/sase-github")
     telegram = _record(
@@ -59,6 +63,8 @@ def test_dev_update_runs_backend_and_restarts_axe(tmp_path: Path) -> None:
 
     clock = iter([0.0, 2.0])
     out = _console()
+    journal_path = tmp_path / "dev_update.jsonl"
+    monkeypatch.setattr(journal_mod, "DEV_UPDATE_JOURNAL", str(journal_path))
     code = handle_update_command(
         _args(),
         console=out,
@@ -82,6 +88,9 @@ def test_dev_update_runs_backend_and_restarts_axe(tmp_path: Path) -> None:
     assert "SASE Dev Update" in text
     assert "0.6.1+1.gaaaaaaaaa \u2192 0.6.1+2.gbbbbbbbbb" in text
     assert "Axe restarted (pid 2468)" in text
+    journal_payload = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert journal_payload["result"]["status"] == "updated"
+    assert journal_payload["plan"]["packages"][0]["name"] == "sase"
 
 
 def test_dev_update_json_includes_dev_outcomes_and_restart(

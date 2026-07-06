@@ -147,7 +147,10 @@ def dev_update_preview_details(plan: DevUpdatePlan) -> tuple[str, ...]:
         lines.append(f"fetch + fast-forward {ref} in {_short_root(root.git_root)}")
     for step in plan.reconcile_steps:
         if step.available:
-            lines.append(f"{step.label}: {' '.join(step.command)}")
+            detail = " ".join(step.command)
+            if step.repair_command:
+                detail = f"{detail} (fallback: {' '.join(step.repair_command)})"
+            lines.append(f"{step.label}: {detail}")
         else:
             lines.append(f"{step.label}: unavailable ({step.reason or 'no command'})")
     for package in plan.skipped[:4]:

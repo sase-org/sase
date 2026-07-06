@@ -104,6 +104,25 @@ class FakeRunner:
         return DevCommandResult(0)
 
 
+class SequenceRunner(FakeRunner):
+    def __init__(
+        self,
+        sequences: dict[tuple[str, ...], list[DevCommandResult]],
+        responses: dict[tuple[str, ...], DevCommandResult] | None = None,
+    ) -> None:
+        super().__init__(responses)
+        self.sequences = sequences
+
+    def __call__(
+        self, argv: Sequence[str], *, cwd: Path | None = None
+    ) -> DevCommandResult:
+        command = tuple(argv)
+        if command in self.sequences and self.sequences[command]:
+            self.calls.append((command, cwd))
+            return self.sequences[command].pop(0)
+        return super().__call__(argv, cwd=cwd)
+
+
 def test_execute_dev_update_fetches_preflights_merges_and_reconciles() -> None:
     step = DevReconcileStep(
         kind="uv_tool_install",
@@ -365,6 +384,68 @@ def test_execute_dev_update_missing_reconcile_step_fails_after_merge() -> None:
     assert result.changed is True
     assert result.outcomes[0].status == "failed"
     assert result.outcomes[0].reason == "uv tool receipt unavailable"
+
+
+def test_execute_dev_update_repairs_failed_core_health_check() -> None:
+    rust_step = DevReconcileStep(
+        kind="rust_install_uv_tool",
+        label="Rebuild sase-core-rs into the uv-tool venv",
+        command=("just", "rust-install-uv-tool"),
+        cwd="/repo",
+    )
+    health_command = (
+        "/tool/bin/python",
+        "-c",
+        "import importlib.metadata as m; import sase_core_rs; "
+        "print(m.version('sase-core-rs'))",
+    )
+    repair_command = (
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        "/tool/bin/python",
+        "--force-reinstall",
+        "sase-core-rs<0.4.0,>=0.3.0",
+    )
+    health_step = DevReconcileStep(
+        kind="rust_health_check",
+        label="Verify sase-core-rs imports in the uv-tool venv",
+        command=health_command,
+        repair_command=repair_command,
+        repair_label="Restore published sase-core-rs wheel",
+    )
+    runner = SequenceRunner(
+        {
+            ("just", "rust-install-uv-tool"): [
+                DevCommandResult(1, stderr="maturin failed")
+            ],
+            health_command: [
+                DevCommandResult(1, stderr="No module named sase_core_rs"),
+                DevCommandResult(0, stdout="0.3.7\n"),
+            ],
+        }
+    )
+
+    result = execute_dev_update(_plan(reconcile=(rust_step, health_step)), run=runner)
+
+    assert result.changed is True
+    assert result.outcomes[0].status == "failed"
+    assert "maturin failed" in result.outcomes[0].reason
+    assert "environment restored to published sase-core-rs 0.3.7" in (
+        result.outcomes[0].reason
+    )
+    reconcile_commands = [
+        (command.label, command.returncode)
+        for command in result.commands
+        if not command.label.startswith("git ")
+    ]
+    assert reconcile_commands == [
+        ("Rebuild sase-core-rs into the uv-tool venv", 1),
+        ("Verify sase-core-rs imports in the uv-tool venv", 1),
+        ("Restore published sase-core-rs wheel", 0),
+        ("Verify sase-core-rs imports in the uv-tool venv after repair", 0),
+    ]
 
 
 def test_execute_dev_update_no_actionable_roots_returns_skips() -> None:

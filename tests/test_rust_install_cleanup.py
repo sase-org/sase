@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import runpy
+import os
 from pathlib import Path
 from typing import Any
 
@@ -49,3 +50,30 @@ def test_purge_sase_core_rs_extensions_removes_shadowing_native_artifacts(
     assert keep_init.exists()
     assert keep_python.exists()
     assert keep_unrelated.exists()
+
+
+def test_purge_sase_core_rs_extensions_keeps_artifacts_newer_than_marker(
+    tmp_path: Path,
+) -> None:
+    site_packages = tmp_path / "site-packages"
+    package_dir = site_packages / "sase_core_rs"
+    package_dir.mkdir(parents=True)
+    stale = package_dir / "sase_core_rs.cpython-314-x86_64-linux-gnu.so"
+    fresh = package_dir / "sase_core_rs.abi3.so"
+    marker = tmp_path / "marker"
+    for path in (stale, fresh, marker):
+        path.write_bytes(b"placeholder")
+
+    os.utime(stale, (100.0, 100.0))
+    os.utime(marker, (200.0, 200.0))
+    os.utime(fresh, (300.0, 300.0))
+
+    tool = _load_tool()
+    removed = tool["purge_sase_core_rs_extensions"](
+        [site_packages],
+        exclude_newer_than=marker,
+    )
+
+    assert removed == [stale]
+    assert not stale.exists()
+    assert fresh.exists()

@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -48,6 +49,28 @@ def test_require_rust_extension_raises_when_missing(
     message = str(excinfo.value)
     assert RUST_EXTENSION_MODULE_NAME in message
     assert "just install" in message
+
+
+def test_require_rust_extension_uses_uv_tool_repair_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delitem(sys.modules, RUST_EXTENSION_MODULE_NAME, raising=False)
+    tool_dir = tmp_path / "uv" / "tools"
+    monkeypatch.setenv("UV_TOOL_DIR", str(tool_dir))
+    monkeypatch.setattr(sys, "prefix", str(tool_dir / "sase"))
+
+    def _missing(name: str) -> object:
+        raise ImportError(f"No module named {name!r}")
+
+    monkeypatch.setattr(importlib, "import_module", _missing)
+    with pytest.raises(ImportError) as excinfo:
+        require_rust_extension()
+    message = str(excinfo.value)
+    assert "uv pip install --python" in message
+    assert "--force-reinstall sase-core-rs" in message
+    assert "uv tool install --force sase" in message
+    assert "just install" not in message
 
 
 def test_require_rust_extension_propagates_non_import_errors(

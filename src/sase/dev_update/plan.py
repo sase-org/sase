@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import subprocess
+import sys
+import tomllib
 from collections import OrderedDict
 from pathlib import Path
+
+from packaging.requirements import InvalidRequirement, Requirement
 
 from sase.dev_update.models import (
     DevPackagePlanStatus,
@@ -19,9 +23,16 @@ from sase.version._git import (
     classify_git_upstream,
     probe_git_metadata_at_ref,
 )
-from sase.version._models import VersionPackageRecord
+from sase.version._models import CORE_DISTRIBUTION_NAME, VersionPackageRecord
+from sase.version._utils import normalize_distribution_name
 from sase.uv_tool.commands import build_install
 from sase.uv_tool.receipt import ToolReceipt
+
+_CORE_HEALTH_CHECK_SNIPPET = (
+    "import importlib.metadata as m; "
+    f"import {CORE_DISTRIBUTION_NAME.replace('-', '_')}; "
+    f"print(m.version({CORE_DISTRIBUTION_NAME!r}))"
+)
 
 
 def plan_dev_update(
@@ -29,6 +40,7 @@ def plan_dev_update(
     *,
     host_record: VersionPackageRecord,
     receipt: ToolReceipt | None = None,
+    tool_python: str | None = None,
 ) -> DevUpdatePlan:
     """Plan a fast-forward-only dev update for editable package records."""
     packages: list[DevUpdatePackagePlan] = []
@@ -91,6 +103,7 @@ def plan_dev_update(
         [pkg.record for pkg in packages if pkg.status == "actionable"],
         host_record=host_record,
         receipt=receipt,
+        tool_python=tool_python,
     )
     return DevUpdatePlan(
         packages=tuple(packages),
@@ -170,6 +183,7 @@ def _reconcile_steps(
     *,
     host_record: VersionPackageRecord,
     receipt: ToolReceipt | None,
+    tool_python: str | None,
 ) -> tuple[DevReconcileStep, ...]:
     steps: list[DevReconcileStep] = []
     python_changed = any(record.role != "core" for record in actionable_records)
@@ -213,5 +227,63 @@ def _reconcile_steps(
                     reason="host checkout source root unavailable",
                 )
             )
+        steps.append(_rust_health_check_step(host_record, tool_python=tool_python))
 
     return tuple(steps)
+
+
+def _rust_health_check_step(
+    host_record: VersionPackageRecord,
+    *,
+    tool_python: str | None,
+) -> DevReconcileStep:
+    python = tool_python or sys.executable
+    specifier, repair_reason = _core_dependency_specifier(host_record)
+    repair_command: tuple[str, ...] = ()
+    if specifier is not None:
+        repair_command = (
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            python,
+            "--force-reinstall",
+            f"{CORE_DISTRIBUTION_NAME}{specifier}",
+        )
+    return DevReconcileStep(
+        kind="rust_health_check",
+        label="Verify sase-core-rs imports in the uv-tool venv",
+        command=(python, "-c", _CORE_HEALTH_CHECK_SNIPPET),
+        repair_command=repair_command,
+        repair_label="Restore published sase-core-rs wheel",
+        repair_reason=repair_reason,
+    )
+
+
+def _core_dependency_specifier(
+    host_record: VersionPackageRecord,
+) -> tuple[str | None, str | None]:
+    if not host_record.source_root:
+        return None, "host checkout source root unavailable"
+    pyproject = Path(host_record.source_root) / "pyproject.toml"
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return None, f"host pyproject unavailable: {exc}"
+    except tomllib.TOMLDecodeError as exc:
+        return None, f"host pyproject could not be parsed: {exc}"
+    dependencies = data.get("project", {}).get("dependencies", [])
+    if not isinstance(dependencies, list):
+        return None, "host pyproject dependencies are not a list"
+    for dependency in dependencies:
+        if not isinstance(dependency, str):
+            continue
+        try:
+            requirement = Requirement(dependency)
+        except InvalidRequirement:
+            continue
+        if normalize_distribution_name(requirement.name) == normalize_distribution_name(
+            CORE_DISTRIBUTION_NAME
+        ):
+            return str(requirement.specifier), None
+    return None, "host pyproject does not declare a sase-core-rs dependency"

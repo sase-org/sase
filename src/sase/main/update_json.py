@@ -178,6 +178,10 @@ def _dev_reconcile_step_json(step: DevReconcileStep) -> dict[str, Any]:
         "cwd": step.cwd,
         "available": step.available,
         "reason": step.reason,
+        "repair_command": list(step.repair_command),
+        "repair_cwd": step.repair_cwd,
+        "repair_label": step.repair_label,
+        "repair_reason": step.repair_reason,
     }
 
 

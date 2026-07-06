@@ -19,11 +19,14 @@ supported import path for ported facades. Contract:
 from __future__ import annotations
 
 import importlib
+import os
+import sys
+from pathlib import Path
 from typing import Any
 
 RUST_EXTENSION_MODULE_NAME = "sase_core_rs"
 
-_INSTALL_HINT = (
+_PROJECT_INSTALL_HINT = (
     "reinstall with `just install` (or `just rust-install` for an editable "
     "build against ../sase-core)"
 )
@@ -45,7 +48,7 @@ def require_rust_extension() -> Any:
         raise ImportError(
             f"{RUST_EXTENSION_MODULE_NAME} is not importable in this "
             f"environment but is a hard runtime dependency of sase; "
-            f"{_INSTALL_HINT}."
+            f"{_install_hint()}."
         ) from exc
 
 
@@ -66,5 +69,45 @@ def require_rust_binding(name: str) -> Any:
         raise AttributeError(
             f"{RUST_EXTENSION_MODULE_NAME} is importable but does not expose "
             f"binding {name!r}; the installed wheel is stale or was built "
-            f"without the shipped bindings. {_INSTALL_HINT.capitalize()}."
+            f"without the shipped bindings. {_install_hint().capitalize()}."
         ) from exc
+
+
+def _install_hint() -> str:
+    if _is_uv_tool_context():
+        python = _venv_python(Path(sys.prefix))
+        return (
+            "repair the uv-tool venv with "
+            f"`uv pip install --python \"{python}\" --force-reinstall "
+            "sase-core-rs` (or reinstall the tool with "
+            "`uv tool install --force sase`)"
+        )
+    return _PROJECT_INSTALL_HINT
+
+
+def _is_uv_tool_context() -> bool:
+    try:
+        prefix = _normalize(Path(sys.prefix))
+        expected = _normalize(_default_uv_tool_dir() / "sase")
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return prefix == expected
+
+
+def _default_uv_tool_dir() -> Path:
+    override = os.environ.get("UV_TOOL_DIR")
+    if override:
+        return Path(override)
+    xdg = os.environ.get("XDG_DATA_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
+    return base / "uv" / "tools"
+
+
+def _normalize(path: Path) -> Path:
+    return Path(os.path.normpath(os.fspath(path.expanduser())))
+
+
+def _venv_python(prefix: Path) -> Path:
+    scripts_dir = "Scripts" if os.name == "nt" else "bin"
+    executable = "python.exe" if os.name == "nt" else "python"
+    return prefix / scripts_dir / executable

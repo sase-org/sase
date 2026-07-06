@@ -119,19 +119,49 @@ def test_plan_dev_update_dedupes_roots_and_builds_uv_reconcile(
 
 def test_plan_dev_update_core_only_uses_rust_rebuild(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    host = _record("sase", role="host", source_root="/repo/sase")
+    host_root = tmp_path / "sase"
+    host_root.mkdir()
+    (host_root / "pyproject.toml").write_text(
+        """
+        [project]
+        dependencies = [
+            "sase-core-rs>=0.3.0,<0.4.0",
+        ]
+        """,
+        encoding="utf-8",
+    )
+    host = _record("sase", role="host", source_root=str(host_root))
     core = _record("sase-core-rs", role="core", source_root="/repo/sase-core")
     monkeypatch.setattr(
         plan_mod, "classify_git_upstream", lambda _root: _status("/repo/sase-core")
     )
     monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
 
-    plan = plan_dev_update([core], host_record=host)
+    plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
 
-    assert [step.kind for step in plan.reconcile_steps] == ["rust_install_uv_tool"]
+    assert [step.kind for step in plan.reconcile_steps] == [
+        "rust_install_uv_tool",
+        "rust_health_check",
+    ]
     assert plan.reconcile_steps[0].command == ("just", "rust-install-uv-tool")
-    assert plan.reconcile_steps[0].cwd == "/repo/sase"
+    assert plan.reconcile_steps[0].cwd == str(host_root)
+    assert plan.reconcile_steps[1].command == (
+        "/tool/bin/python",
+        "-c",
+        "import importlib.metadata as m; import sase_core_rs; "
+        "print(m.version('sase-core-rs'))",
+    )
+    assert plan.reconcile_steps[1].repair_command == (
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        "/tool/bin/python",
+        "--force-reinstall",
+        "sase-core-rs<0.4.0,>=0.3.0",
+    )
 
 
 @pytest.mark.parametrize(

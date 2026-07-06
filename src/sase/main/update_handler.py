@@ -11,7 +11,9 @@ without a real uv install or daemon.
 from __future__ import annotations
 
 import argparse
+from inspect import Parameter, signature
 import json
+import os
 import sys
 import time
 from collections.abc import Callable
@@ -30,6 +32,7 @@ from sase.dev_update import (
     plan_dev_update,
     run_dev_update_command,
 )
+from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevCommandRunner
 from sase.config import load_merged_config
 from sase.main.update_json import combined_result_json, dry_run_json
@@ -82,7 +85,7 @@ from sase.uv_tool.detect import (
     probe_uv_tool_install,
 )
 from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
-from sase.uv_tool.receipt import load_receipt
+from sase.uv_tool.receipt import ToolReceipt, load_receipt
 from sase.uv_tool.render import (
     UpdateSummary,
     render_update_dry_run,
@@ -91,7 +94,10 @@ from sase.uv_tool.render import (
     summarize_update,
 )
 from sase.uv_tool.runner import run_uv
-from sase.version.inventory import collect_runtime_version_inventory
+from sase.version.inventory import (
+    VersionPackageRecord,
+    collect_runtime_version_inventory,
+)
 
 _installed_version = installed_version
 
@@ -303,8 +309,12 @@ def _handle_live_update(
 
     if route is not None and route.records:
         try:
-            dev_plan = plan_dev_update_fn(
-                route.records, host_record=route.host_record, receipt=receipt
+            dev_plan = _call_plan_dev_update(
+                plan_dev_update_fn,
+                route.records,
+                host_record=route.host_record,
+                receipt=receipt,
+                tool_python=_tool_python(install),
             )
         except Exception as exc:  # noqa: BLE001 - surface planning failures cleanly.
             return _fail(
@@ -313,6 +323,7 @@ def _handle_live_update(
                 err=err,
             )
         dev_result = execute_dev_update_fn(dev_plan, run=run_dev_update_fn)
+        append_dev_update_journal(dev_plan, dev_result)
         if not dev_update_succeeded(dev_result):
             elapsed = max(0.0, clock() - start)
             if as_json:
@@ -431,8 +442,12 @@ def _handle_dry_run(
     dev_plan: DevUpdatePlan | None = None
     if route is not None and route.records:
         try:
-            dev_plan = plan_dev_update_fn(
-                route.records, host_record=route.host_record, receipt=receipt
+            dev_plan = _call_plan_dev_update(
+                plan_dev_update_fn,
+                route.records,
+                host_record=route.host_record,
+                receipt=receipt,
+                tool_python=_tool_python(install),
             )
         except Exception as exc:  # noqa: BLE001 - dry-run should fail legibly.
             return _fail(
@@ -475,6 +490,42 @@ def _fail(error: UvToolError, *, as_json: bool, err: Console) -> int:
     else:
         render_uv_tool_error(str(error), console=err)
     return 1
+
+
+def _tool_python(install: UvToolInstall) -> str:
+    executable = "python.exe" if os.name == "nt" else "python"
+    scripts_dir = "Scripts" if os.name == "nt" else "bin"
+    return str(install.sase_dir / scripts_dir / executable)
+
+
+def _callable_accepts_keyword(fn: Any, name: str) -> bool:
+    try:
+        params = signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    for param in params:
+        if param.kind is Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind in (
+            Parameter.KEYWORD_ONLY,
+            Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            return True
+    return False
+
+
+def _call_plan_dev_update(
+    fn: PlanDevFn,
+    records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+    *,
+    host_record: VersionPackageRecord,
+    receipt: ToolReceipt | None,
+    tool_python: str,
+) -> DevUpdatePlan:
+    kwargs: dict[str, Any] = {"host_record": host_record, "receipt": receipt}
+    if _callable_accepts_keyword(fn, "tool_python"):
+        kwargs["tool_python"] = tool_python
+    return fn(records, **kwargs)
 
 
 __all__ = [

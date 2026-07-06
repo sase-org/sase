@@ -23,7 +23,9 @@ DevLatestState = Literal[
 
 DevPackagePlanStatus = Literal["actionable", "skipped"]
 DevUpdateOutcomeStatus = Literal["updated", "skipped", "failed"]
-DevReconcileStepKind = Literal["uv_tool_install", "rust_install_uv_tool"]
+DevReconcileStepKind = Literal[
+    "uv_tool_install", "rust_install_uv_tool", "rust_health_check"
+]
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,10 @@ class DevReconcileStep:
     command: tuple[str, ...]
     cwd: str | None = None
     reason: str | None = None
+    repair_command: tuple[str, ...] = ()
+    repair_cwd: str | None = None
+    repair_label: str | None = None
+    repair_reason: str | None = None
 
     @property
     def available(self) -> bool:

@@ -369,18 +369,21 @@ rust-install VENV=venv_dir_abs: _venv
     fi
     @"{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml
     @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
-    @"{{ VENV }}/bin/python" tools/purge_sase_core_rs_extensions
     # Harden cargo crate downloads against transient crates.io flakiness.
     # CI has hit `curl ... [16] Error in the HTTP2 framing layer` while
     # maturin's `cargo metadata` fetches deps; disabling HTTP/2 multiplexing
     # and raising the retry count makes the download resilient. Both are
     # overridable from the environment.
+    @marker="$(mktemp)"; \
+    trap 'rm -f "$marker"' EXIT; \
+    touch "$marker"; \
     cd "{{ sase_core_dir }}/crates/sase_core_py" && \
         VIRTUAL_ENV="{{ VENV }}" \
         PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        "{{ VENV }}/bin/maturin" develop --release
+        "{{ VENV }}/bin/maturin" develop --release && \
+    "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker"
 
 # Build and install `sase_core_rs` into the uv-tool venv for `sase`
 # (typically ~/.local/share/uv/tools/sase). Use this when you installed

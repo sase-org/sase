@@ -12,6 +12,7 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskResult,
 )
 from sase.ace.tui.task_subprocess import TaskReporter
+from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.commands import build_upgrade_all
@@ -42,6 +43,9 @@ _CORE_DIST_KEYS = {
     normalize_distribution_name("sase-core-rs"),
 }
 _SASE_UPDATE_NOOP_MESSAGE = "Nothing to update: sase, core, and plugins are current."
+_CODE_UPDATE_TASK_TYPES = frozenset(
+    {"sase-update", "dev-update", "plugin-update", "plugin-dev-update", "mode-switch"}
+)
 
 
 def installed_version(name: str) -> str | None:
@@ -354,6 +358,7 @@ class SaseUpdateActionsMixin:
                 plan,
                 run=_dev_update_reporter_runner(reporter),
             )
+            append_dev_update_journal(plan, result)
             elapsed = max(0.0, time.monotonic() - start)
             if dev_update_failed(result):
                 reason = dev_update_failure_message(result)
@@ -428,6 +433,28 @@ class SaseUpdateActionsMixin:
 
     def _restart_after_update(self, message: str) -> None:
         """Notify briefly, then reuse the TUI + axe restart machinery."""
+        self._restart_after_update_when_ready(message, deferred=False)
+
+    def _restart_after_update_when_ready(self, message: str, *, deferred: bool) -> None:
+        """Restart after other code-update tasks have finished."""
+        update_tasks = _running_code_update_tasks(self.app)
+        if update_tasks:
+            if not deferred:
+                count = len(update_tasks)
+                noun = "task" if count == 1 else "tasks"
+                self._notify(
+                    f"{message} - restart queued until {count} update {noun} finish."
+                )
+            set_timer = getattr(self.app, "set_timer", None)
+            if callable(set_timer):
+                set_timer(
+                    1.0,
+                    lambda: self._restart_after_update_when_ready(
+                        message, deferred=True
+                    ),
+                )
+            return
+
         suffix = ""
         count_tasks = getattr(self.app, "_count_running_tasks", None)
         if callable(count_tasks):
@@ -480,3 +507,20 @@ def _dev_update_reporter_runner(reporter: TaskReporter) -> Any:
         )
 
     return _run
+
+
+def _running_code_update_tasks(app: Any) -> list[Any]:
+    task_queue = getattr(app, "_task_queue", None)
+    get_all = getattr(task_queue, "get_all", None)
+    if not callable(get_all):
+        return []
+    try:
+        tasks = get_all()
+    except Exception:  # noqa: BLE001 - restart checks must not break update flow.
+        return []
+    return [
+        task
+        for task in tasks
+        if getattr(task, "status", None) == "running"
+        and getattr(task, "task_type", None) in _CODE_UPDATE_TASK_TYPES
+    ]

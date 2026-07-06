@@ -39,6 +39,7 @@ class PlanDevFn(Protocol):
         *,
         host_record: VersionPackageRecord,
         receipt: ToolReceipt | None = None,
+        tool_python: str | None = None,
     ) -> DevUpdatePlan: ...
 
 
