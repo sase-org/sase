@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.agent_family import HandoffEvent
 from sase.agent.user_kill import USER_KILL_INTENT_MARKER
 from sase.axe.run_agent_exec import LoopState, _handle_killed_iteration
 
@@ -44,6 +45,10 @@ def test_plan_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
 
     assert outcome is None
     plan.assert_called_once()
+    event = plan.call_args.args[0]
+    assert isinstance(event, HandoffEvent)
+    assert event.kind == "plan_submitted"
+    assert event.payload == {"plan_file": "/tmp/plan.md", "timestamp": 99.0}
 
 
 def test_plan_marker_newer_than_sigterm_is_ignored_as_user_kill(

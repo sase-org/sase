@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.agent_family import STANDARD_PLAN_CHAIN_ID
 from sase.axe.run_agent_exec import run_execution_loop
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
@@ -36,6 +37,36 @@ def test_handle_plan_marker_returns_killed_when_poll_exits_after_kill(
         outcome = handle_plan_marker({"plan_file": str(plan_file)}, ctx, state)
 
     assert outcome == "killed"
+
+
+def test_handle_plan_marker_persists_standard_chain_gate_metadata(
+    tmp_path: Path,
+) -> None:
+    import json
+
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text("# Plan\n", encoding="utf-8")
+
+    with (
+        patch("sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state"),
+        patch("sase.axe.run_agent_exec_plan.finalize_handoff_artifacts_as_completed"),
+        patch(
+            "sase.axe.run_agent_exec_plan.format_agent_run_runtime", return_value="1s"
+        ),
+        patch("sase.axe.run_agent_exec_plan.reset_killed"),
+        patch("sase.axe.run_agent_exec_plan.was_killed", return_value=False),
+        patch("sase.llm_provider._plan_utils.handle_plan_approval", return_value=None),
+    ):
+        outcome = handle_plan_marker({"plan_file": str(plan_file)}, ctx, state)
+
+    assert outcome == "plan_rejected"
+    meta = json.loads((tmp_path / "artifacts" / "agent_meta.json").read_text())
+    assert meta["agent_family_config_id"] == STANDARD_PLAN_CHAIN_ID
+    assert meta["active_gate_id"] == "plan_review"
+    assert meta["active_gate_renderer"] == "plan_approval"
+    assert meta["family_state"]["current_role"] == "plan"
 
 
 def test_normally_completing_followup_breaks_exec_loop_without_post_coder_seam(

@@ -14,8 +14,8 @@ Pinned invariants:
 
 - Plan approval choices still serialize to the legacy runner protocol. Phase 2 relies on this while replacing hard-coded
   choice tables with a registry.
-- The live `run` choice remains a shared-writer path that runs the coder but does not archive the plan yet. Phase 2
-  deliberately changes that archive behavior.
+- The live `run` choice remains a shared-writer path that runs the coder and participates in the same plan-archive side
+  effect as approve. Phase 2 made that side effect deliberate.
 - Modal fallback mappings without `result.choice` still infer protocol fields, status overrides, and persisted action
   labels. Phase 2 centralizes those mappings.
 - Marker handling is consume-once, rejects stale markers, and lets explicit user kill win. Phase 3 routes this through

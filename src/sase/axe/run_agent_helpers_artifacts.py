@@ -132,6 +132,10 @@ def create_followup_artifacts(
         "epic_bead_id",
         "phase_bead_id",
         "legend_bead_id",
+        "agent_family_config_id",
+        "agent_family_config_version",
+        "agent_family_config_hash",
+        "family_state",
     ):
         if base_meta.get(key):
             followup_meta[key] = base_meta[key]

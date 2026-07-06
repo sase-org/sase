@@ -8,6 +8,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.agent_family import (
+    HandoffEvent,
+    build_handoff_event,
+    evaluate_handoff_event,
+    evaluate_questions_transition,
+    family_runtime_metadata_for_role,
+    family_state_snapshot,
+)
+from sase.axe.run_agent_family_metadata import record_family_runtime_metadata
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -30,17 +39,40 @@ from sase.axe.runner_utils import reset_killed
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     allocate_agent_family_child_suffix,
-    agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
-    is_root_question_suffix,
     plan_chain_agent_name,
-    question_followup_suffix_template,
 )
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
 
 _store_followup_prompt_artifact = store_followup_prompt_artifact
+
+
+def _saved_chat_suffixes(state: LoopState) -> tuple[str, ...]:
+    return tuple(suffix for suffix, _path in state.saved_chat_paths if suffix)
+
+
+def _coerce_questions_event(
+    q_data: dict[str, Any] | HandoffEvent,
+    state: LoopState,
+    *,
+    interrupted_role: str | None,
+) -> HandoffEvent:
+    if isinstance(q_data, HandoffEvent):
+        return HandoffEvent(
+            kind=q_data.kind,
+            interrupted_role=interrupted_role or q_data.interrupted_role,
+            artifacts_dir=q_data.artifacts_dir,
+            payload=q_data.payload,
+        )
+    return build_handoff_event(
+        kind="questions_submitted",
+        artifacts_dir=state.current_artifacts_dir,
+        payload=q_data,
+        current_role_suffix=state.current_role_suffix,
+        agent_family_role=interrupted_role,
+    )
 
 
 def _interrupted_phase_meta(
@@ -74,7 +106,7 @@ def _fallback_question_suffix(template: str, *, root_sequence: bool) -> str:
 
 
 def handle_questions_marker(
-    q_data: dict[str, Any],
+    q_data: dict[str, Any] | HandoffEvent,
     ctx: AgentExecContext,
     state: LoopState,
 ) -> str | None:
@@ -87,6 +119,25 @@ def handle_questions_marker(
     previous_role_suffix = state.current_role_suffix
     base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
     interrupted_role = _meta_family_role(base_meta)
+    event = _coerce_questions_event(
+        q_data,
+        state,
+        interrupted_role=interrupted_role,
+    )
+    evaluation = evaluate_handoff_event(
+        event,
+        family_state_snapshot(
+            current_role_suffix=state.current_role_suffix,
+            feedback_bullets=state.feedback_bullets,
+            qa_round_count=len(state.qa_rounds),
+            saved_chat_suffixes=_saved_chat_suffixes(state),
+            agent_family_role=event.interrupted_role,
+        ),
+    )
+    record_family_runtime_metadata(
+        state.current_artifacts_dir,
+        evaluation.runtime_metadata.as_meta_fields(),
+    )
     first_family_agent_question = state.agent_step == 1
     interrupted_suffix = (
         f"{AGENT_FAMILY_SEPARATOR}0"
@@ -112,7 +163,7 @@ def handle_questions_marker(
     # SIGTERM so the poll loop only exits on a NEW kill signal.
     reset_killed()
     response = handle_questions_flow(
-        q_data.get("questions", []),
+        event.payload.get("questions", []),
         state.current_artifacts_dir,
     )
     if response is None:
@@ -136,7 +187,7 @@ def handle_questions_marker(
 
     # Append this round before rendering so the chat transcript and the
     # follow-up prompt share the same monotonic merged section.
-    state.qa_rounds.append(build_qa_round(q_data.get("questions", []), response))
+    state.qa_rounds.append(build_qa_round(event.payload.get("questions", []), response))
     merged_qa_text = merge_qa_for_prompt(state.qa_rounds)
 
     _q_chat = save_chat_history(
@@ -161,38 +212,40 @@ def handle_questions_marker(
             ctx.agent_name,
             role_suffix=interrupted_suffix,
         )
-    root_sequence = first_family_agent_question or is_root_question_suffix(
-        interrupted_suffix,
-        agent_family_role=interrupted_role,
+    transition = evaluate_questions_transition(
+        interrupted_suffix=interrupted_suffix,
+        interrupted_role=interrupted_role,
+        feedback_count=len(state.feedback_bullets),
+        qa_round_count=len(state.qa_rounds),
+        saved_chat_suffixes=_saved_chat_suffixes(state),
     )
-    suffix_template = (
-        f"{AGENT_FAMILY_SEPARATOR}@"
-        if root_sequence
-        else question_followup_suffix_template(
-            interrupted_suffix,
-            agent_family_role=interrupted_role,
-        )
-    )
+    root_sequence = transition.suffix_template == f"{AGENT_FAMILY_SEPARATOR}@"
     followup_suffix = (
         allocate_agent_family_child_suffix(
             ctx.agent_name,
-            suffix_template,
+            transition.suffix_template,
             extra_reserved_suffixes=(
                 *[suffix for suffix, _path in state.saved_chat_paths if suffix],
                 interrupted_suffix,
             ),
         )
         if ctx.agent_name
-        else _fallback_question_suffix(suffix_template, root_sequence=root_sequence)
+        else _fallback_question_suffix(
+            transition.suffix_template,
+            root_sequence=root_sequence,
+        )
     )
     state.current_role_suffix = followup_suffix
-    followup_role = (
-        "q"
-        if root_sequence
-        else agent_family_role_for_suffix(
-            followup_suffix,
-            agent_family_role=interrupted_role,
-        )
+    followup_family_metadata = family_runtime_metadata_for_role(
+        transition.followup_role,
+        role_suffix=followup_suffix,
+        feedback_count=len(state.feedback_bullets),
+        qa_round_count=len(state.qa_rounds),
+        saved_chat_suffixes=_saved_chat_suffixes(state),
+    )
+    record_family_runtime_metadata(
+        state.current_artifacts_dir,
+        followup_family_metadata.as_meta_fields(),
     )
     # Inherit the interrupted phase's concrete model/provider (e.g. the worker
     # model that ``handle_accepted_plan`` wrote for the code phase) instead of
@@ -210,10 +263,11 @@ def handle_questions_marker(
         if ctx.agent_name
         else None,
         workflow_name=ctx.agent_name,
-        agent_family_role=followup_role,
+        agent_family_role=transition.followup_role,
         relationships={
             **question_relationships,
             "source_plan_agent_name": _q_agent,
+            **followup_family_metadata.as_followup_relationships(),
         },
     )
     # Rebuild from the current phase base (code/feedback/planner prompt) so a

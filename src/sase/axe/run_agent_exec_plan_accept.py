@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.agent_family import evaluate_plan_approval_transition
+from sase.axe.run_agent_family_metadata import record_family_runtime_metadata
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -49,6 +51,10 @@ if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
 
 logger = logging.getLogger(__name__)
+
+
+def _saved_chat_suffixes(state: LoopState) -> tuple[str, ...]:
+    return tuple(suffix for suffix, _path in state.saved_chat_paths if suffix)
 
 
 def _accepted_plan_action_for_meta(plan_result: Any) -> str:
@@ -234,6 +240,18 @@ def handle_accepted_plan(
         "plan_action",
         _accepted_plan_action_for_meta(plan_result),
     )
+    transition = evaluate_plan_approval_transition(
+        action=plan_result.action,
+        commit_plan=plan_result.commit_plan,
+        run_coder=plan_result.run_coder,
+        feedback_count=len(state.feedback_bullets),
+        qa_round_count=len(state.qa_rounds),
+        saved_chat_suffixes=_saved_chat_suffixes(state),
+    )
+    record_family_runtime_metadata(
+        state.current_artifacts_dir,
+        transition.runtime_metadata.as_meta_fields(),
+    )
     source_plan_agent_name = agent_name_for_suffix(
         ctx, state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     )
@@ -363,7 +381,7 @@ def handle_accepted_plan(
         )
 
         # Epic/legend: spawn a follow-up agent to create the container bead.
-        state.current_role_suffix = (
+        state.current_role_suffix = transition.role_suffix or (
             PLAN_CHAIN_EPIC_SUFFIX
             if plan_result.action == "epic"
             else PLAN_CHAIN_LEGEND_SUFFIX
@@ -395,6 +413,7 @@ def handle_accepted_plan(
                 ),
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": source_plan_agent_name,
+                **transition.runtime_metadata.as_followup_relationships(),
             },
         )
         update_meta_field(
@@ -437,7 +456,7 @@ def handle_accepted_plan(
         _write_followup_effort_meta(state, state.current_prompt)
     else:
         # Approve: spawn coder with plan as prompt
-        state.current_role_suffix = PLAN_CHAIN_CODER_SUFFIX
+        state.current_role_suffix = transition.role_suffix or PLAN_CHAIN_CODER_SUFFIX
 
         # Point SASE_PLAN at the committed in-repo plan file only when the
         # approval committed that file. No-commit approvals must hand off the
@@ -472,6 +491,7 @@ def handle_accepted_plan(
                 "plan_committed": plan_committed,
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": source_plan_agent_name,
+                **transition.runtime_metadata.as_followup_relationships(),
             },
         )
         coder_extra = ""

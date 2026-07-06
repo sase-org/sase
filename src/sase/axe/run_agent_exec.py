@@ -30,6 +30,7 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.axe.runner_utils import killed_at, reset_killed, was_killed
 from sase.agent.user_kill import has_user_kill_intent
+from sase.agent_family import HandoffEvent, build_handoff_event
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
@@ -136,12 +137,34 @@ def _handle_killed_iteration(
 
     kill_time = killed_at()
     if plan_data and _marker_predates_kill(plan_data, kill_time):
-        return handle_plan_marker(plan_data, ctx, state)
+        event = build_handoff_event(
+            kind="plan_submitted",
+            artifacts_dir=state.current_artifacts_dir,
+            payload=plan_data,
+            current_role_suffix=state.current_role_suffix,
+        )
+        return _handle_handoff_event(event, ctx, state)
     if q_data and _marker_predates_kill(q_data, kill_time):
-        return handle_questions_marker(q_data, ctx, state)
+        event = build_handoff_event(
+            kind="questions_submitted",
+            artifacts_dir=state.current_artifacts_dir,
+            payload=q_data,
+            current_role_suffix=state.current_role_suffix,
+        )
+        return _handle_handoff_event(event, ctx, state)
 
     AGENT_KILLS.labels(reason="user").inc()
     return "killed"
+
+
+def _handle_handoff_event(
+    event: HandoffEvent,
+    ctx: AgentExecContext,
+    state: LoopState,
+) -> str | None:
+    if event.kind == "plan_submitted":
+        return handle_plan_marker(event, ctx, state)
+    return handle_questions_marker(event, ctx, state)
 
 
 def _marker_predates_kill(
