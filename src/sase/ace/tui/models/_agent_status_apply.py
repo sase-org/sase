@@ -66,7 +66,7 @@ def apply_status_overrides(
 
     parent_by_suffix: dict[str, Agent] = {}
     for agent in all_agents:
-        if agent.raw_suffix and not agent.is_workflow_child:
+        if agent.raw_suffix and not agent.is_child_row:
             parent_by_suffix[agent.raw_suffix] = agent
 
     ensure_synthetic_planner_children(agents, all_agents, parent_by_suffix)
@@ -79,8 +79,8 @@ def apply_status_overrides(
     # so the metadata panel shows one entry per proposal/feedback/question round.
     for agent in all_agents:
         if (
-            agent.parent_timestamp
-            and not agent.parent_workflow
+            agent.is_family_member_child
+            and agent.parent_timestamp is not None
             and is_feedback_agent(agent)
         ):
             parent = parent_by_suffix.get(agent.parent_timestamp)
@@ -105,7 +105,7 @@ def apply_status_overrides(
 
     # Active workflow step child -> parent is running a step, not planning.
     for agent in all_agents:
-        if agent.parent_workflow and agent.parent_timestamp:
+        if agent.is_workflow_step_child and agent.parent_timestamp:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent and agent.status not in completed_statuses:
                 if parent.status == "PLAN":
@@ -115,12 +115,12 @@ def apply_status_overrides(
     # can distinguish "waiting for user" from "answered and continued".
     parents_with_followup: set[str] = set()
     for parent_timestamp, children in children_by_parent.items():
-        if any(not child.parent_workflow for child in children):
+        if any(child.is_family_member_child for child in children):
             parents_with_followup.add(parent_timestamp)
 
     for agent in all_agents:
         if (
-            agent.parent_workflow
+            agent.is_workflow_step_child
             and agent.parent_timestamp
             and is_main_workflow_agent_step(agent)
         ):
@@ -155,10 +155,7 @@ def apply_status_overrides(
             )
 
     for agent in all_agents:
-        if (
-            agent.parent_timestamp
-            and not agent.parent_workflow  # Follow-up agent, not workflow step
-        ):
+        if agent.is_family_member_child and agent.parent_timestamp is not None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 role = agent_family_role(agent)
@@ -237,7 +234,7 @@ def apply_status_overrides(
     # while the implementation agent runs. Normalize before root mirroring so
     # the family root mirrors WORKING PLAN / WORKING TALE instead of raw RUNNING.
     for agent in all_agents:
-        if not (agent.parent_timestamp and not agent.parent_workflow):
+        if not agent.is_family_member_child or agent.parent_timestamp is None:
             continue
         parent = parent_by_suffix.get(agent.parent_timestamp)
         if parent and is_root_plan_workflow(parent):
@@ -249,7 +246,7 @@ def apply_status_overrides(
     # plain DONE. Do this after QUESTION normalization so unanswered rows keep
     # their blocked status, and before root mirroring so the root sees it.
     for agent in all_agents:
-        if not (agent.parent_timestamp and not agent.parent_workflow):
+        if not agent.is_family_member_child or agent.parent_timestamp is None:
             continue
         parent = parent_by_suffix.get(agent.parent_timestamp)
         if not (parent and is_root_plan_workflow(parent)):
@@ -268,7 +265,7 @@ def apply_status_overrides(
 
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in all_agents:
-        if agent.parent_timestamp and not agent.parent_workflow:
+        if agent.is_family_member_child and agent.parent_timestamp is not None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 parent.followup_agents.append(agent)
@@ -300,7 +297,7 @@ def apply_status_overrides(
     # TUI can render the chain from either direction.
     by_suffix: dict[str, Agent] = {}
     for agent in all_agents:
-        if agent.raw_suffix and not agent.is_workflow_child:
+        if agent.raw_suffix and not agent.is_child_row:
             by_suffix[agent.raw_suffix] = agent
     for agent in all_agents:
         if agent.retry_of_timestamp:

@@ -134,6 +134,39 @@ def _plan_handoff_status_agents() -> list[Agent]:
     ]
 
 
+def _waiting_family_child_agents() -> list[Agent]:
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-parent",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 5, 21, 0, 0),
+        raw_suffix="20260705-210000-parent",
+        agent_name="visual-parent",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-parent--reviewer",
+        project_file="/workspace/sase/visual_project.sase",
+        status="WAITING",
+        start_time=datetime(2026, 7, 5, 21, 1, 0),
+        run_start_time=None,
+        wait_start_time=datetime(2026, 7, 5, 21, 1, 0),
+        raw_suffix="20260705-210100-reviewer",
+        parent_timestamp=parent.raw_suffix,
+        agent_name="visual-parent--reviewer",
+        agent_family="visual-parent",
+        agent_family_role="reviewer",
+        role_suffix="--reviewer",
+        waiting_for=["visual-parent"],
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    return [parent, child]
+
+
 async def test_agent_plan_handoff_status_colors_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -158,6 +191,32 @@ async def test_agent_plan_handoff_status_colors_png_snapshot(
             page,
             "agents_plan_handoff_status_colors_120x40",
             title="ACE agents plan handoff status colors",
+        )
+
+
+async def test_waiting_family_child_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_waiting_family_child_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await page.press("l")
+        await page.expect_state("agent_count", 2)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "visual-parent")
+        assert_page_svg_contains(page, "RUNNING")
+        assert_page_svg_contains(page, "visual-parent--reviewer")
+        assert_page_svg_contains(page, "WAITING")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_waiting_family_child_120x40",
+            title="ACE agents waiting family child",
         )
 
 

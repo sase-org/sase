@@ -132,6 +132,18 @@ def test_l_expands_agent_fold_without_artifact_pane_focus() -> None:
     assert app.refilter_calls == 1
 
 
+def test_l_expands_running_parent_with_family_child() -> None:
+    parent = _agent(raw_suffix="parent-ts")
+    child = _agent(raw_suffix="child-ts")
+    child.parent_timestamp = parent.raw_suffix
+    app = _StubApp([parent, child], current_idx=0)
+
+    app.action_expand_or_layout()
+
+    assert app._fold_manager.get("parent-ts") is FoldLevel.EXPANDED
+    assert app.refilter_calls == 1
+
+
 def test_capital_l_expands_every_group() -> None:
     """Both panels' L1 banners visible-and-collapsed → one ``L`` expands them all.
 

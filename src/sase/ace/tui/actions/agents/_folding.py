@@ -38,15 +38,9 @@ class AgentFoldingMixin:
         Returns:
             The workflow raw_suffix key, or None if not a foldable agent.
         """
-        from ...models.agent import AgentType
-
-        if agent.is_workflow_child and agent.parent_timestamp:
+        if agent.is_child_row and agent.parent_timestamp:
             return agent.parent_timestamp
-        if (
-            agent.agent_type == AgentType.WORKFLOW
-            and not agent.is_workflow_child
-            and agent.raw_suffix
-        ):
+        if not agent.is_child_row and agent.raw_suffix in self._fold_counts:
             return agent.raw_suffix
         return None
 

@@ -59,7 +59,7 @@ from ._agent_list_styling import (
 
 
 def _should_render_provider_badge(agent: Agent) -> bool:
-    return not (agent.is_workflow_child and not agent.is_agent_entry)
+    return not (agent.is_child_row and not agent.is_agent_entry)
 
 
 def _has_file_change_hint(agent: Agent) -> bool:
@@ -67,7 +67,7 @@ def _has_file_change_hint(agent: Agent) -> bool:
 
 
 def _should_render_reverted_badge(agent: Agent) -> bool:
-    return agent.reverted and not agent.is_workflow_child
+    return agent.reverted and not agent.is_child_row
 
 
 def format_agent_option(
@@ -107,17 +107,18 @@ def format_agent_option(
     # Indentation for retry-chain attempts: render under the chain
     # root so the user sees the lineage at a glance.  retry_attempt
     # tracks chain depth (1 = first retry, 2 = retry-of-retry, …).
-    if agent.retry_attempt > 0 and not agent.is_workflow_child:
+    if agent.retry_attempt > 0 and not agent.is_child_row:
         indent = "  " * agent.retry_attempt + "↳ "
         text.append(indent, style="dim #808080")
 
-    # Indentation for workflow child agents
-    if agent.is_workflow_child:
+    # Indentation for rows linked under a parent agent/workflow.
+    if agent.is_child_row:
         text.append(_CHILD_INDENT, style="dim #808080")
-        step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
-        if step_glyph is not None:
-            glyph_color = _STEP_TYPE_COLORS.get(agent.step_type or "", "#FFFFFF")
-            text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
+        if agent.is_workflow_step_child:
+            step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
+            if step_glyph is not None:
+                glyph_color = _STEP_TYPE_COLORS.get(agent.step_type or "", "#FFFFFF")
+                text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
 
     # Hidden icon for agents that are normally hidden
     if agent.hidden:
@@ -134,13 +135,13 @@ def format_agent_option(
     # Agent type indicator with color
     dt = agent.get_display_type(is_expanded=is_expanded)
 
-    # Color: RUNNING blue for appears_as_agent, per-step-type for workflow children
+    # Color: RUNNING blue for appears_as_agent, per-step-type for workflow steps.
     is_appears_as_agent = agent.appears_as_agent and not (
         agent.is_anonymous and is_expanded
     )
     if is_appears_as_agent:
         color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
-    elif agent.is_workflow_child and agent.step_type in _STEP_TYPE_COLORS:
+    elif agent.is_workflow_step_child and agent.step_type in _STEP_TYPE_COLORS:
         color = _STEP_TYPE_COLORS[agent.step_type]
     else:
         color = _AGENT_TYPE_COLORS.get(agent.agent_type, "#FFFFFF")
@@ -150,7 +151,7 @@ def format_agent_option(
     # already marks tree depth).  Other top-level types render as a
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
-    if not (is_appears_as_agent or agent.is_workflow_child):
+    if not (is_appears_as_agent or agent.is_child_row):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:
             text.append(f"{type_glyph} ", style=f"bold {color}")

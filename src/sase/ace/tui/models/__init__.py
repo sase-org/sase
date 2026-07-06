@@ -1,6 +1,6 @@
 """Data models for the ace TUI."""
 
-from .agent import Agent, AgentType
+from .agent import Agent, AgentChildLinkage, AgentType
 from ._fold_filter import filter_agents_by_fold_state
 from .agent_loader import load_all_agents, load_all_workflows
 from .fold_state import FoldLevel, FoldStateManager
@@ -8,6 +8,7 @@ from .workflow import WorkflowEntry
 
 __all__ = [
     "Agent",
+    "AgentChildLinkage",
     "AgentType",
     "FoldLevel",
     "FoldStateManager",

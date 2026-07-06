@@ -194,6 +194,23 @@ class TestRelativeWaitDurationRendering:
         assert "Wait: 5m (" in header.plain
         assert " left)" in header.plain
 
+    def test_family_child_header_renders_waiting_for_like_root_waiting_row(
+        self,
+    ) -> None:
+        agent = make_agent(
+            status="WAITING",
+            parent_timestamp="parent-ts",
+            waiting_for=["parent"],
+            wait_duration=120,
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert agent.is_family_member_child
+        assert "ChangeSpec: test_cl" in header.plain
+        assert "Step: " not in header.plain
+        assert "Wait: parent + 2m" in header.plain
+
 
 class TestStartingStatusRendering:
     def test_agent_row_renders_starting_status_with_distinct_style(self) -> None:

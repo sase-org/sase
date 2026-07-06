@@ -58,7 +58,7 @@ def _compute_visible_parents(
     parents_with_visible_children: set[str] = set()
     fully_expanded_parents: set[str] = set()
     for agent in agents:
-        if agent.is_workflow_child and agent.parent_timestamp:
+        if agent.is_child_row and agent.parent_timestamp:
             parents_with_visible_children.add(agent.parent_timestamp)
             if agent.is_hidden_step:
                 fully_expanded_parents.add(agent.parent_timestamp)
@@ -172,7 +172,7 @@ def _banner_mark_state(
     member_identities = [
         agents[idx].identity
         for idx in group.agent_indices
-        if 0 <= idx < len(agents) and not agents[idx].is_workflow_child
+        if 0 <= idx < len(agents) and not agents[idx].is_child_row
     ]
     if not member_identities:
         return "none"
@@ -437,18 +437,17 @@ def try_remove_rows(
     if not rows_to_remove:
         return True
 
-    # Workflow-parent gate: a parent with visible children would leave
-    # orphan rows behind. Defense-in-depth — the caller should also gate.
+    # Parent gate: a parent with visible children would leave orphan rows
+    # behind. Defense-in-depth — the caller should also gate.
     for _, local_idx in rows_to_remove:
         agent = widget._agents[local_idx]
-        if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
-            for other in widget._agents:
-                if (
-                    other.is_workflow_child
-                    and other.parent_timestamp == agent.raw_suffix
-                    and other.parent_workflow == agent.workflow
-                ):
-                    return False
+        if agent.is_child_row or not agent.raw_suffix:
+            continue
+        for other in widget._agents:
+            if not (other.is_child_row and other.parent_timestamp == agent.raw_suffix):
+                continue
+            if other.is_family_member_child or other.parent_workflow == agent.workflow:
+                return False
 
     rows_to_remove.sort(key=lambda t: t[0], reverse=True)
     removed_row_set = {row for row, _ in rows_to_remove}

@@ -165,8 +165,8 @@ def build_header_text(
     )
     meta_fields = extract_meta_fields(step_output) if step_output is not None else []
 
-    # For workflow step agents, show "Step" instead of "ChangeSpec"
-    if agent.is_workflow_child and agent.step_name:
+    # For workflow step agents, show "Step" instead of "ChangeSpec".
+    if agent.is_workflow_step_child and agent.step_name:
         header_text.append("Step: ", style="bold #87D7FF")
         header_text.append(f"{agent.step_name}\n", style="#00D7AF")
     elif meta_changespec:

@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from sase.ace.tui.models.agent import (
     Agent,
+    AgentChildLinkage,
     AgentType,
     format_compact_duration,
     format_wait_until,
@@ -158,6 +159,49 @@ def test_agent_optional_fields() -> None:
     assert agent.reviewer == "critique"
     assert agent.pid == 12345
     assert agent.raw_suffix == "fix_hook-12345-251230_151429"
+
+
+def test_agent_child_linkage_classifies_roots_workflow_steps_and_family_members() -> (
+    None
+):
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="root",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+    )
+    workflow_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="step",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        parent_workflow="wf",
+        parent_timestamp="root-ts",
+        step_type="agent",
+    )
+    family_member = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="root--reviewer",
+        project_file="/tmp/test.sase",
+        status="WAITING",
+        start_time=None,
+        parent_timestamp="root-ts",
+    )
+
+    assert root.child_linkage is AgentChildLinkage.ROOT
+    assert not root.is_child_row
+    assert workflow_step.child_linkage is AgentChildLinkage.WORKFLOW_STEP
+    assert workflow_step.is_child_row
+    assert workflow_step.is_workflow_child
+    assert workflow_step.is_workflow_step_child
+    assert not workflow_step.is_family_member_child
+    assert family_member.child_linkage is AgentChildLinkage.FAMILY_MEMBER
+    assert family_member.is_child_row
+    assert family_member.is_workflow_child
+    assert not family_member.is_workflow_step_child
+    assert family_member.is_family_member_child
 
 
 # --- Hidden Step and Appears As Agent Tests ---

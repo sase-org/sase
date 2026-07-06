@@ -29,14 +29,13 @@ def sort_and_reorder(
 
     sorted_agents = agents_with_time + agents_without_time
 
-    # Separate follow-up agents (parent_timestamp set, no parent_workflow)
-    # from regular agents so they can be grouped with their parent's main
-    # agent step (plan -> feedback rounds -> coder) instead of scattering
-    # by start time.
+    # Separate family-member children from regular agents so they can be
+    # grouped with their parent row (plan -> feedback rounds -> coder, and
+    # queued WAITING children) instead of scattering by start time.
     followups_by_parent: dict[str, list[Agent]] = {}
     non_followup: list[Agent] = []
     for agent in sorted_agents:
-        if agent.parent_timestamp and not agent.parent_workflow:
+        if agent.is_family_member_child and agent.parent_timestamp:
             followups_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
         else:
             non_followup.append(agent)
@@ -81,7 +80,8 @@ def sort_and_reorder(
         for parent_ts, steps in steps_by_parent.items():
             for step in steps:
                 if (
-                    step.step_type == "agent"
+                    step.is_workflow_step_child
+                    and step.step_type == "agent"
                     and not step.is_hidden_step
                     and step.parent_step_index is None
                 ):
@@ -124,12 +124,18 @@ def sort_and_reorder(
                 main_agent_steps = [
                     s
                     for s in steps
-                    if s.step_type == "agent" and s.parent_step_index is None
+                    if s.is_workflow_step_child
+                    and s.step_type == "agent"
+                    and s.parent_step_index is None
                 ]
                 other_steps = [
                     s
                     for s in steps
-                    if not (s.step_type == "agent" and s.parent_step_index is None)
+                    if not (
+                        s.is_workflow_step_child
+                        and s.step_type == "agent"
+                        and s.parent_step_index is None
+                    )
                 ]
                 result.extend(main_agent_steps)
                 result.extend(followups)
@@ -171,7 +177,9 @@ def _attach_runtime_children(
         children.extend(
             step
             for step in steps_by_parent.get(parent_suffix, [])
-            if step.step_type == "agent" and step.parent_step_index is None
+            if step.is_workflow_step_child
+            and step.step_type == "agent"
+            and step.parent_step_index is None
         )
         children.extend(followups_by_parent.get(parent_suffix, []))
         if children:

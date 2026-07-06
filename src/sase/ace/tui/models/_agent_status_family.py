@@ -47,7 +47,7 @@ def merge_feedback_plan_paths(parent: Agent, child: Agent) -> None:
 
 def is_root_plan_workflow(agent: Agent) -> bool:
     """Check if an agent is the top-level plan workflow entry."""
-    if agent.is_workflow_child:
+    if agent.is_child_row:
         return False
     if agent.plan_chain_root or agent.agent_family_role == "root":
         return True
@@ -82,7 +82,7 @@ def has_inherited_family_question(
     parent_by_suffix: dict[str, Agent],
 ) -> bool:
     """Return True when a root-question continuation only mirrors its asker."""
-    if not agent.parent_timestamp or agent.parent_workflow:
+    if not agent.parent_timestamp or not agent.is_family_member_child:
         return False
     # Feedback/code rows can ask their own questions; only root-question
     # continuations inherit the asker's question timestamp by construction.
@@ -127,7 +127,7 @@ def done_handoff_status(parent: Agent, child: Agent) -> str:
 
 def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | None:
     """Return the visible status for an active approved-plan handoff."""
-    if child.parent_workflow or child.status != "RUNNING":
+    if not child.is_family_member_child or child.status != "RUNNING":
         return None
 
     role = agent_family_role(child)
@@ -196,9 +196,9 @@ def is_main_workflow_agent_step(agent: Agent) -> bool:
 def is_family_child(agent: Agent, parent: Agent) -> bool:
     if not parent.raw_suffix or agent.parent_timestamp != parent.raw_suffix:
         return False
-    if agent.parent_workflow:
+    if agent.is_workflow_step_child:
         return is_main_workflow_agent_step(agent)
-    return True
+    return agent.is_family_member_child
 
 
 def children_by_parent_timestamp(all_agents: list[Agent]) -> dict[str, list[Agent]]:
@@ -218,7 +218,7 @@ def latest_non_workflow_child_launch_by_parent(
             (
                 child_launch_time(child)
                 for child in children
-                if not child.parent_workflow
+                if child.is_family_member_child
             ),
             default=None,
         )
@@ -242,7 +242,7 @@ def has_family_followup_child(
     return any(
         child is not parent
         and child.parent_timestamp == parent.raw_suffix
-        and not child.parent_workflow
+        and child.is_family_member_child
         for child in children
     )
 
@@ -264,7 +264,7 @@ def _family_followup_children(
         for child in children
         if child is not parent
         and child.parent_timestamp == parent.raw_suffix
-        and not child.parent_workflow
+        and child.is_family_member_child
     ]
 
 
@@ -304,7 +304,7 @@ def _is_planner_family_row(agent: Agent) -> bool:
     """Return True for visible planner/replanner rows in a plan family."""
     if agent_family_role(agent) not in PLANNER_FAMILY_ROLES:
         return False
-    return not agent.parent_workflow or is_main_workflow_agent_step(agent)
+    return agent.is_family_member_child or is_main_workflow_agent_step(agent)
 
 
 def superseded_by_feedback_round(
@@ -353,7 +353,7 @@ def feedback_child_progressed_past_review(
     return any(
         child is not agent
         and child.parent_timestamp == agent.parent_timestamp
-        and not child.parent_workflow
+        and child.is_family_member_child
         and child_launch_time(child) > launched_at
         for child in siblings
     )
@@ -370,7 +370,7 @@ def has_later_family_continuation(
     return any(
         sibling is not agent
         and sibling.parent_timestamp == agent.parent_timestamp
-        and not sibling.parent_workflow
+        and sibling.is_family_member_child
         and child_launch_time(sibling) > launched_at
         for sibling in children_by_parent.get(agent.parent_timestamp, [])
     )
@@ -383,7 +383,7 @@ def is_answered_continuation_asker(
     """Return True for a question continuation whose answer handed off."""
     if agent.status != "DONE":
         return False
-    if not agent.parent_timestamp or agent.parent_workflow:
+    if not agent.parent_timestamp or not agent.is_family_member_child:
         return False
     if agent_family_role(agent) != "q":
         return False
@@ -499,7 +499,7 @@ def ensure_synthetic_planner_children(
         has_existing_child = any(
             agent.parent_timestamp == parent.raw_suffix
             and canonical_plan_chain_suffix(agent.role_suffix) == child_suffix
-            and (is_main_workflow_agent_step(agent) or not agent.parent_workflow)
+            and (is_main_workflow_agent_step(agent) or agent.is_family_member_child)
             for agent in all_agents
         )
         if has_existing_child:

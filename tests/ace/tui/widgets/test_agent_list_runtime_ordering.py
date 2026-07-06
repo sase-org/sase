@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
+from sase.ace.tui.models.agent_groups._buckets import status_bucket_for
 from sase.ace.tui.models.agent import AgentType
 
 from .agent_list_runtime_helpers import agent, workflow_child
@@ -164,3 +165,28 @@ def test_sort_and_reorder_keeps_agent_family_children_nested_under_root() -> Non
     ordered = sort_and_reorder([coder, parent], [python, bash, planner])
 
     assert ordered == [parent, planner, coder, bash, python]
+
+
+def test_waiting_family_child_orders_under_running_parent_and_buckets_waiting() -> None:
+    parent = agent(
+        status="RUNNING",
+        start=datetime(2026, 7, 5, 21, 0, 0),
+        raw_suffix="20260705210000",
+        cl_name="parent",
+    )
+    child = agent(
+        status="WAITING",
+        start=datetime(2026, 7, 5, 21, 1, 0),
+        run_start=None,
+        raw_suffix="20260705210100",
+        cl_name="parent--reviewer",
+    )
+    child.parent_timestamp = parent.raw_suffix
+    child.waiting_for = ["parent"]
+
+    ordered = sort_and_reorder([child, parent], [])
+
+    assert ordered == [parent, child]
+    assert parent.runtime_children == [child]
+    assert child.is_family_member_child
+    assert status_bucket_for(child) == "Waiting"

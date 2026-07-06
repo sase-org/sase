@@ -24,6 +24,7 @@ from .agent_time import (
 
 __all__ = [
     "Agent",
+    "AgentChildLinkage",
     "AgentType",
     "AttemptRecord",
     "LinkedRepoMetadata",
@@ -45,6 +46,14 @@ class AgentType(Enum):
 
     RUNNING = "run"  # Manual sase run commands (RUNNING field)
     WORKFLOW = "workflow"  # Multi-step YAML workflows
+
+
+class AgentChildLinkage(Enum):
+    """How an agent row links to a parent row in the Agents tab."""
+
+    ROOT = "root"
+    WORKFLOW_STEP = "workflow_step"
+    FAMILY_MEMBER = "family_member"
 
 
 @dataclass(frozen=True)
@@ -525,9 +534,43 @@ class Agent:
         return self.retried_as_timestamp is not None
 
     @property
+    def child_linkage(self) -> AgentChildLinkage:
+        """Classify this row's parent linkage.
+
+        Workflow steps carry ``parent_workflow`` and render as workflow
+        children. Family members/follow-ups carry only ``parent_timestamp`` and
+        render under the parent agent without being workflow steps.
+        """
+        if self.parent_workflow is not None:
+            return AgentChildLinkage.WORKFLOW_STEP
+        if self.parent_timestamp is not None:
+            return AgentChildLinkage.FAMILY_MEMBER
+        return AgentChildLinkage.ROOT
+
+    @property
+    def is_child_row(self) -> bool:
+        """True when this row is any kind of child in the Agents tab."""
+        return self.child_linkage is not AgentChildLinkage.ROOT
+
+    @property
+    def is_workflow_step_child(self) -> bool:
+        """True when this row is a child step of a workflow row."""
+        return self.child_linkage is AgentChildLinkage.WORKFLOW_STEP
+
+    @property
+    def is_family_member_child(self) -> bool:
+        """True when this row is a family/follow-up child row."""
+        return self.child_linkage is AgentChildLinkage.FAMILY_MEMBER
+
+    @property
     def is_workflow_child(self) -> bool:
-        """Check if this agent is a child step of a workflow."""
-        return self.parent_workflow is not None or self.parent_timestamp is not None
+        """Historical alias for rows folded under another row.
+
+        This remains true for both workflow-step children and family-member
+        children so existing fold/navigation behavior is preserved. New code
+        that needs the child kind should use :attr:`child_linkage`.
+        """
+        return self.is_child_row
 
     @property
     def is_agent_entry(self) -> bool:
