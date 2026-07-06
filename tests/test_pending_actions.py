@@ -43,6 +43,30 @@ def test_register_and_resolve_shared_pending_action_store(
         assert pending_actions.resolve_prefix("abcdef").resolution == "ambiguous_prefix"
 
 
+def test_register_preserves_actions_with_colliding_short_prefixes(
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "pending_actions" / "actions.json"
+    with patch.object(pending_actions, "PENDING_ACTIONS_PATH", store_path):
+        n1 = _notification("abcdef12-first", "PlanApproval", {"response_dir": "x"})
+        n2 = _notification("abcdef12-second", "LaunchApproval", {"response_dir": "y"})
+
+        pending_actions.register_notification(n1, now=10.0)
+        pending_actions.register_notification(n2, now=20.0)
+
+        store = pending_actions.read_pending_action_store()
+        actions = store["actions"]
+        assert {entry["notification_id"] for entry in actions.values()} == {
+            n1.id,
+            n2.id,
+        }
+        assert pending_actions.resolve_prefix("abcdef12").resolution == (
+            "ambiguous_prefix"
+        )
+        assert pending_actions.resolve_prefix(n1.id).notification_id == n1.id
+        assert pending_actions.resolve_prefix(n2.id).notification_id == n2.id
+
+
 def test_pending_action_state_detects_external_handled_and_stale(
     tmp_path: Path,
 ) -> None:
@@ -157,6 +181,38 @@ def test_legacy_telegram_pending_actions_are_compatibility_source(
     entry = store["actions"]["abcd1234"]
     assert entry["notification_id"] == "abcd1234-full"
     assert entry["transports"][0]["transport"] == "telegram_legacy"
+
+
+def test_legacy_pending_action_merge_preserves_prefix_collisions(
+    tmp_path: Path,
+) -> None:
+    store_path = tmp_path / "pending_actions" / "actions.json"
+    legacy_path = tmp_path / "telegram" / "pending_actions.json"
+    legacy_path.parent.mkdir()
+    legacy_path.write_text(
+        '{"abcdef12":{"notification_id":"abcdef12-legacy",'
+        '"action":"PlanApproval","action_data":{"response_dir":"/tmp/plan"},'
+        '"message_id":42,"chat_id":"chat","created_at":10.0}}',
+        encoding="utf-8",
+    )
+    with (
+        patch.object(pending_actions, "PENDING_ACTIONS_PATH", store_path),
+        patch.object(
+            pending_actions,
+            "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
+            legacy_path,
+        ),
+    ):
+        pending_actions.register_notification(
+            _notification("abcdef12-shared", "LaunchApproval", {"response_dir": "x"}),
+            now=20.0,
+        )
+        store = pending_actions._load_store(include_legacy=True)
+
+    assert {entry["notification_id"] for entry in store["actions"].values()} == {
+        "abcdef12-shared",
+        "abcdef12-legacy",
+    }
 
 
 def test_merge_transport_record_updates_existing_entry(tmp_path: Path) -> None:

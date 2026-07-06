@@ -61,7 +61,8 @@ def register_notification(
     if entry is None:
         return
     with _locked_store() as store:
-        existing = store["actions"].get(entry["prefix"])
+        key = _entry_store_key(store["actions"], entry)
+        existing = store["actions"].get(key)
         if isinstance(existing, dict):
             entry["created_at_unix"] = existing.get(
                 "created_at_unix", entry["created_at_unix"]
@@ -75,7 +76,7 @@ def register_notification(
                 ):
                     transports.append(transport)
             entry["transports"] = transports
-        store["actions"][entry["prefix"]] = entry
+        store["actions"][key] = entry
 
 
 def action_state_for_notification(
@@ -366,7 +367,7 @@ def _merge_legacy_telegram(store: dict[str, Any]) -> None:
         return
     actions = store["actions"]
     for prefix, raw_entry in legacy.items():
-        if prefix in actions or not isinstance(raw_entry, dict):
+        if not isinstance(raw_entry, dict):
             continue
         notification_id = raw_entry.get("notification_id")
         action = raw_entry.get("action")
@@ -379,7 +380,7 @@ def _merge_legacy_telegram(store: dict[str, Any]) -> None:
             key: raw_entry[key] for key in ("chat_id", "message_id") if key in raw_entry
         }
         created_at = float(raw_entry.get("created_at", time.time()))
-        actions[prefix] = {
+        entry = {
             "schema_version": PENDING_ACTION_SCHEMA_VERSION,
             "prefix": prefix,
             "notification_id": notification_id,
@@ -393,6 +394,10 @@ def _merge_legacy_telegram(store: dict[str, Any]) -> None:
             "transports": [{"transport": "telegram_legacy", "record": record}],
             "state": "available",
         }
+        key = _entry_store_key(actions, entry)
+        if key in actions:
+            continue
+        actions[key] = entry
 
 
 def _find_entry_key(store: Mapping[str, Any], identifier: str) -> str | None:
@@ -412,6 +417,25 @@ def _find_entry_key(store: Mapping[str, Any], identifier: str) -> str | None:
     if len(prefix_matches) == 1:
         return prefix_matches[0]
     return None
+
+
+def _entry_store_key(actions: Mapping[str, Any], entry: Mapping[str, Any]) -> str:
+    """Return a stable collision-safe storage key for a pending-action entry."""
+    notification_id = str(entry.get("notification_id") or "")
+    for key, existing in actions.items():
+        if (
+            isinstance(existing, dict)
+            and existing.get("notification_id") == notification_id
+        ):
+            return str(key)
+
+    prefix = str(entry.get("prefix") or notification_id[:PENDING_ACTION_PREFIX_LEN])
+    existing = actions.get(prefix)
+    if not isinstance(existing, dict):
+        return prefix
+    if existing.get("notification_id") == notification_id:
+        return prefix
+    return notification_id
 
 
 def _apply_handled(

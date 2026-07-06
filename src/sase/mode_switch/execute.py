@@ -81,12 +81,19 @@ def _run_command(
 ) -> None:
     cwd = Path(command.cwd) if command.cwd else None
     created_path: Path | None = None
+    clone_target_existed = False
     if command.kind == "git_clone" and len(command.command) >= 4:
         created_path = Path(command.command[-1])
+        clone_target_existed = created_path.exists()
     result = run_command_fn(command.command, cwd=cwd)
     if result.returncode == 0:
         return
-    if command.kind == "git_clone" and created_path is not None:
+    if (
+        command.kind == "git_clone"
+        and created_path is not None
+        and not clone_target_existed
+        and not _clone_failed_because_target_exists(result)
+    ):
         _cleanup_failed_clone(created_path)
     detail = (
         result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}"
@@ -111,6 +118,15 @@ def _cleanup_failed_clone(path: Path) -> None:
             shutil.rmtree(path)
     except OSError:
         pass
+
+
+def _clone_failed_because_target_exists(result: DevCommandResult) -> bool:
+    text = f"{result.stderr}\n{result.stdout}".casefold()
+    return (
+        "destination path" in text
+        and "already exists" in text
+        and "not an empty directory" in text
+    )
 
 
 def _with_restore_hint(error: UvToolError, plan: SwitchPlan) -> UvToolError:
