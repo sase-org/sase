@@ -37,6 +37,19 @@ def test_fix_just_test_step_confirms_failures_before_reporting_failure() -> None
     assert test_step.output.schema["properties"] == {"success": {"type": "bool"}}
 
 
+def test_fix_just_lint_step_confirms_failures_before_reporting_failure() -> None:
+    """The real fix_just workflow retries just lint before reporting failure."""
+    workflow = _load_fix_just_workflow()
+
+    lint_step = next(step for step in workflow.steps if step.name == "_just_lint")
+
+    assert lint_step.is_bash_step()
+    assert lint_step.bash is not None
+    assert lint_step.bash.count("just lint") == 2
+    assert lint_step.output is not None
+    assert lint_step.output.schema["properties"] == {"success": {"type": "bool"}}
+
+
 def test_fix_just_deflaked_test_success_does_not_launch_test_fixer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

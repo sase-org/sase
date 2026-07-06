@@ -21,6 +21,8 @@ steps:
     bash: |
       if just lint; then
         echo "success=true"
+      elif just lint; then
+        echo "success=true"
       else
         echo "success=false"
       fi
