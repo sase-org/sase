@@ -137,9 +137,9 @@ def _save_vcs_xprompt_mru(entries: list[str]) -> None:
 def _project_alias_map_or_empty(projects_dir: Path | None) -> dict[str, str]:
     """Return the ``alias/PROJECT_NAME -> directory key`` map, or ``{}`` on error.
 
-    Conflicting hand-edited ProjectSpecs raise from ``load_project_alias_map``;
-    an empty map degrades pruning to today's canonical-only behavior instead of
-    nuking the whole MRU.
+    ``load_project_alias_map`` drops conflicting refs instead of raising, but
+    an unreadable projects dir can still fail here; an empty map degrades
+    pruning to today's canonical-only behavior instead of nuking the whole MRU.
     """
     try:
         from sase.project_aliases import load_project_alias_map

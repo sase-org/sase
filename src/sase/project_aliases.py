@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
@@ -18,6 +19,8 @@ from sase.core.project_lifecycle_wire import (
     effective_project_name,
 )
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+
+logger = logging.getLogger(__name__)
 
 _KNOWN_VCS_WORKFLOW_NAMES = frozenset({"gh", "git", "hg", "jj", "p4"})
 _REF_CHARS = r"[A-Za-z0-9_./~-]+"
@@ -129,13 +132,23 @@ def _project_alias_map_from_records(
     *,
     overrides: Mapping[str, Sequence[str]] | None = None,
     display_name_overrides: Mapping[str, str | None] | None = None,
+    strict: bool = True,
 ) -> dict[str, str]:
+    """Build ``ref -> canonical project`` from *records*.
+
+    With ``strict=True`` (validation/mutation paths) any conflicting ref
+    raises ``ValueError``. With ``strict=False`` (read/launch paths) a
+    conflicting ref is dropped deterministically instead of crashing the
+    caller: a ref shadowed by a real project name self-resolves to that
+    project, and a ref claimed by two different projects resolves to
+    neither. A stale conflict on disk must never brick ``sase ace``.
+    """
     spec_backed_records = _spec_backed_project_records(records)
     project_names = {record.project_name for record in spec_backed_records}
     alias_map: dict[str, str] = {}
     ref_kinds: dict[tuple[str, str], str] = {}
 
-    def add_ref(ref: str, project_name: str, kind: str) -> None:
+    def _add_ref(ref: str, project_name: str, kind: str) -> None:
         if not is_valid_sase_project_name(ref):
             raise ValueError(f"invalid {kind} {ref!r} for project {project_name!r}")
         if ref == project_name:
@@ -170,6 +183,35 @@ def _project_alias_map_from_records(
             return
         alias_map[ref] = project_name
         ref_kinds[(project_name, ref)] = kind
+
+    dropped_refs: set[str] = set()
+
+    def add_ref(ref: str, project_name: str, kind: str) -> None:
+        if not strict and ref in dropped_refs:
+            logger.warning(
+                "Ignoring conflicting %s %r for project %r",
+                kind,
+                ref,
+                project_name,
+            )
+            return
+        try:
+            _add_ref(ref, project_name, kind)
+        except ValueError:
+            if strict:
+                raise
+            existing = alias_map.get(ref)
+            if existing is not None and existing != project_name:
+                # Claimed by two different projects: refuse to map at all so
+                # the ref deterministically self-resolves.
+                del alias_map[ref]
+                dropped_refs.add(ref)
+            logger.warning(
+                "Ignoring conflicting %s %r for project %r",
+                kind,
+                ref,
+                project_name,
+            )
 
     for record in spec_backed_records:
         display_name = (
@@ -479,10 +521,16 @@ def load_project_alias_map(projects_root: Path | str | None = None) -> dict[str,
     """Return ``alias -> canonical project`` for all non-system projects.
 
     The map includes aliases for active, inactive, and sibling project records.
-    Conflicts are rejected instead of guessed so launch-time canonicalization is
-    deterministic even after manual ProjectSpec edits.
+    Conflicting refs are dropped deterministically instead of guessed (a ref
+    shadowed by a real project name self-resolves; a ref claimed by two
+    projects maps to neither) so a stale conflict on disk never crashes read
+    paths such as ``sase ace`` startup. Alias/PROJECT_NAME mutations still
+    reject conflicts via the strict validation helpers.
     """
-    return _project_alias_map_from_records(_filtered_project_records(projects_root))
+    return _project_alias_map_from_records(
+        _filtered_project_records(projects_root),
+        strict=False,
+    )
 
 
 def resolve_project_alias_ref(
@@ -491,6 +539,27 @@ def resolve_project_alias_ref(
 ) -> str:
     """Return the canonical project name for an exact alias ref."""
     return load_project_alias_map(projects_root).get(ref, ref)
+
+
+def find_project_ref_owner(
+    ref: str,
+    projects_root: Path | str | None = None,
+) -> str | None:
+    """Return the project claiming *ref* as PROJECT_NAME or alias, if any.
+
+    Unlike :func:`load_project_alias_map`, this reports the claim even when a
+    real project named *ref* already shadows it, so creation paths can refuse
+    to mint a project whose directory key would collide with another
+    project's refs.
+    """
+    for record in _filtered_project_records(projects_root):
+        if record.project_name == ref:
+            continue
+        if ref == _normalize_project_name(record.display_name):
+            return record.project_name
+        if ref in _normalize_project_aliases(record.aliases):
+            return record.project_name
+    return None
 
 
 def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
@@ -570,6 +639,7 @@ __all__ = [
     "clear_project_aliases_locked",
     "ensure_project_name_locked",
     "effective_project_name",
+    "find_project_ref_owner",
     "humanize_project_refs_in_prompt",
     "load_project_alias_map",
     "remove_project_alias_locked",

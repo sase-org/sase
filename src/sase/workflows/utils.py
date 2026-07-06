@@ -37,17 +37,30 @@ def get_cl_name_from_branch() -> str | None:
 
 
 def get_project_from_workspace() -> str | None:
-    """Get the current project name from sase_workspace_name command.
+    """Get the canonical project name for the current workspace.
+
+    The provider-derived workspace name is a repo name (e.g. ``sase``),
+    which may be another project's PROJECT_NAME or alias rather than a
+    project directory key (e.g. ``gh_sase-org__sase``). Resolve it through
+    the project alias map so callers never mint or write to a phantom
+    project keyed by a display name.
 
     Returns:
-        The project name, or None if command fails.
+        The canonical project name, or None if detection fails.
     """
     cwd = os.getcwd()
     provider = get_vcs_provider(cwd)
     success, ws_name = provider.get_workspace_name(cwd)
-    if not success:
+    if not success or not ws_name:
         return None
-    return ws_name or None
+    try:
+        from sase.project_aliases import resolve_project_alias_ref
+
+        return resolve_project_alias_ref(ws_name)
+    except Exception:
+        # Canonicalization is best-effort; fall back to the raw name so
+        # commit flows keep working even if project records are unreadable.
+        return ws_name
 
 
 def _get_changed_test_targets(verbose: bool = False) -> str | None:

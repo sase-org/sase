@@ -20,10 +20,24 @@ def _log_project_creation(project: str, project_file: str) -> None:
         log.warning("Failed to invoke project-creation logger", exc_info=True)
 
 
+def _project_ref_owner(project: str) -> str | None:
+    """Best-effort lookup of a project claiming *project* as a ref."""
+    try:
+        from sase.project_aliases import find_project_ref_owner
+
+        return find_project_ref_owner(project)
+    except Exception:  # pragma: no cover - creation must not depend on lookup
+        log.warning("Failed to check project ref ownership", exc_info=True)
+        return None
+
+
 def create_project_file(project: str) -> bool:
     """Create a new project file if it doesn't exist.
 
-    Uses locking and atomic writes for consistency.
+    Uses locking and atomic writes for consistency. Refuses to mint a new
+    project whose name is already claimed as another project's PROJECT_NAME
+    or alias — creating one would shadow that ref and break alias
+    resolution (crashing ``sase ace`` at startup).
 
     Args:
         project: Project name.
@@ -37,6 +51,16 @@ def create_project_file(project: str) -> bool:
 
     project_file = get_project_file_path(project)
     project_dir = os.path.dirname(project_file)
+
+    if not os.path.isfile(project_file):
+        owner = _project_ref_owner(project)
+        if owner is not None:
+            print_status(
+                f"Refusing to create project {project!r}: the name is "
+                f"already used as a PROJECT_NAME or alias of {owner!r}.",
+                "warning",
+            )
+            return False
 
     # Create directory if it doesn't exist
     try:

@@ -16,8 +16,10 @@ from sase.project_aliases import (
     allocate_project_name,
     canonicalize_project_aliases_in_prompt,
     ensure_project_name_locked,
+    find_project_ref_owner,
     humanize_project_refs_in_prompt,
     load_project_alias_map,
+    resolve_project_alias_ref,
     set_project_name_locked,
 )
 from tests.main.project_handler_helpers import (
@@ -128,7 +130,7 @@ def test_load_project_alias_map_ignores_spec_less_project_name_collision(
     assert canonicalize_project_aliases_in_prompt("#gh:bob fix") == "#gh:bob-cli fix"
 
 
-def test_load_project_alias_map_preserves_real_project_name_collision(
+def test_load_project_alias_map_drops_alias_shadowed_by_real_project(
     projects_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -151,11 +153,13 @@ def test_load_project_alias_map_preserves_real_project_name_collision(
         ],
     )
 
-    with pytest.raises(ValueError, match="real project name"):
-        load_project_alias_map(projects_root)
+    # A ref shadowed by a real project name self-resolves instead of
+    # crashing read paths (e.g. `sase ace` startup).
+    assert load_project_alias_map(projects_root) == {}
+    assert resolve_project_alias_ref("bob", projects_root) == "bob"
 
 
-def test_load_project_alias_map_rejects_duplicate_alias(
+def test_load_project_alias_map_drops_duplicate_alias(
     projects_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -178,8 +182,9 @@ def test_load_project_alias_map_rejects_duplicate_alias(
         ],
     )
 
-    with pytest.raises(ValueError, match="assigned to both"):
-        load_project_alias_map(projects_root)
+    # An ambiguous ref maps to neither claimant so it self-resolves.
+    assert load_project_alias_map(projects_root) == {}
+    assert resolve_project_alias_ref("bob", projects_root) == "bob"
 
 
 def test_load_project_alias_map_includes_display_name(
@@ -237,7 +242,7 @@ def test_humanize_project_refs_in_prompt_rewrites_only_vcs_refs(
     assert "#gh:gh_acme__widgets fenced" in result
 
 
-def test_load_project_alias_map_rejects_display_name_collision(
+def test_load_project_alias_map_drops_display_name_collision(
     projects_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -268,8 +273,8 @@ def test_load_project_alias_map_rejects_display_name_collision(
         ],
     )
 
-    with pytest.raises(ValueError, match="assigned to both"):
-        load_project_alias_map(projects_root)
+    assert load_project_alias_map(projects_root) == {}
+    assert resolve_project_alias_ref("widgets", projects_root) == "widgets"
 
 
 def test_set_project_name_locked_writes_replaces_and_removes_name(
@@ -335,3 +340,95 @@ def test_set_project_name_locked_rejects_alias_collision(
         set_project_name_locked("alpha", "widgets", projects_root=projects_root)
 
     assert "PROJECT_NAME:" not in project_file.read_text(encoding="utf-8")
+
+
+def test_load_project_alias_map_keeps_valid_refs_next_to_dropped_ones(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The crash scenario: PROJECT_NAME shadowed by a phantom real project.
+
+    The shadowed ref is dropped but every other ref still resolves, so
+    ``sase ace`` keeps working instead of crashing at startup.
+    """
+    sase_file = _write_project(
+        projects_root,
+        "sase",
+        "WORKSPACE_DIR: /tmp/sase\nNAME: s\n",
+    )
+    gh_file = _write_project(
+        projects_root,
+        "gh_acme__sase",
+        "PROJECT_NAME: sase\nPROJECT_ALIASES: widgets\n"
+        "WORKSPACE_DIR: /tmp/gh\nNAME: g\n",
+    )
+
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record("sase", project_file=sase_file),
+            _record(
+                "gh_acme__sase",
+                project_file=gh_file,
+                display_name="sase",
+                aliases=["widgets"],
+            ),
+        ],
+    )
+
+    assert load_project_alias_map(projects_root) == {"widgets": "gh_acme__sase"}
+    assert resolve_project_alias_ref("sase", projects_root) == "sase"
+
+
+def test_load_project_alias_map_dropped_ref_stays_dropped(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ref dropped for ambiguity is not re-adopted by a later claimant."""
+    files = {
+        name: _write_project(
+            projects_root,
+            name,
+            f"PROJECT_NAME: widgets\nWORKSPACE_DIR: /tmp/{name}\nNAME: n\n",
+        )
+        for name in ("gh_acme__widgets", "gh_globex__widgets", "gh_initech__widgets")
+    }
+
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record(name, project_file=file, display_name="widgets")
+            for name, file in files.items()
+        ],
+    )
+
+    assert load_project_alias_map(projects_root) == {}
+
+
+def test_find_project_ref_owner_reports_display_name_and_alias_claims(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gh_file = _write_project(
+        projects_root,
+        "gh_acme__sase",
+        "PROJECT_NAME: sase\nPROJECT_ALIASES: widgets\n"
+        "WORKSPACE_DIR: /tmp/gh\nNAME: g\n",
+    )
+
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record(
+                "gh_acme__sase",
+                project_file=gh_file,
+                display_name="sase",
+                aliases=["widgets"],
+            ),
+        ],
+    )
+
+    assert find_project_ref_owner("sase", projects_root) == "gh_acme__sase"
+    assert find_project_ref_owner("widgets", projects_root) == "gh_acme__sase"
+    assert find_project_ref_owner("gh_acme__sase", projects_root) is None
+    assert find_project_ref_owner("unclaimed", projects_root) is None

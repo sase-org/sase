@@ -136,7 +136,7 @@ def test_project_alias_map_loads_all_non_system_non_home_states(
     assert calls == [(projects, "all", False)]
 
 
-def test_project_alias_map_rejects_real_project_name_collision(
+def test_project_alias_map_drops_alias_shadowed_by_real_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
@@ -154,11 +154,12 @@ def test_project_alias_map_rejects_real_project_name_collision(
         ],
     )
 
-    with pytest.raises(ValueError, match="real project name"):
-        load_project_alias_map(projects)
+    # The shadowed alias self-resolves instead of crashing read paths.
+    assert load_project_alias_map(projects) == {}
+    assert resolve_project_alias_ref("docs", projects) == "docs"
 
 
-def test_project_alias_map_rejects_duplicate_alias(
+def test_project_alias_map_drops_duplicate_alias(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
@@ -180,8 +181,9 @@ def test_project_alias_map_rejects_duplicate_alias(
         ],
     )
 
-    with pytest.raises(ValueError, match="assigned to both"):
-        load_project_alias_map(projects)
+    # An ambiguous alias maps to neither claimant so it self-resolves.
+    assert load_project_alias_map(projects) == {}
+    assert resolve_project_alias_ref("bob", projects) == "bob"
 
 
 def test_resolve_project_alias_ref_uses_exact_alias(

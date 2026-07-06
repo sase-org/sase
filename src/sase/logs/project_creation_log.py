@@ -131,8 +131,9 @@ def _detect_alias_conflict(project: str) -> tuple[bool | None, str | None]:
                 or record.system_managed
             ):
                 continue
-            for alias in record.aliases:
-                normalized = alias.strip()
+            display_name = record.display_name or ""
+            for ref in (display_name, *record.aliases):
+                normalized = ref.strip()
                 if normalized and normalized not in alias_owners:
                     alias_owners[normalized] = record.project_name
         owner = alias_owners.get(project)
@@ -200,8 +201,9 @@ def _warn_alias_conflict(record: dict[str, Any]) -> None:
     from sase.output import print_status
 
     print_status(
-        f"Created project {record['project']!r}, which collides with an alias "
-        f"owned by {record['alias_conflict_owner']!r}; this will break alias "
-        "resolution. See ~/.sase/logs/project_creation.log.",
+        f"Created project {record['project']!r}, which collides with a "
+        f"PROJECT_NAME or alias owned by {record['alias_conflict_owner']!r}; "
+        "this will break alias resolution. See "
+        "~/.sase/logs/project_creation.log.",
         "warning",
     )

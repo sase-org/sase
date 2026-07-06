@@ -86,6 +86,21 @@ class TestLogProjectCreation:
         assert record["alias_conflict"] is False
         assert record["alias_conflict_owner"] is None
 
+    def test_alias_conflict_records_display_name_owner(self) -> None:
+        _write_project(
+            "gh_acme__sase",
+            "PROJECT_NAME: sase\nWORKSPACE_DIR: /tmp/gh\nNAME: a\n",
+        )
+
+        log_project_creation(
+            project="sase",
+            project_file=str(sase_projects_dir() / "sase" / "sase.sase"),
+        )
+
+        record = _read_records()[-1]
+        assert record["alias_conflict"] is True
+        assert record["alias_conflict_owner"] == "gh_acme__sase"
+
     def test_never_raises_on_write_error(self, monkeypatch) -> None:
         def _explode(*_args: object, **_kwargs: object) -> None:
             raise OSError("disk full")
@@ -109,3 +124,35 @@ def test_create_project_file_logs_only_new_project_file() -> None:
     assert create_project_file("newproj") is True
 
     assert len(project_creation_jsonl_path().read_text().splitlines()) == 1
+
+
+def test_create_project_file_refuses_alias_owned_name() -> None:
+    _write_project(
+        "bob-cli",
+        "PROJECT_ALIASES: bob\nWORKSPACE_DIR: /tmp/bob-cli\nNAME: a\n",
+    )
+
+    assert create_project_file("bob") is False
+    assert not (sase_projects_dir() / "bob").exists()
+
+
+def test_create_project_file_refuses_display_name_owned_name() -> None:
+    _write_project(
+        "gh_acme__sase",
+        "PROJECT_NAME: sase\nWORKSPACE_DIR: /tmp/gh\nNAME: a\n",
+    )
+
+    assert create_project_file("sase") is False
+    assert not (sase_projects_dir() / "sase").exists()
+
+
+def test_create_project_file_still_true_for_existing_shadowing_project() -> None:
+    """An already-existing project file wins even if another project claims
+    the same ref; creation must stay idempotent for it."""
+    _write_project(
+        "gh_acme__sase",
+        "PROJECT_NAME: sase\nWORKSPACE_DIR: /tmp/gh\nNAME: a\n",
+    )
+    _write_project("sase", "WORKSPACE_DIR: /tmp/sase\nNAME: s\n")
+
+    assert create_project_file("sase") is True

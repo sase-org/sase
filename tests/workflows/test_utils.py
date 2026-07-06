@@ -282,6 +282,42 @@ def test_get_project_from_workspace_empty(mock_get_provider: MagicMock) -> None:
     assert result is None
 
 
+@patch("sase.project_aliases.resolve_project_alias_ref")
+@patch("sase.workflows.utils.get_vcs_provider")
+def test_get_project_from_workspace_canonicalizes_alias(
+    mock_get_provider: MagicMock,
+    mock_resolve: MagicMock,
+) -> None:
+    """A repo-derived name that is another project's PROJECT_NAME/alias
+    resolves to the canonical project key."""
+    mock_provider = MagicMock()
+    mock_provider.get_workspace_name.return_value = (True, "sase")
+    mock_get_provider.return_value = mock_provider
+    mock_resolve.return_value = "gh_acme__sase"
+
+    result = get_project_from_workspace()
+
+    assert result == "gh_acme__sase"
+    mock_resolve.assert_called_once_with("sase")
+
+
+@patch("sase.project_aliases.resolve_project_alias_ref")
+@patch("sase.workflows.utils.get_vcs_provider")
+def test_get_project_from_workspace_falls_back_when_resolution_fails(
+    mock_get_provider: MagicMock,
+    mock_resolve: MagicMock,
+) -> None:
+    """Canonicalization is best-effort; unreadable records keep commits going."""
+    mock_provider = MagicMock()
+    mock_provider.get_workspace_name.return_value = (True, "sase")
+    mock_get_provider.return_value = mock_provider
+    mock_resolve.side_effect = OSError("projects dir unreadable")
+
+    result = get_project_from_workspace()
+
+    assert result == "sase"
+
+
 # Tests for get_changespec_from_file
 def test_get_changespec_from_file_not_found() -> None:
     """Test get_changespec_from_file returns None when CL not found."""
