@@ -27,11 +27,17 @@ from sase.axe.run_agent_helpers import (
     extract_step_output_and_diff_path,
     is_workflow_noop,
     read_and_delete_marker,
+    update_meta_field,
+)
+from sase.axe.run_agent_exec_custom_roles import (
+    custom_role_snapshot_from_meta,
+    spawn_custom_role_followup,
 )
 from sase.axe.runner_utils import killed_at, reset_killed, was_killed
 from sase.agent.user_kill import has_user_kill_intent
 from sase.agent_family import (
     HandoffEvent,
+    active_roles_after,
     build_handoff_event,
     evaluate_handoff_event,
     family_state_snapshot,
@@ -194,7 +200,7 @@ def _current_agent_family_role(artifacts_dir: str) -> str | None:
     return role if isinstance(role, str) and role else None
 
 
-def _handle_completed_followup(state: LoopState) -> bool:
+def _handle_completed_followup(ctx: AgentExecContext, state: LoopState) -> bool:
     """Return True when a normally completed phase should finish the loop."""
 
     if state.agent_step <= 1 or not state.current_role_suffix:
@@ -221,8 +227,36 @@ def _handle_completed_followup(state: LoopState) -> bool:
                 suffix for suffix, _path in state.saved_chat_paths if suffix
             ),
             agent_family_role=event.interrupted_role,
+            visit_counts=state.custom_role_visit_counts,
+        ),
+        custom_roles=active_roles_after(
+            event.interrupted_role, project=ctx.project_name
+        ),
+        custom_role_snapshot=custom_role_snapshot_from_meta(
+            state.current_artifacts_dir
         ),
     )
+    if evaluation.custom_role is not None and not evaluation.terminal:
+        spawn_custom_role_followup(
+            evaluation.custom_role,
+            ctx,
+            state,
+            source_artifacts=state.current_artifacts_dir,
+            outcome=str(event.payload.get("outcome") or "success"),
+            source_role=event.interrupted_role,
+        )
+        return False
+    if evaluation.custom_role is not None and evaluation.terminal_reason:
+        update_meta_field(
+            state.current_artifacts_dir,
+            "custom_role_terminal_reason",
+            evaluation.terminal_reason,
+        )
+        update_meta_field(
+            state.current_artifacts_dir,
+            "custom_role_terminal_role",
+            evaluation.custom_role.role.id,
+        )
     return evaluation.terminal
 
 
@@ -294,7 +328,7 @@ def run_execution_loop(
             result = None
 
         if not was_killed():
-            if not _handle_completed_followup(state):
+            if not _handle_completed_followup(ctx, state):
                 continue
             break
 

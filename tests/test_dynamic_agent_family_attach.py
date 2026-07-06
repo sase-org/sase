@@ -390,6 +390,7 @@ def test_family_attach_running_parent_builds_queued_plan(monkeypatch) -> None:
         ("legend", "legend"),
         ("commit", "commit"),
         ("reviewer", "reviewer"),
+        ("improve_plan", "improve_plan"),
     ],
 )
 def test_family_attach_role_mapping_through_attach_path(

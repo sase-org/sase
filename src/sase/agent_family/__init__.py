@@ -1,9 +1,18 @@
 """Agent-family state-machine primitives."""
 
+from sase.agent_family.custom_definitions import (
+    AgentFamilyDefinition,
+    AgentFamilyRoleDefinition,
+    active_roles_after,
+    get_all_agent_family_definitions,
+    load_agent_family_definition_from_file,
+    load_agent_family_definition_from_mapping,
+)
 from sase.agent_family.standard_plan_chain import (
     STANDARD_PLAN_CHAIN_CONFIG_HASH,
     STANDARD_PLAN_CHAIN_ID,
     STANDARD_PLAN_CHAIN_VERSION,
+    CustomRoleTransition,
     FamilyEvaluation,
     FamilyRuntimeMetadata,
     FamilyStateSnapshot,
@@ -23,6 +32,9 @@ __all__ = [
     "STANDARD_PLAN_CHAIN_CONFIG_HASH",
     "STANDARD_PLAN_CHAIN_ID",
     "STANDARD_PLAN_CHAIN_VERSION",
+    "AgentFamilyDefinition",
+    "AgentFamilyRoleDefinition",
+    "CustomRoleTransition",
     "FamilyEvaluation",
     "FamilyRuntimeMetadata",
     "FamilyStateSnapshot",
@@ -35,5 +47,9 @@ __all__ = [
     "evaluate_questions_transition",
     "family_runtime_metadata_for_role",
     "family_state_snapshot",
+    "active_roles_after",
+    "get_all_agent_family_definitions",
+    "load_agent_family_definition_from_file",
+    "load_agent_family_definition_from_mapping",
     "standard_plan_chain_definition",
 ]

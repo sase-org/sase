@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
-from sase.agent_family import evaluate_plan_approval_transition
+from sase.agent_family import active_roles_after, evaluate_plan_approval_transition
 from sase.axe.run_agent_family_metadata import record_family_runtime_metadata
+from sase.axe.run_agent_exec_custom_roles import spawn_custom_role_followup
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -247,6 +248,9 @@ def handle_accepted_plan(
         feedback_count=len(state.feedback_bullets),
         qa_round_count=len(state.qa_rounds),
         saved_chat_suffixes=_saved_chat_suffixes(state),
+        visit_counts=state.custom_role_visit_counts,
+        custom_roles=active_roles_after("plan", project=ctx.project_name),
+        auto_mode=bool(getattr(plan_result, "auto_approved", False)),
     )
     record_family_runtime_metadata(
         state.current_artifacts_dir,
@@ -364,6 +368,35 @@ def handle_accepted_plan(
     followup_model = _resolve_followup_model(plan_result, ctx)
     model_prefix = followup_model.model_prefix
     followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)
+
+    if transition.custom_role is not None:
+        if transition.custom_role.cap_exhausted:
+            update_meta_field(
+                state.current_artifacts_dir,
+                "custom_role_cap_exhausted",
+                transition.custom_role.role.id,
+            )
+            return "custom_role_cap_exhausted"
+        spawn_custom_role_followup(
+            transition.custom_role,
+            ctx,
+            state,
+            base_meta=followup_base_meta,
+            plan_file=plan_result.plan_file,
+            source_artifacts=state.current_artifacts_dir,
+            outcome="success",
+            source_role="plan",
+            extra_relationships={
+                "sdd_prompt_path": str(state.sdd_spec_path)
+                if state.sdd_spec_path
+                else None,
+                "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
+                "plan_committed": plan_committed,
+                "changespec_name": ctx.cl_name,
+                "source_plan_agent_name": source_plan_agent_name,
+            },
+        )
+        return None
 
     if plan_result.action in ("epic", "legend"):
         # Ensure beads are initialized before spawning epic agent

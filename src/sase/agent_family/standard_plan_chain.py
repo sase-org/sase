@@ -8,6 +8,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from sase.agent_family.custom_definitions import (
+    AgentFamilyRoleDefinition,
+    role_definition_from_snapshot,
+)
 from sase.plan_approval_choices import (
     PLAN_APPROVAL_CHOICE_IDS,
     approval_protocol_for_choice,
@@ -275,16 +279,23 @@ class FamilyRuntimeMetadata:
     active_gate_id: str | None
     active_gate_renderer: GateRendererId | None
     family_state: FamilyStateSnapshot
+    config_id: str = STANDARD_PLAN_CHAIN_ID
+    config_version: int = STANDARD_PLAN_CHAIN_VERSION
+    config_hash: str = STANDARD_PLAN_CHAIN_CONFIG_HASH
+    custom_role: AgentFamilyRoleDefinition | None = None
 
     def as_meta_fields(self) -> dict[str, object]:
-        return {
-            "agent_family_config_id": STANDARD_PLAN_CHAIN_ID,
-            "agent_family_config_version": STANDARD_PLAN_CHAIN_VERSION,
-            "agent_family_config_hash": STANDARD_PLAN_CHAIN_CONFIG_HASH,
+        fields: dict[str, object] = {
+            "agent_family_config_id": self.config_id,
+            "agent_family_config_version": self.config_version,
+            "agent_family_config_hash": self.config_hash,
             "active_gate_id": self.active_gate_id,
             "active_gate_renderer": self.active_gate_renderer,
             "family_state": self.family_state.as_json(),
         }
+        if self.custom_role is not None:
+            fields["agent_family_custom_role"] = self.custom_role.as_snapshot()
+        return fields
 
     def as_followup_relationships(self) -> dict[str, object]:
         fields = self.as_meta_fields()
@@ -293,6 +304,16 @@ class FamilyRuntimeMetadata:
             for key, value in fields.items()
             if key not in {"active_gate_id", "active_gate_renderer"}
         }
+
+
+@dataclass(frozen=True)
+class CustomRoleTransition:
+    """A custom role the evaluator selected as the next family member."""
+
+    role: AgentFamilyRoleDefinition
+    runtime_metadata: FamilyRuntimeMetadata
+    cap_exhausted: bool = False
+    failure_policy: str | None = None
 
 
 @dataclass(frozen=True)
@@ -305,6 +326,8 @@ class FamilyEvaluation:
     runtime_metadata: FamilyRuntimeMetadata
     terminal: bool = False
     composition_rule: str | None = None
+    custom_role: CustomRoleTransition | None = None
+    terminal_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -317,6 +340,7 @@ class PlanApprovalTransition:
     terminal_outcome: str | None
     side_effect_ids: tuple[str, ...]
     runtime_metadata: FamilyRuntimeMetadata
+    custom_role: CustomRoleTransition | None = None
 
 
 @dataclass(frozen=True)
@@ -347,6 +371,7 @@ def family_state_snapshot(
     qa_round_count: int = 0,
     saved_chat_suffixes: Sequence[str] = (),
     agent_family_role: object = None,
+    visit_counts: Mapping[str, int] | None = None,
 ) -> FamilyStateSnapshot:
     """Build a compact standard-chain state snapshot."""
 
@@ -354,16 +379,16 @@ def family_state_snapshot(
         current_role_suffix,
         agent_family_role=agent_family_role,
     )
-    visit_counts: dict[str, int] = {}
+    next_visit_counts: dict[str, int] = dict(visit_counts or {})
     if current_role:
-        visit_counts[current_role] = 1
+        next_visit_counts.setdefault(current_role, 1)
     return FamilyStateSnapshot(
         current_role=current_role,
         current_role_suffix=current_role_suffix,
         feedback_count=len(feedback_bullets),
         qa_round_count=qa_round_count,
         saved_chat_suffixes=tuple(suffix for suffix in saved_chat_suffixes if suffix),
-        visit_counts=visit_counts,
+        visit_counts=next_visit_counts,
     )
 
 
@@ -395,13 +420,113 @@ def _event_definition(kind: HandoffEventKind) -> _FamilyEventDefinition:
     raise KeyError(kind)
 
 
+def _custom_runtime_metadata(
+    role: AgentFamilyRoleDefinition,
+    family_state: FamilyStateSnapshot,
+) -> FamilyRuntimeMetadata:
+    return FamilyRuntimeMetadata(
+        active_gate_id=None,
+        active_gate_renderer=None,
+        family_state=family_state,
+        config_id=role.config_id,
+        config_version=role.config_version,
+        config_hash=role.config_hash,
+        custom_role=role,
+    )
+
+
+def _select_custom_role_after(
+    after_role: str,
+    family_state: FamilyStateSnapshot,
+    *,
+    custom_roles: Sequence[AgentFamilyRoleDefinition],
+    auto_mode: bool = False,
+    outcome: object = "success",
+) -> CustomRoleTransition | None:
+    for role in custom_roles:
+        if role.placement_after != after_role:
+            continue
+        if auto_mode and role.auto != "run":
+            continue
+        if outcome != "success":
+            return CustomRoleTransition(
+                role=role,
+                runtime_metadata=_custom_runtime_metadata(role, family_state),
+                failure_policy=role.on_failure,
+            )
+        prior_visits = int(family_state.visit_counts.get(role.id, 0) or 0)
+        if prior_visits >= role.max_visits:
+            return CustomRoleTransition(
+                role=role,
+                runtime_metadata=_custom_runtime_metadata(role, family_state),
+                cap_exhausted=True,
+            )
+        visit_counts = dict(family_state.visit_counts)
+        visit_counts[role.id] = prior_visits + 1
+        next_state = FamilyStateSnapshot(
+            current_role=role.id,
+            current_role_suffix=role.suffix,
+            feedback_count=family_state.feedback_count,
+            qa_round_count=family_state.qa_round_count,
+            saved_chat_suffixes=family_state.saved_chat_suffixes,
+            visit_counts=visit_counts,
+        )
+        return CustomRoleTransition(
+            role=role,
+            runtime_metadata=_custom_runtime_metadata(role, next_state),
+        )
+    return None
+
+
+def _custom_role_for_handoff_event(
+    event: HandoffEvent,
+    family_state: FamilyStateSnapshot,
+    *,
+    custom_roles: Sequence[AgentFamilyRoleDefinition],
+    custom_role_snapshot: Mapping[str, object] | None,
+) -> CustomRoleTransition | None:
+    if event.kind != "role_completed":
+        return None
+    snapshotted_role = (
+        role_definition_from_snapshot(custom_role_snapshot)
+        if custom_role_snapshot is not None
+        else None
+    )
+    if snapshotted_role is not None and event.interrupted_role == snapshotted_role.id:
+        return None
+    return _select_custom_role_after(
+        event.interrupted_role,
+        family_state,
+        custom_roles=custom_roles,
+        outcome=event.payload.get("outcome"),
+    )
+
+
 def evaluate_handoff_event(
     event: HandoffEvent,
     family_state: FamilyStateSnapshot,
+    *,
+    custom_roles: Sequence[AgentFamilyRoleDefinition] = (),
+    custom_role_snapshot: Mapping[str, object] | None = None,
 ) -> FamilyEvaluation:
     """Route a typed lifecycle event through the built-in standard chain."""
 
     event_def = _event_definition(event.kind)
+    custom_role = _custom_role_for_handoff_event(
+        event,
+        family_state,
+        custom_roles=custom_roles,
+        custom_role_snapshot=custom_role_snapshot,
+    )
+    terminal = event_def.terminal
+    terminal_reason = None
+    if custom_role is not None:
+        terminal = custom_role.cap_exhausted or custom_role.failure_policy is not None
+        terminal_reason = (
+            "custom_role_cap_exhausted"
+            if custom_role.cap_exhausted
+            else custom_role.failure_policy
+        )
     return FamilyEvaluation(
         event=event,
         gate_id=event_def.gate_id,
@@ -411,8 +536,10 @@ def evaluate_handoff_event(
             active_gate_renderer=event_def.renderer,
             family_state=family_state,
         ),
-        terminal=event_def.terminal,
+        terminal=terminal,
         composition_rule=event_def.composition_rule,
+        custom_role=custom_role,
+        terminal_reason=terminal_reason,
     )
 
 
@@ -423,16 +550,20 @@ def family_runtime_metadata_for_role(
     feedback_count: int,
     qa_round_count: int,
     saved_chat_suffixes: Sequence[str] = (),
+    visit_counts: Mapping[str, int] | None = None,
 ) -> FamilyRuntimeMetadata:
     """Return non-gated runtime metadata for a role that is about to run."""
 
+    next_visit_counts = dict(visit_counts or {})
+    if role:
+        next_visit_counts.setdefault(role, 1)
     snapshot = FamilyStateSnapshot(
         current_role=role,
         current_role_suffix=role_suffix,
         feedback_count=feedback_count,
         qa_round_count=qa_round_count,
         saved_chat_suffixes=tuple(suffix for suffix in saved_chat_suffixes if suffix),
-        visit_counts={role: 1} if role else {},
+        visit_counts=next_visit_counts,
     )
     return FamilyRuntimeMetadata(
         active_gate_id=None,
@@ -483,6 +614,9 @@ def evaluate_plan_approval_transition(
     feedback_count: int,
     qa_round_count: int,
     saved_chat_suffixes: Sequence[str] = (),
+    visit_counts: Mapping[str, int] | None = None,
+    custom_roles: Sequence[AgentFamilyRoleDefinition] = (),
+    auto_mode: bool = False,
 ) -> PlanApprovalTransition:
     """Evaluate the next standard-chain transition after plan review."""
 
@@ -496,7 +630,25 @@ def evaluate_plan_approval_transition(
         feedback_count=feedback_count,
         qa_round_count=qa_round_count,
         saved_chat_suffixes=saved_chat_suffixes,
+        visit_counts=visit_counts,
     )
+    custom_role = None
+    if role == "code" and terminal is None:
+        custom_role = _select_custom_role_after(
+            "plan",
+            FamilyStateSnapshot(
+                current_role=role,
+                current_role_suffix=role_suffix or suffix_template or "",
+                feedback_count=feedback_count,
+                qa_round_count=qa_round_count,
+                saved_chat_suffixes=tuple(
+                    suffix for suffix in saved_chat_suffixes if suffix
+                ),
+                visit_counts=dict(visit_counts or {}),
+            ),
+            custom_roles=custom_roles,
+            auto_mode=auto_mode,
+        )
     return PlanApprovalTransition(
         target_role=role,
         role_suffix=role_suffix,
@@ -508,6 +660,7 @@ def evaluate_plan_approval_transition(
             run_coder=run_coder,
         ),
         runtime_metadata=runtime,
+        custom_role=custom_role,
     )
 
 

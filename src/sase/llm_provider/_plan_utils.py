@@ -6,7 +6,7 @@ import re
 import shutil
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +25,7 @@ class PlanApprovalResult:
     run_coder: bool = True
     coder_prompt: str | None = None
     coder_model: str | None = None
+    auto_approved: bool = field(default=False, compare=False)
 
 
 def _auto_approval_result(auto_action: str, plan_file: str) -> PlanApprovalResult:
@@ -38,6 +39,7 @@ def _auto_approval_result(auto_action: str, plan_file: str) -> PlanApprovalResul
         action=auto_action,
         plan_file=plan_file,
         commit_plan=auto_action != "approve",
+        auto_approved=True,
     )
 
 

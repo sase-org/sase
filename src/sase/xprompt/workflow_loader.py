@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.agent_family.custom_definitions import is_agent_family_definition_mapping
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
@@ -309,6 +310,8 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
 
     if not isinstance(data, dict):
         record_load_issue(file_path, "top-level YAML is not a mapping", kind="workflow")
+        return None
+    if is_agent_family_definition_mapping(data):
         return None
 
     return _load_workflow_from_mapping(file_path.stem, data, str(file_path))

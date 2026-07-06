@@ -19,9 +19,9 @@ AGENT_FAMILY_FIELD = "agent_family"
 AGENT_FAMILY_ROLE_FIELD = "agent_family_role"
 
 _FEEDBACK_SUFFIX_RE = re.compile(r"^(?:--|[-.])(\d+)$")
-_TOKEN_RE = re.compile(r"^[A-Za-z0-9]+$")
-_ROOT_TOKEN_SUFFIX_RE = re.compile(r"^--([A-Za-z0-9]+)$")
-_PLAN_FEEDBACK_SUFFIX_RE = re.compile(r"^--plan-([A-Za-z0-9]+)$")
+_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
+_ROOT_TOKEN_SUFFIX_RE = re.compile(r"^--([A-Za-z0-9_]+)$")
+_PLAN_FEEDBACK_SUFFIX_RE = re.compile(r"^--plan-([A-Za-z0-9_]+)$")
 _KNOWN_SUFFIXES = {
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,

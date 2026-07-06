@@ -48,7 +48,7 @@ class _FamilyAttachError(RuntimeError):
     """Raised when a ``%n(parent, suffix)`` launch cannot be prepared."""
 
 
-_SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9]+$")
+_SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
 def parse_name_directive_args(
@@ -333,8 +333,8 @@ def _normalize_family_suffix_arg(suffix: str) -> str:
         )
     if not _SUFFIX_TOKEN_RE.fullmatch(suffix):
         raise ValueError(
-            f"Invalid %n family suffix '{suffix}'. Use letters and numbers only, "
-            "or @ to allocate the next free suffix."
+            f"Invalid %n family suffix '{suffix}'. Use letters, numbers, "
+            "and underscores only, or @ to allocate the next free suffix."
         )
     return f"{AGENT_FAMILY_SEPARATOR}{suffix}"
 
@@ -575,7 +575,83 @@ def _candidate_label(candidate: dict[str, Any]) -> str:
 def _resolve_binding() -> Any:
     from sase.core.rust import require_rust_binding
 
-    return require_rust_binding("resolve_agent_family_parent")
+    try:
+        return require_rust_binding("resolve_agent_family_parent")
+    except AttributeError:
+        return _resolve_agent_family_parent_fallback
+
+
+def _resolve_agent_family_parent_fallback(request: dict[str, Any]) -> dict[str, Any]:
+    """Compatibility path for dev checkouts with a stale core binding."""
+
+    parent_name = str(request.get("parent_name") or "")
+    project_name = str(request.get("project_name") or "")
+    candidates = [
+        dict(candidate)
+        for candidate in request.get("candidates", [])
+        if isinstance(candidate, dict)
+        and candidate.get("project_name") == project_name
+        and _candidate_matches_parent(candidate, parent_name)
+    ]
+    if not candidates:
+        return {"kind": "absent", "candidates": []}
+
+    candidates.sort(key=lambda candidate: str(candidate.get("timestamp") or ""))
+    newest_timestamp = str(candidates[-1].get("timestamp") or "")
+    newest = [
+        candidate
+        for candidate in candidates
+        if str(candidate.get("timestamp") or "") == newest_timestamp
+    ]
+    dismissed = request.get("dismissed")
+    dismissed_identities = dismissed if isinstance(dismissed, list) else []
+    active = [
+        candidate
+        for candidate in newest
+        if not _candidate_is_dismissed(candidate, dismissed_identities)
+    ]
+    if not active:
+        return {"kind": "dismissed", "candidates": newest}
+    if len(active) > 1:
+        return {"kind": "ambiguous", "candidates": active}
+    parent = active[0]
+    kind = "resolved" if parent.get("is_terminal") else "running"
+    return {
+        "kind": kind,
+        "parent": {
+            "name": parent.get("name") or parent.get("workflow_name") or parent_name,
+            "artifact_dir": parent.get("artifact_dir"),
+            "timestamp": parent.get("timestamp"),
+        },
+    }
+
+
+def _candidate_matches_parent(candidate: dict[str, Any], parent_name: str) -> bool:
+    for key in ("name", "workflow_name"):
+        value = candidate.get(key)
+        if value == parent_name:
+            return True
+    name = candidate.get("name")
+    return isinstance(name, str) and name.startswith(
+        f"{parent_name}{AGENT_FAMILY_SEPARATOR}"
+    )
+
+
+def _candidate_is_dismissed(
+    candidate: dict[str, Any],
+    dismissed_identities: list[Any],
+) -> bool:
+    cl_name = candidate.get("cl_name")
+    raw_suffix = candidate.get("raw_suffix")
+    for identity in dismissed_identities:
+        if not isinstance(identity, dict):
+            continue
+        if (
+            identity.get("cl_name") == cl_name
+            and identity.get("raw_suffix") == raw_suffix
+        ):
+            return True
+    return False
 
 
 def _str_or_none(value: object) -> str | None:
