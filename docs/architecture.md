@@ -33,11 +33,12 @@ Most agent work enters through `sase run`, ACE, axe agent chops, bead epic execu
 The launch path follows the same shape across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators.
-2. Canonicalize ProjectSpec aliases and provider-specific locators in launch-bound VCS refs, so aliases such as
-   `#gh:bob` or first-use owner/repo refs become canonical refs such as `#gh:bob-cli` before history or artifact
-   snapshots are written.
+2. Canonicalize ProjectSpec aliases in launch-bound VCS refs, so aliases such as `#gh:bob` become stable project
+   directory keys such as `#gh:bob-cli` before history or artifact snapshots are written.
 3. Resolve workspace references such as `#cd:<path>`, `#git:<project>`, or plugin-provided forms, rejecting inactive
-   known projects before new work is claimed.
+   known projects before new work is claimed. Providers may return an optional `canonical_ref` for raw locators such as
+   first-use owner/repo refs; when they do, launch metadata, history, and prompt MRU entries use that stable ref instead
+   of the raw locator.
 4. Allocate or prepare the target workspace through the workspace provider layer.
 5. Expand xprompt references and standalone workflow references.
 6. Invoke the selected LLM provider or workflow executor.

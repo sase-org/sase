@@ -56,7 +56,8 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 Agents is the first tab and the startup default. Each tab has a contextual guide: press `,?` (leader mode) to open the
 current tab's guide modal, which summarizes what the tab shows and its most useful keybindings. While the guide or the
-`?` help modal is open, the configured tab-switch keys still switch ACE tabs and refresh the modal content in place.
+`?` help modal is open, the configured tab-switch keys still switch ACE tabs and refresh the modal content in place. By
+default those keys are `Tab` and `Shift+Tab`; if you remap them, the modals follow the configured keys.
 
 On first use, empty tabs render onboarding states instead of blank panels: the PRs tab shows a getting-started card when
 no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the project/CL
@@ -435,26 +436,26 @@ Artifact panel controls:
 
 When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the TUI remains visible. The Agents
 list collapses while the tracked pane is live, row-changing navigation shows a warning instead of moving to a different
-agent, `l` focuses the tracked pane, and `a` closes it. If the pane was already closed, `a` opens the artifact panel
-normally. Outside tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image,
-video, Markdown, PDF, and text artifacts: images are displayed directly with `kitten icat`, videos play with `mpv`,
-Markdown is first rendered to PDF, PDFs are converted to PNG pages for paging, and unknown file artifacts fall back to a
-text viewer. The viewer needs `kitten` for image/PDF/Markdown display, `mpv` for videos, `pdftoppm` for PDF/Markdown
-paging, and `pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a warning instead of
-failing the TUI.
+agent, `l` focuses the tracked pane, and lowercase `a` closes it. If the pane was already closed, lowercase `a` opens
+the artifact panel normally. Outside tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer
+supports image, video, Markdown, PDF, and text artifacts: images are displayed directly with `kitten icat`, videos play
+with `mpv`, Markdown is first rendered to PDF, PDFs are converted to PNG pages for paging, and unknown file artifacts
+fall back to a text viewer. The viewer needs `kitten` for image/PDF/Markdown display, `mpv` for videos, `pdftoppm` for
+PDF/Markdown paging, and `pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a warning
+instead of failing the TUI.
 
 Viewer controls:
 
-| Key   | Action                                              |
-| ----- | --------------------------------------------------- |
-| `j`   | Next page; wraps from the last page to the first    |
-| `k`   | Previous page; wraps from the first page to last    |
-| `n`   | Next artifact when viewing an artifact sequence     |
-| `p`   | Previous artifact when viewing an artifact sequence |
-| `r`   | Refresh the current page                            |
-| `z`   | Toggle tmux zoom when available                     |
-| `Tab` | Focus the SASE TUI from a tmux artifact pane        |
-| `q`   | Close the viewer                                    |
+| Key   | Action                                                       |
+| ----- | ------------------------------------------------------------ |
+| `j`   | Next page when the artifact has multiple pages; wraps around |
+| `k`   | Previous page when the artifact has multiple pages           |
+| `n`   | Next artifact when viewing an artifact sequence              |
+| `p`   | Previous artifact when viewing an artifact sequence          |
+| `r`   | Refresh the current page                                     |
+| `z`   | Toggle tmux zoom when available for the viewer pane          |
+| `Tab` | Focus the SASE TUI from a tmux artifact pane                 |
+| `q`   | Close the viewer                                             |
 
 Only one plan artifact is shown for an agent. When both an archived plan and an SDD tale path are present, ACE prefers
 the committed SDD plan; otherwise it keeps the path that best matches the run metadata.
@@ -2206,9 +2207,11 @@ installed plugins, `U` to update the highlighted installed plugin when that row 
 uninstall, and `r` to refresh the catalog and latest versions. Editable / dev installs are labeled with a lowercase
 `dev` source marker and compared against their git upstream rather than PyPI, so a local checkout can surface an
 `↑ dev update available` hint. The SASE Core panel and plugin details can show incoming commit subjects when update
-metadata is available. Every mutation previews the underlying `uv` command or editable-checkout plan first and then runs
-as a tracked background task. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and
-behavior, and [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
+metadata is available. A single-plugin install preview can offer both index and git sources; press `g` inside that
+confirmation modal to switch variants before confirming. Every mutation previews the underlying `uv` command or
+editable-checkout plan first and then runs as a tracked background task. See the
+[Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and [Plugins](plugins.md) for
+the equivalent `sase plugin` CLI.
 
 ## Snippets
 

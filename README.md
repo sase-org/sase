@@ -135,11 +135,12 @@ SASE keeps durable state outside any one chat session:
   checkout.
 - **Update workflow** - ACE caches latest-version checks by default, shows startup and top-bar update signals when SASE
   or installed plugins are behind, and uses the Admin Center **Updates** tab for review. That tab shows SASE core/plugin
-  versions, optional incoming commit previews, marked install rows, and dry-run confirmation modals; press `u` for full
-  `sase update`, `U` for the highlighted plugin when that row has an update available, `i` to install the highlighted or
-  marked plugins, or `m` to switch the install between managed PyPI wheels and dev (editable) checkouts (the
-  `sase update --to dev|pypi` analog). Successful changed updates from ACE restart ACE and axe, and self-updates can
-  show a one-shot post-update confirmation toast.
+  versions, optional incoming commit previews, installable plugin rows that can be marked with `I` / `Space`, and
+  dry-run confirmation modals; press `u` for full `sase update`, `U` for the highlighted plugin when that row has an
+  update available, `i` to install the marked set (or the highlighted plugin when nothing is marked), or `m` to switch
+  the install between managed PyPI wheels and dev (editable) checkouts (the `sase update --to dev|pypi` analog).
+  Successful changed updates from ACE restart ACE and axe, and self-updates can show a one-shot post-update confirmation
+  toast.
 - **Numbered workspaces** - Parallel agents run in numbered project checkouts. Workspace `#0` is the primary checkout,
   `#1` through `#9` are reserved, and new claims allocate from `#10` upward.
 - **Workspace roots** - By default, numbered checkouts live under the platform state directory in a project-keyed

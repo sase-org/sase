@@ -113,7 +113,7 @@ performed.
 prompt history writes, and agent artifact writes. These friendly refs should not persist in `submitted_xprompt.md`,
 `raw_xprompt.md`, `agent_meta.json`, prompt history, history sort keys, or VCS refs. Storage paths and metadata keep
 using the directory key, while display surfaces prefer `PROJECT_NAME` when present. Display-only helpers also humanize
-filename-safe project stems in artifact, retry, and mobile-facing labels when they can map the stem back to a
+filename-safe project stems in some artifact, retry, and mobile-facing labels when they can map the stem back to a
 ProjectSpec display name; the underlying files are not renamed.
 
 Validation rules:

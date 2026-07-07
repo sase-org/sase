@@ -48,7 +48,8 @@ The recommended way to add a plugin to an existing managed install is the
 [**Updates** tab of the SASE Admin Center](configuration.md#updates-tab): press `#` inside `sase ace`, switch to the
 **Updates** tab, highlight the plugin, and press `i` to install. To install several plugins from ACE, mark installable
 rows with `I` / `Space`, then press `i` once; ACE previews one combined `uv` operation before changing the environment.
-The equivalent CLI for one plugin is `sase plugin install github`.
+For a single-plugin install preview that offers both index and git sources, press `g` in the confirmation modal to
+switch variants before confirming. The equivalent CLI for one plugin is `sase plugin install github`.
 
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 

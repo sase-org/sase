@@ -482,10 +482,11 @@ curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \
   -d '{"schema_version":1,"prompt":"Summarize the current failures","name":"mobile.summary"}'
 ```
 
-Launch responses return `schema_version`, a `primary` slot, and all `slots`. Each launched slot includes its planned
-name when known, `status: "launched"`, a short startup message, and `artifact_dir` pointing at the canonical agent
-artifact directory when SASE can derive one from the launch result. Clients should treat `artifact_dir` as an opaque
-host path for display, retry context, and host-bridge follow-up actions; they should not construct paths themselves.
+Launch responses return `schema_version`, a `primary` slot, and all `slots`. Each launched slot includes `slot_id`,
+`status: "launched"`, a short startup message, `name` (the planned name when SASE knows it, otherwise `null`), and
+`artifact_dir` (a host path when SASE can derive the canonical agent artifact directory, otherwise `null`). Clients
+should treat a non-null `artifact_dir` as an opaque host path for display, retry context, and host-bridge follow-up
+actions; they should not construct paths themselves.
 
 Launch in a known SASE project context by passing the project name, not a path. The bridge resolves only
 `<sase_home>/projects/<project>/<project>.sase` (falling back to legacy `.gp`) and uses that file's `WORKSPACE_DIR` when
@@ -548,10 +549,10 @@ curl -sS -X POST "$BASE_URL/api/v1/agents/$AGENT_NAME/retry" \
 ```
 
 Successful launch, image launch, kill, and retry routes audit the paired device and publish `agents_changed` SSE events
-with a reason and agent name when available. Mobile launch context, including returned artifact directories, is appended
-to `<sase_home>/mobile_gateway/agent_launch_contexts.jsonl`; mobile kill context is stored under
-`<sase_home>/mobile_gateway/agent_kill_contexts/`; and the last known product-shaped project context per device is
-stored under `<sase_home>/mobile_gateway/device_project_contexts/`.
+with a reason and agent name when available. For launched slots SASE can associate with an agent, mobile launch context,
+including any returned artifact directory, is appended to `<sase_home>/mobile_gateway/agent_launch_contexts.jsonl`;
+mobile kill context is stored under `<sase_home>/mobile_gateway/agent_kill_contexts/`; and the last known product-shaped
+project context per device is stored under `<sase_home>/mobile_gateway/device_project_contexts/`.
 
 ## Workflow Helpers
 

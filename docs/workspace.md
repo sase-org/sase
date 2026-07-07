@@ -51,22 +51,24 @@ Built-in metadata includes `SASE_CD` for `#cd` and `SASE_GIT` for `#git`. Plugin
 
 Result of resolving a workspace reference:
 
-| Field                   | Type           | Description                                                                               |
-| ----------------------- | -------------- | ----------------------------------------------------------------------------------------- |
-| `project_file`          | string         | Path to the project spec file                                                             |
-| `project_name`          | string         | Name of the project                                                                       |
-| `primary_workspace_dir` | string         | Path to the primary workspace directory                                                   |
-| `checkout_target`       | string         | Branch or revision to check out                                                           |
-| `extra`                 | dict[str, str] | Additional plugin-specific data                                                           |
-| `canonical_ref`         | string \| null | Stable ref to persist when the matched prompt ref was a provider-specific locator or path |
+| Field                   | Type           | Description                                                                                        |
+| ----------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
+| `project_file`          | string         | Path to the project spec file                                                                      |
+| `project_name`          | string         | Name of the project                                                                                |
+| `primary_workspace_dir` | string         | Path to the primary workspace directory                                                            |
+| `checkout_target`       | string         | Branch or revision to check out                                                                    |
+| `extra`                 | dict[str, str] | Additional plugin-specific data                                                                    |
+| `canonical_ref`         | string \| null | Optional stable ref to persist when the matched prompt ref was a provider-specific locator or path |
 
 For clone-based git workflows, `primary_workspace_dir` is the primary checkout path and `get_workspace_directory()`
 derives numbered sibling workspaces from it. Some provider plugins can leave `primary_workspace_dir` empty and resolve
 numbered workspaces through their own helper command.
 
 When `canonical_ref` is set, launch history, replay selections, and prompt MRU entries use `#<workflow>:<canonical_ref>`
-instead of the raw user-entered locator. For example, first-use repository paths or GitHub owner/repo refs can resolve
-to a stable SASE project key while still letting the provider decide the checkout target.
+instead of the raw user-entered locator; when it is absent, SASE keeps the matched ref. For example, first-use
+repository paths or GitHub owner/repo refs can resolve to a stable SASE project key while still letting the provider
+decide the checkout target. `canonical_ref` does not replace `checkout_target`; providers still decide which branch or
+revision to check out.
 
 ## Hook Reference
 
