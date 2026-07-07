@@ -22,7 +22,8 @@ Commit changes via the `sase commit` command.
    ```
 
    Flags:
-   - `-M`: Path to file containing the commit message. The file is deleted after reading.
+   - `-M`: Path to file containing the commit message. The file is deleted only after a successful commit. If the
+     command fails, retry with the same `-M` path.
    - `-m`: Inline commit message string (alternative to `-M`). `-m` and `-M` are mutually exclusive.
    - `-f`: File to include (repeat for multiple files). Omit to include all changes.
    - `--name`: PR name (only needed for `create_pull_request` method).

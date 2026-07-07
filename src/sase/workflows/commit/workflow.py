@@ -87,19 +87,23 @@ class CommitWorkflow(BaseWorkflow):
                 f"(aliases: {aliases})",
                 "error",
             )
+            _log_commit_failed(self._method, "other")
             return RunResult.FAILED
 
         if not isinstance(self._payload, dict):
             print_status("Payload must be a JSON object.", "error")
+            _log_commit_failed(self._method, "other")
             return RunResult.FAILED
         if "message" not in self._payload and self._method != "create_pull_request":
             print_status("Payload missing required 'message' field.", "error")
+            _log_commit_failed(self._method, "other")
             return RunResult.FAILED
         if self._method == "create_pull_request" and not self._payload.get("name"):
             print_status(
                 "Payload missing required 'name' field for create_pull_request.",
                 "error",
             )
+            _log_commit_failed(self._method, "other")
             return RunResult.FAILED
 
         cwd = os.getcwd()
@@ -114,6 +118,7 @@ class CommitWorkflow(BaseWorkflow):
 
         # Run precommit command (e.g. `just fix`) after all files are staged
         if not run_precommit(cwd):
+            _log_commit_failed(self._method, "precommit_failed")
             return RunResult.FAILED
 
         # Pre-compute the _<N> suffix for create_pull_request so the PR branch is
@@ -201,6 +206,7 @@ class CommitWorkflow(BaseWorkflow):
         ok, result = dispatch(self._payload, cwd)
         if not ok:
             if _is_conflict_state(provider, cwd):
+                _log_commit_failed(self._method, "sync_conflict")
                 VCS_OPERATIONS.labels(
                     provider=getattr(provider, "_provider_name", "unknown"),
                     operation="commit_conflict_detected",
@@ -214,6 +220,7 @@ class CommitWorkflow(BaseWorkflow):
                 )
                 return RunResult.CONFLICT
             print_status(f"{self._method} failed: {result}", "error")
+            _log_commit_failed(self._method, _classify_dispatch_failure(result))
             cleanup_reservation(self._reserved_name)
             checkpoint_delete()
             return RunResult.FAILED
@@ -512,3 +519,23 @@ def _is_conflict_state(provider: object, cwd: str) -> bool:
     except Exception:
         pass
     return False
+
+
+def _classify_dispatch_failure(result: str | None) -> str:
+    text = (result or "").lower()
+    if "no staged changes" in text or "nothing to commit" in text:
+        return "no_staged_changes"
+    if "push" in text:
+        return "push_failed"
+    if "conflict" in text or "rebase" in text or "merge" in text:
+        return "sync_conflict"
+    return "other"
+
+
+def _log_commit_failed(method: str, reason: str) -> None:
+    try:
+        from sase.logs.run_log import log_event
+
+        log_event(event="commit_failed", method=method, reason=reason)
+    except Exception:
+        pass

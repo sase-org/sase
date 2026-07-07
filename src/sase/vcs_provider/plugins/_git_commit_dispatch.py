@@ -13,6 +13,9 @@ from sase.telemetry.metrics import VCS_COMMITS, VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
+_BEAD_REBASE_CONTINUE_LIMIT = 20
+_PUSH_REBASE_RETRY_LIMIT = 3
+
 
 class GitCommitDispatchMixin(CommandRunner):
     """Commit dispatch: create_commit, create_proposal, create_pull_request."""
@@ -73,46 +76,117 @@ class GitCommitDispatchMixin(CommandRunner):
             return (False, "No staged changes to commit")
         return (True, None)
 
-    def _merge_with_master(self, cwd: str) -> tuple[bool, str | None]:
-        """Fetch and merge ``origin/<default>`` to keep the branch current."""
-        # Skip for detached HEAD
+    def _current_branch(self, cwd: str) -> str | None:
+        """Return the checked-out branch, or None for detached HEAD."""
         branch_out = self._run(["git", "symbolic-ref", "--short", "HEAD"], cwd)
         if not branch_out.success:
+            return None
+        branch = branch_out.stdout.strip()
+        return branch or None
+
+    def _has_origin(self, cwd: str) -> bool:
+        remote_check = self._run(["git", "remote", "get-url", "origin"], cwd)
+        return remote_check.success
+
+    def _sync_with_origin_after_commit(self, cwd: str) -> tuple[bool, str | None]:
+        """Fetch and rebase the local commit onto origin/<default>."""
+        if self._current_branch(cwd) is None:
             return (True, None)
-
+        if not self._has_origin(cwd):
+            return (True, None)
         default_branch = self._get_default_branch(cwd)
+        fetch = self._run(
+            ["git", "fetch", "origin", default_branch, "--quiet"],
+            cwd,
+            timeout=600,
+        )
+        if not fetch.success:
+            return self._to_result(fetch, f"git fetch origin {default_branch}")
+        return self._rebase_onto_origin_default(cwd, default_branch)
 
-        self._run(
-            ["git", "fetch", "origin", default_branch, "--quiet"], cwd, timeout=600
+    def _rebase_onto_origin_default(
+        self, cwd: str, default_branch: str
+    ) -> tuple[bool, str | None]:
+        rebase = self._run(
+            ["git", "rebase", "--autostash", f"origin/{default_branch}"],
+            cwd,
+            timeout=600,
+        )
+        if rebase.success:
+            return (True, None)
+        if self._continue_rebase_resolving_beads(cwd):
+            return (True, None)
+        return (
+            False,
+            self._format_rebase_conflict(cwd, default_branch, rebase),
         )
 
-        # Stash staged changes (--keep-index preserves the index)
-        stash_out = self._run(["git", "stash", "--quiet", "--keep-index"], cwd)
-        stashed = stash_out.success
+    def _continue_rebase_resolving_beads(self, cwd: str) -> bool:
+        for _ in range(_BEAD_REBASE_CONTINUE_LIMIT):
+            conflicted = self._conflicted_files(cwd)
+            if not conflicted or not self._all_bead_conflicts(conflicted):
+                return False
+            try:
+                from sase.bead.conflict_resolver import resolve_bead_conflicts
 
-        merge_out = self._run(
-            ["git", "merge", f"origin/{default_branch}", "--no-edit", "--quiet"], cwd
-        )
-        if not merge_out.success:
-            self._run(["git", "merge", "--abort"], cwd)
-            if stashed:
-                self._run(["git", "stash", "pop", "--quiet"], cwd)
-            return (
-                False,
-                f"Merge conflict syncing with origin/{default_branch}. "
-                "Resolve manually and retry.",
+                result = resolve_bead_conflicts(cwd)
+            except Exception:
+                return False
+            if not result.ok:
+                return False
+            continued = self._run(
+                ["git", "-c", "core.editor=true", "rebase", "--continue"],
+                cwd,
+                timeout=600,
             )
+            if continued.success:
+                return True
+        return False
 
-        if stashed:
-            pop = self._run(["git", "stash", "pop", "--quiet"], cwd)
-            if not pop.success:
-                return (
-                    False,
-                    "Failed to restore staged changes after merge. "
-                    "Run 'git stash pop' to recover.",
-                )
+    def _conflicted_files(self, cwd: str) -> list[str]:
+        out = self._run(["git", "diff", "--name-only", "--diff-filter=U"], cwd)
+        if not out.success:
+            return []
+        return [line.strip() for line in out.stdout.splitlines() if line.strip()]
 
-        return (True, None)
+    def _all_bead_conflicts(self, files: list[str]) -> bool:
+        prefix = f"{BEADS_DIRNAME}/"
+        return bool(files) and all(path.startswith(prefix) for path in files)
+
+    def _format_rebase_conflict(
+        self, cwd: str, default_branch: str, rebase_out: object
+    ) -> str:
+        conflicted = self._conflicted_files(cwd)
+        detail = getattr(rebase_out, "stderr", "") or getattr(rebase_out, "stdout", "")
+        parts = [
+            f"Rebase conflict syncing with origin/{default_branch}.",
+        ]
+        if conflicted:
+            parts.append("Conflicted files: " + ", ".join(conflicted))
+            incoming = self._incoming_commits_for_files(cwd, default_branch, conflicted)
+            if incoming:
+                parts.append("Incoming commits touching conflicted files:\n" + incoming)
+        if detail.strip():
+            parts.append(detail.strip())
+        parts.append(
+            "Resolve the conflict, continue the rebase, then run `sase commit --resume`."
+        )
+        return "\n".join(parts)
+
+    def _incoming_commits_for_files(
+        self, cwd: str, default_branch: str, files: list[str]
+    ) -> str:
+        for rev_range in (
+            f"ORIG_HEAD..origin/{default_branch}",
+            f"HEAD..origin/{default_branch}",
+        ):
+            out = self._run(
+                ["git", "log", "--oneline", rev_range, "--", *files],
+                cwd,
+            )
+            if out.success and out.stdout.strip():
+                return out.stdout.strip()
+        return ""
 
     def _push_with_retry(
         self, cwd: str, push_args: list[str] | None = None
@@ -144,6 +218,39 @@ class GitCommitDispatchMixin(CommandRunner):
             err = push2.stderr.strip() or push2.stdout.strip()
             return (False, f"git push failed after pull: {err}")
         return (True, None)
+
+    def _push_current_branch_with_rebase_retry(
+        self, cwd: str
+    ) -> tuple[bool, str | None]:
+        """Push current branch, rebasing and retrying on remote movement."""
+        if not self._has_origin(cwd):
+            return (True, None)
+        branch = self._current_branch(cwd)
+        if branch is None:
+            return (True, None)
+        default_branch = self._get_default_branch(cwd)
+        last_err: str | None = None
+        for attempt in range(_PUSH_REBASE_RETRY_LIMIT + 1):
+            push = self._run(["git", "push", "origin", branch], cwd)
+            if push.success:
+                return (True, None)
+            last_err = push.stderr.strip() or push.stdout.strip()
+            if attempt >= _PUSH_REBASE_RETRY_LIMIT:
+                break
+            fetch = self._run(
+                ["git", "fetch", "origin", default_branch, "--quiet"],
+                cwd,
+                timeout=600,
+            )
+            if not fetch.success:
+                return self._to_result(fetch, f"git fetch origin {default_branch}")
+            ok, err = self._rebase_onto_origin_default(cwd, default_branch)
+            if not ok:
+                return (
+                    False,
+                    f"git push failed and rebase could not resolve it: {err}",
+                )
+        return (False, f"git push failed after rebase retries: {last_err}")
 
     def _remote_branch_exists(self, name: str, cwd: str) -> bool:
         """Return True when ``name`` already exists as a remote head on origin."""
@@ -246,14 +353,6 @@ class GitCommitDispatchMixin(CommandRunner):
         if not ok:
             return (False, err)
 
-        # Merge with origin/master to keep branch current
-        ok, err = self._merge_with_master(cwd)
-        if not ok:
-            return (False, err)
-
-        # Re-stage bead state after merge (merge may modify tracked files)
-        self._stage_bead_dirs(cwd)
-
         out = self._run(["git", "commit", "-m", message], cwd)
         if not out.success:
             return self._to_result(out, "git commit")
@@ -262,7 +361,11 @@ class GitCommitDispatchMixin(CommandRunner):
         if not payload.get("_skip_bead_amend"):
             self._post_commit_bead_amend(payload, cwd)
 
-        ok, err = self._push_with_retry(cwd)
+        ok, err = self._sync_with_origin_after_commit(cwd)
+        if not ok:
+            return (False, err)
+
+        ok, err = self._push_current_branch_with_rebase_retry(cwd)
         if not ok:
             return (False, err)
 
@@ -338,7 +441,7 @@ class GitCommitDispatchMixin(CommandRunner):
         """Re-run idempotent post-commit operations after a resumed workflow."""
         if not payload.get("_skip_bead_amend"):
             self._post_commit_bead_amend(payload, cwd)
-        ok, err = self._push_with_retry(cwd)
+        ok, err = self._push_current_branch_with_rebase_retry(cwd)
         if not ok:
             return (False, err)
         VCS_OPERATIONS.labels(

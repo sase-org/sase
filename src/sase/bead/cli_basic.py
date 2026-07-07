@@ -6,6 +6,7 @@ from sase.bead.cli_admin import (
     handle_bead_dep,
     handle_bead_doctor,
     handle_bead_onboard,
+    handle_bead_resolve_conflicts,
     handle_bead_sync,
 )
 from sase.bead.cli_crud import (
@@ -40,6 +41,7 @@ __all__ = [
     "handle_bead_onboard",
     "handle_bead_open",
     "handle_bead_ready",
+    "handle_bead_resolve_conflicts",
     "handle_bead_rm",
     "handle_bead_search",
     "handle_bead_show",

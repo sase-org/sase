@@ -41,8 +41,10 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
             sys.exit(EXIT_CODE_CONFLICT)
         sys.exit(int(result))
 
-    # Resolve commit message from inline string or file
+    # Resolve commit message from inline string or file. Message files are
+    # deleted only after a successful workflow so failed attempts are retryable.
     message = ""
+    message_file_path: str | None = None
     if args.message:
         message = args.message
     elif args.message_file:
@@ -52,10 +54,7 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
             sys.exit(1)
         with open(path) as f:
             message = f.read().rstrip()
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        message_file_path = path
 
     from sase.workflows.commit.workflow import METHOD_ALIASES
 
@@ -104,6 +103,11 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     workflow = CommitWorkflow(payload=payload, method=method)
     result = workflow.run()
     if result == RunResult.OK:
+        if message_file_path:
+            try:
+                os.remove(message_file_path)
+            except OSError:
+                pass
         try:
             from sase.logs.run_log import log_event
 
@@ -111,6 +115,12 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         except Exception:
             pass
         sys.exit(0)
+    if message_file_path:
+        print(
+            "Commit message preserved at "
+            f"{message_file_path} — re-run with the same -M flag after fixing.",
+            file=sys.stderr,
+        )
     if result == RunResult.CONFLICT:
         try:
             from sase.logs.run_log import log_event

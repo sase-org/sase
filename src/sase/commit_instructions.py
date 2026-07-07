@@ -133,6 +133,10 @@ def build_commit_instruction_message(
     parts.append(
         "Omit `-f` only when you intentionally want to stage every change in that repository."
     )
+    parts.append(
+        "Do not preemptively stash, pull, fast-forward, or hand-sync before invoking "
+        "the commit skill; the git commit workflow commits first and rebases safely."
+    )
     if method != "create_pull_request":
         parts.append(
             "When constructing the commit message, describe only the changes in this commit."

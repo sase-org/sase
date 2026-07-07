@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 
 from sase.bead.project import BEADS_DIRNAME
 from sase.config.core import load_merged_config
@@ -55,8 +56,29 @@ def run_precommit(cwd: str) -> bool:
             f"Precommit command failed (exit {result.returncode}): {cmd}",
             "error",
         )
+        tail = _precommit_output_tail(result.stdout, result.stderr)
+        if tail:
+            print("---- precommit output tail ----", file=sys.stderr)
+            print(tail, file=sys.stderr)
+            print("---- end precommit output ----", file=sys.stderr)
         return False
     return True
+
+
+def _precommit_output_tail(stdout: str, stderr: str, *, max_lines: int = 50) -> str:
+    """Return the last useful lines from captured precommit output."""
+    lines: list[str] = []
+    for label, text in (("stdout", stdout), ("stderr", stderr)):
+        if not text:
+            continue
+        section = text.rstrip().splitlines()
+        if not section:
+            continue
+        lines.append(f"[{label}]")
+        lines.extend(section)
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+    return "\n".join(lines[-max_lines:])
 
 
 def enforce_bead_id_in_message(payload: dict) -> None:

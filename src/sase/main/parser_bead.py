@@ -126,6 +126,17 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead ready
     bead_subparsers.add_parser("ready", help="Show issues ready to work")
 
+    # sase bead resolve-conflicts
+    bead_subparsers.add_parser(
+        "resolve-conflicts",
+        help="Resolve mechanical git conflicts in sdd/beads event streams",
+        description=(
+            "Resolve merge or rebase conflicts in generated bead state. "
+            "Only sdd/beads/issues.jsonl, events/manifest.json, and "
+            "events/streams/*.jsonl conflicts are auto-merged."
+        ),
+    )
+
     # sase bead rm
     bead_rm_parser = bead_subparsers.add_parser(
         "rm", help="Remove an issue and all its children"

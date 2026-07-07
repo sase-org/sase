@@ -79,8 +79,34 @@ def test_run_failure_without_conflict_deletes_checkpoint(
 
     wf = CommitWorkflow({"message": "fix: bug"}, "create_commit")
 
-    assert wf.run() == RunResult.FAILED
+    with patch("sase.logs.run_log.log_event") as mock_log:
+        assert wf.run() == RunResult.FAILED
+
+    mock_log.assert_any_call(
+        event="commit_failed", method="create_commit", reason="other"
+    )
     assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_run_logs_precommit_failure_reason(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    provider = _make_provider(dispatch_result=(True, "abc123"))
+    mock_get.return_value = provider
+
+    wf = CommitWorkflow({"message": "fix: bug"}, "create_commit")
+
+    with (
+        patch("sase.workflows.commit.workflow.run_precommit", return_value=False),
+        patch("sase.logs.run_log.log_event") as mock_log,
+    ):
+        assert wf.run() == RunResult.FAILED
+
+    mock_log.assert_any_call(
+        event="commit_failed", method="create_commit", reason="precommit_failed"
+    )
+    provider.create_commit.assert_not_called()
 
 
 @patch(_PROVIDER_TARGET)

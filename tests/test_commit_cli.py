@@ -149,11 +149,37 @@ class TestCommitCLI:
             handle_commit_command(args)
         assert exc_info.value.code == 1
 
-    def test_message_file_deleted_after_read(self, tmp_path: Path) -> None:
+    def test_message_file_deleted_after_success(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "feat: something")
         assert Path(msg_file).exists()
         _run_handler(["-M", msg_file])
         assert not Path(msg_file).exists()
+
+    @pytest.mark.parametrize(
+        "result,exit_code",
+        [(RunResult.FAILED, 1), (RunResult.CONFLICT, 2)],
+    )
+    def test_message_file_preserved_after_unsuccessful_workflow(
+        self, tmp_path: Path, result: RunResult, exit_code: int
+    ) -> None:
+        msg_file = _write_msg(tmp_path, "feat: keep me")
+        args = _parse_commit_args(["-M", msg_file])
+        mock_workflow = MagicMock()
+        mock_workflow.run.return_value = result
+
+        with (
+            patch(
+                "sase.main.commit_handler.CommitWorkflow", return_value=mock_workflow
+            ),
+            patch.dict("os.environ", {"SASE_BEAD_ID": ""}, clear=False),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            from sase.main.commit_handler import handle_commit_command
+
+            handle_commit_command(args)
+
+        assert exc_info.value.code == exit_code
+        assert Path(msg_file).read_text() == "feat: keep me"
 
     def test_message_file_multiline(self, tmp_path: Path) -> None:
         content = "## Summary\n\n- Added feature X\n- Fixed bug Y\n\n## Test plan\n\n- Unit tests added"

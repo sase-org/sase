@@ -52,6 +52,7 @@ def test_commit_instruction_guides_finalizer_to_use_targeted_file_flags() -> Non
     assert "include a separate `-f` flag for each listed file" in message
     assert "including newly created untracked files" in message
     assert "Omit `-f` only when you intentionally want to stage every change" in message
+    assert "Do not preemptively stash, pull, fast-forward, or hand-sync" in message
 
 
 def test_commit_instruction_includes_bead_close_when_bead_id_is_set() -> None:

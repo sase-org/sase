@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from sase.bead.conflict_resolver import handle_resolve_conflicts_command
 from sase.bead.cli_common import get_project
 
 
@@ -70,3 +71,7 @@ Quick Start:
   sase bead stats                                Project statistics
   sase bead doctor                               Health check
   sase bead work <epic-or-legend>                Launch epic phase agents or legend epic-planning agents""")
+
+
+def handle_bead_resolve_conflicts(args: argparse.Namespace) -> None:
+    raise SystemExit(handle_resolve_conflicts_command())

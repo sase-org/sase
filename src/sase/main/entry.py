@@ -74,6 +74,7 @@ def main() -> NoReturn:
             handle_bead_onboard,
             handle_bead_open,
             handle_bead_ready,
+            handle_bead_resolve_conflicts,
             handle_bead_rm,
             handle_bead_search,
             handle_bead_show,
@@ -90,6 +91,7 @@ def main() -> NoReturn:
             "list": handle_bead_list,
             "show": handle_bead_show,
             "ready": handle_bead_ready,
+            "resolve-conflicts": handle_bead_resolve_conflicts,
             "open": handle_bead_open,
             "update": handle_bead_update,
             "close": handle_bead_close,
@@ -107,7 +109,7 @@ def main() -> NoReturn:
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {init,create,list,show,ready,open,update,close,rm,search,dep,blocked,sync,stats,doctor,onboard,work}"
+                " {blocked,close,create,dep,doctor,init,list,onboard,open,ready,resolve-conflicts,rm,search,show,stats,sync,update,work}"
             )
             sys.exit(1)
         handler(args)
