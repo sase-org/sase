@@ -269,20 +269,7 @@ class LeaderModeMixin:
             return
 
         if self.current_tab == "agents":
-            schedule_launch_targets = getattr(
-                self,
-                "_schedule_agents_onboarding_launch_targets_refresh",
-                None,
-            )
-            if callable(schedule_launch_targets):
-                schedule_launch_targets()
-            schedule_plugins = getattr(
-                self,
-                "_schedule_agents_onboarding_plugins_refresh",
-                None,
-            )
-            if callable(schedule_plugins):
-                schedule_plugins()
+            self._prepare_agents_tab_guide_state()
 
         self.push_screen(  # type: ignore[attr-defined]
             TabGuideModal(
@@ -300,6 +287,23 @@ class LeaderModeMixin:
                 ),
             )
         )
+
+    def _prepare_agents_tab_guide_state(self) -> None:
+        """Schedule the background state refresh used by the Agents guide."""
+        schedule_launch_targets = getattr(
+            self,
+            "_schedule_agents_onboarding_launch_targets_refresh",
+            None,
+        )
+        if callable(schedule_launch_targets):
+            schedule_launch_targets()
+        schedule_plugins = getattr(
+            self,
+            "_schedule_agents_onboarding_plugins_refresh",
+            None,
+        )
+        if callable(schedule_plugins):
+            schedule_plugins()
 
     def _open_models_panel(self) -> None:
         """Open the Models panel (leader ``,m`` by default)."""

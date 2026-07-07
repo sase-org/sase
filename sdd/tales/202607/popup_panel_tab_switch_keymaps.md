@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 11:13:24
-status: wip
+status: done
 prompt: sdd/prompts/202607/popup_panel_tab_switch_keymaps.md
 ---
 # Popup Panel Tab-Switch Keymaps

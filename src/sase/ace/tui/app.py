@@ -411,14 +411,21 @@ class AceApp(
             self._refresh_axe_display()
             self._schedule_axe_async_refresh()
 
-        # If help modal is open, refresh it with new tab context
-        from .modals import HelpModal
+        # If one of the tab-scoped popup panels is open, refresh it in place
+        # with the new tab context.
+        from .modals import HelpModal, TabGuideModal
 
-        if isinstance(self.screen, HelpModal):
-            self.screen.dismiss(None)
-            self.push_screen(
-                HelpModal(
-                    current_tab=new_tab,
-                    active_query=self.canonical_query_string,
-                )
+        screen = self.screen
+        if isinstance(screen, HelpModal):
+            screen.refresh_for_tab(new_tab, self.canonical_query_string)
+        elif isinstance(screen, TabGuideModal):
+            if new_tab == "agents":
+                self._prepare_agents_tab_guide_state()
+            screen.refresh_for_tab(
+                current_tab=new_tab,
+                registry=self._keymap_registry,
+                agents_launch_targets_available=(
+                    self._agents_onboarding_launch_targets_available
+                ),
+                agents_plugins_installed=self._agents_onboarding_plugins_installed,
             )

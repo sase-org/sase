@@ -47,3 +47,21 @@ def test_tab_guide_modal_builds_axe_guide() -> None:
     guide = modal._build_guide()
 
     assert isinstance(guide, AxeOnboarding)
+
+
+def test_tab_guide_modal_refresh_for_tab_rebuilds_guide_state() -> None:
+    registry = load_keymap_registry({})
+    modal = TabGuideModal(current_tab="changespecs", registry=registry)
+
+    modal.refresh_for_tab(
+        current_tab="agents",
+        registry=registry,
+        agents_launch_targets_available=True,
+        agents_plugins_installed=False,
+    )
+
+    assert modal._current_tab == "agents"
+    guide = modal._build_guide()
+    assert isinstance(guide, AgentOnboarding)
+    sections = guide.render_content(registry)
+    assert "pick a project or CL first." in sections["#agent-onboarding-launch"].plain

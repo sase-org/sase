@@ -7,6 +7,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
@@ -91,12 +92,17 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             yield Static(self._build_title(), id="help-title")
             with VerticalScroll(id="help-content-scroll"):
                 with Horizontal(id="help-columns"):
-                    yield Static(self._build_left_column(), classes="help-column")
-                    yield Static(self._build_right_column(), classes="help-column")
-            yield Static(
-                "Press ? / q / Esc to close  |  Ctrl+D/U to scroll",
-                id="help-footer",
-            )
+                    yield Static(
+                        self._build_left_column(),
+                        id="help-left-column",
+                        classes="help-column",
+                    )
+                    yield Static(
+                        self._build_right_column(),
+                        id="help-right-column",
+                        classes="help-column",
+                    )
+            yield Static(self._build_footer(), id="help-footer")
 
     def _build_title(self) -> Text:
         """Build the styled title."""
@@ -110,6 +116,16 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         tab_name = TAB_DISPLAY_NAMES.get(self._current_tab, self._current_tab)
         text.append(f"  {tab_name} Tab", style="#87D7FF")
         return text
+
+    def _build_footer(self) -> str:
+        """Build the footer with configured tab-switch hints."""
+        km = self._get_km()
+        next_tab = key_display_name(km.app.next_tab)
+        prev_tab = key_display_name(km.app.prev_tab)
+        return (
+            "Press ? / q / Esc to close  |  "
+            f"{next_tab} / {prev_tab} to switch tabs  |  Ctrl+D/U to scroll"
+        )
 
     def _build_left_column(self) -> Text:
         """Build the left column content."""
@@ -170,6 +186,23 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         else:  # axe
             return axe_bindings(km)
 
+    def refresh_for_tab(self, current_tab: "TabName", active_query: str | None) -> None:
+        """Refresh mounted help content for a new tab context."""
+        self._current_tab = current_tab
+        self._active_query = active_query
+
+        try:
+            self.query_one("#help-title", Static).update(self._build_title())
+            self.query_one("#help-left-column", Static).update(
+                self._build_left_column()
+            )
+            self.query_one("#help-right-column", Static).update(
+                self._build_right_column()
+            )
+            self.query_one("#help-footer", Static).update(self._build_footer())
+        except (NoMatches, LookupError):
+            return
+
     def _add_section(
         self,
         text: Text,
@@ -220,7 +253,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         text.append("\n")
 
     def on_mount(self) -> None:
-        """Rebuild instance bindings with configured query nav keys."""
+        """Rebuild instance bindings with configured app-local keys."""
         from textual.binding import BindingsMap
 
         km = self._get_km()
@@ -239,6 +272,20 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             + [
                 Binding(km.app.prev_query, "go_prev_query", "Prev Query", show=False),
                 Binding(km.app.next_query, "go_next_query", "Next Query", show=False),
+                Binding(
+                    km.app.next_tab,
+                    "next_tab",
+                    "Next Tab",
+                    show=False,
+                    priority=True,
+                ),
+                Binding(
+                    km.app.prev_tab,
+                    "prev_tab",
+                    "Prev Tab",
+                    show=False,
+                    priority=True,
+                ),
             ]
         )
         self._bindings = BindingsMap(new_bindings)
@@ -258,6 +305,14 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         scroll = self.query_one("#help-content-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
+
+    def action_next_tab(self) -> None:
+        """Switch the underlying ACE app to the next tab."""
+        cast("AceApp", self.app).action_next_tab()
+
+    def action_prev_tab(self) -> None:
+        """Switch the underlying ACE app to the previous tab."""
+        cast("AceApp", self.app).action_prev_tab()
 
     # --- Saved query actions (work from any tab) ---
     # These are generated using a factory to reduce repetition

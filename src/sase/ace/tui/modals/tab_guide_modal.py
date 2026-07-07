@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from textual.app import ComposeResult
+from textual.binding import Binding, BindingType
 from textual.containers import Container, VerticalScroll
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 
 from ..keymaps import KeymapRegistry, load_keymap_registry
 from ..widgets import AgentOnboarding, AxeOnboarding, ChangeSpecOnboarding
+
+if TYPE_CHECKING:
+    from ..app import AceApp
 
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -75,6 +80,71 @@ class TabGuideModal(ModalScreen[None]):
             axe_guide.set_keymap_registry(self._registry)
             return axe_guide
 
+    def refresh_for_tab(
+        self,
+        *,
+        current_tab: TabName,
+        registry: KeymapRegistry,
+        agents_launch_targets_available: bool = False,
+        agents_plugins_installed: bool = True,
+    ) -> None:
+        """Refresh the mounted guide for a new tab context."""
+        self._current_tab = current_tab
+        self._registry = registry
+        self._agents_launch_targets_available = agents_launch_targets_available
+        self._agents_plugins_installed = agents_plugins_installed
+
+        try:
+            container = self.query_one("#tab-guide-container", Container)
+        except (NoMatches, LookupError):
+            return
+
+        title, tab_class = _TAB_META[self._current_tab]
+        container.border_title = title
+        for _, old_tab_class in _TAB_META.values():
+            container.remove_class(old_tab_class)
+        container.add_class(tab_class)
+
+        new_guide = self._build_guide()
+        try:
+            old_guide = self.query_one("#tab-guide-content", VerticalScroll)
+        except (NoMatches, LookupError):
+            container.mount(new_guide)
+            return
+
+        parent = getattr(old_guide, "_parent", None)
+        if parent is not None:
+            parent._nodes._remove(old_guide)  # type: ignore[attr-defined]
+        old_guide.remove()
+        container.mount(new_guide)
+
+    def on_mount(self) -> None:
+        """Rebuild instance bindings with configured tab-switch keys."""
+        from textual.binding import BindingsMap
+
+        new_bindings: list[BindingType] = [
+            ("escape", "close", "Close"),
+            ("q", "close", "Close"),
+            ("question_mark", "close", "Close"),
+            ("ctrl+d", "scroll_down", "Scroll down"),
+            ("ctrl+u", "scroll_up", "Scroll up"),
+            Binding(
+                self._registry.app.next_tab,
+                "next_tab",
+                "Next Tab",
+                show=False,
+                priority=True,
+            ),
+            Binding(
+                self._registry.app.prev_tab,
+                "prev_tab",
+                "Prev Tab",
+                show=False,
+                priority=True,
+            ),
+        ]
+        self._bindings = BindingsMap(new_bindings)
+
     def action_close(self) -> None:
         """Close the modal."""
         self.dismiss(None)
@@ -90,3 +160,11 @@ class TabGuideModal(ModalScreen[None]):
         scroll = self.query_one("#tab-guide-content", VerticalScroll)
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
+
+    def action_next_tab(self) -> None:
+        """Switch the underlying ACE app to the next tab."""
+        cast("AceApp", self.app).action_next_tab()
+
+    def action_prev_tab(self) -> None:
+        """Switch the underlying ACE app to the previous tab."""
+        cast("AceApp", self.app).action_prev_tab()
