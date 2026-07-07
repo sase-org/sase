@@ -34,6 +34,7 @@
 * add dynamic agent families infographic ([f424add](https://github.com/sase-org/sase/commit/f424add87b6a0a6005083dcbe9b3fc5842828d32))
 * add dynamic agent families user manual research ([b9d91d6](https://github.com/sase-org/sase/commit/b9d91d6161335356e4013d77950df00e12b42e6a))
 * correct verified inaccuracies in agent families and ACE docs ([9a784e2](https://github.com/sase-org/sase/commit/9a784e2cabc182c3d7c436bde01f939afcfa10f5))
+* document VCS repo slash completion (sase-5h.6)
 * note supersession of agent families research by docs/agent_families.md ([d735e80](https://github.com/sase-org/sase/commit/d735e80509ab592f9f4bb60a298ea66edcd3f1f9))
 * refresh docs for recent features and add agent families page ([2b4d8e9](https://github.com/sase-org/sase/commit/2b4d8e9aed2a8ccf6f802cd420a94b33a0152525))
 

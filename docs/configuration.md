@@ -18,6 +18,7 @@ and CLI flags.
   - [commit](#commit)
   - [linked_repos](#linked_repos)
   - [vcs_provider](#vcs_provider)
+  - [vcs_repo_completion](#vcs_repo_completion)
   - [axe](#axe)
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
@@ -587,6 +588,30 @@ When `use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to 
 when reading descriptions back.
 
 Source: `src/sase/vcs_provider/config.py`, `src/sase/ace/hooks/defaults.py`
+
+### vcs_repo_completion
+
+Configures repository-name completion inside VCS workflow refs such as `#gh:owner/`.
+
+```yaml
+vcs_repo_completion:
+  enabled: true
+  cache_ttl_seconds: 600
+  max_repos: 200
+```
+
+| Field                                   | Type | Default | Description                                                                                 |
+| --------------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------- |
+| `vcs_repo_completion.enabled`           | bool | `true`  | Enable ACE and helper-bridge repository completion for registered VCS workflow refs.        |
+| `vcs_repo_completion.cache_ttl_seconds` | int  | `600`   | Freshness window for the shared on-disk repository candidate cache, in seconds.             |
+| `vcs_repo_completion.max_repos`         | int  | `200`   | Maximum repository candidates kept from a provider response and returned to completion UIs. |
+
+When disabled, ACE does not detect repository-completion triggers, and the editor helper bridge returns an empty
+catalog. Repository candidates are listed through workspace-provider hooks, so provider-specific authentication and
+network requirements belong to the installed plugin. For GitHub, the `sase-github` plugin uses the `gh` CLI and can
+return private repositories visible to the authenticated user.
+
+Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_repo_completion.py`
 
 ### axe
 
@@ -1835,10 +1860,11 @@ Supported date range formats:
 `sase editor` exposes JSON-over-stdin helper operations for editor integrations. It is intentionally a fixed-operation
 bridge rather than a generic shell or filesystem API.
 
-| Form                                        | Input                | Description                                                                                                      |
-| ------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `sase editor helper-bridge xprompt-catalog` | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
-| `sase editor helper-bridge snippet-catalog` | JSON object on stdin | Return the composed ACE snippet registry used by `sase lsp` and editor completion clients.                       |
+| Form                                         | Input                | Description                                                                                                      |
+| -------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `sase editor helper-bridge xprompt-catalog`  | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
+| `sase editor helper-bridge snippet-catalog`  | JSON object on stdin | Return the composed ACE snippet registry used by `sase lsp` and editor completion clients.                       |
+| `sase editor helper-bridge vcs-repo-catalog` | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                        |
 
 The structured catalog includes insertion metadata (`insertion`, `reference_prefix`, `kind`), typed argument metadata,
 display/source fields, and `definition_path` when SASE can resolve a real file to jump to.

@@ -351,6 +351,13 @@ PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status. Accepting a
 directory-key project name, project alias, or ChangeSpec name prefix, and it ignores system-managed `home`, inactive
 projects, sibling records, and non-launchable projects.
 
+ACE and the xprompt LSP also complete repositories inside provider refs after the namespace slash. Typing
+`#gh:bbugyi200/` asks the registered GitHub workspace plugin for repositories owned by `bbugyi200`; typing
+`#gh:bbugyi200/sa` narrows the menu toward matching repository names. Accepting a row rewrites only the current ref
+value, so colon form becomes `#gh:bbugyi200/sase ` and parenthesized form becomes `#gh(bbugyi200/sase)`. The hook is
+provider-agnostic: another workspace plugin can support the same UX for nested namespaces such as `#gl:group/subgroup/`
+by implementing repository candidate listing.
+
 Known-project lookup defaults to active ProjectSpecs. Inactive and sibling projects are omitted from broad project-local
 xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
 hint to run `sase project activate <project>` before launching new work. Management and history code paths that need

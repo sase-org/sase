@@ -1884,6 +1884,12 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   alias, or ChangeSpec name prefix. Accepting a row inserts the canonical workspace tag such as `#gh:sase` or
   `#gh:my_change`, replacing existing line-start VCS tags when present or placing the tag after leading
   frontmatter/directives when no tag exists.
+- **VCS repository completion**: When the cursor is inside a registered VCS workflow ref that already contains an owner
+  or namespace plus `/`, completion lists repositories for that namespace through the owning workspace plugin. For
+  example, `#gh:bbugyi200/` opens GitHub repositories for `bbugyi200`, and `#gh:bbugyi200/sa` narrows locally or through
+  the LSP client's filtering. Accepting a row replaces only the current ref value, producing `#gh:bbugyi200/sase ` in
+  colon form or `#gh(bbugyi200/sase)` in parenthesized form. Failed or empty lookups show a placeholder row in ACE;
+  stale cached results are reused when a refresh fails.
 - **Slash-skill completion**: When the cursor is on a slash-skill token such as `/` or `/sase_`, completion filters the
   same catalog to xprompts marked as `skill: true` and inserts `/skill_name`. Packaged built-in skills are included, so
   `/sase_plan`, `/sase_questions`, and other bundled SASE skills are available without a project-local xprompt file.
@@ -1936,9 +1942,11 @@ completion is disabled by default because it can scan the filesystem while typin
 `%name` tokens; disable it with `ace.prompt_completion.auto_directive_menu: false`. Both auto-menus open only once at
 least one identifier character follows the marker (bare `#`, `/`, and `%` stay quiet) and never auto-accept a single
 match. The `#+` / offset-zero `+` project/ChangeSpec picker opens when `+` completes a valid trigger and is also
-available through manual `Ctrl+T`. Manual `Ctrl+T` completion still supports file paths, xprompt names, directives,
-skills, and project/ChangeSpec tags regardless of those settings. Live suggestions pause while the manual completion
-panel is open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
+available through manual `Ctrl+T`. The VCS repository menu opens when `/` completes a known workflow ref trigger such as
+`#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a background worker. Manual `Ctrl+T`
+completion still supports file paths, xprompt names, directives, skills, project/ChangeSpec tags, and VCS repository
+refs regardless of those settings. Live suggestions pause while the manual completion panel is open, while snippet
+tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The
