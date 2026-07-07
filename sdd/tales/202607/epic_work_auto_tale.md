@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 15:52:14
-status: wip
+status: done
 prompt: sdd/prompts/202607/epic_work_auto_tale.md
 ---
 # Epic Work `%auto:tale` Plan

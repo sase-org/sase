@@ -127,41 +127,42 @@ class TestDiamond:
             "%name:!p1\n"
             "%group:e1\n"
             "%model:@phase_worker\n"
-            "%auto\n"
+            "%auto:tale\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%name:!p2\n"
             "%group:e1\n"
             "%model:@phase_worker\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%name:!p3\n"
             "%group:e1\n"
             "%model:@phase_worker\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
             "%name:!p4\n"
             "%group:e1\n"
             "%model:@phase_worker\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w:p2,p3\n"
             "#bd/work_phase_bead:p4\n"
             "---\n"
             "%name:!e1\n"
             "%group:e1\n"
             "%model:@epic_lander\n"
-            "%auto\n"
+            "%auto:tale\n"
             "%w:p1,p2,p3,p4\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
         assert all("%group:e1" in segment for segment in segments)
-        assert all("%auto" in segment for segment in segments)
+        assert all("%auto:tale" in segment.splitlines() for segment in segments)
+        assert all("%auto" not in segment.splitlines() for segment in segments)
 
 
 class TestMixedDAG:

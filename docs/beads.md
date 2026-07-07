@@ -324,6 +324,8 @@ For epic-tier plans, the command:
    the `%model:@phase_worker` role alias. The land agent emits `%model:<value>` when the epic plan bead has a stored
    `model`, and otherwise defaults to the `%model:@epic_lander` role alias. Both `@phase_worker` and `@epic_lander` are
    role aliases that fall through to `@default` unless explicitly configured under `llm_provider.model_aliases.builtin`.
+   Each phase segment and the final land-epic segment carries `%auto:tale`, so submitted implementation and landing
+   plans are auto-approved through the tale path and committed under `sdd/tales/` before their follow-up work continues.
    Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work` after a killed or failed
    run wipes the stale name owners before the relaunch — the command is safe to retry.
 
@@ -355,10 +357,10 @@ Legend work does not create phase beads directly. The spawned epic-planning agen
 | `-y, --yes`     | Skip the launch confirmation prompt                                               |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
-matching tag overrides the built-in. For epic-tier work, every phase and land segment carries a bare `%auto` directive
-so spawned agents can self-approve their own plans without a human-in-the-loop checkpoint between waves. For legend-tier
-work, only the trailing land-legend segment carries bare `%auto`; each epic-planning segment uses `%auto:epic` so its
-submitted plan is auto-approved through the epic path before child phases run.
+matching tag overrides the built-in. For epic-tier work, every phase and land segment carries `%auto:tale`, so spawned
+agents can auto-approve and commit their submitted plans under `sdd/tales/` without a human-in-the-loop checkpoint
+between waves. For legend-tier work, only the trailing land-legend segment carries bare `%auto`; each epic-planning
+segment uses `%auto:epic` so its submitted plan is auto-approved through the epic path before child phases run.
 
 When the epic plan bead is attached to ChangeSpec metadata (`--changespec` / `--bug-id`), `sase bead work` preserves the
 current project's VCS context in the generated prompt. The first phase segment targets the project reference and adds a

@@ -93,10 +93,10 @@ The most useful single command in this layer turns an epic-tier plan into actual
    the land agent. Phase dependencies become `%wait` directives on blocker phase-agent names; the land agent waits on
    every launched phase agent.
 
-Because every segment uses `%name:!<agent_name>` (force-reuse) and `%auto` (self-approve), `sase bead work` is safe to
-retry after a killed or failed run. AXE's `wait_checks` chop is what unblocks each phase the moment its blockers have
-`done.json` outcomes of `completed`. Failed or killed phases keep the land agent parked until that phase name retries
-successfully — there is no fail-open.
+Because every segment uses `%name:!<agent_name>` (force-reuse) and `%auto:tale`, `sase bead work` is safe to retry after
+a killed or failed run while still committing submitted phase and landing plans into `sdd/tales/`. AXE's `wait_checks`
+chop is what unblocks each phase the moment its blockers have `done.json` outcomes of `completed`. Failed or killed
+phases keep the land agent parked until that phase name retries successfully — there is no fail-open.
 
 Legend-tier work is similar in shape but plans rather than executes: `sase bead work <legend-id>` launches one
 epic-planning agent per stored `epic_count` (sequentially via `%wait` chaining), then a final `land_legend` agent. Those
