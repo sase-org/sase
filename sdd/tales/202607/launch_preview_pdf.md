@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 01:06:50
-status: wip
+status: done
 prompt: sdd/prompts/202607/launch_preview_pdf.md
 ---
 # Plan: Beautiful, full-prompt launch-preview PDFs

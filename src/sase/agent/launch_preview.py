@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from collections import Counter
 from collections.abc import Mapping
@@ -136,47 +137,71 @@ def write_launch_preview_files(
 
 
 def _render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
-    """Render a compact human-readable launch preview."""
-    slot_count = int(request.get("slot_count") or 0)
+    """Render a human-readable launch preview with complete prompts."""
+    slots = [slot for slot in request.get("slots", []) if isinstance(slot, Mapping)]
+    declared_slot_count = int(request.get("slot_count") or 0)
+    slot_count = max(declared_slot_count, len(slots))
     source = str(request.get("source_surface") or "unknown")
     request_id = str(request.get("request_id") or "")
+    policy = "all-or-nothing" if request.get("all_or_nothing") else "batch"
+    summary = [
+        f"**{_agent_count_label(slot_count)}**",
+        f"source `{source}`",
+        policy,
+    ]
+    if request_id:
+        summary.append(f"request `{request_id}`")
     lines = [
         "# Launch Preview",
         "",
-        f"- Request: `{request_id}`",
-        f"- Source: `{source}`",
-        f"- Slots: {slot_count}",
-        f"- Policy: {'all-or-nothing' if request.get('all_or_nothing') else 'batch'}",
-        "",
-        "## Slots",
+        " · ".join(summary),
         "",
     ]
-    for slot in request.get("slots", []):
-        if not isinstance(slot, Mapping):
-            continue
+    for ordinal, slot in enumerate(slots, start=1):
         workspace = slot.get("workspace")
         project = (
             workspace.get("project_name") if isinstance(workspace, Mapping) else None
         )
-        name = slot.get("planned_name") or "(name assigned at spawn)"
-        model = slot.get("model") or "(default)"
+        name = str(slot.get("planned_name") or "assigned at spawn")
+        model = str(slot.get("model") or "default")
+        kind = str(slot.get("launch_kind") or "agent")
+        prompt = str(slot.get("prompt") or "")
+        prompt_sha256 = str(slot.get("prompt_sha256") or "")
+        prompt_sha_short = prompt_sha256[:12] if prompt_sha256 else "unknown"
+        opening_fence, closing_fence = _markdown_code_fence(prompt, "sase")
         lines.extend(
             [
-                f"### Slot {slot.get('slot_index')}",
+                f"## Agent {ordinal} of {slot_count} · {project or 'unknown project'}",
                 "",
-                f"- Kind: `{slot.get('launch_kind')}`",
-                f"- Planned name: `{name}`",
-                f"- Project: `{project or ''}`",
-                f"- Model: `{model}`",
-                f"- Prompt SHA-256: `{slot.get('prompt_sha256')}`",
+                f"model `{model}` · kind `{kind}` · name `{name}`",
                 "",
-                "```text",
-                str(slot.get("prompt_snippet") or ""),
-                "```",
+                opening_fence,
+            ]
+        )
+        lines.extend(prompt.split("\n") if prompt else [""])
+        lines.extend(
+            [
+                closing_fence,
+                "",
+                f"SHA-256 `{prompt_sha_short}`",
                 "",
             ]
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _agent_count_label(count: int) -> str:
+    noun = "agent" if count == 1 else "agents"
+    return f"{count} {noun}"
+
+
+def _markdown_code_fence(text: str, language: str) -> tuple[str, str]:
+    longest_backtick_run = max(
+        (len(match.group(0)) for match in re.finditer(r"`+", text)),
+        default=0,
+    )
+    fence = "`" * max(3, longest_backtick_run + 1)
+    return f"{fence}{language}", fence
 
 
 def _context_preview(context: LaunchExecutionContext) -> dict[str, Any]:

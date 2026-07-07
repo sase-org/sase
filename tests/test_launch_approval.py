@@ -212,6 +212,67 @@ def test_launch_preview_request_and_files_cover_batch(tmp_path: Path) -> None:
     assert paths["response"].name == "launch_response.json"
 
 
+def test_launch_preview_markdown_renders_full_prompt(tmp_path: Path) -> None:
+    full_prompt = "\n".join(
+        [
+            "%n:demo-review",
+            "Keep the line structure intact.",
+            "x" * 540,
+            "#plan",
+            "`actstat --repo sase`",
+        ]
+    )
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout("agent", [full_prompt]),
+        context=_context(tmp_path),
+        source_surface="agent_skill",
+        request_id="launch-full",
+        slot_planned_names={0: "demo.review"},
+        created_at_unix=10.0,
+    )
+    request["slots"][0]["prompt_snippet"] = "truncated snippet only"
+
+    paths = write_launch_preview_files(request, response_dir=tmp_path / "launch-full")
+    preview = paths["preview"].read_text(encoding="utf-8")
+
+    assert preview.startswith("# Launch Preview\n\n")
+    assert (
+        "**1 agent** · source `agent_skill` · all-or-nothing · request `launch-full`"
+        in preview
+    )
+    assert "## Agent 1 of 1 · demo" in preview
+    assert "model `default` · kind `agent` · name `demo.review`" in preview
+    assert f"```sase\n{full_prompt}\n```" in preview
+    assert "truncated snippet only" not in preview
+    assert f"SHA-256 `{request['slots'][0]['prompt_sha256'][:12]}`" in preview
+
+
+def test_launch_preview_markdown_uses_safe_fence_for_backticks(
+    tmp_path: Path,
+) -> None:
+    prompt = "\n".join(
+        [
+            "Explain this embedded fence:",
+            "```python",
+            "print('hello')",
+            "```",
+            "and then continue.",
+        ]
+    )
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout("agent", [prompt]),
+        context=_context(tmp_path),
+        source_surface="agent",
+        request_id="launch-fence",
+        created_at_unix=10.0,
+    )
+
+    paths = write_launch_preview_files(request, response_dir=tmp_path / "launch-fence")
+    preview = paths["preview"].read_text(encoding="utf-8")
+
+    assert f"````sase\n{prompt}\n````" in preview
+
+
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
     response_dir = tmp_path / "launch"
     response_dir.mkdir()

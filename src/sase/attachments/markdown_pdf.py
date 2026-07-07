@@ -25,6 +25,8 @@ _PDF_BODY_FONT_SIZE = "12pt"
 _PDF_CSS_FONT_SIZE = "16px"
 _PDF_LINE_STRETCH = "1.32"
 _DEFAULT_CSS_FILENAME = "markdown_pdf.css"
+_LAUNCH_PREVIEW_CSS_FILENAME = "launch_preview.css"
+_SASE_SYNTAX_DEFINITION_FILENAME = "sase.xml"
 
 
 @dataclass(frozen=True)
@@ -165,6 +167,8 @@ def render_markdown_pdf(
     *,
     timeout: int = DEFAULT_PANDOC_TIMEOUT_SECONDS,
     css_path: str | Path | None = None,
+    syntax_definitions: Iterable[str | Path] = (),
+    include_auto_title: bool = True,
     profile: MarkdownPdfProfile = MOBILE_MARKDOWN_PDF_PROFILE,
     progress: MarkdownPdfProgressCallback | None = None,
 ) -> Path | None:
@@ -176,6 +180,9 @@ def render_markdown_pdf(
     """
     source = Path(source_path).expanduser()
     dest = Path(dest_path).expanduser()
+    syntax_definition_paths = tuple(
+        Path(path).expanduser() for path in syntax_definitions
+    )
     _emit_progress(
         progress,
         MarkdownPdfProgressEvent(
@@ -262,7 +269,16 @@ def render_markdown_pdf(
     try:
         for engine in engines:
             tmp_path = _temporary_pdf_path(dest)
-            cmd = _pandoc_cmd(pandoc, source, tmp_path, engine, css, profile)
+            cmd = _pandoc_cmd(
+                pandoc,
+                source,
+                tmp_path,
+                engine,
+                css,
+                profile,
+                syntax_definitions=syntax_definition_paths,
+                include_auto_title=include_auto_title,
+            )
             _emit_progress(
                 progress,
                 MarkdownPdfProgressEvent(
@@ -320,6 +336,40 @@ def render_markdown_pdf(
     return None
 
 
+def render_launch_preview_pdf(
+    source_path: str | Path,
+    dest_path: str | Path,
+    *,
+    timeout: int = DEFAULT_PANDOC_TIMEOUT_SECONDS,
+    progress: MarkdownPdfProgressCallback | None = None,
+) -> Path | None:
+    """Render a launch-preview Markdown file with SASE prompt highlighting.
+
+    The highlighted pass is additive. If the syntax definition, CSS, or a PDF
+    engine rejects the dedicated render, fall back to the generic Markdown PDF
+    renderer so the complete prompt remains deliverable.
+    """
+    source = Path(source_path).expanduser()
+    dest = Path(dest_path).expanduser()
+    rendered = render_markdown_pdf(
+        source,
+        dest,
+        timeout=timeout,
+        css_path=_launch_preview_css_path(),
+        syntax_definitions=[_sase_syntax_definition_path()],
+        include_auto_title=False,
+        progress=progress,
+    )
+    if rendered is not None:
+        return rendered
+
+    log.warning(
+        "Falling back to generic Markdown PDF rendering for launch preview: %s",
+        source,
+    )
+    return render_markdown_pdf(source, dest, timeout=timeout, progress=progress)
+
+
 def _emit_progress(
     progress: MarkdownPdfProgressCallback | None,
     event: MarkdownPdfProgressEvent,
@@ -344,6 +394,9 @@ def _pandoc_cmd(
     engine: str,
     css_path: Path | None,
     profile: MarkdownPdfProfile = MOBILE_MARKDOWN_PDF_PROFILE,
+    *,
+    syntax_definitions: Iterable[Path] = (),
+    include_auto_title: bool = True,
 ) -> list[str]:
     """Build a conservative pandoc command for Markdown-to-PDF conversion."""
     cmd = [
@@ -354,6 +407,8 @@ def _pandoc_cmd(
         f"--pdf-engine={engine}",
         "--highlight-style=tango",
     ]
+    for syntax_definition in syntax_definitions:
+        cmd.append(f"--syntax-definition={syntax_definition}")
     if engine == "wkhtmltopdf":
         if css_path is not None and css_path.is_file():
             cmd.append(f"--css={css_path}")
@@ -371,7 +426,8 @@ def _pandoc_cmd(
             "--pdf-engine-opt=--margin-left",
             f"--pdf-engine-opt={profile.margin}",
         ]
-        cmd += ["--metadata", f"title={source.stem}"]
+        if include_auto_title:
+            cmd += ["--metadata", f"title={source.stem}"]
     else:
         cmd += [
             "-V",
@@ -391,6 +447,14 @@ def _pandoc_cmd(
 
 def _default_markdown_pdf_css_path() -> Path:
     return Path(__file__).with_name(_DEFAULT_CSS_FILENAME)
+
+
+def _launch_preview_css_path() -> Path:
+    return Path(__file__).with_name(_LAUNCH_PREVIEW_CSS_FILENAME)
+
+
+def _sase_syntax_definition_path() -> Path:
+    return Path(__file__).with_name(_SASE_SYNTAX_DEFINITION_FILENAME)
 
 
 def _css_path_for_profile(profile: MarkdownPdfProfile, directory: Path) -> Path:

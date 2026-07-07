@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from sase.attachments import markdown_pdf
 from sase.attachments.markdown_pdf import (
     MarkdownPdfProgressEvent,
     MarkdownPdfProfile,
+    render_launch_preview_pdf,
     render_markdown_pdf,
     render_markdown_pdf_attachments,
 )
@@ -121,6 +125,108 @@ def test_render_markdown_pdf_explicit_css_overrides_default(tmp_path):
     assert (
         f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css')}" not in cmd
     )
+
+
+def test_render_markdown_pdf_accepts_syntax_definitions_and_no_auto_title(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("```demo\nhello\n```\n", encoding="utf-8")
+    dest = tmp_path / "notes.pdf"
+    syntax = tmp_path / "demo.xml"
+    syntax.write_text("<language/>\n", encoding="utf-8")
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch(
+            "sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run
+        ) as run,
+    ):
+        result = render_markdown_pdf(
+            source,
+            dest,
+            syntax_definitions=[syntax],
+            include_auto_title=False,
+        )
+
+    assert result == dest
+    cmd = run.call_args.args[0]
+    assert f"--syntax-definition={syntax}" in cmd
+    assert "--metadata" not in cmd
+    assert "title=notes" not in cmd
+
+
+def test_render_launch_preview_pdf_uses_dedicated_assets(tmp_path):
+    source = tmp_path / "launch_preview.md"
+    source.write_text("# Launch Preview\n\n```sase\n#plan\n```\n", encoding="utf-8")
+    dest = tmp_path / "launch_preview.pdf"
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch(
+            "sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run
+        ) as run,
+    ):
+        result = render_launch_preview_pdf(source, dest)
+
+    assert result == dest
+    cmd = run.call_args.args[0]
+    assert f"--css={Path(markdown_pdf.__file__).with_name('launch_preview.css')}" in cmd
+    assert (
+        f"--syntax-definition={Path(markdown_pdf.__file__).with_name('sase.xml')}"
+        in cmd
+    )
+    assert "--metadata" not in cmd
+
+
+def test_render_launch_preview_pdf_falls_back_to_generic_renderer(tmp_path):
+    source = tmp_path / "launch_preview.md"
+    source.write_text("# Launch Preview\n", encoding="utf-8")
+    dest = tmp_path / "launch_preview.pdf"
+
+    def fake_render(src, pdf, **kwargs):
+        if kwargs.get("syntax_definitions"):
+            return None
+        Path(pdf).write_bytes(b"%PDF")
+        return Path(pdf)
+
+    with patch(
+        "sase.attachments.markdown_pdf.render_markdown_pdf",
+        side_effect=fake_render,
+    ) as render:
+        assert render_launch_preview_pdf(source, dest) == dest
+
+    first = render.call_args_list[0]
+    second = render.call_args_list[1]
+    assert first.args == (source, dest)
+    assert first.kwargs["css_path"] == Path(markdown_pdf.__file__).with_name(
+        "launch_preview.css"
+    )
+    assert first.kwargs["syntax_definitions"] == [
+        Path(markdown_pdf.__file__).with_name("sase.xml")
+    ]
+    assert first.kwargs["include_auto_title"] is False
+    assert second.args == (source, dest)
+    assert "css_path" not in second.kwargs
+    assert "syntax_definitions" not in second.kwargs
 
 
 def test_render_markdown_pdf_custom_profile_updates_wkhtmltopdf_and_css(tmp_path):
@@ -512,3 +618,38 @@ def test_render_markdown_pdf_attachments_reports_progress_order(tmp_path):
     ]
     assert events[-1].generated == 1
     assert events[-1].skipped == 0
+
+
+def test_render_launch_preview_pdf_smoke_when_tools_available(tmp_path):
+    if not shutil.which("pandoc") or not any(
+        shutil.which(engine) for engine in markdown_pdf.PDF_ENGINES
+    ):
+        pytest.skip("pandoc and a PDF engine are required")
+
+    source = tmp_path / "launch_preview.md"
+    source.write_text(
+        "\n".join(
+            [
+                "# Launch Preview",
+                "",
+                "**2 agents** · source `agent_skill` · all-or-nothing",
+                "",
+                "## Agent 1 of 2 · demo",
+                "",
+                "```sase",
+                "%n:demo",
+                "#plan",
+                "`actstat --repo sase`",
+                "---",
+                "```",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    dest = tmp_path / "launch_preview.pdf"
+
+    rendered = render_launch_preview_pdf(source, dest)
+
+    assert rendered == dest
+    assert dest.stat().st_size > 0

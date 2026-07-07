@@ -3,6 +3,7 @@
 from sase.attachments.markdown_pdf import (
     MAX_MARKDOWN_PDF_ATTACHMENTS,
     MarkdownPdfRecord,
+    render_launch_preview_pdf,
     render_markdown_pdf,
     render_markdown_pdf_attachments,
 )
@@ -10,6 +11,7 @@ from sase.attachments.markdown_pdf import (
 __all__ = [
     "MAX_MARKDOWN_PDF_ATTACHMENTS",
     "MarkdownPdfRecord",
+    "render_launch_preview_pdf",
     "render_markdown_pdf",
     "render_markdown_pdf_attachments",
 ]

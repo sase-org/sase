@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE language SYSTEM "language.dtd">
+<language
+  name="SASE"
+  version="1"
+  kateversion="5.0"
+  section="Markup"
+  extensions="*.sase"
+  mimetype="text/x-sase"
+  author="SASE"
+  license="MIT">
+  <highlighting>
+    <contexts>
+      <context name="Normal" attribute="Normal Text" lineEndContext="#stay">
+        <RegExpr attribute="Comment" context="#stay" String="^\s*---\s*$"/>
+        <RegExpr attribute="Keyword" context="#stay" String="%[A-Za-z][A-Za-z0-9_-]*(:[^[:space:]`]+|\([^`\n]*\))?"/>
+        <RegExpr attribute="Function" context="#stay" String="#[A-Za-z0-9_][A-Za-z0-9_.:/_-]*"/>
+        <DetectChar attribute="String" context="InlineCode" char="`"/>
+      </context>
+      <context name="InlineCode" attribute="String" lineEndContext="#pop">
+        <DetectChar attribute="String" context="#pop" char="`"/>
+      </context>
+    </contexts>
+    <itemDatas>
+      <itemData name="Normal Text" defStyleNum="dsNormal"/>
+      <itemData name="Keyword" defStyleNum="dsKeyword"/>
+      <itemData name="Function" defStyleNum="dsFunction"/>
+      <itemData name="String" defStyleNum="dsString"/>
+      <itemData name="Comment" defStyleNum="dsComment"/>
+    </itemDatas>
+  </highlighting>
+</language>

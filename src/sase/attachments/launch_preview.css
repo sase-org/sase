@@ -1,0 +1,128 @@
+@page {
+  size: 4.25in 7in;
+  margin: 0.22in;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  color: #1f2328;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.34;
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+h1,
+h2 {
+  color: #111827;
+  line-height: 1.16;
+  page-break-after: avoid;
+}
+
+h1 {
+  border-bottom: 0.16rem solid #6f42c1;
+  font-size: 1.46rem;
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.34rem;
+}
+
+h2 {
+  border-left: 0.22rem solid #6f42c1;
+  font-size: 1rem;
+  margin: 1rem 0 0.4rem;
+  padding-left: 0.5rem;
+}
+
+p {
+  margin: 0 0 0.68rem;
+}
+
+code,
+kbd,
+samp {
+  background: #f6f8fa;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
+  font-size: 0.88em;
+  overflow-wrap: anywhere;
+  padding: 0.08em 0.22em;
+  word-break: break-word;
+}
+
+pre,
+div.sourceCode {
+  background: #f8f9fc;
+  border: 1px solid #d8dee4;
+  border-radius: 5px;
+  box-sizing: border-box;
+  margin: 0.52rem 0 0.34rem;
+  page-break-inside: auto;
+}
+
+pre {
+  font-size: 0.78rem;
+  line-height: 1.33;
+  padding: 0.58rem 0.64rem;
+  white-space: pre-wrap;
+  word-break: normal;
+}
+
+pre code {
+  background: transparent;
+  border-radius: 0;
+  font-size: inherit;
+  padding: 0;
+  white-space: inherit;
+}
+
+pre > code.sourceCode > span {
+  display: inline !important;
+  padding-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+pre > code.sourceCode a,
+pre > code.sourceCode a.sourceLine {
+  display: none !important;
+}
+
+span.kw,
+code span.kw {
+  color: #8250df !important;
+  font-weight: 700;
+}
+
+span.fu,
+code span.fu {
+  color: #0550ae !important;
+  font-weight: 700;
+}
+
+span.st,
+code span.st {
+  color: #116329 !important;
+}
+
+span.co,
+code span.co {
+  color: #6e7781 !important;
+  font-style: italic;
+}
+
+a {
+  color: #0969da;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  word-break: break-word;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #d8dee4;
+  margin: 0.8rem 0;
+}
