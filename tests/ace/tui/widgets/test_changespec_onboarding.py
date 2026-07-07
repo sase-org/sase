@@ -69,14 +69,9 @@ def test_changespec_onboarding_queue_card_uses_active_keymap_registry() -> None:
     assert "filter with a query" in queue_text
 
 
-def test_changespec_onboarding_footer_is_modal_guide_footer() -> None:
+def test_changespec_onboarding_omits_modal_footer() -> None:
     registry = load_keymap_registry({})
 
     sections = ChangeSpecOnboarding.render_content(registry)
 
-    footer = _section_plain(sections, "#changespec-onboarding-footer")
-
-    assert "esc closes" in footer
-    assert "tab / shift+tab other tabs' guides" in footer
-    assert ",?" in footer
-    assert "Your first ChangeSpec" not in footer
+    assert "#changespec-onboarding-footer" not in sections

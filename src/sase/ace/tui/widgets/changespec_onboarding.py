@@ -15,7 +15,6 @@ from ._onboarding_common import (
     append_doc_link,
     append_keycap,
     append_section_heading,
-    build_guide_footer,
 )
 
 _ACCENT = "#00D7AF"
@@ -26,7 +25,7 @@ _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 
 
 class ChangeSpecOnboarding(VerticalScroll):
-    """In-depth PRs tab guide shown by the leader ``tab_guide`` modal."""
+    """In-depth PRs tab guide shown by the Help panel."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -72,12 +71,6 @@ class ChangeSpecOnboarding(VerticalScroll):
         learn.border_title = "Learn more"
         yield learn
 
-        yield Static(
-            self._build_footer(self._registry),
-            id="changespec-onboarding-footer",
-            classes="changespec-onboarding-footer",
-        )
-
     def on_mount(self) -> None:
         """Render with the current registry after mount."""
         self.refresh_content()
@@ -114,9 +107,6 @@ class ChangeSpecOnboarding(VerticalScroll):
                 registry
             ),
             "#changespec-onboarding-learn": ChangeSpecOnboarding._build_learn_card(
-                registry
-            ),
-            "#changespec-onboarding-footer": ChangeSpecOnboarding._build_footer(
                 registry
             ),
         }
@@ -225,7 +215,3 @@ class ChangeSpecOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.show_help))
         text.append("full keybinding reference for this tab.")
         return text
-
-    @staticmethod
-    def _build_footer(registry: KeymapRegistry) -> Text:
-        return build_guide_footer(registry)

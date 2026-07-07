@@ -9,7 +9,7 @@ from textual.widgets import ContentSwitcher, Static
 from sase.ace.admin_center_tab import load_admin_center_tab, save_admin_center_tab
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import (
-    _ConfigCenterTabStrip,
+    _PANEL_TABS,
     _TAB_COLORS,
     _TAB_DESCRIPTIONS,
     _TAB_LABELS,
@@ -19,6 +19,7 @@ from sase.ace.tui.modals.config_center_modal import (
     _TITLE_UNDERLINE,
     ConfigCenterModal,
 )
+from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
@@ -28,7 +29,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 
 
 def test_numbered_tab_strip_plain_text_and_click_ranges() -> None:
-    strip = _ConfigCenterTabStrip("updates")
+    strip = PanelTabStrip(_PANEL_TABS, "updates", show_numbers=True)
     text = strip._build_content()
     plain = text.plain
 

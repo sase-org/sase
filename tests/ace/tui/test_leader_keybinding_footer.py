@@ -47,29 +47,13 @@ def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
         assert "repeat" in _last_labels(captured)
 
 
-def test_footer_surfaces_tab_guide_on_all_tabs() -> None:
+def test_footer_omits_tab_guide_after_help_panel_merge() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
     for tab in ("changespecs", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
-        assert "?" in _last_keys(captured)
-        assert "tab guide" in _last_labels(captured)
-
-
-def test_footer_surfaces_configured_tab_guide_key() -> None:
-    footer = KeybindingFooter()
-    footer.set_keymap_registry(
-        load_keymap_registry(
-            {"keymaps": {"modes": {"leader_mode": {"keys": {"tab_guide": "T"}}}}}
-        )
-    )
-    captured = _capture_bindings(footer)
-
-    footer.update_leader_bindings(current_tab="axe")
-
-    assert "T" in _last_keys(captured)
-    assert "tab guide" in _last_labels(captured)
+        assert "tab guide" not in _last_labels(captured)
 
 
 def test_footer_surfaces_update_sase_on_all_tabs() -> None:

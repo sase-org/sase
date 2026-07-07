@@ -194,7 +194,7 @@ class DetailMixin:
     def _apply_agents_onboarding_launch_targets_available(
         self, available: bool
     ) -> None:
-        """Store launch-target availability for the on-demand tab guide."""
+        """Store launch-target availability for the on-demand Help guide."""
         self._agents_onboarding_launch_targets_available = available
 
     def _schedule_agents_onboarding_plugins_refresh(self) -> None:
@@ -240,7 +240,7 @@ class DetailMixin:
                 self._schedule_agents_onboarding_plugins_refresh()
 
     def _apply_agents_onboarding_plugins_installed(self, installed: bool) -> None:
-        """Store plugin presence for the on-demand tab guide."""
+        """Store plugin presence for the on-demand Help guide."""
         self._agents_onboarding_plugins_installed = installed
 
     def _sync_agents_onboarding(

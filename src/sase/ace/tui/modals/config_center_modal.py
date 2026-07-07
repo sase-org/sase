@@ -25,15 +25,14 @@ describes the active tab using that tab's accent color.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
-from textual.events import Click, Key
-from textual.message import Message
+from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Label, Static
@@ -44,6 +43,7 @@ from .plugins_browser_pane import PluginsBrowserPane
 from .projects_pane import ProjectsPane
 from .tasks_pane import TasksPane
 from .xprompt_browser_pane import XPromptBrowserPane
+from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 CenterTab = Literal["config", "logs", "projects", "tasks", "updates", "xprompts"]
 
@@ -71,6 +71,9 @@ _TAB_COLORS: dict[CenterTab, str] = {
     "updates": "#AF87FF",
     "xprompts": "#87D7FF",
 }
+_PANEL_TABS: tuple[PanelTab, ...] = tuple(
+    PanelTab(tab, label, _TAB_COLORS[tab]) for tab, label in _TAB_LABELS
+)
 _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "config": "Edit layered SASE settings with live preview",
     "logs": "Browse SASE logs and launch failures",
@@ -141,54 +144,6 @@ def center_tab_accent(tab: str) -> str | None:
     return None
 
 
-class _ConfigCenterTabStrip(Static):
-    """Clickable one-line tab strip for the SASE Admin Center modal."""
-
-    class TabClicked(Message):
-        """Message emitted when a tab is clicked."""
-
-        def __init__(self, tab: CenterTab) -> None:
-            super().__init__()
-            self.tab: CenterTab = tab
-
-    def __init__(self, active_tab: CenterTab, **kwargs: Any) -> None:
-        self._active_tab: CenterTab = active_tab
-        self._tab_ranges: dict[CenterTab, tuple[int, int]] = {}
-        self._line_width = 0
-        super().__init__(self._build_content(), **kwargs)
-
-    def set_active_tab(self, active_tab: CenterTab) -> None:
-        """Refresh the active tab indicator."""
-        self._active_tab = active_tab
-        self.update(self._build_content())
-
-    def _build_content(self) -> Text:
-        text = Text()
-        self._tab_ranges.clear()
-        for index, (tab, label) in enumerate(_TAB_LABELS):
-            if index > 0:
-                text.append(" │ ", style="#444444")
-            is_active = tab == self._active_tab
-            number_style = _TAB_COLORS[tab] if is_active else "#666666"
-            label_style = f"bold {_TAB_COLORS[tab]}" if is_active else "#888888"
-            start = len(text.plain)
-            text.append(f" {index + 1} ", style=number_style)
-            text.append(f"{label} ", style=label_style)
-            self._tab_ranges[tab] = (start, len(text.plain))
-        self._line_width = len(text.plain)
-        return text
-
-    def on_click(self, event: Click) -> None:
-        content_width = max(0, int(self.size.width))
-        center_pad = max(0, (content_width - self._line_width) // 2)
-        x = event.x - center_pad
-        for tab, (start, end) in self._tab_ranges.items():
-            if start <= x < end:
-                if tab != self._active_tab:
-                    self.post_message(self.TabClicked(tab))
-                return
-
-
 class _ConfigCenterHeaderDivider(Static):
     """Width-aware divider between the SASE Admin Center header and content."""
 
@@ -243,7 +198,12 @@ class ConfigCenterModal(ModalScreen[None]):
                 _gradient_text(_TITLE_UNDERLINE, bold=False),
                 id="config-center-title-underline",
             )
-            yield _ConfigCenterTabStrip(self._active_tab, id="config-center-tabs")
+            yield PanelTabStrip(
+                _PANEL_TABS,
+                self._active_tab,
+                show_numbers=True,
+                id="config-center-tabs",
+            )
             yield Static(
                 _tab_description_text(self._active_tab),
                 id="config-center-tab-description",
@@ -321,7 +281,7 @@ class ConfigCenterModal(ModalScreen[None]):
         except Exception:
             return
         try:
-            strip = self.query_one("#config-center-tabs", _ConfigCenterTabStrip)
+            strip = self.query_one("#config-center-tabs", PanelTabStrip)
             strip.set_active_tab(tab)
         except Exception:
             pass
@@ -357,8 +317,9 @@ class ConfigCenterModal(ModalScreen[None]):
             return
         self._switch_to(_TAB_ORDER[number - 1])
 
-    @on(_ConfigCenterTabStrip.TabClicked)
-    def _on_tab_clicked(self, event: _ConfigCenterTabStrip.TabClicked) -> None:
+    @on(PanelTabStrip.TabClicked)
+    def _on_tab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
         """Handle mouse selection of a tab."""
         event.stop()
-        self._switch_to(event.tab)
+        if event.tab_id in _TAB_ORDER:
+            self._switch_to(cast(CenterTab, event.tab_id))

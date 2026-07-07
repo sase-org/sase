@@ -24,12 +24,6 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
                     "show_help": "f6",
                     "open_command_palette": "f7",
                 },
-                "modes": {
-                    "leader_mode": {
-                        "prefix": "semicolon",
-                        "keys": {"tab_guide": "g"},
-                    }
-                },
             }
         }
     )
@@ -39,8 +33,7 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
 
     for key in ("f2", "f3", "f4", "f5", "f6", "f7"):
         assert key in card
-    assert " ; " in card
-    assert " g " in card
+    assert " ] " in card
     assert "Launch your first agent" in card
     assert "The full tour of this tab" in card
 

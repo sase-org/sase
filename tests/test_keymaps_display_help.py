@@ -24,15 +24,13 @@ def test_leader_repeat_last_override_updates_help_display() -> None:
         assert (",R", "Repeat last leader command") in pairs
 
 
-def test_tab_guide_leader_key_updates_help_display() -> None:
-    reg = load_keymap_registry(
-        {"keymaps": {"modes": {"leader_mode": {"keys": {"tab_guide": "T"}}}}}
-    )
+def test_help_panel_tab_switch_display_is_present() -> None:
+    reg = load_keymap_registry({})
     for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert (",T", "Tab guide") in pairs
+        assert ("[ / ]", "Switch Keymaps / Guide") in pairs
 
 
 def test_leader_prefix_override_updates_repeat_last_help_display() -> None:

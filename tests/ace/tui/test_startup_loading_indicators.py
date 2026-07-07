@@ -61,7 +61,8 @@ def test_axe_info_panel_loading_renders_ellipsis() -> None:
     plain = _collect_text(panel)
     assert "AXE" in plain
     assert "…" in plain
-    assert ",?" in plain
+    assert "?" in plain
+    assert "]" in plain
     assert "tab guide" in plain
 
 
@@ -73,10 +74,11 @@ def test_axe_info_panel_loading_clears() -> None:
     panel._interval = 10
     plain = _collect_text(panel)
     assert "…" not in plain
-    assert ",?" in plain
+    assert "?" in plain
+    assert "]" in plain
 
 
-def test_axe_info_panel_uses_configured_tab_guide_key() -> None:
+def test_axe_info_panel_uses_configured_help_key() -> None:
     panel = AxeInfoPanel()
     captured: list[str] = []
     with patch.object(
@@ -85,15 +87,14 @@ def test_axe_info_panel_uses_configured_tab_guide_key() -> None:
         lambda text, **_kwargs: captured.append(text.plain),
     ):
         panel.set_keymap_registry(
-            load_keymap_registry(
-                {"keymaps": {"modes": {"leader_mode": {"keys": {"tab_guide": "T"}}}}}
-            )
+            load_keymap_registry({"keymaps": {"app": {"show_help": "f1"}}})
         )
 
     assert captured, "panel.set_keymap_registry did not refresh display"
     plain = captured[-1]
 
-    assert ",T" in plain
+    assert "f1" in plain
+    assert "]" in plain
     assert "tab guide" in plain
 
 

@@ -207,7 +207,6 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma"
-          tab_guide: "question_mark"
           run_cmd: "exclamation_mark"
           runners: "R"
           revert_agent: "r"

@@ -44,9 +44,40 @@ class NavigationModalMixin(NavigationMixinBase):
         """Show the help modal with all keybindings."""
         from ...modals import HelpModal
 
+        if self.current_tab == "agents":
+            self._prepare_agents_help_guide_state()
+
         self.push_screen(  # type: ignore[attr-defined]
             HelpModal(
                 current_tab=self.current_tab,
                 active_query=self.canonical_query_string,  # type: ignore[attr-defined]
+                registry=self._keymap_registry,
+                agents_launch_targets_available=getattr(
+                    self,
+                    "_agents_onboarding_launch_targets_available",
+                    False,
+                ),
+                agents_plugins_installed=getattr(
+                    self,
+                    "_agents_onboarding_plugins_installed",
+                    True,
+                ),
             )
         )
+
+    def _prepare_agents_help_guide_state(self) -> None:
+        """Schedule the background state refresh used by the Agents guide."""
+        schedule_launch_targets = getattr(
+            self,
+            "_schedule_agents_onboarding_launch_targets_refresh",
+            None,
+        )
+        if callable(schedule_launch_targets):
+            schedule_launch_targets()
+        schedule_plugins = getattr(
+            self,
+            "_schedule_agents_onboarding_plugins_refresh",
+            None,
+        )
+        if callable(schedule_plugins):
+            schedule_plugins()

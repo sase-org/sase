@@ -29,7 +29,7 @@ def test_axe_onboarding_content_describes_axe_chops_bgcmds_and_docs() -> None:
     assert "https://sase.sh/axe/" in rendered
     assert "https://sase.sh/workflow_spec/" in rendered
     assert "https://sase.sh/mentors/" in rendered
-    assert ",?" in rendered
+    assert ",?" not in rendered
 
 
 def test_axe_onboarding_uses_active_keymap_registry() -> None:
@@ -42,10 +42,7 @@ def test_axe_onboarding_uses_active_keymap_registry() -> None:
                     "run_workflow": "f3",
                     "show_help": "f1",
                 },
-                "modes": {
-                    "leader_mode": {"keys": {"tab_guide": "T"}},
-                    "bang_mode": {"prefix": "B", "keys": {"run_cmd": "R"}},
-                },
+                "modes": {"bang_mode": {"prefix": "B", "keys": {"run_cmd": "R"}}},
             }
         }
     )
@@ -55,7 +52,6 @@ def test_axe_onboarding_uses_active_keymap_registry() -> None:
     chops_text = _section_plain(sections, "#axe-onboarding-chops")
     bgcmd_text = _section_plain(sections, "#axe-onboarding-bgcmd")
     learn_text = _section_plain(sections, "#axe-onboarding-learn")
-    footer_text = _section_plain(sections, "#axe-onboarding-footer")
 
     assert "f4" in what_text
     assert "f4" in bgcmd_text
@@ -65,5 +61,4 @@ def test_axe_onboarding_uses_active_keymap_registry() -> None:
     assert "!!" not in bgcmd_text
     assert "f1" in learn_text
     assert ",T" not in learn_text
-    assert "tab / shift+tab other tabs' guides" in footer_text
-    assert ",T" in footer_text
+    assert "#axe-onboarding-footer" not in sections

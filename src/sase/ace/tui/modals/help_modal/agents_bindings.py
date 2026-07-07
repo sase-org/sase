@@ -116,10 +116,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last leader command",
                 ),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'tab_guide'))}",
-                    "Tab guide",
-                ),
-                (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
                     "Run agent (home)",
                 ),
@@ -289,6 +285,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                ("[ / ]", "Switch Keymaps / Guide"),
                 (
                     d(a.start_agent_from_changespec),
                     "Repeat last +/Ctrl+Space selection",

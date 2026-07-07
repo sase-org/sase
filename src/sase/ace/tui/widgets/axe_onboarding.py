@@ -15,7 +15,6 @@ from ._onboarding_common import (
     append_doc_link,
     append_keycap,
     append_section_heading,
-    build_guide_footer,
     key_sequence_display,
 )
 
@@ -27,7 +26,7 @@ _MENTORS_DOCS_URL = "https://sase.sh/mentors/"
 
 
 class AxeOnboarding(VerticalScroll):
-    """AXE-tab guide shown inside the Tab Guide modal."""
+    """AXE-tab guide shown inside the Help panel."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -73,12 +72,6 @@ class AxeOnboarding(VerticalScroll):
         learn.border_title = "Learn more"
         yield learn
 
-        yield Static(
-            self._build_footer(self._registry),
-            id="axe-onboarding-footer",
-            classes="axe-onboarding-footer",
-        )
-
     def on_mount(self) -> None:
         """Render with the current registry after mount."""
         self.refresh_content()
@@ -105,7 +98,6 @@ class AxeOnboarding(VerticalScroll):
             "#axe-onboarding-chops": AxeOnboarding._build_chops_card(registry),
             "#axe-onboarding-bgcmd": AxeOnboarding._build_bgcmd_card(registry),
             "#axe-onboarding-learn": AxeOnboarding._build_learn_card(registry),
-            "#axe-onboarding-footer": AxeOnboarding._build_footer(registry),
         }
 
     @staticmethod
@@ -236,7 +228,3 @@ class AxeOnboarding(VerticalScroll):
         text.append(_DOCS_URL, style=f"bold {_ACCENT} link {_DOCS_URL}")
         text.append(" full documentation.", style="dim")
         return text
-
-    @staticmethod
-    def _build_footer(registry: KeymapRegistry) -> Text:
-        return build_guide_footer(registry)

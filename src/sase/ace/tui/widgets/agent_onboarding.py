@@ -15,7 +15,6 @@ from ._onboarding_common import (
     append_doc_link,
     append_keycap,
     append_section_heading,
-    build_guide_footer,
 )
 
 _DOCS_URL = "https://sase.sh"
@@ -54,7 +53,7 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
 
 
 class AgentOnboarding(VerticalScroll):
-    """In-depth Agents tab guide shown by the leader ``tab_guide`` modal."""
+    """In-depth Agents tab guide shown by the Help panel."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -107,12 +106,6 @@ class AgentOnboarding(VerticalScroll):
             classes="agent-onboarding-card",
         )
         yield help_card
-
-        yield Static(
-            self._build_footer(self._registry),
-            id="agent-onboarding-footer",
-            classes="agent-onboarding-footer",
-        )
 
     def on_mount(self) -> None:
         """Render with the current registry after mount."""
@@ -222,7 +215,6 @@ class AgentOnboarding(VerticalScroll):
             "#agent-onboarding-tabs": self._build_tabs_card(registry),
             "#agent-onboarding-plugins": self._build_plugins_card(registry),
             "#agent-onboarding-help": self._build_help_card(registry),
-            "#agent-onboarding-footer": self._build_footer(registry),
         }
 
     @staticmethod
@@ -344,7 +336,3 @@ class AgentOnboarding(VerticalScroll):
         text.append(_DOCS_URL, style=f"bold {_AGENTS_ACCENT} link {_DOCS_URL}")
         text.append(" full documentation.", style="dim")
         return text
-
-    @staticmethod
-    def _build_footer(registry: KeymapRegistry) -> Text:
-        return build_guide_footer(registry)

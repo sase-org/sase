@@ -413,16 +413,15 @@ class AceApp(
 
         # If one of the tab-scoped popup panels is open, refresh it in place
         # with the new tab context.
-        from .modals import HelpModal, TabGuideModal
+        from .modals import HelpModal
 
         screen = self.screen
         if isinstance(screen, HelpModal):
-            screen.refresh_for_tab(new_tab, self.canonical_query_string)
-        elif isinstance(screen, TabGuideModal):
             if new_tab == "agents":
-                self._prepare_agents_tab_guide_state()
+                self._prepare_agents_help_guide_state()
             screen.refresh_for_tab(
-                current_tab=new_tab,
+                new_tab,
+                self.canonical_query_string,
                 registry=self._keymap_registry,
                 agents_launch_targets_available=(
                     self._agents_onboarding_launch_targets_available

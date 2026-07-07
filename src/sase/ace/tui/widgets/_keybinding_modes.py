@@ -193,7 +193,6 @@ class KeybindingModesMixin:
 
         bindings: list[tuple[str, str]] = []
         bindings.append((k("repeat_last"), "repeat"))
-        bindings.append((k("tab_guide"), "tab guide"))
         if current_tab == "changespecs":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))

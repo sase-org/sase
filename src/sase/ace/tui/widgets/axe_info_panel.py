@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING, Any
 from rich.text import Text
 from textual.widgets import Static
 
-from ..keymaps import KeymapRegistry, load_keymap_registry
-from ._onboarding_common import leader_key_sequence_display
+from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
@@ -144,7 +143,7 @@ class AxeInfoPanel(Static):
         if self._loading:
             text.append("AXE ", style="bold")
             text.append("…", style="dim italic")
-            self._append_tab_guide_hint(text)
+            self._append_help_guide_hint(text)
             self.update(text)
             return
 
@@ -183,13 +182,16 @@ class AxeInfoPanel(Static):
             text.append(f"{self._countdown}s", style="bold #FFD700")
             text.append(")", style="dim")
 
-        self._append_tab_guide_hint(text)
+        self._append_help_guide_hint(text)
         self.update(text)
 
-    def _append_tab_guide_hint(self, text: Text) -> None:
-        """Append the persistent Tab Guide hint."""
+    def _append_help_guide_hint(self, text: Text) -> None:
+        """Append the persistent Help Guide hint."""
         if text.plain:
             text.append("  ", style="")
-        sequence = leader_key_sequence_display(self._registry, "tab_guide")
-        text.append(f" {sequence} ", style="bold #1a1a1a on #00D7AF")
+        text.append(
+            f" {key_display_name(self._registry.app.show_help)} ",
+            style="bold #1a1a1a on #00D7AF",
+        )
+        text.append(" ] ", style="bold #1a1a1a on #00D7AF")
         text.append(" tab guide", style="dim")

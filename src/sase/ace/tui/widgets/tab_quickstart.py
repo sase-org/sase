@@ -188,7 +188,7 @@ class TabQuickStart(VerticalScroll):
                 "Every keymap for the current tab.",
             ),
             (
-                cls._leader_labels(registry, "tab_guide"),
+                (key_display_name(app.show_help), "]"),
                 "The full tour of this tab: the in-depth guide.",
             ),
             (
@@ -227,18 +227,6 @@ class TabQuickStart(VerticalScroll):
         cls._append_keycap(text, key_display_name(registry.app.edit_query))
         text.append("edits the query.", style=f"bold {_CALLOUT_ACCENT}")
         return text
-
-    @staticmethod
-    def _leader_labels(
-        registry: KeymapRegistry,
-        action_name: str,
-    ) -> tuple[str, ...]:
-        key = registry.leader_mode.keys[action_name]
-        assert isinstance(key, str)
-        return (
-            key_display_name(registry.leader_mode.prefix),
-            key_display_name(key),
-        )
 
     @staticmethod
     def _keycap_width(labels: tuple[str, ...]) -> int:

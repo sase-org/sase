@@ -150,14 +150,10 @@ def test_launch_card_omits_project_cl_hint_without_targets() -> None:
     assert "The prompt bar works from any tab." in launch_text
 
 
-def test_agent_onboarding_footer_is_modal_guide_footer() -> None:
+def test_agent_onboarding_omits_modal_footer() -> None:
     registry = load_keymap_registry({})
     widget = AgentOnboarding()
 
     sections = widget.render_content(registry)
-    footer = _section_plain(sections, "#agent-onboarding-footer")
 
-    assert "esc closes" in footer
-    assert "tab / shift+tab other tabs' guides" in footer
-    assert ",?" in footer
-    assert "Your first agent" not in footer
+    assert "#agent-onboarding-footer" not in sections

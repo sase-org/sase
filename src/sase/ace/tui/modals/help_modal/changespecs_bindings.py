@@ -168,10 +168,6 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Repeat last leader command",
                 ),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'tab_guide'))}",
-                    "Tab guide",
-                ),
-                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'clear_comments'))}",
                     "Clear COMMENTS field",
                 ),
@@ -273,6 +269,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
+                ("[ / ]", "Switch Keymaps / Guide"),
                 (d(a.toggle_hide_submitted), "Show/hide submitted PRs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (

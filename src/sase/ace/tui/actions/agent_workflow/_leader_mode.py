@@ -68,12 +68,6 @@ class LeaderModeMixin:
         """Dispatch a non-repeat leader subkey."""
         leader_keys = self._keymap_registry.leader_mode.keys
 
-        if key == leader_keys["tab_guide"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self._open_tab_guide_modal()
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["run_cmd"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "changespecs":
@@ -257,53 +251,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == "question_mark":
+            self.notify("Tab guide moved: press ? then ]")  # type: ignore[attr-defined]
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True
-
-    def _open_tab_guide_modal(self) -> None:
-        """Open the current tab's guide (leader ``,?`` by default)."""
-        from ...modals import TabGuideModal
-
-        if isinstance(getattr(self, "screen", None), TabGuideModal):
-            return
-
-        if self.current_tab == "agents":
-            self._prepare_agents_tab_guide_state()
-
-        self.push_screen(  # type: ignore[attr-defined]
-            TabGuideModal(
-                current_tab=self.current_tab,
-                registry=self._keymap_registry,
-                agents_launch_targets_available=getattr(
-                    self,
-                    "_agents_onboarding_launch_targets_available",
-                    False,
-                ),
-                agents_plugins_installed=getattr(
-                    self,
-                    "_agents_onboarding_plugins_installed",
-                    True,
-                ),
-            )
-        )
-
-    def _prepare_agents_tab_guide_state(self) -> None:
-        """Schedule the background state refresh used by the Agents guide."""
-        schedule_launch_targets = getattr(
-            self,
-            "_schedule_agents_onboarding_launch_targets_refresh",
-            None,
-        )
-        if callable(schedule_launch_targets):
-            schedule_launch_targets()
-        schedule_plugins = getattr(
-            self,
-            "_schedule_agents_onboarding_plugins_refresh",
-            None,
-        )
-        if callable(schedule_plugins):
-            schedule_plugins()
 
     def _open_models_panel(self) -> None:
         """Open the Models panel (leader ``,m`` by default)."""

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 13:05:24
-status: wip
+status: done
 prompt: sdd/prompts/202607/merge_help_and_tab_guide_panels.md
 ---
 # Merge the `?` Help panel and `,?` Tab Guide into one two-tab Help panel
