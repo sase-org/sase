@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 12:47:25
-status: wip
+status: done
 prompt: sdd/prompts/202607/fix_sase_github_ci_dependency_floor.md
 ---
 # Fix failing sase-github GitHub Actions CI (sase version-floor resolution failure)
