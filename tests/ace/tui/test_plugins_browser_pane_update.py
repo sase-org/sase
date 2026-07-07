@@ -162,6 +162,7 @@ async def test_updates_pane_sase_update_opens_preview_modal(
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         assert [v.key for v in modal._variants] == ["update-sase"]
+        assert modal._incoming_commits_loader is not None
         preview = _render(modal._preview_renderable())
         assert "uv tool upgrade sase" in preview
         assert "Upgrades sase core + every installed plugin" in preview
@@ -313,6 +314,7 @@ async def test_updates_pane_sase_update_dev_preview_and_restart(
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
+        assert modal._incoming_commits_loader is not None
         preview = _render(modal._preview_renderable())
         assert "fetch + fast-forward origin/main" in preview
         assert "Reinstall uv-tool editable Python packages" in preview
@@ -449,6 +451,7 @@ async def test_plugins_pane_update_opens_preview_modal(
         assert isinstance(modal, PluginActionConfirmModal)
         # Update offers a single variant; no index/git source toggle.
         assert [v.key for v in modal._variants] == ["update"]
+        assert modal._incoming_commits_loader is not None
         preview = _render(modal._preview_renderable())
         assert "--upgrade-package" in preview
         assert "Upgrades sase-github" in preview
@@ -664,6 +667,7 @@ async def test_plugins_pane_editable_update_uses_dev_preview_and_restart(
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
+        assert modal._incoming_commits_loader is not None
         preview = _render(modal._preview_renderable())
         assert "dev update" in preview
         assert "fetch + fast-forward origin/main" in preview

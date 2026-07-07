@@ -58,6 +58,7 @@ def build_incoming_commits_renderable(
     incoming: IncomingCommits | None = None,
     *,
     loading: bool = False,
+    label: str | None = None,
 ) -> RenderableType:
     """Return a compact incoming-commit section for update surfaces."""
     if loading:
@@ -69,11 +70,16 @@ def build_incoming_commits_renderable(
         return Text("")
     if incoming.source == "unavailable":
         error = incoming.error or "unknown"
+        if label:
+            return Text(
+                f"{label}: incoming commits unavailable ({error})",
+                style="dim",
+            )
         return Text(f"incoming commits unavailable ({error})", style="dim")
 
-    lines: list[Text] = [_incoming_header(incoming.total)]
+    lines: list[Text] = [_incoming_header(incoming.total, label=label)]
     for commit in incoming.commits:
-        line = Text("  ")
+        line = Text("  ", no_wrap=True, overflow="ellipsis")
         line.append(commit.short_sha, style="dim")
         line.append("  ")
         line.append(commit.subject)
@@ -83,9 +89,13 @@ def build_incoming_commits_renderable(
     return Group(*lines)
 
 
-def _incoming_header(total: int) -> Text:
+def _incoming_header(total: int, *, label: str | None = None) -> Text:
     noun = "commit" if total == 1 else "commits"
     header = Text()
     header.append(_UPDATE_GLYPH, style="bold cyan")
-    header.append(f" {total} incoming {noun}", style="cyan")
+    if label:
+        header.append(f" {label}", style="bold cyan")
+        header.append(f" — {total} incoming {noun}", style="cyan")
+    else:
+        header.append(f" {total} incoming {noun}", style="cyan")
     return header

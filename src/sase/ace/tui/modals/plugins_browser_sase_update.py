@@ -168,6 +168,12 @@ class SaseUpdateActionsMixin:
 
         def _start_load(self, *, force: bool) -> None: ...
 
+        def _managed_sase_update_incoming_commits_loader(self) -> Any | None: ...
+
+        def _dev_update_incoming_commits_loader(
+            self, plan: DevUpdatePlan
+        ) -> Any | None: ...
+
     def action_update_sase(self) -> None:
         """Run the ``u`` comprehensive update action.
 
@@ -222,6 +228,7 @@ class SaseUpdateActionsMixin:
             ],
             panel_title="Confirm SASE update",
             icon="↑",
+            incoming_commits_loader=self._managed_sase_update_incoming_commits_loader(),
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:
@@ -250,6 +257,7 @@ class SaseUpdateActionsMixin:
             ],
             panel_title="Confirm dev update",
             icon="↑",
+            incoming_commits_loader=self._dev_update_incoming_commits_loader(plan),
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

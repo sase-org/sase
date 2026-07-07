@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from textual.containers import VerticalScroll
+from textual.widgets import Static
 
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
@@ -18,6 +20,11 @@ from sase.plugins.operations import (
     InstallNotFound,
     InstallOutcome,
     InstallReady,
+)
+from sase.updates.incoming_commits import (
+    CommitSummary,
+    IncomingCommits,
+    RepoIncomingCommits,
 )
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from tests.ace.tui._plugins_browser_pane_helpers import (
@@ -484,3 +491,140 @@ async def test_plugin_action_modal_cancel_returns_none(
         modal.action_cancel()
         await page.wait_for(lambda _s: bool(results))
         assert results[0] is None
+
+
+def _modal_variant() -> PluginActionVariant:
+    return PluginActionVariant(
+        key="update",
+        label="update",
+        argv=("uv", "tool", "install", "sase-nvim"),
+        summary="Upgrades nvim",
+    )
+
+
+async def test_plugin_action_modal_without_loader_has_no_commits_box() -> None:
+    async with AcePage() as page:
+        modal = PluginActionConfirmModal(
+            title="Update nvim",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+
+        assert len(modal.query("#plugin-action-commits")) == 0
+        modal.action_scroll_commits_down()
+        modal.action_scroll_commits_up()
+
+
+async def test_plugin_action_modal_loads_grouped_incoming_commits() -> None:
+    groups = (
+        RepoIncomingCommits(
+            "sase",
+            IncomingCommits(
+                total=2,
+                commits=(
+                    CommitSummary("abc1234", "Newest core change"),
+                    CommitSummary("def5678", "Older core change"),
+                ),
+                source="github",
+            ),
+        ),
+        RepoIncomingCommits(
+            "github",
+            IncomingCommits(
+                total=1,
+                commits=(CommitSummary("fff0000", "Plugin change"),),
+                source="github",
+            ),
+        ),
+    )
+
+    async with AcePage() as page:
+        modal = PluginActionConfirmModal(
+            title="Update SASE",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_loader=lambda: groups,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+
+        body = modal.query_one("#plugin-action-commits-body", Static)
+        await page.wait_for(
+            lambda _s: (
+                "↑ sase — 2 incoming commits" in _render(body.content)
+                and "↑ github — 1 incoming commit" in _render(body.content)
+            )
+        )
+
+
+async def test_plugin_action_modal_empty_incoming_commits_hides_box() -> None:
+    async with AcePage() as page:
+        modal = PluginActionConfirmModal(
+            title="Update SASE",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_loader=lambda: (),
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+
+        scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
+        await page.wait_for(lambda _s: not scroll.display)
+
+
+async def test_plugin_action_modal_incoming_commits_loader_error() -> None:
+    def loader() -> tuple[RepoIncomingCommits, ...]:
+        raise RuntimeError("boom")
+
+    async with AcePage() as page:
+        modal = PluginActionConfirmModal(
+            title="Update SASE",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_loader=loader,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+
+        body = modal.query_one("#plugin-action-commits-body", Static)
+        await page.wait_for(
+            lambda _s: "incoming commits unavailable (boom)" in _render(body.content)
+        )
+
+
+async def test_plugin_action_modal_scrolls_incoming_commits() -> None:
+    group = RepoIncomingCommits(
+        "sase",
+        IncomingCommits(
+            total=60,
+            commits=tuple(
+                CommitSummary(f"{idx:07x}", f"Incoming change {idx}")
+                for idx in range(60)
+            ),
+            source="git",
+        ),
+    )
+
+    async with AcePage(size=(100, 24)) as page:
+        modal = PluginActionConfirmModal(
+            title="Update SASE",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_loader=lambda: (group,),
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+
+        scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
+        await page.wait_for(lambda _s: int(scroll.max_scroll_y) > 0)
+        start = scroll.scroll_y
+        modal.action_scroll_commits_down()
+        await page.wait_for(lambda _s: scroll.scroll_y > start)
+        modal.action_scroll_commits_up()
+        await page.wait_for(lambda _s: scroll.scroll_y <= start)

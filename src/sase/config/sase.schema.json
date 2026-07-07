@@ -244,6 +244,12 @@
                   "description": "Maximum incoming commit subjects to display per repository",
                   "minimum": 0,
                   "default": 7
+                },
+                "confirm_max_per_repo": {
+                  "type": "integer",
+                  "description": "Maximum incoming commit subjects to display per repository in update confirmation modals",
+                  "minimum": 0,
+                  "default": 250
                 }
               }
             }

@@ -4,19 +4,27 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from textual.worker import WorkerState
 
 from sase.config.core import load_merged_config
-from sase.plugins.catalog import PluginCatalogEntry
+from sase.dev_update.models import DevUpdatePlan
+from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, find_plugin
+from sase.plugins.operations import UpdateReady
 from sase.updates.incoming_commits import (
     CommitSourceSpec,
     IncomingCommits,
     IncomingCommitsCacheKey,
+    RepoIncomingCommits,
+    core_package_commit_spec,
+    dev_update_root_commit_spec,
+    fetch_incoming_commit_groups,
     fetch_incoming_commits,
     plugin_entry_commit_spec,
 )
+from sase.uv_tool.versions import CoreVersions
 
 if TYPE_CHECKING:
     from textual.worker import Worker
@@ -28,6 +36,10 @@ class IncomingCommitsConfig:
 
     enabled: bool = True
     max_per_repo: int = 7
+    confirm_max_per_repo: int = 250
+
+
+ConfirmIncomingCommitsLoader = Callable[[], tuple[RepoIncomingCommits, ...]]
 
 
 class PluginsBrowserIncomingCommitsMixin:
@@ -39,7 +51,11 @@ class PluginsBrowserIncomingCommitsMixin:
         _incoming_commit_workers: dict[int, IncomingCommitsCacheKey]
         _incoming_commits_enabled: bool
         _incoming_commits_limit: int
+        _incoming_commits_confirm_limit: int
         _offline: bool
+        _catalog: PluginCatalog | None
+        _core_versions: CoreVersions
+        _core_incoming_commits: dict[str, IncomingCommits]
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
@@ -127,6 +143,101 @@ class PluginsBrowserIncomingCommitsMixin:
         if spec is not None and spec.cache_key == key:
             self._render_detail_now(force=True)
 
+    def _dev_update_incoming_commits_loader(
+        self,
+        plan: DevUpdatePlan,
+    ) -> ConfirmIncomingCommitsLoader | None:
+        if not self._incoming_commits_enabled:
+            return None
+        specs: list[tuple[str, CommitSourceSpec]] = []
+        for root in plan.actionable_roots:
+            spec = dev_update_root_commit_spec(root)
+            if spec is None:
+                continue
+            specs.append((_short_root(root.git_root), spec))
+        return self._incoming_commits_loader_from_specs(specs, seed={})
+
+    def _managed_sase_update_incoming_commits_loader(
+        self,
+    ) -> ConfirmIncomingCommitsLoader | None:
+        if not self._incoming_commits_enabled:
+            return None
+        specs: list[tuple[str, CommitSourceSpec]] = []
+        seed: dict[IncomingCommitsCacheKey, IncomingCommits] = {}
+        core_incoming = dict(self._core_incoming_commits)
+        for package in self._core_versions.packages:
+            spec = core_package_commit_spec(package)
+            if spec is None:
+                continue
+            specs.append((package.name, spec))
+            cached = core_incoming.get(package.name)
+            if cached is not None:
+                seed[spec.cache_key] = cached
+
+        catalog = self._catalog
+        if catalog is not None:
+            for entry in sorted(
+                (entry for entry in catalog.entries if entry.update_available),
+                key=lambda entry: entry.name.casefold(),
+            ):
+                spec = plugin_entry_commit_spec(entry)
+                if spec is None:
+                    continue
+                specs.append((entry.name, spec))
+                cached = self._incoming_commit_cache.get(spec.cache_key)
+                if cached is not None:
+                    seed[spec.cache_key] = cached
+        return self._incoming_commits_loader_from_specs(specs, seed=seed)
+
+    def _plugin_update_incoming_commits_loader(
+        self,
+        plan: UpdateReady,
+    ) -> ConfirmIncomingCommitsLoader | None:
+        if not self._incoming_commits_enabled:
+            return None
+        catalog = self._catalog
+        if catalog is None:
+            return None
+        specs: list[tuple[str, CommitSourceSpec]] = []
+        seed: dict[IncomingCommitsCacheKey, IncomingCommits] = {}
+        for target in plan.targets:
+            entry = find_plugin(catalog, target)
+            if entry is None:
+                continue
+            spec = plugin_entry_commit_spec(entry)
+            if spec is None:
+                continue
+            specs.append((entry.name, spec))
+            cached = self._incoming_commit_cache.get(spec.cache_key)
+            if cached is not None:
+                seed[spec.cache_key] = cached
+        return self._incoming_commits_loader_from_specs(specs, seed=seed)
+
+    def _incoming_commits_loader_from_specs(
+        self,
+        specs: list[tuple[str, CommitSourceSpec]],
+        *,
+        seed: dict[IncomingCommitsCacheKey, IncomingCommits],
+    ) -> ConfirmIncomingCommitsLoader | None:
+        if not specs:
+            return None
+        spec_snapshot = tuple(specs)
+        seed_snapshot = dict(seed)
+        limit = self._incoming_commits_confirm_limit
+        offline = self._offline
+
+        def loader() -> tuple[RepoIncomingCommits, ...]:
+            from . import plugins_browser_pane as pane_module
+
+            return pane_module._fetch_incoming_commit_groups(
+                spec_snapshot,
+                limit=limit,
+                offline=offline,
+                seed=seed_snapshot,
+            )
+
+        return loader
+
 
 def _load_incoming_commits_config(
     load_fn: Callable[[], dict[str, Any]] = load_merged_config,
@@ -145,6 +256,10 @@ def _load_incoming_commits_config(
         max_per_repo=_coerce_nonnegative_int(
             incoming.get("max_per_repo"),
             default=7,
+        ),
+        confirm_max_per_repo=_coerce_nonnegative_int(
+            incoming.get("confirm_max_per_repo"),
+            default=250,
         ),
     )
 
@@ -178,4 +293,10 @@ def _coerce_nonnegative_int(value: object, *, default: int) -> int:
 
 
 _fetch_incoming_commits = fetch_incoming_commits
+_fetch_incoming_commit_groups = fetch_incoming_commit_groups
 load_incoming_commits_config = _load_incoming_commits_config
+
+
+def _short_root(root: str) -> str:
+    name = Path(root).name
+    return name or root

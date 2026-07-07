@@ -164,6 +164,7 @@ def _patch_catalog(
             error="test",
         ),
     )
+    monkeypatch.setattr(pbp, "_fetch_incoming_commit_groups", lambda *_a, **_kw: ())
 
 
 def _patch_catalog_recording(
@@ -199,6 +200,7 @@ def _patch_catalog_recording(
             error="test",
         ),
     )
+    monkeypatch.setattr(pbp, "_fetch_incoming_commit_groups", lambda *_a, **_kw: ())
     return calls
 
 

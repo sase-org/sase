@@ -16,18 +16,25 @@ cancel it dismisses ``None``.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
+from textual.worker import Worker, WorkerState
+
+from sase.plugins.render_common import build_incoming_commits_renderable
+from sase.updates.incoming_commits import RepoIncomingCommits
 
 from .confirm_dialog import ButtonVariant, ConfirmKind
+
+IncomingCommitsLoader = Callable[[], tuple[RepoIncomingCommits, ...]]
 
 
 @dataclass(frozen=True)
@@ -65,6 +72,8 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         ("n", "cancel", "Cancel"),
         ("y", "confirm", "Confirm"),
         ("g", "toggle_source", "Toggle source"),
+        ("ctrl+d", "scroll_commits_down", "Scroll commits down"),
+        ("ctrl+u", "scroll_commits_up", "Scroll commits up"),
     ]
 
     def __init__(
@@ -76,17 +85,22 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         panel_title: str = "Confirm",
         kind: ConfirmKind = ConfirmKind.NEUTRAL,
         icon: str | None = None,
+        incoming_commits_loader: IncomingCommitsLoader | None = None,
     ) -> None:
         super().__init__()
         if not variants:
             raise ValueError("PluginActionConfirmModal requires at least one variant")
         self.add_class("confirm-dialog")
+        if incoming_commits_loader is not None:
+            self.add_class("has-commits")
         self._title = title
         self._intro = intro
         self._variants = tuple(variants)
         self._panel_title = panel_title
         self._kind = kind
         self._icon = icon
+        self._incoming_commits_loader = incoming_commits_loader
+        self._incoming_commits_worker: Worker[Any] | None = None
         self._index = 0
 
     def compose(self) -> ComposeResult:
@@ -98,6 +112,14 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         dialog.border_subtitle = self._build_border_subtitle()
         with dialog:
             yield Static(self._preview_renderable(), id="plugin-action-preview")
+            if self._incoming_commits_loader is not None:
+                commits = VerticalScroll(id="plugin-action-commits")
+                commits.border_title = "Incoming commits"
+                with commits:
+                    yield Static(
+                        build_incoming_commits_renderable(loading=True),
+                        id="plugin-action-commits-body",
+                    )
             with Horizontal(id="plugin-action-buttons"):
                 yield Button(
                     "Confirm (y)",
@@ -115,6 +137,35 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
                     id="plugin-action-cancel",
                     variant=self._cancel_button_variant(),
                 )
+
+    def on_mount(self) -> None:
+        if self._incoming_commits_loader is None:
+            return
+        self._incoming_commits_worker = self.run_worker(
+            self._incoming_commits_loader,
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+            group="confirm-incoming-commits",
+        )
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is not self._incoming_commits_worker:
+            return
+        if event.state == WorkerState.SUCCESS:
+            self._incoming_commits_worker = None
+            result = event.worker.result
+            if isinstance(result, tuple):
+                self._apply_incoming_commit_groups(result)
+            else:
+                self._apply_incoming_commits_error("unexpected loader result")
+        elif event.state == WorkerState.ERROR:
+            self._incoming_commits_worker = None
+            error = event.worker.error
+            detail = str(error).strip() if error is not None else "unknown"
+            self._apply_incoming_commits_error(detail or type(error).__name__)
+        elif event.state == WorkerState.CANCELLED:
+            self._incoming_commits_worker = None
 
     # -- rendering --
 
@@ -214,6 +265,60 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
     def _cancel_button_variant(self) -> ButtonVariant:
         return "primary" if self._kind is ConfirmKind.DANGER else "default"
 
+    def _apply_incoming_commit_groups(
+        self,
+        groups: tuple[RepoIncomingCommits, ...],
+    ) -> None:
+        widgets = self._commits_widgets()
+        if widgets is None:
+            return
+        scroll, body = widgets
+        if not groups:
+            scroll.display = False
+            scroll.border_subtitle = ""
+            return
+        parts: list[RenderableType] = []
+        for index, group in enumerate(groups):
+            if index > 0:
+                parts.append(Text(""))
+            parts.append(
+                build_incoming_commits_renderable(group.incoming, label=group.label)
+            )
+        scroll.display = True
+        body.update(Group(*parts))
+        self.call_after_refresh(self._sync_commits_scroll_hint)
+
+    def _apply_incoming_commits_error(self, detail: str) -> None:
+        widgets = self._commits_widgets()
+        if widgets is None:
+            return
+        scroll, body = widgets
+        scroll.display = True
+        body.update(Text(f"incoming commits unavailable ({detail})", style="dim"))
+        self.call_after_refresh(self._sync_commits_scroll_hint)
+
+    def _sync_commits_scroll_hint(self) -> None:
+        widgets = self._commits_widgets()
+        if widgets is None:
+            return
+        scroll, _body = widgets
+        if not scroll.display:
+            return
+        scroll.border_subtitle = (
+            "ctrl+d/u scroll" if int(getattr(scroll, "max_scroll_y", 0)) > 0 else ""
+        )
+
+    def _commits_widgets(self) -> tuple[VerticalScroll, Static] | None:
+        if not getattr(self, "is_attached", True):
+            return None
+        try:
+            return (
+                self.query_one("#plugin-action-commits", VerticalScroll),
+                self.query_one("#plugin-action-commits-body", Static),
+            )
+        except Exception:
+            return None
+
     # -- actions --
 
     def action_toggle_source(self) -> None:
@@ -237,6 +342,29 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+    def action_scroll_commits_down(self) -> None:
+        scroll = self._commits_scroll()
+        if scroll is None or int(getattr(scroll, "max_scroll_y", 0)) <= 0:
+            return
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=max(1, height // 2), animate=False)
+
+    def action_scroll_commits_up(self) -> None:
+        scroll = self._commits_scroll()
+        if scroll is None or int(getattr(scroll, "max_scroll_y", 0)) <= 0:
+            return
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=-(max(1, height // 2)), animate=False)
+
+    def _commits_scroll(self) -> VerticalScroll | None:
+        widgets = self._commits_widgets()
+        if widgets is None:
+            return None
+        scroll, _body = widgets
+        if not scroll.display:
+            return None
+        return scroll
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "plugin-action-confirm":

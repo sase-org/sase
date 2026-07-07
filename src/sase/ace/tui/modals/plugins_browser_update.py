@@ -164,6 +164,14 @@ class PluginUpdateActionsMixin:
 
         def _start_load(self, *, force: bool) -> None: ...
 
+        def _dev_update_incoming_commits_loader(
+            self, plan: DevUpdatePlan
+        ) -> Any | None: ...
+
+        def _plugin_update_incoming_commits_loader(
+            self, plan: UpdateReady
+        ) -> Any | None: ...
+
     def action_update(self) -> None:
         """Update the highlighted plugin (``U``) via a confirm-preview modal.
 
@@ -272,6 +280,7 @@ class PluginUpdateActionsMixin:
             ],
             panel_title="Confirm dev update",
             icon="↑",
+            incoming_commits_loader=self._dev_update_incoming_commits_loader(plan),
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:
@@ -309,6 +318,7 @@ class PluginUpdateActionsMixin:
             variants=variants,
             panel_title="Confirm update",
             icon="↑",
+            incoming_commits_loader=self._plugin_update_incoming_commits_loader(plan),
         )
 
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:

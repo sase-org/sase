@@ -50,6 +50,7 @@ ace:
     incoming_commits:
       enabled: true
       max_per_repo: 7
+      confirm_max_per_repo: 250
   prompt_completion:
     auto: soft
     debounce_ms: 90

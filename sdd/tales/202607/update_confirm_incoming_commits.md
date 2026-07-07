@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 12:16:32
-status: wip
+status: done
 prompt: sdd/prompts/202607/update_confirm_incoming_commits.md
 ---
 # Plan: Show All Incoming Commits in the Updates-Tab Update Confirm Modal

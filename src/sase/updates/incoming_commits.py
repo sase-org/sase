@@ -6,10 +6,12 @@ import json
 import math
 import shutil
 import subprocess
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
+from sase.dev_update.models import DevUpdateRootPlan
 from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.github_source import GH_TIMEOUT_SECONDS
 from sase.uv_tool.versions import CorePackageVersion
@@ -51,6 +53,14 @@ class IncomingCommits:
     @property
     def extra(self) -> int:
         return max(0, self.total - self.shown)
+
+
+@dataclass(frozen=True)
+class RepoIncomingCommits:
+    """Incoming commits for one repository label in a grouped preview."""
+
+    label: str
+    incoming: IncomingCommits
 
 
 @dataclass(frozen=True)
@@ -132,6 +142,38 @@ def plugin_entry_commit_spec(entry: PluginCatalogEntry) -> CommitSourceSpec | No
     )
 
 
+def dev_update_root_commit_spec(root: DevUpdateRootPlan) -> CommitSourceSpec | None:
+    """Return a local git incoming-commit source for an actionable dev root."""
+    if not root.git_root or not root.upstream:
+        return None
+    label = Path(root.git_root).name or root.git_root
+    return CommitSourceSpec(
+        source="git",
+        repo_full_name=label,
+        git_root=root.git_root,
+        upstream_ref=root.upstream,
+    )
+
+
+def fetch_incoming_commit_groups(
+    specs: Sequence[tuple[str, CommitSourceSpec]],
+    *,
+    limit: int,
+    offline: bool,
+    seed: Mapping[IncomingCommitsCacheKey, IncomingCommits],
+) -> tuple[RepoIncomingCommits, ...]:
+    """Fetch grouped incoming commits, reusing only complete cached previews."""
+    groups: list[RepoIncomingCommits] = []
+    for label, spec in specs:
+        cached = seed.get(spec.cache_key)
+        if cached is not None and cached.extra == 0 and cached.source != "unavailable":
+            incoming = cached
+        else:
+            incoming = fetch_incoming_commits(spec, limit=limit, offline=offline)
+        groups.append(RepoIncomingCommits(label=label, incoming=incoming))
+    return tuple(groups)
+
+
 def fetch_incoming_commits(
     spec: CommitSourceSpec,
     *,
@@ -208,10 +250,17 @@ def _fetch_github_incoming_commits(
     raw_commits = _commit_items(payload)
     if limit > 0 and total > len(raw_commits):
         page = max(1, math.ceil(total / _GITHUB_PAGE_SIZE))
-        raw_commits = _commit_items(
-            api(f"{endpoint}?per_page={_GITHUB_PAGE_SIZE}&page={page}")
-        )
-    commits = tuple(reversed(_summaries_from_github(raw_commits)))[:limit]
+        pages_to_fetch = max(1, math.ceil(limit / _GITHUB_PAGE_SIZE))
+        raw_newest: list[Mapping[str, Any]] = []
+        for _ in range(pages_to_fetch):
+            if page < 1 or len(raw_newest) >= limit:
+                break
+            page_payload = api(f"{endpoint}?per_page={_GITHUB_PAGE_SIZE}&page={page}")
+            raw_newest.extend(reversed(_commit_items(page_payload)))
+            page -= 1
+        commits = tuple(_summaries_from_github(raw_newest))[:limit]
+    else:
+        commits = tuple(reversed(_summaries_from_github(raw_commits)))[:limit]
     return IncomingCommits(total=total, commits=commits, source="github")
 
 
@@ -352,7 +401,10 @@ __all__ = [
     "CommitSummary",
     "IncomingCommits",
     "IncomingCommitsCacheKey",
+    "RepoIncomingCommits",
     "core_package_commit_spec",
+    "dev_update_root_commit_spec",
+    "fetch_incoming_commit_groups",
     "fetch_incoming_commits",
     "plugin_entry_commit_spec",
 ]

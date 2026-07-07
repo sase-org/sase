@@ -3850,10 +3850,30 @@ PluginActionConfirmModal > #plugin-action-container {
     border-subtitle-align: center;
 }
 
+PluginActionConfirmModal.has-commits > #plugin-action-container {
+    width: 100;
+    max-width: 95%;
+}
+
 PluginActionConfirmModal #plugin-action-preview {
     width: 100%;
     height: auto;
     margin-bottom: 1;
+}
+
+PluginActionConfirmModal #plugin-action-commits {
+    width: 100%;
+    height: auto;
+    max-height: 40vh;
+    margin-bottom: 1;
+    padding: 0 1;
+    border: round $primary;
+    border-subtitle-align: right;
+}
+
+PluginActionConfirmModal #plugin-action-commits-body {
+    width: 100%;
+    height: auto;
 }
 
 PluginActionConfirmModal #plugin-action-buttons {

@@ -43,6 +43,26 @@ def _disable_incoming_commits(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def test_incoming_commits_config_loads_confirm_limit() -> None:
+    config = pbp._load_incoming_commits_config(
+        lambda: {
+            "ace": {
+                "updates": {
+                    "incoming_commits": {
+                        "enabled": True,
+                        "max_per_repo": 9,
+                        "confirm_max_per_repo": 123,
+                    }
+                }
+            }
+        }
+    )
+
+    assert config.enabled is True
+    assert config.max_per_repo == 9
+    assert config.confirm_max_per_repo == 123
+
+
 def test_plugins_pane_binds_detail_scroll_keys() -> None:
     assert _binding_action("ctrl+d") == "scroll_detail_down"
     assert _binding_action("ctrl+u") == "scroll_detail_up"

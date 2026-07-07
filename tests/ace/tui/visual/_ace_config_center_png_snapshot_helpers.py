@@ -25,7 +25,11 @@ from sase.ace.tui.task_queue import TaskInfo
 from sase.config.core import ConfigLayer
 from sase.config.inventory import build_config_inventory, config_field_model
 from sase.core.project_lifecycle_wire import ProjectRecordWire
-from sase.updates.incoming_commits import CommitSummary, IncomingCommits
+from sase.updates.incoming_commits import (
+    CommitSummary,
+    IncomingCommits,
+    RepoIncomingCommits,
+)
 from sase.logs import (
     events_log_path,
     launch_failures_log_path,
@@ -320,6 +324,14 @@ def _patch_plugins_catalog(
         pbp,
         "_fetch_incoming_commits",
         lambda *_a, **_kw: _visual_incoming_commits("plugin"),
+    )
+    monkeypatch.setattr(
+        pbp,
+        "_fetch_incoming_commit_groups",
+        lambda specs, **_kw: tuple(
+            RepoIncomingCommits(label, _visual_incoming_commits(label))
+            for label, _spec in specs
+        ),
     )
 
 

@@ -77,6 +77,7 @@ def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
 def _stub_plugin_incoming_commits(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep visual snapshots from shelling out to ``gh api``."""
     from sase.ace.tui.modals import plugins_browser_pane as pbp
+    from sase.updates.incoming_commits import RepoIncomingCommits
     from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
         _visual_incoming_commits,
     )
@@ -85,6 +86,14 @@ def _stub_plugin_incoming_commits(monkeypatch: pytest.MonkeyPatch) -> None:
         pbp,
         "_fetch_incoming_commits",
         lambda *_a, **_kw: _visual_incoming_commits("plugin"),
+    )
+    monkeypatch.setattr(
+        pbp,
+        "_fetch_incoming_commit_groups",
+        lambda specs, **_kw: tuple(
+            RepoIncomingCommits(label, _visual_incoming_commits(label))
+            for label, _spec in specs
+        ),
     )
 
 

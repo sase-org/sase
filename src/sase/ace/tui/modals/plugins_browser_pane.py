@@ -26,6 +26,7 @@ from sase.plugins.operations import (
 from sase.updates.incoming_commits import (
     IncomingCommits,
     IncomingCommitsCacheKey,
+    fetch_incoming_commit_groups,
     fetch_incoming_commits,
 )
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
@@ -139,6 +140,7 @@ _run_sase_update_summary = run_sase_update_summary
 _sase_update_success_message = sase_update_success_message
 _IncomingCommitsConfig = IncomingCommitsConfig
 _fetch_incoming_commits = fetch_incoming_commits
+_fetch_incoming_commit_groups = fetch_incoming_commit_groups
 _load_incoming_commits_config = load_incoming_commits_config
 _callable_accepts_keyword = callable_accepts_keyword
 
@@ -226,6 +228,7 @@ class PluginsBrowserPane(
         incoming_config = _load_incoming_commits_config()
         self._incoming_commits_enabled = incoming_config.enabled
         self._incoming_commits_limit = incoming_config.max_per_repo
+        self._incoming_commits_confirm_limit = incoming_config.confirm_max_per_repo
         self._incoming_commit_cache: dict[IncomingCommitsCacheKey, IncomingCommits] = {}
         self._incoming_commit_loading: set[IncomingCommitsCacheKey] = set()
         self._incoming_commit_workers: dict[int, IncomingCommitsCacheKey] = {}
