@@ -148,12 +148,12 @@ class TestAgentXPromptRendering:
             workspace_dir=str(workspace_dir),
         )
 
-        hint_mappings = panel.update_display_with_hints(agent)
+        result = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
         assert "AGENT XPROMPT" in plain
         assert "[1] @src/raw.py" in plain
-        assert hint_mappings[1] == str(workspace_dir / "src/raw.py")
+        assert result.file_hints[1] == str(workspace_dir / "src/raw.py")
 
     def test_hint_mode_renders_timestamp_file_hints_before_body_hints(
         self,
@@ -181,15 +181,15 @@ class TestAgentXPromptRendering:
         agent.feedback_times = [feedback_time]
         agent.feedback_plan_paths = {feedback_time: str(rejected_plan_path)}
 
-        hint_mappings = panel.update_display_with_hints(agent)
+        result = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
         assert "[1] ~/.sase/plans/202605/wait_requires_success.md" in plain
         assert "[2] @src/raw.py" in plain
         assert "[3] src/prompt.py" in plain
-        assert hint_mappings[1] == expected_hint_path
-        assert hint_mappings[2] == str(workspace_dir / "src/raw.py")
-        assert hint_mappings[3] == str(workspace_dir / "src/prompt.py")
+        assert result.file_hints[1] == expected_hint_path
+        assert result.file_hints[2] == str(workspace_dir / "src/raw.py")
+        assert result.file_hints[3] == str(workspace_dir / "src/prompt.py")
 
 
 # -- _get_phase_label ---------------------------------------------------------

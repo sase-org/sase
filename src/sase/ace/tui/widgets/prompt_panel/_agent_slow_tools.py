@@ -18,6 +18,10 @@ from sase.ace.tui.tools.slow import (
     format_long_duration,
     select_slow_tool_calls,
 )
+from sase.ace.tui.tools.report import (
+    SlowToolCallReportSpec,
+    failed_tool_call_report_path,
+)
 
 from ._agent_context_common import (
     COLOR_SUMMARY,
@@ -27,6 +31,7 @@ from ._agent_context_common import (
     format_local_hhmmss,
     truncate_display,
 )
+from ._agent_display_state import HeaderHintState
 
 _COLOR_HEADER = "bold #D7AF5F underline"
 _COLOR_TOOL_NAME = "bold"
@@ -34,6 +39,7 @@ _COLOR_TARGET = "#D7D7AF"
 _COLOR_COMPLETED_DURATION = "bold #FFAF5F"
 _COLOR_RUNNING = "bold #FFD787"
 _COLOR_DID_NOT_COMPLETE = "dim #FFD787"
+_COLOR_HINT = "bold #FFFF00"
 _CHIP_COLORS = (
     "#87D7FF",
     "#5FD75F",
@@ -64,9 +70,9 @@ def append_slow_tool_calls_section(
     sources: tuple[SlowToolSource, ...] | None,
     agent: object,
     now: datetime,
+    hint_state: HeaderHintState | None = None,
 ) -> None:
     """Append the SLOW TOOL CALLS section when any calls qualify."""
-    del agent
     if not sources:
         return
 
@@ -92,8 +98,21 @@ def append_slow_tool_calls_section(
     text.append("\n")
 
     visible = _select_visible_slow_tool_calls(slow_calls)
+    hint_marker_width = _hint_marker_width(visible, hint_state)
+    agent_name = _agent_name(agent)
     for item in visible:
-        _append_slow_tool_call_row(text, item, labeled=labeled)
+        hint_marker = _register_failed_tool_hint(
+            item,
+            hint_state=hint_state,
+            agent_name=agent_name,
+        )
+        _append_slow_tool_call_row(
+            text,
+            item,
+            labeled=labeled,
+            hint_marker=hint_marker,
+            hint_marker_width=hint_marker_width,
+        )
 
     overflow = len(slow_calls) - len(visible)
     if overflow > 0:
@@ -170,6 +189,8 @@ def _append_slow_tool_call_row(
     sourced: _SourcedSlowToolCall,
     *,
     labeled: bool,
+    hint_marker: str | None = None,
+    hint_marker_width: int = 0,
 ) -> None:
     slow_call = sourced.slow_call
     entry = slow_call.entry
@@ -189,7 +210,7 @@ def _append_slow_tool_call_row(
 
     text.append(f"  {format_local_hhmmss(entry.recorded_at)}  ", style=COLOR_TIMESTAMP)
     text.append(glyph, style=glyph_style)
-    text.append(" ")
+    _append_hint_marker_cell(text, hint_marker, hint_marker_width)
     if labeled:
         _append_source_chip(text, sourced.source)
         text.append(" ")
@@ -214,6 +235,66 @@ def _append_source_chip(text: Text, source: SlowToolSource) -> None:
         _pad_cells(label, _SOURCE_CHIP_WIDTH),
         style=f"italic {_CHIP_COLORS[source.palette_index % len(_CHIP_COLORS)]}",
     )
+
+
+def _append_hint_marker_cell(
+    text: Text,
+    marker: str | None,
+    marker_width: int,
+) -> None:
+    if marker_width <= 0:
+        text.append(" ")
+        return
+    if marker is None:
+        text.append(" " * (marker_width + 2))
+        return
+    text.append(" ")
+    text.append(_pad_cells(marker, marker_width), style=_COLOR_HINT)
+    text.append(" ")
+
+
+def _hint_marker_width(
+    visible: tuple[_SourcedSlowToolCall, ...],
+    hint_state: HeaderHintState | None,
+) -> int:
+    if hint_state is None:
+        return 0
+    failed_count = sum(1 for item in visible if _is_failed_hint_eligible(item))
+    if not failed_count:
+        return 0
+    largest_hint = hint_state.hint_counter + failed_count - 1
+    return cell_len(f"[{largest_hint}]")
+
+
+def _register_failed_tool_hint(
+    sourced: _SourcedSlowToolCall,
+    *,
+    hint_state: HeaderHintState | None,
+    agent_name: str | None,
+) -> str | None:
+    if hint_state is None or not _is_failed_hint_eligible(sourced):
+        return None
+
+    hint_number = hint_state.hint_counter
+    hint_state.hint_counter += 1
+    report_path = failed_tool_call_report_path(sourced.slow_call.entry)
+    hint_state.hint_mappings[hint_number] = report_path
+    hint_state.tool_call_reports[report_path] = SlowToolCallReportSpec(
+        entry=sourced.slow_call.entry,
+        source_label=sourced.source.label,
+        agent_name=agent_name,
+        report_path=report_path,
+    )
+    return f"[{hint_number}]"
+
+
+def _is_failed_hint_eligible(sourced: _SourcedSlowToolCall) -> bool:
+    return sourced.slow_call.entry.status == "failure"
+
+
+def _agent_name(agent: object) -> str | None:
+    value = getattr(agent, "agent_name", None) or getattr(agent, "display_name", None)
+    return value if isinstance(value, str) and value else None
 
 
 def _status_glyph_and_style(slow_call: SlowToolCall) -> tuple[str, str]:

@@ -17,6 +17,7 @@ from ._agent_detail_panels import (
 from .file_panel import AgentFilePanel
 from .file_panel._messages import LinkedDeltasRefreshed
 from .prompt_panel import AgentPromptPanel
+from .prompt_panel._agent_display_state import AgentHintRender
 from .tools_panel import AgentToolsPanel, ToolDetailLevel
 from ..util.trace import tui_trace
 
@@ -265,7 +266,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             and not agent.appears_as_agent
         )
 
-    def update_display_with_hints(self, agent: Agent) -> dict[int, str]:
+    def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
         """Re-render the prompt panel with file path hints.
 
         Scans xprompt, prompt, and chat sections for file paths and
@@ -276,7 +277,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             agent: The Agent to display with hints.
 
         Returns:
-            Dict mapping hint numbers to resolved absolute file paths.
+            File hint mappings and deferred failed-tool report specs.
         """
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         return prompt_panel.update_display_with_hints(agent)

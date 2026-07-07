@@ -407,6 +407,7 @@ def build_header_text(
             sources=summary.slow_tool_sources,
             agent=agent,
             now=DateTime.now(),
+            hint_state=hint_state,
         )
 
     # Error message (for failed agents)

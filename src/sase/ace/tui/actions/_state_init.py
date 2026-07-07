@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from ..models import Agent
     from ..models.agent import AgentType
     from ..models.agent_loader import AgentLoadState
+    from ..tools.report import SlowToolCallReportSpec
     from .navigation._types import JumpAllResult
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
     from sase.core.query_corpus_facade import QueryCorpus
@@ -164,6 +165,7 @@ class StateInitMixin:
             None  # None/"all" or "hooks_latest_only"
         )
         self._hint_mappings: dict[int, str] = {}
+        self._hint_tool_call_reports: dict[str, SlowToolCallReportSpec] = {}
         self._hook_hint_to_idx: dict[int, int] = {}
         self._hint_to_entry_id: dict[int, str] = {}
         self._hint_changespec_name: str = ""

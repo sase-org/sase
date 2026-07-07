@@ -19,6 +19,7 @@ class FileViewingMixin(HintMixinBase):
         if self._refocus_existing_hint_bar():
             return
 
+        self._hint_tool_call_reports = {}
         if self.current_tab == "agents":
             self._view_agent_files()
             return
@@ -71,7 +72,8 @@ class FileViewingMixin(HintMixinBase):
 
         # Re-render prompt panel with file path hints
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        hint_mappings = agent_detail.update_display_with_hints(agent)
+        hint_render = agent_detail.update_display_with_hints(agent)
+        hint_mappings = hint_render.file_hints
 
         if not hint_mappings:
             self.notify("No files found in agent details", severity="warning")  # type: ignore[attr-defined]
@@ -82,6 +84,7 @@ class FileViewingMixin(HintMixinBase):
         self._hint_mode_active = True
         self._hint_mode_hints_for = None  # "all" hints
         self._hint_mappings = hint_mappings
+        self._hint_tool_call_reports = hint_render.tool_call_reports
         self._hint_changespec_name = agent.cl_name
 
         # Mount the hint input bar in the agent detail container

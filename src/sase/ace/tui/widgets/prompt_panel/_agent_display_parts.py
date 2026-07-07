@@ -26,7 +26,7 @@ from ._agent_display_header_summary import (
     should_refresh_detail_header_summary,
     time,
 )
-from ._agent_display_state import DetailHeaderSummary, HeaderHintState
+from ._agent_display_state import AgentHintRender, DetailHeaderSummary, HeaderHintState
 from ._helpers import load_xprompts_used
 
 _DetailHeaderSummary = DetailHeaderSummary
@@ -35,6 +35,7 @@ _DetailHeaderSummaryCacheEntry = DetailHeaderSummaryCacheEntry
 __all__ = [
     "DetailHeaderSummary",
     "DetailHeaderSummaryCacheEntry",
+    "AgentHintRender",
     "HeaderHintState",
     "_DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES",
     "_DetailHeaderSummary",

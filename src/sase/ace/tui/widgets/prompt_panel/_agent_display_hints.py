@@ -3,6 +3,7 @@
 from rich.text import Text
 
 from sase.project_display_names import humanize_vcs_refs_in_text
+from sase.ace.tui.tools.report import SlowToolCallReportSpec
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
@@ -19,7 +20,7 @@ from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
-from ._agent_display_state import HeaderHintState
+from ._agent_display_state import AgentHintRender, HeaderHintState
 from ._file_path_hints import (
     append_text_with_file_hints,
     resolve_agent_workspace_dir,
@@ -77,7 +78,7 @@ def _render_reply_with_hints(
 class AgentHintsDisplayMixin:
     """Mixin providing hint-annotated agent display for AgentPromptPanel."""
 
-    def update_display_with_hints(self, agent: Agent) -> dict[int, str]:
+    def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
         """Render agent display with ``[N]`` file path hints.
 
         Same visual structure as :meth:`update_display` but scans xprompt,
@@ -89,7 +90,7 @@ class AgentHintsDisplayMixin:
             agent: The Agent to display.
 
         Returns:
-            Dict mapping hint numbers to resolved absolute file paths.
+            File hint mappings and deferred failed-tool report specs.
         """
         # Workflow top-level or bash/python/parallel: no hint support
         if (
@@ -98,7 +99,7 @@ class AgentHintsDisplayMixin:
             and not agent.appears_as_agent
         ):
             self.update_display(agent)  # type: ignore[attr-defined]
-            return {}
+            return AgentHintRender(file_hints={}, tool_call_reports={})
 
         if agent.is_workflow_child and agent.step_type in (
             "bash",
@@ -106,7 +107,7 @@ class AgentHintsDisplayMixin:
             "parallel",
         ):
             self.update_display(agent)  # type: ignore[attr-defined]
-            return {}
+            return AgentHintRender(file_hints={}, tool_call_reports={})
 
         workspace_dir = resolve_agent_workspace_dir(
             agent.effective_workspace_num,
@@ -115,12 +116,14 @@ class AgentHintsDisplayMixin:
         )
         hint_counter = 1
         hint_mappings: dict[int, str] = {}
+        tool_call_reports: dict[str, SlowToolCallReportSpec] = {}
 
         # Build header (same structured fields as normal display)
         header_hint_state = HeaderHintState(
             hint_counter=hint_counter,
             hint_mappings=hint_mappings,
             workspace_dir=workspace_dir,
+            tool_call_reports=tool_call_reports,
         )
         summary = get_cached_detail_header_summary(self, agent)
         if summary is None:
@@ -307,4 +310,7 @@ class AgentHintsDisplayMixin:
             header_text.append("No prompt file found.\n", style="dim italic")
 
         self.update(header_text)  # type: ignore[attr-defined]
-        return hint_mappings
+        return AgentHintRender(
+            file_hints=hint_mappings,
+            tool_call_reports=tool_call_reports,
+        )

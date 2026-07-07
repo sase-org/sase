@@ -5,9 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from sase.ace.tui.actions.hints._files import FileViewingMixin
 from sase.ace.tui.actions.hints._processing import InputProcessingMixin
 from sase.ace.tui.graphics import ArtifactViewerResult, ArtifactViewSpec
+from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools.report import SlowToolCallReportSpec
 
 
 class _SuspendRecorder:
@@ -26,6 +30,7 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
 
     def __init__(self, hint_mappings: dict[int, str]) -> None:
         self._hint_mappings = hint_mappings
+        self._hint_tool_call_reports = {}
         self._hint_changespec_name = "cs"
         self.notify = MagicMock()
         self.suspend_recorder = _SuspendRecorder()
@@ -36,6 +41,27 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
 
 def _make_app(*paths: str) -> _ViewApp:
     return _ViewApp({i + 1: path for i, path in enumerate(paths)})
+
+
+def _report_spec(report_path: str) -> SlowToolCallReportSpec:
+    return SlowToolCallReportSpec(
+        entry=ToolCallEntry(
+            recorded_at="2026-07-07T14:35:02+00:00",
+            runtime="codex",
+            event="ToolUse",
+            status="failure",
+            tool_name="Bash",
+            tool_use_id="call_1",
+            duration_ms=30_000,
+            tool_input_summary={"command": "just test"},
+            tool_response_summary={"stderr_preview": "failed"},
+            source_path="/artifacts/tool_calls.jsonl",
+            line_number=4,
+        ),
+        source_label=None,
+        agent_name="agent--code",
+        report_path=report_path,
+    )
 
 
 def test_text_only_selection_uses_pager(tmp_path: Path, monkeypatch) -> None:
@@ -51,6 +77,80 @@ def test_text_only_selection_uses_pager(tmp_path: Path, monkeypatch) -> None:
 
     app._view_files_with_pager.assert_called_once_with([str(notes)])
     viewer.assert_not_called()
+
+
+def test_tool_call_report_hint_is_materialized_for_pager(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    report_path = str(tmp_path / ".sase" / "tool_call_reports" / "report.md")
+    app = _make_app(report_path)
+    app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
+    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
+
+    app._process_view_input("1")
+
+    assert Path(report_path).is_file()
+    assert "failed" in Path(report_path).read_text(encoding="utf-8")
+    app._view_files_with_pager.assert_called_once_with([report_path])
+
+
+def test_tool_call_report_hint_is_materialized_for_editor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    report_path = str(tmp_path / ".sase" / "tool_call_reports" / "report.md")
+    app = _make_app(report_path)
+    app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
+    app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
+
+    app._process_view_input("1@")
+
+    assert Path(report_path).is_file()
+    result = app._open_files_in_editor.call_args.args[0]
+    assert result.files == [report_path]
+    assert result.open_in_editor is True
+
+
+def test_tool_call_report_hint_is_materialized_for_clipboard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    report_path = str(tmp_path / ".sase" / "tool_call_reports" / "report.md")
+    app = _make_app(report_path)
+    app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
+    app._copy_files_to_clipboard = MagicMock()  # type: ignore[method-assign]
+
+    app._process_view_input("1%")
+
+    assert Path(report_path).is_file()
+    app._copy_files_to_clipboard.assert_called_once_with([report_path])
+
+
+def test_tool_call_report_materialization_failure_drops_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    report_path = str(tmp_path / ".sase" / "tool_call_reports" / "report.md")
+    app = _make_app(report_path)
+    app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
+    app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.write_failed_tool_call_report",
+        lambda _spec: None,
+    )
+
+    app._process_view_input("1")
+
+    app._view_files_with_pager.assert_not_called()
+    app.notify.assert_any_call(
+        f"Failed to build tool-call report: {report_path}",
+        severity="error",
+    )
 
 
 def test_image_only_selection_uses_artifact_viewer(tmp_path: Path, monkeypatch) -> None:

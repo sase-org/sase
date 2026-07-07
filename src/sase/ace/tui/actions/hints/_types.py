@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 # Import ChangeSpec and Agent unconditionally since they are used as type
 # annotations in attribute declarations (not just in function signatures)
 from ....changespec import ChangeSpec
+from ...tools.report import SlowToolCallReportSpec
 from ...models.agent import Agent
 from ...widgets import HintInputBar
 
@@ -33,6 +34,7 @@ class HintMixinBase:
     _hint_mode_active: bool
     _hint_mode_hints_for: str | None
     _hint_mappings: dict[int, str]
+    _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
     _hook_hint_to_idx: dict[int, int]
     _hint_to_entry_id: dict[int, str]
     _mentor_hint_to_info: dict[int, tuple[str, str]]

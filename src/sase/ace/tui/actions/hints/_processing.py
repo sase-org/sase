@@ -9,6 +9,7 @@ from ....hints import (
     parse_test_targets,
     parse_view_input,
 )
+from ...tools.report import SlowToolCallReportSpec, write_failed_tool_call_report
 from ...widgets import HintInputBar
 from ._types import HintMixinBase
 
@@ -82,6 +83,11 @@ class InputProcessingMixin(HintMixinBase):
             self.notify("No valid files selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        files = self._materialize_tool_call_reports(files)
+        if not files:
+            self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
+            return
+
         if copy_to_clipboard:
             self._copy_files_to_clipboard(files)  # type: ignore[attr-defined]
         elif open_in_editor:
@@ -102,6 +108,29 @@ class InputProcessingMixin(HintMixinBase):
                 self._view_files_with_artifact_viewer(files)  # type: ignore[attr-defined]
             else:
                 self._view_files_with_pager(files)  # type: ignore[attr-defined]
+
+    def _materialize_tool_call_reports(self, files: list[str]) -> list[str]:
+        reports: dict[str, SlowToolCallReportSpec] = getattr(
+            self, "_hint_tool_call_reports", {}
+        )
+        if not reports:
+            return files
+
+        materialized: list[str] = []
+        for file_path in files:
+            spec = reports.get(file_path)
+            if spec is None:
+                materialized.append(file_path)
+                continue
+            report_path = write_failed_tool_call_report(spec)
+            if report_path is None:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Failed to build tool-call report: {file_path}",
+                    severity="error",
+                )
+                continue
+            materialized.append(report_path)
+        return materialized
 
     def _process_hooks_input(self, user_input: str) -> None:
         """Process edit hooks input."""

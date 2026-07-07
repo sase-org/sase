@@ -212,9 +212,9 @@ class TestAgentArtifactMetadata:
         )
         panel = FakePromptPanel()
 
-        mappings = panel.update_display_with_hints(agent)
+        result = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
         assert "Artifacts:\n  • [1] sdd/tales/202605/plan.md\n" in plain
         assert "ARTIFACTS:" not in plain
-        assert mappings[1] == str(sdd_plan)
+        assert result.file_hints[1] == str(sdd_plan)

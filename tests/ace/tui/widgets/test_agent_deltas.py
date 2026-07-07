@@ -423,12 +423,12 @@ def test_agent_hint_mode_includes_deltas_paths(tmp_path: Path) -> None:
     )
     panel = _FakePromptPanel()
 
-    mappings = panel.update_display_with_hints(agent)
+    result = panel.update_display_with_hints(agent)
 
     plain = _plain_of(panel.captured[-1])
     assert "Deltas:\n  ~ [1] src/foo.py  ~1\n" in plain
     assert "DELTAS:" not in plain
-    assert mappings[1] == str(workspace_dir / "src/foo.py")
+    assert result.file_hints[1] == str(workspace_dir / "src/foo.py")
 
 
 def test_agent_deltas_render_cached_linked_groups(tmp_path: Path) -> None:

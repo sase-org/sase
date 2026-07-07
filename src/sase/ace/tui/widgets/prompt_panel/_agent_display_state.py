@@ -10,6 +10,7 @@ from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools import SlowToolSource
+from sase.ace.tui.tools.report import SlowToolCallReportSpec
 
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._agent_artifacts import AgentArtifactPath
@@ -22,6 +23,15 @@ class HeaderHintState:
     hint_counter: int
     hint_mappings: dict[int, str]
     workspace_dir: str | None
+    tool_call_reports: dict[str, SlowToolCallReportSpec]
+
+
+@dataclass(frozen=True)
+class AgentHintRender:
+    """Prompt-panel hint render result."""
+
+    file_hints: dict[int, str]
+    tool_call_reports: dict[str, SlowToolCallReportSpec]
 
 
 @dataclass(frozen=True)
