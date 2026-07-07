@@ -31,7 +31,11 @@ def main(
     workflow_name = workflow_label or f"git-{git_ref}"
 
     # Check if workspace was pre-allocated by the TUI
-    pre_allocated = os.environ.get("SASE_GIT_PRE_ALLOCATED") == "1"
+    pre_allocated = (
+        os.environ.get("SASE_GIT_PRE_ALLOCATED") == "1"
+        and "SASE_GIT_WORKSPACE_NUM" in os.environ
+        and "SASE_GIT_WORKSPACE_DIR" in os.environ
+    )
     if pre_allocated:
         workspace_num = int(os.environ["SASE_GIT_WORKSPACE_NUM"])
         workspace_dir = os.environ["SASE_GIT_WORKSPACE_DIR"]

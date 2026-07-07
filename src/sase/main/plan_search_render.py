@@ -78,7 +78,7 @@ def _make_console(
     if width is not None:
         kwargs["width"] = width
     if color == "always":
-        kwargs.update(force_terminal=True, no_color=False)
+        kwargs.update(force_terminal=True, no_color=False, color_system="standard")
     elif color == "never":
         kwargs.update(no_color=True)
     return Console(**kwargs)  # type: ignore[arg-type]

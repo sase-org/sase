@@ -39,42 +39,45 @@ Enter
 Wait+Screen /Agents/
 Wait+Screen /nova--code/
 Wait+Screen /nova--review/
-Sleep 1.5s
+Wait+Screen /gemini-2.5-pro/
+Sleep 2.5s
 
-Type "j"
-Wait+Screen /claude-sonnet-4-6/
-Sleep 900ms
 Type "j"
 Wait+Screen /nova--code/
 Wait+Screen /gpt-5-codex/
-Sleep 900ms
-Type "j"
-Wait+Screen /nova--review/
-Wait+Screen /gemini-2.5-pro/
 Sleep 1.2s
+Type "j"
+Wait+Screen /nova--plan-1/
+Wait+Screen /claude-sonnet-4-6/
+Sleep 1.5s
 
 Type "h"
-Wait+Screen /nova_cli_refresh/
-Sleep 900ms
+Wait+Screen /nova_prompt_input/
+Sleep 1.2s
 Type "l"
-Wait+Screen /nova--review/
-Sleep 1s
+Wait+Screen /nova--plan-1/
+Sleep 1.3s
+
+Type "k"
+Wait+Screen /nova--code/
+Wait+Screen /gpt-5-codex/
+Sleep 1.2s
 
 Wait+Screen /diff --git/
-Sleep 1s
+Sleep 1.5s
 Type "]"
 Wait+Screen /TOOLS/
-Wait+Screen /python -m nova.cli --help/
-Sleep 1.2s
+Wait+Screen /pytest tests\/test_parser.py/
+Sleep 2s
 
 Type "z"
 Wait+Screen /ZOOM - TOOLS/
-Sleep 1.5s
+Sleep 2.7s
 Type "j"
 Sleep 600ms
 Type "q"
 Wait+Screen /TOOLS/
-Sleep 700ms
+Sleep 1s
 
 Type "q"
 Sleep 700ms

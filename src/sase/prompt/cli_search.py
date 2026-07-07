@@ -175,11 +175,14 @@ def _render_compact(result: PromptSearchResult, *, use_color: bool) -> None:
 
 def _make_console(use_color: bool) -> Console:
     """Build a Console that emits ANSI iff *use_color*, regardless of the TTY."""
-    return Console(
-        force_terminal=use_color,
-        no_color=not use_color,
-        highlight=False,
-    )
+    kwargs: dict[str, object] = {
+        "force_terminal": use_color,
+        "no_color": not use_color,
+        "highlight": False,
+    }
+    if use_color:
+        kwargs["color_system"] = "standard"
+    return Console(**kwargs)  # type: ignore[arg-type]
 
 
 def _group_by_source(

@@ -32,8 +32,8 @@ Run:
 just demos
 ```
 
-The recipe renders both tapes, updates `demos/out/last_generated_date.txt` after successful renders, and then prompts
-to commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without prompting. Non-interactive runs
+The recipe renders both tapes, updates `demos/out/last_generated_date.txt` after successful renders, and then prompts to
+commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without prompting. Non-interactive runs
 never commit automatically.
 
 The prompt-input tape writes:
