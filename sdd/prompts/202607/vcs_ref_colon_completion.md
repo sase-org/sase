@@ -1,5 +1,5 @@
 ---
-plan: sdd/tales/202607/vcs_ref_colon_completion.md
+plan: sdd/epics/202607/vcs_ref_colon_completion.md
 ---
   We recently added support for `/` completion for the `#gh` VCS xprompt workflow (see the sase-5h epic bead). Can you now help me add support for another type of VCS xprompt workflow completion?
 
