@@ -2931,14 +2931,40 @@ ZoomPanelModal #zoom-tools-scroll {
     border: solid #87D7FF;
 }
 
+ZoomPanelModal #zoom-search-scroll {
+    border: solid $accent;
+    overflow-x: auto;
+}
+
 ZoomPanelModal .zoom-scroll.hidden {
     display: none;
 }
 
 ZoomPanelModal #zoom-metadata-panel,
 ZoomPanelModal #zoom-file-panel,
-ZoomPanelModal #zoom-tools-panel {
+ZoomPanelModal #zoom-tools-panel,
+ZoomPanelModal #zoom-search-panel {
     height: auto;
+}
+
+ZoomPanelModal #zoom-search-panel {
+    width: auto;
+    min-width: 100%;
+}
+
+ZoomPanelModal #zoom-search-command {
+    width: 100%;
+    height: auto;
+    max-height: 3;
+    border: round $accent;
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+ZoomPanelModal #zoom-search-command.hidden {
+    display: none;
 }
 
 ZoomPanelModal #zoom-panel-hints {

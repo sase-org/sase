@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.events import Key
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Label, Static
@@ -63,6 +64,7 @@ from .zoom_panel_navigation import (
     try_reveal_undo,
 )
 from .zoom_panel_rendering import agent_label, renderable_to_text, status_text
+from .zoom_panel_search import ZoomSearchMixin
 from .zoom_panel_types import ZoomPanelSeed, ZoomPanelTarget
 from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
 
@@ -76,7 +78,7 @@ _ZoomFilePanel = ZoomFilePanel
 _ZoomToolsPanel = ZoomToolsPanel
 
 
-class ZoomPanelModal(ModalScreen[None]):
+class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
     """Modal that zooms one Agents-tab detail panel at a time."""
 
     BINDINGS = [
@@ -143,8 +145,11 @@ class ZoomPanelModal(ModalScreen[None]):
                 yield ZoomFilePanel(id="zoom-file-panel")
             with VerticalScroll(id="zoom-tools-scroll", classes="hidden zoom-scroll"):
                 yield ZoomToolsPanel(id="zoom-tools-panel")
+            with VerticalScroll(id="zoom-search-scroll", classes="hidden zoom-scroll"):
+                yield Static(id="zoom-search-panel")
+            yield Static(id="zoom-search-command", classes="hidden")
             yield Label(
-                "j/k g/G ^D/^U scroll  ]/[ panel  ^N/^P file  E edit  y copy  r refresh  q close",
+                "j/k g/G ^D/^U scroll  /? search  n/N match  ]/[ panel  ^N/^P file  E edit  y copy  r refresh  q close",
                 id="zoom-panel-hints",
             )
 
@@ -167,12 +172,12 @@ class ZoomPanelModal(ModalScreen[None]):
     def _update_hints(self) -> None:
         hints = (
             "j/k g/G ^D/^U scroll  ]/[ panel  ^N/^P file  "
-            "E edit  y copy  r refresh  q close"
+            "/? search  n/N match  E edit  y copy  r refresh  q close"
         )
         if self._target == ZoomPanelTarget.TOOLS:
             hints = (
                 "j/k g/G ^D/^U scroll  ]/[ panel  h/l detail  "
-                "E edit  y copy  r refresh  q close"
+                "/? search  n/N match  E edit  y copy  r refresh  q close"
             )
         self.query_one("#zoom-panel-hints", Label).update(hints)
 
@@ -268,6 +273,12 @@ class ZoomPanelModal(ModalScreen[None]):
 
     def on_tools_visibility_changed(self, message: ToolsVisibilityChanged) -> None:
         on_tools_visibility_changed(self, message)
+
+    def on_key(self, event: Key) -> None:
+        """Capture search keys before modal bindings or app bindings fire."""
+        if self._handle_zoom_search_key(event):
+            event.prevent_default()
+            event.stop()
 
     def action_close_zoom(self) -> None:
         """Close the zoom modal."""

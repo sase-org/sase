@@ -336,6 +336,7 @@ descendants.
 | `N`                 | Open the agent tag/untag modal (input is pre-seeded with `pinned` for untagged agents; submit empty to clear) |
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                     |
 | `p`                 | Toggle file / prompt layout                                                                                   |
+| `z`                 | Open the zoom modal for the active detail panel                                                               |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 | `-`                 | Reset file trim to default                                                                                    |
 | `=`                 | Show all file lines                                                                                           |
@@ -1244,6 +1245,15 @@ data.
 
 Pressing `G` on a trimmed file auto-expands it first, then scrolls to the bottom — so jumping to the end of a large file
 never leaves you staring at a trimmed page.
+
+## Agents Zoom Panel
+
+Press `z` on the Agents tab to open a near-fullscreen view of the active detail panel. Inside the zoom modal, `/` starts
+forward search, `?` starts backward search, and typed queries jump to the first match as you type. Press `Enter` to keep
+the highlighted matches, then use `n` / `N` to move to the next / previous match with wrap-around feedback.
+
+Search covers the full text behind the zoomed panel, including file content below the current trim. `Esc` or `Ctrl+C`
+cancels an in-progress search; after a search is committed, `Esc` leaves search and returns to the normal zoomed panel.
 
 ## Image Preview Foundation
 

@@ -216,6 +216,14 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Zoom Modal",
+            [
+                ("/ / ?", "Search forward / backward"),
+                ("n / N", "Next / previous match"),
+                ("Esc", "Exit search before closing"),
+            ],
+        ),
+        (
             "Agent Query Syntax",
             [
                 ("status:VAL", "Substring on status"),

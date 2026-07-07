@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rich.cells import cell_len
 from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._vim_search import SearchDirection
+from sase.ace.tui.widgets.search_command_line import render_search_command_line
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
@@ -128,28 +128,11 @@ class PromptInputBarSearchMixin(_MixinBase):
         current_index: int | None,
         total: int,
     ) -> Text:
-        sigil = "/" if direction == "forward" else "?"
-        left = Text(no_wrap=True, overflow="crop")
-        left.append(sigil, style="bold #00D7AF")
-        left.append(query, style="white")
-        left.append(" ", style="reverse")
-
-        right = Text(no_wrap=True, overflow="crop")
-        if query:
-            if total > 0 and current_index is not None:
-                right.append(f"[{current_index + 1}/{total}]", style="bold #FFD700")
-            else:
-                right.append("pattern not found", style="dim #FF5F5F")
-
         width = max(0, int(getattr(self.size, "width", 0)) - 4)
-        gap = "  "
-        if width:
-            padding = width - cell_len(left.plain) - cell_len(right.plain)
-            gap = " " * max(2, padding)
-
-        content = Text(no_wrap=True, overflow="crop")
-        content.append_text(left)
-        if right.plain:
-            content.append(gap)
-            content.append_text(right)
-        return content
+        return render_search_command_line(
+            direction=direction,
+            query=query,
+            current_index=current_index,
+            total=total,
+            width=width,
+        )

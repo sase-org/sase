@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 18:05:56
-status: wip
+status: done
 prompt: sdd/prompts/202607/zoom_panel_search.md
 ---
 # Plan: Vim-style `/` and `?` Search in the Agents-tab Zoom Panel

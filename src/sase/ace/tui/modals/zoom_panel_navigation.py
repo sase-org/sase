@@ -42,6 +42,8 @@ def show_target(modal: Any, target: ZoomPanelTarget) -> None:
 
 
 def active_scroll(modal: Any) -> VerticalScroll:
+    if getattr(modal, "_is_zoom_search_overlay_visible", lambda: False)():
+        return modal.query_one("#zoom-search-scroll", VerticalScroll)
     return modal.query_one(f"#zoom-{modal._target.value}-scroll", VerticalScroll)
 
 

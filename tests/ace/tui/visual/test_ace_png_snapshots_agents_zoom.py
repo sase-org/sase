@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -259,6 +260,37 @@ async def test_agents_file_zoom_modal_png_snapshot(
             page,
             "agents_file_zoom_modal_120x40",
             title="ACE agents file zoom modal",
+        )
+
+
+async def test_agents_file_zoom_search_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _pin_zoom_file_header(monkeypatch)
+    patch_startup_loaders(monkeypatch, agents=[_zoom_agent(tmp_path)])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+        await page.press("z")
+        await page.expect_modal("ZoomPanelModal")
+        await page.pause()
+        await page.pause()
+        await page.press("slash", "s", "u", "m", "m", "a", "r", "y")
+        await page.pause()
+        await page.pause()
+
+        command = page.app.screen.query_one("#zoom-search-command", Static)
+        assert "/summary" in command.render().plain
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_file_zoom_search_120x40",
+            title="ACE agents file zoom search",
         )
 
 
