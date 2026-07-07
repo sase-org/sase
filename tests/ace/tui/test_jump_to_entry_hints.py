@@ -259,6 +259,18 @@ def test_new_changespec_hint_jump_clears_forward_history() -> None:
     assert app._entry_jump_forward_index_stack["changespecs"] == []
 
 
+def test_push_changespec_to_history_records_origin_and_clears_forward() -> None:
+    changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(3)]
+    app = _InlineJumpApp(changespecs)
+    app.current_idx = 2
+    app._entry_jump_forward_index_stack["changespecs"] = [0]
+
+    app._push_changespec_to_history()
+
+    assert app._entry_jump_index_stack["changespecs"] == [2]
+    assert app._entry_jump_forward_index_stack["changespecs"] == []
+
+
 def test_forward_jump_discards_stale_changespec_anchor() -> None:
     changespecs = [_make_changespec(f"feature_{i:02d}") for i in range(2)]
     app = _InlineJumpApp(changespecs)

@@ -51,6 +51,12 @@ The prompt history and stash tape shows recall, search, stash, and restore insid
 - `demos/out/sase_ace_prompt_history_stash.gif`
 - `demos/out/sase_ace_prompt_history_stash.mp4`
 
+The PR pipeline tape shows the ACE PRs tab ChangeSpec lifecycle, parent/child navigation, grouping, and folding, and
+writes:
+
+- `demos/out/sase_ace_prs_pipeline.gif`
+- `demos/out/sase_ace_prs_pipeline.mp4`
+
 The recipe writes:
 
 - `demos/out/last_generated_date.txt`

@@ -120,6 +120,16 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         self._push_entry_jump_anchor_to_stack(self._entry_jump_index_stack, anchor)
         self._clear_current_entry_jump_forward_stack()
 
+    def _push_changespec_to_history(self) -> None:
+        """Push the current PRs-tab cursor onto the jump-back stack."""
+        if self.current_tab != "changespecs":
+            return
+        anchor = self._current_entry_jump_anchor()
+        if anchor is None:
+            return
+        self._push_entry_jump_anchor_to_stack(self._entry_jump_index_stack, anchor)
+        self._clear_current_entry_jump_forward_stack()
+
     def _pop_entry_jump_anchor_from(
         self,
         stacks: dict[str, list[EntryJumpAnchor]],
