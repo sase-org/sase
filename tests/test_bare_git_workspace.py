@@ -471,6 +471,43 @@ class TestInitBareGitProject:
 _WS_MOD = "sase.workspace_provider.plugins.bare_git_workspace"
 
 
+class TestWsResolveRef:
+    def _make_plugin(self):  # type: ignore[no-untyped-def]
+        from sase.workspace_provider.plugins.bare_git_workspace import (
+            BareGitWorkspacePlugin,
+        )
+
+        return BareGitWorkspacePlugin()
+
+    @pytest.mark.parametrize(
+        ("ref", "expected_canonical_ref"),
+        [
+            ("myproj", None),
+            ("my-feature", None),
+            ("/repos/myproj.git", "myproj"),
+        ],
+    )
+    def test_canonical_ref_only_for_bare_repo_paths(
+        self,
+        ref: str,
+        expected_canonical_ref: str | None,
+    ) -> None:
+        resolved = ResolvedGitRef(
+            project_file="/tmp/myproj.sase",
+            project_name="myproj",
+            primary_workspace_dir="/tmp/myproj/",
+            bare_repo_dir="/repos/myproj.git",
+            checkout_target="origin/main",
+        )
+
+        with patch(f"{_WS_MOD}.resolve_git_ref", return_value=resolved):
+            result = self._make_plugin().ws_resolve_ref(ref, "git")
+
+        assert result is not None
+        assert result.project_name == "myproj"
+        assert result.canonical_ref == expected_canonical_ref
+
+
 class TestWsGetWorkspaceName:
     def _make_plugin(self):  # type: ignore[no-untyped-def]
         from sase.workspace_provider.plugins.bare_git_workspace import (

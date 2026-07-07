@@ -109,6 +109,7 @@ class BareGitWorkspacePlugin:
             primary_workspace_dir=resolved.primary_workspace_dir,
             checkout_target=resolved.checkout_target,
             extra={"bare_repo_dir": resolved.bare_repo_dir},
+            canonical_ref=resolved.project_name if "/" in ref else None,
         )
 
     @hookimpl

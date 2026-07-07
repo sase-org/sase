@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 11:57:05
-status: wip
+status: done
 prompt: sdd/prompts/202607/gh_first_use_project_display.md
 ---
 # Plan: First-use `#gh:org/repo` launches should display the repo name as the project, not `org/repo`

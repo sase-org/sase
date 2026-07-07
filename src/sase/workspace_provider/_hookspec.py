@@ -12,13 +12,18 @@ SUBMITTED_CHECK_EXIT_CODE_CLOSED = 20
 
 @dataclass
 class ResolvedRef:
-    """Result of resolving a workspace reference (e.g. ``#gh``, ``#git``)."""
+    """Result of resolving a workspace reference (e.g. ``#gh``, ``#git``).
+
+    ``canonical_ref`` is the launch identity to use when the matched ref is a
+    provider-specific locator rather than a stable project or ChangeSpec name.
+    """
 
     project_file: str
     project_name: str
     primary_workspace_dir: str
     checkout_target: str
     extra: dict[str, str] = field(default_factory=dict)
+    canonical_ref: str | None = None
 
 
 @dataclass(frozen=True)

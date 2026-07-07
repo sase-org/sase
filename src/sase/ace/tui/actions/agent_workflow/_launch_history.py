@@ -79,10 +79,6 @@ def record_launched_vcs_xprompt_usage(
         record_vcs_xprompt_usage,
     )
 
-    if is_default_vcs_xprompt_prefix(prefix):
-        record_vcs_xprompt_usage(prefix)
-        return
-
     owner_project_name = project_name
     if prompt is not None and resolve_vcs_from_prompt is not None:
         try:
@@ -96,8 +92,14 @@ def record_launched_vcs_xprompt_usage(
         else:
             if resolved is not None:
                 owner_project_name = resolved[1]
+                ref = resolved[4]
+                prefix = f"#{workflow_type}:{ref}"
             elif is_non_workspace_workflow(workflow_type):
                 return
+
+    if is_default_vcs_xprompt_prefix(prefix):
+        record_vcs_xprompt_usage(prefix)
+        return
 
     if not is_non_workspace_workflow(workflow_type):
         if owner_project_name is None:

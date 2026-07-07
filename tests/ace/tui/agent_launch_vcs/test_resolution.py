@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.workspace_provider._hookspec import ResolvedRef
+from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata
 from tests.ace.tui._agent_launch_helpers import (
     _LaunchBodyApp,
     _cd_git_metadata,
@@ -17,6 +17,17 @@ from tests.ace.tui._agent_launch_helpers import (
     _fake_context,
     _run_launch_body_with_common_patches,
 )
+
+
+def _gh_metadata() -> tuple[WorkflowMetadata, ...]:
+    return (
+        WorkflowMetadata(
+            workflow_type="gh",
+            ref_pattern=r"(?:^|(?<=\s))#gh(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
+            display_name="GitHub",
+            pre_allocated_env_prefix="SASE_GH",
+        ),
+    )
 
 
 def test_run_agent_launch_body_cd_keeps_home_mode_and_uses_target_dir(
@@ -69,6 +80,104 @@ def test_run_agent_launch_body_cd_keeps_home_mode_and_uses_target_dir(
     assert launch["is_home_mode"] is True
     assert launch["update_target"] == ""
     assert launch["vcs_ref"] == ("cd", str(tmp_path))
+
+
+def test_run_agent_launch_body_uses_canonical_ref_for_first_use_repo_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _LaunchBodyApp()
+    app._prompt_context = _fake_context()
+    primary_workspace = tmp_path / "widgets"
+    allocated_workspace = tmp_path / "widgets_101"
+    project_file = str(tmp_path / ".sase" / "projects" / "proj_key" / "proj_key.sase")
+
+    from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+        resolve_ref_from_prompt,
+    )
+
+    app._resolve_vcs_from_prompt = (  # type: ignore[method-assign]
+        lambda prompt, wf_name, skip_workspace=False: resolve_ref_from_prompt(
+            prompt, wf_name, skip_workspace=skip_workspace
+        )
+    )
+
+    import sase.workspace_provider._registry as registry
+
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", _gh_metadata)
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
+                side_effect=lambda p: (p, None),
+            )
+        )
+        stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
+        stack.enter_context(
+            patch(
+                "sase.history.file_references.extract_recordable_file_refs",
+                return_value=[],
+            )
+        )
+        stack.enter_context(
+            patch("sase.history.file_references.record_file_references")
+        )
+        stack.enter_context(
+            patch(
+                "sase.workspace_provider.resolve_ref",
+                return_value=ResolvedRef(
+                    project_file=project_file,
+                    project_name="proj_key",
+                    primary_workspace_dir=str(primary_workspace),
+                    checkout_target="main",
+                    canonical_ref="proj_key",
+                ),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.running_field.claim_next_axe_workspace",
+                return_value=101,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=(str(allocated_workspace), None),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "sase.ace.tui.modals.project_discovery.is_launchable_project",
+                return_value=True,
+            )
+        )
+        save = stack.enter_context(
+            patch("sase.ace.last_agent_selection._save_last_agent_selection")
+        )
+        record_mru = stack.enter_context(
+            patch("sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage")
+        )
+
+        app._run_agent_launch_body("#gh:alice/widgets implement")
+
+    assert len(app.launched) == 1
+    launch = app.launched[0]
+    assert launch["project_name"] == "proj_key"
+    assert launch["project_file"] == project_file
+    assert launch["cl_name"] == "proj_key"
+    assert launch["history_sort_key"] == "proj_key"
+    assert launch["vcs_ref"] == ("gh", "proj_key")
+
+    saved = app._last_custom_agent_selection
+    assert saved is not None
+    assert saved.item_type == "project"
+    assert saved.project_name == "proj_key"
+    assert saved.cl_name is None
+    assert saved.display_name == "[P] proj_key"
+    save.assert_called_once_with(saved)
+    record_mru.assert_called_once_with("#gh:proj_key")
 
 
 def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
@@ -196,6 +305,38 @@ def test_record_resolved_default_git_home_ref_is_not_persisted_as_mru(
 
     assert not mru_file.exists()
     assert _load_vcs_xprompt_mru() == []
+
+
+def test_record_launched_vcs_xprompt_usage_records_resolved_canonical_ref() -> None:
+    from sase.ace.tui.actions.agent_workflow._launch_history import (
+        record_launched_vcs_xprompt_usage,
+    )
+
+    def resolve_vcs_from_prompt(
+        prompt: str,
+        workflow_type: str,
+        *,
+        skip_workspace: bool = False,
+    ) -> tuple[str, str, str, int, str] | None:
+        assert prompt == "#gh:alice/widgets implement"
+        assert workflow_type == "gh"
+        assert skip_workspace is True
+        return ("/tmp/proj/proj.sase", "proj_key", "/tmp/proj", 0, "proj_key")
+
+    with (
+        patch(
+            "sase.ace.tui.modals.project_discovery.is_launchable_project",
+            return_value=True,
+        ),
+        patch("sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage") as record_mru,
+    ):
+        record_launched_vcs_xprompt_usage(
+            ("gh", "alice/widgets"),
+            prompt="#gh:alice/widgets implement",
+            resolve_vcs_from_prompt=resolve_vcs_from_prompt,
+        )
+
+    record_mru.assert_called_once_with("#gh:proj_key")
 
 
 def test_save_replayable_vcs_selection_skips_default_git_home(

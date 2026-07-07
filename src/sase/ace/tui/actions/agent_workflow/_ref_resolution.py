@@ -95,7 +95,7 @@ def resolve_ref_from_prompt(
         resolved.project_name,
         workspace_dir,
         workspace_num,
-        ref,
+        resolved.canonical_ref or ref,
     )
 
 
