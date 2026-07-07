@@ -458,6 +458,15 @@ write_agent \
   "2026-07-06T13:27:00Z" \
   "Added parser edge-case tests in the fictional workspace."
 
+cat >"$project_dir/artifacts/ace-run/20260706132000/tool_calls.jsonl" <<EOF
+{"schema_version":2,"recorded_at":"2026-07-06T13:20:14Z","runtime":"codex","source":"stream","event":"ToolUse","status":"pending","tool_name":"Read","tool_use_id":"nova-code-read-checklist","session_id":"nova-demo-code","cwd":"$workspace","tool_input_summary":{"file_path":"docs/release_checklist.md"},"tool_response_summary":{}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:20:15Z","runtime":"codex","source":"stream","event":"ToolResult","status":"success","tool_name":"Read","tool_use_id":"nova-code-read-checklist","session_id":"nova-demo-code","duration_ms":118,"completed_at":"2026-07-06T13:20:15Z","tool_input_summary":{},"tool_response_summary":{"content_preview":"Release checklist mentions parser examples and focused tests."}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:21:02Z","runtime":"codex","source":"stream","event":"ToolUse","status":"pending","tool_name":"Bash","tool_use_id":"nova-code-pytest-parser","session_id":"nova-demo-code","cwd":"$workspace","tool_input_summary":{"command":"pytest tests/test_parser.py"},"tool_response_summary":{}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:21:07Z","runtime":"codex","source":"stream","event":"ToolResult","status":"success","tool_name":"Bash","tool_use_id":"nova-code-pytest-parser","session_id":"nova-demo-code","duration_ms":5210,"completed_at":"2026-07-06T13:21:07Z","tool_input_summary":{},"tool_response_summary":{"exit_code":0,"stdout_preview":"2 passed in 0.08s"}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:22:41Z","runtime":"codex","source":"stream","event":"ToolUse","status":"pending","tool_name":"Edit","tool_use_id":"nova-code-edit-parser","session_id":"nova-demo-code","cwd":"$workspace","tool_input_summary":{"file_path":"src/nova/parser.py","old_string_length":42,"new_string_length":96},"tool_response_summary":{}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:22:44Z","runtime":"codex","source":"stream","event":"ToolResult","status":"success","tool_name":"Edit","tool_use_id":"nova-code-edit-parser","session_id":"nova-demo-code","duration_ms":870,"completed_at":"2026-07-06T13:22:44Z","tool_input_summary":{},"tool_response_summary":{"content_preview":"Updated parser whitespace handling in the fictional workspace."}}
+EOF
+
 write_agent \
   "20260706133000" \
   "nova--review" \
@@ -469,6 +478,13 @@ write_agent \
   "1783344960.0" \
   "2026-07-06T13:36:00Z" \
   "Found a deliberate demo failure for visual contrast."
+
+cat >"$project_dir/artifacts/ace-run/20260706133000/tool_calls.jsonl" <<EOF
+{"schema_version":2,"recorded_at":"2026-07-06T13:31:10Z","runtime":"gemini","source":"stream","event":"ToolUse","status":"pending","tool_name":"Read","tool_use_id":"nova-review-read-cli","session_id":"nova-demo-review","cwd":"$workspace","tool_input_summary":{"file_path":"src/nova/cli.py"},"tool_response_summary":{}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:31:11Z","runtime":"gemini","source":"stream","event":"ToolResult","status":"success","tool_name":"Read","tool_use_id":"nova-review-read-cli","session_id":"nova-demo-review","duration_ms":104,"completed_at":"2026-07-06T13:31:11Z","tool_input_summary":{},"tool_response_summary":{"content_preview":"CLI dispatches the parsed command name."}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:32:18Z","runtime":"gemini","source":"stream","event":"ToolUse","status":"pending","tool_name":"Bash","tool_use_id":"nova-review-help-smoke","session_id":"nova-demo-review","cwd":"$workspace","tool_input_summary":{"command":"python -m nova.cli --help"},"tool_response_summary":{}}
+{"schema_version":2,"recorded_at":"2026-07-06T13:32:19Z","runtime":"gemini","source":"stream","event":"ToolResult","status":"failure","tool_name":"Bash","tool_use_id":"nova-review-help-smoke","session_id":"nova-demo-review","duration_ms":980,"completed_at":"2026-07-06T13:32:19Z","tool_input_summary":{},"tool_response_summary":{"exit_code":2,"stderr_preview":"missing package entry point in demo fixture"}}
+EOF
 
 printf 'Seeded SASE ACE demo state under %s\n' "$root" >&2
 printf 'export HOME=%q\n' "$demo_home"

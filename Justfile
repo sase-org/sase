@@ -246,7 +246,7 @@ check: _setup
     @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "test"               just test
 
-# Render the scripted ACE prompt-input demo video (GIF + MP4), stamp
+# Render the scripted ACE demo videos (GIF + MP4), stamp
 # demos/out/last_generated_date.txt, and offer to commit the results.
 # Pass -y/--yes to skip the commit confirmation prompt.
 [positional-arguments]
@@ -263,6 +263,7 @@ demos *args:
     done
 
     vhs demos/tapes/sase_ace_prompt_input.tape
+    vhs demos/tapes/sase_ace_agents_observability.tape
     date +%Y-%m-%dT%H:%M:%S > demos/out/last_generated_date.txt
 
     if ! git status --porcelain -- demos/out | grep -q .; then
@@ -282,7 +283,7 @@ demos *args:
     case "$reply" in
         y|Y)
             git add -A -- demos/out
-            git commit -m "doc: Regenerate ACE prompt-input demo artifacts" -- demos/out
+            git commit -m "doc: Regenerate ACE demo artifacts" -- demos/out
             ;;
         *) printf '[demos] Skipping commit; demos/out changes left in the working tree.\n' ;;
     esac

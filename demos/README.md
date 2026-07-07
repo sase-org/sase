@@ -11,8 +11,8 @@ generated media under `demos/out/`.
 - `git`
 - the repo virtualenv installed with `just install`
 
-The prompt-input demo prepends `.venv/bin` to `PATH` during tape setup so the rendered clip uses the checked-out SASE
-code. `ttyd` must still be available on the outer `PATH` because VHS checks it before the tape setup commands run.
+The demo tapes prepend `.venv/bin` to `PATH` during tape setup so the rendered clips use the checked-out SASE code.
+`ttyd` must still be available on the outer `PATH` because VHS checks it before the tape setup commands run.
 
 ## Layout
 
@@ -32,14 +32,19 @@ Run:
 just demos
 ```
 
-The recipe renders the tape, updates `demos/out/last_generated_date.txt` after a successful render, and then prompts to
-commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without prompting. Non-interactive runs
+The recipe renders both tapes, updates `demos/out/last_generated_date.txt` after successful renders, and then prompts
+to commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without prompting. Non-interactive runs
 never commit automatically.
 
-The tape writes:
+The prompt-input tape writes:
 
 - `demos/out/sase_ace_prompt_input.gif`
 - `demos/out/sase_ace_prompt_input.mp4`
+
+The Agents observability tape shows many seeded agent runs from one keyboard-driven control surface and writes:
+
+- `demos/out/sase_ace_agents_observability.gif`
+- `demos/out/sase_ace_agents_observability.mp4`
 
 The recipe writes:
 
