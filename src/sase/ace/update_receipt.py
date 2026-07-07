@@ -23,6 +23,7 @@ from sase.core.paths import sase_home
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult, RepoDiffStat
 from sase.mode_switch.models import ModeSwitchResult
 from sase.plugins.operations import (
+    InstallManyOutcome,
     InstallOutcome,
     UninstallOutcome,
     UpdateOutcome as PluginUpdateOutcome,
@@ -83,6 +84,8 @@ def build_update_receipt(
         return _build_mode_switch_receipt(payload, created_at=timestamp)
     if isinstance(payload, InstallOutcome):
         return _build_plugin_install_receipt(payload, created_at=timestamp)
+    if isinstance(payload, InstallManyOutcome):
+        return _build_plugin_install_many_receipt(payload, created_at=timestamp)
     if isinstance(payload, PluginUpdateOutcome):
         return _build_plugin_update_receipt(payload, created_at=timestamp)
     if isinstance(payload, UninstallOutcome):
@@ -313,6 +316,41 @@ def _build_plugin_install_receipt(
         created_at=created_at,
         primary=None,
         plugins=(transition,) if transition is not None else (),
+        dependency_count=dependency_count,
+    )
+
+
+def _build_plugin_install_many_receipt(
+    outcome: InstallManyOutcome, *, created_at: float
+) -> UpdateToastReceipt | None:
+    target_keys = {spec.normalized_name for spec in outcome.plan.specs}
+    transitions = [
+        transition
+        for spec in outcome.plan.specs
+        if (
+            transition := _transition_from_change(
+                outcome.change_set.get(spec.requirement.name),
+                fallback_name=spec.requirement.name,
+            )
+        )
+        is not None
+    ]
+    plugins, plugin_overflow, plugin_overflow_diffstat = _cap_plugin_transitions(
+        transitions
+    )
+    dependency_count = _dependency_change_count(
+        outcome.change_set,
+        target_keys=target_keys,
+    )
+    if not plugins and dependency_count == 0:
+        return None
+    return UpdateToastReceipt(
+        kind="managed",
+        created_at=created_at,
+        primary=None,
+        plugins=plugins,
+        plugin_overflow=plugin_overflow,
+        plugin_overflow_diffstat=plugin_overflow_diffstat,
         dependency_count=dependency_count,
     )
 

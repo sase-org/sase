@@ -49,6 +49,7 @@ class PluginsBrowserRenderingMixin:
         _incoming_commits_enabled: bool
         _install_mode: str | None
         _loading: bool
+        _marked_install: set[str]
         _now: float
         _offline: bool
         _restore_name: str | None
@@ -82,6 +83,7 @@ class PluginsBrowserRenderingMixin:
 
     def _render_all(self) -> None:
         self._rebuild_groups()
+        self._prune_stale_marked_install()
         self._update_static("#sase-core-versions", self._core_versions_panel())
         self._update_static("#plugins-summary", self._summary_text())
         self._update_static("#plugins-hints", self._hints())
@@ -142,9 +144,12 @@ class PluginsBrowserRenderingMixin:
         return options
 
     def _row_text(self, entry: PluginCatalogEntry) -> Text:
-        """A single list row: status glyph + name + version + update marker."""
+        """A single list row: mark + status glyph + name + version + update."""
         text = Text()
-        text.append("  ")
+        if entry.name in self._marked_install:
+            text.append("[✓] ", style="bold #00D700")
+        else:
+            text.append("    ")
         if entry.installed.installed:
             text.append(_INSTALLED_GLYPH, style="green")
         else:
@@ -437,3 +442,61 @@ class PluginsBrowserRenderingMixin:
     def _highlighted_name(self) -> str | None:
         entry = self._current_entry()
         return entry.name if entry is not None else None
+
+    def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool:
+        """Whether *entry* can be installed or marked for install now."""
+        if isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        return entry is not None and not entry.installed.installed
+
+    def _refresh_install_mark_row(self, name: str) -> bool:
+        """Patch one plugin row after its mark bit changes."""
+        option_list = self._option_list()
+        entry = self._entry_by_name(name)
+        if option_list is None or entry is None:
+            return False
+        target = f"{_ITEM_PREFIX}{name}"
+        for index in range(option_list.option_count):
+            option = option_list.get_option_at_index(index)
+            if option.id == target:
+                option_list.replace_option_prompt_at_index(index, self._row_text(entry))
+                return True
+        return False
+
+    def _advance_install_mark_selection(self) -> None:
+        """Move the cursor to the next installable row after a mark toggle."""
+        option_list = self._option_list()
+        if option_list is None or option_list.highlighted is None:
+            return
+        start = option_list.highlighted
+        for offset in range(1, option_list.option_count + 1):
+            index = (start + offset) % option_list.option_count
+            if not self._is_item(option_list, index):
+                continue
+            option = option_list.get_option_at_index(index)
+            entry = self._entry_by_name(str(option.id).removeprefix(_ITEM_PREFIX))
+            if self._can_install_entry(entry):
+                option_list.highlighted = index
+                return
+
+    def _clear_install_marks(self) -> None:
+        """Clear all install marks and patch visible rows in place."""
+        if not self._marked_install:
+            return
+        names = tuple(self._marked_install)
+        self._marked_install.clear()
+        for name in names:
+            self._refresh_install_mark_row(name)
+        self._update_static("#plugins-hints", self._hints())
+
+    def _prune_stale_marked_install(self) -> None:
+        """Drop marks for missing, installed, or currently un-installable rows."""
+        if not self._marked_install:
+            return
+        live = {
+            entry.name
+            for _, _, entries in self._grouped
+            for entry in entries
+            if self._can_install_entry(entry)
+        }
+        self._marked_install &= live

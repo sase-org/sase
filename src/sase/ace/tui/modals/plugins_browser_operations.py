@@ -6,6 +6,8 @@ from inspect import Parameter, signature
 from typing import Any
 
 from sase.plugins.operations import (
+    InstallManyOutcome,
+    InstallManyReady,
     InstallOutcome,
     InstallReady,
     UninstallOutcome,
@@ -17,7 +19,7 @@ from sase.uv_tool.receipt import ToolReceipt
 from sase.uv_tool.render import UpdateSummary
 
 from .plugins_browser_dev_update import DevUpdatePreview
-from .plugins_browser_install import InstallPreview
+from .plugins_browser_install import InstallManyPreview, InstallPreview
 from .plugins_browser_uninstall import UninstallPreview
 from .plugins_browser_update import UpdatePreview
 
@@ -35,6 +37,13 @@ class PluginsBrowserOperationsMixin:
 
         return pane_module._plan_install_preview(name, offline=offline)
 
+    def _make_install_many_preview(
+        self, names: tuple[str, ...], *, offline: bool
+    ) -> InstallManyPreview:
+        from . import plugins_browser_pane as pane_module
+
+        return pane_module._plan_install_many_preview(names, offline=offline)
+
     @staticmethod
     def _execute_install(plan: InstallReady, *, run_fn: Any = None) -> InstallOutcome:
         from . import plugins_browser_pane as pane_module
@@ -42,6 +51,16 @@ class PluginsBrowserOperationsMixin:
         if run_fn is None:
             return pane_module.execute_install(plan)
         return pane_module.execute_install(plan, run_fn=run_fn)
+
+    @staticmethod
+    def _execute_install_many(
+        plan: InstallManyReady, *, run_fn: Any = None
+    ) -> InstallManyOutcome:
+        from . import plugins_browser_pane as pane_module
+
+        if run_fn is None:
+            return pane_module.execute_install_many(plan)
+        return pane_module.execute_install_many(plan, run_fn=run_fn)
 
     def _make_update_preview(
         self, query: str | None, *, all_plugins: bool, offline: bool

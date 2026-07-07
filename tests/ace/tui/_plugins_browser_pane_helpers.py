@@ -18,6 +18,7 @@ from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
 from sase.plugins.operations import (
+    InstallManyReady,
     InstallReady,
     ResolvedSpec,
     UninstallReady,
@@ -266,6 +267,23 @@ def _ready_preview(name: str) -> pbp._InstallPreview:
         index_plan=_ready_plan(name, git=False),
         git_plan=_ready_plan(name, git=True),
     )
+
+
+def _ready_many_plan(names: tuple[str, ...]) -> InstallManyReady:
+    """A deterministic combined install plan for marked plugin names."""
+    specs: list[ResolvedSpec] = []
+    argv = ["uv", "tool", "install", "sase"]
+    for name in names:
+        requirement = Requirement.from_spec(f"sase-{name}")
+        specs.append(
+            ResolvedSpec(
+                requirement=requirement,
+                display_name=name,
+                source="catalog",
+            )
+        )
+        argv += ["--with", requirement.as_spec()]
+    return InstallManyReady(specs=tuple(specs), argv=argv)
 
 
 def _not_uv_tool() -> NotUvToolInstall:

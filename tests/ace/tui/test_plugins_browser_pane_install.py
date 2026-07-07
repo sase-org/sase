@@ -12,7 +12,13 @@ from sase.ace.tui.modals.plugin_action_confirm_modal import (
     PluginActionConfirmResult,
     PluginActionVariant,
 )
-from sase.plugins.operations import InstallNotFound, InstallOutcome, InstallReady
+from sase.plugins.operations import (
+    InstallManyOutcome,
+    InstallManyReady,
+    InstallNotFound,
+    InstallOutcome,
+    InstallReady,
+)
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
@@ -22,6 +28,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _patch_catalog,
     _patch_catalog_recording,
     _patch_other_panes,
+    _ready_many_plan,
     _ready_preview,
     _render,
     _spy_notify,
@@ -67,6 +74,85 @@ async def test_plugins_pane_install_hint_only_for_not_installed(
         assert "i install" not in pane._hints()
 
 
+async def test_plugins_pane_toggle_install_mark_updates_row_and_hints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        _highlight(pane, "nvim")
+        await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
+
+        pane.action_toggle_install_mark()
+        await page.wait_for(lambda _s: pane._highlighted_name() == "acme")
+
+        assert pane._marked_install == {"nvim"}
+        assert "i install (1)" in pane._hints()
+        assert "1 marked" in pane._hints()
+        assert "esc clear" in pane._hints()
+        option_list = pane.query_one("#plugins-list")
+        nvim_index = next(
+            index
+            for index in range(option_list.option_count)
+            if option_list.get_option_at_index(index).id == "plugin__nvim"
+        )
+        assert "[✓]" in option_list.get_option_at_index(nvim_index).prompt.plain
+
+        _highlight(pane, "nvim")
+        pane.action_toggle_install_mark()
+        await page.wait_for(lambda _s: not pane._marked_install)
+        assert "[✓]" not in option_list.get_option_at_index(nvim_index).prompt.plain
+
+
+async def test_plugins_pane_toggle_install_mark_noops_for_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        _highlight(pane, "github")
+        pane.action_toggle_install_mark()
+        await page.pause()
+        assert pane._marked_install == set()
+        assert messages and messages[0][1] == "warning"
+        assert "installable" in messages[0][0]
+
+
+async def test_plugins_pane_escape_clears_install_marks_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        _highlight(pane, "nvim")
+        pane.action_toggle_install_mark()
+        await page.wait_for(lambda _s: pane._marked_install == {"nvim"})
+
+        pane.action_clear_install_marks_or_close()
+        await page.wait_for(lambda _s: not pane._marked_install)
+
+        assert "esc clear" not in pane._hints()
+        assert "esc" in pane._hints()
+
+
+async def test_plugins_pane_prunes_stale_install_marks_on_reload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._marked_install.update({"nvim", "github", "missing"})
+
+        pane._render_all()
+
+        assert pane._marked_install == {"nvim"}
+
+
 async def test_plugins_pane_install_already_installed_toasts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -82,6 +168,89 @@ async def test_plugins_pane_install_already_installed_toasts(
         await page.pause()
         assert not planned  # short-circuited before planning
         assert messages and "already installed" in messages[0][0]
+
+
+async def test_plugins_pane_install_marked_set_takes_batch_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
+    batch_plan = _ready_many_plan(("acme", "nvim"))
+    single_plans: list[str] = []
+    batch_plans: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        pbp,
+        "_plan_install_preview",
+        lambda name, *, offline: single_plans.append(name),
+    )
+    monkeypatch.setattr(
+        pbp,
+        "_plan_install_many_preview",
+        lambda names, *, offline: (
+            batch_plans.append(names) or pbp._InstallManyPreview(plan=batch_plan)
+        ),
+    )
+    executed: list[InstallManyReady] = []
+
+    def _fake_execute(plan: InstallManyReady, **_kw: object) -> InstallManyOutcome:
+        executed.append(plan)
+        return InstallManyOutcome(
+            plan=plan,
+            change_set=UvChangeSet(
+                changes=(
+                    UvPackageChange(
+                        name="sase-acme", kind=ChangeKind.ADDED, new_version="0.1.0"
+                    ),
+                    UvPackageChange(
+                        name="sase-nvim", kind=ChangeKind.ADDED, new_version="2.0.0"
+                    ),
+                )
+            ),
+            groups=(),
+            elapsed=2.0,
+        )
+
+    monkeypatch.setattr(pbp, "execute_install_many", _fake_execute)
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        initial = len(calls)
+        messages = _spy_notify(monkeypatch, pane)
+        restart_calls: list[bool] = []
+        monkeypatch.setattr(
+            page.app,
+            "_restart_tui",
+            lambda *, restart_axe: restart_calls.append(restart_axe),
+        )
+        pane._marked_install.update({"nvim", "acme"})
+        _highlight(pane, "github")  # marks take precedence over the cursor
+
+        pane.action_install()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        preview = _render(modal._preview_renderable())
+        assert "Install 2 plugins" in str(modal._title)
+        assert "acme" in preview
+        assert "nvim" in preview
+        assert batch_plans == [("acme", "nvim")]
+        assert single_plans == []
+
+        modal.action_confirm()
+        await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
+        assert executed[0].argv == batch_plan.argv
+        assert pane._marked_install == set()
+        assert restart_calls == [True]
+        assert len(calls) == initial
+        assert any("restarting ACE" in message for message, _severity in messages)
+        receipt = update_receipt.read_and_clear_pending_update_toast()
+        assert receipt is not None
+        assert [plugin.name for plugin in receipt.plugins] == [
+            "sase-acme",
+            "sase-nvim",
+        ]
 
 
 async def test_plugins_pane_install_disabled_when_not_uv_tool(

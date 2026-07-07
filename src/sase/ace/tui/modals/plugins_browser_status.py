@@ -24,10 +24,13 @@ class PluginsBrowserStatusMixin:
         _now: float
         _offline: bool
         _install_mode: str | None
+        _marked_install: set[str]
         _uv_tool: object | None
         _verbose: bool
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
+
+        def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool: ...
 
     def _sync_state_visibility(self) -> None:
         """Show the list when populated, else the status placeholder.
@@ -119,8 +122,13 @@ class PluginsBrowserStatusMixin:
         offline = " (on)" if self._offline else " off"
         verbose = " (on)" if self._verbose else " verb"
         parts: list[str] = []
-        if self._can_install_highlighted():
+        mark_count = len(self._marked_install)
+        if mark_count:
+            parts.append(f"i install ({mark_count})")
+        elif self._can_install_highlighted():
             parts.append("i install")
+        if self._can_mark_highlighted():
+            parts.append("I/space mark")
         if self._can_update_sase():
             parts.append("u update")
         if self._can_switch_mode():
@@ -137,17 +145,24 @@ class PluginsBrowserStatusMixin:
                 f"v{verbose}",
                 "/ filter",
                 "[ ] tab",
-                "esc",
             ]
         )
+        if mark_count:
+            parts.append(f"{mark_count} marked")
+            parts.append("esc clear")
+        else:
+            parts.append("esc")
         return " · ".join(parts)
 
     def _can_install_highlighted(self) -> bool:
         """Whether the highlighted plugin can be installed right now."""
-        if isinstance(self._uv_tool, NotUvToolInstall):
+        return self._can_install_entry(self._current_entry())
+
+    def _can_mark_highlighted(self) -> bool:
+        """Whether the highlighted plugin can be marked for install."""
+        if self._loading:
             return False
-        entry = self._current_entry()
-        return entry is not None and not entry.installed.installed
+        return self._can_install_entry(self._current_entry())
 
     def _can_update_highlighted(self) -> bool:
         """Whether the highlighted plugin can be updated right now."""

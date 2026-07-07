@@ -66,6 +66,32 @@ async def test_config_center_plugins_install_preview_png_snapshot(
         )
 
 
+async def test_config_center_plugins_marked_install_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Updates tab with a marked install row and marked-count hints."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        _highlight(pane, "nvim")
+        await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
+        pane.action_toggle_install_mark()
+        await page.wait_for(lambda _s: pane._marked_install == {"nvim"})
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_plugins_marked_install_120x40",
+            title="ACE SASE Admin Center — Updates tab (marked install)",
+        )
+
+
 async def test_config_center_plugins_not_uv_tool_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

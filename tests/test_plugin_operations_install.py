@@ -10,11 +10,16 @@ from sase.plugins.github_source import GhNotFoundError
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.operations import (
     AlreadyInstalled,
+    InstallManyNothing,
+    InstallManyOutcome,
+    InstallManyReady,
     InstallNotFound,
     InstallReady,
     NotUvTool,
     execute_install,
+    execute_install_many,
     plan_install,
+    plan_install_many,
 )
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
@@ -85,6 +90,42 @@ def test_plan_install_ready_builds_full_with_set(tmp_path: Path) -> None:
         "sase-github",
     ]
     assert plan.spec.source == "catalog"
+
+
+def test_plan_install_many_ready_builds_one_full_with_set(tmp_path: Path) -> None:
+    plan = plan_install_many(
+        ("github", "jira"),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+    )
+    assert isinstance(plan, InstallManyReady)
+    assert [spec.display_name for spec in plan.specs] == ["github", "jira"]
+    assert plan.skipped == ()
+    assert plan.argv == [
+        "uv",
+        "tool",
+        "install",
+        "--color",
+        "never",
+        "sase",
+        "--with",
+        "sase-telegram",
+        "--with",
+        "sase-github",
+        "--with",
+        "acme-jira",
+    ]
+
+
+def test_plan_install_many_skips_terminal_inputs(tmp_path: Path) -> None:
+    plan = plan_install_many(
+        ("telegram", "githubb"),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+    )
+    assert isinstance(plan, InstallManyNothing)
+    assert [item.reason for item in plan.skipped] == ["already installed", "not found"]
+    assert "github" in {entry.name for entry in plan.skipped[1].suggestions}
 
 
 def test_plan_install_ready_git(tmp_path: Path) -> None:
@@ -163,6 +204,48 @@ def test_execute_install_runs_and_collects_groups(tmp_path: Path) -> None:
     assert outcome.groups == ("sase_vcs",)
     assert outcome.elapsed == 2.5
     assert outcome.change_set.get("sase-github") is not None
+
+
+def test_execute_install_many_runs_one_argv_and_collects_groups(tmp_path: Path) -> None:
+    seen: dict[str, list[str]] = {}
+
+    def _run(argv: list[str]) -> UvChangeSet:
+        seen["argv"] = argv
+        return parse_uv_output(
+            """\
+Resolved 3 packages in 120ms
+ + sase-github==0.4.0
+ + acme-jira==1.0.0
+"""
+        )
+
+    plan = plan_install_many(
+        ("github", "jira"),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+    )
+    assert isinstance(plan, InstallManyReady)
+
+    clock = iter([10.0, 13.0])
+    outcome = execute_install_many(
+        plan,
+        run_fn=_run,
+        installed_index_fn=lambda: {
+            "sase-github": InstalledInfo(
+                installed=True, version="0.4.0", entry_point_groups=("sase_vcs",)
+            ),
+            "acme-jira": InstalledInfo(
+                installed=True, version="1.0.0", entry_point_groups=("sase_issue",)
+            ),
+        },
+        clock=lambda: next(clock),
+    )
+    assert isinstance(outcome, InstallManyOutcome)
+    assert seen["argv"] == plan.argv
+    assert outcome.groups == ("sase_vcs", "sase_issue")
+    assert outcome.elapsed == 3.0
+    assert outcome.change_set.get("sase-github") is not None
+    assert outcome.change_set.get("acme-jira") is not None
 
 
 def test_execute_install_groups_are_best_effort(tmp_path: Path) -> None:

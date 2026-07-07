@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 00:04:28
-status: wip
+status: done
 prompt: sdd/prompts/202607/plugins_marked_batch_install.md
 ---
 # Plan: Mark-and-Batch-Install Plugins in the Admin Center Updates Tab

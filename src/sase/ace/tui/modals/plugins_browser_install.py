@@ -13,12 +13,18 @@ from sase.ace.tui.task_subprocess import TaskReporter
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     AlreadyInstalled,
+    InstallManyNothing,
+    InstallManyOutcome,
+    InstallManyPlan,
+    InstallManyReady,
     InstallNotFound,
     InstallOutcome,
     InstallPlan,
     InstallReady,
+    InstallSkipped,
     NotUvTool,
     plan_install,
+    plan_install_many,
 )
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.detect import NotUvToolInstall
@@ -51,6 +57,14 @@ class InstallPreview:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class InstallManyPreview:
+    """Off-thread result of planning a batch install preview."""
+
+    plan: InstallManyPlan | None
+    error: str | None = None
+
+
 def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
     """Plan ``install <name>`` (index, then git) for the confirm-preview modal.
 
@@ -75,9 +89,27 @@ def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:
     return InstallPreview(index_plan=index_plan, git_plan=git_plan)
 
 
+def plan_install_many_preview(
+    names: tuple[str, ...], *, offline: bool
+) -> InstallManyPreview:
+    """Plan a marked-set install for the confirm-preview modal."""
+    try:
+        plan = plan_install_many(names, offline=offline)
+    except (PluginCatalogError, ReceiptError) as exc:
+        return InstallManyPreview(plan=None, error=str(exc))
+    return InstallManyPreview(plan=plan)
+
+
 def install_summary(plan: InstallReady) -> str:
     """The resolved-plugin-set line shown in the confirm-preview modal."""
     return f"Installs {plan.spec.display_name}  (from {plan.spec.source})"
+
+
+def install_many_summary(plan: InstallManyReady) -> str:
+    """The resolved-plugin-set line shown for a batch install."""
+    count = len(plan.specs)
+    noun = "plugin" if count == 1 else "plugins"
+    return f"Installs {count} {noun}"
 
 
 def install_success_message(outcome: InstallOutcome) -> str:
@@ -89,6 +121,13 @@ def install_success_message(outcome: InstallOutcome) -> str:
     return (
         f"Installed {spec.display_name}{suffix} in {humanize_duration(outcome.elapsed)}"
     )
+
+
+def install_many_success_message(outcome: InstallManyOutcome) -> str:
+    """A concise success toast for a combined marked-set install."""
+    count = len(outcome.plan.specs)
+    noun = "plugin" if count == 1 else "plugins"
+    return f"Installed {count} {noun} in {humanize_duration(outcome.elapsed)}"
 
 
 def missing_plugin_message(
@@ -106,11 +145,20 @@ def install_not_found_message(plan: InstallNotFound) -> str:
     return missing_plugin_message(plan.query, plan.suggestions)
 
 
+def _install_many_skipped_message(skipped: InstallSkipped) -> str:
+    """Human-readable skipped entry for batch-install previews/toasts."""
+    if skipped.reason == "not found" and skipped.suggestions:
+        names = ", ".join(entry.name for entry in skipped.suggestions)
+        return f"{skipped.query}: not found; did you mean {names}?"
+    return f"{skipped.query}: {skipped.reason}"
+
+
 class PluginInstallActionsMixin:
     """Install actions for :class:`PluginsBrowserPane`."""
 
     if TYPE_CHECKING:
         _loading: bool
+        _marked_install: set[str]
         _offline: bool
         _plan_worker: Worker[Any] | None
         _uv_tool: object | None
@@ -123,9 +171,21 @@ class PluginInstallActionsMixin:
             self, plan: InstallReady, *, run_fn: Any = None
         ) -> InstallOutcome: ...
 
+        def _execute_install_many(
+            self, plan: InstallManyReady, *, run_fn: Any = None
+        ) -> InstallManyOutcome: ...
+
         def _make_install_preview(
             self, name: str, *, offline: bool
         ) -> InstallPreview: ...
+
+        def _make_install_many_preview(
+            self, names: tuple[str, ...], *, offline: bool
+        ) -> InstallManyPreview: ...
+
+        def _hints(self) -> str: ...
+
+        def _update_static(self, selector: str, content: Any) -> None: ...
 
         def _notify(
             self,
@@ -136,6 +196,14 @@ class PluginInstallActionsMixin:
 
         def _start_load(self, *, force: bool) -> None: ...
 
+        def _refresh_install_mark_row(self, name: str) -> bool: ...
+
+        def _advance_install_mark_selection(self) -> None: ...
+
+        def _clear_install_marks(self) -> None: ...
+
+        def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool: ...
+
         def _handle_code_update_completion(
             self,
             completion: TrackedTaskCompletion[Any],
@@ -144,15 +212,21 @@ class PluginInstallActionsMixin:
         ) -> None: ...
 
     def action_install(self) -> None:
-        """Install the highlighted plugin (``i``) via a confirm-preview modal.
+        """Install marked plugins, or the highlighted plugin when none are marked.
 
-        Offered only for a *not-installed* plugin. Short-circuits with the CLI's
-        actionable message when sase is not a managed ``uv tool`` install, then
-        plans the install off-thread (so a cache read never blocks the UI) and
-        opens the confirm-preview modal; the actual ``uv`` run happens later, in
-        a tracked background task, only if the user confirms.
+        The marked-set path resolves every marked plugin into one combined
+        ``uv`` argv, so a successful install causes exactly one ACE restart.
+        With no marks, this preserves the historical single-highlight behavior.
         """
         if self._loading or self._plan_worker is not None:
+            return
+        if self._marked_install:
+            if isinstance(self._uv_tool, NotUvToolInstall):
+                self._notify(
+                    str(NotAUvToolInstallError(self._uv_tool)), severity="warning"
+                )
+                return
+            self._begin_install_many_plan(tuple(sorted(self._marked_install)))
             return
         entry = self._current_entry()
         if entry is None:
@@ -165,6 +239,34 @@ class PluginInstallActionsMixin:
             return
         self._begin_install_plan(entry.name)
 
+    def action_toggle_install_mark(self) -> None:
+        """Toggle the install mark on the highlighted installable plugin."""
+        if self._loading or self._plan_worker is not None:
+            return
+        entry = self._current_entry()
+        if not self._can_install_entry(entry):
+            self._notify("Select an installable plugin to mark.", severity="warning")
+            return
+        assert entry is not None
+        if entry.name in self._marked_install:
+            self._marked_install.remove(entry.name)
+        else:
+            self._marked_install.add(entry.name)
+        self._refresh_install_mark_row(entry.name)
+        self._advance_install_mark_selection()
+        self._update_static("#plugins-hints", self._hints())
+
+    def action_clear_install_marks_or_close(self) -> None:
+        """Clear install marks on first escape; otherwise close the parent modal."""
+        if self._marked_install:
+            count = len(self._marked_install)
+            self._clear_install_marks()
+            self._notify(f"Cleared {count} install mark(s).")
+            return
+        close = getattr(getattr(self, "screen", None), "action_close", None)
+        if callable(close):
+            close()
+
     def _begin_install_plan(self, name: str) -> None:
         offline = self._offline
 
@@ -175,9 +277,24 @@ class PluginInstallActionsMixin:
             task, thread=True, exclusive=True, group="plugin-plan"
         )
 
-    def _on_install_preview(self, preview: InstallPreview | None) -> None:
+    def _begin_install_many_plan(self, names: tuple[str, ...]) -> None:
+        offline = self._offline
+
+        def task() -> InstallManyPreview:
+            return self._make_install_many_preview(names, offline=offline)
+
+        self._plan_worker = self.run_worker(  # type: ignore[attr-defined]
+            task, thread=True, exclusive=True, group="plugin-plan"
+        )
+
+    def _on_install_preview(
+        self, preview: InstallPreview | InstallManyPreview | None
+    ) -> None:
         """Route a planned install to a toast (terminal) or the confirm modal."""
         if preview is None:
+            return
+        if isinstance(preview, InstallManyPreview):
+            self._on_install_many_preview(preview)
             return
         if preview.error is not None:
             self._notify(preview.error, severity="error")
@@ -191,6 +308,27 @@ class PluginInstallActionsMixin:
             self._notify(f"{plan.spec.display_name} is already installed.")
         elif isinstance(plan, InstallReady):
             self._open_install_modal(plan, preview.git_plan)
+
+    def _on_install_many_preview(self, preview: InstallManyPreview) -> None:
+        """Route a marked-set install preview to a toast or confirm modal."""
+        if preview.error is not None:
+            self._notify(preview.error, severity="error")
+            return
+        plan = preview.plan
+        if plan is None:
+            return
+        if isinstance(plan, NotUvTool):
+            self._notify(str(plan.error), severity="warning")
+        elif isinstance(plan, InstallManyNothing):
+            skipped = "; ".join(
+                _install_many_skipped_message(item) for item in plan.skipped
+            )
+            suffix = f": {skipped}" if skipped else "."
+            self._notify(
+                f"No marked plugins can be installed{suffix}", severity="warning"
+            )
+        elif isinstance(plan, InstallManyReady):
+            self._open_install_many_modal(plan)
 
     def _open_install_modal(
         self, index_plan: InstallReady, git_plan: InstallReady | None
@@ -236,6 +374,44 @@ class PluginInstallActionsMixin:
 
         self.app.push_screen(modal, _on_confirmed)
 
+    def _open_install_many_modal(self, plan: InstallManyReady) -> None:
+        names = tuple(spec.display_name for spec in plan.specs)
+        count = len(names)
+        noun = "plugin" if count == 1 else "plugins"
+        skipped = tuple(_install_many_skipped_message(item) for item in plan.skipped)
+        modal = PluginActionConfirmModal(
+            title=f"Install {count} {noun}",
+            intro=(
+                f"Confirm to install {count} marked {noun} into "
+                "sase's uv tool environment."
+            ),
+            variants=[
+                PluginActionVariant(
+                    key="batch",
+                    label="marked set",
+                    argv=tuple(plan.argv),
+                    summary=install_many_summary(plan),
+                    items=tuple(
+                        f"{spec.display_name}  (from {spec.source})"
+                        for spec in plan.specs
+                    ),
+                    skipped=skipped,
+                    details=(
+                        "ACE restarts after a successful install to load the plugins.",
+                    ),
+                )
+            ],
+            panel_title="Confirm install",
+            icon="↓",
+        )
+
+        def _on_confirmed(result: PluginActionConfirmResult | None) -> None:
+            if result is None:
+                return
+            self._submit_install_many_task(names, plan)
+
+        self.app.push_screen(modal, _on_confirmed)
+
     def _submit_install_task(self, name: str, plan: InstallReady) -> None:
         """Run ``execute_install`` in a tracked background task (never blocks)."""
 
@@ -271,6 +447,48 @@ class PluginInstallActionsMixin:
             notify_on_complete=False,
         )
 
+    def _submit_install_many_task(
+        self, names: tuple[str, ...], plan: InstallManyReady
+    ) -> None:
+        """Run one combined marked-set install in a tracked background task."""
+
+        label = ", ".join(names)
+        count = len(names)
+
+        def task(reporter: TaskReporter) -> TrackedTaskResult[InstallManyOutcome]:
+            try:
+                reporter.phase(f"Installing {count} marked plugin(s)")
+                outcome = self._execute_install_many(plan, run_fn=reporter.uv_runner())
+            except UvToolError as exc:
+                return TrackedTaskResult(
+                    success=False, message=str(exc), error=str(exc)
+                )
+            message = install_many_success_message(outcome)
+            reporter.log(message, stream="result")
+            return TrackedTaskResult(
+                success=True,
+                message=message,
+                payload=outcome,
+            )
+
+        submit = getattr(self.app, "_submit_tracked_task", None)
+        if submit is None:
+            return
+        task_info = submit(
+            "plugin-install",
+            label,
+            "",
+            task,
+            display_name=f"install {count} marked plugins",
+            dedup_key=f"plugin-install-many:{','.join(names)}",
+            duplicate_message="A marked plugin install is already running.",
+            on_complete=self._on_install_many_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+        if task_info is not None:
+            self._clear_install_marks()
+
     def _on_install_complete(
         self, completion: TrackedTaskCompletion[InstallOutcome]
     ) -> None:
@@ -280,10 +498,23 @@ class PluginInstallActionsMixin:
             failure_prefix="Install failed",
         )
 
+    def _on_install_many_complete(
+        self, completion: TrackedTaskCompletion[InstallManyOutcome]
+    ) -> None:
+        """Toast/restart after a marked-set install."""
+        self._handle_code_update_completion(
+            completion,
+            failure_prefix="Install failed",
+        )
+
 
 _InstallPreview = InstallPreview
+_InstallManyPreview = InstallManyPreview
 _plan_install_preview = plan_install_preview
+_plan_install_many_preview = plan_install_many_preview
 _install_summary = install_summary
+_install_many_summary = install_many_summary
 _install_success_message = install_success_message
+_install_many_success_message = install_many_success_message
 _missing_plugin_message = missing_plugin_message
 _not_found_message = install_not_found_message

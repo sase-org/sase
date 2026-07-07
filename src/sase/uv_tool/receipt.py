@@ -20,6 +20,7 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Iterable
 from typing import Any
 
 from sase.uv_tool.detect import SASE_PACKAGE
@@ -177,15 +178,17 @@ class ToolReceipt:
         self,
         *,
         add: Requirement | str | None = None,
+        adds: Iterable[Requirement | str] = (),
         remove: str | None = None,
     ) -> ReconstructedRequirements:
-        """Rebuild the full injected set, deduped, optionally adding/removing one.
+        """Rebuild the full injected set, deduped, optionally adding/removing.
 
-        *add* appends a new requirement to the set before dedupe. *remove* drops
+        *add* appends one new requirement to the set before dedupe; *adds*
+        appends zero or more requirements for batch operations. *remove* drops
         **every** raw receipt entry whose normalized distribution name matches
         (so a dev receipt's editable + bare-index duplicates of one plugin both
-        disappear), again before dedupe. The two are independent; uninstall uses
-        only *remove*.
+        disappear), again before dedupe. These options are independent;
+        uninstall uses only *remove*.
         """
         reqs = list(self.plugins)
         if remove is not None:
@@ -195,6 +198,10 @@ class ToolReceipt:
         if add is not None:
             added = add if isinstance(add, Requirement) else Requirement.from_spec(add)
             reqs.append(added)
+        for item in adds:
+            reqs.append(
+                item if isinstance(item, Requirement) else Requirement.from_spec(item)
+            )
         deduped, warnings = _dedupe(reqs)
         return ReconstructedRequirements(
             primary=self.primary,

@@ -19,6 +19,7 @@ from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.operations import (
     execute_install as execute_install,
+    execute_install_many as execute_install_many,
     execute_uninstall as execute_uninstall,
     execute_update as execute_update,
 )
@@ -45,11 +46,15 @@ from .plugins_browser_incoming import (
 )
 from .plugins_browser_input import PluginsFilterInput
 from .plugins_browser_install import (
+    InstallManyPreview,
     InstallPreview,
     PluginInstallActionsMixin,
+    install_many_success_message,
+    install_many_summary,
     install_not_found_message,
     install_success_message,
     install_summary,
+    plan_install_many_preview,
     missing_plugin_message,
     plan_install_preview,
 )
@@ -98,11 +103,15 @@ from .plugins_browser_update import (
 _PluginsFilterInput = PluginsFilterInput
 _PluginList = PluginsBrowserList
 _InstallPreview = InstallPreview
+_InstallManyPreview = InstallManyPreview
 _install_success_message = install_success_message
+_install_many_success_message = install_many_success_message
 _install_summary = install_summary
+_install_many_summary = install_many_summary
 _missing_plugin_message = missing_plugin_message
 _not_found_message = install_not_found_message
 _plan_install_preview = plan_install_preview
+_plan_install_many_preview = plan_install_many_preview
 _PluginsLoadResult = PluginsLoadResult
 _load_plugins_catalog = load_plugins_catalog_for_pane
 _collect_installed_core_versions = collect_installed_core_versions
@@ -155,6 +164,8 @@ class PluginsBrowserPane(
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
         ("i", "install", "Install"),
+        ("I", "toggle_install_mark", "Mark"),
+        ("space", "toggle_install_mark", "Mark"),
         ("x", "uninstall", "Uninstall"),
         ("m", "switch_mode", "Switch mode"),
         ("u", "update_sase", "Update"),
@@ -168,6 +179,7 @@ class PluginsBrowserPane(
         ("o", "toggle_offline", "Offline"),
         ("v", "toggle_verbose", "Verbose"),
         ("slash", "focus_filter", "Filter"),
+        ("escape", "clear_install_marks_or_close", "Close"),
     ]
 
     def __init__(
@@ -186,6 +198,7 @@ class PluginsBrowserPane(
         self._loading = auto_load
         self._now = time.time()
         self._filter_text = ""
+        self._marked_install: set[str] = set()
         self._offline = False
         self._verbose = False
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []

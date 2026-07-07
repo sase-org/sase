@@ -45,6 +45,7 @@ from sase.plugins.catalog import (
 from sase.plugins.installed import InstalledInfo, build_installed_index
 from sase.uv_tool.commands import (
     build_install,
+    build_install_many,
     build_uninstall,
     build_upgrade_packages,
 )
@@ -209,10 +210,49 @@ InstallPlan = NotUvTool | InstallNotFound | AlreadyInstalled | InstallReady
 
 
 @dataclass(frozen=True)
+class InstallSkipped:
+    """A batch-install input that could not be included in the uv operation."""
+
+    query: str
+    reason: str
+    suggestions: tuple[PluginCatalogEntry, ...] = ()
+
+
+@dataclass(frozen=True)
+class InstallManyNothing:
+    """A batch install where every requested plugin was skipped."""
+
+    skipped: tuple[InstallSkipped, ...]
+
+
+@dataclass(frozen=True)
+class InstallManyReady:
+    """Resolved batch install: *argv* injects every target in one uv command."""
+
+    specs: tuple[ResolvedSpec, ...]
+    argv: list[str]
+    skipped: tuple[InstallSkipped, ...] = ()
+
+
+#: A planned batch install.
+InstallManyPlan = NotUvTool | InstallManyNothing | InstallManyReady
+
+
+@dataclass(frozen=True)
 class InstallOutcome:
     """The result of executing an :class:`InstallReady` plan."""
 
     plan: InstallReady
+    change_set: UvChangeSet
+    groups: tuple[str, ...]
+    elapsed: float
+
+
+@dataclass(frozen=True)
+class InstallManyOutcome:
+    """The result of executing an :class:`InstallManyReady` plan."""
+
+    plan: InstallManyReady
     change_set: UvChangeSet
     groups: tuple[str, ...]
     elapsed: float
@@ -254,6 +294,66 @@ def plan_install(
     return InstallReady(spec=spec, argv=argv)
 
 
+def plan_install_many(
+    queries: list[str] | tuple[str, ...],
+    *,
+    refresh: bool = False,
+    offline: bool = False,
+    load_fn: LoadFn = load_plugin_catalog,
+    probe_fn: ProbeFn = probe_uv_tool_install,
+) -> InstallManyPlan:
+    """Plan a batch install as one combined ``uv`` operation.
+
+    Each input is resolved through the catalog using the default index source.
+    Unknown or already-injected plugins are reported in ``skipped``; resolvable
+    not-yet-injected plugins are added to one reconstructed receipt install
+    argv. No mutation runs here.
+    """
+    install = probe_fn()
+    if isinstance(install, NotUvToolInstall):
+        return NotUvTool(NotAUvToolInstallError(install))
+
+    catalog = _load_catalog(load_fn, refresh=refresh, offline=offline)
+    receipt = load_receipt(install.receipt_path)
+    specs: list[ResolvedSpec] = []
+    skipped: list[InstallSkipped] = []
+    selected: set[str] = set()
+
+    for query in queries:
+        spec = resolve_install_spec(catalog, query, git=False)
+        if spec is None:
+            skipped.append(
+                InstallSkipped(
+                    query=query,
+                    reason="not found",
+                    suggestions=suggest_plugins(catalog, query),
+                )
+            )
+            continue
+        if receipt.is_injected(spec.normalized_name):
+            skipped.append(InstallSkipped(query=query, reason="already installed"))
+            continue
+        if spec.normalized_name in selected:
+            skipped.append(InstallSkipped(query=query, reason="duplicate"))
+            continue
+        selected.add(spec.normalized_name)
+        specs.append(spec)
+
+    if not specs:
+        return InstallManyNothing(skipped=tuple(skipped))
+
+    argv = build_install_many(
+        receipt,
+        add=(spec.requirement for spec in specs),
+        color="never",
+    )
+    return InstallManyReady(
+        specs=tuple(specs),
+        argv=argv,
+        skipped=tuple(skipped),
+    )
+
+
 def execute_install(
     plan: InstallReady,
     *,
@@ -275,6 +375,26 @@ def execute_install(
     )
 
 
+def execute_install_many(
+    plan: InstallManyReady,
+    *,
+    run_fn: RunUvFn = run_uv,
+    installed_index_fn: InstalledIndexFn = build_installed_index,
+    clock: ClockFn = time.monotonic,
+) -> InstallManyOutcome:
+    """Run the combined ``uv`` install for a ready batch plan."""
+    start = clock()
+    change_set = run_fn(plan.argv)
+    elapsed = max(0.0, clock() - start)
+    groups = _installed_groups_many(installed_index_fn, plan.specs)
+    return InstallManyOutcome(
+        plan=plan,
+        change_set=change_set,
+        groups=groups,
+        elapsed=elapsed,
+    )
+
+
 def _installed_groups(
     installed_index_fn: InstalledIndexFn, normalized_name: str
 ) -> tuple[str, ...]:
@@ -289,6 +409,27 @@ def _installed_groups(
         return ()
     info = index.get(normalized_name)
     return info.entry_point_groups if info is not None else ()
+
+
+def _installed_groups_many(
+    installed_index_fn: InstalledIndexFn, specs: tuple[ResolvedSpec, ...]
+) -> tuple[str, ...]:
+    """Best-effort aggregate entry-point groups for a batch install."""
+    try:
+        index = installed_index_fn()
+    except Exception:  # noqa: BLE001 — group display must never crash the run.
+        return ()
+    groups: list[str] = []
+    seen: set[str] = set()
+    for spec in specs:
+        info = index.get(spec.normalized_name)
+        if info is None:
+            continue
+        for group in info.entry_point_groups:
+            if group not in seen:
+                seen.add(group)
+                groups.append(group)
+    return tuple(groups)
 
 
 # --------------------------------------------------------------------------- #
@@ -581,9 +722,14 @@ __all__ = [
     "AlreadyAbsent",
     "AlreadyInstalled",
     "InstallNotFound",
+    "InstallManyNothing",
+    "InstallManyOutcome",
+    "InstallManyPlan",
+    "InstallManyReady",
     "InstallOutcome",
     "InstallPlan",
     "InstallReady",
+    "InstallSkipped",
     "NoPlugins",
     "NotInstalled",
     "NotUvTool",
@@ -598,9 +744,11 @@ __all__ = [
     "UpdateReady",
     "UpdateUnknown",
     "execute_install",
+    "execute_install_many",
     "execute_uninstall",
     "execute_update",
     "plan_install",
+    "plan_install_many",
     "plan_uninstall",
     "plan_update",
     "resolve_install_spec",

@@ -46,6 +46,21 @@ def build_install(
     return argv
 
 
+def build_install_many(
+    receipt: ToolReceipt,
+    *,
+    add: Iterable[Requirement | str],
+    color: ColorChoice | None = None,
+) -> list[str]:
+    """``uv tool install`` re-injecting the full set plus multiple additions."""
+    recon = receipt.reconstruct(adds=add)
+    argv = ["uv", "tool", "install", *_color_args(color)]
+    argv += recon.primary.primary_args()
+    for plugin in recon.plugins:
+        argv += plugin.with_args()
+    return argv
+
+
 def build_reinstall_set(
     primary: Requirement,
     plugins: Iterable[Requirement] = (),
@@ -106,6 +121,7 @@ def _color_args(color: ColorChoice | None) -> list[str]:
 __all__ = [
     "ColorChoice",
     "build_install",
+    "build_install_many",
     "build_reinstall_set",
     "build_uninstall",
     "build_upgrade_all",

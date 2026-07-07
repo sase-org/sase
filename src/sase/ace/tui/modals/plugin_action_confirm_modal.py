@@ -45,6 +45,8 @@ class PluginActionVariant:
     argv: tuple[str, ...]
     summary: str
     details: tuple[str, ...] = ()
+    items: tuple[str, ...] = ()
+    skipped: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -130,6 +132,24 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
 
         parts.append(Text(""))
         parts.append(Text(variant.summary, style="bold"))
+
+        if variant.items:
+            parts.append(Text(""))
+            parts.append(Text("Plugins", style="dim"))
+            for item in variant.items:
+                line = Text()
+                line.append("- ", style="dim")
+                line.append(item)
+                parts.append(line)
+
+        if variant.skipped:
+            parts.append(Text(""))
+            parts.append(Text("Skipped", style="yellow"))
+            for item in variant.skipped:
+                line = Text()
+                line.append("- ", style="dim")
+                line.append(item, style="yellow")
+                parts.append(line)
 
         if variant.details:
             parts.append(Text(""))

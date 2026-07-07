@@ -30,6 +30,26 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
+def _pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:
+    """Pin Agents-tab runtime formatting for date-sensitive snapshots."""
+    from sase.ace.tui.actions.agents import (
+        _display_panel_patches,
+        _loading_compute_finalize,
+        _loading_finalize,
+    )
+    from sase.ace.tui.models import agent as agent_module
+    from sase.ace.tui.models import agent_time
+
+    for module in (
+        agent_module,
+        agent_time,
+        _display_panel_patches,
+        _loading_compute_finalize,
+        _loading_finalize,
+    ):
+        monkeypatch.setattr(module, "local_now", lambda: now)
+
+
 async def test_agent_list_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -281,6 +301,7 @@ async def test_custom_role_labels_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 6, 10, 8, 0))
     patch_startup_loaders(monkeypatch, agents=_custom_role_label_agents())
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
