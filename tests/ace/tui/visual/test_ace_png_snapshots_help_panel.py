@@ -37,7 +37,7 @@ async def test_help_panel_keymaps_png_snapshot(
 
     async with AcePage(
         query='"visual"',
-        size=(150, 40),
+        size=(120, 40),
         changespecs=changespecs(),
     ) as page:
         await wait_for_startup(page)
@@ -58,7 +58,7 @@ async def test_help_panel_keymaps_png_snapshot(
         assert_page_svg_contains(page, "Guide")
         ace_png_visual.assert_page_png(
             page,
-            "help_keymaps_changespecs_150x40",
+            "help_keymaps_changespecs_120x40",
             title="ACE Help panel keymaps (PRs)",
         )
 

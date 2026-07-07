@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 13:46:29
-status: wip
+status: done
 prompt: sdd/prompts/202607/expand_help_panel.md
 ---
 # Expand the Help Panel to Use Nearly the Full TUI

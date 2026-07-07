@@ -182,7 +182,6 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
     def _build_title(self) -> Text:
         """Build the styled title."""
         text = Text()
-        text.append("\n")
         text.append("  ", style="")
         text.append("\u2726 ", style="bold #FFD700")
         text.append("sase ace Help", style="bold white")

@@ -2398,12 +2398,11 @@ HelpModal {
 }
 
 HelpModal > Container {
-    width: 90%;
-    max-width: 150;
-    height: 85%;
+    width: 98%;
+    height: 96%;
     border: round #00D7AF;
     background: $surface;
-    padding: 1 2;
+    padding: 1 1;
 }
 
 HelpModal #help-modal-container.-tab-changespecs {
