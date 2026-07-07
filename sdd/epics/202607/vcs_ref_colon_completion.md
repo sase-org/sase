@@ -1,5 +1,6 @@
 ---
 create_time: 2026-07-07 15:35:46
+tier: epic
 status: wip
 prompt: sdd/prompts/202607/vcs_ref_colon_completion.md
 ---
