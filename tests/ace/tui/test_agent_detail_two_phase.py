@@ -53,6 +53,7 @@ class _FakeAgentDetail:
         self.immediate_calls: list[tuple[str | None, int | None]] = []
         self.full_calls: list[tuple[str | None, int | None]] = []
         self._agent_detail_generation: int = 0
+        self.tools_detail_level = 0
 
     def update_display(
         self,
@@ -74,6 +75,9 @@ class _FakeAgentDetail:
         return
 
     def is_file_visible(self) -> bool:
+        return False
+
+    def is_tools_visible(self) -> bool:
         return False
 
 
