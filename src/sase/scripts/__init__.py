@@ -140,10 +140,15 @@ def sase_chop_wait_checks() -> None:
     main()
 
 
-def sase_chop_cl_submitted_checks() -> None:
-    from sase.scripts.sase_chop_cl_submitted_checks import main
+def sase_chop_pr_submitted_checks() -> None:
+    from sase.scripts.sase_chop_pr_submitted_checks import main
 
     main()
+
+
+def sase_chop_cl_submitted_checks() -> None:
+    """Legacy console-script alias for :func:`sase_chop_pr_submitted_checks`."""
+    sase_chop_pr_submitted_checks()
 
 
 def sase_chop_comment_checks() -> None:

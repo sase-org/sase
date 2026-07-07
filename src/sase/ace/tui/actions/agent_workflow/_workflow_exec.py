@@ -353,7 +353,7 @@ class WorkflowExecMixin:
         # Build output log path
         output_path = os.path.join(artifacts_dir, "workflow.log")
 
-        # Inject cl_name from display context so the runner knows the CL name
+        # Inject cl_name from display context so the runner knows the ChangeSpec name
         if ctx.display_name:
             named_args = dict(named_args)
             named_args.setdefault("cl_name", ctx.display_name)

@@ -1,4 +1,4 @@
-"""Tag input modal for adding CL tags."""
+"""Tag input modal for adding change tags."""
 
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ class TagInputModal(ModalScreen[tuple[str, str] | None]):
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container():
-            yield Label("Add Tag to CL", id="modal-title")
+            yield Label("Add Tag to PR", id="modal-title")
             yield Label("Tag Name:", id="tag-name-label")
             if self._saved_names:
                 yield OptionList(*self._saved_names, id="tag-name-history")

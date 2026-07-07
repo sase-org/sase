@@ -174,7 +174,7 @@ def format_agent_option(
         text.append(_REVERTED_GLYPH, style=_REVERTED_GLYPH_STYLE)
         text.append(" ")
 
-    # Agent display name (workflow name for top-level workflows, CL name otherwise)
+    # Agent display name (workflow name for top-level workflows, ChangeSpec name otherwise)
     if is_reverted_root:
         name_style = "bold strike #00D7AF" if is_selected else "strike #00D7AF"
     else:

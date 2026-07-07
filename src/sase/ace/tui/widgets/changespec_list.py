@@ -106,18 +106,18 @@ class ChangeSpecList(OptionList):
             changespecs: List of ChangeSpecs to display
             current_idx: Index of currently selected ChangeSpec
             marked_indices: Set of indices that are marked
-            hide_reverted: Whether reverted CLs are currently hidden
-            hide_submitted: Whether submitted CLs are currently hidden
+            hide_reverted: Whether reverted ChangeSpecs are currently hidden
+            hide_submitted: Whether submitted ChangeSpecs are currently hidden
             jump_hints: Optional local row index -> hint character mapping
-            grouping_mode: Which CL grouping mode to render.  Banner rows
+            grouping_mode: Which ChangeSpec grouping mode to render.  Banner rows
                 are produced by :func:`build_changespec_tree` and
-                interleaved with the CL rows.
+                interleaved with the ChangeSpec rows.
             fold_registry: Per-group collapse registry consulted by the
                 tree builder.  Missing or empty registry renders every
                 group expanded.
             current_group_key: When non-None and pointing at a banner
                 row whose group is collapsed, highlight that banner
-                instead of the CL row at ``current_idx``.
+                instead of the ChangeSpec row at ``current_idx``.
             banner_jump_hints: Group key -> hint character for collapsed
                 banner rows (Phase 4 wires the producer side; the widget
                 only needs to render whatever it is given).
@@ -157,7 +157,7 @@ class ChangeSpecList(OptionList):
         self._marked_indices = marked_indices or set()
         self._changespecs = changespecs
         self._grouping_mode = grouping_mode
-        # When not hiding, show ◌ prefix on the relevant CLs
+        # When not hiding, show ◌ prefix on the relevant ChangeSpecs
         show_hideable = not hide_reverted
         show_submitted = not hide_submitted
         self.clear_options()
@@ -379,7 +379,7 @@ class ChangeSpecList(OptionList):
 
         Selectable banner rows resolve to their group's first ChangeSpec
         plus the banner key so the caller can keep banner focus state
-        in sync.  Non-banner rows resolve to their CL index with
+        in sync.  Non-banner rows resolve to their PR index with
         ``group_key=None``.
 
         When the row map hasn't been populated (e.g. tests that drive
@@ -395,7 +395,7 @@ class ChangeSpecList(OptionList):
             return (first, banner.group_key)
         if entry == _BANNER_ROW:
             # Expanded (non-selectable) banner row that somehow received
-            # focus — fall through to the next CL row so the caller's
+            # focus — fall through to the next ChangeSpec row so the caller's
             # selection state stays meaningful.
             for j in range(option_index + 1, len(self._row_entries)):
                 nxt = self._row_entries[j]

@@ -1,8 +1,6 @@
 """Tests for format_changespec_for_clipboard() function."""
 
 from typing import Any
-from unittest.mock import patch
-
 from sase.ace.changespec import (
     ChangeSpec,
     CommentEntry,
@@ -45,15 +43,11 @@ def test_format_changespec_with_parent() -> None:
     assert "PARENT: parent_cl" in result
 
 
-def test_format_changespec_with_cl() -> None:
-    """Test formatting ChangeSpec with CL field."""
+def test_format_changespec_with_pr() -> None:
+    """Test formatting ChangeSpec with PR field."""
     cs = _make_basic_changespec(cl="12345")
-    with patch(
-        "sase.ace.tui.actions.clipboard._helpers.get_change_label",
-        return_value="CL",
-    ):
-        result = format_changespec_for_clipboard(cs)
-    assert "CL: 12345" in result
+    result = format_changespec_for_clipboard(cs)
+    assert "PR: 12345" in result
 
 
 def test_format_changespec_with_bug() -> None:

@@ -250,7 +250,7 @@ def test_mark_toggle_calls_patch_changespec_row_once_no_clear_options() -> None:
 
 
 def test_refresh_display_off_tab_does_not_touch_shared_footer() -> None:
-    """CL display refresh must not write the shared footer when off-tab.
+    """ChangeSpec display refresh must not write the shared footer when off-tab.
 
     Regression for the Agents-tab flicker where the inotify-driven CL
     reload kept stomping the agents bindings with ``show_empty()``'s

@@ -42,8 +42,8 @@ class _StubApp(AgentGroupingMixin):
         }
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
-        # CL-side state is required by the action's tab dispatch even
-        # when the test never enters the CLs branch — the dispatcher
+        # ChangeSpec-side state is required by the action's tab dispatch even
+        # when the test never enters the ChangeSpecs branch — the dispatcher
         # references these attributes during type-narrowing setup.
         self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registries: dict[
@@ -250,7 +250,7 @@ def test_build_tree_after_cycle_uses_active_mode_registry() -> None:
 
 
 def test_cycle_on_changespecs_tab_does_not_touch_agents_state() -> None:
-    """CLs cycle goes through the CL branch; Agents grouping stays put."""
+    """ChangeSpecs cycle goes through the PR branch; Agents grouping stays put."""
     app = _StubApp([_agent()], current_tab="changespecs")
     app.action_cycle_grouping_mode()
     assert app.scroll_calls == 0

@@ -122,7 +122,7 @@ class Agent:
     # Bug URL for agents with associated bug IDs
     bug: str | None = None
 
-    # CL number for agents with associated CL
+    # PR number for agents with associated PR
     cl_num: str | None = None
 
     # Parent workflow name for agent steps within workflows
@@ -403,7 +403,7 @@ class Agent:
         """Name to show in list display.
 
         Top-level workflow entries show the workflow name (e.g. "refresh_cl_desc")
-        instead of the CL name, since that's what the user cares about.
+        instead of the ChangeSpec name, since that's what the user cares about.
         """
         if (
             self.agent_type == AgentType.WORKFLOW

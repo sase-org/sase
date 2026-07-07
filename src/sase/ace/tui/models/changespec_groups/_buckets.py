@@ -23,7 +23,7 @@ _EARLIER = "Earlier"
 
 
 class ChangeSpecGroupingMode(Enum):
-    """How the CLs tab is bucketed at L0.
+    """How the ChangeSpecs tab is bucketed at L0.
 
     * ``BY_PROJECT``: L0 is the project name, L1 is the sibling root
       shared by ``foobar_1`` / ``foobar_2`` style suffixed siblings.
@@ -93,7 +93,7 @@ def latest_changespec_timestamp(cs: ChangeSpec) -> datetime | None:
 
     Walks the full ``cs.timestamps`` list rather than trusting input
     order — file-on-disk ordering is "append on event", but malformed or
-    out-of-order entries shouldn't silently drop a CL into ``Earlier``.
+    out-of-order entries shouldn't silently drop a PR into ``Earlier``.
     """
     if not cs.timestamps:
         return None
@@ -138,7 +138,7 @@ def date_bucket_for_changespec(
     - ``Today``: same calendar date as ``now``.
     - ``Yesterday``: the day before ``now``.
     - ``This Week``: within the prior six days, but not Today/Yesterday.
-    - ``Earlier``: anything older, plus CLs with no parseable timestamps.
+    - ``Earlier``: anything older, plus ChangeSpecs with no parseable timestamps.
 
     Pass *latest_map* (from :func:`precompute_latest_timestamps`) when
     bucketing many CSs in the same refresh to skip a redundant parse.
@@ -178,7 +178,7 @@ def date_subgroup_for_changespec(
     """Return the optional BY_DATE L1 subgroup label for *cs*.
 
     ``Today`` and ``Yesterday`` group by 1-hour windows, ``This Week`` by
-    calendar day, and ``Earlier`` by Monday-start week; CLs without a
+    calendar day, and ``Earlier`` by Monday-start week; ChangeSpecs without a
     parseable TIMESTAMPS entry land in :data:`NO_TIMESTAMP_LABEL`.
     """
     latest = latest_from_map(cs, latest_map)

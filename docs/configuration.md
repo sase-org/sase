@@ -577,12 +577,12 @@ vcs_provider:
 | `vcs_provider.workspace_root`        | string            | -        | Legacy VCS helper workspace root. New numbered-checkout layout is configured by `workspace.root` below.       |
 | `vcs_provider.default_hooks`         | list[string]      | -        | Hook commands added to new ChangeSpecs. Replaces built-in defaults.                                           |
 | `vcs_provider.pr_tags`               | dict[string, str] | `{}`     | Key-value tags appended as `SASE_TAG=VALUE` lines to PR commit messages (keys are rendered `SASE_`-prefixed). |
-| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / CL descriptions (see below).                                            |
+| `vcs_provider.use_project_pr_prefix` | bool              | `false`  | Prepend `[<project>] ` to PR titles / PR descriptions (see below).                                            |
 
 When `default_hooks` is not set, plugins may provide their own defaults via `default_config.yml` (for example,
 Mercurial-specific hooks from a provider plugin). The core `sase` package has no built-in default hooks.
 
-When `use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to PR titles (GitHub) or CL descriptions
+When `use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to PR titles (GitHub) or PR descriptions
 (Mercurial) without polluting the ChangeSpec DESCRIPTION or git commit message. The prefix is automatically stripped
 when reading descriptions back.
 
@@ -618,7 +618,7 @@ axe:
         - name: suffix_transforms
           description: Strip stale suffixes from older proposals and update mail-readiness markers
         - name: orphan_cleanup
-          description: Release workspace claims orphaned by reverted CLs with dead PIDs
+          description: Release workspace claims orphaned by reverted PRs with dead PIDs
         - name: stale_running_cleanup
           description: Release workspace claims held by dead processes
     waits:
@@ -630,14 +630,14 @@ axe:
       interval: 300
       chops:
         - name: cl_submitted_checks
-          description: Check if CLs have been submitted
+          description: Check if PRs have been submitted
         - name: stale_running_cleanup
           description: Backstop cleanup of stale RUNNING entries
     comments:
       interval: 60
       chops:
         - name: comment_checks
-          description: Check for new comments on CLs
+          description: Check for new comments on PRs
     housekeeping:
       interval: 3600
       chops:
@@ -1339,7 +1339,7 @@ full flow, payload, checkpoint, and resume semantics.
 | `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                                   |
 | `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).              |
 | `-f, --file`            | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                           |
-| `-n, --name`            | string                        | -                       | Branch/CL name (required for `create_pull_request`).                                             |
+| `-n, --name`            | string                        | -                       | Branch/PR name (required for `create_pull_request`).                                             |
 | `-B, --bug-id`          | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                             |
 | `-c, --checkout-target` | string                        | `HEAD~1`                | Branch point for PR creation.                                                                    |
 | `-p, --parent`          | ChangeSpec name               | auto                    | Parent ChangeSpec name (overrides branch-based auto-detection). Unresolvable values are dropped. |

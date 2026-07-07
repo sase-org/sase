@@ -9,6 +9,7 @@ from ..changespec import (
     write_changespec_atomic,
 )
 from ..changespec.deltas_format import format_deltas_field
+from ..changespec.review_field import REVIEW_URL_PREFIXES
 
 
 # Canonical ChangeSpec section order. DELTAS sits between COMMITS and HOOKS;
@@ -18,8 +19,7 @@ CHANGESPEC_SECTION_ORDER: tuple[str, ...] = (
     "NAME:",
     "DESCRIPTION:",
     "PARENT:",
-    "CL:",
-    "PR:",
+    *REVIEW_URL_PREFIXES,
     "BUG:",
     "STATUS:",
     "COMMITS:",

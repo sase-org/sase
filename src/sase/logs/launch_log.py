@@ -112,7 +112,7 @@ def log_launch_failure(
         kind: One of :data:`LAUNCH_FAILURE_KINDS` (``"single"``, ``"fanout"``,
             ``"multi_prompt"``, ``"repeat"``, ``"bulk"``, ``"workflow"``,
             ``"chop"``).
-        display_name: Human-facing name of the launch (CL/PR/agent name).
+        display_name: Human-facing name of the launch (PR/agent name).
         exc: The exception that caused the failure (traceback captured from it).
         project: Originating project name, if known.
         workspace_num: Workspace number, if allocated.

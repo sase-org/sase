@@ -3,6 +3,7 @@
 import os
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.changespec.review_field import format_review_url_line
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
 
@@ -150,7 +151,7 @@ def _remote_taken_suffix_names(base_name: str, cwd: str) -> set[str]:
 def compute_suffixed_cl_name(
     project: str, cl_name: str, cwd: str | None = None
 ) -> str | None:
-    """Compute the suffixed CL name and write a reservation to the project file.
+    """Compute the suffixed ChangeSpec name and write a reservation.
 
     Reads existing ChangeSpec names from the project file and archive to find
     the next available ``_<N>`` suffix, then writes a minimal ``Reserved``
@@ -166,7 +167,7 @@ def compute_suffixed_cl_name(
 
     Args:
         project: Project name.
-        cl_name: Base CL name to suffix.
+        cl_name: Base ChangeSpec/branch name to suffix.
         cwd: Working directory of the repo. When given, remote branch suffixes
             are unioned into the taken-name set. When None, only the ChangeSpec
             namespace is consulted.
@@ -233,7 +234,7 @@ def compute_suffixed_cl_name(
 
             return suffixed_name
     except Exception as e:
-        print_status(f"Failed to compute suffixed CL name: {e}", "warning")
+        print_status(f"Failed to compute suffixed ChangeSpec name: {e}", "warning")
         return None
 
 
@@ -242,13 +243,13 @@ def add_changespec_to_project_file(
     cl_name: str,
     description: str,
     parent: str | None,
-    cl_url: str | None = None,
+    pr_url: str | None = None,
     initial_hooks: list[str] | None = None,
     initial_commits: list[tuple] | None = None,
     bug: str | None = None,
-    cl_label: str = "CL",
     status: str = "Draft",
     reserved_name: str | None = None,
+    **legacy_kwargs: object,
 ) -> str | None:
     """Add a new ChangeSpec to the project file.
 
@@ -263,8 +264,8 @@ def add_changespec_to_project_file(
         cl_name: NAME field value (will be suffixed with _<N> for uniqueness).
         description: DESCRIPTION field value (raw, will be indented).
         parent: PARENT field value (or None for "None").
-        cl_url: CL/PR URL (e.g., ``"http://cl/12345"`` or a GitHub PR URL).
-            If None, the CL line is omitted from the ChangeSpec.
+        pr_url: PR/review URL. If None, the PR line is omitted from the
+            ChangeSpec.
         initial_hooks: List of hook commands to include in the HOOKS field.
             If None or empty, no HOOKS field is added.
         initial_commits: List of tuples for the COMMITS field. Tuple shape is
@@ -282,6 +283,15 @@ def add_changespec_to_project_file(
     Returns:
         The suffixed cl_name (e.g., "foo_bar_1") on success, None on failure.
     """
+    legacy_cl_url = legacy_kwargs.pop("cl_url", None)
+    legacy_kwargs.pop("cl_label", None)
+    legacy_kwargs.pop("pr_label", None)
+    if legacy_kwargs:
+        unexpected = next(iter(legacy_kwargs))
+        raise TypeError(f"unexpected keyword argument: {unexpected}")
+    if pr_url is None and legacy_cl_url is not None:
+        pr_url = str(legacy_cl_url)
+
     project_file = get_project_file_path(project)
 
     # Ensure project file exists before trying to add a ChangeSpec
@@ -426,13 +436,13 @@ def add_changespec_to_project_file(
                 hooks_block = "".join(hooks_lines)
 
             # Build the ChangeSpec block with the suffixed name
-            cl_line = f"{cl_label}: {cl_url}\n" if cl_url else ""
+            pr_line = format_review_url_line(pr_url) if pr_url else ""
             changespec_block = f"""
 
 NAME: {cl_name}
 DESCRIPTION:
 {formatted_description}
-{parent_line}{bug_line}{cl_line}STATUS: {status}
+{parent_line}{bug_line}{pr_line}STATUS: {status}
 {commits_block}{hooks_block}{timestamps_block}"""
 
             # Insert the new ChangeSpec

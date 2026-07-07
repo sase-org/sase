@@ -23,10 +23,10 @@ def get_project_file_path(project: str) -> str:
 
 
 def get_cl_name_from_branch() -> str | None:
-    """Get the current CL name from branch_name command.
+    """Get the current ChangeSpec name from branch_name command.
 
     Returns:
-        The CL name, or None if not on a branch.
+        The ChangeSpec name, or None if not on a branch.
     """
     cwd = os.getcwd()
     provider = get_vcs_provider(cwd)
@@ -138,7 +138,7 @@ def get_changespec_from_file(project_file: str, cl_name: str) -> ChangeSpec | No
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to look for.
+        cl_name: The ChangeSpec name to look for.
 
     Returns:
         The ChangeSpec if found, None otherwise.
@@ -166,7 +166,7 @@ def add_test_hooks_if_available(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         workspace_dir: Optional workspace directory to run the command in.
                        If provided, changes to this directory before running
                        changed_test_targets, then restores the original directory.

@@ -32,6 +32,7 @@ from sase.core.wire import (
     MentorStatusLineWire,
     MentorWire,
     SourceSpanWire,
+    SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS,
     TimestampWire,
 )
 
@@ -146,7 +147,7 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
     accepting unknown wire shapes.
     """
     schema_version = record.get("schema_version")
-    if schema_version != CHANGESPEC_WIRE_SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS:
         raise ValueError(
             f"Unsupported ChangeSpecWire schema_version={schema_version!r}; "
             f"this build understands {CHANGESPEC_WIRE_SCHEMA_VERSION}."
@@ -167,7 +168,7 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
         source_span=source_span,
         status=record["status"],
         parent=record.get("parent"),
-        cl_or_pr=record.get("cl_or_pr"),
+        pr_url=record.get("pr_url", record.get("cl_or_pr")),
         bug=record.get("bug"),
         description=record["description"],
         commits=[_commit_wire_from_dict(c) for c in record.get("commits") or []],
@@ -291,7 +292,7 @@ def changespec_to_wire(
         source_span=span,
         status=cs.status,
         parent=cs.parent,
-        cl_or_pr=cs.cl,
+        pr_url=cs.pr_url,
         bug=cs.bug,
         description=cs.description,
         commits=[_commit_entry_to_wire(c) for c in (cs.commits or [])],

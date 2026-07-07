@@ -23,7 +23,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-CHANGESPEC_WIRE_SCHEMA_VERSION = 2
+CHANGESPEC_WIRE_SCHEMA_VERSION = 3
+SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS = frozenset(
+    {2, CHANGESPEC_WIRE_SCHEMA_VERSION}
+)
 
 
 @dataclass(frozen=True)
@@ -141,7 +144,7 @@ class ChangeSpecWire:
     source_span: SourceSpanWire
     status: str
     parent: str | None
-    cl_or_pr: str | None
+    pr_url: str | None
     bug: str | None
     description: str
     commits: list[CommitWire] = field(default_factory=list)

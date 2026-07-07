@@ -74,25 +74,25 @@ class ClipboardChangeSpecMixin(ClipboardBase):
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
 
-    def _copy_cl_number(self) -> None:
-        """Copy the CL number from the current changespec (%c)."""
+    def _copy_pr_number(self) -> None:
+        """Copy the PR number from the current changespec (%c)."""
         changespec = self.changespecs[self.current_idx]
-        cl_number = self._get_cl_number(changespec)
-        if cl_number is None:
+        pr_number = self._get_pr_number(changespec)
+        if pr_number is None:
             return  # Error already notified
 
-        if copy_to_system_clipboard(cl_number):
-            self.notify(f"Copied: CL Number ({cl_number})")  # type: ignore[attr-defined]
+        if copy_to_system_clipboard(pr_number):
+            self.notify(f"Copied: PR Number ({pr_number})")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
 
     def _copy_cl_name(self) -> None:
-        """Copy the CL name from the current changespec (%n)."""
+        """Copy the ChangeSpec name from the current changespec (%n)."""
         changespec = self.changespecs[self.current_idx]
         cl_name = humanize_cl_name(changespec.name)
 
         if copy_to_system_clipboard(cl_name):
-            self.notify(f"Copied: CL Name ({cl_name})")  # type: ignore[attr-defined]
+            self.notify(f"Copied: ChangeSpec Name ({cl_name})")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
 
@@ -155,28 +155,28 @@ class ClipboardChangeSpecMixin(ClipboardBase):
             self.notify(f"Could not read project file: {e}", severity="error")  # type: ignore[attr-defined]
             return None
 
-    def _get_cl_number(self, changespec: ChangeSpec) -> str | None:
-        """Extract the CL/PR number from a ChangeSpec's CL URL.
+    def _get_pr_number(self, changespec: ChangeSpec) -> str | None:
+        """Extract the PR/review number from a ChangeSpec's PR URL.
 
         Args:
             changespec: The ChangeSpec.
 
         Returns:
-            The CL/PR number string, or None if unavailable.
+            The PR/review number string, or None if unavailable.
         """
-        if not changespec.cl:
-            self.notify("No CL URL available", severity="warning")  # type: ignore[attr-defined]
+        if not changespec.pr_url:
+            self.notify("No PR URL available", severity="warning")  # type: ignore[attr-defined]
             return None
 
         # Match http://cl/<number> or https://cl/<number> (hg)
-        match = re.match(r"https?://cl/(\d+)", changespec.cl)
+        match = re.match(r"https?://cl/(\d+)", changespec.pr_url)
         if match:
             return match.group(1)
 
         # Match GitHub PR URL
-        match = re.match(r"https?://github\.com/.+/pull/(\d+)", changespec.cl)
+        match = re.match(r"https?://github\.com/.+/pull/(\d+)", changespec.pr_url)
         if match:
             return match.group(1)
 
-        self.notify("Could not extract CL/PR number from URL", severity="warning")  # type: ignore[attr-defined]
+        self.notify("Could not extract PR number from URL", severity="warning")  # type: ignore[attr-defined]
         return None

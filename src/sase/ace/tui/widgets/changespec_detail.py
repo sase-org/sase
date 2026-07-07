@@ -6,7 +6,6 @@ from typing import Any
 from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.text import Text
-from sase.workspace_provider import get_change_label
 from sase.running_field import get_claimed_workspaces
 from sase.project_display_names import humanize_cl_name
 from textual.widgets import Static
@@ -384,7 +383,7 @@ class ChangeSpecDetail(Static):
                     text.append(
                         humanize_cl_name(cl_name),
                         style="#87D7AF",
-                    )  # Green for CL name
+                    )  # Green for ChangeSpec name
                 text.append("\n")
             text.append("\n\n")  # Separator after RUNNING
 
@@ -411,11 +410,10 @@ class ChangeSpecDetail(Static):
                 style="bold #00D7AF",
             )
 
-        # CL/PR field (only display if present)
-        if changespec.cl:
-            label = get_change_label(changespec.file_path)
-            text.append(f"{label}: ", style="bold #87D7FF")
-            text.append(f"{changespec.cl}\n", style="bold underline #569CD6")
+        # PR field (only display if present)
+        if changespec.pr_url:
+            text.append("PR: ", style="bold #87D7FF")
+            text.append(f"{changespec.pr_url}\n", style="bold underline #569CD6")
 
         # BUG field (only display if present)
         if changespec.bug:

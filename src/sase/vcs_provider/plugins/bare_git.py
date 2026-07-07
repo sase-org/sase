@@ -22,8 +22,12 @@ class BareGitPlugin(GitCommon):
         return (True, None)
 
     @hookimpl
-    def vcs_get_cl_number(self, cwd: str) -> tuple[bool, str | None]:
+    def vcs_get_pr_number(self, cwd: str) -> tuple[bool, str | None]:
         return (True, None)
+
+    @hookimpl
+    def vcs_get_cl_number(self, cwd: str) -> tuple[bool, str | None]:
+        return self.vcs_get_pr_number(cwd)
 
     @hookimpl
     def vcs_mail(self, revision: str, cwd: str) -> tuple[bool, str | None]:

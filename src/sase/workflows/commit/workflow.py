@@ -116,9 +116,9 @@ class CommitWorkflow(BaseWorkflow):
         if not run_precommit(cwd):
             return RunResult.FAILED
 
-        # Pre-compute the _<N> suffix for create_pull_request so the CL is
+        # Pre-compute the _<N> suffix for create_pull_request so the PR branch is
         # created with the correct suffixed name (important for non-git VCS
-        # where ChangeSpec creation may not be able to rename the CL later).
+        # where ChangeSpec creation may not be able to rename the branch later).
         # Save the base name so _create_changespec can pass it (un-suffixed)
         # to add_changespec_to_project_file, which adds its own suffix.
         self._base_cl_name = None
@@ -172,7 +172,7 @@ class CommitWorkflow(BaseWorkflow):
         provider = get_vcs_provider(cwd)
         dispatch = getattr(provider, self._method)
 
-        # Resolve CL name and project file for COMMITS entries and diff
+        # Resolve ChangeSpec name and project file for COMMITS entries and diff
         # capture.  Cached on self so both capture and append use the same
         # values without double resolution.
         self._cl_name = resolve_cl_name()
@@ -278,7 +278,7 @@ class CommitWorkflow(BaseWorkflow):
                     self._base_cl_name,
                     self._parent_cl_name,
                     self._reserved_name,
-                    cl_url=result,
+                    pr_url=result,
                 )
                 if cs_name is None:
                     cleanup_reservation(self._reserved_name)

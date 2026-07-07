@@ -44,7 +44,7 @@ class MentorReviewMixin:
 
         changespec = self.changespecs[self.current_idx]
         if not changespec.mentors:
-            self.notify("No mentors for this CL", severity="warning")  # type: ignore[attr-defined]
+            self.notify("No mentors for this ChangeSpec", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Find the latest mentor entry (highest entry_id)
@@ -138,7 +138,7 @@ class MentorReviewMixin:
 
         Args:
             accepted_comments: The accepted mentor comment dicts.
-            cl_name: The CL name.
+            cl_name: The ChangeSpec name.
             project_file: Path to the project spec file.
             mode: ``"commit"`` or ``"propose"`` — determines which
                 post-apply xprompt to append.

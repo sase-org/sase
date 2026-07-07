@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CL submitted check cycle chop script."""
+"""PR submitted check cycle chop script."""
 
 import argparse
 

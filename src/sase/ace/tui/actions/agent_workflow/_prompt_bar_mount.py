@@ -71,8 +71,8 @@ class PromptBarMountMixin:
 
         Args:
             project_name: The project name.
-            cl_name: The selected CL name (or None for project-only).
-            update_target: What to checkout (CL name or "p4head").
+            cl_name: The selected ChangeSpec name (or None for project-only).
+            update_target: What to checkout (ChangeSpec name or "p4head").
             history_sort_key: Launch context label propagated to spawned agents.
         """
         from sase.workflows.commit.project_file_utils import create_project_file
@@ -356,7 +356,7 @@ class PromptBarMountMixin:
     ) -> None:
         """Show prompt input bar for home directory mode.
 
-        This skips CL name and bug modals, running the agent from the user's
+        This skips ChangeSpec name and bug modals, running the agent from the user's
         home directory without version control or workspace management.
 
         Args:

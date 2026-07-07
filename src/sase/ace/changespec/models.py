@@ -461,14 +461,14 @@ class TimestampEntry:
     detail: str  # Event-specific detail string
 
 
-@dataclass
+@dataclass(init=False)
 class ChangeSpec:
     """Represents a single ChangeSpec."""
 
     name: str
     description: str
     parent: str | None
-    cl: str | None
+    pr_url: str | None
     status: str
     file_path: str
     line_number: int
@@ -479,6 +479,54 @@ class ChangeSpec:
     mentors: list[MentorEntry] | None = None
     timestamps: list[TimestampEntry] | None = None
     deltas: list[DeltaEntry] | None = None
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        parent: str | None,
+        pr_url: str | None = None,
+        status: str | None = None,
+        file_path: str = "",
+        line_number: int = 0,
+        bug: str | None = None,
+        commits: list[CommitEntry] | None = None,
+        hooks: list[HookEntry] | None = None,
+        comments: list[CommentEntry] | None = None,
+        mentors: list[MentorEntry] | None = None,
+        timestamps: list[TimestampEntry] | None = None,
+        deltas: list[DeltaEntry] | None = None,
+        *,
+        cl: str | None = None,
+    ) -> None:
+        if pr_url is not None and cl is not None and pr_url != cl:
+            raise ValueError("ChangeSpec received conflicting pr_url and legacy cl")
+        if status is None:
+            raise TypeError("ChangeSpec missing required argument: 'status'")
+
+        self.name = name
+        self.description = description
+        self.parent = parent
+        self.pr_url = pr_url if pr_url is not None else cl
+        self.status = status
+        self.file_path = file_path
+        self.line_number = line_number
+        self.bug = bug
+        self.commits = commits
+        self.hooks = hooks
+        self.comments = comments
+        self.mentors = mentors
+        self.timestamps = timestamps
+        self.deltas = deltas
+
+    @property
+    def cl(self) -> str | None:
+        """Legacy compatibility alias for :attr:`pr_url`."""
+        return self.pr_url
+
+    @cl.setter
+    def cl(self, value: str | None) -> None:
+        self.pr_url = value
 
     @property
     def project_basename(self) -> str:

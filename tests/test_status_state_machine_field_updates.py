@@ -1,4 +1,4 @@
-"""Tests for CL updates, Draft suffix, parent-child constraints, and description updates."""
+"""Tests for PR updates, Draft suffix, parent-child constraints, and description updates."""
 
 import tempfile
 from pathlib import Path
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from sase.status_state_machine import transition_changespec_status
 from sase.status_state_machine.field_updates import (
     _apply_bug_update,
-    _apply_cl_update,
+    _apply_pr_url_update,
     _apply_description_update,
 )
 
@@ -25,7 +25,7 @@ NAME: {name}
 DESCRIPTION:
   A test feature for unit testing
 PARENT: None
-CL: None
+PR: None
 STATUS: {status}
 
 ---
@@ -33,48 +33,45 @@ STATUS: {status}
         return f.name
 
 
-def test__apply_cl_update_sets_cl() -> None:
-    """Test _apply_cl_update sets CL field."""
+def test__apply_pr_url_update_sets_pr_url() -> None:
+    """Test _apply_pr_url_update sets PR URL field."""
     lines = [
         "NAME: Test Feature\n",
         "DESCRIPTION:\n",
         "  Test description\n",
-        "CL: old_cl\n",
+        "CL: old_pr\n",
         "STATUS: Draft\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", "new_cl_value", "/nonexistent")
-    assert "CL: new_cl_value\n" in result
-    assert "CL: old_cl\n" not in result
+    result = _apply_pr_url_update(lines, "Test Feature", "new_pr_value", "/nonexistent")
+    assert "PR: new_pr_value\n" in result
+    assert "CL: old_pr\n" not in result
 
 
-def test__apply_cl_update_removes_cl() -> None:
-    """Test _apply_cl_update removes CL when None."""
+def test__apply_pr_url_update_removes_cl() -> None:
+    """Test _apply_pr_url_update removes PR/legacy PR when None."""
     lines = [
         "NAME: Test Feature\n",
         "CL: old_cl\n",
         "STATUS: Draft\n",
     ]
-    result = _apply_cl_update(lines, "Test Feature", None, "/nonexistent")
+    result = _apply_pr_url_update(lines, "Test Feature", None, "/nonexistent")
     assert "CL:" not in result
+    assert "PR:" not in result
 
 
-def test__apply_cl_update_adds_cl_before_status() -> None:
-    """Test _apply_cl_update adds CL before STATUS when missing."""
+def test__apply_pr_url_update_adds_pr_before_status() -> None:
+    """Test _apply_pr_url_update adds PR before STATUS when missing."""
     lines = [
         "NAME: Test Feature\n",
         "DESCRIPTION:\n",
         "  Test description\n",
         "STATUS: Draft\n",
     ]
-    with patch(
-        "sase.status_state_machine.field_updates.get_change_label",
-        return_value="CL",
-    ):
-        result = _apply_cl_update(lines, "Test Feature", "new_cl", "/nonexistent")
-    assert "CL: new_cl\n" in result
-    # CL should appear before STATUS
+    result = _apply_pr_url_update(lines, "Test Feature", "new_pr", "/nonexistent")
+    assert "PR: new_pr\n" in result
+    # PR should appear before STATUS
     lines_list = result.split("\n")
-    cl_idx = next(i for i, ln in enumerate(lines_list) if "CL:" in ln)
+    cl_idx = next(i for i, ln in enumerate(lines_list) if "PR:" in ln)
     status_idx = next(i for i, ln in enumerate(lines_list) if "STATUS:" in ln)
     assert cl_idx < status_idx
 

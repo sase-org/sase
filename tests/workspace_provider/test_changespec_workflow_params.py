@@ -33,7 +33,6 @@ def test_create_changespec_for_workflow_passes_parent() -> None:
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_child_1",
@@ -83,7 +82,6 @@ def test_create_changespec_uses_agent_chat_path_env(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
@@ -133,7 +131,6 @@ def test_create_changespec_falls_back_without_agent_chat_path(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
@@ -183,7 +180,6 @@ def test_create_changespec_for_workflow_passes_bug(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
@@ -234,7 +230,6 @@ def test_create_changespec_for_workflow_success(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
@@ -251,7 +246,7 @@ def test_create_changespec_for_workflow_success(
             prompt="do stuff",
             response="done",
             workflow_name="gh",
-            cl_url="https://github.com/org/repo/pull/1",
+            pr_url="https://github.com/org/repo/pull/1",
         )
         assert result == "proj_add_thing_1"
         mock_add.assert_called_once_with(
@@ -259,13 +254,12 @@ def test_create_changespec_for_workflow_success(
             "proj_add_thing",
             "feat: add thing",
             parent=None,
-            cl_url="https://github.com/org/repo/pull/1",
+            pr_url="https://github.com/org/repo/pull/1",
             initial_hooks=[],
             initial_commits=[
                 (1, "[run] Initial Commit", "~/chats/f.md", "~/diffs/f.diff")
             ],
             bug=None,
-            cl_label="PR",
             status="Draft",
             reserved_name=None,
         )
@@ -302,7 +296,6 @@ def test_create_changespec_for_workflow_passes_plan(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_plan_1",
@@ -367,7 +360,6 @@ def test_create_changespec_for_workflow_uses_repo_relative_plan(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_plan_3",
@@ -416,7 +408,6 @@ def test_create_changespec_for_workflow_plan_outside_home(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_plan_2",
@@ -474,7 +465,6 @@ def test_create_changespec_for_workflow_no_plan_when_env_unset(
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_thing_1",

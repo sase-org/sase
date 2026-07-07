@@ -42,7 +42,7 @@ def cleanup_stale_running_entries(
             released_count += 1
 
             if log_fn:
-                cl_info = f" for CL {claim.cl_name}" if claim.cl_name else ""
+                cl_info = f" for PR {claim.cl_name}" if claim.cl_name else ""
                 log_fn(
                     f"Released stale workspace #{claim.workspace_num} "
                     f"({claim.workflow}){cl_info} - PID {claim.pid} not running",

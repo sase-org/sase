@@ -11,6 +11,7 @@ from .models import (
     MentorEntry,
     TimestampEntry,
 )
+from .review_field import parse_review_url_line
 from .section_parsers import (
     CommitEntryDict,
     build_commit_entry,
@@ -31,7 +32,7 @@ class _ParserState:
         self.name: str | None = None
         self.description_lines: list[str] = []
         self.parent: str | None = None
-        self.cl: str | None = None
+        self.pr_url: str | None = None
         self.bug: str | None = None
         self.status: str | None = None
 
@@ -91,7 +92,7 @@ class _ParserState:
                 name=self.name,
                 description=description,
                 parent=self.parent,
-                cl=self.cl,
+                pr_url=self.pr_url,
                 status=self.status,
                 file_path=self.file_path,
                 line_number=self.line_number,
@@ -135,9 +136,10 @@ def _parse_field_header(state: _ParserState, line: str) -> bool:
         state.reset_section_flags()
         return True
 
-    if line.startswith(("CL: ", "PR: ")):
+    pr_url = parse_review_url_line(line)
+    if pr_url is not None:
         state.save_pending_entries()
-        state.cl = line[4:].strip()
+        state.pr_url = pr_url
         state.reset_section_flags()
         return True
 

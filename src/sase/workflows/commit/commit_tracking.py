@@ -7,6 +7,7 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 
 def resolve_cl_name() -> str | None:
-    """Resolve the CL name from env var or current branch."""
+    """Resolve the ChangeSpec/branch name from env var or current branch."""
     cl_name = os.environ.get("SASE_AGENT_CL_NAME")
     if cl_name:
         return cl_name
@@ -151,7 +152,7 @@ def _commits_drawer_has_entry_id(
             (
                 "DESCRIPTION:",
                 "PARENT:",
-                "CL:",
+                *REVIEW_URL_PREFIXES,
                 "STATUS:",
             )
         ):
@@ -335,7 +336,7 @@ def create_changespec(
     base_cl_name: str | None,
     parent_cl_name: str | None,
     reserved_name: str | None,
-    cl_url: str | None,
+    pr_url: str | None,
 ) -> str | None:
     """Best-effort ChangeSpec creation after a successful PR flow."""
     try:
@@ -375,7 +376,7 @@ def create_changespec(
             prompt="",
             response="",
             workflow_name="sase_commit",
-            cl_url=cl_url,
+            pr_url=pr_url,
             cl_name=base_cl_name or payload.get("name"),
             commit_description=payload.get("message", ""),
             parent=parent_cl_name,

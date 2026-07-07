@@ -32,7 +32,7 @@ NAME: my_project_add_config_parser_1
 DESCRIPTION:
   Add configuration file parser
 
-  This CL implements configuration loading and validation.
+  This PR implements configuration loading and validation.
 BUG: http://b/12345
 STATUS: WIP
 
@@ -41,7 +41,7 @@ NAME: my_project_add_docs_1
 DESCRIPTION:
   Document configuration setup
 
-  This CL adds user-facing documentation for the configuration file.
+  This PR adds user-facing documentation for the configuration file.
 PARENT: my_project_add_config_parser_1
 STATUS: WIP
 ```
@@ -226,7 +226,8 @@ minimum fields are:
 Common optional fields include:
 
 - **PARENT**: The `NAME` of a parent ChangeSpec that must land first. Omit it when there is no dependency.
-- **CL / PR**: URL for the created review, omitted until the CL or PR exists. `CL:` and `PR:` are parsed the same way.
+- **PR**: URL for the created review, omitted until the PR exists. New files write `PR:`; legacy `CL:` fields remain
+  readable during the compatibility window.
 - **BUG**: Bug or issue reference for this ChangeSpec.
 - **COMMITS**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**: See
   [`change_spec.md`](change_spec.md) for details.
@@ -244,7 +245,7 @@ NAME: my_project_add_config_parser_1
 DESCRIPTION:
   Add configuration file parser for user settings
 
-  This CL implements a YAML-based configuration parser that reads
+  This PR implements a YAML-based configuration parser that reads
   user settings from ~/.myapp/config.yaml. The parser includes load
   and validation behavior, plus tests for valid YAML, invalid config,
   and missing file handling.
@@ -256,7 +257,7 @@ NAME: my_project_integrate_parser_1
 DESCRIPTION:
   Integrate config parser into application startup
 
-  This CL loads the parser during application initialization and
+  This PR loads the parser during application initialization and
   surfaces validation errors clearly. Tests cover valid and invalid
   startup configuration.
 PARENT: my_project_add_config_parser_1
@@ -267,7 +268,7 @@ NAME: my_project_add_docs_1
 DESCRIPTION:
   Document configuration setup
 
-  This CL explains where the configuration file lives, shows common
+  This PR explains where the configuration file lives, shows common
   examples, and documents the supported keys.
 PARENT: my_project_integrate_parser_1
 STATUS: WIP
@@ -282,5 +283,5 @@ STATUS: WIP
 - **Blank lines between ChangeSpecs**: Separate ChangeSpecs with exactly two blank lines.
 - **NAME field**: Prefer SASE-generated names, which use the project prefix and a numeric suffix.
 - **PARENT field**: Set it only to another ChangeSpec `NAME`; omit it when there is no dependency.
-- **CL / PR field**: Omit until the CL or PR exists, then set it to the review URL.
+- **PR field**: Omit until the PR exists, then set it to the review URL.
 - **No file modification lists**: Keep file lists out of `DESCRIPTION`; SASE records file-level deltas separately.

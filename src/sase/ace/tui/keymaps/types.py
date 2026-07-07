@@ -265,7 +265,7 @@ class AppKeymaps:
     # Tab switching
     next_tab: str
     prev_tab: str
-    # CL actions
+    # ChangeSpec actions
     quit: str
     change_status: str
     run_workflow: str
@@ -397,7 +397,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "raw": "percent_sign",
                 "with_snapshot": "exclamation_mark",
                 "bug": "b",
-                "cl_number": "c",
+                "pr_number": "c",
                 "name": "n",
                 "spec": "p",
                 "snapshot": "s",

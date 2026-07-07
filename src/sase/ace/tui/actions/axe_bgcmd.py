@@ -106,7 +106,7 @@ class AxeBgCmdMixin:
 
             selection = result.selection
 
-            # Extract project name and optional CL name
+            # Extract project name and optional ChangeSpec name
             if isinstance(selection, str):
                 project = selection
                 cl_name = None
@@ -120,10 +120,10 @@ class AxeBgCmdMixin:
         self.push_screen(ProjectSelectModal(), on_project_selected)  # type: ignore[attr-defined]
 
     def _start_bgcmd_from_changespec(self) -> None:
-        """Start background command from current ChangeSpec (CLs tab only).
+        """Start background command from current ChangeSpec (ChangeSpecs tab only).
 
         This is the quick version triggered from leader mode that skips
-        ProjectSelectModal, using the current ChangeSpec's project and CL name.
+        ProjectSelectModal, using the current ChangeSpec's project and ChangeSpec name.
         """
         if self.current_tab != "changespecs":
             return
@@ -153,7 +153,7 @@ class AxeBgCmdMixin:
         Args:
             slot: Slot number to use.
             project: Project name.
-            cl_name: Optional CL name to checkout before running command.
+            cl_name: Optional ChangeSpec name to checkout before running command.
         """
         from ..modals import WorkspaceInputModal
 
@@ -175,7 +175,7 @@ class AxeBgCmdMixin:
             slot: Slot number to use.
             project: Project name.
             workspace_num: Workspace number.
-            cl_name: Optional CL name to checkout before running command.
+            cl_name: Optional ChangeSpec name to checkout before running command.
         """
         from ..modals import CommandHistoryModal
 
@@ -208,7 +208,7 @@ class AxeBgCmdMixin:
             command: Shell command to run.
             project: Project name.
             workspace_num: Workspace number.
-            cl_name: Optional CL name to checkout before running command.
+            cl_name: Optional ChangeSpec name to checkout before running command.
         """
         try:
             workspace_dir = get_workspace_directory(project, workspace_num)
@@ -222,7 +222,7 @@ class AxeBgCmdMixin:
             str(sase_projects_dir() / project), project
         )
 
-        # Synthetic dedup key for the no-CL path, scoped per slot so two
+        # Synthetic dedup key for the no-ChangeSpec path, scoped per slot so two
         # concurrent !!-launches against different slots don't collide.
         is_synthetic_key = cl_name is None
         dedup_key = cl_name if cl_name is not None else f"bgcmd-slot-{slot}"

@@ -13,7 +13,7 @@ def add_saved_queries_section(
     active_query: str | None,
     content_width: int = CONTENT_WIDTH,
 ) -> None:
-    """Add the saved queries section (CLs tab only).
+    """Add the saved queries section (ChangeSpecs tab only).
 
     Args:
         text: The Text object to append to.
@@ -95,7 +95,7 @@ def add_query_history_section(
     next_key: str = "_",
     border_color: str = "#FFD700",
 ) -> None:
-    """Add the query history stacks section (CLs tab only).
+    """Add the query history stacks section (ChangeSpecs tab only).
 
     Shows last 5 entries from each stack with visual indicators.
 

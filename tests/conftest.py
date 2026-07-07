@@ -395,7 +395,7 @@ NAME: {name}
 DESCRIPTION:
   A test feature
 PARENT: {parent_val}
-CL: {cl_val}
+PR: {cl_val}
 STATUS: {status}
 
 ---

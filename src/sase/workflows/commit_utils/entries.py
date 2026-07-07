@@ -4,6 +4,7 @@ import os
 import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
 from sase.core.time import generate_timestamp
 
 
@@ -98,7 +99,7 @@ def get_next_commit_number(lines: list[str], cl_name: str) -> int:
 
     Args:
         lines: Lines from the project file.
-        cl_name: The CL name to find.
+        cl_name: The ChangeSpec name to find.
 
     Returns:
         The next commit entry number (1 if no entries exist).
@@ -120,7 +121,7 @@ def get_next_commit_number(lines: list[str], cl_name: str) -> int:
                     "NAME:",
                     "DESCRIPTION:",
                     "PARENT:",
-                    "CL:",
+                    *REVIEW_URL_PREFIXES,
                     "STATUS:",
                 )
             ):
@@ -143,7 +144,7 @@ def _get_last_regular_commit_number(lines: list[str], cl_name: str) -> int:
 
     Args:
         lines: Lines from the project file.
-        cl_name: The CL name to find.
+        cl_name: The ChangeSpec name to find.
 
     Returns:
         The last regular commit entry number (0 if no entries exist).
@@ -156,7 +157,7 @@ def _get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) 
 
     Args:
         lines: Lines from the project file.
-        cl_name: The CL name to find.
+        cl_name: The ChangeSpec name to find.
         base_number: The base commit number (e.g., 2 for 2a, 2b, etc.).
 
     Returns:
@@ -179,7 +180,7 @@ def _get_next_proposal_letter(lines: list[str], cl_name: str, base_number: int) 
                     "NAME:",
                     "DESCRIPTION:",
                     "PARENT:",
-                    "CL:",
+                    *REVIEW_URL_PREFIXES,
                     "STATUS:",
                 )
             ):
@@ -218,7 +219,7 @@ def add_proposed_commit_entry(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to add commit entry to.
+        cl_name: The ChangeSpec name to add commit entry to.
         note: The note for this commit entry.
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.
@@ -372,7 +373,7 @@ def add_commit_entry_with_id(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to add commit entry to.
+        cl_name: The ChangeSpec name to add commit entry to.
         note: The note for this commit entry.
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.
@@ -519,7 +520,7 @@ def add_commit_entry(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to add commit entry to.
+        cl_name: The ChangeSpec name to add commit entry to.
         note: The note for this commit entry.
         diff_path: Optional path to the diff file.
         chat_path: Optional path to the chat file.

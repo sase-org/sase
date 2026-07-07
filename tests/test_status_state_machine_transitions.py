@@ -16,7 +16,7 @@ NAME: Test Feature
 DESCRIPTION:
   A test feature for unit testing
 PARENT: None
-CL: None
+PR: None
 STATUS: {status}
 
 ---
@@ -221,7 +221,7 @@ NAME: {name}
 DESCRIPTION:
   Test description
 PARENT: {parent_val}
-CL: None
+PR: None
 STATUS: {status}
 
 ---

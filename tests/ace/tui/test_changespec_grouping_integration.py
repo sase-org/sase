@@ -1,4 +1,4 @@
-"""End-to-end-ish integration coverage for the CLs-tab grouping feature.
+"""End-to-end-ish integration coverage for the ChangeSpecs-tab grouping feature.
 
 Phase 5 of ``sdd/tales/202604/changespec_group_headings.md``.  These tests
 intentionally combine three previously-isolated layers — the
@@ -64,7 +64,7 @@ class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
     """Combined harness wiring the grouping mixin into the navigation mixin.
 
     Mirrors the attribute surface of the real ``AceApp`` for both the
-    Agents and CLs tabs, but drives only the slice the integration
+    Agents and ChangeSpecs tabs, but drives only the slice the integration
     tests need.  The grouped widget is owned by the harness so the
     test can assert on the post-render option list directly.
     """
@@ -88,7 +88,7 @@ class _IntegrationApp(AgentGroupingMixin, ChangeSpecGroupingNavMixin):
         }
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
-        # CL-side state.
+        # ChangeSpec-side state.
         self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registries: dict[
             ChangeSpecGroupingMode, GroupFoldRegistry
@@ -144,7 +144,7 @@ def test_o_cycles_widget_through_every_grouping_mode(monkeypatch: Any) -> None:
     # ``alpha_one`` and ``alpha_two`` sharing root ``alpha``) + beta L0.
     assert len(banner_rows) >= 2
 
-    # BY_PROJECT → BY_DATE: undated CLs land under Earlier plus the
+    # BY_PROJECT → BY_DATE: undated ChangeSpecs land under Earlier plus the
     # final ``(no timestamp)`` subgroup.
     app.action_cycle_grouping_mode()
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
@@ -237,7 +237,7 @@ def test_query_change_drops_collapsed_group_without_crash(
     app._current_changespec_group_key = None
 
     # A refresh after clearing the focus must not raise — and must
-    # render the surviving beta CL row.
+    # render the surviving beta ChangeSpec row.
     app._refresh_display()
     cs_rows = [i for i, e in enumerate(widget._row_entries) if e != _BANNER_ROW]
     assert len(cs_rows) == 1
@@ -268,44 +268,44 @@ def test_collapse_then_filter_reload_does_not_resurrect_stale_collapse(
     # Bring alpha back via a new query.
     app.changespecs = _three_project_specs()
     app._refresh_display()
-    # alpha is rendered expanded — i.e. its CL rows are visible.
+    # alpha is rendered expanded — i.e. its ChangeSpec rows are visible.
     cs_rows = [i for i, e in enumerate(widget._row_entries) if e != _BANNER_ROW]
     assert len(cs_rows) == 3
 
 
 # ---------------------------------------------------------------------------
-# Independence between Agents and CLs grouping state
+# Independence between Agents and ChangeSpecs grouping state
 # ---------------------------------------------------------------------------
 
 
 def test_agents_cycle_does_not_swap_cl_widget_render(monkeypatch: Any) -> None:
-    """Pressing ``o`` while the Agents tab owns focus must not redraw CLs."""
+    """Pressing ``o`` while the Agents tab owns focus must not redraw ChangeSpecs."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs(), current_tab="agents")
 
-    # CLs start at the default BY_PROJECT and never got a refresh.
+    # ChangeSpecs start at the default BY_PROJECT and never got a refresh.
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
     assert widget.option_count == 0
 
     app.action_cycle_grouping_mode()  # Agents-side cycle.
 
-    # Agents grouping advanced; CLs untouched.
+    # Agents grouping advanced; ChangeSpecs untouched.
     assert app._grouping_mode is GroupingMode.BY_DATE
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_PROJECT
-    assert widget.option_count == 0  # No CL refresh happened.
+    assert widget.option_count == 0  # No PR refresh happened.
 
 
 def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
-    """Switching between Agents and CLs must not bleed grouping state.
+    """Switching between Agents and ChangeSpecs must not bleed grouping state.
 
-    After a CLs cycle the Agents mode stays at its own default; after
-    flipping focus to Agents and cycling there, the CLs mode stays at
+    After a ChangeSpecs cycle the Agents mode stays at its own default; after
+    flipping focus to Agents and cycling there, the ChangeSpecs mode stays at
     the value the user picked.
     """
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
 
-    # CL user cycles to BY_DATE.
+    # PR user cycles to BY_DATE.
     app.action_cycle_grouping_mode()
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
     assert app._grouping_mode is GroupingMode.STANDARD
@@ -314,18 +314,20 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
     app.current_tab = "agents"  # type: ignore[assignment]
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.BY_DATE
-    # CL state untouched.
+    # PR state untouched.
     assert app._changespec_grouping_mode is ChangeSpecGroupingMode.BY_DATE
 
-    # Flip back to CLs — the previous BY_DATE mode is preserved.
+    # Flip back to ChangeSpecs — the previous BY_DATE mode is preserved.
     app.current_tab = "changespecs"  # type: ignore[assignment]
     app._refresh_display()
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
-    assert banner_rows, "CLs should still render banners after returning to the tab"
+    assert banner_rows, (
+        "ChangeSpecs should still render banners after returning to the tab"
+    )
 
 
 def test_axe_cycle_is_silent_noop_for_both_tabs(monkeypatch: Any) -> None:
-    """Cycling on AXE leaves both Agents and CLs grouping state untouched."""
+    """Cycling on AXE leaves both Agents and ChangeSpecs grouping state untouched."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs(), current_tab="axe")
 

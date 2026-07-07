@@ -222,7 +222,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "Agent Query Syntax",
             [
                 ("status:VAL", "Substring on status"),
-                ("cl:VAL", "Substring on CL name"),
+                ("cl:VAL", "Substring on ChangeSpec name"),
                 ("project:VAL", "Substring on project basename"),
                 ("name:VAL", "Substring on agent name"),
                 ("model:VAL", "Substring on model"),

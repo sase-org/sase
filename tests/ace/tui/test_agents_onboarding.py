@@ -229,7 +229,7 @@ async def test_agents_onboarding_launch_target_refresh_stores_true(
         plain = _mounted_onboarding_plain(page)
         assert page.app._agents_onboarding_launch_targets_available is True
         assert "Every agent you launch" in plain
-        assert "pick a project or CL first." not in plain
+        assert "pick a project or PR first." not in plain
 
 
 async def test_agents_onboarding_launch_target_refresh_stores_false(
@@ -262,7 +262,7 @@ async def test_agents_onboarding_launch_target_refresh_stores_false(
         assert page.app._agents_onboarding_launch_targets_available is False
         assert "Every agent you launch" in plain
         assert "Launch your first agent" in plain
-        assert "pick a project or CL first." not in plain
+        assert "pick a project or PR first." not in plain
 
 
 async def test_agents_onboarding_plugin_refresh_stores_false(

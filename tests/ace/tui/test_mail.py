@@ -20,7 +20,7 @@ def _make_changespec(**overrides: object) -> MagicMock:
     cs.name = overrides.get("name", "CL-1")
     cs.file_path = overrides.get("file_path", "/proj.sase")
     cs.project_basename = overrides.get("project_basename", "proj")
-    cs.cl = overrides.get("cl", None)
+    cs.pr_url = overrides.get("cl", None)
     cs.parent = overrides.get("parent", None)
     return cs
 

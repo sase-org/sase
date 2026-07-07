@@ -66,7 +66,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         Binding("8", "load_query_8", "Load Q8", show=False),
         Binding("9", "load_query_9", "Load Q9", show=False),
         Binding("0", "load_query_0", "Load Q0", show=False),
-        # Query history navigation (CLs tab only)
+        # Query history navigation (ChangeSpecs tab only)
         Binding("circumflex_accent", "go_prev_query", "Prev Query", show=False),
         Binding("underscore", "go_next_query", "Next Query", show=False),
     ]
@@ -133,7 +133,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
 
         # Add saved queries section (works from any tab)
         add_saved_queries_section(text, self._active_query)
-        # Query history is CLs-tab only
+        # Query history is ChangeSpecs-tab only
         if self._current_tab == "changespecs":
             km = self._get_km()
             d = key_display_name
@@ -327,7 +327,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
     action_load_query_8 = _create_load_query_action("8")
     action_load_query_9 = _create_load_query_action("9")
 
-    # --- Query history navigation actions (CLs tab only) ---
+    # --- Query history navigation actions (ChangeSpecs tab only) ---
 
     def action_go_prev_query(self) -> None:
         """Navigate to previous query and close modal."""

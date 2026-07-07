@@ -1,4 +1,4 @@
-"""Workflow for running mentor agents on CLs."""
+"""Workflow for running mentor agents on ChangeSpecs."""
 
 import json
 import logging
@@ -64,7 +64,7 @@ def _build_mentor_prompt(
 
     Args:
         mentor: The mentor configuration.
-        cl_name: CL name passed to the embedded workflow.
+        cl_name: ChangeSpec name passed to the embedded workflow.
         vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
         project: Optional project name for xprompt resolution.
 
@@ -186,7 +186,7 @@ def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
     """Find a ChangeSpec by name across all project files.
 
     Args:
-        cl_name: The CL name to search for.
+        cl_name: The ChangeSpec name to search for.
 
     Returns:
         Tuple of (project_file_path, project_name) if found, (None, None) otherwise.
@@ -202,7 +202,7 @@ def _find_changespec_by_name(cl_name: str) -> tuple[str | None, str | None]:
 
 
 class MentorWorkflow(BaseWorkflow):
-    """A workflow for running mentor agents on CLs."""
+    """A workflow for running mentor agents on ChangeSpecs."""
 
     def __init__(
         self,
@@ -217,7 +217,7 @@ class MentorWorkflow(BaseWorkflow):
         Args:
             profile_name: Name of the profile containing the mentor.
             mentor_name: Name of the mentor to use.
-            cl_name: CL name to work on (defaults to current branch name).
+            cl_name: ChangeSpec name to work on (defaults to current branch name).
             timestamp: Timestamp for chat file naming (YYmmdd_HHMMSS format).
             who: Optional identifier for the mentor run.
         """
@@ -240,15 +240,16 @@ class MentorWorkflow(BaseWorkflow):
     @property
     def description(self) -> str:
         """Return a description of what this workflow does."""
-        return f"Run mentor '{self.mentor_name}' on a CL"
+        return f"Run mentor '{self.mentor_name}' on a ChangeSpec"
 
     def run(self) -> bool:
         """Run the mentor workflow."""
-        # Resolve CL name
+        # Resolve ChangeSpec name
         resolved_cl_name = self.cl_name or get_cl_name_from_branch()
         if not resolved_cl_name:
             print_status(
-                "Error: Could not determine CL name. Use --cl to specify.", "error"
+                "Error: Could not determine ChangeSpec name. Use --cl to specify.",
+                "error",
             )
             return False
 
@@ -467,7 +468,7 @@ def main() -> NoReturn:
         help="Profile and mentor name in format 'profile:mentor' (e.g., 'code:comments')",
     )
     parser.add_argument(
-        "--cl", dest="cl_name", help="CL name (defaults to branch name)"
+        "--cl", dest="cl_name", help="ChangeSpec name (defaults to branch name)"
     )
     args = parser.parse_args()
 

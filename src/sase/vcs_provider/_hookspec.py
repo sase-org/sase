@@ -159,6 +159,9 @@ class VCSHookSpec:
     def vcs_get_branch_name(self, cwd: str) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)
+    def vcs_get_pr_number(self, cwd: str) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
     def vcs_get_cl_number(self, cwd: str) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)
@@ -181,7 +184,7 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_find_reviewers(
-        self, cl_number: str, cwd: str
+        self, pr_number: str, cwd: str
     ) -> tuple[bool, str | None]: ...
 
     @hookspec(firstresult=True)

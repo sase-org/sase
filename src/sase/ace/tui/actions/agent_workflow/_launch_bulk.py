@@ -53,8 +53,8 @@ class BulkLaunchMixin:
 
         self.notify(f"Launching {n} agent(s)...")  # type: ignore[attr-defined]
         self._submit_launch_task(  # type: ignore[attr-defined]
-            display_name=f"launch bulk {n} CLs",
-            cl_name=f"bulk {n} CLs",
+            display_name=f"launch bulk {n} ChangeSpecs",
+            cl_name=f"bulk {n} ChangeSpecs",
             project_file="",
             task_callable=lambda: self._run_bulk_launch(prompt, changespecs),
             submitted_prompt=prompt,
@@ -137,7 +137,7 @@ class BulkLaunchMixin:
                     failed_count += 1
                     continue
 
-                # Detect VCS type and build per-CL prompt with prefix
+                # Detect VCS type and build per-ChangeSpec prompt with prefix
                 workflow_type = detect_workflow_type(project_file)
                 cl_prompt = f"#{workflow_type}:{cl_name} {prompt}"
 
@@ -187,12 +187,12 @@ class BulkLaunchMixin:
             stash_failed_launch_prompt(prompt)
             log_launch_failure(
                 kind="bulk",
-                display_name=f"bulk {len(changespecs)} CLs",
+                display_name=f"bulk {len(changespecs)} ChangeSpecs",
                 exc=exc,
                 prompt_preview=prompt,
                 slot_count=len(changespecs),
             )
-            # A mid-loop failure may have already spawned earlier CLs;
+            # A mid-loop failure may have already spawned earlier ChangeSpecs;
             # without results, only a refresh makes them visible.
             return LaunchTaskOutcome(
                 with_log_panel_hint("Bulk launch failed"),

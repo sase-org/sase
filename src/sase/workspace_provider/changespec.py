@@ -7,7 +7,6 @@ import subprocess
 from sase.history.chat import save_chat_history
 from sase.ace.deltas import refresh_deltas_after_commits_change
 from sase.workflows.commit.changespec_operations import add_changespec_to_project_file
-from sase.workspace_provider import get_change_label
 from sase.core.paths import (
     make_safe_filename,
     sharded_path,
@@ -134,13 +133,14 @@ def create_changespec_for_workflow(
     prompt: str,
     response: str,
     workflow_name: str,
-    cl_url: str | None = None,
+    pr_url: str | None = None,
     cl_name: str | None = None,
     status: str = "Draft",
     commit_description: str | None = None,
     parent: str | None = None,
     bug: str | None = None,
     reserved_name: str | None = None,
+    **legacy_kwargs: object,
 ) -> str | None:
     """Create a ChangeSpec for commits produced by an agent workflow.
 
@@ -157,6 +157,13 @@ def create_changespec_for_workflow(
             the reservation in-place.
     """
     from sase.vcs_provider.config import strip_pr_tags
+
+    legacy_cl_url = legacy_kwargs.pop("cl_url", None)
+    if legacy_kwargs:
+        unexpected = next(iter(legacy_kwargs))
+        raise TypeError(f"unexpected keyword argument: {unexpected}")
+    if pr_url is None and legacy_cl_url is not None:
+        pr_url = str(legacy_cl_url)
 
     commits = _get_commits_ahead(checkout_target, branch_name)
     if not commits and commit_description:
@@ -188,7 +195,6 @@ def create_changespec_for_workflow(
         chat_path = save_chat_history(prompt, response, workflow_name, timestamp=ts)
     diff_path = _save_committed_diff(cl_name, checkout_target, branch_name, ts)
     hooks = get_initial_hooks_for_changespec(verbose=False)
-    cl_label = get_change_label(project_file)
 
     # Compute display path for plan.
     plan_display: str | None = None
@@ -205,11 +211,10 @@ def create_changespec_for_workflow(
         cl_name,
         description,
         parent=parent,
-        cl_url=cl_url,
+        pr_url=pr_url,
         initial_hooks=hooks,
         initial_commits=[initial_commit],
         bug=bug,
-        cl_label=cl_label,
         status=status,
         reserved_name=reserved_name,
     )

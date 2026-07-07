@@ -448,7 +448,7 @@ class AgentKillMixin:
         # Build description for confirmation dialog
         desc_parts = [f"Type: {agent.agent_type.value}"]
         desc_parts.append(
-            f"CL: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+            f"ChangeSpec: {agent.display_name or humanize_cl_name(agent.cl_name)}"
         )
         if agent.workspace_num is not None:
             desc_parts.append(f"Workspace: #{agent.workspace_num}")

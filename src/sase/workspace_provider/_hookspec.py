@@ -93,24 +93,24 @@ class WorkspaceHookSpec:
     ) -> dict[str, str] | None: ...
 
     @hookspec(firstresult=True)
-    def ws_extract_change_identifier(self, cl_url: str) -> tuple[str, str] | None: ...
+    def ws_extract_change_identifier(self, pr_url: str) -> tuple[str, str] | None: ...
 
     @hookspec(firstresult=True)
     def ws_generate_submitted_check_script(
         self, identifier: str, vcs_type: str
     ) -> str | None:
-        """Generate a shell fragment for checking whether a CL/PR is submitted.
+        """Generate a shell fragment for checking whether a PR is submitted.
 
         The returned script body must not call ``exit`` directly because the
         scheduler wrapper captures the final ``$?``. Exit code ``0`` means the
-        CL/PR was submitted or merged,
+        PR was submitted or merged,
         :data:`SUBMITTED_CHECK_EXIT_CODE_CLOSED` means it was closed without
         merging, and any other code means no status signal was available.
         """
         ...
 
     @hookspec(firstresult=True)
-    def ws_supports_reviewer_comments(self, cl_url: str) -> bool | None: ...
+    def ws_supports_reviewer_comments(self, pr_url: str) -> bool | None: ...
 
     @hookspec(firstresult=True)
     def ws_generate_reviewer_comments_script(

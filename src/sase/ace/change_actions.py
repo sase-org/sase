@@ -44,7 +44,7 @@ def delete_proposal_entry(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         base_num: The base number of the proposal (e.g., 2 for "2a").
         letter: The letter of the proposal (e.g., "a" for "2a").
 
@@ -148,8 +148,8 @@ def prompt_for_change_action(
             will try to infer from sase_workspace_name command.
         auto_reject: If True, auto-select 'n' (reject) after creating the proposal.
             Used when running in background/loop context where stdin is unavailable.
-        cl_name: If provided, use this as the CL name instead of running
-            the branch_name command. Useful when the CL name is already known.
+        cl_name: If provided, use this as the ChangeSpec name instead of running
+            the branch_name command. Useful when the ChangeSpec name is already known.
 
     Returns:
         ("accept", "<proposal_id>") - User chose 'a' to accept proposal

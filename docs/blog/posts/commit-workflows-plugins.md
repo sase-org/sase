@@ -42,7 +42,7 @@ same result format; they differ only in what the dispatch step produces.
 | **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | ChangeSpec    |
 
 Every flow walks the same pre-dispatch pipeline: bead association → bead lifecycle close (skipped for proposals) → plan
-handling → precommit command → parent CL detection (PR only) → diff capture → checkpoint. Only then does it call the
+handling → precommit command → parent PR detection (PR only) → diff capture → checkpoint. Only then does it call the
 VCS-specific `create_commit` / `create_proposal` / `create_pull_request` hook. Post-dispatch, the workflow writes a
 `commit_result.json` marker for the XPrompt post-steps to read.
 
@@ -121,7 +121,7 @@ After a successful dispatch, the marker contains the durable hand-off between th
   "method": "create_commit",
   "result": "<commit_hash | diff_path | pr_url | null>",
   "message": "The commit message",
-  "name": "Branch/CL name",
+  "name": "Branch/PR name",
   "bead_id": "Bead ID if SASE_BEAD_ID was set",
   "changespec_name": "ChangeSpec name (PR only)",
   "entry_id": "COMMITS entry ID (commit/propose only)",

@@ -39,7 +39,7 @@ String matches search across these ChangeSpec fields as one combined text corpus
 - **status** -- the status text as stored on the ChangeSpec
 - **project** -- project directory basename (derived from file path)
 - **parent** -- parent ChangeSpec name (if set)
-- **cl** -- CL identifier (if set)
+- **cl** -- PR identifier (if set)
 - **commits** -- history entry notes and suffixes
 - **hooks** -- hook display commands and status line suffixes
 - **comments** -- reviewer names, file paths, and suffixes

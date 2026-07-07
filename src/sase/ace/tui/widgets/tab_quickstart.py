@@ -30,7 +30,7 @@ _TAB_META: dict[TabQuickStartTab, tuple[str, str, str, str, str]] = {
         "changespec",
         "PRs",
         _CHANGESPECS_ACCENT,
-        "Every CL/PR your agents produce is tracked here as a ChangeSpec — "
+        "Every PR your agents produce is tracked here as a ChangeSpec — "
         "commits, hooks, review comments, and status, from WIP through Submitted.",
         "Your agents' PRs appear here as they work.",
     ),

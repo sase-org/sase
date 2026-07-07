@@ -856,7 +856,7 @@
         },
         "use_project_pr_prefix": {
           "type": "boolean",
-          "description": "Prepend [<project>] to PR titles or CL descriptions.",
+          "description": "Prepend [<project>] to PR titles or PR descriptions.",
           "default": false
         }
       }

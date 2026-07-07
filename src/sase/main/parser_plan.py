@@ -14,7 +14,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Review, approve, reject, propose, and search implementation plans",
         description=(
             "Review the plan pipeline, approve or reject pending proposals from "
-            "the CLI, submit a new plan for review, or search SDD and "
+            "the ChangeSpecI, submit a new plan for review, or search SDD and "
             "machine-local plans.\n\n"
             "With no subcommand, `sase plan` defaults to `sase plan list`."
         ),

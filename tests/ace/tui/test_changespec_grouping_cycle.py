@@ -1,13 +1,13 @@
-"""Tests for the CLs-tab grouping-mode cycle action.
+"""Tests for the ChangeSpecs-tab grouping-mode cycle action.
 
-Covers Phase 3 of the CLs-tab ChangeSpec grouping feature
+Covers Phase 3 of the ChangeSpecs-tab ChangeSpec grouping feature
 (``sdd/tales/202604/changespec_group_headings.md``):
 
 * Cycle order ``BY_PROJECT → BY_DATE → BY_STATUS → BY_PROJECT``.
 * Per-mode fold-state preservation across cycles, with no leakage from
   the Agents-tab fold registries.
 * Banner focus is reset on every cycle.
-* Non-CL tabs (Agents / AXE) ignore the CL cycle helper, and AXE is a
+* Non-ChangeSpec tabs (Agents / AXE) ignore the PR cycle helper, and AXE is a
   silent no-op for the public action even if the focused tab.
 * Cycling schedules per-tab grouping-mode persistence.
 """
@@ -40,7 +40,7 @@ class _StubApp(AgentGroupingMixin):
         }
         self._group_fold_registry = self._group_fold_registries[GroupingMode.STANDARD]
         self._current_group_key: tuple[str, ...] | None = None
-        # CL-side state.
+        # ChangeSpec-side state.
         self._changespec_grouping_mode = ChangeSpecGroupingMode.BY_PROJECT
         self._changespec_group_fold_registries: dict[
             ChangeSpecGroupingMode, GroupFoldRegistry
@@ -170,7 +170,7 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
 
 
 def test_cycle_on_agents_tab_does_not_touch_cl_state() -> None:
-    """Agents cycle leaves the CL grouping mode untouched, and vice versa."""
+    """Agents cycle leaves the ChangeSpec grouping mode untouched, and vice versa."""
     app = _StubApp(current_tab="agents")
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.BY_DATE
@@ -249,7 +249,7 @@ def test_rapid_changespec_cycles_save_latest_mode() -> None:
 
 
 def test_cycle_emits_cl_grouping_toast() -> None:
-    """The toast distinguishes the CL cycle from the Agents cycle."""
+    """The toast distinguishes the PR cycle from the Agents cycle."""
     app = _StubApp()
     app.action_cycle_grouping_mode()
     assert app.notifications == ["PR grouping: by date"]

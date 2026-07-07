@@ -26,7 +26,7 @@ class EntryQuickLaunchMixin:
         ) -> str | None: ...
 
     def _start_agent_from_changespec_quick(self) -> None:
-        """Start agent from current ChangeSpec without CL name modal.
+        """Start agent from current ChangeSpec without ChangeSpec name modal.
 
         This is the quick version that skips CLNameInputModal entirely,
         going directly to the prompt input bar with a VCS prefix.
@@ -65,10 +65,10 @@ class EntryQuickLaunchMixin:
         )
 
     def _start_agent_from_agent_quick(self) -> None:
-        """Start agent using the selected agent's project/CL name.
+        """Start agent using the selected agent's project/ChangeSpec name.
 
         Uses the currently selected agent on the agents tab to derive
-        the VCS prefix, similar to how leader-Space works on the CLs tab.
+        the VCS prefix, similar to how leader-Space works on the ChangeSpecs tab.
         """
         from ...modals import SelectionItem
 

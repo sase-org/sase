@@ -1,6 +1,6 @@
 """Render path for the ChangeSpec list widget.
 
-The grouped (banner + CL) render is factored out of
+The grouped (banner + ChangeSpec) render is factored out of
 :class:`ChangeSpecList` so the widget module stays focused on widget
 plumbing (events, highlight, patch).  ``render_grouped`` takes the
 widget instance as its first argument and mutates its bookkeeping
@@ -59,7 +59,7 @@ def render_grouped(
     banner_jump_hints: dict[GroupKey, str] | None,
     now: datetime | None,
 ) -> None:
-    """Render banner rows + CL rows for the active grouping mode.
+    """Render banner rows + ChangeSpec rows for the active grouping mode.
 
     The grouped path always does a full rebuild — the patch path
     guards against grouped renders by gating on
@@ -74,7 +74,7 @@ def render_grouped(
         now=now,
     )
 
-    # First pass: format CL rows so we know the widest content.
+    # First pass: format ChangeSpec rows so we know the widest content.
     cs_options: dict[int, Option] = {}
     cs_widths: dict[int, int] = {}
     cs_signatures: dict[int, tuple[Any, ...]] = {}

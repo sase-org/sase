@@ -264,7 +264,7 @@ def test_git_reword_add_tag_log_fails(mock_run: MagicMock) -> None:
     assert error is not None
 
 
-# === Tests for bare remote behavior in mail/get_change_url/get_cl_number ===
+# === Tests for bare remote behavior in mail/get_change_url/get_pr_number ===
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")

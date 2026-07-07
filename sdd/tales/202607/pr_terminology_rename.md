@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 11:55:08
-status: wip
+status: done
 prompt: sdd/prompts/202607/pr_terminology_rename.md
 ---
 # Replace CL Terminology With PR

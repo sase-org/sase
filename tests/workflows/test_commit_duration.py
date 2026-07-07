@@ -112,7 +112,7 @@ def test_reject_all_new_proposals_success() -> None:
 
 
 def test_reject_all_new_proposals_wrong_cl_name() -> None:
-    """Test that returning 0 when CL name doesn't match."""
+    """Test that returning 0 when ChangeSpec name doesn't match."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
         f.write("NAME: test_cl\n")
         f.write("STATUS: Ready\n")

@@ -60,9 +60,10 @@ current tab's guide modal, which summarizes what the tab shows and its most usef
 default those keys are `Tab` and `Shift+Tab`; if you remap them, the modals follow the configured keys.
 
 On first use, empty tabs render onboarding states instead of blank panels: the PRs tab shows a getting-started card when
-no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the project/CL
-launch hint appears only when a launchable target exists — and can recommend installing plugins from the Admin Center
-when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published docs.
+no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the
+project/ChangeSpec launch hint appears only when a launchable target exists — and can recommend installing plugins from
+the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
+docs.
 
 ## Keybindings: PRs Tab
 
@@ -130,12 +131,12 @@ The active grouping mode is shown in the PRs-tab info-panel header as a `[group:
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `l` | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
 | `h` | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
-| `L` | Snap to fully expanded — all banners and PR rows visible                                                                               |
+| `L` | Snap to fully expanded — all banners and ChangeSpec rows visible                                                                       |
 | `H` | Snap to fully collapsed — collapse every visible banner                                                                                |
 
-Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just like PR rows, and `'` jump-hints
-land on them too. After a fold change that hides the focused CL, focus snaps to the deepest collapsed ancestor banner so
-the cursor always sits on a row the user can see.
+Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just like ChangeSpec rows, and `'`
+jump-hints land on them too. After a fold change that hides the focused PR, focus snaps to the deepest collapsed
+ancestor banner so the cursor always sits on a row the user can see.
 
 ### Fold Mode (`z` prefix)
 
@@ -395,7 +396,7 @@ The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+
 ### VCS Tag Resolution in Fork/Wait
 
 When forking or waiting on an agent, VCS tags in the prompt (e.g., `#git(ref)`, `#gh:ref`) are automatically updated to
-point to the correct branch. For non-project agents, the ref is replaced with the agent's CL name (branch). For project
+point to the correct branch. For non-project agents, the ref is replaced with the agent's PR name (branch). For project
 agents using `#pr`, the ref is replaced with `@<name>` which resolves to the agent's branch. HITL suffixes (`!!`, `??`)
 are stripped during replacement since fork scenarios should not carry over HITL overrides.
 
@@ -591,7 +592,7 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `?`   | QUESTION                                             |
 | `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)      |
 | `≡`   | Workflow row (top-level)                             |
-| `❑`   | ChangeSpec / CL row (top-level)                      |
+| `❑`   | ChangeSpec / ChangeSpec row (top-level)              |
 | `⚡`  | Autonomous (`%auto`) agent                           |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
@@ -1232,7 +1233,7 @@ operations). The indicator automatically hides when all background tasks complet
 
 Press `,R` (leader + `R`) to open the runners modal. It shows concurrency information including hook runners, agent
 runners, and a **Background Tasks** section listing active and recently completed background tasks (sync, rebase,
-accept, mail, add-tag). Each task entry shows its type, CL name, status, and timestamps.
+accept, mail, add-tag). Each task entry shows its type, PR name, status, and timestamps.
 
 ## File Panel Trimming
 
@@ -1444,7 +1445,7 @@ dismissal-prefixed candidates so it anchors on a live, visible agent.
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
 
-- **Agent details**: Name, status, model, provider, CL association, and chronologically sorted timestamps:
+- **Agent details**: Name, status, model, provider, ChangeSpec association, and chronologically sorted timestamps:
   - `Bead` — shown for agents launched by `sase bead work`, inferred from phase, exact epic, or legacy `.land` names
   - `WAIT` — when the agent was spawned (waiting for a slot)
   - `BEGIN` — when execution started

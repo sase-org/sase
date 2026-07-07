@@ -74,7 +74,7 @@ def test_changespec_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": "alpha",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
@@ -85,7 +85,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 },
                 "status": "Submitted",
                 "parent": None,
-                "cl_or_pr": "https://example.test/repo/pull/1",
+                "pr_url": "https://example.test/repo/pull/1",
                 "bug": "BUG-100",
                 "description": "Initial feature work.\nSpans multiple lines.",
                 "commits": [
@@ -156,7 +156,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 ],
             },
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": "beta",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
@@ -167,7 +167,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 },
                 "status": "WIP",
                 "parent": "alpha",
-                "cl_or_pr": None,
+                "pr_url": "",
                 "bug": None,
                 "description": "Sibling feature.",
                 "commits": [],
@@ -178,7 +178,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": "beta__260102_010101",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
@@ -189,7 +189,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 },
                 "status": "Reverted",
                 "parent": "alpha",
-                "cl_or_pr": None,
+                "pr_url": "",
                 "bug": None,
                 "description": "Reverted retry of beta.",
                 "commits": [],
@@ -200,7 +200,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": "gamma",
                 "project_basename": "myproj",
                 "file_path": "myproj.sase",
@@ -211,7 +211,7 @@ def test_changespec_wire_json_snapshot() -> None:
                 },
                 "status": "Ready",
                 "parent": None,
-                "cl_or_pr": None,
+                "pr_url": "",
                 "bug": None,
                 "description": "Ready feature with running agent.",
                 "commits": [],
@@ -247,7 +247,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": "archived_one",
                 "project_basename": "myproj",
                 "file_path": "myproj-archive.sase",
@@ -258,7 +258,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 },
                 "status": "Archived",
                 "parent": None,
-                "cl_or_pr": "https://example.test/repo/pull/99",
+                "pr_url": "https://example.test/repo/pull/99",
                 "bug": None,
                 "description": "An archived spec.",
                 "commits": [
@@ -281,7 +281,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "name": "reverted_two",
                 "project_basename": "myproj",
                 "file_path": "myproj-archive.sase",
@@ -292,7 +292,7 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 },
                 "status": "Reverted",
                 "parent": None,
-                "cl_or_pr": None,
+                "pr_url": "",
                 "bug": None,
                 "description": "A reverted spec.",
                 "commits": [],

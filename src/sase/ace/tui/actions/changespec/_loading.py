@@ -323,7 +323,7 @@ class ChangeSpecLoadingMixin:
                 self._changespecs_last_name = new_changespecs[new_idx].name
             else:
                 self._changespecs_last_name = None
-        # Drop stale CL banner focus when its group's last member dropped
+        # Drop stale ChangeSpec banner focus when its group's last member dropped
         # out of the filtered set — ``_refresh_display`` will also call
         # ``clear_unknown`` on the fold registry, but the focused banner
         # key has to be cleared here so the renderer doesn't try to

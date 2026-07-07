@@ -3,6 +3,7 @@
 import re
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
+from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
 
 
 def reject_proposals_and_set_status_atomic(
@@ -14,7 +15,7 @@ def reject_proposals_and_set_status_atomic(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to update.
+        cl_name: The ChangeSpec name to update.
         final_status: The final status to set. Should be either:
             - "Mailed" to set status directly to Mailed
             - Empty string to keep current status unchanged
@@ -52,7 +53,7 @@ def reject_proposals_and_set_status_atomic(
                             "NAME:",
                             "DESCRIPTION:",
                             "PARENT:",
-                            "CL:",
+                            *REVIEW_URL_PREFIXES,
                             "HOOKS:",
                             "COMMENTS:",
                             "MENTORS:",
@@ -114,7 +115,7 @@ def reject_all_new_proposals(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to update.
+        cl_name: The ChangeSpec name to update.
 
     Returns:
         Number of proposals rejected, or -1 on error.
@@ -142,7 +143,7 @@ def reject_all_new_proposals(
                             "NAME:",
                             "DESCRIPTION:",
                             "PARENT:",
-                            "CL:",
+                            *REVIEW_URL_PREFIXES,
                             "STATUS:",
                             "HOOKS:",
                             "COMMENTS:",
@@ -197,7 +198,7 @@ def update_commit_entry_suffix(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to update.
+        cl_name: The ChangeSpec name to update.
         entry_id: The entry ID to update (e.g., "2a").
         new_suffix_type: The action - "remove" to remove suffix, "reject" to change
             (!: MSG) to (~!: MSG).
@@ -231,7 +232,7 @@ def update_commit_entry_suffix(
                             "NAME:",
                             "DESCRIPTION:",
                             "PARENT:",
-                            "CL:",
+                            *REVIEW_URL_PREFIXES,
                             "STATUS:",
                             "HOOKS:",
                             "COMMENTS:",
@@ -299,7 +300,7 @@ def mark_proposal_broken(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name to update.
+        cl_name: The ChangeSpec name to update.
         entry_id: The proposal entry ID (e.g., "2a").
 
     Returns:
@@ -327,7 +328,7 @@ def mark_proposal_broken(
                             "NAME:",
                             "DESCRIPTION:",
                             "PARENT:",
-                            "CL:",
+                            *REVIEW_URL_PREFIXES,
                             "STATUS:",
                             "HOOKS:",
                             "COMMENTS:",

@@ -14,7 +14,7 @@ def load_agents_from_hooks(
     Args:
         cs: The ChangeSpec to extract agents from.
         bug: Bug URL from the ChangeSpec, or None.
-        cl_num: CL number from the ChangeSpec, or None.
+        cl_num: PR number from the ChangeSpec, or None.
 
     Returns:
         List of Agent objects from running hook agents.
@@ -87,7 +87,7 @@ def load_agents_from_mentors(
     Args:
         cs: The ChangeSpec to extract agents from.
         bug: Bug URL from the ChangeSpec, or None.
-        cl_num: CL number from the ChangeSpec, or None.
+        cl_num: PR number from the ChangeSpec, or None.
 
     Returns:
         List of Agent objects from running mentor agents.
@@ -136,7 +136,7 @@ def load_agents_from_comments(
     Args:
         cs: The ChangeSpec to extract agents from.
         bug: Bug URL from the ChangeSpec, or None.
-        cl_num: CL number from the ChangeSpec, or None.
+        cl_num: PR number from the ChangeSpec, or None.
 
     Returns:
         List of Agent objects from running CRS agents.

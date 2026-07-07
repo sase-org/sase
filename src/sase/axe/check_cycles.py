@@ -1,7 +1,7 @@
 """Check cycle runner for full and comment check cycles.
 
 This module handles the longer-interval check cycles (1-5 minutes) that
-start CL submitted checks and comment checks for ChangeSpecs.
+start PR submitted checks and comment checks for ChangeSpecs.
 """
 
 import time
@@ -14,7 +14,7 @@ from sase.ace.changespec import (
     get_base_status,
     is_edit_locked,
 )
-from sase.ace.cl_status import is_parent_submitted
+from sase.ace.pr_status import is_parent_submitted
 from sase.ace.comments import is_timestamp_suffix
 from sase.ace.scheduler.checks_runner import (
     CHECK_TYPE_CL_SUBMITTED,
@@ -38,7 +38,7 @@ class CheckCycleRunner:
     """Runner for full and comment check cycles.
 
     Handles the longer-interval check cycles that:
-    - Start CL submitted checks (full cycle)
+    - Start PR submitted checks (full cycle)
     - Start reviewer/author comment checks (comment cycle)
     """
 
@@ -96,7 +96,7 @@ class CheckCycleRunner:
         return [cs for cs, keep in zip(unlocked, mask, strict=True) if keep]
 
     def is_leaf_cl(self, changespec: ChangeSpec) -> bool:
-        """Check if a ChangeSpec is a leaf CL (no parent or parent is submitted)."""
+        """Check if a ChangeSpec is a leaf ChangeSpec (no parent or parent is submitted)."""
         return is_parent_submitted(changespec)
 
     def should_check_status(
@@ -118,7 +118,7 @@ class CheckCycleRunner:
         return should_check(changespec.name)
 
     def run_full_check_cycle(self) -> tuple[datetime, int, list[dict]]:
-        """Run full status check cycle - starts CL submitted checks only.
+        """Run full status check cycle - starts PR submitted checks only.
 
         Returns:
             Tuple of (cycle_timestamp, changespecs_processed, updates_list).
@@ -129,10 +129,10 @@ class CheckCycleRunner:
         updates: list[dict] = []
 
         for changespec in filtered_changespecs:
-            # On first cycle, bypass cache for leaf CLs
+            # On first cycle, bypass cache for leaf ChangeSpecs
             bypass_cache = self._first_cycle and self.is_leaf_cl(changespec)
 
-            # Start CL submitted checks only
+            # Start PR submitted checks only
             check_updates = self._start_cl_submitted_check(changespec, bypass_cache)
             for update in check_updates:
                 updates.append({"changespec": changespec.name, "message": update})
@@ -154,7 +154,7 @@ class CheckCycleRunner:
         write_cycle_result(result)
 
         summary = (
-            "cl_submitted_checks: "
+            "pr_submitted_checks: "
             f"all_changespecs={len(all_changespecs)} "
             f"filtered_changespecs={len(filtered_changespecs)} "
             f"processed={len(filtered_changespecs)} started={len(updates)} "
@@ -165,7 +165,7 @@ class CheckCycleRunner:
             summary += (
                 "no_matching_changespecs"
                 if not filtered_changespecs
-                else "no_eligible_cl_submitted_checks"
+                else "no_eligible_pr_submitted_checks"
             )
         self._log(summary, "green" if updates else None)
 
@@ -230,7 +230,7 @@ class CheckCycleRunner:
     def _start_cl_submitted_check(
         self, changespec: ChangeSpec, bypass_cache: bool = False
     ) -> list[str]:
-        """Start CL submitted check for a ChangeSpec (non-blocking).
+        """Start PR submitted check for a ChangeSpec (non-blocking).
 
         Args:
             changespec: The ChangeSpec to check.
@@ -254,9 +254,9 @@ class CheckCycleRunner:
         # Update cache when starting checks
         update_last_checked(changespec.name)
 
-        # Start CL submitted check if not already pending
+        # Start PR submitted check if not already pending
         if not has_pending_check(changespec, CHECK_TYPE_CL_SUBMITTED):
-            if is_parent_submitted(changespec) and changespec.cl:
+            if is_parent_submitted(changespec) and changespec.pr_url:
                 update = start_cl_submitted_check(changespec, workspace_dir, self._log)
                 if update:
                     updates.append(update)

@@ -1,4 +1,4 @@
-"""Tests that `y` (refresh) on the CLs tab does not block the event loop.
+"""Tests that `y` (refresh) on the ChangeSpecs tab does not block the event loop.
 
 The regression guarded here is the `y` keymap (and the timer-driven
 auto-refresh) calling the synchronous `_reload_and_reposition()` on the
@@ -6,7 +6,7 @@ event-loop thread. With many project spec files on disk, `find_all_changespecs()
 is several seconds of I/O — during that time Textual cannot dispatch any
 keypresses (j/k/tab-switch), so the TUI appears frozen.
 
-The fix routes the CLs tab through `_reload_and_reposition_async()`, which
+The fix routes the ChangeSpecs tab through `_reload_and_reposition_async()`, which
 pushes the disk scan to a background thread via `asyncio.to_thread`. These
 tests exercise that async path directly and verify the event loop stays
 responsive while the load is in flight.

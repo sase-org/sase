@@ -103,7 +103,7 @@ async def test_changespecs_onboarding_visible_after_empty_startup(
         onboarding = page.query_one_widget("#changespec-quickstart-panel")
         assert not onboarding.has_class("hidden")
         _assert_changespecs_onboarding_layout(page, active=True)
-        assert "Every CL/PR your agents produce" in _mounted_onboarding_plain(page)
+        assert "Every PR your agents produce" in _mounted_onboarding_plain(page)
         search = _search_query_plain(page)
         assert "Search Query" in search
         assert '"visual"' in search
@@ -179,7 +179,7 @@ async def test_changespecs_onboarding_hides_after_first_changespec_arrives(
         initial_tab="changespecs",
     ) as page:
         await wait_for_startup(page)
-        assert "Every CL/PR your agents produce" in _mounted_onboarding_plain(page)
+        assert "Every PR your agents produce" in _mounted_onboarding_plain(page)
 
         page.app._apply_reloaded_changespecs(
             [make_changespec(name="visual_first")],

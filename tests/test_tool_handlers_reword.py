@@ -36,14 +36,14 @@ def test_fetch_cl_description_success(
     """Test successful description fetch."""
     mock_get_ws.return_value = "/workspace"
     mock_provider = MagicMock()
-    mock_provider.get_description.return_value = (True, "My CL description\n")
+    mock_provider.get_description.return_value = (True, "My change description\n")
     mock_provider.resolve_revision.side_effect = lambda name, *_: name
     mock_get_provider.return_value = mock_provider
     console = MagicMock()
 
     result = _fetch_cl_description("project", "cl/123", console)
 
-    assert result == "My CL description\n"
+    assert result == "My change description\n"
     mock_provider.get_description.assert_called_once_with("cl/123", "/workspace")
 
 
@@ -128,7 +128,7 @@ def _make_context_and_changespec(
 
     cs = MagicMock()
     cs.status = status
-    cs.cl = cl
+    cs.pr_url = cl
     cs.name = "cl/test"
     cs.project_basename = "project"
     cs.file_path = "/path/to/project.sase"

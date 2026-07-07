@@ -355,7 +355,7 @@ class TestFindCommitsSection:
         assert end == 5
 
     def test_not_found(self) -> None:
-        """Returns (-1, -1) when CL name not found."""
+        """Returns (-1, -1) when ChangeSpec name not found."""
         lines = ["NAME: other_cl\n", "STATUS: Draft\n"]
         assert find_commits_section(lines, "my_cl") == (-1, -1)
 

@@ -247,7 +247,7 @@ class KeybindingBindingsMixin:
         *,
         mark_count: int = 0,
     ) -> list[tuple[str, str]]:
-        """Compute conditional bindings for CLs tab.
+        """Compute conditional bindings for ChangeSpecs tab.
 
         Includes entry-dependent bindings (based on the selected ChangeSpec)
         and app-state bindings (e.g. marks exist).
@@ -258,8 +258,8 @@ class KeybindingBindingsMixin:
         if changespec.commits and any(e.is_proposed for e in changespec.commits):
             bindings.append((self._kd("accept_proposal"), "accept"))
 
-        # Diff (only if CL exists)
-        if changespec.cl is not None:
+        # Diff (only if PR exists)
+        if changespec.pr_url is not None:
             bindings.append((self._kd("show_diff"), "diff"))
 
         # Get base status for visibility checks
@@ -269,13 +269,13 @@ class KeybindingBindingsMixin:
 
         _EDITABLE = ("WIP", "Draft", "Ready", "Mailed")
 
-        # Reword (only if CL exists AND status is editable)
-        if changespec.cl is not None:
+        # Reword (only if PR exists AND status is editable)
+        if changespec.pr_url is not None:
             if base_status in _EDITABLE:
                 bindings.append((self._kd("reword"), "reword"))
 
-        # Add tag (only if CL exists AND status is editable)
-        if changespec.cl is not None:
+        # Add tag (only if PR exists AND status is editable)
+        if changespec.pr_url is not None:
             if base_status in _EDITABLE:
                 bindings.append((self._kd("add_tag"), "add tag"))
 
@@ -301,8 +301,8 @@ class KeybindingBindingsMixin:
         if base_status not in ("Submitted", "Reverted"):
             bindings.append((self._kd("rename_cl"), "rename"))
 
-        # View files (only if CL exists)
-        if changespec.cl is not None:
+        # View files (only if PR exists)
+        if changespec.pr_url is not None:
             bindings.append((self._kd("view_files"), "files"))
 
         # Hooks from failed targets (only if failed hooks file exists)

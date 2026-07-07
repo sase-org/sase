@@ -60,7 +60,7 @@ def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
 def _fetch_cl_description(
     project_basename: str, changespec_name: str, console: "Console"
 ) -> str | None:
-    """Fetch the CL description from the primary workspace without claiming it.
+    """Fetch the change description from the primary workspace without claiming it.
 
     Gets the primary workspace (#1) and runs ``cl_desc -r <name>`` to retrieve
     the current commit description.
@@ -91,7 +91,7 @@ def _fetch_cl_description(
 
 
 def _add_prettier_ignore_before_tags(description: str) -> str:
-    """Insert ``<!-- prettier-ignore -->`` before the contiguous CL tag block.
+    """Insert ``<!-- prettier-ignore -->`` before the contiguous change tag block.
 
     The tag block is the contiguous run of ``KEY=value`` / ``Key: value``
     lines at the very end of *description* (blank trailing lines are
@@ -183,7 +183,7 @@ def add_tag_task(
 ) -> tuple[bool, str]:
     """Execute add-tag as a background task.
 
-    Claims a workspace, checks out the CL, runs sase_hg_reword --add-tag,
+    Claims a workspace, checks out the ChangeSpec, runs sase_hg_reword --add-tag,
     and releases the workspace in a finally block.
 
     Returns:
@@ -227,7 +227,7 @@ def add_tag_task(
         if not clean_success:
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Checkout the CL
+        # Checkout the ChangeSpec
         print(f"Checking out {changespec_name}...")
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
@@ -318,9 +318,9 @@ def reword_execute_task(
     project_basename: str,
     edited_description: str,
 ) -> tuple[bool, str]:
-    """Non-interactive: claim workspace, checkout CL, apply reword. Background task.
+    """Non-interactive: claim workspace, checkout ChangeSpec branch, apply reword. Background task.
 
-    Claims a workspace, checks out the CL, runs the reword with the edited
+    Claims a workspace, checks out the ChangeSpec, runs the reword with the edited
     description, syncs the description back to the project file, and releases
     the workspace in a finally block.
 
@@ -365,7 +365,7 @@ def reword_execute_task(
         if not clean_success:
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Checkout the CL
+        # Checkout the ChangeSpec
         print(f"Checking out {changespec_name}...")
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
@@ -376,7 +376,7 @@ def reword_execute_task(
             return (False, f"checkout failed: {checkout_err}")
 
         # Run reword with the edited description
-        print("Rewording CL description...")
+        print("Rewording change description...")
         escaped_desc = provider.prepare_description_for_reword(edited_description)
         reword_ok, reword_err = provider.reword(escaped_desc, workspace_dir)
         if not reword_ok:

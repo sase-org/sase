@@ -41,7 +41,7 @@ def test_reservation_replaced_by_add_changespec() -> None:
                 cl_name="test_project_res_feature",
                 description="Full description",
                 parent=None,
-                cl_url="http://cl/44444",
+                pr_url="http://cl/44444",
                 reserved_name="test_project_res_feature_1",
             )
 
@@ -51,7 +51,7 @@ def test_reservation_replaced_by_add_changespec() -> None:
         changespecs = parse_project_file(project_file)
         cs = next(c for c in changespecs if c.name == "test_project_res_feature_1")
         assert cs.status == "Draft"
-        assert cs.cl == "http://cl/44444"
+        assert cs.pr_url == "http://cl/44444"
 
         # No Reserved entries should remain
         with open(project_file, encoding="utf-8") as f:

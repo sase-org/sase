@@ -45,7 +45,7 @@ One notation note before we start:
 
 SASE is a local orchestration layer above coding-agent CLIs such as Codex, Claude Code, Antigravity CLI (`agy`), Qwen
 Code, and OpenCode. It gives those agents a common workflow: launch in isolated workspaces, expand reusable prompts,
-save prompt and response artifacts, track CL/PR-sized work as ChangeSpecs, coordinate dependency graphs with Beads, and
+save prompt and response artifacts, track PR-sized work as ChangeSpecs, coordinate dependency graphs with Beads, and
 supervise background work through AXE.
 
 The repo split is intentionally boring:
@@ -329,7 +329,7 @@ ARCHITECTURE DIAGRAM BRIEF 2 - place here after the SDD/Beads section.
 Title: "Durable work state graph"
 Shape: graph/flow diagram, not a stack.
 Nodes: user prompt -> sdd/prompts snapshot -> tale OR epic -> phase beads in sdd/beads -> agent runs -> commits ->
-ChangeSpec -> PR/CL provider -> final archive.
+ChangeSpec -> PR provider -> final archive.
 Side nodes: ACE reads ChangeSpecs/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
 Draw dependencies between phase beads clearly, with ready beads highlighted.
 Purpose: show that chat history is not the source of truth; durable files and state records are.
@@ -375,7 +375,7 @@ In practice, this means you can:
 
 - inspect a ChangeSpec's diff from the TUI;
 - view added/modified/deleted file counts and line deltas;
-- rewind a PR/CL to an earlier state;
+- rewind a PR to an earlier state;
 - revert an agent's committed work and archive the ChangeSpec;
 - restore a reverted ChangeSpec by re-applying its diff;
 - launch follow-up agents against the exact work record you are looking at.

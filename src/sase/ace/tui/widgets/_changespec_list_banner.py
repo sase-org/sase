@@ -1,4 +1,4 @@
-"""Banner row rendering for the CLs tab group headings.
+"""Banner row rendering for the ChangeSpecs tab group headings.
 
 ChangeSpec banners reuse the colors / glyphs / rules that the Agents-tab
 banners use (see ``_agent_list_styling``) so the two tabs feel like the
@@ -102,7 +102,7 @@ def format_changespec_banner_option(
 
     ``selectable=True`` is reserved for collapsed banners — Phase 4 will
     use it to keep cursor navigation on the heading row when its group
-    is folded.  Expanded banners stay disabled so j/k flies through CL
+    is folded.  Expanded banners stay disabled so j/k flies through ChangeSpec rows
     rows in grouped mode just like it does in flat mode.
 
     ``sequence`` lets non-contiguous emissions of the same key (e.g. the

@@ -96,7 +96,7 @@ ACE has three tabs:
 
 - **Agents** — live and recent agent records. Find the run you just launched: prompt, reply transcript, workspace path,
   status, retry chain.
-- **PRs** — every ChangeSpec on this project. A **ChangeSpec** is SASE's durable record of one CL/PR-sized unit of work;
+- **PRs** — every ChangeSpec on this project. A **ChangeSpec** is SASE's durable record of one PR-sized unit of work;
   think of it as the long-lived sibling of a pull request that holds the description, parent, status (WIP → Draft →
   Ready → Mailed → Submitted), commits, hooks, comments, and mentor activity all in one place. The
   [ChangeSpec guide](../../change_spec.md) goes deeper when you're curious. This first read-only run should not have
@@ -188,8 +188,8 @@ The names you'll keep bumping into, in one place:
 - **`sase run`** — the entry point that launches an agent or workflow. See the [CLI reference](../../cli.md).
 - **[Workspaces](../../workspace.md)** — isolated numbered clones managed by SASE so agents can work in parallel without
   touching your primary checkout.
-- **[ChangeSpecs](../../change_spec.md)** — durable CL/PR-sized review records: status lifecycle, commits, hooks,
-  comments, mentors.
+- **[ChangeSpecs](../../change_spec.md)** — durable PR-sized review records: status lifecycle, commits, hooks, comments,
+  mentors.
 - **[Beads](../../beads.md)** — dependency-aware, git-portable work units. Powers epic execution.
 - **[XPrompts](../../xprompt.md)** — reusable prompt templates and YAML workflows with typed inputs and multi-agent
   fan-out. See also [workflow specs](../../workflow_spec.md).

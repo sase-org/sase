@@ -65,8 +65,8 @@ def is_valid_transition(from_status: str, to_status: str) -> bool:
     Check if a status transition is valid.
 
     NOTE: Workspace suffixes are stripped before validation, so:
-    - "Creating EZ CL... (fig_3)" is treated as "Creating EZ CL..."
-    - "Finishing TDD CL... (fig_2)" is treated as "Finishing TDD CL..."
+    - "Creating EZ PR... (fig_3)" is treated as "Creating EZ PR..."
+    - "Finishing TDD PR... (fig_2)" is treated as "Finishing TDD PR..."
 
     Args:
         from_status: Current status (possibly with workspace suffix)

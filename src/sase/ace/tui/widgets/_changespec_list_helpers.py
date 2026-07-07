@@ -42,7 +42,7 @@ _PREFIX_CHAR_COLORS: dict[str, str] = {
 
 @dataclass
 class _MentorCommentStats:
-    """Aggregate mentor comment stats for display in the CL list."""
+    """Aggregate mentor comment stats for display in the ChangeSpec list."""
 
     total: int
     unread: int
@@ -185,8 +185,8 @@ def calculate_entry_display_width(
         parts.append("[✓] ")
     parts.append(f"[{indicator}] ")
     parts.append(humanize_cl_name(changespec.name))
-    if changespec.cl:
-        parts.append(f" ({changespec.cl})")
+    if changespec.pr_url:
+        parts.append(f" ({changespec.pr_url})")
     if mentor_stats:
         parts.append(_mentor_stats_plain_text(mentor_stats))
     text = Text("".join(parts))
@@ -259,7 +259,7 @@ def row_signature(
     )
     return (
         humanize_cl_name(changespec.name),
-        changespec.cl,
+        changespec.pr_url,
         changespec.status,
         indicator,
         is_selected,
@@ -287,8 +287,8 @@ def format_changespec_option(
         changespec: The ChangeSpec to format
         is_selected: Whether this is the currently selected item
         is_marked: Whether this item is marked
-        show_hideable: Whether to show ◌ prefix for reverted/archived CLs
-        show_submitted: Whether to show ◌ prefix for submitted CLs
+        show_hideable: Whether to show ◌ prefix for reverted/archived ChangeSpecs
+        show_submitted: Whether to show ◌ prefix for submitted ChangeSpecs
         mentor_stats: Optional mentor comment stats to display
         hint_char: Optional jump hint character
 
@@ -299,7 +299,7 @@ def format_changespec_option(
     if hint_char is not None:
         text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
-    # Hideable indicator for reverted/archived CLs when visible
+    # Hideable indicator for reverted/archived ChangeSpecs when visible
     base_status = get_base_status(changespec.status)
     if show_hideable and base_status in ("Reverted", "Archived"):
         text.append("◌ ", style="bold #FF5F87")
@@ -321,9 +321,9 @@ def format_changespec_option(
     name_style = "bold #00D7AF" if is_selected else "#00D7AF"
     text.append(humanize_cl_name(changespec.name), style=name_style)
 
-    # CL number if present
-    if changespec.cl:
-        text.append(f" ({changespec.cl})", style="#569CD6 dim")
+    # PR number if present
+    if changespec.pr_url:
+        text.append(f" ({changespec.pr_url})", style="#569CD6 dim")
 
     # Mentor comment stats (latest commit)
     if mentor_stats:

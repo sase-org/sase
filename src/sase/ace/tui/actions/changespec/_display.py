@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 TabName = Literal["changespecs", "agents", "axe"]
 
-# Human-readable badge text per CL grouping mode.
+# Human-readable badge text per ChangeSpec grouping mode.
 _CHANGESPEC_GROUPING_BADGE_LABELS: dict[ChangeSpecGroupingMode, str] = {
     ChangeSpecGroupingMode.BY_PROJECT: "by project",
     ChangeSpecGroupingMode.BY_DATE: "by date",
@@ -246,7 +246,7 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
             )
         )
         # The keybinding footer is shared across tabs; the active tab's
-        # display path is the sole writer. When the CL refresh fires
+        # display path is the sole writer. When the PR refresh fires
         # off-tab (e.g. inotify-driven reload while the user is on
         # Agents), the writes here would clobber the active tab's
         # bindings and flicker.

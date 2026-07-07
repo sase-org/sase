@@ -117,10 +117,10 @@ def test_fallback_no_match(_patch_loaders) -> None:  # type: ignore[no-untyped-d
 def test_nearest_neighbor_when_selected_changespec_filtered_out(  # type: ignore[no-untyped-def]
     _patch_loaders,
 ) -> None:
-    """Submitting a CL must not snap the cursor back to row 0.
+    """Submitting a PR must not snap the cursor back to row 0.
 
     Reproduces the §3.1 ChangeSpecs drift mode: user is selected on
-    row 3 of [a, b, c, d, e]; CL ``d`` is submitted and filtered out
+    row 3 of [a, b, c, d, e]; PR ``d`` is submitted and filtered out
     of the new list [a, b, c, e]. The cursor should land on row 3
     (the new ``e``, the agent visually below the submitted entry),
     not snap to row 0.

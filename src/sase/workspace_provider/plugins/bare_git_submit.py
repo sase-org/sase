@@ -119,7 +119,7 @@ def submit_bare_git(
         changespec,
         changespec_file,
         changespec_name,
-        "Killed hook running on submitted CL.",
+        "Killed hook running on submitted ChangeSpec.",
         log_fn=log_fn,
     )
 

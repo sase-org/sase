@@ -130,7 +130,7 @@ class AgentOnboarding(VerticalScroll):
     def set_launch_targets_available(
         self, available: bool, *, refresh: bool = True
     ) -> None:
-        """Control whether the project/CL launch-target hint is rendered."""
+        """Control whether the project/ChangeSpec launch-target hint is rendered."""
         changed = self._launch_targets_available != available
         self._launch_targets_available = available
         if changed and refresh:
@@ -249,7 +249,7 @@ class AgentOnboarding(VerticalScroll):
         text.append("\n")
         if launch_targets_available:
             append_keycap(text, key_display_name(app.start_custom_agent))
-            text.append("launch against a specific project or CL instead.")
+            text.append("launch against a specific project or PR instead.")
             text.append("\n")
         text.append("The prompt bar works from any tab.", style="dim")
         return text
@@ -267,7 +267,7 @@ class AgentOnboarding(VerticalScroll):
         text.append("open a finished agent's chat transcript in your editor.")
         text.append("\n")
         append_keycap(text, key_display_name(app.jump_to_agent_changespec))
-        text.append("jump to the CL it produced.")
+        text.append("jump to the PR it produced.")
         append_keycap(text, key_display_name(app.open_agent_artifacts))
         text.append("browse artifacts.")
         return text

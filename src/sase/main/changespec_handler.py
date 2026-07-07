@@ -79,7 +79,7 @@ def _get_current_branch(provider: VCSProvider | None, cwd: str) -> str | None:
 
 
 def _get_current_change_url(provider: VCSProvider | None, cwd: str) -> str | None:
-    """Best-effort current PR/CL URL lookup."""
+    """Best-effort current PR URL lookup."""
     if provider is None:
         return None
     try:
@@ -177,7 +177,7 @@ def _find_current_changespec(
     scoped = _scoped_changespecs(changespecs, context.project)
 
     if context.change_url:
-        url_matches = [cs for cs in scoped if cs.cl == context.change_url]
+        url_matches = [cs for cs in scoped if cs.pr_url == context.change_url]
         if url_matches:
             return _dedupe_changespecs(url_matches)
 
@@ -207,7 +207,7 @@ def _changespec_payload(cs: ChangeSpec) -> dict[str, object]:
         "project": cs.project_basename,
         "status": cs.status,
         "parent": cs.parent,
-        "cl": cs.cl,
+        "cl": cs.pr_url,
         "file_path": cs.file_path,
         "line_number": cs.line_number,
     }
@@ -222,7 +222,7 @@ def _display_current_markdown(cs: ChangeSpec) -> None:
     print(f"- **Project:** {project_display_name_for(cs.project_basename)}")
     print(f"- **Status:** {cs.status}")
     print(f"- **Parent:** {humanize_cl_name(cs.parent) if cs.parent else 'None'}")
-    print(f"- **PR/CL:** {cs.cl or 'None'}")
+    print(f"- **PR:** {cs.pr_url or 'None'}")
     print(f"- **Location:** `{_file_location(cs)}`")
 
 
@@ -232,7 +232,7 @@ def _display_current_plain(cs: ChangeSpec) -> None:
     print(f"PROJECT: {project_display_name_for(cs.project_basename)}")
     print(f"STATUS: {cs.status}")
     print(f"PARENT: {humanize_cl_name(cs.parent) if cs.parent else 'None'}")
-    print(f"CL: {cs.cl or 'None'}")
+    print(f"PR: {cs.pr_url or 'None'}")
     print(f"FILE: {cs.file_path}")
     print(f"LINE: {cs.line_number}")
 

@@ -1,4 +1,4 @@
-"""Command handlers for CL-related operations."""
+"""Command handlers for commit, restore, and revert operations."""
 
 import argparse
 import sys
@@ -78,7 +78,7 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
         print(
             f"Error: CLI commit method '{cli_method}' conflicts with "
             f"SASE_COMMIT_METHOD='{env_method}'. "
-            "Set SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1 to force the CLI method.",
+            "Set SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1 to force the ChangeSpecI method.",
             file=sys.stderr,
         )
         sys.exit(1)

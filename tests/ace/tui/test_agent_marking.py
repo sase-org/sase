@@ -470,7 +470,7 @@ def test_save_marked_agents_dispatches_on_agents_tab() -> None:
 
 
 def test_bulk_change_status_does_not_save_marked_agents_on_agents_tab() -> None:
-    """The uppercase bulk-status action is CL-only."""
+    """The uppercase bulk-status action is ChangeSpec-only."""
     a1 = _make_agent()
     app = _FakeMarkApp([a1])
 
@@ -481,7 +481,7 @@ def test_bulk_change_status_does_not_save_marked_agents_on_agents_tab() -> None:
 
 
 def test_bulk_change_status_keeps_changespec_status_flow() -> None:
-    """The CLs tab still opens the bulk status modal."""
+    """The ChangeSpecs tab still opens the bulk status modal."""
 
     class _Spec:
         status = "WIP"

@@ -350,7 +350,7 @@ def _resolve_workspace_num(
     Args:
         runner: The runner info to resolve.
         pid_to_ws: PID-to-workspace mapping.
-        cl_to_ws: CL-name-to-workspace mapping.
+        cl_to_ws: ChangeSpec-name-to-workspace mapping.
 
     Returns:
         The workspace number, or None if it cannot be resolved.

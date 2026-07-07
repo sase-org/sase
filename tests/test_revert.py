@@ -23,13 +23,13 @@ def test_revert_changespec_succeeds_without_cl(make_changespec) -> None:  # type
                 with patch("sase.ace.revert.save_diff_to_file") as mock_save_diff:
                     with patch("sase.ace.revert.get_vcs_provider") as mock_get_vcs:
                         with patch(
-                            "sase.ace.revert.reset_changespec_cl"
+                            "sase.ace.revert.reset_changespec_pr_url"
                         ) as mock_reset_cl:
                             success, error = revert_changespec(changespec)
 
     assert success is True
     assert error is None
-    # VCS operations should NOT be called when CL is None
+    # VCS operations should NOT be called when PR is None
     mock_save_diff.assert_not_called()
     mock_get_vcs.assert_not_called()
     mock_reset_cl.assert_not_called()
@@ -115,7 +115,7 @@ def test_revert_changespec_success(make_changespec) -> None:  # type: ignore[no-
                             "sase.ace.revert.transition_changespec_status",
                             return_value=(True, "Mailed", None, []),
                         ):
-                            with patch("sase.ace.revert.reset_changespec_cl"):
+                            with patch("sase.ace.revert.reset_changespec_pr_url"):
                                 success, error = revert_changespec(changespec, console)
 
     assert success is True
@@ -195,7 +195,7 @@ def test_revert_changespec_calls_kill_and_persist(make_changespec) -> None:  # t
                             "sase.ace.revert.transition_changespec_status",
                             return_value=(True, "Mailed", None, []),
                         ):
-                            with patch("sase.ace.revert.reset_changespec_cl"):
+                            with patch("sase.ace.revert.reset_changespec_pr_url"):
                                 with patch(
                                     "sase.ace.revert.kill_and_persist_all_running_processes"
                                 ) as mock_kill:

@@ -78,13 +78,13 @@ def test_extract_diff_path_finds_explicit_diff_path_output() -> None:
             "status": "completed",
             "output": {
                 "success": True,
-                "cl_url": "http://cl/123",
+                "pr_url": "http://cl/123",
                 "diff_path": "/tmp/test.diff",
                 "error": "",
             },
             "output_types": {
                 "success": "bool",
-                "cl_url": "line",
+                "pr_url": "line",
                 "diff_path": "path",
                 "error": "text",
             },

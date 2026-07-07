@@ -35,7 +35,7 @@ class SelectionItem:
     display_name: str  # What to show in the list (e.g., "[P] myproject")
     item_type: Literal["project", "cl", "home", "all"]  # Type for processing
     project_name: str  # Project name
-    cl_name: str | None  # CL name if type is "cl", None for projects/home
+    cl_name: str | None  # ChangeSpec name if type is "cl", None for projects/home
 
 
 @dataclass
@@ -49,7 +49,7 @@ class ProjectSelectResult:
 class ProjectSelectModal(
     OptionListNavigationMixin, ModalScreen[ProjectSelectResult | None]
 ):
-    """Modal for selecting project or CL with filtering."""
+    """Modal for selecting project or PR with filtering."""
 
     _option_list_id = "selection-list"
     BINDINGS = [
@@ -261,7 +261,7 @@ class ProjectSelectModal(
         self.dismiss(ProjectSelectResult(selection=item, open_in_editor=open_in_editor))
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle Enter key in input - select highlighted item or use as custom CL."""
+        """Handle Enter key in input - select highlighted item or use as custom ChangeSpec."""
         filter_text = event.value.strip()
         filtered_items = self._get_filtered_items(filter_text)
 
@@ -274,7 +274,7 @@ class ProjectSelectModal(
             else:
                 self._dismiss_selection(filtered_items[0])
         elif filter_text:
-            # No match but user typed something - use input as custom CL name
+            # No match but user typed something - use input as custom ChangeSpec name
             self._dismiss_selection(filter_text)
         else:
             # Empty input and no items - cancel

@@ -91,7 +91,7 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
         state["selected"] = {
             "name": cs.name,
             "status": cs.status,
-            "cl": cs.cl,
+            "cl": cs.pr_url,
             "parent": cs.parent,
             "project": cs.project_basename,
             "description": cs.description[:200] if cs.description else None,

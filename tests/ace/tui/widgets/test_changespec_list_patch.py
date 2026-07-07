@@ -63,7 +63,7 @@ def test_patch_returns_false_before_initial_render(monkeypatch: Any) -> None:
 def test_patch_refuses_when_banner_rows_offset_indices(monkeypatch: Any) -> None:
     """The grouped render path always emits banner rows, so the patch
     path's ``option_count == len(self._changespecs)`` gate is never
-    satisfied on the CLs tab.  Single-row patches always fall back to a
+    satisfied on the ChangeSpecs tab.  Single-row patches always fall back to a
     full :meth:`update_list` rebuild."""
     widget, _ = _wire_widget(monkeypatch)
     cs0 = make_changespec(name="alpha")

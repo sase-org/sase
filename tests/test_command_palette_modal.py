@@ -76,7 +76,7 @@ def _spec(
 
 
 def _live_specs() -> list[CommandSpec]:
-    """Build an applicable list from the real catalog for the CLs tab.
+    """Build an applicable list from the real catalog for the ChangeSpecs tab.
 
     The Phase 3 wiring will pass exactly this kind of pre-filtered list
     in. Using the real catalog keeps the modal honest about real ids.

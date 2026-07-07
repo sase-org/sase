@@ -19,7 +19,7 @@ class MailPrepResult:
     """Result of mail preparation (before actual mailing).
 
     Attributes:
-        should_mail: True if the user confirmed they want to mail the CL.
+        should_mail: True if the user confirmed they want to mail the ChangeSpec.
     """
 
     should_mail: bool
@@ -31,7 +31,7 @@ def get_cl_description(
     console: Console,
     project_basename: str = "",
 ) -> tuple[bool, str | None]:
-    """Get the CL description for a specific revision using cl_desc command.
+    """Get the change description for a specific revision using cl_desc command.
 
     Args:
         revision: The revision/branch name to get the description for
@@ -55,7 +55,7 @@ def get_cl_description(
 def prepare_mail(
     changespec: ChangeSpec, target_dir: str, console: Console
 ) -> MailPrepResult | None:
-    """Prepare for mailing a CL / pushing a PR.
+    """Prepare for mailing a PR / pushing a PR.
 
     Delegates to workspace provider plugins via the ``ws_prepare_mail``
     hook. Each plugin implements VCS-specific logic (git: display branch
@@ -63,7 +63,7 @@ def prepare_mail(
 
     Args:
         changespec: The ChangeSpec to prepare for mailing
-        target_dir: The workspace directory for the CL
+        target_dir: The workspace directory for the ChangeSpec
         console: Rich console for output
 
     Returns:
@@ -91,7 +91,7 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
 
     Args:
         changespec: The ChangeSpec to mail
-        target_dir: The workspace directory for the CL
+        target_dir: The workspace directory for the ChangeSpec
         console: Rich console for output
 
     Returns:
@@ -107,13 +107,13 @@ def execute_mail(changespec: ChangeSpec, target_dir: str, console: Console) -> b
         console.print(f"[red]{_esc(str(error))}[/red]")
         return False
 
-    # If ChangeSpec has no CL URL yet (git, PR just created), update it
-    if changespec.cl is None:
+    # If ChangeSpec has no PR URL yet (git, PR just created), update it
+    if changespec.pr_url is None:
         url_ok, change_url = provider.get_change_url(target_dir)
         if url_ok and change_url:
-            from sase.status_state_machine import update_changespec_cl_atomic
+            from sase.status_state_machine import update_changespec_pr_url_atomic
 
-            update_changespec_cl_atomic(
+            update_changespec_pr_url_atomic(
                 changespec.file_path, changespec.name, change_url
             )
             console.print(f"[green]PR created: {change_url}[/green]")

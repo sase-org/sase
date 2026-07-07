@@ -14,7 +14,7 @@ def test_add_changespec_inherits_parent_hooks() -> None:
     parent_content = """NAME: parent_feature
 DESCRIPTION:
   Parent description
-CL: http://cl/11111
+PR: http://cl/11111
 STATUS: Draft
 HOOKS:
   !$sase_hg_presubmit
@@ -35,7 +35,7 @@ HOOKS:
                 cl_name="child_feature",
                 description="Child description",
                 parent="parent_feature",
-                cl_url="http://cl/22222",
+                pr_url="http://cl/22222",
                 # initial_hooks contains !$sase_hg_presubmit (should NOT be duplicated)
                 initial_hooks=["!$sase_hg_presubmit"],
             )
@@ -74,7 +74,7 @@ def test_add_changespec_inherits_parent_bug() -> None:
 DESCRIPTION:
   Parent description
 BUG: http://b/12345678
-CL: http://cl/11111
+PR: http://cl/11111
 STATUS: Draft
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
@@ -91,7 +91,7 @@ STATUS: Draft
                 cl_name="child_feature",
                 description="Child description",
                 parent="parent_feature",
-                cl_url="http://cl/22222",
+                pr_url="http://cl/22222",
                 # No bug parameter - should inherit from parent
             )
 
@@ -123,7 +123,7 @@ def test_add_changespec_initial_commit_plan_drawer() -> None:
                 cl_name="plan_feature",
                 description="Has plan",
                 parent=None,
-                cl_url="http://cl/99999",
+                pr_url="http://cl/99999",
                 initial_commits=[
                     (
                         1,
@@ -163,7 +163,7 @@ def test_add_changespec_initial_commit_no_plan_drawer() -> None:
                 cl_name="no_plan_feature",
                 description="No plan",
                 parent=None,
-                cl_url="http://cl/88888",
+                pr_url="http://cl/88888",
                 initial_commits=[
                     (1, "[run] Initial Commit", "~/chats/c.md", "~/diffs/d.diff")
                 ],
@@ -305,7 +305,7 @@ def test_add_changespec_no_parent_bug_inherited_when_no_parent() -> None:
                 cl_name="orphan_feature",
                 description="Orphan description",
                 parent=None,  # No parent
-                cl_url="http://cl/33333",
+                pr_url="http://cl/33333",
                 # No bug parameter
             )
 
@@ -341,7 +341,7 @@ def test_add_changespec_drops_parent_when_not_found_anywhere() -> None:
                 cl_name="child_feature",
                 description="Child description",
                 parent="p4head",  # hg sentinel — not a ChangeSpec name
-                cl_url="http://cl/22222",
+                pr_url="http://cl/22222",
             )
 
         assert result is not None
@@ -384,7 +384,7 @@ def test_add_changespec_keeps_parent_when_in_archive() -> None:
                 cl_name="child_feature",
                 description="Child description",
                 parent="submitted_parent",
-                cl_url="http://cl/55555",
+                pr_url="http://cl/55555",
             )
 
         assert result is not None
@@ -403,7 +403,7 @@ def test_add_changespec_keeps_real_active_parent() -> None:
     parent_content = (
         "NAME: parent_feature\n"
         "DESCRIPTION:\n  Parent description\n"
-        "CL: http://cl/11111\n"
+        "PR: http://cl/11111\n"
         "STATUS: Draft\n"
     )
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sase", delete=False) as f:
@@ -420,7 +420,7 @@ def test_add_changespec_keeps_real_active_parent() -> None:
                 cl_name="child_feature",
                 description="Child description",
                 parent="parent_feature",
-                cl_url="http://cl/22222",
+                pr_url="http://cl/22222",
             )
 
         assert result is not None

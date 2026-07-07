@@ -93,7 +93,7 @@ class AgentChangespecNavigationMixin:
             return None
 
     def action_jump_to_agent_changespec(self) -> None:
-        """Jump to the CLs tab selecting the ChangeSpec for the current agent."""
+        """Jump to the ChangeSpecs tab selecting the ChangeSpec for the current agent."""
         if self.current_tab != "agents":
             return
         agent = self._get_selected_agent()  # type: ignore[attr-defined]

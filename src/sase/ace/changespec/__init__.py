@@ -165,7 +165,7 @@ def get_eligible_parents_in_project(
 
     Args:
         project_file: Path to the project file
-        exclude_name: Name to exclude (the CL being rebased)
+        exclude_name: Name to exclude (the PR being rebased)
 
     Returns:
         List of (name, status) tuples for ChangeSpecs with status WIP/Draft/Ready/Mailed
@@ -174,7 +174,7 @@ def get_eligible_parents_in_project(
     eligible: list[tuple[str, str]] = []
 
     for cs in changespecs:
-        # Skip the CL being rebased
+        # Skip the PR being rebased
         if cs.name == exclude_name:
             continue
 

@@ -70,7 +70,7 @@ def _build_crs_prompt(
 
     Args:
         critique_comments_path: Path to the critique comments JSON file
-        cl_name: Optional CL/branch name for embedded workflow context.
+        cl_name: Optional ChangeSpec/branch name for embedded workflow context.
         vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
 
     Returns:
@@ -123,7 +123,7 @@ class CrsWorkflow(BaseWorkflow):
                 When provided, ensures the artifacts directory matches the agent suffix timestamp.
             who: Optional identifier for who is creating the proposal (e.g., "crs (ref)").
             project_name: Optional project name for artifacts directory.
-            cl_name: Optional CL/branch name for embedded workflow context.
+            cl_name: Optional ChangeSpec/branch name for embedded workflow context.
             vcs_type: VCS workflow type (``"hg"`` or ``"gh"``). Defaults to ``"hg"``.
         """
         self.project_name = project_name
@@ -143,7 +143,7 @@ class CrsWorkflow(BaseWorkflow):
 
     @property
     def description(self) -> str:
-        return "Address Critique change request comments on a CL"
+        return "Address Critique change request comments on a ChangeSpec"
 
     def run(self) -> bool:
         """Run the change request workflow."""

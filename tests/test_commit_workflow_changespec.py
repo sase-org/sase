@@ -71,7 +71,7 @@ class TestCommitWorkflowChangeSpec:
             prompt="",
             response="",
             workflow_name="sase_commit",
-            cl_url="https://github.com/org/repo/pull/1",
+            pr_url="https://github.com/org/repo/pull/1",
             cl_name="feat-x",
             commit_description="add feature\n\nSASE_MACHINE=test-host",
             parent=None,
@@ -367,7 +367,7 @@ class TestCreateChangespecReturn:
     ) -> None:
         payload = {"name": "feat-x", "message": "add feature"}
         result = create_changespec(
-            payload, None, None, None, cl_url="https://github.com/org/repo/pull/1"
+            payload, None, None, None, pr_url="https://github.com/org/repo/pull/1"
         )
         assert result == "proj_feat_1"
 
@@ -381,13 +381,13 @@ class TestCreateChangespecReturn:
         mock_cs: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        result = create_changespec(payload, None, None, None, cl_url=None)
+        result = create_changespec(payload, None, None, None, pr_url=None)
         assert result is None
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
     def test_returns_none_when_no_project(self, mock_proj_name: MagicMock) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        result = create_changespec(payload, None, None, None, cl_url=None)
+        result = create_changespec(payload, None, None, None, pr_url=None)
         assert result is None
 
     @patch(_PROJECT_FILE_TARGET, side_effect=RuntimeError("boom"))
@@ -398,7 +398,7 @@ class TestCreateChangespecReturn:
         mock_proj_file: MagicMock,
     ) -> None:
         payload = {"name": "feat-x", "message": "test"}
-        result = create_changespec(payload, None, None, None, cl_url=None)
+        result = create_changespec(payload, None, None, None, pr_url=None)
         assert result is None
 
 

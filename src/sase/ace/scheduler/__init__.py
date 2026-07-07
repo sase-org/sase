@@ -1,7 +1,7 @@
 """Scheduler utilities for checking ChangeSpec status updates.
 
 This package provides shared utilities used by the sase axe scheduler for:
-- Checking CL submission and comment status
+- Checking PR submission and comment status
 - Starting and monitoring hooks in the background
 - Detecting zombie and stale hooks
 - Managing mentor workflows

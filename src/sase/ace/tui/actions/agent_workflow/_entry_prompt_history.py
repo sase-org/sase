@@ -51,7 +51,7 @@ class EntryPromptHistoryMixin:
 
         # Resolve VCS prefix. The substituted prefix and bar label show the
         # configured project name; the history grouping key stays the canonical
-        # directory key (CL names are already user-facing on both).
+        # directory key (ChangeSpec names are already user-facing on both).
         from sase.project_display_names import project_display_name_for
 
         project_name: str = last.project_name

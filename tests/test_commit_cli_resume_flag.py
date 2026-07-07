@@ -39,7 +39,7 @@ class TestResumeFlag:
             ) as mock_resume,
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.cl_handler import handle_commit_command
+            from sase.main.commit_handler import handle_commit_command
 
             handle_commit_command(args)
 
@@ -55,7 +55,7 @@ class TestResumeFlag:
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.cl_handler import handle_commit_command
+            from sase.main.commit_handler import handle_commit_command
 
             handle_commit_command(args)
 
@@ -70,7 +70,7 @@ class TestResumeFlag:
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.cl_handler import handle_commit_command
+            from sase.main.commit_handler import handle_commit_command
 
             handle_commit_command(args)
 
@@ -91,7 +91,7 @@ class TestResumeFlag:
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.cl_handler import handle_commit_command
+            from sase.main.commit_handler import handle_commit_command
 
             handle_commit_command(args)
 

@@ -51,7 +51,7 @@ class AcceptWorkflow(BaseWorkflow):
         Args:
             proposals: List of (proposal_id, msg) tuples to accept.
                 Each proposal_id is e.g., "2a", and msg is an optional message.
-            cl_name: Optional CL name. Defaults to current branch name.
+            cl_name: Optional ChangeSpec name. Defaults to current branch name.
             project_file: Optional path to project file. If not provided,
                 will try to infer from sase_workspace_name command.
             mark_ready_to_mail: If True, also reject remaining proposals
@@ -86,11 +86,11 @@ class AcceptWorkflow(BaseWorkflow):
         Returns:
             True if the workflow completed successfully, False otherwise.
         """
-        # Get CL name
+        # Get ChangeSpec name
         cl_name = self._cl_name or get_cl_name_from_branch()
         if not cl_name:
             print_status(
-                "No CL name provided and not on a branch. "
+                "No ChangeSpec name provided and not on a branch. "
                 "Use 'sase cl accept <proposals> --cl <cl_name>' to specify.",
                 "error",
             )
@@ -383,7 +383,7 @@ def main() -> NoReturn:
     parser.add_argument(
         "--cl",
         dest="cl_name",
-        help="CL name (defaults to current branch name).",
+        help="ChangeSpec name (defaults to current branch name).",
     )
 
     args = parser.parse_args()

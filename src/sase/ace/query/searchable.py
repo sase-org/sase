@@ -41,8 +41,8 @@ def get_searchable_text(changespec: ChangeSpec) -> str:
 
     if changespec.parent:
         parts.append(changespec.parent)
-    if changespec.cl:
-        parts.append(changespec.cl)
+    if changespec.pr_url:
+        parts.append(changespec.pr_url)
 
     # Add history notes and suffixes
     if changespec.commits:

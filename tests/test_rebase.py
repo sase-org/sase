@@ -28,7 +28,7 @@ def _create_test_project_file_with_parent(
 NAME: Test Feature
 DESCRIPTION:
   A test feature for unit testing
-{parent_line}CL: None
+{parent_line}PR: None
 STATUS: {status}
 
 ---
@@ -44,7 +44,7 @@ def _create_multi_changespec_file() -> str:
 NAME: Feature A
 DESCRIPTION:
   First feature
-CL: http://cl/123
+PR: http://cl/123
 STATUS: Draft
 
 ---
@@ -53,7 +53,7 @@ NAME: Feature B
 DESCRIPTION:
   Second feature
 PARENT: Feature A
-CL: http://cl/456
+PR: http://cl/456
 STATUS: Ready
 
 ---
@@ -61,7 +61,7 @@ STATUS: Ready
 NAME: Feature C
 DESCRIPTION:
   Third feature
-CL: http://cl/789
+PR: http://cl/789
 STATUS: Mailed
 
 ---
@@ -69,7 +69,7 @@ STATUS: Mailed
 NAME: Feature D
 DESCRIPTION:
   Fourth feature (terminal)
-CL: http://cl/999
+PR: http://cl/999
 STATUS: Submitted
 
 ---
@@ -77,7 +77,7 @@ STATUS: Submitted
 NAME: Feature E
 DESCRIPTION:
   Fifth feature (terminal)
-CL: None
+PR: None
 STATUS: Reverted
 
 ---
@@ -95,7 +95,7 @@ def test_apply_parent_update_existing_field() -> None:
         "DESCRIPTION:\n",
         "  A test feature\n",
         "PARENT: OldParent\n",
-        "CL: http://cl/123\n",
+        "PR: http://cl/123\n",
         "STATUS: Ready\n",
     ]
 
@@ -156,7 +156,7 @@ NAME: Test Feature
 DESCRIPTION:
   A test feature for unit testing
 PARENT: Old Parent
-CL: None
+PR: None
 STATUS: Ready
 
 

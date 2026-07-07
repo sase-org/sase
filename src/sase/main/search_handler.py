@@ -104,8 +104,8 @@ def _display_plain(matching: list) -> None:  # type: ignore[type-arg]
             print(f"  {line}")
         if cs.parent:
             print(f"PARENT: {cs.parent}")
-        if cs.cl:
-            print(f"CL: {cs.cl}")
+        if cs.pr_url:
+            print(f"PR: {cs.pr_url}")
         print(f"STATUS: {cs.status}")
         if cs.commits:
             print("COMMITS:")
@@ -225,12 +225,12 @@ def _md_changespec(cs: "ChangeSpec") -> list[str]:  # type: ignore[name-defined]
     if cs.parent:
         meta_parts.append(f"**Parent:** {cs.parent}")
     meta = " · ".join(meta_parts)
-    # Bug and CL/PR on same line if present
+    # Bug and PR on same line if present
     extras: list[str] = []
     if cs.bug:
         extras.append(f"**Bug:** {cs.bug}")
-    if cs.cl:
-        extras.append(f"**PR:** {cs.cl}")
+    if cs.pr_url:
+        extras.append(f"**PR:** {cs.pr_url}")
     if extras:
         meta += " · " + " ".join(extras)
     lines.append(meta)

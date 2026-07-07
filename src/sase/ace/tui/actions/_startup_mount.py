@@ -55,7 +55,9 @@ class StartupMountMixin:
                 cs_info_panel = self.query_one("#info-panel", ChangeSpecInfoPanel)
                 cs_info_panel.set_keymap_registry(self._keymap_registry)
             except Exception:
-                log.debug("CL info panel keymap wiring skipped: widget not found")
+                log.debug(
+                    "ChangeSpec info panel keymap wiring skipped: widget not found"
+                )
             try:
                 axe_info_panel = self.query_one("#axe-info-panel", AxeInfoPanel)
                 axe_info_panel.set_keymap_registry(self._keymap_registry)

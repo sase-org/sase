@@ -43,7 +43,7 @@ def _update_hooks_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         id_mapping: Mapping from old entry IDs to new entry IDs (or None for deletion).
 
     Returns:
@@ -131,7 +131,7 @@ def _update_mentors_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         id_mapping: Mapping from old entry IDs to new entry IDs (or None for deletion).
         selected_entry_num: The entry number being rewound to.
 
@@ -233,7 +233,7 @@ def _update_comments_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         id_mapping: Mapping from old entry IDs to new entry IDs (or None for deletion).
 
     Returns:
@@ -310,7 +310,7 @@ def rewind_commit_entries(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         selected_entry_num: The entry number being rewound to.
 
     Returns:

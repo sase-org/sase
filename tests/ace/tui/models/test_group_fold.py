@@ -1,7 +1,7 @@
 """Tests for the neutral per-group fold registry.
 
 Mirrors ``test_agent_group_fold`` but exercises ``GroupFoldRegistry``
-directly so we cover the type CL code will use without going through
+directly so we cover the type PR code will use without going through
 the Agent-flavoured alias.
 """
 

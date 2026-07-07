@@ -121,7 +121,7 @@ async def test_no_validator_dismisses_unconditionally() -> None:
         await pilot.pause()
 
         # Even garbage dismisses cleanly — no validator means the legacy
-        # CLs-tab behavior is preserved.
+        # ChangeSpecs-tab behavior is preserved.
         query_input = modal.query_one("#query-input", SingleLineVimTextArea)
         query_input.text = "(((bad"
         await pilot.press("enter")

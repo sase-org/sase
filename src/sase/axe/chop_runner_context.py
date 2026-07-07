@@ -32,7 +32,7 @@ def build_oneshot_context(
 
     Mirrors what :class:`Lumberjack` writes once per tick so chop scripts see
     identical context regardless of whether the run was scheduled, kicked off
-    by the CLI, or triggered from the TUI.
+    by the ChangeSpecI, or triggered from the TUI.
     """
     state_dir = ensure_lumberjack_dirs(lumberjack_name)
     tick_dir = state_dir / "tick"

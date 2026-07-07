@@ -83,7 +83,7 @@ def has_alt_directive(prompt: str) -> bool:
     """Quick check whether a prompt contains a ``%alt(``, ``%(`` or ``%{`` directive.
 
     This avoids the overhead of full splitting and is suitable for
-    early detection in the CLI auto-daemon routing.
+    early detection in the ChangeSpecI auto-daemon routing.
     """
     if "%" not in prompt:
         return False

@@ -15,7 +15,7 @@ from ._keys import keys_for_changespec, keys_for_changespecs, walk_order
 
 @dataclass(frozen=True)
 class ChangeSpecGroupRow:
-    """A banner row in the grouped CL tree.
+    """A banner row in the grouped PR tree.
 
     ``level`` is 0 for project / date / status banners and 1 for a
     sibling-root or BY_DATE subgroup.
@@ -31,7 +31,7 @@ class ChangeSpecGroupRow:
 
 @dataclass(frozen=True)
 class ChangeSpecTreeEntry:
-    """One row in the rendered tree — either a banner or a CL."""
+    """One row in the rendered tree — either a banner or a ChangeSpec."""
 
     kind: str  # "group" or "changespec"
     group: ChangeSpecGroupRow | None = None
@@ -46,7 +46,7 @@ def enumerate_changespec_group_keys(
     """Return the deduplicated list of every banner key produced by *mode*.
 
     Sibling-root L1 keys are only included when their root has 2+ visible
-    CLs, matching the suppression rule in :func:`build_changespec_tree`.
+    ChangeSpecs, matching the suppression rule in :func:`build_changespec_tree`.
     BY_DATE L1 keys are included for non-empty subgroups (1-hour under
     Today / Yesterday, calendar day under This Week, Monday-start week
     under Earlier).
@@ -116,10 +116,10 @@ def build_changespec_tree(
     fold_registry: GroupFoldRegistry | None = None,
     now: datetime | None = None,
 ) -> list[ChangeSpecTreeEntry]:
-    """Build the grouped tree of banner + CL entries.
+    """Build the grouped tree of banner + PR entries.
 
     Args:
-        changespecs: Filtered CL list.
+        changespecs: Filtered ChangeSpec list.
         mode: Grouping strategy.
         fold_registry: Optional per-group collapse registry.  Missing or
             empty registry renders every group expanded.
@@ -134,7 +134,7 @@ def build_changespec_tree(
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
     reference = now if now is not None else local_now()
     # BY_DATE uses the latest TIMESTAMPS entry both for L0 bucketing and
-    # for the within-bucket sort anchor; precompute once so a 200-CL
+    # for the within-bucket sort anchor; precompute once so a 200-ChangeSpec
     # refresh does 200 timestamp parses, not 600.
     latest_map = (
         precompute_latest_timestamps(changespecs)

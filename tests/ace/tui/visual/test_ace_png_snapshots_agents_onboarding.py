@@ -68,7 +68,7 @@ async def test_agents_onboarding_png_snapshot(
         assert_page_svg_contains(page, "Every agent you launch")
         assert_page_svg_contains(page, "SASE Admin Center")
         assert_page_svg_contains(page, "The full tour of this tab")
-        assert "pick a project or CL first." not in page.screen
+        assert "pick a project or PR first." not in page.screen
         ace_png_visual.assert_page_png(
             page,
             "agents_onboarding_120x40",

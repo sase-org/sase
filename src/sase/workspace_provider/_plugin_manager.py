@@ -63,9 +63,9 @@ class WorkspacePluginManager:
             ref=ref, workflow_type=workflow_type, n=n, release=release
         )
 
-    def extract_change_identifier(self, cl_url: str) -> tuple[str, str] | None:
+    def extract_change_identifier(self, pr_url: str) -> tuple[str, str] | None:
         return self._pm.hook.ws_extract_change_identifier(  # type: ignore[no-any-return]
-            cl_url=cl_url
+            pr_url=pr_url
         )
 
     def generate_submitted_check_script(
@@ -75,9 +75,9 @@ class WorkspacePluginManager:
             identifier=identifier, vcs_type=vcs_type
         )
 
-    def supports_reviewer_comments(self, cl_url: str) -> bool | None:
+    def supports_reviewer_comments(self, pr_url: str) -> bool | None:
         return self._pm.hook.ws_supports_reviewer_comments(  # type: ignore[no-any-return]
-            cl_url=cl_url
+            pr_url=pr_url
         )
 
     def generate_reviewer_comments_script(self, changespec_name: str) -> str | None:

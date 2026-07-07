@@ -2,9 +2,9 @@
 
 ## Overview
 
-Axe is the background automation subsystem of sase. It watches ChangeSpecs (the per-CL/PR records that sase uses to
-track work) and periodically runs lifecycle jobs such as hook completion, mentor launch, workflow cleanup, comment
-polling, `%wait` dependency checks, and error digests.
+Axe is the background automation subsystem of sase. It watches ChangeSpecs (the per-PR records that sase uses to track
+work) and periodically runs lifecycle jobs such as hook completion, mentor launch, workflow cleanup, comment polling,
+`%wait` dependency checks, and error digests.
 
 Axe uses a multi-process architecture: an **Orchestrator** spawns multiple **Lumberjacks**, and each lumberjack runs a
 subset of jobs on its own schedule. The ACE TUI starts axe automatically unless launched with `sase ace --no-axe`;
@@ -134,7 +134,7 @@ Lower-frequency status checks:
 
 | Chop                    | Description                         |
 | ----------------------- | ----------------------------------- |
-| `cl_submitted_checks`   | Start CL submission status checks   |
+| `cl_submitted_checks`   | Start PR submission status checks   |
 | `stale_running_cleanup` | Backstop dead-process claim cleanup |
 
 ### comments (1-minute interval)

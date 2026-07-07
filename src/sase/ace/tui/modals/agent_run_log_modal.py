@@ -1,4 +1,4 @@
-"""Agent Run Log modal for viewing agent history of a CL."""
+"""Agent Run Log modal for viewing agent history of a ChangeSpec."""
 
 from __future__ import annotations
 
@@ -35,9 +35,9 @@ if TYPE_CHECKING:
 def _load_agents_for_cl(
     cl_name: str,
 ) -> tuple[list[Agent], set[tuple[AgentType, str, str | None]]]:
-    """Load agents for a specific CL, including dismissed ones.
+    """Load agents for a specific ChangeSpec, including dismissed ones.
 
-    Also includes agents that created this CL/PR via meta_new_cl or
+    Also includes agents that created this PR via meta_new_cl or
     meta_new_pr output variables in embedded xprompt workflows.
 
     Returns:
@@ -59,7 +59,7 @@ def _load_agents_for_cl(
             active.append(a)
             active_ids.add(id(a))
             continue
-        # Include project agents that created this CL/PR
+        # Include project agents that created this PR
         cs_name = get_meta_changespec_name(a)
         if cs_name and changespec_names_match(cs_name, cl_name):
             active.append(a)
@@ -83,7 +83,7 @@ def _load_agents_for_cl(
         if summary.raw_suffix:
             candidate_dismissed_suffixes.add(summary.raw_suffix)
 
-    # Load dismissed bundles for this CL, deduplicating against active agents
+    # Load dismissed bundles for this ChangeSpec, deduplicating against active agents
     active_identities = {a.identity for a in active}
     active_suffixes = {a.raw_suffix for a in active if a.raw_suffix is not None}
 
@@ -96,7 +96,7 @@ def _load_agents_for_cl(
     for agent in dismissed_bundles:
         if agent.is_workflow_child:
             continue
-        # Match by cl_name or by meta CL/PR creation
+        # Match by cl_name or by meta PR creation
         if not changespec_names_match(agent.cl_name, cl_name) and not (
             (meta := get_meta_changespec_name(agent))
             and changespec_names_match(meta, cl_name)
@@ -174,7 +174,7 @@ def _status_icon(status: str, *, dismissed: bool = False) -> tuple[str, str]:
 
 
 class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
-    """Modal for viewing agent run history of a CL."""
+    """Modal for viewing agent run history of a ChangeSpec."""
 
     _option_list_id = "agent-log-list"
     BINDINGS = [
@@ -299,7 +299,7 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             try:
                 detail = self.query_one("#agent-log-detail", Static)
                 detail.update(
-                    Text("No agent runs found for this CL.", style="dim italic")
+                    Text("No agent runs found for this ChangeSpec.", style="dim italic")
                 )
             except Exception:
                 pass

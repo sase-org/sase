@@ -190,7 +190,7 @@ Source: `src/sase/integrations/mobile_agents.py`, `src/sase/integrations/mobile_
 ## Editor Helper Bridge
 
 `sase.integrations.editor_helpers` exposes an editor-branded helper bridge over the same fixed JSON operations used by
-the mobile helper facade. The current CLI surface is:
+the mobile helper facade. The current ChangeSpecI surface is:
 
 ```bash
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog

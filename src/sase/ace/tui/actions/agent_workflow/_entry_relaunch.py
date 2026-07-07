@@ -105,7 +105,7 @@ class EntryRelaunchMixin:
         # Build description for confirmation dialog
         desc_parts = [f"Type: {agent.agent_type.value}"]
         desc_parts.append(
-            f"CL: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+            f"ChangeSpec: {agent.display_name or humanize_cl_name(agent.cl_name)}"
         )
         if agent.workspace_num is not None:
             desc_parts.append(f"Workspace: #{agent.workspace_num}")
@@ -142,7 +142,7 @@ class EntryRelaunchMixin:
         Args:
             raw_prompt: The agent's raw xprompt content.
             project_file: The agent's project file path.
-            cl_name: The agent's CL name.
+            cl_name: The agent's ChangeSpec name.
             is_project_agent: Whether the agent was a project-level agent.
         """
         self._mount_edit_relaunch_prompt_bar(
@@ -168,7 +168,7 @@ class EntryRelaunchMixin:
         Args:
             raw_prompts: The marked agents' raw prompts, in mark order.
             project_file: The first marked agent's project file path.
-            cl_name: The first marked agent's CL name.
+            cl_name: The first marked agent's ChangeSpec name.
             is_project_agent: Whether the first marked agent was project-level.
         """
         self._mount_edit_relaunch_prompt_bar(

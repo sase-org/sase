@@ -163,11 +163,11 @@ class BaseActionsMixin:
             run_handler()
 
     def action_reword(self) -> None:
-        """Reword (change CL description) for the current ChangeSpec.
+        """Reword (change change description) for the current ChangeSpec.
 
         Two-phase approach:
         1. Interactive: fetch description and open editor in suspend()
-        2. Background: claim workspace, checkout CL, apply reword
+        2. Background: claim workspace, checkout ChangeSpec branch, apply reword
         """
         from ...changespec import get_base_status
 
@@ -176,9 +176,9 @@ class BaseActionsMixin:
 
         changespec = self.changespecs[self.current_idx]
 
-        # Validate CL is set
-        if changespec.cl is None:
-            self.notify("CL is not set", severity="warning")  # type: ignore[attr-defined]
+        # Validate PR is set
+        if changespec.pr_url is None:
+            self.notify("PR is not set", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Validate status is WIP, Draft, Ready, or Mailed
@@ -230,12 +230,12 @@ class BaseActionsMixin:
             self.notify(f"Rewording {display_cl_name}...")  # type: ignore[attr-defined]
 
     def action_add_tag(self) -> None:
-        """Add a tag to the current ChangeSpec's CL description in the background.
+        """Add a tag to the current ChangeSpec's change description in the background.
 
         This action:
-        1. Validates CL is set and STATUS is editable
+        1. Validates PR is set and STATUS is editable
         2. Shows TagInputModal for tag name/value input
-        3. Submits background task that claims workspace, checks out CL, adds tag
+        3. Submits background task that claims workspace, checks out ChangeSpec branch, adds tag
         4. Shows toast notifications for start/completion/failure
         """
         # On agents tab, dispatch to wait-for action
@@ -252,9 +252,9 @@ class BaseActionsMixin:
 
         changespec = self.changespecs[self.current_idx]
 
-        # Validate CL is set
-        if changespec.cl is None:
-            self.notify("CL is not set", severity="warning")  # type: ignore[attr-defined]
+        # Validate PR is set
+        if changespec.pr_url is None:
+            self.notify("PR is not set", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Validate status is WIP, Draft, Ready, or Mailed

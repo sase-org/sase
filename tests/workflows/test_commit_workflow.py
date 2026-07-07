@@ -34,12 +34,12 @@ def test_changespec_exists_multiple_changespecs() -> None:
         f.write("NAME: feature_a\n")
         f.write("DESCRIPTION:\n  Feature A\n")
         f.write("PARENT: None\n")
-        f.write("CL: None\n")
+        f.write("PR: None\n")
         f.write("STATUS: Unstarted\n\n")
         f.write("NAME: feature_b\n")
         f.write("DESCRIPTION:\n  Feature B\n")
         f.write("PARENT: feature_a\n")
-        f.write("CL: http://cl/123\n")
+        f.write("PR: http://cl/123\n")
         f.write("STATUS: Mailed\n")
         project_file = f.name
 
@@ -97,7 +97,7 @@ def test_find_changespec_end_line_multiple_changespecs() -> None:
         "DESCRIPTION:\n",
         "  A feature\n",
         "PARENT: None\n",
-        "CL: None\n",
+        "PR: None\n",
         "STATUS: Unstarted\n",
         "\n",
         "\n",
@@ -105,7 +105,7 @@ def test_find_changespec_end_line_multiple_changespecs() -> None:
         "DESCRIPTION:\n",
         "  B feature\n",
         "PARENT: feature_a\n",
-        "CL: http://cl/123\n",
+        "PR: http://cl/123\n",
         "STATUS: Mailed\n",
     ]
     # feature_a ends at line 7 (STATUS: Unstarted)
@@ -149,11 +149,11 @@ def test_get_cl_description_valid_file() -> None:
     """Test that a valid pre-generated description file is used."""
     mod = _load_cl_workflow_module()
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
-        f.write("Pre-generated CL description\n")
+        f.write("Pre-generated change description\n")
         desc_file = f.name
     try:
         result = mod._get_cl_description("some response", desc_file)
-        assert result == "Pre-generated CL description"
+        assert result == "Pre-generated change description"
     finally:
         Path(desc_file).unlink()
 
@@ -264,7 +264,7 @@ def test_detect_parent_returns_none_when_no_changespec() -> None:
 
 
 def test_detect_parent_returns_none_when_self_parent() -> None:
-    """Returns None when branch name matches the new CL name."""
+    """Returns None when branch name matches the new ChangeSpec name."""
     with patch(
         "sase.workflows.utils.get_cl_name_from_branch",
         return_value="same_name",
@@ -441,7 +441,7 @@ def test_append_commits_entry_returns_none_without_project_file() -> None:
 
 
 def test_append_commits_entry_returns_none_without_cl_name(tmp_path: Path) -> None:
-    """Returns None when CL name cannot be resolved."""
+    """Returns None when ChangeSpec name cannot be resolved."""
     project_file = tmp_path / "proj.sase"
     project_file.write_text("NAME: x\nSTATUS: Pending\n")
 

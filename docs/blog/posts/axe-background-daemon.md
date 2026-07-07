@@ -72,7 +72,7 @@ For multi-agent workflows, every child agent for that root must also be `complet
 
 The `comments` lumberjack (1-minute interval) polls for new review comments and kicks off critique agents — the
 back-half of the mentor follow-up loop. The `checks` lumberjack (5-minute interval) runs `cl_submitted_checks` to notice
-when a CL has been submitted upstream, plus a slower backstop pass of `stale_running_cleanup`.
+when a PR has been submitted upstream, plus a slower backstop pass of `stale_running_cleanup`.
 
 The `housekeeping` lumberjack (1-hour interval) runs the `error_digest` chop. It summarizes recent errors into
 `~/.sase/axe/error_digests/digest_<timestamp>.txt` and posts a notification with a `ViewErrorReport` action that opens

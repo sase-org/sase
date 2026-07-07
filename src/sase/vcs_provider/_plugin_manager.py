@@ -249,8 +249,14 @@ class VCSPluginManager(VCSProvider):
     def get_branch_name(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_get_branch_name", cwd=cwd)
 
-    def get_cl_number(self, cwd: str) -> tuple[bool, str | None]:
+    def get_pr_number(self, cwd: str) -> tuple[bool, str | None]:
+        result = self._pm.hook.vcs_get_pr_number(cwd=cwd)
+        if result is not None:
+            return result  # type: ignore[return-value]
         return self._call_or_raise("vcs_get_cl_number", cwd=cwd)
+
+    def get_cl_number(self, cwd: str) -> tuple[bool, str | None]:
+        return self.get_pr_number(cwd)
 
     def get_workspace_name(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_get_workspace_name", cwd=cwd)
@@ -270,8 +276,8 @@ class VCSPluginManager(VCSProvider):
     def upload(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_upload", cwd=cwd)
 
-    def find_reviewers(self, cl_number: str, cwd: str) -> tuple[bool, str | None]:
-        return self._call_or_raise("vcs_find_reviewers", cl_number=cl_number, cwd=cwd)
+    def find_reviewers(self, pr_number: str, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_find_reviewers", pr_number=pr_number, cwd=cwd)
 
     def rewind(self, diff_paths: list[str], cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_rewind", diff_paths=diff_paths, cwd=cwd)

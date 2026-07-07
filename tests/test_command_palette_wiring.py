@@ -416,7 +416,7 @@ def test_execute_custom_mode_sets_mode_then_handles() -> None:
 
 
 async def test_colon_opens_command_palette_modal() -> None:
-    """Pressing ``:`` from the CLs tab opens the palette modal."""
+    """Pressing ``:`` from the ChangeSpecs tab opens the palette modal."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -431,7 +431,7 @@ async def test_colon_opens_command_palette_modal() -> None:
 
 
 async def test_semicolon_opens_command_palette_modal() -> None:
-    """Pressing ``;`` from the CLs tab opens the same palette modal."""
+    """Pressing ``;`` from the ChangeSpecs tab opens the same palette modal."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -484,7 +484,7 @@ async def test_palette_executes_refresh_via_action() -> None:
 
 
 async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
-    """Stop-axe-and-quit is AXE-scoped — it must not appear from CLs filter."""
+    """Stop-axe-and-quit is AXE-scoped — it must not appear from ChangeSpecs filter."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -503,7 +503,7 @@ async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
             modal = page.app.screen
             assert isinstance(modal, CommandPaletteModal)
             ids = {s.id for s in modal._all_specs}
-            # All CLs-tab applicable specs are present:
+            # All ChangeSpecs-tab applicable specs are present:
             assert "app.refresh" in ids
             assert "app.show_agent_run_log" in ids
             # Specs that only apply to other tabs are excluded by tab scope:
@@ -583,7 +583,7 @@ def test_action_open_command_palette_uses_real_catalog() -> None:
 
     assert isinstance(modal, CommandPaletteModal)
     # No changespecs loaded yet, so the palette only shows what is
-    # applicable on an empty CLs tab.  The refresh command must still
+    # applicable on an empty ChangeSpecs tab.  The refresh command must still
     # be there (always applicable on every tab).
     assert any(s.id == "app.refresh" for s in modal._all_specs)
 

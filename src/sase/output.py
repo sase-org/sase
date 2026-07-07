@@ -97,11 +97,11 @@ def print_prompt_and_response(
     agent_configs = {
         "editor": ("🛠️ Editor Agent", "cyan"),
         "planner": ("📋 Planner Agent", "magenta"),
-        "research_cl_scope": ("🔍 CL Scope Research", "yellow"),
+        "research_cl_scope": ("🔍 PR Scope Research", "yellow"),
         "research_similar_tests": ("🔍 Similar Tests Research", "yellow"),
         "research_test_failure": ("🔍 Test Failure Research", "yellow"),
         "research_prior_work_analysis": ("🔍 Prior Work Research", "yellow"),
-        "research_cl_analysis": ("🔍 CL Analysis Research", "yellow"),
+        "research_cl_analysis": ("🔍 PR Analysis Research", "yellow"),
         "research_synthesis": ("🔬 Research Synthesis", "bright_magenta"),
         "verification": ("✅ Verification Agent", "green"),
         "add_tests": ("🧪 Add Tests Agent", "blue"),

@@ -13,7 +13,7 @@ rendering (and migratable to a shared backend later, per
 - :mod:`sase.prompt.search.engine` — the pure, deterministic match/filter/rank/
   limit engine over a loaded corpus.
 
-This module re-exports the public data-layer and engine surface that the CLI
+This module re-exports the public data-layer and engine surface that the ChangeSpecI
 layer builds on.
 """
 

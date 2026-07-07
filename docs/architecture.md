@@ -15,7 +15,7 @@ tracked, resumed, reviewed, retried, and handed off through stable project artif
 | Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                     |
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)            |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md) |
-| ChangeSpecs  | CL/PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                           | [ChangeSpecs](change_spec.md)     |
+| ChangeSpecs  | PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                              | [ChangeSpecs](change_spec.md)     |
 | Memory       | Instruction memory, audited long-term reads, and reviewed write proposals.                                                    | [Memory](memory.md)               |
 | SDD          | Durable prompt, tale, epic, legend, myth, and research artifacts.                                                             | [SDD](sdd.md)                     |
 | Beads        | Git-portable issue/dependency tracking and executable epic/legend launch plans.                                               | [Beads](beads.md)                 |

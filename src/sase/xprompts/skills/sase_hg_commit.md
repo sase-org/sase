@@ -25,7 +25,7 @@ Commit changes via the `sase commit` command.
    - `-M`: Path to file containing the commit message. The file is deleted after reading.
    - `-m`: Inline commit message string (alternative to `-M`). `-m` and `-M` are mutually exclusive.
    - `-f`: File to include (repeat for multiple files). Omit to include all changes.
-   - `--name`: CL name (only needed for `create_pull_request` method).
+   - `--name`: PR name (only needed for `create_pull_request` method).
 
    The `$SASE_COMMIT_METHOD` environment variable is read automatically to determine the dispatch method
    (`create_commit`, `create_proposal`, or `create_pull_request`). Do NOT pass `--type` unless you need to override.

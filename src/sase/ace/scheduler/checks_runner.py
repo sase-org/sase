@@ -1,6 +1,6 @@
 """Background periodic checks for the axe scheduler (is_cl_submitted, critique_comments).
 
-This module provides non-blocking execution of CL status and comment checks,
+This module provides non-blocking execution of PR status and comment checks,
 following the same pattern as hooks (subprocess.Popen + file-based polling).
 """
 
@@ -24,7 +24,7 @@ from sase.status_state_machine import (
 from sase.workspace_provider import SUBMITTED_CHECK_EXIT_CODE_CLOSED
 
 from ..changespec import ChangeSpec, CommentEntry, get_base_status, is_plain_suffix
-from ..cl_status import is_parent_submitted
+from ..pr_status import is_parent_submitted
 from ..comments import (
     get_comments_file_path,
     remove_comment_entry,
@@ -49,7 +49,7 @@ CHECK_COMPLETE_MARKER = "===CHECK_COMPLETE=== "
 _CRITIQUE_COMMENTS_EXIT_CODES: dict[int, str] = {
     1: "usage error",
     2: "missing dependency",
-    3: "invalid CL number",
+    3: "invalid PR number",
     4: "RPC failure",
     5: "JSON parsing failure",
 }
@@ -82,25 +82,25 @@ def _get_check_output_path(name: str, check_type: CheckType, timestamp: str) -> 
     return sharded_path("checks", filename)
 
 
-def _extract_change_identifier(cl_url: str | None) -> tuple[str, str] | None:
-    """Extract the change identifier and VCS type from a CL/PR URL.
+def _extract_change_identifier(pr_url: str | None) -> tuple[str, str] | None:
+    """Extract the change identifier and VCS type from a PR URL.
 
     Delegates to workspace provider plugins via
     :func:`sase.workspace_provider.extract_change_identifier`.
 
     Args:
-        cl_url: The CL URL (``http://cl/123456789``) or GitHub PR URL
+        pr_url: The PR URL (``http://cl/123456789``) or GitHub PR URL
             (``https://github.com/user/repo/pull/42``).
 
     Returns:
         ``(identifier, vcs_type)`` tuple, or None if the URL is invalid or None.
     """
-    if not cl_url:
+    if not pr_url:
         return None
 
     from sase.workspace_provider import extract_change_identifier
 
-    return extract_change_identifier(cl_url)
+    return extract_change_identifier(pr_url)
 
 
 def _start_background_check(
@@ -163,7 +163,7 @@ def start_cl_submitted_check(
     Returns:
         Update message if check was started, None if failed.
     """
-    result = _extract_change_identifier(changespec.cl)
+    result = _extract_change_identifier(changespec.pr_url)
     if not result:
         return None
 
@@ -211,10 +211,10 @@ def start_reviewer_comments_check(
         supports_reviewer_comments,
     )
 
-    # When a CL URL is present, ask plugins whether reviewer comments are
+    # When a PR URL is present, ask plugins whether reviewer comments are
     # supported.  Skip if the plugin explicitly returns False.
-    if changespec.cl is not None:
-        supported = supports_reviewer_comments(changespec.cl)
+    if changespec.pr_url is not None:
+        supported = supports_reviewer_comments(changespec.pr_url)
         if supported is False:
             return None
 

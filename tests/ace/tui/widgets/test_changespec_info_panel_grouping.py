@@ -1,6 +1,6 @@
-"""Tests for the CL info-panel grouping badge.
+"""Tests for the ChangeSpec info-panel grouping badge.
 
-The badge is always shown on the CLs tab — there is no opt-out mode
+The badge is always shown on the ChangeSpecs tab — there is no opt-out mode
 since FLAT was removed.  An empty label still hides the badge so test
 fixtures that don't seed a label don't render a stray ``[group:]``.
 """

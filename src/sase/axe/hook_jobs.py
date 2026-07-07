@@ -359,7 +359,7 @@ class HookJobRunner:
         return cycle_timestamp
 
     def run_orphan_cleanup(self, all_changespecs: list[ChangeSpec]) -> None:
-        """Clean up orphaned workspace claims for reverted CLs.
+        """Clean up orphaned workspace claims for reverted ChangeSpecs.
 
         Args:
             all_changespecs: All changespecs to check for orphans.

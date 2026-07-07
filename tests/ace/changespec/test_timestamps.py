@@ -334,7 +334,7 @@ TIMESTAMPS:
 
 
 def test_add_timestamp_entry_atomic_after_name_change() -> None:
-    """Timestamp recording works when CL name was changed by suffix strip."""
+    """Timestamp recording works when ChangeSpec name was changed by suffix strip."""
     # Simulate post-suffix-strip state: file has NAME: foo (not foo__1)
     content = """\
 NAME: foo
@@ -469,7 +469,7 @@ TIMESTAMPS:
 
 
 def test_add_timestamp_entry_wrong_cl_returns_false() -> None:
-    """Returns False when CL name not found."""
+    """Returns False when ChangeSpec name not found."""
     content = """\
 NAME: my-cl
 STATUS: WIP

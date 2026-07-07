@@ -40,7 +40,7 @@ def test_changespec_list_update_highlight_suppresses_programmatic_selection(
     # ``watch_highlighted`` is the synchronous gate that swallows the
     # would-be SelectionChanged.
     widget.update_highlight(1)
-    # Grouped render emits a project banner before the CL rows, so CL
+    # Grouped render emits a project banner before the ChangeSpec rows, so CL
     # idx 1 lives at option row 2.
     target_row = next(i for i, e in enumerate(widget._row_entries) if e == 1)
     assert widget.highlighted == target_row

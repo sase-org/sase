@@ -35,17 +35,17 @@ from .operations import (
 def archive_changespec(
     changespec: ChangeSpec, console: Console | None = None
 ) -> tuple[bool, str | None]:
-    """Archive a ChangeSpec by archiving its CL and updating its status.
+    """Archive a ChangeSpec by archiving its revision and updating its status.
 
     This function:
-    1. Validates that the ChangeSpec has a valid CL set
+    1. Validates that the ChangeSpec has a valid PR set
     2. Validates that all children are Archived or Reverted
     3. Claims a workspace from the unified pool (#10+)
-    4. Checks out the CL with sase_hg_update
+    4. Checks out the ChangeSpec branch
     5. Saves the diff to `~/.sase/archived/<new_name>.diff`
     6. Runs `sase_hg_archive <name>` to archive the revision
     7. Renames the ChangeSpec by appending `__<N>` suffix
-    8. Updates STATUS to "Archived" and CL to "None"
+    8. Updates STATUS to "Archived"
     9. Releases the claimed workspace
 
     Args:
@@ -55,9 +55,9 @@ def archive_changespec(
     Returns:
         Tuple of (success, error_message)
     """
-    # Validate CL is set
-    if changespec.cl is None:
-        return (False, "ChangeSpec does not have a valid CL set")
+    # Validate PR is set
+    if changespec.pr_url is None:
+        return (False, "ChangeSpec does not have a valid PR set")
 
     # Kill any running processes before archiving
     log_fn = (
@@ -69,7 +69,7 @@ def archive_changespec(
         changespec,
         changespec.file_path,
         changespec.name,
-        "Killed hook running on archived CL.",
+        "Killed hook running on archived ChangeSpec.",
         log_fn=log_fn,
     )
 
@@ -117,7 +117,7 @@ def archive_changespec(
         )
 
     try:
-        # Checkout the CL
+        # Checkout the ChangeSpec branch
         if console:
             console.print(f"[cyan]Checking out {changespec.name}...[/cyan]")
 
@@ -127,7 +127,7 @@ def archive_changespec(
         )
         success, error = provider.checkout(resolved, workspace_dir)
         if not success:
-            return (False, f"Failed to checkout CL: {error}")
+            return (False, f"Failed to checkout ChangeSpec branch: {error}")
 
         if console:
             console.print(f"[green]Checked out: {changespec.name}[/green]")
@@ -149,13 +149,17 @@ def archive_changespec(
             diff_path = sase_subdir("archived") / f"{new_name}.diff"
             console.print(f"[green]Saved diff to: {diff_path}[/green]")
 
-        # Abandon remote change (close PR, drop CL, etc.)
-        success, error = provider.abandon_change(changespec.cl, resolved, workspace_dir)
+        # Abandon remote change (close PR, drop legacy change, etc.)
+        success, error = provider.abandon_change(
+            changespec.pr_url, resolved, workspace_dir
+        )
         if not success:
             return (False, f"Failed to abandon remote change: {error}")
 
         if console:
-            console.print(f"[green]Abandoned remote change: {changespec.cl}[/green]")
+            console.print(
+                f"[green]Abandoned remote change: {changespec.pr_url}[/green]"
+            )
 
         # Run sase_hg_archive
         success, error = provider.archive(resolved, workspace_dir)

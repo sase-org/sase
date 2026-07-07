@@ -390,7 +390,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         parts.append((" ", ""))
         content_len += len(ws_str) + 1
 
-        # CL name (no truncation)
+        # ChangeSpec name (no truncation)
         cl_name = humanize_cl_name(runner.cl_name)
         parts.append((cl_name, "bold #87D7FF"))
         parts.append((" ", ""))
@@ -513,7 +513,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
             parts.append((hint_str, "bold #FFFF00"))
             content_len += len(hint_str)
 
-        # CL name
+        # ChangeSpec name
         cl_name = humanize_cl_name(task.cl_name)
         parts.append((cl_name, "bold #87D7FF"))
         parts.append((" ", ""))

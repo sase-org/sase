@@ -37,7 +37,7 @@ class ChangeSpecQueryMixin:
         Args:
             slot: The slot number ("0"-"9").
         """
-        # Switch to CLs tab if not already there
+        # Switch to ChangeSpecs tab if not already there
         if self.current_tab != "changespecs":
             self._save_current_tab_position()  # type: ignore[attr-defined]
             self.current_tab = "changespecs"  # type: ignore[assignment]

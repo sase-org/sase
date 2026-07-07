@@ -1,8 +1,8 @@
-"""Tests for ace.cl_status module."""
+"""Tests for ace.pr_status module."""
 
 from unittest.mock import MagicMock, patch
 
-from sase.ace.cl_status import (
+from sase.ace.pr_status import (
     SYNCABLE_STATUSES,
     is_parent_submitted,
 )
@@ -20,7 +20,7 @@ def test_is_parent_submitted_no_parent() -> None:
     assert result is True
 
 
-@patch("sase.ace.cl_status.find_all_changespecs")
+@patch("sase.ace.pr_status.find_all_changespecs")
 def test_is_parent_submitted_parent_not_submitted(mock_find: MagicMock) -> None:
     """Test that non-submitted parent returns False."""
     mock_parent = MagicMock()
@@ -37,7 +37,7 @@ def test_is_parent_submitted_parent_not_submitted(mock_find: MagicMock) -> None:
     assert result is False
 
 
-@patch("sase.ace.cl_status.find_all_changespecs")
+@patch("sase.ace.pr_status.find_all_changespecs")
 def test_is_parent_submitted_parent_not_found(mock_find: MagicMock) -> None:
     """Test that missing parent returns True (assumed deleted)."""
     mock_find.return_value = []

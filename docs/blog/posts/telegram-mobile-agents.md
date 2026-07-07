@@ -150,7 +150,7 @@ is already on every developer's phone:
   requests, user questions, kill/retry, and launching new prompts all work from the chat. Generated images come back
   inline. Plans that don't fit inline come back as rendered PDFs.
 - **What it doesn't replace:** ACE's two-dimensional view of every agent across every workspace, the keybinding-driven
-  CL navigation, multi-line plan editing. The phone is a control surface, not a development environment, and
+  PR navigation, multi-line plan editing. The phone is a control surface, not a development environment, and
   sase-telegram is deliberately scoped to fit that.
 
 If you operate the same SASE install from multiple machines and one of them shouldn't be allowed to launch agents on

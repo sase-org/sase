@@ -78,11 +78,11 @@ def test_plugin_get_change_url_returns_none(
     assert url is None
 
 
-def test_plugin_get_cl_number_returns_none(
+def test_plugin_get_pr_number_returns_none(
     bare_git_provider: VCSPluginManager,
 ) -> None:
     """Bare git repos have no PR number."""
-    success, number = bare_git_provider.get_cl_number("/workspace")
+    success, number = bare_git_provider.get_pr_number("/workspace")
 
     assert success is True
     assert number is None

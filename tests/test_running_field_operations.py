@@ -37,7 +37,7 @@ def _create_project_file_with_running(
         f.write("DESCRIPTION:\n")
         f.write("  Test description\n")
         f.write("PARENT: None\n")
-        f.write("CL: None\n")
+        f.write("PR: None\n")
         f.write("STATUS: Ready\n")
         return f.name
 

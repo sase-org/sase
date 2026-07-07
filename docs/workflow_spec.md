@@ -88,7 +88,7 @@ input:
 Or even more concise for simple types:
 
 ```yaml
-input: { diff_path: path, split_desc: { type: line, default: "multiple CLs" } }
+input: { diff_path: path, split_desc: { type: line, default: "multiple PRs" } }
 ```
 
 ### Supported Types

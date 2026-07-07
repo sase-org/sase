@@ -74,7 +74,7 @@ class TestResolveAgentChangespec:
             name="a", artifacts_dir=str(art), is_done=True, outcome="completed"
         )
         with patch("sase.agent.names.find_named_agent", return_value=agent):
-            with pytest.raises(AgentRefError, match="did not create a PR/CL"):
+            with pytest.raises(AgentRefError, match="did not create a PR"):
                 resolve_agent_changespec("a")
 
     def test_returns_changespec(self, tmp_path: Path) -> None:

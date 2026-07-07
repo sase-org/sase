@@ -84,7 +84,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 - **AXE** - The background automation daemon for scheduled work, chop scripts, hooks, mentors, and workflow runs.
 - **XPrompt** - Prompt templates and YAML workflows with reference expansion, typed inputs, output-variable handoffs,
   and workflow visualization.
-- **ChangeSpecs** - Tracked CL/PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
+- **ChangeSpecs** - Tracked PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
 - **Memory** - Agent instruction memory with short-term notes inlined directly into a generated `AGENTS.md` (and
   provider files such as `CLAUDE.md` kept as full copies of it), keyword-triggered long-term context, audited agent
   reads, and human-reviewed write proposals.

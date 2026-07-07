@@ -217,7 +217,7 @@ async def test_lowercase_s_dispatches_by_active_tab(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lowercase s remains CL status on CLs and saves marked agents on Agents."""
+    """Lowercase s remains PR status on ChangeSpecs and saves marked agents on Agents."""
 
     agent = _agent(raw_suffix="20260527122000")
     patch_startup_loaders(monkeypatch, agents=[agent])

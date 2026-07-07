@@ -142,7 +142,7 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
 
     Args:
         app: The AceApp instance.
-        cl_name: The CL name to match.
+        cl_name: The ChangeSpec name to match.
         pid: Optional PID for precise matching.
 
     Returns:
@@ -172,9 +172,9 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
 def navigate_to_changespec_tab(
     app: object, changespec_name: str, project_file: str
 ) -> bool:
-    """Navigate to a ChangeSpec in the CLs tab, changing query if needed.
+    """Navigate to a ChangeSpec in the ChangeSpecs tab, changing query if needed.
 
-    1. Switch to CLs tab
+    1. Switch to ChangeSpecs tab
     2. Search for changespec_name in current filtered list
     3. If found, select it
     4. If NOT found, change query to ``project:<project>``, reload, and select it

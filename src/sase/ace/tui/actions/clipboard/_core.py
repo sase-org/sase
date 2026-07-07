@@ -85,6 +85,7 @@ class ClipboardCoreMixin(ClipboardBase):
 
         cs_keys = self._keymap_registry.copy_mode.keys["changespecs"]
         assert isinstance(cs_keys, dict)
+        pr_number_key = cs_keys.get("pr_number", cs_keys.get("cl_number"))
 
         if key == cs_keys["raw"]:
             self._copy_changespec()  # type: ignore[attr-defined]
@@ -92,8 +93,8 @@ class ClipboardCoreMixin(ClipboardBase):
             self._copy_changespec_and_snapshot()  # type: ignore[attr-defined]
         elif key == cs_keys["bug"]:
             self._copy_bug_number()  # type: ignore[attr-defined]
-        elif key == cs_keys["cl_number"]:
-            self._copy_cl_number()  # type: ignore[attr-defined]
+        elif pr_number_key is not None and key == pr_number_key:
+            self._copy_pr_number()  # type: ignore[attr-defined]
         elif key == cs_keys["name"]:
             self._copy_cl_name()  # type: ignore[attr-defined]
         elif key == cs_keys["spec"]:
@@ -105,7 +106,7 @@ class ClipboardCoreMixin(ClipboardBase):
                 key_display_name(v) for v in cs_keys.values() if isinstance(v, str)
             )
             self.notify(  # type: ignore[attr-defined]
-                f"Unknown copy key (CLs: {key_list})", severity="warning"
+                f"Unknown copy key (ChangeSpecs: {key_list})", severity="warning"
             )
             return False
         return True

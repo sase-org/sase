@@ -350,8 +350,8 @@ def _changespec_agent_lookups(
         if cs.bug:
             bug_id = cs.bug.removeprefix("http://b/")
             bug_by_cl_name[cs.name] = f"http://b/{bug_id}"
-        if cs.cl:
-            cl_by_cl_name[cs.name] = cs.cl
+        if cs.pr_url:
+            cl_by_cl_name[cs.name] = cs.pr_url
     return bug_by_cl_name, cl_by_cl_name
 
 
@@ -415,7 +415,7 @@ def _load_agents_from_all_sources(
     Args:
         changespec_snapshot: Optional pre-fetched ChangeSpec list. When
             supplied, the loader skips the in-process ``find_all_changespecs()``
-            call and reuses this snapshot for bug/CL lookups and the
+            call and reuses this snapshot for bug/PR lookups and the
             HOOKS/MENTORS/COMMENTS sweep.
     """
     agents: list[Agent] = []
@@ -428,7 +428,7 @@ def _load_agents_from_all_sources(
     # has a fresh cached snapshot in hand.
     all_changespecs = _changespec_snapshot_for_loader(changespec_snapshot)
 
-    # Build bug URL and CL number lookups by CL name (single pass)
+    # Build bug URL and PR number lookups by ChangeSpec name (single pass)
     bug_by_cl_name, cl_by_cl_name = _changespec_agent_lookups(all_changespecs)
 
     # 1. Load from RUNNING field (snapshot-independent; reads project spec files).
@@ -471,7 +471,7 @@ def _load_agents_from_all_sources(
     for cs in all_changespecs:
         stripped_bug_id = cs.bug.removeprefix("http://b/") if cs.bug else None
         bug = f"http://b/{stripped_bug_id}" if stripped_bug_id else None
-        cl_num = cs.cl
+        cl_num = cs.pr_url
 
         # HOOKS - fix-hook and summarize agents
         agents.extend(load_agents_from_hooks(cs, bug, cl_num))

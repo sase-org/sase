@@ -40,7 +40,7 @@ class WorkspaceActionsMixin:
         from ...changespec import get_base_status
 
         if not self.changespecs:
-            # No matching CLs — try to open tmux for a sole project filter
+            # No matching ChangeSpecs — try to open tmux for a sole project filter
             from sase.ace.query import get_sole_project_filter
 
             project_name = get_sole_project_filter(self.parsed_query)
@@ -201,7 +201,7 @@ class WorkspaceActionsMixin:
         self._checkout_mode_active = True  # type: ignore[attr-defined]
 
     def action_start_tmux_mode(self) -> None:
-        """Open tmux for selected CL - prompts for workspace number."""
+        """Open tmux for selected PR - prompts for workspace number."""
         if self.current_tab != "changespecs":
             return
 
@@ -217,7 +217,7 @@ class WorkspaceActionsMixin:
     def _open_tmux_for_project(self, project_basename: str, workspace_num: int) -> None:
         """Open tmux for a project without checking out a branch.
 
-        Used when no CLs match but a sole project filter is present.
+        Used when no ChangeSpecs match but a sole project filter is present.
 
         Args:
             project_basename: The project name.

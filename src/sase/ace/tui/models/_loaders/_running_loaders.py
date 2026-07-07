@@ -115,8 +115,8 @@ def load_agents_from_running_field(
 
     Args:
         project_files: List of project file paths.
-        bug_by_cl_name: Mapping of CL names to bug URLs.
-        cl_by_cl_name: Mapping of CL names to CL numbers.
+        bug_by_cl_name: Mapping of ChangeSpec names to bug URLs.
+        cl_by_cl_name: Mapping of ChangeSpec names to PR numbers.
 
     Returns:
         List of Agent objects from RUNNING field claims.

@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from sase.ace.changespec import changespec_lock, get_entry_id, write_changespec_atomic
+from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
 from sase.workflows.renumber_utils import (
     build_commits_section,
     find_commits_section,
@@ -85,7 +86,7 @@ def _update_hooks_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         promote_mapping: Mapping from old entry IDs to new entry IDs.
         archive_mapping: Mapping from old entry IDs to archived format
             (e.g., "1a" -> "1a-3") for non-first accepted proposals.
@@ -170,7 +171,7 @@ def _update_mentors_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         promote_mapping: Mapping from old entry IDs to new entry IDs.
 
     Returns:
@@ -237,7 +238,7 @@ def _update_comments_with_id_mapping(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         promote_mapping: Mapping from old entry IDs to new entry IDs.
 
     Returns:
@@ -295,7 +296,7 @@ def _reject_remaining_proposals_unlocked(
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
 
     Returns:
         Updated lines with remaining proposals rejected.
@@ -319,7 +320,7 @@ def _reject_remaining_proposals_unlocked(
                     "NAME:",
                     "DESCRIPTION:",
                     "PARENT:",
-                    "CL:",
+                    *REVIEW_URL_PREFIXES,
                     "STATUS:",
                     "HOOKS:",
                     "COMMENTS:",
@@ -373,7 +374,7 @@ def renumber_commit_entries(
 
     Args:
         project_file: Path to the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         accepted_proposals: List of (base_number, letter) tuples that were accepted,
             in the order they should become regular entries.
         extra_msgs: Optional list of messages to append to each accepted entry's note.

@@ -133,7 +133,7 @@ def main() -> NoReturn:
 
     # --- commit ---
     if args.command == "commit":
-        from .cl_handler import handle_commit_command
+        from .commit_handler import handle_commit_command
 
         handle_commit_command(args)
 
@@ -302,13 +302,13 @@ def main() -> NoReturn:
 
     # --- restore ---
     if args.command == "restore":
-        from .cl_handler import handle_restore_command
+        from .commit_handler import handle_restore_command
 
         handle_restore_command(args)
 
     # --- revert ---
     if args.command == "revert":
-        from .cl_handler import handle_revert_command
+        from .commit_handler import handle_revert_command
 
         handle_revert_command(args)
 

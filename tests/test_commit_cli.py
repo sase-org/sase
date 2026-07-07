@@ -35,11 +35,13 @@ def _run_handler(
     test_env = {"SASE_BEAD_ID": "", **(env or {})}
 
     with (
-        patch("sase.main.cl_handler.CommitWorkflow", return_value=mock_workflow) as cls,
+        patch(
+            "sase.main.commit_handler.CommitWorkflow", return_value=mock_workflow
+        ) as cls,
         patch.dict("os.environ", test_env, clear=False),
         pytest.raises(SystemExit) as exc_info,
     ):
-        from sase.main.cl_handler import handle_commit_command
+        from sase.main.commit_handler import handle_commit_command
 
         handle_commit_command(args)
 
@@ -142,7 +144,7 @@ class TestCommitCLI:
     def test_message_file_not_found(self) -> None:
         args = _parse_commit_args(["-M", "/nonexistent/message.md"])
         with pytest.raises(SystemExit) as exc_info:
-            from sase.main.cl_handler import handle_commit_command
+            from sase.main.commit_handler import handle_commit_command
 
             handle_commit_command(args)
         assert exc_info.value.code == 1
@@ -226,7 +228,7 @@ class TestCommitCLI:
         msg_file = _write_msg(tmp_path, "msg")
         args = _parse_commit_args(["-M", msg_file, "--type", "commit"])
         with (
-            patch("sase.main.cl_handler.CommitWorkflow") as cls,
+            patch("sase.main.commit_handler.CommitWorkflow") as cls,
             patch.dict(
                 "os.environ",
                 {"SASE_COMMIT_METHOD": "create_pull_request"},
@@ -234,7 +236,7 @@ class TestCommitCLI:
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.cl_handler import handle_commit_command
+            from sase.main.commit_handler import handle_commit_command
 
             handle_commit_command(args)
 

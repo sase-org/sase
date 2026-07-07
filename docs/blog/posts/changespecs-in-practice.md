@@ -3,7 +3,7 @@ title: "[06] ChangeSpecs in Practice — Review State Outside the Chat"
 date: 2026-05-20
 draft: true
 description: >-
-  ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They survive the chat. [01] named them; this
+  ChangeSpecs are the durable, reviewable shape of one PR of agent work. They survive the chat. [01] named them; this
   post lives inside them.
 categories:
   - Agentic Software Engineering
@@ -20,7 +20,7 @@ links:
 
 # [06] ChangeSpecs in Practice — Review State Outside the Chat
 
-ChangeSpecs are the durable, reviewable shape of one CL/PR of agent work. They survive the chat.
+ChangeSpecs are the durable, reviewable shape of one PR of agent work. They survive the chat.
 [\[01\]](hello-sase-your-first-15-minutes.md) named them; this post lives inside them.
 
 <!-- more -->
@@ -45,7 +45,7 @@ DESCRIPTION:
   <BODY>
 PARENT: <PARENT>
 BUG: <BUG>
-CL: <CL>
+PR: <PR>
 STATUS: <STATUS>
 COMMITS:
   <COMMIT_ENTRIES>
@@ -106,7 +106,7 @@ Statuses move through:
 | KILLED    | Manually killed or auto-killed because a newer commit exists |
 | DEAD      | Runner process disappeared or its PID was reused             |
 
-When a newer commit lands, mentors running against older commits are auto-killed — stale reviews don't haunt the CL.
+When a newer commit lands, mentors running against older commits are auto-killed — stale reviews don't haunt the PR.
 
 ## `fix_hook` and `crs`
 
@@ -122,7 +122,7 @@ review automation can be inspected, killed, dismissed, or resumed from one side 
 
 ## HOOKS: The `!` and `$` Prefixes
 
-The HOOKS section records the hook commands attached to this CL. Hook commands are 2-space indented; their run history
+The HOOKS section records the hook commands attached to this PR. Hook commands are 2-space indented; their run history
 sits in 6-space-indented drawer lines below:
 
 ```

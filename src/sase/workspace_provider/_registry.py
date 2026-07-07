@@ -135,9 +135,10 @@ def detect_workflow_type(project_file: str) -> str:
 
 
 def get_change_label(project_file: str) -> str:
-    """Return the change label (``"PR"`` or ``"CL"``) for *project_file*.
+    """Return the provider's review field label for legacy plugin callers.
 
-    Falls back to legacy detection when no plugin claims the project.
+    New ChangeSpec writers always emit ``PR:``. This hook remains so older
+    plugin implementations can be loaded during the rollout.
     For archive files, retries with the corresponding main project file.
     """
     result = _get_manager().get_change_label(project_file)
@@ -175,9 +176,9 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
     raise ValueError(f"No workspace plugin found for workflow type '{workflow_type}'")
 
 
-def extract_change_identifier(cl_url: str) -> tuple[str, str] | None:
-    """Extract the change identifier and VCS type from a CL/PR URL via plugins."""
-    return _get_manager().extract_change_identifier(cl_url)
+def extract_change_identifier(pr_url: str) -> tuple[str, str] | None:
+    """Extract the change identifier and VCS type from a PR URL via plugins."""
+    return _get_manager().extract_change_identifier(pr_url)
 
 
 def generate_submitted_check_script(identifier: str, vcs_type: str) -> str | None:
@@ -185,9 +186,9 @@ def generate_submitted_check_script(identifier: str, vcs_type: str) -> str | Non
     return _get_manager().generate_submitted_check_script(identifier, vcs_type)
 
 
-def supports_reviewer_comments(cl_url: str) -> bool | None:
-    """Check if the given CL URL supports reviewer comments via plugins."""
-    return _get_manager().supports_reviewer_comments(cl_url)
+def supports_reviewer_comments(pr_url: str) -> bool | None:
+    """Check if the given PR URL supports reviewer comments via plugins."""
+    return _get_manager().supports_reviewer_comments(pr_url)
 
 
 def generate_reviewer_comments_script(changespec_name: str) -> str | None:

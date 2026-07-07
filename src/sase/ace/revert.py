@@ -14,7 +14,7 @@ from sase.core.changespec import (
 )
 from sase.core.paths import sase_subdir
 from sase.status_state_machine import (
-    reset_changespec_cl,
+    reset_changespec_pr_url,
     transition_changespec_status,
 )
 from sase.vcs_provider import get_vcs_provider
@@ -82,15 +82,15 @@ def update_changespec_name_atomic(
 def revert_changespec(
     changespec: ChangeSpec, console: Console | None = None
 ) -> tuple[bool, str | None]:
-    """Revert a ChangeSpec by pruning its CL and updating its status.
+    """Revert a ChangeSpec by pruning its revision and updating its status.
 
     This function:
-    1. Validates that the ChangeSpec has a valid CL set
+    1. Validates that the ChangeSpec has a valid PR set
     2. Validates that the ChangeSpec has no children
     3. Renames the ChangeSpec by appending `__<N>` suffix
     4. Saves the diff to `~/.sase/reverted/<new_name>.diff`
     5. Runs `sase_hg_prune <name>` to remove the revision
-    6. Updates STATUS to "Reverted" and CL to "None"
+    6. Updates STATUS to "Reverted" and removes the PR field
 
     Args:
         changespec: The ChangeSpec to revert
@@ -109,7 +109,7 @@ def revert_changespec(
         changespec,
         changespec.file_path,
         changespec.name,
-        "Killed hook running on reverted CL.",
+        "Killed hook running on reverted ChangeSpec.",
         log_fn=log_fn,
     )
 
@@ -129,8 +129,8 @@ def revert_changespec(
     if console:
         console.print(f"[cyan]Renaming ChangeSpec to: {new_name}[/cyan]")
 
-    # CL-dependent operations: save diff, prune VCS revision, reset CL
-    if changespec.cl is not None:
+    # PR-dependent operations: save diff, prune VCS revision, reset PR URL.
+    if changespec.pr_url is not None:
         # Get workspace directory
         workspace_dir = get_workspace_directory_for_changespec(changespec)
         if not workspace_dir:
@@ -156,13 +156,17 @@ def revert_changespec(
             changespec.name, changespec.project_basename, workspace_dir
         )
 
-        # Abandon remote change (close PR, drop CL, etc.)
-        success, error = provider.abandon_change(changespec.cl, resolved, workspace_dir)
+        # Abandon remote change (close PR, drop legacy change, etc.)
+        success, error = provider.abandon_change(
+            changespec.pr_url, resolved, workspace_dir
+        )
         if not success:
             return (False, f"Failed to abandon remote change: {error}")
 
         if console:
-            console.print(f"[green]Abandoned remote change: {changespec.cl}[/green]")
+            console.print(
+                f"[green]Abandoned remote change: {changespec.pr_url}[/green]"
+            )
 
         success, error = provider.prune(resolved, workspace_dir)
         if not success:
@@ -200,11 +204,11 @@ def revert_changespec(
     if not success:
         return (False, f"Failed to update status: {error}")
 
-    # Reset CL to None (only if there was a CL to reset)
-    if changespec.cl is not None:
-        reset_changespec_cl(changespec.file_path, new_name)
+    # Remove PR field (only if there was a PR to reset).
+    if changespec.pr_url is not None:
+        reset_changespec_pr_url(changespec.file_path, new_name)
 
     if console:
-        console.print("[green]Status updated to Reverted, CL removed[/green]")
+        console.print("[green]Status updated to Reverted, PR removed[/green]")
 
     return (True, None)

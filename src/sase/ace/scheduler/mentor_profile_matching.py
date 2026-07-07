@@ -119,8 +119,8 @@ def _load_latest_diff_from_vcs(changespec: ChangeSpec) -> str | None:
         return None
 
     rev_candidates = [changespec.name]
-    if changespec.cl:
-        rev_candidates.append(changespec.cl)
+    if changespec.pr_url:
+        rev_candidates.append(changespec.pr_url)
 
     for revision in rev_candidates:
         try:

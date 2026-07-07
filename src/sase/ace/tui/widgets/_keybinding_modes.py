@@ -297,7 +297,10 @@ class KeybindingModesMixin:
         assert isinstance(tab_keys, dict)
 
         def k(name: str) -> str:
-            v = tab_keys[name]
+            lookup = (
+                "cl_number" if name == "pr_number" and name not in tab_keys else name
+            )
+            v = tab_keys[lookup]
             assert isinstance(v, str)
             return d(v)
 
@@ -306,7 +309,7 @@ class KeybindingModesMixin:
                 (k("raw"), "raw"),
                 (k("with_snapshot"), "+snap"),
                 (k("bug"), "bug"),
-                (k("cl_number"), "PR#"),
+                (k("pr_number"), "PR#"),
                 (k("name"), "name"),
                 (k("spec"), "spec"),
                 (k("snapshot"), "snap"),

@@ -34,7 +34,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         return bool(self._entry_jump_hint_to_index)
 
     def _prepare_changespec_jump_maps(self) -> bool:
-        """Allocate CL-row and collapsed-banner hints without rendering them."""
+        """Allocate ChangeSpec-row and collapsed-banner hints without rendering them."""
         targets = self._changespec_jump_targets()  # type: ignore[attr-defined]
         if not targets:
             return False
@@ -64,7 +64,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         return True
 
     def _begin_changespec_jump_mode(self) -> None:
-        """Allocate hints across visible CLs + collapsed banners (CLs tab, grouped)."""
+        """Allocate hints across visible ChangeSpecs + collapsed banners (ChangeSpecs tab, grouped)."""
         if not self._prepare_changespec_jump_maps():
             return
         self._entry_jump_mode_active = True
@@ -127,7 +127,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def _jump_candidate_indices(self) -> list[int]:
-        """Return target indices for jump mode in visual order (CLs / AXE only)."""
+        """Return target indices for jump mode in visual order (ChangeSpecs / AXE only)."""
         if self.current_tab == "changespecs":
             return list(range(len(self.changespecs)))
         if self.current_tab == "agents":

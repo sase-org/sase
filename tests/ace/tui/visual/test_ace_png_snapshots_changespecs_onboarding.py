@@ -34,7 +34,7 @@ async def test_changespecs_onboarding_png_snapshot(
         await page.expect_state("total", 0)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "Every CL/PR your agents produce")
+        assert_page_svg_contains(page, "Every PR your agents produce")
         assert_page_svg_contains(page, "SASE Admin Center")
         ace_png_visual.assert_page_png(
             page,

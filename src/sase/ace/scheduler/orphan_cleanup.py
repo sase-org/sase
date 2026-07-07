@@ -15,7 +15,7 @@ def cleanup_orphaned_workspace_claims(
     all_changespecs: list[ChangeSpec],
     log_fn: Callable[[str, str | None], None] | None = None,
 ) -> int:
-    """Release workspace claims for reverted CLs with dead PIDs.
+    """Release workspace claims for reverted ChangeSpecs with dead PIDs.
 
     This catches orphaned workspace claims that weren't cleaned up during revert,
     such as when a mentor claims a workspace but hasn't registered in MENTORS yet.
@@ -27,7 +27,7 @@ def cleanup_orphaned_workspace_claims(
     Returns:
         Number of orphaned workspace claims released
     """
-    # Build lookup of reverted CL names
+    # Build lookup of reverted ChangeSpec names
     reverted_cls = {cs.name for cs in all_changespecs if cs.status == "Reverted"}
     if not reverted_cls:
         return 0
@@ -41,7 +41,7 @@ def cleanup_orphaned_workspace_claims(
     released_count = 0
 
     for claim in claims:
-        # Skip claims without cl_name or not for reverted CLs
+        # Skip claims without cl_name or not for reverted ChangeSpecs
         if not claim.cl_name or claim.cl_name not in reverted_cls:
             continue
 
@@ -61,7 +61,7 @@ def cleanup_orphaned_workspace_claims(
         if log_fn:
             log_fn(
                 f"Released orphaned workspace #{claim.workspace_num} "
-                f"({claim.workflow}) for reverted CL {claim.cl_name}",
+                f"({claim.workflow}) for reverted PR {claim.cl_name}",
                 "cyan",
             )
 

@@ -30,14 +30,14 @@ def _mock_changespec(status: str = "Draft") -> MagicMock:
     changespec = MagicMock()
     changespec.name = "my_feature"
     changespec.file_path = "/path/to/project.sase"
-    changespec.cl = "http://cl/123456"
+    changespec.pr_url = "http://cl/123456"
     changespec.status = status
     changespec.comments = None
     return changespec
 
 
 def test_extract_change_identifier_valid_https() -> None:
-    """Test extracting CL number from https URL via workspace provider plugin."""
+    """Test extracting PR number from https URL via workspace provider plugin."""
     with patch(
         "sase.workspace_provider.extract_change_identifier",
         return_value=("987654321", "hg"),
@@ -138,7 +138,7 @@ def test__check_pending_checks_processes_completed(
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
     mock_changespec.file_path = "/path/to/project.sase"
-    mock_changespec.cl = "http://cl/123456"
+    mock_changespec.pr_url = "http://cl/123456"
     mock_changespec.status = "Mailed"
     mock_changespec.comments = None
     mock_log = MagicMock()
@@ -370,7 +370,7 @@ def test_start_reviewer_comments_check_skips_for_git() -> None:
     """Test that start_reviewer_comments_check returns None when plugin says unsupported."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
-    mock_changespec.cl = "https://github.com/user/repo/pull/42"
+    mock_changespec.pr_url = "https://github.com/user/repo/pull/42"
     mock_log = MagicMock()
 
     with patch(
@@ -382,10 +382,10 @@ def test_start_reviewer_comments_check_skips_for_git() -> None:
 
 
 def test_start_reviewer_comments_check_skips_for_no_cl() -> None:
-    """Test that start_reviewer_comments_check handles None CL gracefully."""
+    """Test that start_reviewer_comments_check handles None PR gracefully."""
     mock_changespec = MagicMock()
     mock_changespec.name = "my_feature"
-    mock_changespec.cl = None
+    mock_changespec.pr_url = None
     mock_log = MagicMock()
 
     # With no CL, the supports_reviewer_comments check is skipped entirely.
@@ -400,7 +400,7 @@ def test_start_reviewer_comments_check_skips_for_no_cl() -> None:
     ):
         mock_popen.return_value = MagicMock()
         result = start_reviewer_comments_check(mock_changespec, "/workspace", mock_log)
-    # Should attempt to start (for hg repos that might not have a CL URL yet)
+    # Should attempt to start (for hg repos that might not have a PR URL yet)
     assert result == "Started reviewer_comments check"
 
 

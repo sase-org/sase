@@ -121,7 +121,7 @@ def mark_hooks_as_killed(
         hooks: List of all HookEntry objects.
         killed_processes: List of (hook, status_line, pid) from kill operation.
         description: Description of why the hook was killed
-            (e.g., "Killed hook running on reverted CL.").
+            (e.g., "Killed hook running on reverted ChangeSpec.").
 
     Returns:
         Updated list of HookEntry objects with modified suffix_type.
@@ -454,9 +454,9 @@ def kill_and_persist_all_running_processes(
     Args:
         changespec: The ChangeSpec to kill processes for.
         project_file: Path to the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
         kill_reason: Description of why processes are being killed
-            (e.g., "Killed hook running on reverted CL.").
+            (e.g., "Killed hook running on reverted ChangeSpec.").
         log_fn: Optional callback for logging messages.
     """
     # Lazy imports to avoid circular dependencies

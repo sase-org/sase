@@ -75,7 +75,7 @@ log = logging.getLogger(__name__)
 TabName = Literal["changespecs", "agents", "axe"]
 
 # Width bounds for dynamic list panel sizing (in terminal cells)
-# MIN must fit the CL status line plus padding/border; the refresh countdown
+# MIN must fit the PR status line plus padding/border; the refresh countdown
 # lives on the info panel's second row.
 _MIN_LIST_WIDTH = CL_LIST_MIN_PANEL_WIDTH
 _MAX_LIST_WIDTH = CL_LIST_MAX_PANEL_WIDTH

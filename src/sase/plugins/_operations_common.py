@@ -29,7 +29,7 @@ class NotUvTool:
     """sase is not a managed ``uv tool install sase`` — mutations are impossible.
 
     *error* carries the precise, already-rendered actionable message (the same
-    one the CLI prints); display it verbatim.
+    one the ChangeSpecI prints); display it verbatim.
     """
 
     error: NotAUvToolInstallError

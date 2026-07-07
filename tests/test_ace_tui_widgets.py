@@ -108,7 +108,7 @@ def test_tab_bar_changespec_tab_label_is_prs() -> None:
     tab_bar = TabBar()
     plain = tab_bar._build_content().plain
     assert " PRs " in plain
-    assert " CLs " not in plain
+    assert " ChangeSpecs " not in plain
 
 
 def test_tab_bar_label_order_is_agents_prs_axe() -> None:

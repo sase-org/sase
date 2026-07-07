@@ -76,7 +76,7 @@ def get_auto_plan_approval_action() -> PlanAutoApprovalAction | None:
 
 
 def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
-    """Approve one pending plan proposal from the CLI."""
+    """Approve one pending plan proposal from the ChangeSpecI."""
     from rich.console import Console
 
     try:

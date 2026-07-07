@@ -1,6 +1,6 @@
 """Shared width contract for the ChangeSpecs side list."""
 
-# Width bounds for dynamic CL list panel sizing, in terminal cells.
+# Width bounds for dynamic ChangeSpec list panel sizing, in terminal cells.
 CL_LIST_MIN_PANEL_WIDTH = 43
 CL_LIST_MAX_PANEL_WIDTH = 80
 

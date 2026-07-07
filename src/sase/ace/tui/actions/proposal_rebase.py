@@ -76,7 +76,7 @@ def _rebase_task(
         if not clean_success:
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Checkout the CL being rebased
+        # Checkout the PR being rebased
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
             changespec_name, project_basename, workspace_dir

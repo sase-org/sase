@@ -1,7 +1,7 @@
 """Axe scheduler package for sase.
 
 This package provides schedule-based ChangeSpec monitoring for automatically
-running hooks, managing workflows, and checking CL status.
+running hooks, managing workflows, and checking PR status.
 """
 
 from .lumberjack import Lumberjack

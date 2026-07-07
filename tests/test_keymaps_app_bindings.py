@@ -65,7 +65,7 @@ def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
 
 
 def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
-    """Default ``s`` is intentionally shared by CL status and Agents save."""
+    """Default ``s`` is intentionally shared by PR status and Agents save."""
     bindings = build_app_bindings(default_app_keymaps())
     assert [b.action for b in bindings if b.key == "s"] == [
         "change_status",

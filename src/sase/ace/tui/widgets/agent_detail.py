@@ -78,7 +78,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         """Update panels with agent information.
 
         For NO CHANGES agents, shows only prompt panel (with reply embedded).
-        For NEW CL and NEW PROPOSAL agents, shows prompt and static file panels.
+        For NEW PR and NEW PROPOSAL agents, shows prompt and static file panels.
         For running agents, shows prompt and auto-refreshing file panels.
 
         Args:

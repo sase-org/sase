@@ -1,7 +1,7 @@
 # Commit Workflows
 
 Sase provides three unified workflows for landing code changes: **commit**, **propose**, and **pull request**. All three
-share the same CLI command (`sase commit`), the same `CommitWorkflow` orchestrator, and the same VCS provider
+share the same ChangeSpecI command (`sase commit`), the same `CommitWorkflow` orchestrator, and the same VCS provider
 abstraction, but differ in what they produce and how they track the result.
 
 ## Overview
@@ -94,7 +94,7 @@ available, a `commit_finalizer_result.json` artifact.
 | `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                        |
 | `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                                  |
 | `-f`  | `--file`            | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                               |
-| `-n`  | `--name`            | Branch/CL name (required for `create_pull_request`)                                                                                                                                                                                                                         |
+| `-n`  | `--name`            | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                         |
 | `-B`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                              |
 | `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                                     |
 | `-p`  | `--parent`          | Parent ChangeSpec **name** (overrides auto-detection from current branch). Must be an existing ChangeSpec in the active project file or archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
@@ -129,7 +129,7 @@ Precommit command  (e.g. `just fix`)
     |
 PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
     |
-Detect parent CL   (auto-set PARENT from current branch's ChangeSpec)     [PR only]
+Detect parent PR   (auto-set PARENT from current branch's ChangeSpec)     [PR only]
     |
 PR metadata        (append PR tags and project prefix)                    [PR only]
     |
@@ -209,7 +209,7 @@ Internal fields added by `CommitWorkflow`:
 
 | Field              | Set by              | Purpose                                 |
 | ------------------ | ------------------- | --------------------------------------- |
-| `_cl_name`         | Environment         | Fallback CL name for proposals          |
+| `_cl_name`         | Environment         | Fallback PR name for proposals          |
 | `_plan_path`       | `_handle_sase_plan` | Plan file path for VCS staging          |
 | `_pr_body`         | `_build_pr_body`    | Enriched PR description with agent info |
 | `_skip_bead_amend` | Internal            | Skip post-commit bead amend             |
@@ -224,7 +224,7 @@ After a successful dispatch, `commit_result.json` contains:
   "method": "create_commit",
   "result": "<commit_hash | diff_path | null>",
   "message": "The commit message",
-  "name": "Branch/CL name",
+  "name": "Branch/PR name",
   "bead_id": "Bead ID if SASE_BEAD_ID was set",
   "changespec_name": "ChangeSpec name (PR only)",
   "entry_id": "COMMITS entry ID (commit/propose only)",
@@ -309,7 +309,7 @@ the BUG field of the created ChangeSpec (as `http://b/<bug_id>`), and a `SASE_BU
 block (taking precedence over any static `BUG` key in `vcs_provider.pr_tags` config).
 
 **Project prefix:** When `vcs_provider.use_project_pr_prefix` is `true`, a `[<project>] ` prefix is prepended to the PR
-title (GitHub) or CL description (Mercurial). This prefix is only applied to the external representation — it does not
+title (GitHub) or PR description (Mercurial). This prefix is only applied to the external representation — it does not
 appear in the ChangeSpec DESCRIPTION or git commit message, and is automatically stripped when reading descriptions
 back.
 
@@ -320,7 +320,7 @@ inheritance works across the migration. The merge order is: parent PR tags (lowe
 `MACHINE` values are ignored so child PRs do not retain stale parent runtime provenance.
 
 **PR tags:** Any key-value pairs configured in `vcs_provider.pr_tags` are appended as `SASE_TAG=VALUE` lines to the
-commit message before building the PR body. This supports provider-specific metadata (e.g., Google CL tags) without
+commit message before building the PR body. This supports provider-specific metadata (e.g., Google PR tags) without
 manual entry. `AGENT` and `MACHINE` are reserved for runtime provenance and are owned by the commit workflow rather than
 static config. Note that the rendered keys carry the `SASE_` prefix (e.g. a configured `MARKDOWN` tag is written as
 `SASE_MARKDOWN=`), so external tooling that consumes these tags must accept the prefixed names. See
@@ -377,8 +377,8 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
 
 **Normal flow:**
 
-1. `CommitWorkflow.run()` snapshots its resolved state (payload, CL name, project file, diff path, reserved name, parent
-   CL) to the checkpoint **before** calling the VCS dispatch method.
+1. `CommitWorkflow.run()` snapshots its resolved state (payload, PR name, project file, diff path, reserved name, parent
+   PR) to the checkpoint **before** calling the VCS dispatch method.
 2. If dispatch succeeds, the checkpoint is updated with the dispatch result, tracking steps run, and the file is deleted
    on success.
 3. If dispatch fails because of a merge conflict (`RunResult.CONFLICT`), the checkpoint is retained and the CLI prints:
@@ -409,7 +409,7 @@ instructions automatically, so agents know to hand control back to the user rath
 | `SASE_BEAD_ID`                      | Bead ID to automatically associate with the commit               |
 | `SASE_PLAN`                         | Plan file path for staging and status update                     |
 | `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                     |
-| `SASE_AGENT_CL_NAME`                | CL name used for proposal diff naming                            |
+| `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                            |
 | `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                             |
 | `SASE_PR_STATUS`                    | Initial PR ChangeSpec status (`draft`, `wip`, `ready`)           |
 | `SASE_BUG_ID`                       | Bug ID for PR metadata                                           |
@@ -465,8 +465,8 @@ Diffs saved by proposals (and other operations) are stored in:
 
 ```
 ~/.sase/diffs/<name>-<timestamp>.diff     # Active diffs
-~/.sase/reverted/<name>.diff              # Reverted CLs
-~/.sase/archived/<name>.diff              # Archived CLs
+~/.sase/reverted/<name>.diff              # Reverted PRs
+~/.sase/archived/<name>.diff              # Archived PRs
 ```
 
 Diffs can be re-applied to a workspace with `apply_diff_to_workspace()` from `sase.workflows.commit_utils.workspace`.

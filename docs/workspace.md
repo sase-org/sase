@@ -78,7 +78,7 @@ revision to check out.
 | -------------------------- | -------------------------- | -------------------------------------------- |
 | `ws_get_workflow_metadata` | `WorkflowMetadata \| None` | Declare this plugin's workflow type metadata |
 | `ws_detect_workflow_type`  | `str \| None`              | Detect workflow type from a project file     |
-| `ws_get_change_label`      | `str \| None`              | Get the change label (e.g., `"PR"`, `"CL"`)  |
+| `ws_get_change_label`      | `str \| None`              | Get the change label (e.g., `"PR"`, `"PR"`)  |
 | `ws_get_workspace_name`    | `str \| None`              | Get the workspace/project name for a CWD     |
 
 `ws_get_workflow_metadata` is the only hook that collects results from **all** plugins (not `firstresult`). This allows
@@ -98,10 +98,10 @@ the registry to build a complete map of all available workflow types.
 | -------------------------------------- | ---------------------------------- | ----------------------------------------------- |
 | `ws_submit`                            | `tuple[bool, str \| None] \| None` | Submit a ChangeSpec (merge, push, etc.)         |
 | `ws_prepare_mail`                      | `object \| None`                   | Prepare a change for mailing/review             |
-| `ws_extract_change_identifier`         | `tuple[str, str] \| None`          | Extract identifier from a CL/PR URL             |
-| `ws_supports_reviewer_comments`        | `bool \| None`                     | Check if a CL URL supports reviewer comments    |
+| `ws_extract_change_identifier`         | `tuple[str, str] \| None`          | Extract identifier from a PR URL                |
+| `ws_supports_reviewer_comments`        | `bool \| None`                     | Check if a PR URL supports reviewer comments    |
 | `ws_generate_reviewer_comments_script` | `str \| None`                      | Generate a script to fetch reviewer comments    |
-| `ws_generate_submitted_check_script`   | `str \| None`                      | Generate a script to check if a CL is submitted |
+| `ws_generate_submitted_check_script`   | `str \| None`                      | Generate a script to check if a PR is submitted |
 
 ### Commit Formatting
 

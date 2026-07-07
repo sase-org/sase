@@ -8,7 +8,7 @@ from typing import Literal
 JUMP_HINT_CHARS = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 # Agents-tab jump targets: either a global agent index or a panel-scoped
-# banner identity.  CLs and AXE tabs continue to pass plain ints — the
+# banner identity.  ChangeSpecs and AXE tabs continue to pass plain ints — the
 # generic ``build_jump_hint_maps`` accepts any hashable target.
 AgentJumpTarget = tuple[Literal["agent"], int]
 BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]

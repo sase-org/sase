@@ -94,7 +94,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                                                             | [Agent Families](agent_families.md#agent-initiated-launches)          |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                                                                   | [XPrompt directives](xprompt.md#directives)                           |
 
-ChangeSpecs are CL/PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable
+ChangeSpecs are PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable
 dependency tracking and executable epics on top of those artifacts.
 
 `sase project` defaults to `sase project list`, and `sase project list` defaults to active projects. Use

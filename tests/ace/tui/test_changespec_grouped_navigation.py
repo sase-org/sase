@@ -1,11 +1,11 @@
-"""Tests for fold-aware CLs-tab navigation, folding, and jump hints.
+"""Tests for fold-aware ChangeSpecs-tab navigation, folding, and jump hints.
 
-Phase 4 of the CLs-tab ChangeSpec grouping feature
+Phase 4 of the ChangeSpecs-tab ChangeSpec grouping feature
 (``sdd/tales/202604/changespec_group_headings.md``):
 
-* ``j`` / ``k`` walks visible CL rows plus collapsed banner rows in
+* ``j`` / ``k`` walks visible ChangeSpec rows plus collapsed banner rows in
   render order.
-* ``h`` / ``l`` / ``H`` / ``L`` operate on CL groups.
+* ``h`` / ``l`` / ``H`` / ``L`` operate on ChangeSpec groups.
 * Focus re-anchors after fold mutations so the cursor never lands on a
   hidden row.
 * Jump hints include collapsed banner targets.
@@ -55,7 +55,7 @@ class _NavApp(ChangeSpecGroupingNavMixin):
 
 
 def _make_three_project_specs() -> list[ChangeSpec]:
-    """Two CLs in project ``alpha`` and one in project ``beta``."""
+    """Two ChangeSpecs in project ``alpha`` and one in project ``beta``."""
     return [
         _cs("a_one", project="alpha"),
         _cs("a_two", project="alpha"),
@@ -71,7 +71,7 @@ def _make_three_project_specs() -> list[ChangeSpec]:
 def test_navigation_stops_skip_expanded_banners() -> None:
     app = _NavApp(_make_three_project_specs())
     stops = app._changespec_navigation_stops()
-    # All banners are expanded so only CL stops appear.
+    # All banners are expanded so only PR stops appear.
     assert stops == [
         ("changespec", 0),
         ("changespec", 1),
@@ -83,8 +83,8 @@ def test_navigation_stops_include_collapsed_banner() -> None:
     app = _NavApp(_make_three_project_specs())
     app._changespec_group_fold_registry.collapse(("alpha",))
     stops = app._changespec_navigation_stops()
-    # ``alpha`` collapses to a single banner stop hiding its two CLs;
-    # ``beta`` stays expanded with its single CL row.
+    # ``alpha`` collapses to a single banner stop hiding its two ChangeSpecs;
+    # ``beta`` stays expanded with its single ChangeSpec row.
     assert stops == [
         ("banner", ("alpha",)),
         ("changespec", 2),
@@ -101,7 +101,7 @@ def test_navigate_steps_through_collapsed_banner_then_cl() -> None:
     app._changespec_group_fold_registry.collapse(("alpha",))
 
     # Stops are [("banner", ("alpha",)), ("changespec", 2)] — current_idx
-    # 0 sits inside the now-collapsed alpha group, so the nearest CL stop
+    # 0 sits inside the now-collapsed alpha group, so the nearest PR stop
     # is beta at pos 1, and ``+1`` wraps to the alpha banner at pos 0.
     app._navigate_changespec_panel(1)
     assert app._current_changespec_group_key == ("alpha",)
@@ -119,7 +119,7 @@ def test_navigate_steps_through_collapsed_banner_then_cl() -> None:
 
 def test_navigate_banner_to_cl_triggers_refresh_even_when_idx_unchanged() -> None:
     specs = _make_three_project_specs()
-    # Force current_idx onto the first CL of the only-collapsed group so
+    # Force current_idx onto the first PR of the only-collapsed group so
     # banner→CL stepping lands on the same global index.
     app = _NavApp(specs, current_idx=2)
     app._changespec_group_fold_registry.collapse(("alpha",))
@@ -160,7 +160,7 @@ def test_expand_collapsed_banner_reanchors_focus_to_first_cl() -> None:
     changed = app._expand_changespec_group_fold()
     assert changed is True
     assert not app._changespec_group_fold_registry.is_collapsed(("alpha",))
-    # First visible CL of the expanded group becomes the focused row.
+    # First visible PR of the expanded group becomes the focused row.
     assert app._current_changespec_group_key is None
     assert app.current_idx == 0
 
@@ -217,7 +217,7 @@ def test_expand_all_peels_one_level_off_visible_collapsed_banners() -> None:
     assert changed is True
     assert not app._changespec_group_fold_registry.is_collapsed(("alpha",))
     assert not app._changespec_group_fold_registry.is_collapsed(("beta",))
-    # ``L`` clears any banner focus so j/k can re-anchor on a CL row.
+    # ``L`` clears any banner focus so j/k can re-anchor on a ChangeSpec row.
     assert app._current_changespec_group_key is None
 
 
@@ -248,7 +248,7 @@ def test_banner_focus_valid_when_group_still_present() -> None:
 
 
 def test_banner_focus_invalid_when_group_filtered_out() -> None:
-    # Drop the two ``alpha`` CLs — only ``beta`` remains.
+    # Drop the two ``alpha`` ChangeSpecs — only ``beta`` remains.
     app = _NavApp([_cs("b_one", project="beta")])
     app._current_changespec_group_key = ("alpha",)
     assert app._changespec_banner_focus_still_valid() is False

@@ -40,7 +40,7 @@ def apply_project_pr_prefix(payload: dict) -> None:
 def _fetch_parent_pr_tags(parent_cl_name: str | None) -> dict[str, str]:
     """Fetch PR tags from the parent PR's body (best-effort).
 
-    Returns an empty dict if there is no parent, the parent has no CL URL,
+    Returns an empty dict if there is no parent, the parent has no PR URL,
     or the fetch fails for any reason.
     """
     if not parent_cl_name:
@@ -60,12 +60,12 @@ def _fetch_parent_pr_tags(parent_cl_name: str | None) -> dict[str, str]:
 
         project_file = get_project_file_path(project_name)
         parent_cs = get_changespec_from_file(project_file, parent_cl_name)
-        if parent_cs is None or not parent_cs.cl:
+        if parent_cs is None or not parent_cs.pr_url:
             return {}
 
         cwd = os.getcwd()
         provider = get_vcs_provider(cwd)
-        ok, body = provider.get_change_body(parent_cs.cl, cwd)
+        ok, body = provider.get_change_body(parent_cs.pr_url, cwd)
         if not ok or not body:
             return {}
 
@@ -145,9 +145,7 @@ def detect_parent_changespec(base_cl_name: str | None, payload: dict) -> str | N
     try:
         branch_cl = get_cl_name_from_branch()
     except Exception as exc:
-        print_status(
-            f"Parent auto-detect: failed to get branch CL name: {exc}", "warning"
-        )
+        print_status(f"Parent auto-detect: failed to get branch name: {exc}", "warning")
         return None
     if not branch_cl:
         return None

@@ -470,9 +470,9 @@ class TestParseBashOutput:
 
     def test_parse_json_with_leading_control_chars(self) -> None:
         """Test that leading control characters (e.g., bell) don't prevent JSON parsing."""
-        output = '\x07\x07\x07{"success": true, "cl_url": "http://example.com"}'
+        output = '\x07\x07\x07{"success": true, "pr_url": "http://example.com"}'
         result = parse_bash_output(output)
-        assert result == {"success": True, "cl_url": "http://example.com"}
+        assert result == {"success": True, "pr_url": "http://example.com"}
 
     def test_parse_key_value(self) -> None:
         """Test parsing key=value output."""

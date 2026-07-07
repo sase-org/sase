@@ -53,7 +53,7 @@ The hooks are organized into several groups:
 - **VCS-agnostic operations** — `vcs_abandon_change`, `vcs_prepare_description_for_reword`, `vcs_normalize_bug_value`,
   `vcs_get_change_url`, `vcs_get_change_body`
 - **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`, `vcs_get_branch_name`,
-  `vcs_get_cl_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`,
+  `vcs_get_pr_number`, `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`,
   `vcs_upload`, `vcs_find_reviewers`, `vcs_rewind`
 - **Branch naming hooks** — `vcs_derive_branch_name`, `vcs_derive_branch_name_with_suffix` (compute branch names from
   ChangeSpec names), `vcs_can_rename_branch` (check if branch renaming is supported)
@@ -185,9 +185,9 @@ Pushes changes for review. The flow differs significantly between providers.
 
 **Mercurial flow:**
 
-1. Prompt for reviewers (1 or 2, or `@` to run `p4 findreviewers -c <cl_number>`)
-2. Modify CL description with reviewer tags and startblock configuration
-3. Reword CL description via `sase_hg_reword`
+1. Prompt for reviewers (1 or 2, or `@` to run `p4 findreviewers -c <pr_number>`)
+2. Modify PR description with reviewer tags and startblock configuration
+3. Reword PR description via `sase_hg_reword`
 4. Prompt user to confirm mail
 5. `hg mail -r <revision>`
 
@@ -229,7 +229,7 @@ Restores a previously reverted ChangeSpec.
 
 Archives a ChangeSpec by saving the diff, archiving the revision, and updating status.
 
-1. Checkout the CL via `checkout()`
+1. Checkout the PR via `checkout()`
 2. Save diff to `~/.sase/archived/<name>.diff`
 3. Archive revision via `archive()`
 
@@ -401,7 +401,7 @@ commands and `sase_hg_*` wrapper commands.
 | Info           | Command                |
 | -------------- | ---------------------- |
 | Branch name    | `branch_name`          |
-| CL number      | `branch_number`        |
+| PR number      | `branch_number`        |
 | Bug number     | `sase_hg_branch_bug`   |
 | Workspace name | `workspace_name`       |
 | Local changes  | `branch_local_changes` |
@@ -418,7 +418,7 @@ commands and `sase_hg_*` wrapper commands.
 | Operation       | Command                           |
 | --------------- | --------------------------------- |
 | Mail for review | `hg mail -r <revision>`           |
-| Find reviewers  | `p4 findreviewers -c <cl_number>` |
+| Find reviewers  | `p4 findreviewers -c <pr_number>` |
 | Upload          | `hg upload tree`                  |
 | Fix             | `hg fix`                          |
 
@@ -433,7 +433,7 @@ commands and `sase_hg_*` wrapper commands.
 
 ### Change URL
 
-CL URLs follow the pattern `http://cl/<number>`, where the number comes from `branch_number`.
+PR URLs follow the pattern `http://cl/<number>`, where the number comes from `branch_number`.
 
 ### Description Escaping
 
@@ -454,8 +454,8 @@ Sase maintains diff files in `~/.sase/` for tracking changes across operations.
 | Directory                                         | Purpose                         | When Used                         |
 | ------------------------------------------------- | ------------------------------- | --------------------------------- |
 | `~/.sase/diffs/YYYYMM/<cl_name>-<timestamp>.diff` | Pre-commit/amend diff snapshots | Every commit and amend            |
-| `~/.sase/reverted/<name>.diff`                    | Stashed diff for reverted CLs   | `sase revert` / ace revert action |
-| `~/.sase/archived/<name>.diff`                    | Stashed diff for archived CLs   | ace archive action                |
+| `~/.sase/reverted/<name>.diff`                    | Stashed diff for reverted PRs   | `sase revert` / ace revert action |
+| `~/.sase/archived/<name>.diff`                    | Stashed diff for archived PRs   | ace archive action                |
 
 ### Patch Application
 
@@ -485,7 +485,7 @@ The `stash_and_clean()` operation preserves local work before switching or clean
 vcs_provider:
   provider: auto # "git", "hg", or "auto" (default: "auto")
   pr_tags: {} # optional key-value tags appended to PR commit messages (rendered SASE_-prefixed, e.g. SASE_BUG=value)
-  use_project_pr_prefix: false # prepend [<project>] to PR titles / CL descriptions
+  use_project_pr_prefix: false # prepend [<project>] to PR titles / PR descriptions
 ```
 
 ### Environment Variable
@@ -581,7 +581,7 @@ SASE_VCS_PROVIDER=git sase commit my_feature
 
 ### GitHub: `gh` CLI Not Installed
 
-GitHub PR operations (`get_change_url`, `mail`, `get_cl_number`) require the [GitHub CLI](https://cli.github.com/).
+GitHub PR operations (`get_change_url`, `mail`, `get_pr_number`) require the [GitHub CLI](https://cli.github.com/).
 Without it, these operations will fail with a "command not found" error.
 
 **Symptoms:**

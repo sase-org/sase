@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 class RenameMixin:
-    """Mixin providing rename CL action."""
+    """Mixin providing rename ChangeSpec action."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
     changespecs: list[ChangeSpec]
@@ -35,7 +35,7 @@ class RenameMixin:
     def action_rename_cl(self) -> None:
         """Show rename modal for the current ChangeSpec or name an agent.
 
-        On the CLs tab: rename the CL (non-Submitted ChangeSpecs only).
+        On the ChangeSpecs tab: rename the PR (non-Submitted ChangeSpecs only).
         On the Agents tab: set/change the agent name.
         """
         if self.current_tab == "agents":
@@ -43,7 +43,7 @@ class RenameMixin:
             return
 
         from ...changespec import get_base_status
-        from ..modals import RenameCLModal
+        from ..modals import RenameChangeSpecModal
 
         if self.current_tab != "changespecs":
             return
@@ -69,7 +69,7 @@ class RenameMixin:
             self._execute_rename(changespec, new_name)
 
         self.push_screen(  # type: ignore[attr-defined]
-            RenameCLModal(
+            RenameChangeSpecModal(
                 current_name=changespec.name,
                 project_file_path=changespec.file_path,
                 status=base_status,
@@ -111,7 +111,7 @@ class RenameMixin:
             """
             nonlocal workspace_num, cl_name_updated
 
-            # For Reverted CLs, skip Mercurial operations (no CL exists)
+            # For Reverted ChangeSpecs, skip Mercurial operations (no PR exists)
             if base_status == "Reverted":
                 # Just update the spec file references
                 try:
@@ -169,7 +169,7 @@ class RenameMixin:
                 if not clean_success:
                     print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-                # Checkout the CL
+                # Checkout the ChangeSpec
                 print(f"Checking out {old_name}...")
                 provider = get_vcs_provider(workspace_dir)
                 resolved = provider.resolve_revision(
@@ -244,7 +244,7 @@ class RenameMixin:
                 return (True, f"Renamed {old_name} to {new_name}")
 
             finally:
-                # Always release workspace — use new_name if the CL name
+                # Always release workspace — use new_name if the ChangeSpec name
                 # was already updated in the RUNNING field, otherwise old_name.
                 if workspace_num is not None:
                     release_cl_name = new_name if cl_name_updated else old_name

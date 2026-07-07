@@ -64,7 +64,10 @@ def default_axe_config() -> AxeConfig:
                 "checks": {
                     "interval": 300,
                     "chops": [
-                        {"name": "cl_submitted_checks", "description": "Check CLs"},
+                        {
+                            "name": "cl_submitted_checks",
+                            "description": "Check ChangeSpecs",
+                        },
                     ],
                 },
                 "comments": {

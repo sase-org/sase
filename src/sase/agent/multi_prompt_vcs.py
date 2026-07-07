@@ -91,9 +91,9 @@ def resolve_segment_vcs_context(
     """Resolve launch metadata for one multi-prompt segment.
 
     Multi-prompts can mix VCS refs across segments.  The launcher therefore
-    derives the display CL, project context, VCS ref, and history key from the
+    derives the display ChangeSpec, project context, VCS ref, and history key from the
     segment's own VCS ref when present, falling back to the caller's context for
-    legacy prompts that rely on an already-selected CL. Normal VCS segments
+    legacy prompts that rely on an already-selected ChangeSpec. Normal VCS segments
     leave workspace selection to the shared launch executor; fixed ``#cd`` and
     deferred ``%wait`` segments keep their resolved workspace context.
     """

@@ -94,7 +94,7 @@ def test_by_status_emits_l0_banners_and_cl_rows(monkeypatch: Any) -> None:
         grouping_mode=ChangeSpecGroupingMode.BY_STATUS,
     )
 
-    # 2 banners (WIP, Ready) + 1 inter-L0 spacer + 3 CL rows = 6 options.
+    # 2 banners (WIP, Ready) + 1 inter-L0 spacer + 3 ChangeSpec rows = 6 options.
     assert widget.option_count == 6
     banner_rows = [
         i
@@ -249,14 +249,14 @@ def test_by_project_emits_l1_only_for_grouped_siblings(
         grouping_mode=ChangeSpecGroupingMode.BY_PROJECT,
     )
 
-    # 1 L0 (proj) + 1 L1 (foobar siblings) + 3 CL rows.
+    # 1 L0 (proj) + 1 L1 (foobar siblings) + 3 ChangeSpec rows.
     assert widget.option_count == 5
     banner_rows = [i for i, e in enumerate(widget._row_entries) if e == _BANNER_ROW]
     assert len(banner_rows) == 2  # L0 + L1
 
 
 def test_by_project_singleton_root_skips_l1_banner(monkeypatch: Any) -> None:
-    """A name root with a single CL renders directly under L0."""
+    """A name root with a single PR renders directly under L0."""
     widget, _ = _wire_widget(monkeypatch)
     css = [_cs("only_one", project="proj")]
 
@@ -266,7 +266,7 @@ def test_by_project_singleton_root_skips_l1_banner(monkeypatch: Any) -> None:
         grouping_mode=ChangeSpecGroupingMode.BY_PROJECT,
     )
 
-    # 1 L0 banner + 1 CL row, no L1.
+    # 1 L0 banner + 1 ChangeSpec row, no L1.
     assert widget.option_count == 2
     assert widget._row_entries[0] == _BANNER_ROW
     assert widget._row_entries[1] == 0
@@ -328,7 +328,7 @@ def test_selection_message_for_cl_row_has_no_group_key(monkeypatch: Any) -> None
     cl_rows = [i for i, e in enumerate(widget._row_entries) if e != _BANNER_ROW]
     index, group_key = widget._resolve_row(cl_rows[1])
     assert group_key is None
-    # Second CL row resolves to changespec idx 1.
+    # Second ChangeSpec row resolves to changespec idx 1.
     assert index == 1
 
 
@@ -336,7 +336,7 @@ def test_selection_message_for_cl_row_has_no_group_key(monkeypatch: Any) -> None
 
 
 def test_grouped_render_respects_min_banner_width(monkeypatch: Any) -> None:
-    """Even with one tiny CL the banner still spans at least the min width."""
+    """Even with one tiny PR the banner still spans at least the min width."""
     widget, posted = _wire_widget(monkeypatch)
     css = [_cs("a", status="WIP")]
 
@@ -399,14 +399,14 @@ def _option_cell_len(widget: ChangeSpecList, row: int) -> int:
     """Cell length of the rendered Rich Text for the given option row."""
     opt = widget.get_option_at_index(row)
     prompt = opt.prompt
-    # ``prompt`` is a ``Text`` for grouped-mode banners and CL rows.
+    # ``prompt`` is a ``Text`` for grouped-mode banners and ChangeSpec rows.
     return prompt.cell_len if hasattr(prompt, "cell_len") else len(str(prompt))
 
 
 def test_long_cl_name_does_not_force_banner_past_panel(
     monkeypatch: Any,
 ) -> None:
-    """Long CL rows still request width, but banner prompts stay bounded."""
+    """Long ChangeSpec rows still request width, but banner prompts stay bounded."""
     widget, posted = _wire_widget(monkeypatch)
     long_name = "a" * 100
     css = [_cs(long_name, status="WIP"), _cs("short", status="WIP")]
@@ -459,7 +459,7 @@ def test_banner_rule_stays_at_least_two_cells(monkeypatch: Any) -> None:
     the banner width.
     """
     widget, _ = _wire_widget(monkeypatch)
-    # Single CL with a moderately long name to push the banner width
+    # Single PR with a moderately long name to push the banner width
     # right up to the natural width of its label + chip.
     css = [_cs("medium_length_changespec_name_for_layout_check", status="WIP")]
 

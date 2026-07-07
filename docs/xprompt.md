@@ -607,7 +607,7 @@ making the system extensible — a plugin or user can override the CRS workflow 
 | `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                         |
 | `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                  |
 | `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                   |
-| `diff_file`                    | Injects the CL diff into the mentor prompt                                                                                    |
+| `diff_file`                    | Injects the PR diff into the mentor prompt                                                                                    |
 | `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                                 |
 | `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                           |
 | `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                             |
@@ -817,7 +817,7 @@ defaults. Common entries include:
 | `#file`               | Require the agent to write its response to a named markdown artifact                              |
 | `#fork`               | Resume context from a prior agent conversation by name                                            |
 | `#fork_by_chat`       | Resume context from a specific chat transcript path                                               |
-| `#mentor`             | Run a structured mentor review against a CL                                                       |
+| `#mentor`             | Run a structured mentor review against a PR                                                       |
 | `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                        |
 | `#summarize`          | Summarize a file in a short phrase for a specified use                                            |
 | `#json`               | Require the agent response to satisfy a JSON schema                                               |

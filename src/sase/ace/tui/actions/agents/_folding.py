@@ -536,7 +536,7 @@ class AgentFoldingMixin:
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
     def action_expand_or_layout(self) -> None:
-        """Expand fold on agents/axe tab, or expand CL group when grouped."""
+        """Expand fold on agents/axe tab, or expand ChangeSpec group when grouped."""
         if self.current_tab == "agents":
             self._expand_fold()
         elif self.current_tab == "axe":
@@ -546,7 +546,7 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse(self) -> None:
-        """Collapse fold on agents/axe tab, collapse CL group on CLs tab."""
+        """Collapse fold on agents/axe tab, collapse ChangeSpec group on ChangeSpecs tab."""
         if self.current_tab == "agents":
             self._collapse_fold()
         elif self.current_tab == "axe":
@@ -556,7 +556,7 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
-        """Collapse all folds on agents/axe tab, collapse all CL groups on CLs tab."""
+        """Collapse all folds on agents/axe tab, collapse all ChangeSpec groups on ChangeSpecs tab."""
         if self.current_tab == "agents":
             self._collapse_all_folds()
         elif self.current_tab == "axe":
@@ -566,7 +566,7 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_expand_all_folds(self) -> None:
-        """Expand all workflow folds (agents/axe tab); CLs tab expands all CL groups."""
+        """Expand all workflow folds (agents/axe tab); ChangeSpecs tab expands all ChangeSpec groups."""
         if self.current_tab == "agents":
             self._expand_all_folds()
         elif self.current_tab == "axe":

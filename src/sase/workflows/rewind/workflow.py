@@ -33,7 +33,7 @@ class RewindWorkflow:
         """Initialize the rewind workflow.
 
         Args:
-            cl_name: The CL name.
+            cl_name: The ChangeSpec name.
             project_file: Path to the project file.
             selected_entry_num: The entry number to rewind to.
             skip_vcs: If True, skip VCS operations (bookkeeping only).
@@ -225,7 +225,7 @@ class RewindWorkflow:
         Args:
             changespec: The ChangeSpec object.
             project_file: Path to the project file.
-            cl_name: The CL name.
+            cl_name: The ChangeSpec name.
         """
         kill_and_persist_all_running_processes(
             changespec,

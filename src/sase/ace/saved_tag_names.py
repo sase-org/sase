@@ -1,4 +1,4 @@
-"""Persistence for previously used CL tag names and values."""
+"""Persistence for previously used change tag names and values."""
 
 import json
 from pathlib import Path

@@ -43,7 +43,7 @@ COMMITS:
 
 
 def test_reject_proposals_and_set_status_atomic_wrong_cl() -> None:
-    """Test when the CL name doesn't match."""
+    """Test when the ChangeSpec name doesn't match."""
     content = """NAME: other-cl
 STATUS: Ready
 COMMITS:
@@ -54,7 +54,7 @@ COMMITS:
         result = reject_proposals_and_set_status_atomic(
             str(project_file), "test-cl", "Mailed"
         )
-        # Should fail because the CL name doesn't match
+        # Should fail because the ChangeSpec name doesn't match
         assert result is False
     finally:
         project_file.unlink()

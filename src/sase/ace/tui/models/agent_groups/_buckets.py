@@ -143,7 +143,7 @@ def date_subgroup_sort_key(
     """Sort key for BY_DATE L1 subgroups within a date bucket.
 
     Newest-first within real labels, with ``NO_HOUR_LABEL`` placed last.
-    Mirrors the CLs tab's sort rule so both tabs agree on subgroup order.
+    Mirrors the ChangeSpecs tab's sort rule so both tabs agree on subgroup order.
     """
     if not subgroup:
         return (0, 0)

@@ -248,7 +248,7 @@ def main() -> int:
                 exit_code = 0
 
             # Prefer entry_id from _append_entry (correct entry ID like "6d")
-            # over proposal_id from propose (which may be a CL URL or diff path)
+            # over proposal_id from propose (which may be a PR URL or diff path)
             append_result = ewf_result.context.get("_append_entry", {})
             if isinstance(append_result, dict) and append_result.get("entry_id"):
                 proposal_id = append_result["entry_id"]

@@ -401,8 +401,8 @@ def test_changespec_list_update_renders_uppercase_hint_marker(
         jump_hints={0: "A"},
     )
 
-    # Grouped render emits a project banner before the CL row, so the
-    # CL row sits at row index 1.
+    # Grouped render emits a project banner before the ChangeSpec row, so the
+    # ChangeSpec row sits at row index 1.
     cs_row = next(i for i, e in enumerate(widget._row_entries) if e == 0)
     option = widget.get_option_at_index(cs_row)
     assert "[A]" in str(option.prompt)

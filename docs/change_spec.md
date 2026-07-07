@@ -1,8 +1,8 @@
 # ChangeSpec Format Documentation
 
-A **ChangeSpec** is a structured record for one change list (CL) or pull request (PR). It lives inside a project `.sase`
-file and records the change's description, dependency metadata, review URL, lifecycle status, commits, hooks, comments,
-mentor runs, timestamps, and computed file deltas.
+A **ChangeSpec** is a structured record for one pull request (PR). It lives inside a project `.sase` file and records
+the change's description, dependency metadata, review URL, lifecycle status, commits, hooks, comments, mentor runs,
+timestamps, and computed file deltas.
 
 ## Format Overview
 
@@ -19,7 +19,7 @@ DESCRIPTION:
   <BODY>
 PARENT: <PARENT>
 BUG: <BUG>
-CL: <CL>
+PR: <PR>
 STATUS: <STATUS>
 COMMITS:
   <COMMIT_ENTRIES>
@@ -61,7 +61,7 @@ The unique identifier for the ChangeSpec.
 
 ### DESCRIPTION
 
-A comprehensive description of what the CL does and why.
+A comprehensive description of what the PR does and why.
 
 **Structure**:
 
@@ -91,7 +91,7 @@ the legacy unprefixed spelling and the new `SASE_`-prefixed footer tags (e.g. `S
 DESCRIPTION:
   Add configuration file parser for user settings
 
-  This CL implements a YAML-based configuration parser that reads
+  This PR implements a YAML-based configuration parser that reads
   user settings from ~/.myapp/config.yaml. The parser includes a
   ConfigParser class with load() and validate() methods, along with
   type definitions for the configuration schema. Tests will cover
@@ -105,12 +105,12 @@ Specifies the dependency relationship between ChangeSpecs.
 
 **Values**:
 
-- Omit this field entirely - This CL has no dependencies (default, preferred for parallelization)
+- Omit this field entirely - This PR has no dependencies (default, preferred for parallelization)
 - `<parent_changespec_name>` - The `NAME` of a parent ChangeSpec that must be completed first
 
 The PARENT field is a ChangeSpec **name** — never a VCS ref. Values like `origin/main`, `origin/master`, or the
 Mercurial sentinel `p4head` are not valid here; they describe checkout targets for the VCS, not dependency relationships
-between CLs. "No parent ChangeSpec" is represented by omitting the field entirely. `sase commit` drops the PARENT field
+between PRs. "No parent ChangeSpec" is represented by omitting the field entirely. `sase commit` drops the PARENT field
 and warns when the value passed via `-p` does not resolve to an existing ChangeSpec.
 
 **Auto-detection:** When creating a new ChangeSpec via `sase commit`, the PARENT field is automatically set if the
@@ -121,9 +121,9 @@ current branch corresponds to an existing ChangeSpec. This can be overridden wit
 
 - **Default to omitting PARENT** to maximize parallel development
 - **Only set a PARENT when there's a real content dependency**:
-  - CL B calls a function/class that CL A creates
-  - CL B modifies a file that CL A creates
-  - CL B extends functionality that CL A introduces
+  - PR B calls a function/class that PR A creates
+  - PR B modifies a file that PR A creates
+  - PR B extends functionality that PR A introduces
 - **DO NOT set a PARENT for**:
   - Independent features that don't interact
   - Changes to different files/modules
@@ -134,31 +134,30 @@ current branch corresponds to an existing ChangeSpec. This can be overridden wit
 
 ```
 # No PARENT field = no dependencies (preferred)
-PARENT: my_project_add_config_parser   # Depends on another CL
+PARENT: my_project_add_config_parser   # Depends on another PR
 ```
 
-### CL / PR
+### PR
 
-The CL or PR identifier (e.g., CL number or PR URL). Both `CL:` and `PR:` are accepted and treated identically — use
-whichever matches your project's terminology.
+The PR identifier (usually a PR URL). New and updated ChangeSpecs use `PR:`. Legacy `CL:` fields are still accepted
+during the compatibility window and are rewritten as `PR:` when touched.
 
 **Values**:
 
-- Omit this field entirely - CL/PR not yet created (initial state)
-- `http://cl/<CL_ID>` - URL to the created CL
+- Omit this field entirely - PR not yet created (initial state)
+- `<review-url>` - URL to the created PR
 - `https://github.com/<owner>/<repo>/pull/<N>` - URL to the PR
 
 **Example**:
 
 ```
-# No CL field = CL not yet created
-CL: http://cl/12345        # After CL creation
-PR: https://github.com/org/repo/pull/42   # PR variant
+# No PR field = PR not yet created
+PR: https://github.com/org/repo/pull/42
 ```
 
 ### BUG
 
-An optional bug reference linking the CL to an issue tracker. SASE stores this as plain text. PR workflows that receive
+An optional bug reference linking the PR to an issue tracker. SASE stores this as plain text. PR workflows that receive
 `SASE_BUG_ID` or `sase commit --bug-id` write it as `http://b/<id>` in the ChangeSpec and add `SASE_BUG=<id>` to
 provider tag metadata.
 
@@ -170,19 +169,19 @@ BUG: http://b/12345
 
 ### STATUS
 
-The current state of the CL in its lifecycle.
+The current state of the PR in its lifecycle.
 
 **Valid Values**:
 
 | Status      | Description                                     |
 | ----------- | ----------------------------------------------- |
 | `WIP`       | Work in progress — initial development          |
-| `Draft`     | CL created as a draft, not yet ready for review |
+| `Draft`     | PR created as a draft, not yet ready for review |
 | `Ready`     | Ready for review                                |
 | `Mailed`    | Sent out for review                             |
 | `Submitted` | Merged / submitted to the codebase (terminal)   |
-| `Reverted`  | CL was reverted after submission (terminal)     |
-| `Archived`  | CL was abandoned without submission (terminal)  |
+| `Reverted`  | PR was reverted after submission (terminal)     |
+| `Archived`  | PR was abandoned without submission (terminal)  |
 
 **Valid Transitions**:
 
@@ -200,15 +199,15 @@ These transitions are enforced by the status state machine. Terminal statuses ar
 
 **Status Selection Rules**:
 
-- New CLs typically start as `WIP`
+- New PRs typically start as `WIP`
 - PR workflows default new ChangeSpecs to `Draft` unless `sase commit --status` or `SASE_PR_STATUS` says otherwise
-- Move to `Ready` when the CL is ready for review
+- Move to `Ready` when the PR is ready for review
 - Move to `Mailed` when sent out for review
 - Update status as work progresses through the lifecycle
 
 ### COMMITS
 
-Tracks the commit history associated with this CL. This section is managed automatically by `sase commit`.
+Tracks the commit history associated with this PR. This section is managed automatically by `sase commit`.
 
 **Entry format:**
 
@@ -285,7 +284,7 @@ not normally edited by hand. Multiple events of the same type may appear.
 
 ### DELTAS
 
-A computed summary of files added, modified, or deleted by this CL relative to its parent. The section is maintained
+A computed summary of files added, modified, or deleted by this PR relative to its parent. The section is maintained
 automatically by sase from VCS state — it is not edited by hand.
 
 **Entry format:**
@@ -306,7 +305,7 @@ drawers remain valid.
 
 | Glyph | Change type | Notes                                                                                    |
 | ----- | ----------- | ---------------------------------------------------------------------------------------- |
-| `+`   | Added       | File introduced by this CL (`A` from VCS); copies are represented as added target files. |
+| `+`   | Added       | File introduced by this PR (`A` from VCS); copies are represented as added target files. |
 | `~`   | Modified    | File edited (`M`); typechange, unmerged, or future statuses are coerced to modified.     |
 | `-`   | Deleted     | File removed (`D`).                                                                      |
 
@@ -328,7 +327,7 @@ internal intermediate value for other sections, but DELTAS normalizes any non-fo
 
 ### HOOKS
 
-Defines lifecycle hooks attached to this CL — shell commands that run automatically at specific points (e.g., after
+Defines lifecycle hooks attached to this PR — shell commands that run automatically at specific points (e.g., after
 commit, before mail). Hooks are managed via the `h` keybinding in ACE.
 
 **Entry format:**
@@ -358,7 +357,7 @@ COMMENTS:
 
 ### MENTORS
 
-Configures mentor workflows for the CL — automated agents that monitor and provide guidance during development.
+Configures mentor workflows for the PR — automated agents that monitor and provide guidance during development.
 
 **Entry format:**
 
@@ -374,14 +373,14 @@ entries without counts still parse.
 
 ## Complete Examples
 
-### Example 1: Independent CL with Tests
+### Example 1: Independent PR with Tests
 
 ```
 NAME: auth_system_add_jwt_validator
 DESCRIPTION:
   Add JWT token validation for authentication
 
-  This CL implements JWT token validation using the PyJWT library.
+  This PR implements JWT token validation using the PyJWT library.
   It includes a JWTValidator class that handles token parsing,
   signature verification, and expiration checking. The implementation
   supports both RS256 and HS256 algorithms. Tests cover valid tokens,
@@ -389,14 +388,14 @@ DESCRIPTION:
 STATUS: WIP
 ```
 
-### Example 2: Dependent CL
+### Example 2: Dependent PR
 
 ```
 NAME: auth_system_integrate_validator
 DESCRIPTION:
   Integrate JWT validator into authentication middleware
 
-  This CL integrates the JWT validator from the previous CL into
+  This PR integrates the JWT validator from the previous PR into
   the main authentication middleware. The middleware will validate
   tokens on protected routes and handle validation errors gracefully.
   Tests verify both successful authentication and various failure
@@ -406,20 +405,20 @@ PARENT: auth_system_add_jwt_validator
 STATUS: WIP
 ```
 
-### Example 3: Config-Only CL (No Tests)
+### Example 3: Config-Only PR (No Tests)
 
 ```
 NAME: auth_system_update_config
 DESCRIPTION:
   Update JWT configuration with new secret key
 
-  This CL updates the production configuration file to use a new
+  This PR updates the production configuration file to use a new
   secret key for JWT signing. This is a config-only change that
   rotates the signing key for security purposes.
 STATUS: WIP
 ```
 
-### Example 4: CL with Bug Reference
+### Example 4: PR with Bug Reference
 
 ```
 NAME: auth_system_fix_token_expiry
@@ -435,10 +434,10 @@ STATUS: Draft
 
 ## Best Practices
 
-1. **Keep CLs Small and Focused**: Each CL should address a single, well-defined change
+1. **Keep PRs Small and Focused**: Each PR should address a single, well-defined change
 2. **Maximize Parallelization**: Omit `PARENT` whenever possible
 3. **Include Tests**: Attach relevant test commands in `HOOKS`
 4. **Write Clear Descriptions**: Explain what, why, and how
-5. **Use Descriptive Names**: NAME should clearly indicate what the CL does
+5. **Use Descriptive Names**: NAME should clearly indicate what the PR does
 6. **Think About Dependencies**: Only create dependencies when truly necessary
 7. **Update Status Appropriately**: Keep STATUS field current as work progresses

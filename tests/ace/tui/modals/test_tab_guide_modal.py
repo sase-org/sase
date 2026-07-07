@@ -33,7 +33,7 @@ def test_tab_guide_modal_forwards_agents_onboarding_state() -> None:
     assert isinstance(guide, AgentOnboarding)
     sections = guide.render_content(registry)
     assert (
-        "launch against a specific project or CL instead."
+        "launch against a specific project or PR instead."
         in sections["#agent-onboarding-launch"].plain
     )
     assert guide.numbered_step_titles() == [
@@ -70,6 +70,6 @@ def test_tab_guide_modal_refresh_for_tab_rebuilds_guide_state() -> None:
     assert isinstance(guide, AgentOnboarding)
     sections = guide.render_content(registry)
     assert (
-        "launch against a specific project or CL instead."
+        "launch against a specific project or PR instead."
         in sections["#agent-onboarding-launch"].plain
     )

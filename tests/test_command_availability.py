@@ -4,7 +4,7 @@ Each test constructs a focused :class:`CommandContext` and asserts a
 single representative command is correctly visible / hidden. Coverage
 mirrors the acceptance list in ``sdd/tales/202604/tui_command_palette.md``:
 
-- CL: no CL selected, submitted/reverted CL, CL without ``cl`` number.
+- CL: no ChangeSpec selected, submitted/reverted ChangeSpec, PR without ``cl`` number.
 - Agents: group banner focus, done/failed/running/waiting-input agent.
 - Axe: parent row vs. background command row, done bgcmd row with
   re-run available.
@@ -85,7 +85,7 @@ def test_catalog_has_one_cleanup_command_and_no_legacy_kill_all() -> None:
 
 
 def test_command_hidden_when_tab_not_in_spec_tabs() -> None:
-    """A CL-only command must be hidden on the agents tab."""
+    """A ChangeSpec-only command must be hidden on the agents tab."""
     catalog = _catalog_by_id()
     show_diff = catalog["app.show_diff"]
     ctx = CommandContext(tab="agents")
@@ -93,7 +93,7 @@ def test_command_hidden_when_tab_not_in_spec_tabs() -> None:
 
 
 # ---------------------------------------------------------------------------
-# CLs tab
+# ChangeSpecs tab
 # ---------------------------------------------------------------------------
 
 
@@ -104,7 +104,7 @@ def test_show_diff_hidden_when_no_cl_selected() -> None:
     assert not is_command_available(spec, ctx)
 
 
-def test_show_diff_hidden_when_cl_has_no_cl_number() -> None:
+def test_show_diff_hidden_when_changespec_has_no_pr_number() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.show_diff"]
     cs = _make_changespec(cl=None)
@@ -112,7 +112,7 @@ def test_show_diff_hidden_when_cl_has_no_cl_number() -> None:
     assert not is_command_available(spec, ctx)
 
 
-def test_show_diff_visible_with_cl_number() -> None:
+def test_show_diff_visible_with_pr_number() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.show_diff"]
     cs = _make_changespec(cl="12345")
@@ -189,9 +189,9 @@ def test_clear_marks_only_when_marks_exist() -> None:
     )
 
 
-def test_copy_changespecs_cl_number_requires_cl() -> None:
+def test_copy_changespecs_pr_number_requires_pr() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["copy.changespecs.cl_number"]
+    spec = catalog["copy.changespecs.pr_number"]
     cs_with_cl = _make_changespec(cl="12345")
     cs_without_cl = _make_changespec(cl=None)
     assert is_command_available(
@@ -416,7 +416,7 @@ def test_revert_agent_available_with_marks_or_revertable_focus() -> None:
     )
     assert is_command_available(spec, CommandContext(tab="agents", mark_count=2))
 
-    # Tab scoping still applies — marks on the CLs tab don't surface it.
+    # Tab scoping still applies — marks on the ChangeSpecs tab don't surface it.
     assert not is_command_available(
         spec, CommandContext(tab="changespecs", mark_count=2)
     )

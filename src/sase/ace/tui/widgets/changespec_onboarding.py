@@ -128,7 +128,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         text.append("Your agents' work, shipped as PRs", style="bold #FFFFFF")
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Every CL/PR your agents produce, tracked in one place",
+            "Every PR your agents produce, tracked in one place",
             style=f"dim {_ACCENT}",
         )
         return text
@@ -136,7 +136,7 @@ class ChangeSpecOnboarding(VerticalScroll):
     @classmethod
     def _build_what_card(cls) -> Text:
         text = Text()
-        append_section_heading(text, "One ChangeSpec = one CL/PR", accent=_ACCENT)
+        append_section_heading(text, "One ChangeSpec = one PR", accent=_ACCENT)
         text.append(
             "Each tracks the full life of a change: commits, hook runs, "
             "review comments, mentors, and status."
@@ -162,7 +162,7 @@ class ChangeSpecOnboarding(VerticalScroll):
         text = Text()
         append_section_heading(text, "Agents create them for you", accent=_ACCENT)
         text.append(
-            "Launch an agent against a project or CL and its work is registered "
+            "Launch an agent against a project or PR and its work is registered "
             "here automatically."
         )
         text.append("\n")

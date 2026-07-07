@@ -16,7 +16,7 @@ Press `i` on any tab in ACE to open the notifications modal. Notifications displ
 | Key                 | Action                                                                         |
 | ------------------- | ------------------------------------------------------------------------------ |
 | `j` / `k`           | Navigate between notifications                                                 |
-| `Enter`             | Select notification (jump to CL, approve plan, etc)                            |
+| `Enter`             | Select notification (jump to PR, approve plan, etc)                            |
 | `x`                 | Dismiss notification (or bulk-dismiss every marked row when marks are present) |
 | `m`                 | Toggle the per-row mark on the highlighted notification                        |
 | `M`                 | Toggle mute on the highlighted notification                                    |
@@ -186,7 +186,7 @@ Each notification contains:
 | `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                   |
 | `tags`         | list[string] | Optional normalized labels for filtering and modal tag tabs                                            |
 | `action`       | string       | Action type: `HITL`, `JumpToChangeSpec`, `PlanApproval`, etc.                                          |
-| `action_data`  | dict         | Action-specific data (e.g., response directory, CL name)                                               |
+| `action_data`  | dict         | Action-specific data (e.g., response directory, PR name)                                               |
 | `read`         | bool         | Whether the notification has been read                                                                 |
 | `dismissed`    | bool         | Whether the notification has been dismissed                                                            |
 | `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                |

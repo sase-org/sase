@@ -9,8 +9,8 @@ Phase 1 ships the entry-level scoping that mirrors the existing
 footer logic and the help modal's tab buckets:
 
 - Tab scope: a command must list the current tab in ``spec.tabs``.
-- CL-tab entry predicates: most CL actions need a selected ChangeSpec
-  with a CL number; status-gated ones (mail/rebase/sync) follow the
+- ChangeSpec-tab entry predicates: most ChangeSpec actions need a selected ChangeSpec
+  with a PR number; status-gated ones (mail/rebase/sync) follow the
   same gates as the footer.
 - Agents-tab predicates: kill/dismiss splits by status + group focus
   + mark count, ``edit_spec``/``edit_hooks`` reuse the footer's
@@ -42,10 +42,10 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.bgcmd_list import AxeItem
 
 
-# Statuses used by footer for editable CL gating.
+# Statuses used by footer for editable PR gating.
 _EDITABLE_STATUSES: frozenset[str] = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 
-# CL actions that require a selected CL with a CL number.
+# ChangeSpec actions that require a selected PR with a PR number.
 _REQUIRES_CL_NUMBER: frozenset[str] = frozenset(
     {
         "app.show_diff",
@@ -55,7 +55,7 @@ _REQUIRES_CL_NUMBER: frozenset[str] = frozenset(
     }
 )
 
-# CL actions that require an editable status (WIP/Draft/Ready/Mailed).
+# ChangeSpec actions that require an editable status (WIP/Draft/Ready/Mailed).
 _REQUIRES_EDITABLE_STATUS: frozenset[str] = frozenset(
     {
         "app.reword",
@@ -65,7 +65,7 @@ _REQUIRES_EDITABLE_STATUS: frozenset[str] = frozenset(
     }
 )
 
-# CL actions that don't apply to Submitted / Reverted CLs.
+# ChangeSpec actions that don't apply to Submitted / Reverted ChangeSpecs.
 _REQUIRES_NON_TERMINAL_STATUS: frozenset[str] = frozenset(
     {
         "app.start_rewind",
@@ -111,13 +111,13 @@ def _get_base_status(status: str) -> str:
 
 def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     cs = ctx.changespec
-    # CL-required commands need a selected CL.
-    if spec.id in _REQUIRES_CL_NUMBER and (cs is None or cs.cl is None):
+    # ChangeSpec-required commands need a selected ChangeSpec.
+    if spec.id in _REQUIRES_CL_NUMBER and (cs is None or cs.pr_url is None):
         return False
 
     # Mail requires Ready status.
     if spec.id == "app.mail":
-        if cs is None or cs.cl is None:
+        if cs is None or cs.pr_url is None:
             return False
         return _get_base_status(cs.status) == "Ready"
 
@@ -125,8 +125,8 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id in _REQUIRES_EDITABLE_STATUS:
         if cs is None:
             return False
-        # sync also needs a CL number? Footer requires editable only.
-        if spec.id in _REQUIRES_CL_NUMBER and cs.cl is None:
+        # sync also needs a PR number? Footer requires editable only.
+        if spec.id in _REQUIRES_CL_NUMBER and cs.pr_url is None:
             return False
         return _get_base_status(cs.status) in _EDITABLE_STATUSES
 
@@ -147,7 +147,7 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.mark_count > 0
 
     # change_status / run_workflow / edit_spec / toggle_mark / rename_cl
-    # / edit_hooks all need a selected CL row but no further gating in
+    # / edit_hooks all need a selected ChangeSpec row but no further gating in
     # Phase 1 — the action methods already no-op when invalid.
     if spec.id in {
         "app.change_status",
@@ -160,17 +160,20 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     }:
         return cs is not None
 
-    # Copy-mode commands scoped to changespecs need a CL row.
+    # Copy-mode commands scoped to changespecs need a ChangeSpec row.
     if spec.id.startswith("copy.changespecs."):
         if cs is None:
             return False
-        if spec.id == "copy.changespecs.cl_number" and cs.cl is None:
+        if (
+            spec.id in {"copy.changespecs.pr_number", "copy.changespecs.cl_number"}
+            and cs.pr_url is None
+        ):
             return False
         if spec.id == "copy.changespecs.bug" and getattr(cs, "bug", None) is None:
             return False
         return True
 
-    # Leader commands scoped to CL only.
+    # Leader commands scoped to ChangeSpec only.
     if spec.id in {
         "leader.run_cmd",
         "leader.kill_mentors",
@@ -338,7 +341,7 @@ def _axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id.startswith("copy.axe."):
         return item is not None
 
-    # Most CL/agent actions don't apply on AXE — they're already
+    # Most ChangeSpec/agent actions don't apply on AXE — they're already
     # filtered by spec.tabs, so this branch only sees commands that
     # listed "axe" in their tabs (mode prefixes, navigation, etc.).
     return True

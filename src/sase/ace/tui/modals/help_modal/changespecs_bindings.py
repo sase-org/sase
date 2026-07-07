@@ -11,7 +11,7 @@ from .binding_common import (
 
 
 def cls_bindings(km: KeymapRegistry) -> Sections:
-    """Build keybinding sections for the PRs tab."""
+    """Build keybinding sections for the ChangeSpecs tab."""
     d = key_display_name
     a = km.app
     fm = km.fold_mode
@@ -21,6 +21,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
 
     cs_copy = cm.keys["changespecs"]
     assert isinstance(cs_copy, dict)
+    pr_copy_key = cs_copy.get("pr_number", cs_copy.get("cl_number"))
+    assert isinstance(pr_copy_key, str)
 
     sections: Sections = [
         (
@@ -28,7 +30,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             [
                 (
                     f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
-                    "Move to next / previous CL",
+                    "Move to next / previous ChangeSpec",
                 ),
                 (
                     f"{d(a.start_ancestor_mode)} / {d(a.start_child_mode)} / {d(a.start_sibling_mode)}",
@@ -256,8 +258,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Copy ChangeSpec + snapshot",
                 ),
                 (f"{d(cm.prefix)}{d(cs_copy['bug'])}", "Copy bug number"),
-                (f"{d(cm.prefix)}{d(cs_copy['cl_number'])}", "Copy PR number"),
-                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy PR name"),
+                (f"{d(cm.prefix)}{d(pr_copy_key)}", "Copy PR number"),
+                (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy ChangeSpec name"),
                 (f"{d(cm.prefix)}{d(cs_copy['spec'])}", "Copy project spec file"),
                 (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
             ],

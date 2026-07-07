@@ -138,7 +138,7 @@ class ChangeSpecMixin(
                 return
 
     def action_toggle_hide_reverted(self) -> None:
-        """Toggle visibility of reverted CLs, non-run agents, or axe commands."""
+        """Toggle visibility of reverted ChangeSpecs, non-run agents, or axe commands."""
         if self.current_tab == "agents":
             self._toggle_hide_non_run_agents()  # type: ignore[attr-defined]
             return
@@ -164,7 +164,7 @@ class ChangeSpecMixin(
         self._reload_and_reposition()
 
     def action_toggle_hide_submitted(self) -> None:
-        """Toggle visibility of submitted CLs."""
+        """Toggle visibility of submitted ChangeSpecs."""
         if self.current_tab != "changespecs":
             return
         self.hide_submitted = not self.hide_submitted

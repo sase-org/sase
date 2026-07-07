@@ -53,7 +53,6 @@ def test_create_changespec_for_workflow_refreshes_deltas_after_creation() -> Non
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
@@ -107,7 +106,6 @@ def test_create_changespec_for_workflow_no_commits_with_fallback() -> None:
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="CL"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_my_cl_1",
@@ -121,7 +119,7 @@ def test_create_changespec_for_workflow_no_commits_with_fallback() -> None:
             prompt="",
             response="",
             workflow_name="sase_commit",
-            cl_url="http://cl/123",
+            pr_url="http://cl/123",
             cl_name="proj_my_cl",
             commit_description="Add new feature\n\nDetailed body text.",
         )
@@ -179,7 +177,6 @@ def test_create_changespec_uses_full_commit_description() -> None:
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",
@@ -226,7 +223,6 @@ def test_create_changespec_adds_project_prefix_to_cl_name() -> None:
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="sase_fix_split_1",
@@ -270,7 +266,6 @@ def test_create_changespec_strips_pr_tags_from_commit_description() -> None:
             "sase.workspace_provider.changespec.get_initial_hooks_for_changespec",
             return_value=[],
         ),
-        patch("sase.workspace_provider.changespec.get_change_label", return_value="PR"),
         patch(
             "sase.workspace_provider.changespec.add_changespec_to_project_file",
             return_value="proj_add_thing_1",

@@ -392,7 +392,7 @@ class AgentWaitResumeMixin:
         desc_parts = [f"Kill and restart {_wait_spec_label(result)}"]
         if agent.cl_name:
             desc_parts.append(
-                f"CL: {agent.display_name or humanize_cl_name(agent.cl_name)}"
+                f"ChangeSpec: {agent.display_name or humanize_cl_name(agent.cl_name)}"
             )
         if agent.pid:
             desc_parts.append(f"PID: {agent.pid}")

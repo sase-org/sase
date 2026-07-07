@@ -1,20 +1,20 @@
-"""Group/heading tree for the CLs tab.
+"""Group/heading tree for the ChangeSpecs tab.
 
 Models a flat sequence of banner + ChangeSpec entries from a list of
 ChangeSpecs.  Mirrors the shape of ``sase.ace.tui.models.agent_groups``
-but stays separate so CL-specific bucketing rules don't leak into the
+but stays separate so ChangeSpec-specific bucketing rules don't leak into the
 Agent code (or vice versa).
 
 Modes:
 
-* ``BY_PROJECT`` — L0 project, L1 sibling root only when 2+ CLs share
+* ``BY_PROJECT`` — L0 project, L1 sibling root only when 2+ ChangeSpecs share
   the same ``foobar``-style base name.
 * ``BY_DATE`` — L0 date bucket from the latest TIMESTAMPS entry;
   ``Today`` / ``Yesterday`` add 1-hour L1 windows, ``This Week`` adds
   day L1 headings, and ``Earlier`` adds week L1 headings plus
   ``(no timestamp)``.
 * ``BY_STATUS`` — L0 status bucket from the literal ``status`` string;
-  L1 sibling root only when 2+ CLs share the same base name inside the
+  L1 sibling root only when 2+ ChangeSpecs share the same base name inside the
   same status bucket.
 
 All modes share the generic :class:`~sase.ace.tui.models.group_fold.GroupFoldRegistry`

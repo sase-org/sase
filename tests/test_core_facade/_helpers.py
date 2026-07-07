@@ -155,7 +155,7 @@ def python_wire_records_as_dicts(file_path: str, _data: bytes) -> list[dict]:
             },
             "status": w.status,
             "parent": w.parent,
-            "cl_or_pr": w.cl_or_pr,
+            "pr_url": w.pr_url,
             "bug": w.bug,
             "description": w.description,
             "commits": [],

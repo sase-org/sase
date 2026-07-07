@@ -196,7 +196,7 @@ class CommandContext:
     changespec: ChangeSpec | None = None
     agent: Agent | None = None
     axe_item: AxeItem | None = None
-    # CLs tab state
+    # ChangeSpecs tab state
     mark_count: int = 0
     # Agents tab state
     completed_agent_count: int = 0

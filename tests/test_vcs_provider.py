@@ -58,7 +58,7 @@ def test_vcs_provider_google_methods_raise() -> None:
         lambda: provider.reword_add_tag("tag", "val", "/cwd"),
         lambda: provider.get_description("rev", "/cwd"),
         lambda: provider.get_branch_name("/cwd"),
-        lambda: provider.get_cl_number("/cwd"),
+        lambda: provider.get_pr_number("/cwd"),
         lambda: provider.get_workspace_name("/cwd"),
         lambda: provider.has_local_changes("/cwd"),
         lambda: provider.get_bug_number("/cwd"),

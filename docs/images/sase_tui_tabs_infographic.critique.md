@@ -47,7 +47,7 @@ A bottom horizontal strip shows four nodes connected left-to-right by a circuit-
    conflates _what is shown_ (e.g. `running + completed runs`, `prompts, files, diffs`), _state model_ (e.g.
    `status lifecycle`), and _available actions_ (e.g. `review, mail, sync`, `resume, tag, kill`). A new reader cannot
    tell which row is "what you see" vs. "what you can do".
-4. **`status lifecycle` (PRs row 2) is opaque.** The actual CL lifecycle is documented as
+4. **`status lifecycle` (PRs row 2) is opaque.** The actual PR lifecycle is documented as
    `WIP → Draft → Ready → Mailed → Submitted` (per `memory/glossary.md`). Without those chips visible, the row is a
    label without content.
 5. **`review, mail, sync` (PRs row 3) is a grab-bag.** "review" and "mail" are real PR actions (`docs/ace.md` lists `M`
@@ -69,7 +69,7 @@ A bottom horizontal strip shows four nodes connected left-to-right by a circuit-
    is operator-facing.)
 10. **The `plan / launch / monitor / land` strip uses different visual language from the cards.** The cards have rounded
     boxes, the strip has chip-on-circuit-trace nodes; the eye reads them as different domains, which is appropriate, but
-    nothing labels them as "lifecycle below, tabs above". A divider, an eyebrow caption, or a "Agent / CL lifecycle"
+    nothing labels them as "lifecycle below, tabs above". A divider, an eyebrow caption, or a "Agent / PR lifecycle"
     label would resolve the ambiguity.
 
 ## Specific accuracy errors against current code

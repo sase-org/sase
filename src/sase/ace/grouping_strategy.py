@@ -63,7 +63,7 @@ def save_agent_grouping_mode(mode: GroupingMode) -> bool:
 def load_changespec_grouping_mode(
     default: ChangeSpecGroupingMode = ChangeSpecGroupingMode.BY_PROJECT,
 ) -> ChangeSpecGroupingMode:
-    """Load the last persisted CLs-tab grouping mode."""
+    """Load the last persisted ChangeSpecs-tab grouping mode."""
     return _load_mode(
         _changespec_grouping_mode_path(),
         ChangeSpecGroupingMode,
@@ -72,5 +72,5 @@ def load_changespec_grouping_mode(
 
 
 def save_changespec_grouping_mode(mode: ChangeSpecGroupingMode) -> bool:
-    """Persist the CLs-tab grouping mode."""
+    """Persist the ChangeSpecs-tab grouping mode."""
     return _save_mode(_changespec_grouping_mode_path(), mode)

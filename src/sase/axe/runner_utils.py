@@ -80,8 +80,8 @@ def prepare_workspace(
 
     Args:
         workspace_dir: The workspace directory.
-        cl_name: Display name for the CL/project (used for backup diff name).
-        update_target: What to checkout (CL name or "p4head").
+        cl_name: Display name for the ChangeSpec/project (used for backup diff name).
+        update_target: What to checkout (ChangeSpec branch or "p4head").
         backup_suffix: Suffix appended to cl_name for the backup diff name
             (e.g., "ace" produces "{cl_name}-ace").
         project_basename: Project basename for resolving changespec names to
@@ -346,7 +346,7 @@ def write_done_marker(
 
     Args:
         artifacts_dir: Path to the artifacts directory.
-        cl_name: Name of the ChangeSpec / CL.
+        cl_name: Name of the ChangeSpec.
         project_file: Path to the project file.
         timestamp: Timestamp in YYmmdd_HHMMSS format.
         exit_code: Exit code (0 for success).
@@ -491,7 +491,7 @@ def write_error_report(
         summary_rows = [
             ("Model", label),
             ("Workflow", workflow_name),
-            ("CL", cl_name),
+            ("ChangeSpec", cl_name),
             ("Duration", duration),
             ("Agent name", agent_name),
             ("Artifact directory", artifacts_dir),

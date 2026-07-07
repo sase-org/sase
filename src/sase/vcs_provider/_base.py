@@ -294,9 +294,13 @@ class VCSProvider(ABC):
             "get_branch_name is not supported by this VCS provider"
         )
 
+    def get_pr_number(self, cwd: str) -> tuple[bool, str | None]:
+        """Get the PR / change number for the current branch."""
+        raise NotImplementedError("get_pr_number is not supported by this VCS provider")
+
     def get_cl_number(self, cwd: str) -> tuple[bool, str | None]:
-        """Get the CL / change number for the current branch."""
-        raise NotImplementedError("get_cl_number is not supported by this VCS provider")
+        """Legacy alias for :meth:`get_pr_number`."""
+        return self.get_pr_number(cwd)
 
     def get_workspace_name(self, cwd: str) -> tuple[bool, str | None]:
         """Get the workspace / repository name."""
@@ -320,7 +324,7 @@ class VCSProvider(ABC):
         )
 
     def mail(self, revision: str, cwd: str) -> tuple[bool, str | None]:
-        """Mail / upload a CL for review."""
+        """Mail / upload a PR for review."""
         raise NotImplementedError("mail is not supported by this VCS provider")
 
     def fix(self, cwd: str) -> tuple[bool, str | None]:
@@ -331,8 +335,8 @@ class VCSProvider(ABC):
         """Upload the current change for review."""
         raise NotImplementedError("upload is not supported by this VCS provider")
 
-    def find_reviewers(self, cl_number: str, cwd: str) -> tuple[bool, str | None]:
-        """Find suggested reviewers for a CL."""
+    def find_reviewers(self, pr_number: str, cwd: str) -> tuple[bool, str | None]:
+        """Find suggested reviewers for a PR/change number."""
         raise NotImplementedError(
             "find_reviewers is not supported by this VCS provider"
         )
@@ -370,11 +374,11 @@ class VCSProvider(ABC):
     def abandon_change(
         self, cl: str, revision: str, cwd: str
     ) -> tuple[bool, str | None]:
-        """Abandon/close the remote change (PR, CL) associated with a revision.
+        """Abandon/close the remote change (PR, ChangeSpec) associated with a revision.
 
         Called during revert/archive before the local revision is pruned.
         The default implementation is a no-op — providers that manage remote
-        changes (PRs, CLs) should override this.
+        changes (PRs, ChangeSpecs) should override this.
 
         Returns ``(True, None)`` on success or no-op.
         """
@@ -399,7 +403,7 @@ class VCSProvider(ABC):
         return tag_value
 
     def get_change_url(self, cwd: str) -> tuple[bool, str | None]:
-        """Get the URL for the current change (CL URL or PR URL).
+        """Get the URL for the current change (PR URL or PR URL).
 
         Returns ``(True, url)`` on success, ``(True, None)`` if no change
         exists yet (e.g. git branch with no PR).
@@ -409,10 +413,10 @@ class VCSProvider(ABC):
         )
 
     def get_change_body(self, change_ref: str, cwd: str) -> tuple[bool, str | None]:
-        """Get the body/description of a change (PR body or CL description).
+        """Get the body/description of a change (PR body or change description).
 
         Args:
-            change_ref: A change identifier (e.g. PR URL or CL number).
+            change_ref: A change identifier (e.g. PR URL or PR number).
             cwd: Working directory inside the repository.
 
         Returns ``(True, body_text)`` on success, ``(False, error)`` on failure.

@@ -320,7 +320,7 @@ def test_get_project_from_workspace_falls_back_when_resolution_fails(
 
 # Tests for get_changespec_from_file
 def test_get_changespec_from_file_not_found() -> None:
-    """Test get_changespec_from_file returns None when CL not found."""
+    """Test get_changespec_from_file returns None when ChangeSpec not found."""
     content = """NAME: other_feature
 DESCRIPTION: Test description
 STATUS: Ready

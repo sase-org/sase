@@ -111,7 +111,7 @@ def _clear_hook_status_lines_for_last_history(
 def restore_changespec(
     changespec: ChangeSpec, console: Console | None = None
 ) -> tuple[bool, str | None]:
-    """Restore a reverted or archived ChangeSpec by re-applying its diff and creating a new CL.
+    """Restore a reverted or archived ChangeSpec by re-applying its diff and creating a new PR.
 
     This function:
     1. Validates that the ChangeSpec has "Reverted" or "Archived" status

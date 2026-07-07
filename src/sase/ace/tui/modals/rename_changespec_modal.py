@@ -1,4 +1,4 @@
-"""Rename CL modal for the ace TUI."""
+"""Rename ChangeSpec modal for the ace TUI."""
 
 from sase.ace.changespec.project_spec_path import project_spec_basename
 from textual.app import ComposeResult
@@ -13,7 +13,7 @@ class _RenameInput(SingleLineVimTextArea):
     """Single-line vim editor for ChangeSpec names."""
 
 
-class RenameCLModal(ModalScreen[str | None]):
+class RenameChangeSpecModal(ModalScreen[str | None]):
     """Modal for renaming a ChangeSpec.
 
     Returns the new name if valid, None if cancelled.
@@ -109,7 +109,7 @@ class RenameCLModal(ModalScreen[str | None]):
         ):
             if not has_suffix(new_name):
                 self.notify(
-                    "WIP/Draft/Reverted CLs with __<N> suffix must keep suffix",
+                    "WIP/Draft/Reverted ChangeSpecs with __<N> suffix must keep suffix",
                     severity="error",
                 )
                 return

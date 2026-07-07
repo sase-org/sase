@@ -225,7 +225,7 @@ class StateInitMixin:
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
         # Agents-tab banner targets (kept in their own maps so the int-keyed
-        # agent maps above can stay shared with CLs / AXE tabs).
+        # agent maps above can stay shared with ChangeSpecs / AXE tabs).
         from .navigation.jump_hints import (
             AgentJumpAnchor,
             BannerJumpTarget,
@@ -235,8 +235,8 @@ class StateInitMixin:
         self._entry_jump_hint_to_banner: dict[str, BannerJumpTarget] = {}
         self._entry_jump_banner_to_hint: dict[BannerJumpTarget, str] = {}
 
-        # CLs-tab banner jump-hint maps for grouped mode.  Banner identity
-        # is the group key tuple — there's no panel scope on CLs so the
+        # ChangeSpecs-tab banner jump-hint maps for grouped mode.  Banner identity
+        # is the group key tuple — there's no panel scope on ChangeSpecs so the
         # tuple alone is sufficient.  Empty in flat mode and on tabs that
         # don't render banner rows.
         self._entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]] = {}
@@ -267,7 +267,7 @@ class StateInitMixin:
         self._all_changespecs: list[ChangeSpec] = []  # Cache for ancestry lookup
         self._query_corpus: QueryCorpus | None = None
         self._query_corpus_source_list_id: int | None = None
-        self._hidden_reverted_count: int = 0  # Count of filtered reverted CLs
+        self._hidden_reverted_count: int = 0  # Count of filtered reverted ChangeSpecs
 
         # Tab state - track position in each tab
         self._changespecs_last_idx: int = 0
@@ -385,7 +385,7 @@ class StateInitMixin:
         # underlying agent.
         self._current_group_key: tuple[str, ...] | None = None
 
-        # CLs-tab grouping state (mirrors the Agents-tab attributes above
+        # ChangeSpecs-tab grouping state (mirrors the Agents-tab attributes above
         # but with its own enum and per-mode fold registries so cycling
         # one tab cannot leak collapse intent into the other).
         # Empty registry on first paint => every group expanded.
@@ -403,7 +403,7 @@ class StateInitMixin:
         self._changespec_group_fold_registry: GroupFoldRegistry = (
             self._changespec_group_fold_registries[self._changespec_grouping_mode]
         )
-        # Active banner focus on the CLs tab (Phase 4 will surface this on
+        # Active banner focus on the ChangeSpecs tab (Phase 4 will surface this on
         # navigation; Phase 3 just needs a stable attribute to clear on
         # mode cycle and pass through to ``ChangeSpecList.update_list``).
         self._current_changespec_group_key: tuple[str, ...] | None = None

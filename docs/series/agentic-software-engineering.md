@@ -30,7 +30,7 @@ Alongside the series, the current product guides make each concept concrete:
   first-run path.
 - [ACE TUI](../ace.md) for the interactive control surface.
 - [Spec-Driven Development](../sdd.md) for plans, epics, legends, and executable phase work.
-- [ChangeSpecs](../change_spec.md) for reviewable CL/PR-sized work records.
+- [ChangeSpecs](../change_spec.md) for reviewable PR-sized work records.
 - [Beads](../beads.md) for issue-like work items, dependency ordering, and multi-agent epic execution.
 - [XPrompts](../xprompt.md) for reusable prompt templates and workflow packaging.
 - [GitHub](https://github.com/sase-org/sase) for source, issues, and implementation details.

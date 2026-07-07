@@ -74,7 +74,7 @@ def _setup_nonhome_agent(home: Path) -> tuple[Path, Path]:
         "DESCRIPTION:\n"
         "  Test\n"
         "PARENT: None\n"
-        "CL: None\n"
+        "PR: None\n"
         "STATUS: Ready\n"
     )
     return artifacts_dir, project_file

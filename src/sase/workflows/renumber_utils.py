@@ -13,7 +13,7 @@ def sort_hook_status_lines(lines: list[str], cl_name: str) -> list[str]:
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name.
+        cl_name: The ChangeSpec name.
 
     Returns:
         Lines with hook status lines sorted by entry ID.
@@ -194,7 +194,7 @@ def find_commits_section(lines: list[str], cl_name: str) -> tuple[int, int]:
 
     Args:
         lines: All lines from the project file.
-        cl_name: The CL name to find.
+        cl_name: The ChangeSpec name to find.
 
     Returns:
         Tuple of (commits_start, commits_end) line indices.

@@ -31,7 +31,7 @@ def register_commit_parser(subparsers: argparse._SubParsersAction) -> None:
     commit_parser.add_argument(
         "-n",
         "--name",
-        help="Branch/CL name (required for create_pull_request)",
+        help="Branch/ChangeSpec name (required for create_pull_request)",
     )
     commit_parser.add_argument(
         "-B",
@@ -82,7 +82,7 @@ def register_restore_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'restore' subcommand parser."""
     restore_parser = subparsers.add_parser(
         "restore",
-        help="Restore a reverted ChangeSpec by re-applying its diff and creating a new CL",
+        help="Restore a reverted ChangeSpec by re-applying its diff and creating a new PR",
     )
     restore_parser.add_argument(
         "name",
@@ -102,7 +102,7 @@ def register_revert_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'revert' subcommand parser."""
     revert_parser = subparsers.add_parser(
         "revert",
-        help="Revert a ChangeSpec by pruning its CL and archiving the diff",
+        help="Revert a ChangeSpec by pruning its PR and archiving the diff",
     )
     revert_parser.add_argument(
         "name",

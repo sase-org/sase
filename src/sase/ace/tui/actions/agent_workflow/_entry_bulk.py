@@ -41,7 +41,7 @@ class EntryBulkMixin:
         first_cs = self._bulk_changespecs[0]
         count = len(self._bulk_changespecs)
 
-        self.notify(f"Running agent on {count} marked CL(s)")  # type: ignore[attr-defined]
+        self.notify(f"Running agent on {count} marked ChangeSpec(s)")  # type: ignore[attr-defined]
 
         self._show_prompt_input_bar(  # type: ignore[attr-defined]
             first_cs.project_basename,

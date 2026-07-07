@@ -43,7 +43,7 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         self,
         group_key: tuple[str, ...],
     ) -> bool:
-        """Return whether ``group_key`` is a selectable CL banner right now."""
+        """Return whether ``group_key`` is a selectable ChangeSpec banner right now."""
         stops_fn = getattr(self, "_changespec_navigation_stops", None)
         if not callable(stops_fn):
             return False
@@ -69,7 +69,7 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         )
 
     def _current_entry_jump_anchor(self) -> EntryJumpAnchor | None:
-        """Snapshot the current non-Agents cursor as a row or CL banner."""
+        """Snapshot the current non-Agents cursor as a row or ChangeSpec banner."""
         if self.current_tab == "changespecs":
             group_key = getattr(self, "_current_changespec_group_key", None)
             if group_key is not None:

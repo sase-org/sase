@@ -127,7 +127,7 @@ def handle_jump_to_changespec(app: object, notification: Notification) -> bool:
 def handle_jump_to_mentor_review(app: object, notification: Notification) -> bool:
     """Jump to the changespec and open Mentor Review iff comments exist.
 
-    Navigates to the CLs tab, selects the target ChangeSpec, then — if the
+    Navigates to the ChangeSpecs tab, selects the target ChangeSpec, then — if the
     referenced entry has reviewable mentors — pushes the Mentor Review modal.
 
     Args:

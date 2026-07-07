@@ -118,7 +118,7 @@ from sase.agent.names._wipe import AgentNameWipeResult, wipe_agent_name_for_reus
 
 
 def resolve_agent_changespec(name: str) -> str:
-    """Resolve a named agent to its changespec (branch/CL name).
+    """Resolve a named agent to its changespec (branch/ChangeSpec name).
 
     Raises AgentRefError for all failure modes.
     """
@@ -163,7 +163,7 @@ def resolve_agent_changespec(name: str) -> str:
             changespec = value[:paren_idx].strip() if paren_idx > 0 else value
     if not changespec:
         raise AgentRefError(
-            f"Agent '{name}' completed but did not create a PR/CL. "
+            f"Agent '{name}' completed but did not create a PR. "
             f"The agent must have run a #pr workflow to use @{name} syntax."
         )
 

@@ -196,9 +196,9 @@ class AcceptMailMixin(HintMixinBase):
                     mail_success = run_mail()
 
                 if mail_success:
-                    self.notify("CL mailed successfully")  # type: ignore[attr-defined]
+                    self.notify("PR mailed successfully")  # type: ignore[attr-defined]
                 else:
-                    self.notify("Failed to mail CL", severity="error")  # type: ignore[attr-defined]
+                    self.notify("Failed to mail PR", severity="error")  # type: ignore[attr-defined]
             else:
                 self.notify("Marked as ready to mail")  # type: ignore[attr-defined]
 

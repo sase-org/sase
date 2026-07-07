@@ -1,9 +1,9 @@
-"""Grouping-mode cycle action shared by the Agents and CLs tabs.
+"""Grouping-mode cycle action shared by the Agents and ChangeSpecs tabs.
 
 The cycle key (``o`` by default) advances per-tab grouping state and
 re-renders that tab.  Per-mode fold registries are kept in
 :attr:`_group_fold_registries` (Agents) and
-:attr:`_changespec_group_fold_registries` (CLs) so a mode-specific
+:attr:`_changespec_group_fold_registries` (ChangeSpecs) so a mode-specific
 collapse layout is restored when the user cycles back to a
 previously-visited mode.
 
@@ -39,7 +39,7 @@ _MODE_LABELS: dict[str, str] = {
     "BY_STATUS": "by status",
 }
 
-#: CLs-tab cycle order — BY_PROJECT is the first-paint default; the cycle
+#: ChangeSpecs-tab cycle order — BY_PROJECT is the first-paint default; the cycle
 #: walks through the three real grouping strategies and wraps back.
 _CHANGESPEC_GROUPING_CYCLE: tuple[str, ...] = (
     "BY_PROJECT",
@@ -47,7 +47,7 @@ _CHANGESPEC_GROUPING_CYCLE: tuple[str, ...] = (
     "BY_STATUS",
 )
 
-#: Human-readable labels for the CLs-tab toast emitted on each step.
+#: Human-readable labels for the ChangeSpecs-tab toast emitted on each step.
 _CHANGESPEC_MODE_LABELS: dict[str, str] = {
     "BY_PROJECT": "by project",
     "BY_DATE": "by date",
@@ -87,7 +87,7 @@ class AgentGroupingMixin:
     def _next_changespec_grouping_mode(
         self, *, reverse: bool = False
     ) -> ChangeSpecGroupingMode:
-        """Return the CL mode that follows :attr:`_changespec_grouping_mode`."""
+        """Return the PR mode that follows :attr:`_changespec_grouping_mode`."""
         from ...models.changespec_groups import ChangeSpecGroupingMode
 
         order = [ChangeSpecGroupingMode[name] for name in _CHANGESPEC_GROUPING_CYCLE]
@@ -110,7 +110,7 @@ class AgentGroupingMixin:
     def _ensure_changespec_mode_registry(
         self, mode: ChangeSpecGroupingMode
     ) -> GroupFoldRegistry:
-        """Return the CL fold registry for *mode*, lazily allocating one."""
+        """Return the PR fold registry for *mode*, lazily allocating one."""
         from ...models.group_fold import GroupFoldRegistry
 
         registry = self._changespec_group_fold_registries.get(mode)
@@ -189,7 +189,7 @@ class AgentGroupingMixin:
     def action_cycle_grouping_mode(self) -> None:
         """Advance the focused tab's grouping mode by one step.
 
-        On Agents and CLs the active mode advances and the tab is
+        On Agents and ChangeSpecs the active mode advances and the tab is
         refreshed.  On AXE (which has no grouping model) the action is a
         silent no-op.
         """

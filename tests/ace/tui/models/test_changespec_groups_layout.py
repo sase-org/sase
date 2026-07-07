@@ -407,7 +407,7 @@ def test_collapsed_group_suppresses_descendants_and_leaves_siblings_alone() -> N
     entries = build_changespec_tree(
         cl, ChangeSpecGroupingMode.BY_PROJECT, fold_registry=registry, now=_NOW
     )
-    # Both project banners still render, but alpha's CL is hidden.
+    # Both project banners still render, but alpha's PR is hidden.
     assert _kinds(entries) == [
         ("group", 0),
         ("group", 0),

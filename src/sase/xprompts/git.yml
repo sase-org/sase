@@ -61,8 +61,8 @@ steps:
 
       provider = get_vcs_provider(os.getcwd())
 
-      # Checkout the CL branch so that subsequent diffs are relative to the
-      # CL tip rather than the default branch.  Try checkout_target first
+      # Checkout the PR branch so that subsequent diffs are relative to the
+      # PR tip rather than the default branch.  Try checkout_target first
       # (works for default-branch refs like origin/main), then fall back to
       # ChangeSpec name -> branch name conversion.
       ok, err = provider.checkout(checkout_target, os.getcwd())

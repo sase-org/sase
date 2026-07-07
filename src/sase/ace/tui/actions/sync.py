@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ...changespec import ChangeSpec
 
 # Lock for SASE_SYNC_CWD env var to prevent race conditions
-# between concurrent sync tasks for different CLs.
+# between concurrent sync tasks for different ChangeSpecs.
 _sync_env_lock = threading.Lock()
 
 
@@ -79,7 +79,7 @@ def _sync_task(
         if not clean_success:
             print(f"Warning: sase_hg_clean failed: {clean_error}")
 
-        # Checkout the CL
+        # Checkout the ChangeSpec
         print(f"Checking out {changespec_name}...")
         provider = get_vcs_provider(workspace_dir)
         resolved = provider.resolve_revision(
@@ -185,7 +185,7 @@ class SyncMixin:
 
         This action:
         1. Validates STATUS is not "Submitted", "Reverted", or "Archived"
-        2. Checks per-CL deduplication (handled by _submit_background_task)
+        2. Checks per-ChangeSpec deduplication (handled by _submit_background_task)
         3. Submits a background task that claims/releases workspace
         4. Shows toast notifications for start/completion/failure
         """

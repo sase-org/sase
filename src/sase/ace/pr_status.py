@@ -1,4 +1,4 @@
-"""CL submission and comment status checking for ChangeSpecs."""
+"""PR submission and comment status checking for ChangeSpecs."""
 
 import os
 import sys

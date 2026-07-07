@@ -92,7 +92,7 @@ class TaskActionsMixin:
     ) -> bool:
         """Submit a task to run in background via run_worker().
 
-        Returns False if a task is already running for this CL.
+        Returns False if a task is already running for this ChangeSpec.
         The callable should return (success, message).
         Output capture (stdout/stderr redirect) is handled automatically.
         """
@@ -137,7 +137,7 @@ class TaskActionsMixin:
 
         Returns None if a running task already exists for the dedup scope.
         Existing ChangeSpec actions keep using :meth:`_submit_background_task`;
-        launch and other non-CL work can provide ``display_name`` and
+        launch and other non-ChangeSpec work can provide ``display_name`` and
         ``dedup_key`` for clean task-queue rows.
         """
         if not hasattr(self, "_task_completion_callbacks"):

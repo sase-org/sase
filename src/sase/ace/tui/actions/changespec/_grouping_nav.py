@@ -1,9 +1,9 @@
-"""Grouped-mode navigation, folding, and jump-hint helpers for the CLs tab.
+"""Grouped-mode navigation, folding, and jump-hint helpers for the ChangeSpecs tab.
 
-The CLs tab is always grouped (``BY_PROJECT`` / ``BY_DATE`` /
+The ChangeSpecs tab is always grouped (``BY_PROJECT`` / ``BY_DATE`` /
 ``BY_STATUS``).  The actions in
 :mod:`sase.ace.tui.actions.navigation._basic` and
-:mod:`sase.ace.tui.actions.agents._folding` delegate the CL branch into
+:mod:`sase.ace.tui.actions.agents._folding` delegate the PR branch into
 this mixin so banner rows are first-class navigation/fold targets,
 mirroring the Agents-tab mental model.
 """
@@ -26,14 +26,14 @@ if TYPE_CHECKING:
 TabName = Literal["changespecs", "agents", "axe"]
 
 
-# Banner stops are ``("banner", group_key)`` and CL stops are
+# Banner stops are ``("banner", group_key)`` and PR stops are
 # ``("changespec", filtered_idx)``.  Filtered_idx is the index into
 # ``self.changespecs`` (post-filter), matching ``current_idx``.
 _NavigationStop = tuple[Literal["banner", "changespec"], object]
 
 
 class ChangeSpecGroupingNavMixin:
-    """Mixin providing grouped-mode navigation/fold/jump helpers for CLs."""
+    """Mixin providing grouped-mode navigation/fold/jump helpers for ChangeSpecs."""
 
     # Type hints for attributes accessed from AceApp.
     changespecs: list[ChangeSpec]
@@ -44,9 +44,9 @@ class ChangeSpecGroupingNavMixin:
     _current_changespec_group_key: tuple[str, ...] | None
 
     def _changespec_navigation_stops(self) -> list[_NavigationStop]:
-        """Return the CL list's selectable rows in render order.
+        """Return the ChangeSpec list's selectable rows in render order.
 
-        Each entry is ``("changespec", idx)`` for a visible CL row or
+        Each entry is ``("changespec", idx)`` for a visible ChangeSpec row or
         ``("banner", group_key)`` for a collapsed banner row.  Used by
         ``j``/``k`` so the cursor steps through every visible row,
         including collapsed banners.
@@ -70,12 +70,12 @@ class ChangeSpecGroupingNavMixin:
     def _focused_changespec_group_keys(
         self,
     ) -> tuple[GroupKey | None, GroupKey | None]:
-        """Return ``(deep_key | None, l0_key | None)`` for the focused CL.
+        """Return ``(deep_key | None, l0_key | None)`` for the focused ChangeSpec.
 
-        ``deep_key`` is the deepest banner that contains the focused CL —
+        ``deep_key`` is the deepest banner that contains the focused PR —
         the L1 sibling-root banner when one is visible, otherwise
         ``None``.  ``l0_key`` is the enclosing project / date / status
-        banner.  Returns ``(None, None)`` when no CL is focused.
+        banner.  Returns ``(None, None)`` when no PR is focused.
         """
         from ...models.group_fold import GroupFoldRegistry
 
@@ -126,7 +126,7 @@ class ChangeSpecGroupingNavMixin:
                     pos = i
                     break
         if pos is None:
-            # No prior anchor matches; fall back to the closest CL stop
+            # No prior anchor matches; fall back to the closest PR stop
             # by global index, otherwise the first banner.
             best: int | None = None
             best_dist: int | None = None
@@ -151,7 +151,7 @@ class ChangeSpecGroupingNavMixin:
         # The ``current_idx`` setter only fires ``watch_current_idx``
         # (the refresh trigger) when the index actually changes.
         # Banner-targeted stops leave ``current_idx`` untouched, and
-        # banner→CL transitions can land on the same index — in both
+        # banner→ChangeSpec transitions can land on the same index — in both
         # cases nothing fires a refresh, so the highlight stays stale
         # on the previously selected row.  Drive it explicitly whenever
         # only ``_current_changespec_group_key`` changed.
@@ -162,10 +162,10 @@ class ChangeSpecGroupingNavMixin:
             self._refresh_display()  # type: ignore[attr-defined]
 
     def _snap_changespec_focus_after_fold_change(self) -> None:
-        """Re-anchor focus when the active CL or banner stopped being visible.
+        """Re-anchor focus when the active PR or banner stopped being visible.
 
-        After collapsing the enclosing group of the focused CL, the
-        renderer hides the CL's row.  Snap focus to the deepest
+        After collapsing the enclosing group of the focused ChangeSpec, the
+        renderer hides the ChangeSpec's row.  Snap focus to the deepest
         collapsed ancestor banner that's still visible so the cursor
         lands on a row the user can actually see.
         """
@@ -178,7 +178,7 @@ class ChangeSpecGroupingNavMixin:
             mode=self._changespec_grouping_mode,
             fold_registry=registry,
         )
-        # If the focused CL row is in the visible tree, focus stays on it.
+        # If the focused ChangeSpec row is in the visible tree, focus stays on it.
         for entry in entries:
             if entry.kind == "changespec" and entry.changespec_idx == self.current_idx:
                 self._current_changespec_group_key = None
@@ -206,7 +206,7 @@ class ChangeSpecGroupingNavMixin:
         """Move focus off a banner that just stopped being selectable.
 
         Picks (in order): the first remaining collapsed child banner of
-        the expanded group, then the first visible CL of the group, then
+        the expanded group, then the first visible PR of the group, then
         leaves selection alone.
         """
         registry = self._changespec_group_fold_registry
@@ -254,11 +254,11 @@ class ChangeSpecGroupingNavMixin:
                 return True
             return False
         # Agent focus, no banner — there's nothing collapsed to expand
-        # at this level (the focused CL is in an already-expanded group).
+        # at this level (the focused PR is in an already-expanded group).
         return False
 
     def _collapse_changespec_group_fold(self) -> bool:
-        """Collapse the focused banner or the focused CL's enclosing group.
+        """Collapse the focused banner or the focused ChangeSpec's enclosing group.
 
         ``h`` rules:
 
@@ -357,7 +357,7 @@ class ChangeSpecGroupingNavMixin:
     def _changespec_jump_targets(
         self,
     ) -> list[tuple[Literal["changespec", "banner"], object]]:
-        """Return jump targets for the CLs tab in render order.
+        """Return jump targets for the ChangeSpecs tab in render order.
 
         Mirrors the ``j``/``k`` stops list but is named separately so
         the call site can stay close to other jump-mode helpers.
@@ -369,10 +369,10 @@ class ChangeSpecGroupingNavMixin:
     def _changespec_banner_focus_still_valid(self) -> bool:
         """Return ``True`` when the active banner key still maps to a banner.
 
-        Used after a CL list reload: if the user was focused on a banner
+        Used after a ChangeSpec list reload: if the user was focused on a banner
         whose group was filtered out (e.g. query change dropped its
         last member), drop the stale focus so the cursor falls back to
-        a real CL row.  Tolerant of partially-initialized fixtures: a
+        a real ChangeSpec row.  Tolerant of partially-initialized fixtures: a
         harness that never assigned ``_current_changespec_group_key``
         is treated as "no banner focused" (valid).
         """

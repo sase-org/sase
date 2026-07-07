@@ -1,4 +1,4 @@
-description: Apply accepted mentor review comments to a CL.
+description: Apply accepted mentor review comments to a PR.
 tags: make_mentor_changes
 
 input:
@@ -7,11 +7,11 @@ input:
     description: JSON array of accepted mentor comments to apply.
   cl_name:
     type: word
-    description: CL or ChangeSpec name where the changes should be applied.
+    description: PR or ChangeSpec name where the changes should be applied.
   vcs_type:
     type: word
     default: "hg"
-    description: VCS directive prefix to use for the target CL.
+    description: VCS directive prefix to use for the target PR.
 
 steps:
   - name: render_changes

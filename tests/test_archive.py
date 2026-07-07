@@ -9,14 +9,14 @@ from sase.running_field import ClaimResult
 _OK_CLAIM = ClaimResult(success=True)
 
 
-def test_archive_changespec_fails_without_cl(make_changespec) -> None:  # type: ignore[no-untyped-def]
-    """Test archive_changespec fails when CL is not set."""
+def test_archive_changespec_fails_without_pr(make_changespec) -> None:  # type: ignore[no-untyped-def]
+    """Test archive_changespec fails when PR is not set."""
     changespec = make_changespec.create_with_file(cl=None)
 
     success, error = archive_changespec(changespec)
 
     assert success is False
-    assert error == "ChangeSpec does not have a valid CL set"
+    assert error == "ChangeSpec does not have a valid PR set"
     Path(changespec.file_path).unlink()
 
 
@@ -166,7 +166,7 @@ def test_archive_changespec_releases_workspace_on_failure(make_changespec) -> No
 
     assert success is False
     assert error is not None
-    assert "Failed to checkout CL" in error
+    assert "Failed to checkout ChangeSpec branch" in error
     mock_release.assert_called_once()
 
     Path(changespec.file_path).unlink()

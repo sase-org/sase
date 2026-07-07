@@ -144,7 +144,7 @@ def test_changespec_to_wire_full_round_trip() -> None:
     assert wire.source_span == SourceSpanWire(
         file_path="/proj/myproj.sase", start_line=10, end_line=42
     )
-    assert wire.cl_or_pr == "PR/42"
+    assert wire.pr_url == "PR/42"
     assert wire.bug == "BUG-1"
     assert len(wire.commits) == 2
     assert wire.commits[0].suffix == "ZOMBIE"
@@ -269,7 +269,7 @@ def test_changespec_wire_from_dict_rejects_unknown_schema_version() -> None:
         "source_span": {"file_path": "p.sase", "start_line": 1, "end_line": 1},
         "status": "WIP",
         "parent": None,
-        "cl_or_pr": None,
+        "pr_url": None,
         "bug": None,
         "description": "",
     }
@@ -291,7 +291,7 @@ def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
         "source_span": {"file_path": "p.sase", "start_line": 1, "end_line": 1},
         "status": "WIP",
         "parent": None,
-        "cl_or_pr": None,
+        "pr_url": None,
         "bug": None,
         "description": "",
     }

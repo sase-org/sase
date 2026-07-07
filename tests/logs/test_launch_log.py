@@ -88,7 +88,7 @@ class TestLogLaunchFailure:
     def test_omits_none_optionals(self) -> None:
         log_launch_failure(
             kind="bulk",
-            display_name="bulk 4 CLs",
+            display_name="bulk 4 ChangeSpecs",
             exc=_boom(),
             slot_count=4,
         )

@@ -38,7 +38,7 @@ def test_mark_hooks_as_killed_sets_dead_status() -> None:
 
     # Call mark_hooks_as_killed with description
     result = mark_hooks_as_killed(
-        [hook], killed_processes, "Killed hook running on reverted CL."
+        [hook], killed_processes, "Killed hook running on reverted ChangeSpec."
     )
 
     # Verify the result
@@ -59,7 +59,7 @@ def test_mark_hooks_as_killed_sets_dead_status() -> None:
     # Suffix should now include PID and description with timestamp
     assert result_sl.suffix is not None
     assert result_sl.suffix.startswith("12345 | [")
-    assert "Killed hook running on reverted CL." in result_sl.suffix
+    assert "Killed hook running on reverted ChangeSpec." in result_sl.suffix
 
 
 # Tests for kill_running_processes_for_hooks

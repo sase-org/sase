@@ -69,7 +69,7 @@ def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
     for key in ("f1", "f2", "f3", "f4", "f5"):
         assert key in inspect_text
     assert "open a finished agent's chat transcript" in inspect_text
-    assert "jump to the CL it produced" in inspect_text
+    assert "jump to the PR it produced" in inspect_text
     assert "browse artifacts" in inspect_text
 
 
@@ -133,7 +133,7 @@ def test_launch_card_includes_project_cl_hint_when_targets_exist() -> None:
 
     assert "open the prompt bar and describe a task" in launch_text
     assert "launches an agent in your home workspace." in launch_text
-    assert "launch against a specific project or CL instead." in launch_text
+    assert "launch against a specific project or PR instead." in launch_text
     assert "The prompt bar works from any tab." in launch_text
 
 
@@ -146,7 +146,7 @@ def test_launch_card_omits_project_cl_hint_without_targets() -> None:
     launch_text = _section_plain(sections, "#agent-onboarding-launch")
 
     assert "open the prompt bar and describe a task" in launch_text
-    assert "launch against a specific project or CL instead." not in launch_text
+    assert "launch against a specific project or PR instead." not in launch_text
     assert "The prompt bar works from any tab." in launch_text
 
 

@@ -1,14 +1,18 @@
 """
 Field update functions for ChangeSpec files.
 
-This module provides atomic update operations for STATUS, CL, PARENT, and
+This module provides atomic update operations for STATUS, PR, PARENT, and
 DESCRIPTION fields.
 """
 
 import logging
 
 from sase.ace.changespec import changespec_lock, write_changespec_atomic
-from sase.workspace_provider import get_change_label
+from sase.ace.changespec.review_field import (
+    REVIEW_URL_PREFIXES,
+    format_review_url_line,
+    is_review_url_line,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,45 +63,48 @@ def _apply_status_update_python(
     return "".join(updated_lines)
 
 
-def _apply_cl_update(
-    lines: list[str], changespec_name: str, new_cl: str | None, project_file: str
+def _apply_pr_url_update(
+    lines: list[str], changespec_name: str, new_pr_url: str | None, project_file: str
 ) -> str:
-    """Apply CL field update to file lines.
+    """Apply PR review URL field update to file lines.
 
     Args:
         lines: Current file lines.
         changespec_name: NAME of the ChangeSpec to update.
-        new_cl: New CL value (None to reset/remove).
-        project_file: Path to the project file (used to determine CL/PR label).
+        new_pr_url: New PR URL value (None to reset/remove).
+        project_file: Path to the project file.
 
     Returns:
         Updated file content as a string.
     """
     updated_lines = []
     in_target_changespec = False
-    found_cl_line = False
+    found_pr_url_line = False
+    del project_file
 
     for line in lines:
         # Check if this is a NAME field
         if line.startswith("NAME:"):
             current_name = line.split(":", 1)[1].strip()
             in_target_changespec = current_name == changespec_name
-            found_cl_line = False  # Reset for new ChangeSpec
+            found_pr_url_line = False  # Reset for new ChangeSpec
 
-        # Update CL/PR if we're in the target ChangeSpec
-        if in_target_changespec and line.startswith(("CL:", "PR:")):
-            found_cl_line = True
-            # Replace the CL/PR line, or skip it entirely if resetting to None
-            if new_cl is not None:
-                prefix = "PR" if line.startswith("PR:") else "CL"
-                updated_lines.append(f"{prefix}: {new_cl}\n")
-            # When new_cl is None, we simply skip this line (don't append it)
-        elif in_target_changespec and line.startswith("STATUS:") and not found_cl_line:
-            # CL/PR field doesn't exist - add it before STATUS if we have a new value
-            if new_cl is not None:
-                label = get_change_label(project_file)
-                updated_lines.append(f"{label}: {new_cl}\n")
-                found_cl_line = True
+        # Update PR URL if we're in the target ChangeSpec.
+        if in_target_changespec and is_review_url_line(line):
+            found_pr_url_line = True
+            # Replace the review URL line, or skip it entirely if resetting.
+            if new_pr_url is not None:
+                updated_lines.append(format_review_url_line(new_pr_url))
+            # When new_pr_url is None, we simply skip this line (don't append it)
+        elif (
+            in_target_changespec
+            and line.startswith("STATUS:")
+            and not found_pr_url_line
+        ):
+            # PR URL field doesn't exist - add it before STATUS if we have a new value.
+            if new_pr_url is not None:
+                updated_lines.append(format_review_url_line(new_pr_url))
+                found_pr_url_line = True
             updated_lines.append(line)
         else:
             updated_lines.append(line)
@@ -105,38 +112,47 @@ def _apply_cl_update(
     return "".join(updated_lines)
 
 
-def update_changespec_cl_atomic(
-    project_file: str, changespec_name: str, new_cl: str | None
+def update_changespec_pr_url_atomic(
+    project_file: str, changespec_name: str, new_pr_url: str | None
 ) -> None:
-    """Update the CL field of a specific ChangeSpec in the project file.
+    """Update the PR URL field of a specific ChangeSpec in the project file.
 
     Acquires a lock for the entire read-modify-write cycle.
-    If the CL field doesn't exist and new_cl is not None, it will be
+    If the PR field doesn't exist and new_pr_url is not None, it will be
     added before the STATUS field.
 
     Args:
         project_file: Path to the ProjectSpec file
         changespec_name: NAME of the ChangeSpec to update
-        new_cl: New CL value (None to reset/remove)
+        new_pr_url: New PR URL value (None to reset/remove)
     """
     commit_msg = (
-        f"Update CL to {new_cl} for {changespec_name}"
-        if new_cl
-        else f"Remove CL for {changespec_name}"
+        f"Update PR to {new_pr_url} for {changespec_name}"
+        if new_pr_url
+        else f"Remove PR for {changespec_name}"
     )
 
     with changespec_lock(project_file):
         with open(project_file, encoding="utf-8") as f:
             lines = f.readlines()
 
-        updated_content = _apply_cl_update(lines, changespec_name, new_cl, project_file)
+        updated_content = _apply_pr_url_update(
+            lines, changespec_name, new_pr_url, project_file
+        )
 
         write_changespec_atomic(project_file, updated_content, commit_msg)
 
 
-def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
+def update_changespec_cl_atomic(
+    project_file: str, changespec_name: str, new_cl: str | None
+) -> None:
+    """Legacy alias for :func:`update_changespec_pr_url_atomic`."""
+    update_changespec_pr_url_atomic(project_file, changespec_name, new_cl)
+
+
+def reset_changespec_pr_url(project_file: str, changespec_name: str) -> bool:
     """
-    Remove the CL field from a ChangeSpec.
+    Remove the PR URL field from a ChangeSpec.
 
     Args:
         project_file: Path to the ProjectSpec file
@@ -146,12 +162,17 @@ def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
         True if reset succeeded, False otherwise
     """
     try:
-        update_changespec_cl_atomic(project_file, changespec_name, None)
-        logger.info(f"Removed CL field for {changespec_name}")
+        update_changespec_pr_url_atomic(project_file, changespec_name, None)
+        logger.info(f"Removed PR field for {changespec_name}")
         return True
     except Exception as e:
-        logger.error(f"Error resetting CL for {changespec_name}: {e}")
+        logger.error(f"Error resetting PR for {changespec_name}: {e}")
         return False
+
+
+def reset_changespec_cl(project_file: str, changespec_name: str) -> bool:
+    """Legacy alias for :func:`reset_changespec_pr_url`."""
+    return reset_changespec_pr_url(project_file, changespec_name)
 
 
 def read_status_from_lines(lines: list[str], changespec_name: str) -> str | None:
@@ -230,10 +251,10 @@ def _apply_parent_update(
         elif (
             in_target_changespec
             and in_description
-            and (line.startswith(("CL:", "PR:")) or line.startswith("STATUS:"))
+            and (is_review_url_line(line) or line.startswith("STATUS:"))
             and not found_parent_line
         ):
-            # PARENT field doesn't exist - add it before CL or STATUS if we have value
+            # PARENT field doesn't exist - add it before PR or STATUS if we have value
             if new_parent is not None:
                 updated_lines.append(f"PARENT: {new_parent}\n")
                 found_parent_line = True
@@ -244,7 +265,7 @@ def _apply_parent_update(
             if (
                 in_target_changespec
                 and in_description
-                and line.startswith(("PARENT:", "CL:", "PR:", "STATUS:"))
+                and line.startswith(("PARENT:", *REVIEW_URL_PREFIXES, "STATUS:"))
             ):
                 in_description = False
             updated_lines.append(line)
@@ -259,7 +280,7 @@ def update_changespec_parent_atomic(
 
     Acquires a lock for the entire read-modify-write cycle.
     If the PARENT field doesn't exist and new_parent is not None, it will be
-    added before the CL or STATUS field.
+    added before the PR or STATUS field.
 
     Args:
         project_file: Path to the ProjectSpec file
@@ -317,7 +338,7 @@ _FIELD_HEADERS = (
     "NAME:",
     "DESCRIPTION:",
     "PARENT:",
-    "CL:",
+    *REVIEW_URL_PREFIXES,
     "BUG:",
     "STATUS:",
     "COMMITS:",

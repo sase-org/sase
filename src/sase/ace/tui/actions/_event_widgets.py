@@ -18,7 +18,7 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         if self.current_tab == "changespecs" and 0 <= event.index < len(
             self.changespecs
         ):
-            # Push to history when clicking on a different CL
+            # Push to history when clicking on a different ChangeSpec
             if event.index != self.current_idx:
                 self._push_changespec_to_history()  # type: ignore[attr-defined]
             self.current_idx = event.index

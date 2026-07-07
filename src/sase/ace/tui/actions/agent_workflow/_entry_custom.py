@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 class EntryCustomMixin:
-    """Mixin providing custom project/CL launch entry points."""
+    """Mixin providing custom project/ChangeSpec launch entry points."""
 
     _last_custom_agent_selection: SelectionItem | None
 
@@ -68,7 +68,7 @@ class EntryCustomMixin:
         )
 
     def action_start_custom_agent(self) -> None:
-        """Start a custom agent by selecting project or CL (works on all tabs)."""
+        """Start a custom agent by selecting project or PR (works on all tabs)."""
         from ...modals import (
             ProjectSelectModal,
             ProjectSelectResult,
@@ -124,7 +124,7 @@ class EntryCustomMixin:
         """Start a custom agent from a previously resolved selection.
 
         Args:
-            selection: The project/CL selection item.
+            selection: The project/ChangeSpec selection item.
             open_in_editor: Whether to open in editor instead of prompt bar.
         """
         project_name: str = selection.project_name

@@ -111,7 +111,7 @@ async def test_tab_guide_changespecs_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "shipped as PRs")
-        assert_page_svg_contains(page, "One ChangeSpec = one CL/PR")
+        assert_page_svg_contains(page, "One ChangeSpec = one PR")
         assert_page_svg_contains(page, "Work the queue")
         ace_png_visual.assert_page_png(
             page,

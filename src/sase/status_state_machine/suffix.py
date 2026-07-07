@@ -93,7 +93,7 @@ def handle_suffix_strip(
     # Update NAME field
     update_changespec_name_atomic(project_file, suffixed_name, base_name)
 
-    # Rename the CL in git to match the new name
+    # Rename the ChangeSpec branch in git to match the new name
     project_basename = Path(project_file).stem
     try:
         # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
@@ -104,13 +104,13 @@ def handle_suffix_strip(
 
         provider = get_vcs_provider(workspace_dir)
 
-        # First checkout the CL we want to rename
+        # First checkout the branch we want to rename
         resolved = provider.resolve_revision(
             suffixed_name, project_basename, workspace_dir
         )
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
-            logger.warning(f"Failed to checkout CL {suffixed_name}: {checkout_err}")
+            logger.warning(f"Failed to checkout branch {suffixed_name}: {checkout_err}")
         elif not provider.can_rename_branch(workspace_dir):
             # Branch is immutable (e.g. GitHub PR) — persist alias instead
             # of renaming.  The old branch stays on the remote; resolution
@@ -122,7 +122,7 @@ def handle_suffix_strip(
             new_branch = provider.derive_branch_name(base_name, project_basename)
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
-                logger.warning(f"Failed to rename CL: {rename_err}")
+                logger.warning(f"Failed to rename branch: {rename_err}")
             else:
                 _push_branch_rename(workspace_dir, new_branch, resolved)
                 # Clean up any stale alias from a previous immutable cycle
@@ -171,7 +171,7 @@ def handle_suffix_append(
     # Update NAME field
     update_changespec_name_atomic(project_file, base_name, suffixed_name)
 
-    # Rename the CL in git to match the new name
+    # Rename the ChangeSpec branch in git to match the new name
     project_basename = Path(project_file).stem
     try:
         # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
@@ -182,11 +182,11 @@ def handle_suffix_append(
 
         provider = get_vcs_provider(workspace_dir)
 
-        # First checkout the CL we want to rename
+        # First checkout the branch we want to rename
         resolved = provider.resolve_revision(base_name, project_basename, workspace_dir)
         checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
         if not checkout_ok:
-            logger.warning(f"Failed to checkout CL {base_name}: {checkout_err}")
+            logger.warning(f"Failed to checkout branch {base_name}: {checkout_err}")
         elif not provider.can_rename_branch(workspace_dir):
             # Branch is immutable — update the alias mapping.
             # The actual branch on the remote doesn't change; we just
@@ -213,7 +213,7 @@ def handle_suffix_append(
             )
             rename_ok, rename_err = provider.rename_branch(new_branch, workspace_dir)
             if not rename_ok:
-                logger.warning(f"Failed to rename CL: {rename_err}")
+                logger.warning(f"Failed to rename branch: {rename_err}")
             else:
                 _push_branch_rename(workspace_dir, new_branch, resolved)
                 # Clean up any stale alias

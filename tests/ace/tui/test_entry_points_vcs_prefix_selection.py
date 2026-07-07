@@ -140,7 +140,7 @@ def test_project_selection_without_project_name_is_unchanged(
 def test_cl_selection_keeps_changespec_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The CL branch is untouched: it prefills the changespec name verbatim."""
+    """The PR branch is untouched: it prefills the changespec name verbatim."""
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "

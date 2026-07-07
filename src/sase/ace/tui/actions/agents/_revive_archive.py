@@ -127,7 +127,7 @@ class AgentReviveArchiveMixin:
         else:
             return [], []
 
-        # Sort: project-level agents first, then by CL name, then most recent first
+        # Sort: project-level agents first, then by ChangeSpec name, then most recent first
         filtered.sort(
             key=lambda a: (
                 0 if a.is_project_agent else 1,

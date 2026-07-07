@@ -1,4 +1,4 @@
-description: Run a structured mentor review against a CL.
+description: Run a structured mentor review against a PR.
 tags: mentor
 
 input:
@@ -11,11 +11,11 @@ input:
   cl_name:
     type: word
     default: "null"
-    description: Optional CL or ChangeSpec name to include in the review prompt.
+    description: Optional PR or ChangeSpec name to include in the review prompt.
   vcs_type:
     type: word
     default: "hg"
-    description: VCS directive prefix to use when a CL name is provided.
+    description: VCS directive prefix to use when a PR name is provided.
   schema:
     type: text
     description: JSON output schema the mentor response must satisfy.
@@ -36,19 +36,19 @@ steps:
     prompt_part: |
       {% if cl_name != "null" %}#{{ vcs_type }}:{{ cl_name }}
 
-      {% endif %}{% if diff_ref %}A diff of the file changes made by this CL can be found in the #{{ diff_ref }} file.
+      {% endif %}{% if diff_ref %}A diff of the file changes made by this PR can be found in the #{{ diff_ref }} file.
 
       {% endif %}## Role
 
       You are a {{ role }}.
 
-      You will review a CL and provide structured feedback on specific focus areas.
+      You will review a PR and provide structured feedback on specific focus areas.
       You must NOT make any file changes. Instead, produce structured JSON output
       describing any issues you find.
 
       IMPORTANT:
       - DO NOT make any comments that are outside the scope of the focus areas below.
-      - Do NOT comment on code that was not modified / added by this CL.
+      - Do NOT comment on code that was not modified / added by this PR.
       - Every comment MUST be actionable: include the file path, line number, and
         a clear description of what should be changed.
       - You are NOT required to make any comments. Only make comments if you find legitimate issues that are within

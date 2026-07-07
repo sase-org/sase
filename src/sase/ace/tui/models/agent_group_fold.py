@@ -13,7 +13,7 @@ Each group key is an arbitrary-length ``tuple[str, ...]``. Common shapes:
 
 This module is a thin compatibility re-export of the neutral
 :mod:`sase.ace.tui.models.group_fold` types so existing Agent imports
-keep working while the CLs tab consumes the same registry.
+keep working while the ChangeSpecs tab consumes the same registry.
 
 This registry layers *above* the existing per-workflow
 :class:`FoldStateManager`: workflow-level folds only matter once the

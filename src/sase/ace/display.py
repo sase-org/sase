@@ -8,7 +8,6 @@ from rich.console import Console
 from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.text import Text
-from sase.workspace_provider import get_change_label
 from sase.running_field import get_claimed_workspaces
 from sase.project_display_names import humanize_cl_name
 
@@ -37,7 +36,7 @@ def display_changespec(
     Color scheme from saseproject.vim:
     - Field keys (NAME:, DESCRIPTION:, etc.): bold #87D7FF (cyan)
     - NAME/PARENT values: bold #00D7AF (cyan-green)
-    - CL values: bold underline #569CD6 (standard URL blue)
+    - PR values: bold underline #569CD6 (standard URL blue)
     - DESCRIPTION values: #D7D7AF (tan/beige)
     - STATUS values: status-specific colors
     Args:
@@ -98,11 +97,10 @@ def display_changespec(
         text.append("PARENT: ", style="bold #87D7FF")
         text.append(f"{humanize_cl_name(changespec.parent)}\n", style="bold #00D7AF")
 
-    # CL/PR field (only display if present)
-    if changespec.cl:
-        label = get_change_label(changespec.file_path)
-        text.append(f"{label}: ", style="bold #87D7FF")
-        text.append(f"{changespec.cl}\n", style="bold underline #569CD6")
+    # PR field (only display if present)
+    if changespec.pr_url:
+        text.append("PR: ", style="bold #87D7FF")
+        text.append(f"{changespec.pr_url}\n", style="bold underline #569CD6")
 
     # BUG field (only display if present)
     if changespec.bug:

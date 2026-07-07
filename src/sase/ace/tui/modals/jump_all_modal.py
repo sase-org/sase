@@ -117,7 +117,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         """Collect all entries and assign hint characters."""
         entries: list[_Entry] = []
 
-        # CLs
+        # ChangeSpecs
         _, cl_color = _TAB_STYLES["changespecs"]
         for i, cs in enumerate(changespecs):
             style = _CS_STATUS_STYLES.get(cs.status, "")

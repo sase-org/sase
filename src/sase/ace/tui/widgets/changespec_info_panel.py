@@ -59,7 +59,7 @@ class ChangeSpecInfoPanel(Static):
         self._refresh_content()
 
     def update_grouping_mode(self, label: str) -> None:
-        """Update the active CL grouping-strategy label.
+        """Update the active ChangeSpec grouping-strategy label.
 
         Args:
             label: Human-readable label.  Empty string hides the badge.
@@ -85,8 +85,8 @@ class ChangeSpecInfoPanel(Static):
         """Update the hidden ChangeSpec counts.
 
         Args:
-            reverted: Number of reverted/archived CLs hidden from the list.
-            submitted: Number of submitted CLs hidden from the list.
+            reverted: Number of reverted/archived ChangeSpecs hidden from the list.
+            submitted: Number of submitted ChangeSpecs hidden from the list.
         """
         if self._hidden_reverted != reverted or self._hidden_submitted != submitted:
             self._hidden_reverted = reverted

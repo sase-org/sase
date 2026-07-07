@@ -23,7 +23,7 @@ def changespec_exists(project: str, cl_name: str) -> bool:
 
     Args:
         project: Project name.
-        cl_name: CL name to check for.
+        cl_name: ChangeSpec name to check for.
 
     Returns:
         True if a ChangeSpec with the given NAME exists, False otherwise.
