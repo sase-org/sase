@@ -233,11 +233,18 @@ sase launch request -f launch_request.json -o json
 The request JSON (schema version 1) carries `schema_version: 1`, a required `prompt`, an optional `reason`,
 `approval: "required"` (the only accepted value — there is no auto-approve for agent-initiated launches), `max_slots`
 (default 1; the planned fan-out must fit), and an optional `family_type`. Inline payloads
-(`sase launch request '<json>'` or `@path`) and plain prompt flags (`-p/--prompt`, `-r/--reason`) are also accepted.
+(`sase launch request '<json>'` or `@path`) and plain prompt flags (`-p/--prompt`, `-r/--reason`) are also accepted. If
+the requested prompt contains top-level `---` segment separators outside fenced code blocks, SASE plans one launch slot
+per segment, so `max_slots` must be at least that segment count or the request fails with `max_slots_exceeded`.
 
 Request artifacts land in `~/.sase/launch_requests/<request_id>/`: `launch_request.json` (the full preview payload plus
 the normalized request) and `launch_preview.md` (the human-readable preview shown by approval surfaces). A request may
 embed `%n(parent, suffix)` in its prompt to attach the launch to a family.
+
+The requested prompt is parsed again when approved. `%` directives and `#` references remain live anywhere in the
+prompt, so literal prompt syntax in docs, demos, or tests should be fenced or wrapped in `%xprompts_enabled:false` /
+`%xprompts_enabled:true` disabled regions. Preflight with `sase xprompt expand '<prompt>'` when the prompt contains
+literal directive examples.
 
 ### Approving or Rejecting
 

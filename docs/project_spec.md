@@ -112,7 +112,9 @@ performed.
 `PROJECT_NAME` and aliases are resolved at the launch/xprompt boundary before workspace resolution, xprompt expansion,
 prompt history writes, and agent artifact writes. These friendly refs should not persist in `submitted_xprompt.md`,
 `raw_xprompt.md`, `agent_meta.json`, prompt history, history sort keys, or VCS refs. Storage paths and metadata keep
-using the directory key, while display surfaces prefer `PROJECT_NAME` when present.
+using the directory key, while display surfaces prefer `PROJECT_NAME` when present. Display-only helpers also humanize
+filename-safe project stems in artifact, retry, and mobile-facing labels when they can map the stem back to a
+ProjectSpec display name; the underlying files are not renamed.
 
 Validation rules:
 

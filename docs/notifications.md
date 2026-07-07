@@ -122,11 +122,12 @@ from the explicit-artifact association index at notification time, deduplicated 
 ignored if the index is unavailable.
 
 In ACE, completion artifacts are opened from the Agents tab with `a`. The artifact panel supports marking multiple files
-and opening the full artifact sequence, so notification attachments, generated PDFs/images, plan files, and explicit
-artifacts use one selection workflow. Generated videos are included as ordinary file artifacts. ACE may also include
-image files referenced by saved prompt artifacts in that picker. Those prompt-referenced images are persisted or
-synthesized as ACE artifact-list entries, but they are not appended to notification delivery payloads unless they also
-appear in `done.json.image_paths` or were saved explicitly with `sase artifact create`.
+and opening the full artifact sequence, so notification attachments, generated PDFs/images/videos, plan files, and
+explicit artifacts use one selection workflow. Generated videos are included as ordinary file artifacts. ACE may also
+include image and video files referenced by saved prompt artifacts in that picker. Those prompt-referenced media are
+persisted or synthesized as ACE artifact-list entries, but they are not appended to notification delivery payloads
+unless they also appear in `done.json.image_paths` / `done.json.video_paths` or were saved explicitly with
+`sase artifact create`.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
 been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and

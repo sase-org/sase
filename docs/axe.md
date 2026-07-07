@@ -373,21 +373,21 @@ is otherwise best-effort: missing conversion tools or render failures omit that 
 Generated Markdown PDFs are optimized for narrow viewers with a small portrait page, small margins, and larger type. As
 PDFs are prepared, axe updates `workflow_state.json.pdf_status` and a compact `activity` label so ACE can show live
 finalization progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)`. Successful runs also copy discovered
-media artifacts, plus prompt-referenced images, into persistent SASE artifact storage for ACE. Prompt-referenced images
-are not appended to completion notifications unless they were also generated/modified files or explicit artifacts. See
-[`agent_images.md`](agent_images.md) for the full contract.
+media artifacts, plus prompt-referenced images and videos, into persistent SASE artifact storage for ACE.
+Prompt-referenced media are not appended to completion notifications unless they were also generated/modified files or
+explicit artifacts. See [`agent_images.md`](agent_images.md) for the full contract.
 
-The Agents tab exposes completion artifacts through the `A` action. When artifacts exist, ACE opens the artifact panel
-for selection. Chat transcripts, plan files, generated PDFs/images/videos, prompt-referenced images from saved prompt
+The Agents tab exposes completion artifacts through the `a` action. When artifacts exist, ACE opens the artifact panel
+for selection. Chat transcripts, plan files, generated PDFs/images/videos, prompt-referenced media from saved prompt
 artifacts, and explicit artifacts created with `sase artifact create -p <path> [-n <label>] [-k <kind>]` all participate
 in the same list. Explicit artifacts are stored under `~/.sase/artifacts/` with a persistent association so they remain
 available after dismissing and later reviving the agent. ACE shows the picker even for a single artifact; `m` marks
 rows, `Enter` opens the marked set or highlighted row, and `A` opens the full list. Only one plan artifact is listed for
 an agent, preferring the committed SDD plan path when one exists. Inside tmux, artifact viewing opens in a right-side
-tmux pane, collapses the Agents list while live, uses `l` to focus the pane, and uses `A` to close it; outside tmux, ACE
-suspends and uses the current pane. The viewer supports images, Markdown, and PDFs, wraps `j`/`k` page navigation at the
-ends, uses `n`/`p` for artifact-sequence navigation, and warns when required terminal/rendering tools are missing. The
-direct agent run-log binding is `V`.
+tmux pane, collapses the Agents list while live, uses `l` to focus the pane, and uses `a` to close it; outside tmux, ACE
+suspends and uses the current pane. The viewer supports images, videos, Markdown, PDFs, and text fallbacks, wraps
+`j`/`k` page navigation at the ends, uses `n`/`p` for artifact-sequence navigation, and warns when required
+terminal/rendering tools are missing. The direct agent run-log binding is `V`.
 
 ## Maintenance Mode
 

@@ -55,7 +55,8 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | **Axe**               | Monitor the Axe daemon and background commands             |
 
 Agents is the first tab and the startup default. Each tab has a contextual guide: press `,?` (leader mode) to open the
-current tab's guide modal, which summarizes what the tab shows and its most useful keybindings.
+current tab's guide modal, which summarizes what the tab shows and its most useful keybindings. While the guide or the
+`?` help modal is open, the configured tab-switch keys still switch ACE tabs and refresh the modal content in place.
 
 On first use, empty tabs render onboarding states instead of blank panels: the PRs tab shows a getting-started card when
 no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the project/CL
@@ -410,10 +411,10 @@ visible and are automatically grouped under the `@review` tag, matching the beha
 ### Agent Artifacts
 
 Press `a` on a focused agent to open the artifact panel whenever artifacts are associated with that agent. The list can
-include chat transcripts, plan files, generated Markdown PDFs, generated images, prompt-referenced images from saved
-prompt artifacts, and explicit files saved with `sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always
-opens the panel, even for a single artifact, so the label, kind, and path are visible before launching the terminal
-viewer.
+include chat transcripts, plan files, generated Markdown PDFs, generated images, generated videos, prompt-referenced
+media from saved prompt artifacts, and explicit files saved with
+`sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact, so
+the label, kind, and path are visible before launching the terminal viewer.
 
 The prompt/detail header includes an `ARTIFACTS` section for non-chat entries from the same list. Paths are made
 workspace-relative when possible, and hint mode assigns numbers to those paths so they can be opened with the normal
@@ -436,20 +437,24 @@ When ACE is running inside tmux, artifact viewing opens in a right-side tmux pan
 list collapses while the tracked pane is live, row-changing navigation shows a warning instead of moving to a different
 agent, `l` focuses the tracked pane, and `a` closes it. If the pane was already closed, `a` opens the artifact panel
 normally. Outside tmux, ACE suspends while the terminal viewer runs in the current pane. The viewer supports image,
-Markdown, and PDF artifacts: images are displayed directly with `kitten icat`; Markdown is first rendered to PDF; PDFs
-are converted to PNG pages for paging. The viewer needs `kitten` for display, `pdftoppm` for PDF/Markdown paging, and
-`pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a warning instead of failing the TUI.
+video, Markdown, PDF, and text artifacts: images are displayed directly with `kitten icat`, videos play with `mpv`,
+Markdown is first rendered to PDF, PDFs are converted to PNG pages for paging, and unknown file artifacts fall back to a
+text viewer. The viewer needs `kitten` for image/PDF/Markdown display, `mpv` for videos, `pdftoppm` for PDF/Markdown
+paging, and `pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a warning instead of
+failing the TUI.
 
 Viewer controls:
 
-| Key | Action                                              |
-| --- | --------------------------------------------------- |
-| `j` | Next page; wraps from the last page to the first    |
-| `k` | Previous page; wraps from the first page to last    |
-| `n` | Next artifact when viewing an artifact sequence     |
-| `p` | Previous artifact when viewing an artifact sequence |
-| `r` | Refresh the current page                            |
-| `q` | Close the viewer                                    |
+| Key   | Action                                              |
+| ----- | --------------------------------------------------- |
+| `j`   | Next page; wraps from the last page to the first    |
+| `k`   | Previous page; wraps from the first page to last    |
+| `n`   | Next artifact when viewing an artifact sequence     |
+| `p`   | Previous artifact when viewing an artifact sequence |
+| `r`   | Refresh the current page                            |
+| `z`   | Toggle tmux zoom when available                     |
+| `Tab` | Focus the SASE TUI from a tmux artifact pane        |
+| `q`   | Close the viewer                                    |
 
 Only one plan artifact is shown for an agent. When both an archived plan and an SDD tale path are present, ACE prefers
 the committed SDD plan; otherwise it keeps the path that best matches the run metadata.
@@ -2195,14 +2200,15 @@ output every second while the Tasks tab is visible.
 Open the SASE Admin Center with `#`, then press `5` (or `]` until you reach **Updates**). The Updates tab keeps SASE
 itself and its installed plugins current without leaving the TUI: a **SASE Core** panel shows the installed and latest
 versions of the `sase` and `sase-core` packages, and below it the full plugin catalog lets you browse, inspect, install,
-update, or uninstall a plugin. Press `u` to run the full SASE update for core plus installed plugins, `U` to update the
-highlighted installed plugin when that row has an update available, `i` to install, `x` to uninstall, and `r` to refresh
-the catalog and latest versions. Editable / dev installs are labeled with a lowercase `dev` source marker and compared
-against their git upstream rather than PyPI, so a local checkout can surface an `↑ dev update available` hint. The SASE
-Core panel and plugin details can show incoming commit subjects when update metadata is available. Every mutation
-previews the underlying `uv` command or editable-checkout plan first and then runs as a tracked background task. See the
-[Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and [Plugins](plugins.md) for
-the equivalent `sase plugin` CLI.
+update, or uninstall plugins. Press `I` or `Space` to mark installable rows, `i` to install the marked set in one
+combined operation (or the highlighted plugin when nothing is marked), `u` to run the full SASE update for core plus
+installed plugins, `U` to update the highlighted installed plugin when that row has an update available, `x` to
+uninstall, and `r` to refresh the catalog and latest versions. Editable / dev installs are labeled with a lowercase
+`dev` source marker and compared against their git upstream rather than PyPI, so a local checkout can surface an
+`↑ dev update available` hint. The SASE Core panel and plugin details can show incoming commit subjects when update
+metadata is available. Every mutation previews the underlying `uv` command or editable-checkout plan first and then runs
+as a tracked background task. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and
+behavior, and [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
 
 ## Snippets
 

@@ -46,7 +46,9 @@ uv tool install sase --with sase-github
 
 The recommended way to add a plugin to an existing managed install is the
 [**Updates** tab of the SASE Admin Center](configuration.md#updates-tab): press `#` inside `sase ace`, switch to the
-**Updates** tab, highlight the plugin, and press `i` to install. The equivalent CLI is `sase plugin install github`.
+**Updates** tab, highlight the plugin, and press `i` to install. To install several plugins from ACE, mark installable
+rows with `I` / `Space`, then press `i` once; ACE previews one combined `uv` operation before changing the environment.
+The equivalent CLI for one plugin is `sase plugin install github`.
 
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 

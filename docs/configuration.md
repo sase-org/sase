@@ -105,32 +105,35 @@ or `dev · offline`.
 
 Every mutation **previews first**: install and managed update actions open a confirm-preview modal showing the
 underlying `uv` command and resolved package set; editable-checkout dev updates preview the git fetch/fast-forward and
-reconcile steps. The confirmation _is_ the dry-run. Mutations run as tracked background tasks so a multi-second `uv`,
-git, or Rust rebuild never blocks the UI. A successful update that changed code automatically restarts ACE and axe
-through the same restart path as the `Q` restart action; no-op and failed updates leave the current UI running and
-refresh the catalog when appropriate. When `sase` is not a managed `uv tool install`, browsing still works but
-install/update are disabled with the same actionable message the CLI gives. When incoming commit previews are enabled,
-the SASE Core panel and plugin detail panes can show the newest upstream commit subjects for repositories with update
-metadata; offline mode skips those remote checks. The context-sensitive keymaps are:
+reconcile steps. The confirmation _is_ the dry-run. Installable plugins can also be marked with `I` / `Space`; pressing
+`i` with marks installs the marked set in one combined `uv` operation and clears successful marks, while `Esc` clears
+marks before closing the Admin Center. Mutations run as tracked background tasks so a multi-second `uv`, git, or Rust
+rebuild never blocks the UI. A successful update that changed code automatically restarts ACE and axe through the same
+restart path as the `Q` restart action; no-op and failed updates leave the current UI running and refresh the catalog
+when appropriate. When `sase` is not a managed `uv tool install`, browsing still works but install/update are disabled
+with the same actionable message the CLI gives. When incoming commit previews are enabled, the SASE Core panel and
+plugin detail panes can show the newest upstream commit subjects for repositories with update metadata; offline mode
+skips those remote checks. The context-sensitive keymaps are:
 
-| Key       | Action                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------- |
-| `j` / `k` | Move the highlight down / up                                                                |
-| `i`       | Install the highlighted plugin (only when not installed); toggle index vs. git in the modal |
-| `x`       | Uninstall the highlighted plugin (only when installed)                                      |
-| `u`       | Run `sase update` for SASE core plus all installed plugins                                  |
-| `U`       | Update the highlighted installed plugin when that row has an update available               |
-| `m`       | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)            |
-| `r`       | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)               |
-| `Ctrl+D`  | Scroll the detail panel down                                                                |
-| `Ctrl+U`  | Scroll the detail panel up                                                                  |
-| `g`       | Scroll the detail panel to the top                                                          |
-| `G`       | Scroll the detail panel to the bottom                                                       |
-| `o`       | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)           |
-| `v`       | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)              |
-| `/`       | Focus the filter input (matches name / description / topics)                                |
-| `[` / `]` | Switch SASE Admin Center tabs (number keys `1`–`6` jump directly)                           |
-| `esc`/`q` | Close SASE Admin Center                                                                     |
+| Key           | Action                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------- |
+| `j` / `k`     | Move the highlight down / up                                                                            |
+| `I` / `Space` | Mark / unmark the highlighted installable plugin and advance to the next installable row                |
+| `i`           | Install the marked set, or the highlighted plugin when nothing is marked; toggle index vs. git in modal |
+| `x`           | Uninstall the highlighted plugin (only when installed)                                                  |
+| `u`           | Run `sase update` for SASE core plus all installed plugins                                              |
+| `U`           | Update the highlighted installed plugin when that row has an update available                           |
+| `m`           | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                        |
+| `r`           | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                           |
+| `Ctrl+D`      | Scroll the detail panel down                                                                            |
+| `Ctrl+U`      | Scroll the detail panel up                                                                              |
+| `g`           | Scroll the detail panel to the top                                                                      |
+| `G`           | Scroll the detail panel to the bottom                                                                   |
+| `o`           | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                       |
+| `v`           | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                          |
+| `/`           | Focus the filter input (matches name / description / topics)                                            |
+| `[` / `]`     | Switch SASE Admin Center tabs (number keys `1`–`6` jump directly)                                       |
+| `Esc` / `q`   | Clear install marks first; close SASE Admin Center when no install marks are active                     |
 
 These keymaps are widget-local and are not configurable through `default_config.yml`.
 
