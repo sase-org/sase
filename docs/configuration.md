@@ -917,28 +917,26 @@ timezone: "America/New_York" # default: system timezone
 ### chat_install
 
 Configuration for chat-driven update workflows. External chat integrations can call
-`sase.integrations.chat_install.start_chat_install_worker()` to run the configured command in a detached worker while
-briefly stopping axe, syncing the registered primary workspace for the `sase` project, and restarting axe afterward.
+`sase.integrations.chat_install.start_chat_install_worker()` to run the built-in `sase update --json` engine in a
+detached worker. The worker uses the same managed-vs-dev routing as the TUI Updates tab and the `sase update` CLI, so no
+custom update command is required.
 
 ```yaml
 chat_install:
-  command: "" # default: disabled
-  sync_workspace: true
   timeout_seconds: 900
   restart_attempts: 3
 ```
 
-| Field                           | Type   | Default | Description                                                                                   |
-| ------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------- |
-| `chat_install.command`          | string | `""`    | Shell command to run from the registered `sase` primary workspace. Empty string disables use. |
-| `chat_install.sync_workspace`   | bool   | `true`  | Sync the registered `sase` primary workspace via the selected VCS provider before updating.   |
-| `chat_install.timeout_seconds`  | int    | `900`   | Maximum runtime for the update command before returning exit code `124`.                      |
-| `chat_install.restart_attempts` | int    | `3`     | Number of axe restart attempts after the update command completes/fails.                      |
+| Field                           | Type | Default | Description                                                                |
+| ------------------------------- | ---- | ------- | -------------------------------------------------------------------------- |
+| `chat_install.timeout_seconds`  | int  | `900`   | Maximum runtime for `sase update --json` before returning exit code `124`. |
+| `chat_install.restart_attempts` | int  | `3`     | Number of axe start attempts when axe is not running after the update.     |
 
 Only one chat update worker may run at a time; a lock under `~/.sase/chat_install/install.lock` rejects concurrent
 starts. Worker output is written to timestamped logs under `~/.sase/chat_install/logs/`. The configuration key and state
-paths remain named `chat_install` for compatibility. See [`docs/integrations.md`](integrations.md#chat-update-worker)
-for the integration-facing Python API.
+paths remain named `chat_install` for compatibility. The old `chat_install.command` and `chat_install.sync_workspace`
+keys have been removed; delete them from user config if schema validation reports them. See
+[`docs/integrations.md`](integrations.md#chat-update-worker) for the integration-facing Python API.
 
 Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 

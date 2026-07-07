@@ -13,7 +13,6 @@ from sase.integrations.chat_install import (
 
 from ._mobile_helper_common import (
     GATEWAY_WIRE_SCHEMA_VERSION,
-    MobileHelperBridgeError,
     MobileUpdateAlreadyRunning,
     MobileUpdateJobNotFound,
     helper_result,
@@ -32,8 +31,6 @@ def update_start_response(request: dict[str, Any]) -> dict[str, Any]:
     result = start_chat_install_worker()
     if result.status == "already_running":
         raise MobileUpdateAlreadyRunning(result.message)
-    if result.status in {"config_missing_command", "workspace_resolution_failed"}:
-        raise MobileHelperBridgeError(result.message)
 
     if result.status == "launch_failed":
         return {

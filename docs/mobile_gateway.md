@@ -610,8 +610,8 @@ curl -sS "$BASE_URL/api/v1/update/$JOB_ID" \
 
 The helper endpoints are read-only except `POST /api/v1/update/start`. Mobile cannot provide a shell command, cwd,
 environment, workspace path, project file path, or arbitrary bridge argv. The gateway invokes fixed
-`sase mobile helper-bridge <operation>` commands; the update worker itself runs only the configured
-`chat_install.command`. Successful update start/status checks publish `helpers_changed` events, but polling
+`sase mobile helper-bridge <operation>` commands; the update worker itself runs the built-in `sase update --json`
+engine. Successful update start/status checks publish `helpers_changed` events, but polling
 `GET /api/v1/update/{job_id}` is the authoritative completion path for the MVP.
 
 ## Storage And Revocation

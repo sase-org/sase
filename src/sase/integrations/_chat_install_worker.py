@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
+import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -14,38 +17,184 @@ from sase.core.time import local_now
 from ._chat_install_models import ChatInstallConfig
 
 
-def run_install_command(
+@dataclass(frozen=True)
+class UpdateCommandResult:
+    exit_code: int
+    message: str
+
+
+def run_update_command(
     config: ChatInstallConfig,
-    workspace: Path,
     *,
     run: Callable[..., Any],
     log: Callable[[str], None],
     log_block: Callable[[str, str | bytes], None],
-) -> int:
-    log(f"running install command: {config.command}")
+) -> UpdateCommandResult:
+    argv = [sys.executable, "-m", "sase", "update", "--json"]
+    log(f"running update command: {shlex.join(argv)}")
     try:
         completed = run(
-            config.command,
-            shell=True,
-            cwd=str(workspace),
+            argv,
             text=True,
             capture_output=True,
             timeout=config.timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
-        log(f"install command timed out after {config.timeout_seconds}s")
+        log(f"update command timed out after {config.timeout_seconds}s")
         if exc.stdout:
             log_block("stdout", exc.stdout)
         if exc.stderr:
             log_block("stderr", exc.stderr)
-        return 124
+        return UpdateCommandResult(
+            exit_code=124,
+            message="Update failed with exit code 124.",
+        )
 
     if completed.stdout:
         log_block("stdout", completed.stdout)
     if completed.stderr:
         log_block("stderr", completed.stderr)
-    log(f"install command exit code: {completed.returncode}")
-    return completed.returncode
+    log(f"update command exit code: {completed.returncode}")
+    return UpdateCommandResult(
+        exit_code=completed.returncode,
+        message=_completion_message(completed.returncode, completed.stdout),
+    )
+
+
+def _completion_message(exit_code: int, stdout: object) -> str:
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode(errors="replace")
+    parsed = _completion_message_from_update_json(
+        exit_code, stdout if isinstance(stdout, str) else ""
+    )
+    if parsed is not None:
+        return parsed
+    return (
+        "Update completed successfully."
+        if exit_code == 0
+        else f"Update failed with exit code {exit_code}."
+    )
+
+
+def _completion_message_from_update_json(exit_code: int, stdout: str) -> str | None:
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    error = payload.get("error")
+    if isinstance(error, str) and error:
+        return f"Update failed: {error}"
+
+    if exit_code != 0:
+        failed = _failed_package_summary(payload)
+        if failed is not None:
+            return f"Update failed: {failed}"
+        return None
+
+    changed = payload.get("changed")
+    if changed is False:
+        return "Already up to date."
+    if changed is not True:
+        return None
+
+    summary = _changed_package_summary(payload)
+    return f"Update completed: {summary}." if summary else "Update completed."
+
+
+def _changed_package_summary(payload: dict[str, Any]) -> str:
+    updated = _updated_packages(payload)
+    parts: list[str] = []
+
+    sase = next(
+        (
+            package
+            for package in updated
+            if _string_value(package.get("name")) == "sase"
+        ),
+        None,
+    )
+    if sase is not None:
+        parts.append(_package_version_summary(sase))
+
+    plugin_count = sum(
+        1
+        for package in updated
+        if _string_value(package.get("role")) == "plugin"
+        and _string_value(package.get("name")) != "sase"
+    )
+    if plugin_count:
+        parts.append(f"{plugin_count} {_plural(plugin_count, 'plugin')} updated")
+
+    other_count = len(updated) - (1 if sase is not None else 0) - plugin_count
+    if other_count:
+        parts.append(f"{other_count} {_plural(other_count, 'package')} updated")
+
+    if parts:
+        return ", ".join(parts)
+
+    counts = payload.get("counts")
+    if isinstance(counts, dict):
+        updated_count = _int_value(counts.get("updated"))
+        removed_count = _int_value(counts.get("removed"))
+        if updated_count:
+            return f"{updated_count} {_plural(updated_count, 'package')} updated"
+        if removed_count:
+            return f"{removed_count} {_plural(removed_count, 'package')} removed"
+    return "changes applied"
+
+
+def _updated_packages(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    packages = payload.get("packages")
+    if not isinstance(packages, list):
+        return []
+    return [
+        package
+        for package in packages
+        if isinstance(package, dict)
+        and (
+            package.get("kind") in {"added", "upgraded"}
+            or package.get("status") == "updated"
+        )
+    ]
+
+
+def _failed_package_summary(payload: dict[str, Any]) -> str | None:
+    packages = payload.get("packages")
+    if not isinstance(packages, list):
+        return None
+    for package in packages:
+        if not isinstance(package, dict) or package.get("status") != "failed":
+            continue
+        name = _string_value(package.get("name")) or "package"
+        reason = _string_value(package.get("reason"))
+        return f"{name}: {reason}" if reason else f"{name} failed"
+    return None
+
+
+def _package_version_summary(package: dict[str, Any]) -> str:
+    name = _string_value(package.get("name")) or "sase"
+    old_version = _string_value(package.get("old_version"))
+    new_version = _string_value(package.get("new_version"))
+    if old_version and new_version:
+        return f"{name} {old_version} to {new_version}"
+    if new_version:
+        return f"{name} updated to {new_version}"
+    return f"{name} updated"
+
+
+def _string_value(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _int_value(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _plural(count: int, singular: str) -> str:
+    return singular if count == 1 else f"{singular}s"
 
 
 def restart_axe(
@@ -77,7 +226,7 @@ def write_completion_record(
     job_id: str | None,
     exit_code: int,
     log_path: Path | None,
-    workspace: Path,
+    workspace: Path | None,
     started_at: str,
     completed_at: str,
     restart_succeeded: bool | None,
@@ -89,7 +238,7 @@ def write_completion_record(
         "status": "success" if exit_code == 0 else "failed",
         "exit_code": exit_code,
         "log_path": str(log_path) if log_path is not None else None,
-        "workspace": str(workspace),
+        "workspace": str(workspace) if workspace is not None else None,
         "started_at": started_at,
         "completed_at": completed_at,
         "restart_succeeded": restart_succeeded,

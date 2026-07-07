@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Literal
 
 LaunchStatus = Literal[
-    "config_missing_command",
-    "workspace_resolution_failed",
     "already_running",
     "launched",
     "launch_failed",
@@ -18,8 +16,6 @@ JobStatus = Literal["running", "succeeded", "failed", "not_found"]
 
 @dataclass(frozen=True)
 class ChatInstallConfig:
-    command: str
-    sync_workspace: bool = True
     timeout_seconds: int = 900
     restart_attempts: int = 3
 

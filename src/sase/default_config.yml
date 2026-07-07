@@ -14,8 +14,6 @@ update:
   dev_root: "~/projects/github"
 
 chat_install:
-  command: ""
-  sync_workspace: true
   timeout_seconds: 900
   restart_attempts: 3
 

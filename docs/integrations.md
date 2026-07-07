@@ -162,12 +162,11 @@ the saved path into the agent prompt. Launch, kill, retry, upload, and per-devic
 
 Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list`, `beads-show`, `update-start`, and
 `update-status`. ChangeSpec, xprompt, and bead helpers are read-only. The only mutating helper operation is
-`update-start`, which starts the configured `chat_install.command` worker and reports status through structured polling.
-Bead helper reads use one canonical bead store per project, typically the project's current checkout at `sdd/beads/`,
-where `events/**` is canonical and `issues.jsonl` is a compatibility projection; they do not merge numbered sibling
-workspaces or legacy bead stores. The structured xprompt catalog includes `definition_path` when the source can be
-resolved to a real file, so mobile and editor clients can offer jump-to-definition without reverse-engineering display
-paths.
+`update-start`, which starts the built-in SASE update worker and reports status through structured polling. Bead helper
+reads use one canonical bead store per project, typically the project's current checkout at `sdd/beads/`, where
+`events/**` is canonical and `issues.jsonl` is a compatibility projection; they do not merge numbered sibling workspaces
+or legacy bead stores. The structured xprompt catalog includes `definition_path` when the source can be resolved to a
+real file, so mobile and editor clients can offer jump-to-definition without reverse-engineering display paths.
 
 All-known helper reads are lifecycle-aware and enumerate active projects by default. Inactive projects are left out of
 broad ChangeSpec tag, xprompt catalog, and bead lists. Explicit ChangeSpec tag and xprompt catalog requests for an
@@ -228,16 +227,14 @@ if result.job_id:
 The worker sequence is:
 
 1. Acquire `~/.sase/chat_install/install.lock`; if another worker owns it, return `already_running`.
-2. Resolve the registered primary workspace for the `sase` project.
-3. Stop axe.
-4. Optionally sync the workspace through the selected VCS provider.
-5. Run `chat_install.command` from that workspace with `chat_install.timeout_seconds`.
-6. Restart axe, retrying up to `chat_install.restart_attempts`.
+2. Run `sase update --json` with `chat_install.timeout_seconds`.
+3. Parse the update JSON best-effort for a completion message such as `Already up to date.` or a package summary.
+4. If axe is not running afterward, start it, retrying up to `chat_install.restart_attempts`.
+5. Write the completion record for polling clients.
 
-`start_chat_install_worker()` returns `ChatInstallLaunchResult` with one of these launch statuses:
-`config_missing_command`, `workspace_resolution_failed`, `already_running`, `launched`, or `launch_failed`.
-`read_chat_install_status()` returns `running`, `succeeded`, `failed`, or `not_found`. Worker logs live under
-`~/.sase/chat_install/logs/`. Configuration fields are documented in
+`start_chat_install_worker()` returns `ChatInstallLaunchResult` with one of these launch statuses: `already_running`,
+`launched`, or `launch_failed`. `read_chat_install_status()` returns `running`, `succeeded`, `failed`, or `not_found`.
+Worker logs live under `~/.sase/chat_install/logs/`. Configuration fields are documented in
 [`docs/configuration.md`](configuration.md#chat_install). The API, config key, and state paths keep the `chat_install`
 name for compatibility, but chat integrations should present this workflow to users as an update.
 

@@ -576,25 +576,15 @@
       "description": "Configuration for chat-driven update workflows",
       "additionalProperties": false,
       "properties": {
-        "command": {
-          "type": "string",
-          "description": "Shell command to run from the registered sase primary workspace. Empty string disables use.",
-          "default": ""
-        },
-        "sync_workspace": {
-          "type": "boolean",
-          "description": "Sync the registered sase primary workspace via the selected VCS provider before updating.",
-          "default": true
-        },
         "timeout_seconds": {
           "type": "integer",
-          "description": "Maximum runtime for the update command before returning exit code 124.",
+          "description": "Maximum runtime for `sase update --json` before returning exit code 124.",
           "default": 900,
           "minimum": 1
         },
         "restart_attempts": {
           "type": "integer",
-          "description": "Number of axe restart attempts after the update command completes or fails.",
+          "description": "Number of axe start attempts when axe is not running after the update command completes or fails.",
           "default": 3,
           "minimum": 1
         }
