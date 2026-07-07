@@ -38,6 +38,11 @@ class WorkspacePluginManager:
             ref=ref, workflow_type=workflow_type
         )
 
+    def peek_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None:
+        return self._pm.hook.ws_peek_ref(  # type: ignore[no-any-return]
+            ref=ref, workflow_type=workflow_type
+        )
+
     def list_repo_candidates(
         self, workflow_type: str, namespace: str
     ) -> VcsRepoCandidates | None:

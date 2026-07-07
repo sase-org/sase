@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.workspace_provider.utils import non_interactive_git_env
 from sase.version._models import GitProbe, GitProbeResult, GitVersionMetadata
 
 _GIT_TIMEOUT_SECONDS = 1.0
@@ -253,14 +254,24 @@ def run_git(
     run_fn: SubprocessRun | None = None,
     timeout: float = _GIT_TIMEOUT_SECONDS,
 ) -> str:
-    runner = subprocess.run if run_fn is None else run_fn
-    completed = runner(
-        ["git", "-C", str(root), *args],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    if run_fn is None:
+        completed = subprocess.run(
+            ["git", "-C", str(root), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=non_interactive_git_env(),
+            stdin=subprocess.DEVNULL,
+        )
+    else:
+        completed = run_fn(
+            ["git", "-C", str(root), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
     return completed.stdout.strip()
 
 

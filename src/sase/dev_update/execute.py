@@ -20,6 +20,7 @@ from sase.dev_update.models import (
     RepoDiffStat,
 )
 from sase.version._git import GitUpstreamStatus, fetch_git_upstream, merge_git_ff_only
+from sase.workspace_provider.utils import non_interactive_git_env
 
 DEV_UPDATE_COMMAND_TIMEOUT_SECONDS = 300.0
 
@@ -70,6 +71,7 @@ def run_dev_update_command(
     timeout: float = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
 ) -> DevCommandResult:
     """Default command runner for callers that want real subprocess execution."""
+    git_env, git_stdin = _non_interactive_git_subprocess_options(argv)
     try:
         completed = subprocess.run(
             list(argv),
@@ -77,6 +79,8 @@ def run_dev_update_command(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=git_env,
+            stdin=git_stdin,
         )
     except FileNotFoundError as exc:
         return DevCommandResult(returncode=127, stderr=str(exc))
@@ -343,6 +347,14 @@ def _run(
         )
     )
     return result
+
+
+def _non_interactive_git_subprocess_options(
+    argv: Sequence[str],
+) -> tuple[dict[str, str] | None, int | None]:
+    if not argv or argv[0] != "git":
+        return None, None
+    return non_interactive_git_env(), subprocess.DEVNULL
 
 
 def _root_status_for_fetch(root: DevUpdateRootPlan) -> GitUpstreamStatus:

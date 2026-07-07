@@ -5,10 +5,24 @@ reword, get_bug_number, fix, upload, reword_add_tag, and bare remote behavior.
 """
 
 from unittest.mock import MagicMock, patch
+import subprocess
 
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 # === Tests for get_branch_name ===
+
+
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_command_runner_disables_interactive_prompts(mock_run: MagicMock) -> None:
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+    plugin = BareGitPlugin()
+    plugin.vcs_existing_branch_suffixes("feature", "/ws")
+
+    ls_remote_kwargs = mock_run.call_args_list[1].kwargs
+    assert ls_remote_kwargs["stdin"] is subprocess.DEVNULL
+    assert ls_remote_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert ls_remote_kwargs["env"]["GCM_INTERACTIVE"] == "never"
 
 
 @patch("sase.vcs_provider._command_runner.subprocess.run")

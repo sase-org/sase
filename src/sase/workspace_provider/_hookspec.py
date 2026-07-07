@@ -114,6 +114,17 @@ class WorkspaceHookSpec:
     def ws_resolve_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None: ...
 
     @hookspec(firstresult=True)
+    def ws_peek_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None:
+        """Read-only workspace reference lookup.
+
+        Implementations must not clone repositories, create project records,
+        write files, spawn network subprocesses, or otherwise mutate local or
+        remote state. Return ``None`` when the ref cannot be resolved from
+        existing local state.
+        """
+        ...
+
+    @hookspec(firstresult=True)
     def ws_list_repo_candidates(
         self, workflow_type: str, namespace: str
     ) -> VcsRepoCandidates | None:

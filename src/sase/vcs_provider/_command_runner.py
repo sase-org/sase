@@ -4,6 +4,8 @@ import subprocess
 import sys
 from typing import TextIO
 
+from sase.workspace_provider.utils import non_interactive_git_env
+
 from ._types import CommandOutput
 
 
@@ -23,6 +25,7 @@ class CommandRunner:
         capture_output: bool = True,
     ) -> CommandOutput:
         """Run a subprocess command and return a :class:`CommandOutput`."""
+        git_env, git_stdin = _non_interactive_git_options(cmd)
         try:
             result = subprocess.run(
                 cmd,
@@ -31,6 +34,8 @@ class CommandRunner:
                 text=True,
                 check=False,
                 timeout=timeout,
+                env=git_env,
+                stdin=git_stdin,
             )
             return CommandOutput(result.returncode, result.stdout, result.stderr)
         except subprocess.TimeoutExpired:
@@ -109,3 +114,11 @@ class CommandRunner:
             False,
             f"{op_name} failed: {error_msg}" if error_msg else f"{op_name} failed",
         )
+
+
+def _non_interactive_git_options(
+    cmd: list[str],
+) -> tuple[dict[str, str] | None, int | None]:
+    if cmd[:1] != ["git"]:
+        return None, None
+    return non_interactive_git_env(), subprocess.DEVNULL

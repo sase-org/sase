@@ -1,6 +1,7 @@
 """Tests for sase.workspace_provider.utils module."""
 
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ from sase.workspace_provider.utils import (
     _ensure_git_clone_at,
     ensure_workspace_checkout,
     get_default_branch,
+    non_interactive_git_env,
     parse_bare_repo_dir,
     parse_workspace_dir,
     set_workspace_dir,
@@ -39,6 +41,20 @@ class TestGetDefaultBranch:
     def test_fallback_on_exception(self, mock_run: MagicMock) -> None:
         mock_run.side_effect = OSError("no git")
         assert get_default_branch("/repo") == "origin/main"
+
+
+class TestNonInteractiveGitEnv:
+    def test_sets_prompt_suppression_without_mutating_base(self) -> None:
+        base = {"PATH": "/bin", "GIT_TERMINAL_PROMPT": "1"}
+
+        env = non_interactive_git_env(base)
+
+        assert env["PATH"] == "/bin"
+        assert env["GIT_TERMINAL_PROMPT"] == "0"
+        assert env["GCM_INTERACTIVE"] == "never"
+        assert env["SSH_ASKPASS"] == "/bin/false"
+        assert env["SSH_ASKPASS_REQUIRE"] == "force"
+        assert base["GIT_TERMINAL_PROMPT"] == "1"
 
 
 # ── parse_workspace_dir ──────────────────────────────────────────────
@@ -153,6 +169,12 @@ class TestEnsureGitCloneAt:
         assert target.parent.is_dir()
         # 4 subprocess calls: get-url, clone, set-url, fetch
         assert mock_run.call_count == 4
+        clone_kwargs = mock_run.call_args_list[1].kwargs
+        fetch_kwargs = mock_run.call_args_list[3].kwargs
+        assert clone_kwargs["stdin"] is subprocess.DEVNULL
+        assert clone_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
+        assert fetch_kwargs["stdin"] is subprocess.DEVNULL
+        assert fetch_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
 
     @patch("sase.workspace_provider.utils.subprocess.run")
     def test_corrupt_target_is_replaced(

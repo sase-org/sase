@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-from sase.dev_update.execute import execute_dev_update
+import pytest
+
+from sase.dev_update.execute import execute_dev_update, run_dev_update_command
 from sase.dev_update.models import (
     DevCommandResult,
     DevReconcileStep,
@@ -121,6 +124,27 @@ class SequenceRunner(FakeRunner):
             self.calls.append((command, cwd))
             return self.sequences[command].pop(0)
         return super().__call__(argv, cwd=cwd)
+
+
+def test_run_dev_update_command_disables_git_prompts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("sase.dev_update.execute.subprocess.run", fake_run)
+
+    result = run_dev_update_command(("git", "fetch", "origin"))
+
+    assert result.returncode == 0
+    assert captured["stdin"] is subprocess.DEVNULL
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["GCM_INTERACTIVE"] == "never"
 
 
 def test_execute_dev_update_fetches_preflights_merges_and_reconciles() -> None:

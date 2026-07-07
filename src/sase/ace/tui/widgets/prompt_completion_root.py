@@ -7,9 +7,6 @@ from pathlib import Path
 from typing import Any
 import re
 
-_KNOWN_PROJECT_ONLY_WORKFLOW_TYPES = frozenset({"git"})
-"""Registered workflows whose resolver can create project/workspace state."""
-
 
 @dataclass(frozen=True, slots=True)
 class _PromptWorkflowRef:
@@ -42,19 +39,17 @@ def resolve_prompt_completion_base_dir(prompt: str) -> str | None:
 
     known_projects: dict[str, Any] | None = None
     for prompt_ref in _iter_registered_refs(normalized, patterns, exclude={"cd"}):
-        if prompt_ref.workflow_type in _KNOWN_PROJECT_ONLY_WORKFLOW_TYPES:
-            known_projects = _ensure_known_projects_loaded(known_projects)
-            base_dir = _known_project_base_dir_for_ref(
-                prompt_ref.ref,
-                known_projects,
-            )
-            if base_dir is not None:
-                return base_dir
-            continue
-
-        base_dir = _resolve_registered_base_dir(
+        base_dir = _peek_registered_base_dir(
             prompt_ref.ref,
             prompt_ref.workflow_type,
+        )
+        if base_dir is not None:
+            return base_dir
+
+        known_projects = _ensure_known_projects_loaded(known_projects)
+        base_dir = _known_project_base_dir_for_ref(
+            prompt_ref.ref,
+            known_projects,
         )
         if base_dir is not None:
             return base_dir
@@ -145,6 +140,20 @@ def _resolve_registered_base_dir(ref: str, workflow_type: str) -> str | None:
     except Exception:
         return None
 
+    base_dir = resolved.primary_workspace_dir
+    return str(base_dir) if base_dir else None
+
+
+def _peek_registered_base_dir(ref: str, workflow_type: str) -> str | None:
+    try:
+        from sase.workspace_provider import peek_ref
+
+        resolved = peek_ref(ref, workflow_type)
+    except Exception:
+        return None
+
+    if resolved is None:
+        return None
     base_dir = resolved.primary_workspace_dir
     return str(base_dir) if base_dir else None
 

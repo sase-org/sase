@@ -217,3 +217,22 @@ def test_fetch_git_upstream_fetches_tags_without_tracking_branch(
             _git._GIT_MUTATE_TIMEOUT_SECONDS,
         )
     ]
+
+
+def test_run_git_disables_interactive_prompts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="ok\n", stderr="")
+
+    monkeypatch.setattr(_git.subprocess, "run", fake_run)
+
+    assert _git.run_git(Path("/repo"), "fetch", "origin") == "ok"
+    assert captured["stdin"] is subprocess.DEVNULL
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert env["GCM_INTERACTIVE"] == "never"

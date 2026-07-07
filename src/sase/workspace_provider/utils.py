@@ -18,6 +18,16 @@ from sase.ace.changespec import (
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
 
 
+def non_interactive_git_env(base: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return an environment that prevents git/SSH credential prompts."""
+    env = dict(os.environ if base is None else base)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GCM_INTERACTIVE"] = "never"
+    env["SSH_ASKPASS"] = "/bin/false"
+    env["SSH_ASKPASS_REQUIRE"] = "force"
+    return env
+
+
 def get_default_branch(workspace_dir: str) -> str:
     """Detect the default branch for the origin remote.
 
@@ -250,6 +260,8 @@ def _ensure_git_clone_at(
             capture_output=True,
             text=True,
             check=True,
+            env=non_interactive_git_env(),
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError as e:
         if os.path.isdir(target_checkout_dir):
@@ -282,6 +294,8 @@ def _ensure_git_clone_at(
         capture_output=True,
         text=True,
         check=False,
+        env=non_interactive_git_env(),
+        stdin=subprocess.DEVNULL,
     )
 
     return target_checkout_dir
@@ -352,6 +366,7 @@ __all__ = [
     "Path",
     "ensure_workspace_checkout",
     "get_default_branch",
+    "non_interactive_git_env",
     "parse_bare_repo_dir",
     "parse_workspace_dir",
     "set_workspace_dir",

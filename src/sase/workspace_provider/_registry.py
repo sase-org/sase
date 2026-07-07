@@ -181,6 +181,11 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
     raise ValueError(f"No workspace plugin found for workflow type '{workflow_type}'")
 
 
+def peek_ref(ref: str, workflow_type: str) -> ResolvedRef | None:
+    """Read-only workspace reference lookup via provider plugins."""
+    return _get_manager().peek_ref(ref, workflow_type)
+
+
 def list_repo_candidates(workflow_type: str, namespace: str) -> VcsRepoCandidates:
     """List repository completion candidates via workspace provider plugins."""
     result = _get_manager().list_repo_candidates(workflow_type, namespace)
