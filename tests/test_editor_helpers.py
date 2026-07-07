@@ -148,6 +148,29 @@ def test_editor_helper_bridge_vcs_repo_catalog_round_trip(
     assert data["entries"][0]["ref"] == "bbugyi200/sase"
 
 
+def test_editor_helper_bridge_vcs_repo_catalog_reports_bad_request() -> None:
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    code = handle_editor_helper_bridge(
+        argparse.Namespace(editor_helper_bridge_subcommand="vcs-repo-catalog"),
+        stdin=io.StringIO(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "namespace": "bbugyi200",
+                }
+            )
+        ),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert code == 2
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue().startswith("editor helper bridge error:")
+
+
 def test_editor_helper_bridge_outputs_definition_path_for_real_catalog_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

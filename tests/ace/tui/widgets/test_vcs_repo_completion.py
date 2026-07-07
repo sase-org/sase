@@ -146,6 +146,27 @@ async def test_typing_narrows_cached_repo_menu() -> None:
         ]
 
 
+async def test_backspace_past_slash_dismisses_cached_repo_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with (
+            patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
+            patch(_PEEK_PATH, return_value=_RESULT),
+        ):
+            for key in "#gh:bbugyi200/sa":
+                await pilot.press(key)
+
+            assert ta._file_completion_active is True
+            await pilot.press("backspace")
+            await pilot.press("backspace")
+            assert ta._file_completion_active is True
+            await pilot.press("backspace")
+
+        assert ta.text == "#gh:bbugyi200"
+        assert ta._file_completion_active is False
+
+
 async def test_accept_repo_candidate_applies_canonical_colon_transform() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
