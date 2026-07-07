@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agents.cli_artifacts_layout import handle_agents_artifacts_layout
-from sase.artifacts import create_artifacts_directory
+from sase.artifacts import create_artifacts_directory, launch_artifacts_dir
 from sase.core.agent_artifact_paths import (
     DAY_SHARDED_LAYOUT_VERSION,
     LEGACY_LAYOUT_VERSION,
@@ -94,6 +94,28 @@ def test_create_artifacts_directory_uses_day_shards_for_ace_run(
         / "20260613120001"
     )
     assert other_dir.is_dir()
+
+
+def test_launch_artifacts_dir_uses_day_shards_for_ace_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    artifacts_dir = Path(launch_artifacts_dir("proj", "260613_120000"))
+
+    assert artifacts_dir == (
+        tmp_path
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "202606"
+        / "13"
+        / "20260613120000"
+    )
+    assert not artifacts_dir.exists()
 
 
 def test_create_artifacts_directory_canonicalizes_project_alias(

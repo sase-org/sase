@@ -16,4 +16,5 @@ class AgentLaunchResult:
     workflow_name: str = ""
     cl_name: str = ""
     timestamp: str = ""
+    artifacts_dir: str = ""
     agent_name: str | None = None

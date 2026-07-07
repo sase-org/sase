@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from sase.core.agent_artifact_paths import canonical_agent_artifact_path
+from sase.core.agent_artifact_paths import (
+    ACE_RUN_WORKFLOW_DIR,
+    canonical_agent_artifact_path,
+)
 from sase.core.shell import get_vendored_tool, run_shell_command
 from sase.core.time import get_timezone
 from sase.output import (
@@ -41,6 +44,18 @@ def convert_timestamp_to_artifacts_format(timestamp: str) -> str:
         Timestamp in YYYYmmddHHMMSS format (e.g., '20251227143052').
     """
     return f"20{timestamp[:6]}{timestamp[7:]}"
+
+
+def launch_artifacts_dir(project_name: str, timestamp: str) -> str:
+    """Return the canonical ace-run artifacts directory for a launch timestamp."""
+    artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
+    return str(
+        canonical_agent_artifact_path(
+            project_name,
+            ACE_RUN_WORKFLOW_DIR,
+            artifacts_timestamp,
+        )
+    )
 
 
 def create_artifacts_directory(

@@ -12,8 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sase.artifacts import convert_timestamp_to_artifacts_format
-from sase.core.agent_artifact_paths import canonical_agent_artifact_path
+from sase.artifacts import launch_artifacts_dir
 from sase.llm_provider.config import format_model_directive_value
 from sase.xprompt._parsing import normalize_launch_xprompt_at_refs
 
@@ -281,16 +280,14 @@ def result_to_slot(
 
 
 def artifact_dir_for_launch(result: AgentLaunchResult) -> str | None:
+    artifacts_dir = getattr(result, "artifacts_dir", "")
+    if isinstance(artifacts_dir, Path):
+        return str(artifacts_dir)
+    if isinstance(artifacts_dir, str) and artifacts_dir:
+        return artifacts_dir
     if not result.timestamp or not result.project_name:
         return None
-    artifacts_timestamp = convert_timestamp_to_artifacts_format(result.timestamp)
-    return str(
-        canonical_agent_artifact_path(
-            result.project_name,
-            "ace-run",
-            artifacts_timestamp,
-        )
-    )
+    return launch_artifacts_dir(result.project_name, result.timestamp)
 
 
 def planned_name_for_prompt(prompt: str) -> str | None:

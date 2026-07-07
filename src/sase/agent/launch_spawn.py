@@ -135,7 +135,10 @@ def spawn_agent_subprocess(
             terminated before the error is raised).
     """
     from sase.agent.launch_timing import LaunchTimingRecorder
-    from sase.artifacts import convert_timestamp_to_artifacts_format
+    from sase.artifacts import (
+        convert_timestamp_to_artifacts_format,
+        launch_artifacts_dir,
+    )
     from sase.axe.chop_agents import record_chop_agent_launch_from_env
     from sase.core.agent_launch_facade import (
         prepare_agent_launch,
@@ -354,5 +357,6 @@ def spawn_agent_subprocess(
         workflow_name=workflow_name,
         cl_name=cl_name,
         timestamp=timestamp,
+        artifacts_dir=launch_artifacts_dir(resolved_project_name, timestamp),
         agent_name=planned_agent_name,
     )

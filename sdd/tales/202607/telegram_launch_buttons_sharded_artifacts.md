@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 23:42:26
-status: wip
+status: done
 prompt: sdd/prompts/202607/telegram_launch_buttons_sharded_artifacts.md
 ---
 # Fix Missing Fork/Wait/Kill/Retry Buttons on Telegram Launch Messages

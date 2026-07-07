@@ -187,6 +187,8 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
     monkeypatch.setenv(ENV_CHOP_NAME, "split")
@@ -211,6 +213,16 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     )
 
     assert result.pid == 4321
+    assert result.artifacts_dir == str(
+        sase_home
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "202601"
+        / "01"
+        / "20260101120000"
+    )
     prepared = mock_spawn.call_args.args[0]
     assert prepared.argv[2:9] == [
         "proj",
