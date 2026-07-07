@@ -30,6 +30,7 @@ from sase.plugins.pypi_source import fetch_latest_version
 from sase.uv_tool.commands import build_reinstall_set
 from sase.uv_tool.detect import UvToolInstall
 from sase.uv_tool.errors import ReceiptError, UvToolError
+from sase.uv_tool.overrides import write_editable_overrides
 from sase.uv_tool.receipt import Requirement, ToolReceipt, load_receipt
 from sase.version._display import derive_display_version
 from sase.version._git import (
@@ -235,14 +236,17 @@ def _plan_to_dev(
         )
         editable_plugins.append(Requirement(name=plugin.name, editable=str(path)))
 
+    target_plugins = (*editable_plugins, *managed_plugins)
+    overrides_path = write_editable_overrides((primary_req, *target_plugins))
     uv_command = ModeSwitchCommand(
         kind="uv_tool_install",
         label="Install editable package set",
         command=tuple(
             build_reinstall_set(
                 primary_req,
-                (*editable_plugins, *managed_plugins),
+                target_plugins,
                 color="never",
+                overrides=str(overrides_path) if overrides_path is not None else None,
             )
         ),
     )
@@ -292,10 +296,18 @@ def _plan_to_pypi(
         _pypi_package_row(plugin.name, "plugin", records, latest_fn)
         for plugin in plugins
     )
+    overrides_path = write_editable_overrides((primary, *plugins))
     command = ModeSwitchCommand(
         kind="uv_tool_install",
         label="Install published package set",
-        command=tuple(build_reinstall_set(primary, plugins, color="never")),
+        command=tuple(
+            build_reinstall_set(
+                primary,
+                plugins,
+                color="never",
+                overrides=str(overrides_path) if overrides_path is not None else None,
+            )
+        ),
     )
     return SwitchPlan(
         current_mode=current_mode,

@@ -30,6 +30,7 @@ def build_install(
     *,
     add: Requirement | str | None = None,
     color: ColorChoice | None = None,
+    overrides: str | None = None,
 ) -> list[str]:
     """``uv tool install`` re-injecting the full reconstructed ``--with`` set.
 
@@ -43,6 +44,7 @@ def build_install(
     argv += recon.primary.primary_args()
     for plugin in recon.plugins:
         argv += plugin.with_args()
+    argv += _overrides_args(overrides)
     return argv
 
 
@@ -51,6 +53,7 @@ def build_install_many(
     *,
     add: Iterable[Requirement | str],
     color: ColorChoice | None = None,
+    overrides: str | None = None,
 ) -> list[str]:
     """``uv tool install`` re-injecting the full set plus multiple additions."""
     recon = receipt.reconstruct(adds=add)
@@ -58,6 +61,7 @@ def build_install_many(
     argv += recon.primary.primary_args()
     for plugin in recon.plugins:
         argv += plugin.with_args()
+    argv += _overrides_args(overrides)
     return argv
 
 
@@ -66,12 +70,14 @@ def build_reinstall_set(
     plugins: Iterable[Requirement] = (),
     *,
     color: ColorChoice | None = None,
+    overrides: str | None = None,
 ) -> list[str]:
     """``uv tool install --force --reinstall`` for an explicit package set."""
     argv = ["uv", "tool", "install", *_color_args(color), "--force", "--reinstall"]
     argv += primary.primary_args()
     for plugin in plugins:
         argv += plugin.with_args()
+    argv += _overrides_args(overrides)
     return argv
 
 
@@ -80,6 +86,7 @@ def build_uninstall(
     *,
     remove: str,
     color: ColorChoice | None = None,
+    overrides: str | None = None,
 ) -> list[str]:
     """``uv tool install`` re-injecting the full ``--with`` set minus *remove*.
 
@@ -94,6 +101,7 @@ def build_uninstall(
     argv += recon.primary.primary_args()
     for plugin in recon.plugins:
         argv += plugin.with_args()
+    argv += _overrides_args(overrides)
     return argv
 
 
@@ -102,13 +110,14 @@ def build_upgrade_packages(
     names: Iterable[str],
     *,
     color: ColorChoice | None = None,
+    overrides: str | None = None,
 ) -> list[str]:
     """``uv tool install`` (full set) plus ``--upgrade-package`` per name.
 
     Upgrades exactly the named injected plugins while pinning everything else, so
     "update plugins" never silently bumps sase core (decision *D3*'s complement).
     """
-    argv = build_install(receipt, color=color)
+    argv = build_install(receipt, color=color, overrides=overrides)
     for name in names:
         argv += ["--upgrade-package", name]
     return argv
@@ -116,6 +125,10 @@ def build_upgrade_packages(
 
 def _color_args(color: ColorChoice | None) -> list[str]:
     return ["--color", color] if color else []
+
+
+def _overrides_args(overrides: str | None) -> list[str]:
+    return ["--overrides", overrides] if overrides is not None else []
 
 
 __all__ = [

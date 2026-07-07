@@ -10,6 +10,7 @@ from sase.plugins.catalog import suggest_plugins
 from sase.uv_tool.commands import build_uninstall
 from sase.uv_tool.detect import NotUvToolInstall, probe_uv_tool_install
 from sase.uv_tool.errors import NotAUvToolInstallError
+from sase.uv_tool.overrides import write_editable_overrides
 from sase.uv_tool.receipt import Requirement, load_receipt
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
@@ -110,7 +111,14 @@ def plan_uninstall(
     receipt = load_receipt(install.receipt_path)
     injected = match_injected(receipt, query)
     if injected is not None:
-        argv = build_uninstall(receipt, remove=injected.normalized_name, color="never")
+        recon = receipt.reconstruct(remove=injected.normalized_name)
+        overrides_path = write_editable_overrides((recon.primary, *recon.plugins))
+        argv = build_uninstall(
+            receipt,
+            remove=injected.normalized_name,
+            color="never",
+            overrides=str(overrides_path) if overrides_path is not None else None,
+        )
         return UninstallReady(
             requirement=injected,
             display_name=short_display_name(injected.name),

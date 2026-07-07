@@ -196,6 +196,12 @@ def test_plan_to_dev_builds_editable_reinstall_command(tmp_path: Path) -> None:
     assert str(tmp_path / "dev" / "sase-org" / "sase") in uv_command.command
     assert "--with-editable" in uv_command.command
     assert str(tmp_path / "dev" / "sase-org" / "sase-github") in uv_command.command
+    assert uv_command.command[-2] == "--overrides"
+    overrides_path = Path(uv_command.command[-1])
+    assert overrides_path.read_text(encoding="utf-8") == (
+        f"-e {tmp_path / 'dev' / 'sase-org' / 'sase'}\n"
+        f"-e {tmp_path / 'dev' / 'sase-org' / 'sase-github'}\n"
+    )
 
     clone_commands = {
         command.label: command.command

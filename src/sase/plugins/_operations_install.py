@@ -14,6 +14,7 @@ from sase.plugins.installed import build_installed_index
 from sase.uv_tool.commands import build_install, build_install_many
 from sase.uv_tool.detect import NotUvToolInstall, probe_uv_tool_install
 from sase.uv_tool.errors import NotAUvToolInstallError
+from sase.uv_tool.overrides import write_editable_overrides
 from sase.uv_tool.receipt import load_receipt
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
@@ -138,7 +139,14 @@ def plan_install(
     if receipt.is_injected(spec.normalized_name):
         return AlreadyInstalled(spec)
 
-    argv = build_install(receipt, add=spec.requirement, color="never")
+    recon = receipt.reconstruct(add=spec.requirement)
+    overrides_path = write_editable_overrides((recon.primary, *recon.plugins))
+    argv = build_install(
+        receipt,
+        add=spec.requirement,
+        color="never",
+        overrides=str(overrides_path) if overrides_path is not None else None,
+    )
     return InstallReady(spec=spec, argv=argv)
 
 
@@ -190,10 +198,13 @@ def plan_install_many(
     if not specs:
         return InstallManyNothing(skipped=tuple(skipped))
 
+    recon = receipt.reconstruct(adds=(spec.requirement for spec in specs))
+    overrides_path = write_editable_overrides((recon.primary, *recon.plugins))
     argv = build_install_many(
         receipt,
         add=(spec.requirement for spec in specs),
         color="never",
+        overrides=str(overrides_path) if overrides_path is not None else None,
     )
     return InstallManyReady(
         specs=tuple(specs),

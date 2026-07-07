@@ -27,6 +27,7 @@ from sase.version._git import (
 from sase.version._models import CORE_DISTRIBUTION_NAME, VersionPackageRecord
 from sase.version._utils import normalize_distribution_name
 from sase.uv_tool.commands import build_install
+from sase.uv_tool.overrides import write_editable_overrides
 from sase.uv_tool.receipt import ToolReceipt
 
 _CORE_HEALTH_CHECK_SNIPPET = (
@@ -248,11 +249,20 @@ def _reconcile_steps(
                 )
             )
         else:
+            overrides_path = write_editable_overrides(receipt.requirements)
             steps.append(
                 DevReconcileStep(
                     kind="uv_tool_install",
                     label="Reinstall uv-tool editable Python packages",
-                    command=tuple(build_install(receipt, color="never")),
+                    command=tuple(
+                        build_install(
+                            receipt,
+                            color="never",
+                            overrides=str(overrides_path)
+                            if overrides_path is not None
+                            else None,
+                        )
+                    ),
                 )
             )
 

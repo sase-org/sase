@@ -92,6 +92,31 @@ def test_plan_install_ready_builds_full_with_set(tmp_path: Path) -> None:
     assert plan.spec.source == "catalog"
 
 
+def test_plan_install_ready_writes_overrides_for_editable_target_set(
+    tmp_path: Path,
+) -> None:
+    receipt = """
+[tool]
+requirements = [
+    { name = "sase", editable = "/src/sase" },
+    { name = "sase-telegram", editable = "/src/sase-telegram" },
+]
+"""
+
+    plan = plan_install(
+        "github",
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path, receipt),
+    )
+
+    assert isinstance(plan, InstallReady)
+    assert plan.argv[-2] == "--overrides"
+    overrides_path = Path(plan.argv[-1])
+    assert overrides_path.read_text(encoding="utf-8") == (
+        "-e /src/sase\n-e /src/sase-telegram\n"
+    )
+
+
 def test_plan_install_many_ready_builds_one_full_with_set(tmp_path: Path) -> None:
     plan = plan_install_many(
         ("github", "jira"),
@@ -115,6 +140,29 @@ def test_plan_install_many_ready_builds_one_full_with_set(tmp_path: Path) -> Non
         "--with",
         "acme-jira",
     ]
+
+
+def test_plan_install_many_ready_writes_overrides_for_editable_target_set(
+    tmp_path: Path,
+) -> None:
+    receipt = """
+[tool]
+requirements = [
+    { name = "sase", editable = "/src/sase" },
+    { name = "sase-telegram" },
+]
+"""
+
+    plan = plan_install_many(
+        ("github", "jira"),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path, receipt),
+    )
+
+    assert isinstance(plan, InstallManyReady)
+    assert plan.argv[-2] == "--overrides"
+    overrides_path = Path(plan.argv[-1])
+    assert overrides_path.read_text(encoding="utf-8") == "-e /src/sase\n"
 
 
 def test_plan_install_many_skips_terminal_inputs(tmp_path: Path) -> None:

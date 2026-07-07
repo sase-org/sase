@@ -230,7 +230,8 @@ def test_plan_dev_update_dedupes_roots_and_builds_uv_reconcile(
     assert plan.skipped == ()
     assert len(plan.reconcile_steps) == 1
     assert plan.reconcile_steps[0].kind == "uv_tool_install"
-    assert plan.reconcile_steps[0].command == (
+    command = plan.reconcile_steps[0].command
+    assert command[:9] == (
         "uv",
         "tool",
         "install",
@@ -240,6 +241,11 @@ def test_plan_dev_update_dedupes_roots_and_builds_uv_reconcile(
         "/repo/sase",
         "--with-editable",
         "/repo/sase/plugins/github",
+    )
+    assert command[-2] == "--overrides"
+    overrides_path = Path(command[-1])
+    assert overrides_path.read_text(encoding="utf-8") == (
+        "-e /repo/sase\n-e /repo/sase/plugins/github\n"
     )
 
 

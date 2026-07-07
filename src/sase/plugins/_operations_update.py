@@ -10,6 +10,7 @@ from sase.plugins.catalog import suggest_plugins
 from sase.uv_tool.commands import build_upgrade_packages
 from sase.uv_tool.detect import NotUvToolInstall, probe_uv_tool_install
 from sase.uv_tool.errors import NotAUvToolInstallError
+from sase.uv_tool.overrides import write_editable_overrides
 from sase.uv_tool.receipt import Requirement, ToolReceipt, load_receipt
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
@@ -110,7 +111,14 @@ def plan_update(
             return resolved
         targets = (resolved.name,)
 
-    argv = build_upgrade_packages(receipt, targets, color="never")
+    recon = receipt.reconstruct()
+    overrides_path = write_editable_overrides((recon.primary, *recon.plugins))
+    argv = build_upgrade_packages(
+        receipt,
+        targets,
+        color="never",
+        overrides=str(overrides_path) if overrides_path is not None else None,
+    )
     return UpdateReady(argv=argv, targets=targets, all_plugins=all_plugins)
 
 

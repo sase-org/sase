@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.uv_tool.commands import (
     build_install,
+    build_install_many,
     build_reinstall_set,
     build_uninstall,
     build_upgrade_all,
@@ -60,6 +61,11 @@ def test_build_install_reconstructs_editable_set() -> None:
     ]
 
 
+def test_build_install_appends_overrides_flag() -> None:
+    argv = build_install(parse_receipt(_DEV_RECEIPT), overrides="/tmp/overrides.txt")
+    assert argv[-2:] == ["--overrides", "/tmp/overrides.txt"]
+
+
 def test_build_install_with_color_flag() -> None:
     argv = build_install(parse_receipt(_PYPI_RECEIPT), color="always")
     assert argv[:5] == ["uv", "tool", "install", "--color", "always"]
@@ -102,6 +108,23 @@ def test_build_reinstall_set_for_mode_switch() -> None:
         "--with",
         "sase-telegram",
     ]
+
+
+def test_build_install_many_appends_overrides_flag() -> None:
+    argv = build_install_many(
+        parse_receipt(_PYPI_RECEIPT),
+        add=(Requirement(name="sase-amd"),),
+        overrides="/tmp/overrides.txt",
+    )
+    assert argv[-2:] == ["--overrides", "/tmp/overrides.txt"]
+
+
+def test_build_reinstall_set_appends_overrides_flag() -> None:
+    argv = build_reinstall_set(
+        Requirement(name="sase", editable="/src/sase"),
+        overrides="/tmp/overrides.txt",
+    )
+    assert argv[-2:] == ["--overrides", "/tmp/overrides.txt"]
 
 
 def test_build_install_with_added_plugin() -> None:
@@ -166,6 +189,15 @@ def test_build_uninstall_with_color() -> None:
     assert argv[3:5] == ["--color", "never"]
 
 
+def test_build_uninstall_appends_overrides_flag() -> None:
+    argv = build_uninstall(
+        parse_receipt(_DEV_RECEIPT),
+        remove="sase-telegram",
+        overrides="/tmp/overrides.txt",
+    )
+    assert argv[-2:] == ["--overrides", "/tmp/overrides.txt"]
+
+
 def test_build_upgrade_packages_appends_upgrade_flags() -> None:
     argv = build_upgrade_packages(
         parse_receipt(_DEV_RECEIPT), ["sase-github", "sase-telegram"]
@@ -185,3 +217,17 @@ def test_build_upgrade_packages_with_color() -> None:
     )
     assert argv[3:5] == ["--color", "never"]
     assert argv[-2:] == ["--upgrade-package", "sase-edge"]
+
+
+def test_build_upgrade_packages_passes_overrides_to_install() -> None:
+    argv = build_upgrade_packages(
+        parse_receipt(_DEV_RECEIPT),
+        ["sase-github"],
+        overrides="/tmp/overrides.txt",
+    )
+    assert argv[-4:] == [
+        "--overrides",
+        "/tmp/overrides.txt",
+        "--upgrade-package",
+        "sase-github",
+    ]

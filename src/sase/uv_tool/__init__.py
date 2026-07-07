@@ -36,6 +36,7 @@ from sase.uv_tool.errors import (
     UvNotFoundError,
     UvToolError,
 )
+from sase.uv_tool.overrides import editable_override_lines, write_editable_overrides
 from sase.uv_tool.receipt import (
     ReconstructedRequirements,
     Requirement,
@@ -99,6 +100,7 @@ __all__ = [
     "collect_installed_core_versions",
     "default_uv_tool_dir",
     "detect_uv_tool_install",
+    "editable_override_lines",
     "enrich_core_versions_latest",
     "load_receipt",
     "parse_receipt",
@@ -110,4 +112,5 @@ __all__ = [
     "run_uv",
     "sase_receipt_path",
     "summarize_update",
+    "write_editable_overrides",
 ]

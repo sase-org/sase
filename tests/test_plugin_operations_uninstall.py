@@ -76,7 +76,7 @@ requirements = [
     assert isinstance(plan, UninstallReady)
     assert "sase-github" not in plan.argv
     assert "/home/u/sase-github" not in plan.argv
-    assert plan.argv == [
+    assert plan.argv[:9] == [
         "uv",
         "tool",
         "install",
@@ -87,6 +87,9 @@ requirements = [
         "--with",
         "sase-telegram",
     ]
+    assert plan.argv[-2] == "--overrides"
+    overrides_path = Path(plan.argv[-1])
+    assert overrides_path.read_text(encoding="utf-8") == "-e /home/u/sase\n"
 
 
 def test_plan_uninstall_community_plugin_absent_from_catalog(tmp_path: Path) -> None:

@@ -243,3 +243,85 @@ def test_uninstall_removes_throwaway_tool(uv_env: UvToolEnv) -> None:
 
     uv_env.run(["uv", "tool", "uninstall", PRIMARY, "--color", "never"])
     assert not uv_env.receipt_path.exists()
+
+
+def test_editable_overrides_neutralize_static_version_floor(
+    tmp_path: Path,
+) -> None:
+    """A local editable override satisfies a dependent's too-high floor.
+
+    This reproduces the dev-update failure mode with disposable local packages:
+    the primary checkout's static pyproject version is lower than the plugin's
+    declared floor, but an override containing ``-e <primary>`` makes uv resolve
+    the local checkout anyway.
+    """
+    primary = tmp_path / "primary"
+    plugin = tmp_path / "plugin"
+    _write_local_package(primary, "override-primary", "0.1.0")
+    _write_local_package(
+        plugin,
+        "override-plugin",
+        "0.1.0",
+        dependencies=("override-primary>=0.2.0",),
+    )
+    requirements = tmp_path / "requirements.in"
+    requirements.write_text(f"-e {primary}\n-e {plugin}\n", encoding="utf-8")
+
+    failed = _run_uv_pip_compile(requirements)
+    assert failed.returncode != 0
+    assert "override-primary" in failed.stderr
+
+    overrides = tmp_path / "overrides.txt"
+    overrides.write_text(f"-e {primary}\n", encoding="utf-8")
+    succeeded = _run_uv_pip_compile(requirements, overrides=overrides)
+    assert succeeded.returncode == 0, succeeded.stderr
+    assert str(primary) in succeeded.stdout
+
+
+def _write_local_package(
+    path: Path,
+    name: str,
+    version: str,
+    *,
+    dependencies: Sequence[str] = (),
+) -> None:
+    path.mkdir()
+    module = name.replace("-", "_")
+    dependency_rows = "\n".join(f'    "{dependency}",' for dependency in dependencies)
+    dependency_block = (
+        f"dependencies = [\n{dependency_rows}\n]\n" if dependency_rows else ""
+    )
+    (path / "pyproject.toml").write_text(
+        f"""\
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{name}"
+version = "{version}"
+{dependency_block}
+""",
+        encoding="utf-8",
+    )
+    package_dir = path / module
+    package_dir.mkdir()
+    (package_dir / "__init__.py").write_text("", encoding="utf-8")
+
+
+def _run_uv_pip_compile(
+    requirements: Path,
+    *,
+    overrides: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    argv = [
+        "uv",
+        "pip",
+        "compile",
+        str(requirements),
+        "--color",
+        "never",
+    ]
+    if overrides is not None:
+        argv += ["--overrides", str(overrides)]
+    return subprocess.run(argv, capture_output=True, text=True, check=False)

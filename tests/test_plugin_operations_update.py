@@ -76,6 +76,33 @@ def test_plan_update_ready_single_from_receipt(tmp_path: Path) -> None:
     ]
 
 
+def test_plan_update_ready_writes_overrides_for_editable_target_set(
+    tmp_path: Path,
+) -> None:
+    receipt = """
+[tool]
+requirements = [
+    { name = "sase", editable = "/src/sase" },
+    { name = "sase-github", editable = "/src/sase-github" },
+    { name = "sase-telegram" },
+]
+"""
+
+    plan = plan_update(
+        "github",
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path, receipt),
+    )
+
+    assert isinstance(plan, UpdateReady)
+    assert plan.argv[-4] == "--overrides"
+    overrides_path = Path(plan.argv[-3])
+    assert plan.argv[-2:] == ["--upgrade-package", "sase-github"]
+    assert overrides_path.read_text(encoding="utf-8") == (
+        "-e /src/sase\n-e /src/sase-github\n"
+    )
+
+
 def test_plan_update_ready_all(tmp_path: Path) -> None:
     plan = plan_update(
         None,
