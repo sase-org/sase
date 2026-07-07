@@ -448,6 +448,55 @@ def test_execute_dev_update_repairs_failed_core_health_check() -> None:
     ]
 
 
+def test_execute_dev_update_runs_lsp_install_after_core_health_check() -> None:
+    rust_step = DevReconcileStep(
+        kind="rust_install_uv_tool",
+        label="Rebuild sase-core-rs into the uv-tool venv",
+        command=("just", "rust-install-uv-tool"),
+        cwd="/host",
+    )
+    health_step = DevReconcileStep(
+        kind="rust_health_check",
+        label="Verify sase-core-rs imports in the uv-tool venv",
+        command=("/tool/bin/python", "-c", "import sase_core_rs"),
+    )
+    lsp_step = DevReconcileStep(
+        kind="rust_lsp_install",
+        label="Rebuild xprompt LSP into the uv-tool venv",
+        command=("just", "rust-lsp-install-uv-tool"),
+        cwd="/host",
+    )
+    runner = FakeRunner(
+        {
+            ("just", "rust-lsp-install-uv-tool"): DevCommandResult(
+                1, stderr="cargo failed"
+            )
+        }
+    )
+
+    result = execute_dev_update(
+        _plan(reconcile=(rust_step, health_step, lsp_step)),
+        run=runner,
+    )
+
+    assert result.changed is True
+    assert result.outcomes[0].status == "failed"
+    assert "Rebuild xprompt LSP into the uv-tool venv failed" in (
+        result.outcomes[0].reason
+    )
+    assert "cargo failed" in result.outcomes[0].reason
+    reconcile_commands = [
+        (command.label, command.cwd, command.returncode)
+        for command in result.commands
+        if not command.label.startswith("git ")
+    ]
+    assert reconcile_commands == [
+        ("Rebuild sase-core-rs into the uv-tool venv", "/host", 0),
+        ("Verify sase-core-rs imports in the uv-tool venv", None, 0),
+        ("Rebuild xprompt LSP into the uv-tool venv", "/host", 1),
+    ]
+
+
 def test_execute_dev_update_no_actionable_roots_returns_skips() -> None:
     plan = DevUpdatePlan(
         packages=(_package("sase", status="skipped"),),

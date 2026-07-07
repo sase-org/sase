@@ -276,6 +276,7 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
     assert [step.kind for step in plan.reconcile_steps] == [
         "rust_install_uv_tool",
         "rust_health_check",
+        "rust_lsp_install",
     ]
     assert plan.reconcile_steps[0].command == ("just", "rust-install-uv-tool")
     assert plan.reconcile_steps[0].cwd == str(host_root)
@@ -294,6 +295,31 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
         "--force-reinstall",
         "sase-core-rs<0.4.0,>=0.3.2",
     )
+    assert plan.reconcile_steps[2].command == ("just", "rust-lsp-install-uv-tool")
+    assert plan.reconcile_steps[2].cwd == str(host_root)
+
+
+def test_plan_dev_update_core_rebuild_steps_need_host_source_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _record("sase", role="host", source_root=None)
+    core = _record("sase-core-rs", role="core", source_root="/repo/sase-core")
+    monkeypatch.setattr(
+        plan_mod, "classify_git_upstream", lambda _root: _status("/repo/sase-core")
+    )
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update([core], host_record=host, tool_python="/tool/bin/python")
+
+    assert [step.kind for step in plan.reconcile_steps] == [
+        "rust_install_uv_tool",
+        "rust_health_check",
+        "rust_lsp_install",
+    ]
+    assert plan.reconcile_steps[0].available is False
+    assert plan.reconcile_steps[0].reason == "host checkout source root unavailable"
+    assert plan.reconcile_steps[2].available is False
+    assert plan.reconcile_steps[2].reason == "host checkout source root unavailable"
 
 
 @pytest.mark.parametrize(

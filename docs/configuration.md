@@ -1866,9 +1866,10 @@ With no subcommand, `sase file-history` defaults to `sase file-history list`.
 ### `sase lsp`
 
 Starts the xprompt language server over stdio for editor integrations. `SASE_XPROMPT_LSP_CMD` can override the server
-command during development. Without that override, `sase lsp` uses `sase-xprompt-lsp` from `PATH`, then checks a sibling
-`../sase-core` checkout for debug/release binaries, then falls back to `cargo run` from that sibling checkout when Cargo
-is available.
+command during development. Without that override, `sase lsp` uses the current Python environment's
+`bin/sase-xprompt-lsp`, then `sase-xprompt-lsp` from `PATH`, then the newer debug/release binary from a sibling
+`../sase-core` checkout, then falls back to `cargo run` from that sibling checkout when Cargo is available. Full
+editable-install SASE updates reinstall the server into the uv-tool venv when pulled `sase-core` commits change.
 
 | Flag              | Values | Default | Description                            |
 | ----------------- | ------ | ------- | -------------------------------------- |

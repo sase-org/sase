@@ -138,9 +138,10 @@ collection and classification code, but returns JSON metadata instead of requiri
 this order:
 
 1. `SASE_XPROMPT_LSP_CMD`, parsed as a shell-style command for development.
-2. `sase-xprompt-lsp` on `PATH`.
-3. A debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core` checkout.
-4. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when `cargo` is available and the sibling
+2. A `sase-xprompt-lsp` binary in the current Python environment's `bin/` directory.
+3. `sase-xprompt-lsp` on `PATH`.
+4. The newer debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core` checkout.
+5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when `cargo` is available and the sibling
    checkout has a `Cargo.toml`.
 
 Examples:
@@ -151,8 +152,9 @@ sase lsp --version
 SASE_XPROMPT_LSP_CMD='cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --' sase lsp
 ```
 
-Use `SASE_XPROMPT_LSP_CMD` for any non-default LSP command. `SASE_CORE_DIR` is a `Justfile` build/install override, not
-part of `sase lsp` command resolution.
+Use `SASE_XPROMPT_LSP_CMD` for any non-default LSP command, including a custom binary that should beat the managed venv
+copy. Full editable-install SASE updates reinstall the server into the uv-tool venv when pulled `sase-core` commits
+change. `SASE_CORE_DIR` is a `Justfile` build/install override, not part of `sase lsp` command resolution.
 
 The LSP loads the supported xprompt catalog sources directly in Rust for completion, hover, diagnostics, and definition
 requests. `sase lsp` exports the installed package xprompt paths to the server so built-in Markdown prompts, YAML

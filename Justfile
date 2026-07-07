@@ -446,6 +446,49 @@ rust-install-uv-tool:
      fi; \
      just rust-install "$TOOL_VENV"
 
+# Build and install the xprompt LSP server into a venv (defaults to the
+# repo `.venv`). The binary is copied into the target venv's bin directory
+# so `sase lsp` can prefer the update-managed server over stale PATH copies.
+rust-lsp-install VENV=venv_dir_abs: _venv
+    @if [ ! -d "{{ sase_core_dir }}" ]; then \
+        printf "[rust-lsp-install] %s not found; skipping (xprompt LSP is optional).\n" "{{ sase_core_dir }}"; \
+        exit 0; \
+    fi
+    @if ! command -v cargo > /dev/null 2>&1; then \
+        printf "[rust-lsp-install] cargo not on PATH; install rustup to build the xprompt LSP server.\n"; \
+        exit 1; \
+    fi
+    @if [ ! -x "{{ VENV }}/bin/python" ]; then \
+        printf "[rust-lsp-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
+        exit 1; \
+    fi
+    @cd "{{ sase_core_dir }}" && \
+        CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
+        CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
+        cargo build --release -p sase_xprompt_lsp
+    @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
+    src="{{ sase_core_dir }}/target/release/sase-xprompt-lsp"; \
+    tmp="$dest.tmp.$$"; \
+    trap 'rm -f "$tmp"' EXIT; \
+    cp "$src" "$tmp"; \
+    chmod +x "$tmp"; \
+    mv -f "$tmp" "$dest"; \
+    printf "[rust-lsp-install] installed %s\n" "$dest"
+
+# Build and install `sase-xprompt-lsp` into the uv-tool venv for `sase`
+# (typically ~/.local/share/uv/tools/sase).
+rust-lsp-install-uv-tool:
+    @if ! command -v uv > /dev/null 2>&1; then \
+        printf "[rust-lsp-install-uv-tool] uv not on PATH; install uv to use this target.\n"; \
+        exit 0; \
+    fi
+    @TOOL_VENV="$(uv tool dir)/sase"; \
+     if [ ! -x "$TOOL_VENV/bin/python" ]; then \
+         printf "[rust-lsp-install-uv-tool] no uv-tool venv for sase at %s; run 'uv tool install sase' first.\n" "$TOOL_VENV"; \
+         exit 0; \
+     fi; \
+     just rust-lsp-install "$TOOL_VENV"
+
 # Run `cargo test --workspace` in ../sase-core.
 rust-test: _venv
     @if [ ! -d "{{ sase_core_dir }}" ]; then \

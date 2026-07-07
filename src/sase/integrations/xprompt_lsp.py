@@ -87,18 +87,24 @@ def _resolve_xprompt_lsp_command(
             )
             return recovered or command
 
+    venv_binary = _first_existing_xprompt_lsp_binary(Path(sys.executable).parent)
+    if venv_binary is not None:
+        return (str(venv_binary),)
+
     path = which(XPROMPT_LSP_BINARY)
     if path:
         return (path,)
 
     root = repo_root or Path(__file__).resolve().parents[3]
     sibling_core = root.parent / "sase-core"
-    for candidate in (
-        sibling_core / "target" / "debug" / XPROMPT_LSP_BINARY,
-        sibling_core / "target" / "release" / XPROMPT_LSP_BINARY,
-    ):
-        if candidate.is_file():
-            return (str(candidate),)
+    target_binary = _newest_existing_xprompt_lsp_binary(
+        (
+            sibling_core / "target" / "debug",
+            sibling_core / "target" / "release",
+        )
+    )
+    if target_binary is not None:
+        return (str(target_binary),)
 
     cargo = which("cargo")
     manifest = sibling_core / "Cargo.toml"
@@ -114,9 +120,47 @@ def _resolve_xprompt_lsp_command(
         )
 
     raise _XPromptLspLaunchError(
-        "xprompt LSP binary not found; install `sase-xprompt-lsp` on PATH "
-        f"or set {SASE_XPROMPT_LSP_CMD_ENV}"
+        "xprompt LSP binary not found; install `sase-xprompt-lsp` into the "
+        f"current venv, install it on PATH, or set {SASE_XPROMPT_LSP_CMD_ENV}"
     )
+
+
+def _first_existing_xprompt_lsp_binary(directory: Path) -> Path | None:
+    for candidate in _xprompt_lsp_binary_candidates(directory):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _newest_existing_xprompt_lsp_binary(
+    directories: Sequence[Path],
+) -> Path | None:
+    candidates = [
+        candidate
+        for directory in directories
+        for candidate in _xprompt_lsp_binary_candidates(directory)
+        if candidate.is_file()
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=_mtime_ns)
+
+
+def _xprompt_lsp_binary_candidates(directory: Path) -> tuple[Path, ...]:
+    return tuple(directory / name for name in _xprompt_lsp_binary_names())
+
+
+def _xprompt_lsp_binary_names() -> tuple[str, ...]:
+    if os.name == "nt":
+        return (f"{XPROMPT_LSP_BINARY}.exe", XPROMPT_LSP_BINARY)
+    return (XPROMPT_LSP_BINARY,)
+
+
+def _mtime_ns(path: Path) -> int:
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return -1
 
 
 def _recover_unquoted_command_path_with_spaces(

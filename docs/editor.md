@@ -22,14 +22,17 @@ In editor configuration terms, the command is `sase` and the argument list is `[
 The wrapper resolves the server command in this order:
 
 1. `SASE_XPROMPT_LSP_CMD`, parsed as a shell-style command for development.
-2. `sase-xprompt-lsp` on `PATH`.
-3. A debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core` checkout.
-4. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when `cargo` is available and the sibling
+2. A `sase-xprompt-lsp` binary in the current Python environment's `bin/` directory.
+3. `sase-xprompt-lsp` on `PATH`.
+4. The newer debug or release `sase-xprompt-lsp` binary under a sibling `../sase-core` checkout.
+5. `cargo run --manifest-path ../sase-core/Cargo.toml -p sase_xprompt_lsp --` when `cargo` is available and the sibling
    checkout has a `Cargo.toml`.
 
-Use `SASE_XPROMPT_LSP_CMD` when you need to point the editor wrapper at a different source checkout or command. The
-`Justfile` uses `SASE_CORE_DIR` and `SASE_LINKED_REPO_SASE_CORE_DIR` (with the legacy `SASE_SIBLING_REPO_*` variables as
-fallbacks) for local `sase-core` build/install targets, but `sase lsp` itself does not read those variables.
+Use `SASE_XPROMPT_LSP_CMD` when you need to point the editor wrapper at a different source checkout or command,
+including a custom binary that should beat the managed venv copy. Full editable-install SASE updates reinstall the
+server into the uv-tool venv when pulled `sase-core` commits change. The `Justfile` uses `SASE_CORE_DIR` and
+`SASE_LINKED_REPO_SASE_CORE_DIR` (with the legacy `SASE_SIBLING_REPO_*` variables as fallbacks) for local `sase-core`
+build/install targets, but `sase lsp` itself does not read those variables.
 
 The wrapper also exports installed package xprompt locations, bundled default config, plugin xprompt directories, and
 plugin config paths to the Rust server. The server refreshes its catalog when the LSP session starts, keeps a short
@@ -114,7 +117,7 @@ and `#[trigger:value]` fill the referenced snippet's tabstops before the compose
 
 | Symptom                        | Check                                                                                                                         |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `sase lsp` cannot start        | Run `sase lsp --version`; install `sase-xprompt-lsp`, build `../sase-core`, or set `SASE_XPROMPT_LSP_CMD`.                    |
+| `sase lsp` cannot start        | Run `sase lsp --version`; run a full editable SASE update, build `../sase-core`, or set `SASE_XPROMPT_LSP_CMD`.               |
 | Snippets do not appear         | Confirm the editor advertises LSP `completionItem.snippetSupport`; inspect `sase editor helper-bridge snippet-catalog`.       |
 | Completion catalog looks stale | Restart the LSP session after changing installed plugin resources or package xprompts.                                        |
 | Jump-to-definition is missing  | Check whether the catalog entry has a real `definition_path`; plugin or built-in virtual entries may only have display paths. |
