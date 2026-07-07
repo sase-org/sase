@@ -278,15 +278,55 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
             scroll.border_subtitle = ""
             return
         parts: list[RenderableType] = []
+        if len(groups) > 1:
+            parts.extend(self._incoming_commit_group_summary(groups))
+            parts.append(Text(""))
+        parts.extend(self._incoming_commit_group_details(groups))
+        scroll.display = True
+        body.update(Group(*parts))
+        self.call_after_refresh(self._sync_commits_scroll_hint)
+
+    def _incoming_commit_group_summary(
+        self,
+        groups: tuple[RepoIncomingCommits, ...],
+    ) -> list[RenderableType]:
+        parts: list[RenderableType] = [Text("Repositories", style="dim")]
+        for group in groups:
+            incoming = group.incoming
+            if incoming.source == "unavailable":
+                error = incoming.error or "unknown"
+                line = Text(no_wrap=True, overflow="ellipsis")
+                line.append("↑", style="bold cyan")
+                line.append(f" {group.label}", style="bold cyan")
+                line.append(f" — incoming commits unavailable ({error})", style="dim")
+                parts.append(line)
+                continue
+
+            noun = "commit" if incoming.total == 1 else "commits"
+            line = Text(no_wrap=True, overflow="ellipsis")
+            line.append("↑", style="bold cyan")
+            line.append(f" {group.label}", style="bold cyan")
+            line.append(f" — {incoming.total} incoming {noun}", style="cyan")
+            if incoming.extra > 0:
+                line.append(
+                    f" ({incoming.shown} shown, +{incoming.extra} more)",
+                    style="dim",
+                )
+            parts.append(line)
+        return parts
+
+    def _incoming_commit_group_details(
+        self,
+        groups: tuple[RepoIncomingCommits, ...],
+    ) -> list[RenderableType]:
+        parts: list[RenderableType] = []
         for index, group in enumerate(groups):
             if index > 0:
                 parts.append(Text(""))
             parts.append(
                 build_incoming_commits_renderable(group.incoming, label=group.label)
             )
-        scroll.display = True
-        body.update(Group(*parts))
-        self.call_after_refresh(self._sync_commits_scroll_hint)
+        return parts
 
     def _apply_incoming_commits_error(self, detail: str) -> None:
         widgets = self._commits_widgets()

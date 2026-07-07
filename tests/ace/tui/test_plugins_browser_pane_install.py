@@ -560,6 +560,60 @@ async def test_plugin_action_modal_loads_grouped_incoming_commits() -> None:
         )
 
 
+async def test_plugin_action_modal_summarizes_long_grouped_incoming_commits() -> None:
+    groups = (
+        RepoIncomingCommits(
+            "sase",
+            IncomingCommits(
+                total=300,
+                commits=tuple(
+                    CommitSummary(f"{idx:07x}", f"SASE change {idx}")
+                    for idx in range(250)
+                ),
+                source="git",
+            ),
+        ),
+        RepoIncomingCommits(
+            "sase-core",
+            IncomingCommits(
+                total=2,
+                commits=(
+                    CommitSummary("abc1234", "Core change"),
+                    CommitSummary("def5678", "Core follow-up"),
+                ),
+                source="git",
+            ),
+        ),
+        RepoIncomingCommits(
+            "github",
+            IncomingCommits(
+                total=1,
+                commits=(CommitSummary("fff0000", "Plugin change"),),
+                source="git",
+            ),
+        ),
+    )
+
+    async with AcePage(size=(100, 24)) as page:
+        modal = PluginActionConfirmModal(
+            title="Update SASE",
+            intro="Confirm",
+            variants=(_modal_variant(),),
+            incoming_commits_loader=lambda: groups,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+
+        body = modal.query_one("#plugin-action-commits-body", Static)
+        await page.wait_for(lambda _s: "SASE change 0" in _render(body.content))
+        rendered = _render(body.content)
+        first_detail = rendered.index("SASE change 0")
+        assert rendered.index("↑ sase-core — 2 incoming commits") < first_detail
+        assert rendered.index("↑ github — 1 incoming commit") < first_detail
+        assert "↑ sase — 300 incoming commits (250 shown, +50 more)" in rendered
+
+
 async def test_plugin_action_modal_empty_incoming_commits_hides_box() -> None:
     async with AcePage() as page:
         modal = PluginActionConfirmModal(

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 14:24:14
-status: wip
+status: done
 prompt: sdd/prompts/202607/update_confirm_commits.md
 ---
 # Plan: Show All Repo Commit Groups in Update Confirmation

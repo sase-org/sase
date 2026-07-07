@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
+from textual.widgets import Static
 
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
+from sase.updates.incoming_commits import (
+    CommitSummary,
+    IncomingCommits,
+    RepoIncomingCommits,
+)
 from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind
@@ -27,7 +35,34 @@ from tests.ace.tui._plugins_browser_pane_update_helpers import (
     _dev_result,
     _editable_catalog,
     _patch_sase_update_managed_fallback,
+    _version_record,
 )
+
+
+def _multi_root_dev_plan() -> DevUpdatePlan:
+    base = _dev_plan()
+    roots = []
+    packages = []
+    roles = {"sase": "host", "sase-core": "core", "sase-github": "plugin"}
+    for index, name in enumerate(("sase", "sase-core", "sase-github"), start=1):
+        git_root = f"/repo/{name}"
+        roots.append(
+            replace(
+                base.roots[0],
+                git_root=git_root,
+                packages=(name,),
+                behind=index,
+            )
+        )
+        packages.append(
+            replace(
+                base.packages[0],
+                record=_version_record(name, role=roles[name]),
+                git_root=git_root,
+                behind=index,
+            )
+        )
+    return replace(base, packages=tuple(packages), roots=tuple(roots))
 
 
 async def test_updates_pane_sase_update_opens_preview_modal(
@@ -210,6 +245,54 @@ async def test_updates_pane_sase_update_dev_preview_and_restart(
         assert receipt.plugins[0].name == "sase-github"
         assert receipt.plugins[0].old == "0.1.0+1.gabc123def"
         assert receipt.plugins[0].new == "0.1.0+2.gdef456abc"
+
+
+async def test_updates_pane_sase_dev_update_shows_all_commit_groups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    plan = _multi_root_dev_plan()
+    monkeypatch.setattr(
+        pbp,
+        "_make_sase_dev_update_preview",
+        lambda _receipt: pbp._DevUpdatePreview(plan=plan, subject="sase"),
+    )
+
+    def _fake_fetch_groups(
+        specs: tuple[tuple[str, object], ...],
+        **_kwargs: object,
+    ) -> tuple[RepoIncomingCommits, ...]:
+        return tuple(
+            RepoIncomingCommits(
+                label,
+                IncomingCommits(
+                    total=1,
+                    commits=(CommitSummary("abc1234", f"{label} update"),),
+                    source="git",
+                ),
+            )
+            for label, _spec in specs
+        )
+
+    monkeypatch.setattr(pbp, "_fetch_incoming_commit_groups", _fake_fetch_groups)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        assert modal._incoming_commits_loader is not None
+
+        body = modal.query_one("#plugin-action-commits-body", Static)
+        await page.wait_for(
+            lambda _s: (
+                "↑ sase — 1 incoming commit" in _render(body.content)
+                and "↑ sase-core — 1 incoming commit" in _render(body.content)
+                and "↑ sase-github — 1 incoming commit" in _render(body.content)
+            )
+        )
 
 
 async def test_updates_pane_sase_update_dev_skipped_reason_is_error(
