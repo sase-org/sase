@@ -178,6 +178,7 @@ A sibling of `vcs_repo_completion.py`, but simpler (no fetch/TTL machinery — e
   Returns the ordered kinds: projects, ChangeSpecs, namespaces.
 - `filter_vcs_ref_candidates(candidates, query)` — case-insensitive prefix matching on entry name or project alias
   (delegating to `filter_vcs_project_entries` for entry rows) and on namespace name; preserves kind grouping.
+- Public contract objects include `VcsRefCompletionConfig`, `VcsRefTrigger`, and `load_vcs_ref_completion_config`.
 - Extend `vcs_project_catalog_payload()` with a `namespaces` key — `{workflow: [{name, description, kind_label}, …]}`
   built by invoking the hook once per registered workflow name — and bump `VCS_PROJECT_CATALOG_SCHEMA_VERSION` to 3.
   Materialization (`sase.integrations.xprompt_lsp`) is untouched; the Rust loader accepts v2 **and** v3, defaulting

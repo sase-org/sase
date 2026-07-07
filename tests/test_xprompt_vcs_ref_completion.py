@@ -26,9 +26,9 @@ from sase.xprompt.vcs_ref_completion import (
 
 @pytest.fixture(autouse=True)
 def _clear_ref_completion_cache() -> Iterator[None]:
-    vrf.clear_vcs_ref_completion_cache()
+    vrf._clear_vcs_ref_completion_cache()
     yield
-    vrf.clear_vcs_ref_completion_cache()
+    vrf._clear_vcs_ref_completion_cache()
 
 
 @pytest.mark.parametrize(

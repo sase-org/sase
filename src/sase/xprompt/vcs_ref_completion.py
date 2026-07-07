@@ -117,6 +117,7 @@ VCS_REF_GOLDEN_VECTORS: tuple[
 )
 
 
+# pyvision: sdd/epics/202607/vcs_ref_colon_completion.md
 @dataclass(frozen=True)
 class VcsRefCompletionConfig:
     """Configuration for VCS ref-root completion."""
@@ -148,6 +149,8 @@ class VcsRefTrigger:
         return (self.ref_start, self.ref_end)
 
 
+# Module-level namespace cache, explicitly clearable via
+# :func:`_clear_vcs_ref_completion_cache` for tests.
 _NAMESPACE_CACHE: dict[tuple[str, object], tuple[VcsNamespaceEntry, ...]] = {}
 
 
@@ -384,7 +387,7 @@ def filter_vcs_ref_candidates(
     return [*filtered_projects, *filtered_namespaces]
 
 
-def clear_vcs_ref_completion_cache() -> None:
+def _clear_vcs_ref_completion_cache() -> None:
     """Drop the cached namespace-completion results."""
     _NAMESPACE_CACHE.clear()
 
@@ -398,7 +401,6 @@ __all__ = [
     "VcsRefTrigger",
     "apply_vcs_ref_selection",
     "build_vcs_ref_candidates",
-    "clear_vcs_ref_completion_cache",
     "filter_vcs_ref_candidates",
     "find_vcs_ref_trigger",
     "load_vcs_ref_completion_config",
