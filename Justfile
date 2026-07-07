@@ -121,7 +121,7 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + pyvision + keep-sorted + SASE validation)
+# Run linters (ruff + mypy + pyscripts + pyvision + pylimit + keep-sorted + SASE validation)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -131,6 +131,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-pyscripts
     @printf "\n---------- Checking for unused Python definitions... ----------\n"
     @just _lint-pyvision
+    @printf "\n---------- Checking Python file line counts... ----------\n"
+    @just _lint-pylimit
     @printf "\n---------- Running SASE validation... ----------\n"
     @just validate
 
@@ -149,6 +151,11 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
+
+# Check Python file line counts (private, extracted for per-stage wrapping)
+_lint-pylimit *args:
+    tools/pylimit-260221 src {{ if args == "" { "1000 850 700" } else { args } }}
+    tools/pylimit-260221 tests {{ if args == "" { "1000 850 700" } else { args } }}
 
 # Auto-fix all code (format + keep-sorted)
 fix: (_header "fix") fmt-py fmt-md fix-keep-sorted
@@ -243,6 +250,7 @@ check: _setup
     @tools/run_silent "lint (mypy)"        just _lint-mypy
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (pyvision)"    just _lint-pyvision
+    @tools/run_silent "lint (pylimit)"     just _lint-pylimit
     @tools/run_silent "SASE validation"     just validate
     @tools/run_silent "test"               just test
 
@@ -361,7 +369,7 @@ workflow-status *args:
     @tools/last_workflow_set_status "$@"
 
 # Fix code, run linters, and run tests.
-all: fix lint pylimit test
+all: fix lint test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
@@ -370,8 +378,7 @@ pyvision *args: _setup (_header "pyvision")
 
 # Check Python file line counts
 pylimit *args: (_header "pylimit")
-    tools/pylimit-260221 src {{ if args == "" { "1000 850 700" } else { args } }}
-    tools/pylimit-260221 tests {{ if args == "" { "1000 850 700" } else { args } }}
+    @just _lint-pylimit {{ args }}
 
 # Remove build artifacts
 clean:

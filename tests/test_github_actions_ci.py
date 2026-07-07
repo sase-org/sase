@@ -35,3 +35,14 @@ def test_lint_job_initializes_sase_home_before_lint() -> None:
         "./.venv/bin/sase init memory --no-commit\n"
         "./.venv/bin/sase skill init --force\n"
     )
+
+
+def test_lint_job_uses_single_lint_command() -> None:
+    workflow = _load_ci_workflow()
+    steps = workflow["jobs"]["lint"]["steps"]
+
+    assert any(
+        step.get("name") == "Lint" and step.get("run") == "just lint" for step in steps
+    )
+    assert not any(step.get("run") == "just pyvision" for step in steps)
+    assert not any(step.get("run") == "just pylimit" for step in steps)

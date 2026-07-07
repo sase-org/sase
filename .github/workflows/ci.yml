@@ -61,10 +61,6 @@ jobs:
         run: just fmt-py-check
       - name: Lint
         run: just lint
-      - name: Pyvision (unused symbol check)
-        run: just pyvision
-      - name: Pylimit (file line count check)
-        run: just pylimit
 
   fmt-md-check:
     runs-on: ubuntu-latest
