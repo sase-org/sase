@@ -57,12 +57,12 @@ def dev_route(
         for record in inventory.packages
         if record.install_type == "editable"
     }
-    records = tuple(
+    receipt_records = tuple(
         record
         for key in _receipt_key_order(receipt)
         if key in editable_keys and (record := records_by_name.get(key)) is not None
     )
-    if not records:
+    if not receipt_records:
         return UvToolError(
             "the uv tool receipt contains editable packages, but no matching "
             "editable runtime records were found; run `sase version` to inspect "
@@ -70,7 +70,7 @@ def dev_route(
         )
 
     return DevRoute(
-        records=records,
+        records=_with_editable_core_records(receipt_records, inventory),
         host_record=_host_record(inventory, receipt),
         managed_requirements=_managed_requirements(receipt),
     )
@@ -92,6 +92,23 @@ def _editable_receipt_keys(receipt: ToolReceipt) -> frozenset[str]:
 
 def _managed_requirements(receipt: ToolReceipt) -> tuple[Requirement, ...]:
     return tuple(req for req in _receipt_requirements(receipt) if not req.editable)
+
+
+def _with_editable_core_records(
+    records: tuple[VersionPackageRecord, ...],
+    inventory: RuntimeVersionInventory,
+) -> tuple[VersionPackageRecord, ...]:
+    selected = list(records)
+    selected_keys = {normalize_distribution_name(record.name) for record in selected}
+    for record in inventory.packages:
+        if record.install_type != "editable" or record.role != "core":
+            continue
+        key = normalize_distribution_name(record.name)
+        if key in selected_keys:
+            continue
+        selected.append(record)
+        selected_keys.add(key)
+    return tuple(selected)
 
 
 def _host_record(

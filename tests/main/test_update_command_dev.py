@@ -156,6 +156,76 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
     }
 
 
+def test_dev_update_appends_editable_runtime_core_to_receipt_targets(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    host = _record("sase", role="host", source_root="/home/u/sase")
+    core = _record("sase-core-rs", role="core", source_root="/home/u/sase-core")
+    github = _record("sase-github", role="plugin", source_root="/home/u/sase-github")
+    telegram = _record(
+        "sase-telegram", role="plugin", source_root="/home/u/sase-telegram"
+    )
+    seen: dict[str, list[str]] = {}
+
+    def _plan(
+        records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+        *,
+        host_record: VersionPackageRecord,
+        receipt: Any = None,
+    ) -> DevUpdatePlan:
+        seen["records"] = [record.name for record in records]
+        seen["roles"] = [str(record.role) for record in records]
+        assert host_record.name == "sase"
+        assert receipt is not None
+        return _dev_plan(*records)
+
+    journal_path = tmp_path / "dev_update.jsonl"
+    monkeypatch.setattr(journal_mod, "DEV_UPDATE_JOURNAL", str(journal_path))
+
+    code = handle_update_command(
+        _args(json=True),
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        run_fn=lambda _argv: parse_uv_output("should not run"),
+        inventory_fn=lambda: _inventory(host, core, github, telegram),
+        plan_dev_update_fn=_plan,
+        execute_dev_update_fn=lambda plan, **_kwargs: _dev_result(plan),
+        axe_running_fn=lambda: False,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    assert seen["records"] == [
+        "sase",
+        "sase-github",
+        "sase-telegram",
+        "sase-core-rs",
+    ]
+    assert seen["roles"] == ["host", "plugin", "plugin", "core"]
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["mode"] == "dev"
+    assert payload["command"] == []
+    assert [package["name"] for package in payload["dev"]["packages"]] == [
+        "sase",
+        "sase-github",
+        "sase-telegram",
+        "sase-core-rs",
+    ]
+    core_package = payload["dev"]["packages"][3]
+    assert core_package["role"] == "core"
+    assert core_package["status"] == "updated"
+    assert payload["counts"] == {
+        "updated": 4,
+        "already_current": 0,
+        "removed": 0,
+        "skipped": 0,
+        "failed": 0,
+    }
+
+
 def test_dev_update_failure_exits_one_and_does_not_restart(tmp_path: Path) -> None:
     host = _record("sase", role="host", source_root="/home/u/sase")
     restart_calls = 0

@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 17:49:34
-status: wip
+status: done
 prompt: sdd/prompts/202607/telegram_update_core.md
 ---
 # Fix Telegram `/update` Missing `sase-core` Dev Checkout Updates

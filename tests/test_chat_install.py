@@ -329,6 +329,68 @@ def test_run_worker_runs_sase_update_json_and_uses_payload_message(
     )
 
 
+def test_run_worker_summarizes_dev_update_core_package(
+    tmp_path: Path,
+) -> None:
+    status_path = tmp_path / "completion.json"
+    payload = {
+        "schema_version": 2,
+        "dry_run": False,
+        "mode": "dev",
+        "changed": True,
+        "counts": {
+            "updated": 3,
+            "already_current": 0,
+            "removed": 0,
+            "skipped": 0,
+            "failed": 0,
+        },
+        "packages": [
+            {
+                "name": "sase",
+                "role": "host",
+                "status": "updated",
+                "old_version": "0.5.0",
+                "new_version": "0.6.1",
+            },
+            {
+                "name": "sase-core-rs",
+                "role": "core",
+                "status": "updated",
+                "old_version": "0.3.1",
+                "new_version": "0.3.2",
+            },
+            {
+                "name": "sase-github",
+                "role": "plugin",
+                "status": "updated",
+                "old_version": "0.3.2",
+                "new_version": "0.4.0",
+            },
+        ],
+    }
+
+    with (
+        patch(
+            "sase.integrations.chat_install._load_chat_install_config",
+            return_value=_ChatInstallConfig(restart_attempts=1),
+        ),
+        patch(
+            "sase.integrations.chat_install.subprocess.run",
+            return_value=SimpleNamespace(
+                returncode=0, stdout=json.dumps(payload), stderr=""
+            ),
+        ),
+        patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+    ):
+        assert _run_worker(job_id="job-core", status_path=status_path) == 0
+
+    record = json.loads(status_path.read_text())
+    assert record["message"] == (
+        "Update completed: sase 0.5.0 to 0.6.1, core 0.3.1 to 0.3.2, 1 plugin updated."
+    )
+
+
 def test_run_worker_reports_already_up_to_date(tmp_path: Path) -> None:
     status_path = tmp_path / "completion.json"
     payload = {

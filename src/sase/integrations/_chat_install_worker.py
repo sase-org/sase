@@ -119,16 +119,34 @@ def _changed_package_summary(payload: dict[str, Any]) -> str:
     if sase is not None:
         parts.append(_package_version_summary(sase))
 
+    core = next(
+        (
+            package
+            for package in updated
+            if package is not sase and _is_core_package(package)
+        ),
+        None,
+    )
+    if core is not None:
+        parts.append(_core_version_summary(core))
+
     plugin_count = sum(
         1
         for package in updated
-        if _string_value(package.get("role")) == "plugin"
+        if package is not sase
+        and package is not core
+        and _string_value(package.get("role")) == "plugin"
         and _string_value(package.get("name")) != "sase"
     )
     if plugin_count:
         parts.append(f"{plugin_count} {_plural(plugin_count, 'plugin')} updated")
 
-    other_count = len(updated) - (1 if sase is not None else 0) - plugin_count
+    other_count = (
+        len(updated)
+        - (1 if sase is not None else 0)
+        - (1 if core is not None else 0)
+        - plugin_count
+    )
     if other_count:
         parts.append(f"{other_count} {_plural(other_count, 'package')} updated")
 
@@ -144,6 +162,23 @@ def _changed_package_summary(payload: dict[str, Any]) -> str:
         if removed_count:
             return f"{removed_count} {_plural(removed_count, 'package')} removed"
     return "changes applied"
+
+
+def _is_core_package(package: dict[str, Any]) -> bool:
+    return (
+        _string_value(package.get("role")) == "core"
+        or _string_value(package.get("name")) == "sase-core-rs"
+    )
+
+
+def _core_version_summary(package: dict[str, Any]) -> str:
+    old_version = _string_value(package.get("old_version"))
+    new_version = _string_value(package.get("new_version"))
+    if old_version and new_version:
+        return f"core {old_version} to {new_version}"
+    if new_version:
+        return f"core updated to {new_version}"
+    return "core updated"
 
 
 def _updated_packages(payload: dict[str, Any]) -> list[dict[str, Any]]:
