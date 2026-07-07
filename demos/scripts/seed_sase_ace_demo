@@ -36,6 +36,7 @@ project_file="$project_dir/nova.sase"
 
 mkdir -p \
   "$demo_home/.config/sase" \
+  "$sase_home/prompt_history" \
   "$project_dir/artifacts/ace-run" \
   "$sase_tmpdir" \
   "$(dirname "$bare_repo")" \
@@ -350,6 +351,73 @@ cat >"$sase_home/diffs/nova_seed_cleanup.diff" <<'DIFF'
 diff --git a/demos/scripts/seed_sase_ace_demo b/demos/scripts/seed_sase_ace_demo
 new file mode 100755
 DIFF
+
+cat >"$sase_home/prompt_history/2607.json" <<'JSON'
+{
+  "prompts": [
+    {
+      "text": "#git:nova Inspect command fixtures in @tests/fixtures/commands.txt and tighten parser coverage before release.",
+      "timestamp": "260706_112900",
+      "last_used": "260706_112900",
+      "cancelled": false
+    },
+    {
+      "text": "#git:nova Use #add_tests:file_path=src/nova/parser.py to cover whitespace-only parser errors and CLI dispatch edges.",
+      "timestamp": "260706_111500",
+      "last_used": "260706_111500",
+      "cancelled": false
+    },
+    {
+      "text": "#git:nova Draft a risky renderer migration note, then pause before opening a live agent.",
+      "timestamp": "260706_105500",
+      "last_used": "260706_105500",
+      "cancelled": true
+    },
+    {
+      "text": "%name nova-renderer-audit #git:nova Review renderer summary output in @src/nova/renderers/summary.py for stable release wording.",
+      "timestamp": "260706_104000",
+      "last_used": "260706_104000",
+      "cancelled": false
+    },
+    {
+      "text": "#git:nova Compare @docs/release_checklist.md with parser tests and list the missing release-note checks.",
+      "timestamp": "260706_102500",
+      "last_used": "260706_102500",
+      "cancelled": false
+    },
+    {
+      "text": "#git:nova Sketch a changelog paragraph for the old CLI help prompt, but keep it unsubmitted.",
+      "timestamp": "260705_164500",
+      "last_used": "260705_164500",
+      "cancelled": true
+    },
+    {
+      "text": "#git:nova Review @src/nova/config.py and @tests/test_config.py for deterministic demo defaults.",
+      "timestamp": "260705_153000",
+      "last_used": "260705_153000",
+      "cancelled": false
+    },
+    {
+      "text": "#git:nova Plan a two-agent follow-up: first inspect parser fixtures, then review CLI messaging.",
+      "timestamp": "260704_121500",
+      "last_used": "260704_121500",
+      "cancelled": false
+    },
+    {
+      "text": "#git:nova Hold the half-written dashboard prompt for later instead of launching from the prompt bar.",
+      "timestamp": "260703_180000",
+      "last_used": "260703_180000",
+      "cancelled": true
+    },
+    {
+      "text": "#git:nova Summarize the Nova architecture notes and call out parser, configuration, and renderer ownership.",
+      "timestamp": "260702_093000",
+      "last_used": "260702_093000",
+      "cancelled": false
+    }
+  ]
+}
+JSON
 
 write_agent() {
   local ts=$1

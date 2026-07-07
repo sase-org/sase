@@ -32,7 +32,7 @@ Run:
 just demos
 ```
 
-The recipe renders both tapes, updates `demos/out/last_generated_date.txt` after successful renders, and then prompts to
+The recipe renders all tapes, updates `demos/out/last_generated_date.txt` after successful renders, and then prompts to
 commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without prompting. Non-interactive runs
 never commit automatically.
 
@@ -45,6 +45,11 @@ The Agents observability tape shows many seeded agent runs from one keyboard-dri
 
 - `demos/out/sase_ace_agents_observability.gif`
 - `demos/out/sase_ace_agents_observability.mp4`
+
+The prompt history and stash tape shows recall, search, stash, and restore inside the ACE prompt input and writes:
+
+- `demos/out/sase_ace_prompt_history_stash.gif`
+- `demos/out/sase_ace_prompt_history_stash.mp4`
 
 The recipe writes:
 
