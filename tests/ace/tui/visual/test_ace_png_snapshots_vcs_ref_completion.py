@@ -8,6 +8,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.vcs_ref_completion import (
     VCS_REF_COMPLETION_KIND,
+    build_no_known_refs_placeholder,
     vcs_ref_completion_candidates,
 )
 from sase.workspace_provider import VcsNamespaceEntry
@@ -41,6 +42,25 @@ _VCS_REF_SOURCE = [
         status="Ready",
     ),
     VcsNamespaceEntry("sase-org", description="2 active projects"),
+]
+
+_VCS_REF_SOURCE_NO_ORGS = [
+    VcsProjectEntry(
+        name="dotfiles",
+        vcs_prefix="git",
+        display_tag="#git:dotfiles",
+        provider_display="Git",
+        description="Personal configuration",
+    ),
+    VcsProjectEntry(
+        name="ship-completion",
+        vcs_prefix="git",
+        display_tag="#git:ship-completion",
+        provider_display="Git",
+        kind="changespec",
+        project="sase",
+        status="Ready",
+    ),
 ]
 
 
@@ -81,4 +101,61 @@ async def test_vcs_ref_completion_panel_png_snapshot(
             page,
             "vcs_ref_completion_panel_120x40",
             title="ACE prompt input - VCS ref completion menu",
+        )
+
+
+async def test_vcs_ref_completion_panel_no_orgs_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        bar = await _mount_prompt_bar(page, "#git:")
+        rows, _source_empty, _has_namespaces = vcs_ref_completion_candidates(
+            "git",
+            "",
+            entries=_VCS_REF_SOURCE_NO_ORGS,
+        )
+
+        bar.show_file_completions(
+            "Git · projects & PRs",
+            rows,
+            selected_index=0,
+            completion_kind=VCS_REF_COMPLETION_KIND,
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "vcs_ref_completion_panel_no_orgs_120x40",
+            title="ACE prompt input - VCS ref completion menu without orgs",
+        )
+
+
+async def test_vcs_ref_completion_panel_placeholder_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        bar = await _mount_prompt_bar(page, "#git:")
+
+        bar.show_file_completions(
+            "Git · projects & PRs",
+            [build_no_known_refs_placeholder()],
+            selected_index=0,
+            completion_kind=VCS_REF_COMPLETION_KIND,
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "vcs_ref_completion_panel_placeholder_120x40",
+            title="ACE prompt input - VCS ref completion empty placeholder",
         )

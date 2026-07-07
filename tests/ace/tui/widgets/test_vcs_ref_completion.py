@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from textual.widgets import Static
 
+from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.vcs_ref_completion import (
@@ -15,6 +16,10 @@ from sase.ace.tui.widgets.vcs_ref_completion import (
     vcs_ref_completion_candidates,
 )
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    XPromptInputHint,
+)
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
@@ -82,6 +87,30 @@ def _select(ta: PromptTextArea, name: str) -> None:
         i for i, c in enumerate(ta._file_completion_candidates) if c.name == name
     )
     ta._file_completion_index = index
+
+
+def _xprompt_entry(name: str) -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name=name,
+        insertion=f"#{name}",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(
+            XPromptInputHint(
+                name="agent",
+                type="agent",
+                required=True,
+                default_display=None,
+                position=0,
+            ),
+        ),
+        content_preview=None,
+    )
+
+
+def _agent(name: str) -> AgentCompletionCandidate:
+    return AgentCompletionCandidate(name=name, label=name, status="RUNNING")
 
 
 def test_candidates_filter_projects_prs_and_namespaces() -> None:
@@ -244,6 +273,25 @@ async def test_accept_project_applies_token_local_paren_transform() -> None:
         assert ta._file_completion_active is False
 
 
+async def test_accept_changespec_applies_terminal_colon_transform() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#gh:ship")
+        ta.cursor_location = (0, len("#gh:ship"))
+        with (
+            patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
+            patch(_REF_ENTRIES_PATH, return_value=_REF_SOURCE),
+        ):
+            assert ta._try_vcs_ref_completion() is True
+            _select(ta, "ship-completion")
+            await pilot.press("ctrl+l")
+
+        assert ta.text == "#gh:ship-completion "
+        assert ta.cursor_location == (0, len("#gh:ship-completion "))
+        assert ta._file_completion_active is False
+
+
 async def test_accept_namespace_chains_to_repo_menu() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
@@ -266,3 +314,86 @@ async def test_accept_namespace_chains_to_repo_menu() -> None:
         assert [candidate.name for candidate in ta._file_completion_candidates] == [
             "sase"
         ]
+
+
+async def test_negative_ref_start_dismisses_ref_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with (
+            patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
+            patch(_REF_ENTRIES_PATH, return_value=_REF_SOURCE),
+        ):
+            for key in "#gh:":
+                await pilot.press(key)
+            assert ta._file_completion_active is True
+            await pilot.press("~")
+
+        assert ta.text == "#gh:~"
+        assert ta._file_completion_active is False
+
+
+async def test_typed_slash_hands_off_from_ref_menu_to_repo_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with (
+            patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
+            patch(_REF_ENTRIES_PATH, return_value=_REF_SOURCE),
+            patch(_PEEK_REPO_PATH, return_value=_REPO_RESULT),
+        ):
+            for key in "#gh:sase-org":
+                await pilot.press(key)
+            assert ta._file_completion_active is True
+            assert ta._completion_kind == VCS_REF_COMPLETION_KIND
+
+            await pilot.press("/")
+
+        assert ta.text == "#gh:sase-org/"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == VCS_REPO_COMPLETION_KIND
+        assert [candidate.name for candidate in ta._file_completion_candidates] == [
+            "sase"
+        ]
+
+
+async def test_owner_slash_routes_to_repo_menu_not_ref_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        with (
+            patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
+            patch(_REF_ENTRIES_PATH, return_value=_REF_SOURCE),
+            patch(_PEEK_REPO_PATH, return_value=_REPO_RESULT),
+        ):
+            for key in "#gh:sase-org/":
+                await pilot.press(key)
+
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == VCS_REPO_COMPLETION_KIND
+        assert [candidate.name for candidate in ta._file_completion_candidates] == [
+            "sase"
+        ]
+
+
+async def test_non_vcs_colon_keeps_xprompt_argument_behavior() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent("coder")
+    ]
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_xprompt_entry("foo")]
+        with (
+            patch(_WORKFLOW_NAMES_PATH, return_value={"gh"}),
+            patch(_REF_ENTRIES_PATH, return_value=_REF_SOURCE),
+        ):
+            for key in "#foo:":
+                await pilot.press(key)
+
+        assert ta.text == "#foo:"
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_agent"
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["coder"]

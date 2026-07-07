@@ -14,7 +14,7 @@ from sase.xprompt.vcs_project_completion import VcsProjectEntry
 from sase.xprompt.vcs_ref_completion import (
     VCS_REF_GOLDEN_CURSOR,
     VCS_REF_GOLDEN_VECTORS,
-    VcsRefCompletionConfig,
+    _VcsRefCompletionConfig,
     apply_vcs_ref_selection,
     build_vcs_ref_candidates,
     filter_vcs_ref_candidates,
@@ -26,9 +26,9 @@ from sase.xprompt.vcs_ref_completion import (
 
 @pytest.fixture(autouse=True)
 def _clear_ref_completion_cache() -> Iterator[None]:
-    vrf.clear_vcs_ref_completion_cache()
+    vrf._NAMESPACE_CACHE.clear()
     yield
-    vrf.clear_vcs_ref_completion_cache()
+    vrf._NAMESPACE_CACHE.clear()
 
 
 @pytest.mark.parametrize(
@@ -143,13 +143,13 @@ def test_trigger_requires_known_workflow() -> None:
 
 
 def test_config_reader_uses_defaults_and_overrides() -> None:
-    assert load_vcs_ref_completion_config({}) == VcsRefCompletionConfig()
+    assert load_vcs_ref_completion_config({}) == _VcsRefCompletionConfig()
     assert load_vcs_ref_completion_config(
         {"vcs_ref_completion": {"enabled": False}}
-    ) == VcsRefCompletionConfig(enabled=False)
+    ) == _VcsRefCompletionConfig(enabled=False)
     assert (
         load_vcs_ref_completion_config({"vcs_ref_completion": {"enabled": "no"}})
-        == VcsRefCompletionConfig()
+        == _VcsRefCompletionConfig()
     )
 
 
@@ -215,7 +215,7 @@ def test_build_candidates_disabled_skips_catalog_and_namespaces() -> None:
     ):
         result = build_vcs_ref_candidates(
             "gh",
-            config=VcsRefCompletionConfig(enabled=False),
+            config=_VcsRefCompletionConfig(enabled=False),
         )
 
     assert result == []

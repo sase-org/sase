@@ -59,6 +59,20 @@ VCS_REF_GOLDEN_VECTORS: tuple[
         "#gh!!:sase ",
     ),
     (
+        f"#gh:s{VCS_REF_GOLDEN_CURSOR}asex",
+        ("gh",),
+        "sase",
+        False,
+        "#gh:sase ",
+    ),
+    (
+        f"#git:sa{VCS_REF_GOLDEN_CURSOR}suffix",
+        ("git",),
+        "sase",
+        False,
+        "#git:sase ",
+    ),
+    (
         f"#gh(s{VCS_REF_GOLDEN_CURSOR}",
         ("gh",),
         "sase",
@@ -82,6 +96,13 @@ VCS_REF_GOLDEN_VECTORS: tuple[
     (
         f"#gh:{VCS_REF_GOLDEN_CURSOR}",
         ("gh",),
+        "sase-org",
+        True,
+        "#gh:sase-org/",
+    ),
+    (
+        f"#gh:{VCS_REF_GOLDEN_CURSOR}",
+        ("gh",),
         "sase-org/",
         True,
         "#gh:sase-org/",
@@ -89,36 +110,29 @@ VCS_REF_GOLDEN_VECTORS: tuple[
     (
         f"Fix #gh:sa{VCS_REF_GOLDEN_CURSOR} now",
         ("gh",),
-        "sase-org/",
+        "sase-org",
         True,
         "Fix #gh:sase-org/ now",
     ),
     (
         f"#gh(sa{VCS_REF_GOLDEN_CURSOR}",
         ("gh",),
-        "sase-org/",
+        "sase-org",
         True,
         "#gh(sase-org/",
     ),
     (
         f"#gh(sa{VCS_REF_GOLDEN_CURSOR}) next",
         ("gh",),
-        "sase-org/",
+        "sase-org",
         True,
-        "#gh(sase-org/ next",
-    ),
-    (
-        f"#git:sa{VCS_REF_GOLDEN_CURSOR}suffix",
-        ("git",),
-        "sase",
-        False,
-        "#git:sase ",
+        "#gh(sase-org/) next",
     ),
 )
 
 
 @dataclass(frozen=True)
-class VcsRefCompletionConfig:
+class _VcsRefCompletionConfig:
     """Configuration for VCS ref-root completion."""
 
     enabled: bool = True
@@ -153,7 +167,7 @@ _NAMESPACE_CACHE: dict[tuple[str, object], tuple[VcsNamespaceEntry, ...]] = {}
 
 def load_vcs_ref_completion_config(
     config: dict[str, Any] | None = None,
-) -> VcsRefCompletionConfig:
+) -> _VcsRefCompletionConfig:
     """Return normalized VCS ref-root completion settings."""
     data = load_merged_config() if config is None else config
     section = data.get("vcs_ref_completion", {}) if isinstance(data, dict) else {}
@@ -161,7 +175,7 @@ def load_vcs_ref_completion_config(
         section = {}
 
     enabled = section.get("enabled", True)
-    return VcsRefCompletionConfig(
+    return _VcsRefCompletionConfig(
         enabled=enabled if isinstance(enabled, bool) else True
     )
 
@@ -271,8 +285,7 @@ def apply_vcs_ref_selection(
     after = prompt[end:]
 
     if chain:
-        if trigger.separator == "(" and after.startswith(")"):
-            after = after[1:]
+        selected_ref = f"{selected_ref.rstrip('/')}/"
         return f"{before}{selected_ref}{after}"
 
     if trigger.separator == "(":
@@ -288,7 +301,7 @@ def build_vcs_ref_candidates(
     projects_dir: Path | str | None = None,
     *,
     use_cache: bool = True,
-    config: VcsRefCompletionConfig | None = None,
+    config: _VcsRefCompletionConfig | None = None,
 ) -> list[VcsRefCandidate]:
     """Return ordered project, ChangeSpec, and namespace candidates."""
     settings = config or load_vcs_ref_completion_config()
@@ -316,7 +329,7 @@ def vcs_ref_namespaces_by_workflow(
     projects_dir: Path | str | None = None,
     *,
     use_cache: bool = True,
-    config: VcsRefCompletionConfig | None = None,
+    config: _VcsRefCompletionConfig | None = None,
 ) -> dict[str, tuple[VcsNamespaceEntry, ...]]:
     """Return namespace candidates keyed by workflow name."""
     settings = config or load_vcs_ref_completion_config()
@@ -384,21 +397,14 @@ def filter_vcs_ref_candidates(
     return [*filtered_projects, *filtered_namespaces]
 
 
-def clear_vcs_ref_completion_cache() -> None:
-    """Drop the cached namespace-completion results."""
-    _NAMESPACE_CACHE.clear()
-
-
 __all__ = [
     "VCS_REF_GOLDEN_CURSOR",
     "VCS_REF_GOLDEN_VECTORS",
     "VcsRefCandidate",
-    "VcsRefCompletionConfig",
     "VcsRefSeparator",
     "VcsRefTrigger",
     "apply_vcs_ref_selection",
     "build_vcs_ref_candidates",
-    "clear_vcs_ref_completion_cache",
     "filter_vcs_ref_candidates",
     "find_vcs_ref_trigger",
     "load_vcs_ref_completion_config",

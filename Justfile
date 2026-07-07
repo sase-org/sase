@@ -150,9 +150,7 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
-        --epic-symbol 'sase-5i(VcsRefCompletionConfig)' \
-        --epic-symbol 'sase-5i(clear_vcs_ref_completion_cache)'
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
 _lint-pylimit *args:
@@ -375,10 +373,7 @@ all: fix lint test
 
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
-        --epic-symbol 'sase-5i(VcsRefCompletionConfig)' \
-        --epic-symbol 'sase-5i(clear_vcs_ref_completion_cache)' \
-        {{ args }}
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase {{ args }}
 
 # Check Python file line counts
 pylimit *args: (_header "pylimit")
