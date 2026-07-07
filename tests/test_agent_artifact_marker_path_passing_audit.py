@@ -14,6 +14,13 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "to discover an agent name from agent_meta.json."
         ),
     ),
+    "src/sase/agent/running.py:_read_cl_name_from_artifacts": PathPassingReview(
+        exemption=(
+            "Read-only kill attribution fallback: marker paths are used only "
+            "to recover cl_name from agent metadata, waiting state, or "
+            "workflow state."
+        ),
+    ),
 }
 
 

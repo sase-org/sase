@@ -11,6 +11,7 @@ import pytest
 
 from sase.agent.launcher import AgentLaunchResult
 from sase.agent.running import _KillResult
+from sase.integrations import _mobile_agent_lifecycle as lifecycle
 from sase.integrations import mobile_agents
 from sase.integrations.mobile_agents import (
     _kill_mobile_agent,
@@ -66,6 +67,47 @@ def test_kill_mobile_agent_returns_result_and_persists_context(
     assert context["raw_prompt"] == "Line one\nLine two"
     assert context["killed_pid"] == 1234
     assert context["device_id"] == "device_123"
+
+
+def test_kill_mobile_agent_bridge_returns_success_for_stale_cleanup(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    agent = _agent(tmp_path, name="stale")
+    monkeypatch.setattr(lifecycle, "find_mobile_agent_summary", lambda _name: agent)
+    monkeypatch.setattr(
+        lifecycle,
+        "kill_named_agent",
+        lambda name, *, exact_name: _KillResult(
+            True,
+            f"Agent '{name}' was not running; cleaned up stale state",
+            status="not_running",
+            changed=True,
+            artifacts_dir=agent.artifacts_dir,
+            project="sase",
+            timestamp="20260506143000",
+        ),
+    )
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    code = handle_mobile_agent_bridge(
+        argparse.Namespace(mobile_agent_bridge_subcommand="kill-agent"),
+        stdin=io.StringIO('{"schema_version":1,"name":"stale"}'),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert code == 0
+    assert stderr.getvalue() == ""
+    assert json.loads(stdout.getvalue()) == {
+        "schema_version": 1,
+        "name": "stale",
+        "status": "not_running",
+        "pid": None,
+        "changed": True,
+        "message": "Agent 'stale' was not running; cleaned up stale state",
+    }
 
 
 @pytest.mark.parametrize(

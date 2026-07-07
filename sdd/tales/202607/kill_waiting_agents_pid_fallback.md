@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 00:31:47
-status: wip
+status: done
 prompt: sdd/prompts/202607/kill_waiting_agents_pid_fallback.md
 ---
 # Fix Telegram `/kill` Failing With "Could not find PID" for Waiting/Queued (Fork) Agents

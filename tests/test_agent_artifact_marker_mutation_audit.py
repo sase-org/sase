@@ -132,7 +132,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/agent/running.py:kill_named_agent": Review(
+    "src/sase/agent/running.py:_remove_agent_state_markers": Review(
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),

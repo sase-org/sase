@@ -439,14 +439,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
 
     if is_home:
         # Home mode: read PID from running.json
-        running_json = artifacts_path / "running.json"
-        if running_json.exists():
-            try:
-                with open(running_json, encoding="utf-8") as f:
-                    data = json.load(f)
-                pid = data.get("pid")
-            except (json.JSONDecodeError, OSError):
-                pass
+        pid = _read_pid_from_running_marker(artifacts_path)
         cl_name = _read_cl_name_from_meta(artifacts_path)
     else:
         # Non-home: scan RUNNING field for matching artifacts_timestamp
@@ -454,20 +447,41 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
 
         for claim in get_claimed_workspaces(project_file):
             if claim.artifacts_timestamp == timestamp:
-                pid = claim.pid
+                pid = _valid_pid(claim.pid)
                 cl_name = claim.cl_name
                 break
+        if cl_name is None:
+            cl_name = _read_cl_name_from_artifacts(artifacts_path)
 
     if pid is None:
-        return _KillResult(
-            False,
-            f"Could not find PID for agent '{name}'",
-            reason="missing_pid",
-            status="not_running",
-            artifacts_dir=agent.artifacts_dir,
-            project=project_name,
-            timestamp=timestamp,
-        )
+        meta = _read_agent_meta(artifacts_path)
+        meta_pid = _valid_pid(meta.get("pid")) if meta is not None else None
+        if (
+            meta is not None
+            and meta_pid is not None
+            and is_process_alive(meta, artifacts_path)
+        ):
+            pid = meta_pid
+            if cl_name is None:
+                cl_name = _read_cl_name_from_artifacts(artifacts_path)
+        else:
+            if not is_home:
+                _release_workspace_claim(project_file, timestamp)
+            _remove_agent_state_markers(
+                artifacts_path,
+                remove_running=True,
+                remove_waiting=True,
+            )
+            _record_dismissal(cl_name, timestamp)
+            return _KillResult(
+                True,
+                f"Agent '{name}' was not running; cleaned up stale state",
+                status="not_running",
+                changed=True,
+                artifacts_dir=agent.artifacts_dir,
+                project=project_name,
+                timestamp=timestamp,
+            )
 
     kill_result = request_user_kill(
         pid,
@@ -490,23 +504,19 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
 
     # Cleanup
     if is_home:
-        # Delete running.json (idempotent with runner's own cleanup)
-        running_json = artifacts_path / "running.json"
-        try:
-            running_json.unlink(missing_ok=True)
-            update_agent_artifact_index_for_marker_mutation(artifacts_path)
-        except OSError:
-            pass
+        _remove_agent_state_markers(
+            artifacts_path,
+            remove_running=True,
+            remove_waiting=_kill_result_confirms_dead(status),
+        )
     else:
-        # Release workspace (idempotent)
-        from sase.running_field import get_claimed_workspaces, release_workspace
-
-        for claim in get_claimed_workspaces(project_file):
-            if claim.artifacts_timestamp == timestamp:
-                release_workspace(
-                    project_file, claim.workspace_num, claim.workflow, claim.cl_name
-                )
-                break
+        _release_workspace_claim(project_file, timestamp)
+        if _kill_result_confirms_dead(status):
+            _remove_agent_state_markers(
+                artifacts_path,
+                remove_running=False,
+                remove_waiting=True,
+            )
 
     _record_dismissal(cl_name, timestamp)
 
@@ -522,16 +532,111 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
     )
 
 
-def _read_cl_name_from_meta(artifacts_path: Path) -> str | None:
+def _valid_pid(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if value > 1 else None
+
+
+def _read_json_dict(path: Path) -> dict[str, object] | None:
     try:
-        with open(artifacts_path / "agent_meta.json", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
-    if not isinstance(data, dict):
+    return data if isinstance(data, dict) else None
+
+
+def _read_agent_meta(artifacts_path: Path) -> dict[str, object] | None:
+    return _read_json_dict(artifacts_path / "agent_meta.json")
+
+
+def _read_pid_from_running_marker(artifacts_path: Path) -> int | None:
+    data = _read_json_dict(artifacts_path / "running.json")
+    return _valid_pid(data.get("pid")) if data is not None else None
+
+
+def _read_str_field(data: dict[str, object] | None, *keys: str) -> str | None:
+    if data is None:
         return None
-    value = data.get("cl_name")
-    return value if isinstance(value, str) else None
+    for key in keys:
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _read_cl_name_from_artifacts(artifacts_path: Path) -> str | None:
+    meta_value = _read_str_field(
+        _read_agent_meta(artifacts_path),
+        "cl_name",
+        "changespec_name",
+    )
+    if meta_value is not None:
+        return meta_value
+
+    waiting_value = _read_str_field(
+        _read_json_dict(artifacts_path / "waiting.json"),
+        "cl_name",
+    )
+    if waiting_value is not None:
+        return waiting_value
+
+    workflow_state = _read_json_dict(artifacts_path / "workflow_state.json")
+    context = workflow_state.get("context") if workflow_state is not None else None
+    if isinstance(context, dict):
+        return _read_str_field(context, "cl_name")
+    return None
+
+
+def _release_workspace_claim(project_file: str, timestamp: str) -> None:
+    from sase.running_field import get_claimed_workspaces, release_workspace
+
+    for claim in get_claimed_workspaces(project_file):
+        if claim.artifacts_timestamp == timestamp:
+            release_workspace(
+                project_file, claim.workspace_num, claim.workflow, claim.cl_name
+            )
+            break
+
+
+def _kill_result_confirms_dead(status: str | None) -> bool:
+    return status in {"already_stopped", "killed"}
+
+
+def _remove_agent_state_markers(
+    artifacts_path: Path,
+    *,
+    remove_running: bool,
+    remove_waiting: bool,
+) -> bool:
+    marker_names: list[str] = []
+    if remove_waiting:
+        marker_names.append("waiting.json")
+    if remove_running:
+        marker_names.append("running.json")
+
+    changed = False
+    for marker_name in marker_names:
+        try:
+            (artifacts_path / marker_name).unlink()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+        else:
+            changed = True
+
+    if changed:
+        try:
+            update_agent_artifact_index_for_marker_mutation(artifacts_path)
+        except Exception:
+            pass
+    return changed
+
+
+def _read_cl_name_from_meta(artifacts_path: Path) -> str | None:
+    return _read_str_field(_read_agent_meta(artifacts_path), "cl_name")
 
 
 def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:

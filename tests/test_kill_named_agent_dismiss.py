@@ -11,9 +11,11 @@ so the loader filters out the eventual ``done.json`` with
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -78,6 +80,44 @@ def _setup_nonhome_agent(home: Path) -> tuple[Path, Path]:
     return artifacts_dir, project_file
 
 
+def _setup_waiting_agent(
+    home: Path,
+    *,
+    project_name: str,
+    timestamp: str,
+    name: str,
+    pid: int | None,
+    cl_name: str,
+) -> Path:
+    project_dir = home / ".sase" / "projects" / project_name
+    artifacts_dir = project_dir / "artifacts" / "ace-run" / timestamp
+    artifacts_dir.mkdir(parents=True)
+    if project_name != "home":
+        (project_dir / f"{project_name}.sase").write_text(
+            "# Test Project\n\nNAME: feature_x\nSTATUS: Wip\n",
+            encoding="utf-8",
+        )
+    meta: dict[str, object] = {"name": name, "cl_name": cl_name}
+    if pid is not None:
+        meta["pid"] = pid
+    (artifacts_dir / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    (artifacts_dir / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": ["dep_agent"],
+                "cl_name": cl_name,
+                "timestamp": timestamp,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return artifacts_dir
+
+
+def _successful_user_kill(status: str = "killed") -> SimpleNamespace:
+    return SimpleNamespace(success=True, status=status)
+
+
 def _patch_home(home: Path) -> AbstractContextManager[object]:
     return patch("pathlib.Path.home", return_value=home)
 
@@ -96,7 +136,10 @@ def test_kill_named_agent_writes_dismissal_for_nonhome_uses_claim_cl_name(
     with (
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
-        patch("sase.agent.running.os.killpg"),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
         patch("sase.running_field.release_workspace"),
         patch("sase.agent.running.sync_dismissed_agent_artifact_index") as sync_index,
     ):
@@ -127,7 +170,10 @@ def test_kill_named_agent_writes_dismissal_for_home_uses_meta_cl_name(
     with (
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
-        patch("sase.agent.running.os.killpg"),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
         patch(
             "sase.agent.running.update_agent_artifact_index_for_marker_mutation"
         ) as update_index,
@@ -158,7 +204,10 @@ def test_kill_named_agent_falls_back_to_unknown_cl_name_for_home_without_meta(
     with (
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
-        patch("sase.agent.running.os.killpg"),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
     ):
         result = kill_named_agent("home_agent")
 
@@ -185,7 +234,10 @@ def test_kill_named_agent_writes_dismissal_when_process_already_stopped(
     with (
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
-        patch("sase.agent.running.os.killpg", side_effect=ProcessLookupError),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(status="already_stopped"),
+        ),
         patch("sase.running_field.release_workspace"),
     ):
         result = kill_named_agent("my_agent")
@@ -213,7 +265,10 @@ def test_kill_named_agent_index_write_failure_does_not_flip_success(
     with (
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
-        patch("sase.agent.running.os.killpg"),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
         patch("sase.running_field.release_workspace"),
         patch(
             "sase.ace.dismissed_agents.save_dismissed_agents",
@@ -225,16 +280,18 @@ def test_kill_named_agent_index_write_failure_does_not_flip_success(
     assert result.success is True
 
 
-def test_kill_named_agent_does_not_write_dismissal_when_pid_missing(
+def test_kill_named_agent_cleans_up_and_dismisses_when_pid_missing(
     tmp_path: Path,
     _isolated_dismissed_index: Path,
 ) -> None:
-    """Kill that fails before signalling shouldn't dismiss."""
     project_dir = tmp_path / ".sase" / "projects" / "myproj"
     artifacts_dir = project_dir / "artifacts" / "ace-run" / "20260510140000"
     artifacts_dir.mkdir(parents=True)
     project_file = project_dir / "myproj.sase"
     project_file.write_text("# Test Project\n\nNAME: feature_x\nSTATUS: Wip\n")
+    (artifacts_dir / "waiting.json").write_text(
+        json.dumps({"cl_name": "feature_x"}), encoding="utf-8"
+    )
 
     found = NamedAgent(
         name="my_agent",
@@ -246,12 +303,202 @@ def test_kill_named_agent_does_not_write_dismissal_when_pid_missing(
     with (
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
+        patch(
+            "sase.agent.running.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
     ):
         result = kill_named_agent("my_agent")
 
-    assert result.success is False
-    assert result.reason == "missing_pid"
-    assert not _isolated_dismissed_index.exists()
+    assert result.success is True
+    assert result.status == "not_running"
+    assert result.reason is None
+    assert not (artifacts_dir / "waiting.json").exists()
+    update_index.assert_called_once_with(artifacts_dir)
+
+    from sase.ace.dismissed_agents import load_dismissed_agents
+    from sase.ace.tui.models.agent import AgentType
+
+    assert _isolated_dismissed_index.exists()
+    assert (AgentType.RUNNING, "feature_x", "20260510140000") in load_dismissed_agents()
+
+
+def test_kill_named_agent_uses_live_meta_pid_for_waiting_home_agent(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _setup_waiting_agent(
+        tmp_path,
+        project_name="home",
+        timestamp="20260510150000",
+        name="home_waiting",
+        pid=33333,
+        cl_name="home_feature",
+    )
+    found = NamedAgent(
+        name="home_waiting",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch("sase.agent.running.is_process_alive", return_value=True),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ) as request_kill,
+        patch(
+            "sase.agent.running.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        result = kill_named_agent("home_waiting")
+
+    assert result.success is True
+    assert result.pid == 33333
+    request_kill.assert_called_once_with(
+        33333,
+        artifacts_dir=artifacts_dir,
+        source="agents_kill",
+        wait=True,
+    )
+    assert not (artifacts_dir / "waiting.json").exists()
+    update_index.assert_called_once_with(artifacts_dir)
+
+    from sase.ace.dismissed_agents import load_dismissed_agents
+    from sase.ace.tui.models.agent import AgentType
+
+    assert (
+        AgentType.RUNNING,
+        "home_feature",
+        "20260510150000",
+    ) in load_dismissed_agents()
+
+
+def test_kill_named_agent_uses_live_meta_pid_for_waiting_nonhome_agent(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _setup_waiting_agent(
+        tmp_path,
+        project_name="myproj",
+        timestamp="20260510160000",
+        name="my_waiting",
+        pid=44444,
+        cl_name="feature_wait",
+    )
+    found = NamedAgent(
+        name="my_waiting",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch("sase.agent.running.is_process_alive", return_value=True),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ) as request_kill,
+        patch(
+            "sase.agent.running.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        result = kill_named_agent("my_waiting")
+
+    assert result.success is True
+    assert result.pid == 44444
+    request_kill.assert_called_once_with(
+        44444,
+        artifacts_dir=artifacts_dir,
+        source="agents_kill",
+        wait=True,
+    )
+    assert not (artifacts_dir / "waiting.json").exists()
+    update_index.assert_called_once_with(artifacts_dir)
+
+    from sase.ace.dismissed_agents import load_dismissed_agents
+    from sase.ace.tui.models.agent import AgentType
+
+    assert (
+        AgentType.RUNNING,
+        "feature_wait",
+        "20260510160000",
+    ) in load_dismissed_agents()
+
+
+def test_kill_named_agent_dead_meta_pid_cleans_up_stale_waiting_agent(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = _setup_waiting_agent(
+        tmp_path,
+        project_name="home",
+        timestamp="20260510170000",
+        name="stale_waiting",
+        pid=55555,
+        cl_name="stale_feature",
+    )
+    found = NamedAgent(
+        name="stale_waiting",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch("sase.agent.running.is_process_alive", return_value=False),
+        patch("sase.agent.running.request_user_kill") as request_kill,
+        patch(
+            "sase.agent.running.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        result = kill_named_agent("stale_waiting")
+
+    assert result.success is True
+    assert result.status == "not_running"
+    assert result.changed is True
+    request_kill.assert_not_called()
+    assert not (artifacts_dir / "waiting.json").exists()
+    update_index.assert_called_once_with(artifacts_dir)
+
+
+def test_kill_named_agent_meta_pid_recycling_guard_does_not_signal(
+    tmp_path: Path,
+) -> None:
+    process = subprocess.Popen(["sleep", "60"])
+    try:
+        artifacts_dir = _setup_waiting_agent(
+            tmp_path,
+            project_name="home",
+            timestamp="20260510180000",
+            name="recycled_pid",
+            pid=process.pid,
+            cl_name="recycled_feature",
+        )
+        found = NamedAgent(
+            name="recycled_pid",
+            artifacts_dir=str(artifacts_dir),
+            is_done=False,
+            outcome=None,
+        )
+
+        with (
+            _patch_home(tmp_path),
+            patch("sase.agent.running.find_named_agent", return_value=found),
+            patch("sase.agent.running.request_user_kill") as request_kill,
+        ):
+            result = kill_named_agent("recycled_pid")
+
+        assert result.success is True
+        assert result.status == "not_running"
+        request_kill.assert_not_called()
+        assert process.poll() is None
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
 
 
 @pytest.mark.parametrize("home_or_nonhome", ["home", "nonhome"])
@@ -277,7 +524,10 @@ def test_kill_named_agent_dismissal_is_idempotent(
     with (
         _patch_home(tmp_path),
         patch("sase.agent.running.find_named_agent", return_value=found),
-        patch("sase.agent.running.os.killpg"),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
         patch("sase.running_field.release_workspace"),
     ):
         kill_named_agent("agent")
