@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
+
+_FIXED_VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0)
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +32,28 @@ def _force_color_for_visual_snapshots(
     monkeypatch.setattr(
         "sase.ace.tui.util.app_version.resolved_app_version", lambda: "0.7.1"
     )
+
+
+@pytest.fixture(autouse=True)
+def _pin_agent_list_clock_for_visual_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep date-sensitive agent-list runtime text stable in PNG snapshots."""
+
+    def fixed_now() -> datetime:
+        return _FIXED_VISUAL_NOW
+
+    for target in (
+        "sase.core.time.local_now",
+        "sase.ace.tui.actions.agents._display_panel_patches.local_now",
+        "sase.ace.tui.actions.agents._loading_compute_finalize.local_now",
+        "sase.ace.tui.actions.agents._loading_finalize.local_now",
+        "sase.ace.tui.models.agent_groups._keys.local_now",
+        "sase.ace.tui.models.agent_groups._tree.local_now",
+        "sase.ace.tui.models.agent_time.local_now",
+        "sase.ace.tui.models.changespec_groups._tree.local_now",
+    ):
+        monkeypatch.setattr(target, fixed_now)
 
 
 @pytest.fixture(autouse=True)
