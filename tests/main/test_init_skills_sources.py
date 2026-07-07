@@ -71,6 +71,9 @@ from tests.main.init_skills_handler_helpers import make_args
                 "#git:home",
                 "%w(",
                 "sase xprompt list",
+                "%xprompts_enabled:false",
+                "sase xprompt expand",
+                "max_slots_exceeded",
             ),
         ),
         (

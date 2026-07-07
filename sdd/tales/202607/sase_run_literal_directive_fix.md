@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 23:59:48
-status: wip
+status: done
 prompt: sdd/prompts/202607/sase_run_literal_directive_fix.md
 ---
 # Plan: Fix /sase_run literal-directive guidance and relaunch the failed demo #5 agent
