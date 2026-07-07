@@ -14,9 +14,8 @@ from ..tab_order import TAB_ORDER, TabName
 from ._onboarding_common import (
     append_doc_link,
     append_keycap,
-    append_leader_keycaps,
     append_section_heading,
-    leader_key_sequence_display,
+    build_guide_footer,
 )
 
 _DOCS_URL = "https://sase.sh"
@@ -27,6 +26,7 @@ _UPDATES_ACCENT = "#AF87FF"
 
 _STEP_BASE_TITLES: tuple[tuple[str, str], ...] = (
     ("#agent-onboarding-launch", "Launch your first agent"),
+    ("#agent-onboarding-inspect", "Inspect the results"),
     ("#agent-onboarding-tabs", "The three tabs"),
     ("#agent-onboarding-plugins", "Install plugins & keep sase current"),
     ("#agent-onboarding-help", "Get more help"),
@@ -79,6 +79,13 @@ class AgentOnboarding(VerticalScroll):
             classes="agent-onboarding-card",
         )
         yield launch
+
+        inspect = Static(
+            self._build_inspect_card(self._registry),
+            id="agent-onboarding-inspect",
+            classes="agent-onboarding-card",
+        )
+        yield inspect
 
         tabs = Static(
             self._build_tabs_card(self._registry),
@@ -211,6 +218,7 @@ class AgentOnboarding(VerticalScroll):
                 registry,
                 launch_targets_available=launch_targets_available,
             ),
+            "#agent-onboarding-inspect": self._build_inspect_card(registry),
             "#agent-onboarding-tabs": self._build_tabs_card(registry),
             "#agent-onboarding-plugins": self._build_plugins_card(registry),
             "#agent-onboarding-help": self._build_help_card(registry),
@@ -234,15 +242,34 @@ class AgentOnboarding(VerticalScroll):
         text = Text()
         append_section_heading(text, "Start from the prompt", accent=_AGENTS_ACCENT)
         append_keycap(text, key_display_name(app.start_agent_home))
-        text.append("open the prompt bar in your home workspace.")
+        text.append(
+            "open the prompt bar and describe a task; this launches an agent "
+            "in your home workspace."
+        )
         text.append("\n")
         if launch_targets_available:
             append_keycap(text, key_display_name(app.start_custom_agent))
-            text.append("pick a project or CL first.")
+            text.append("launch against a specific project or CL instead.")
             text.append("\n")
-        text.append("Works from any tab; shell: ", style="dim")
-        text.append("sase ace", style="bold #FFD700")
-        text.append(".", style="dim")
+        text.append("The prompt bar works from any tab.", style="dim")
+        return text
+
+    @staticmethod
+    def _build_inspect_card(registry: KeymapRegistry) -> Text:
+        app = registry.app
+        text = Text()
+        append_section_heading(text, "Read what happened", accent=_AGENTS_ACCENT)
+        append_keycap(text, key_display_name(app.next_changespec))
+        text.append("/")
+        append_keycap(text, key_display_name(app.prev_changespec))
+        text.append("select an agent.")
+        append_keycap(text, key_display_name(app.edit_spec))
+        text.append("open a finished agent's chat transcript in your editor.")
+        text.append("\n")
+        append_keycap(text, key_display_name(app.jump_to_agent_changespec))
+        text.append("jump to the CL it produced.")
+        append_keycap(text, key_display_name(app.open_agent_artifacts))
+        text.append("browse artifacts.")
         return text
 
     @staticmethod
@@ -309,13 +336,10 @@ class AgentOnboarding(VerticalScroll):
             accent=_AGENTS_ACCENT,
         )
         append_keycap(text, key_display_name(app.show_help))
-        text.append("open the help pop-up for this tab.")
+        text.append("full keybinding reference for this tab.")
         text.append("\n")
         append_keycap(text, key_display_name(app.open_command_palette))
         text.append("fuzzy-search and run any command.")
-        text.append("\n")
-        append_leader_keycaps(text, registry, "tab_guide")
-        text.append("reopen this guide anytime; it works on every tab.", style="dim")
         text.append("\n")
         text.append(_DOCS_URL, style=f"bold {_AGENTS_ACCENT} link {_DOCS_URL}")
         text.append(" full documentation.", style="dim")
@@ -323,8 +347,4 @@ class AgentOnboarding(VerticalScroll):
 
     @staticmethod
     def _build_footer(registry: KeymapRegistry) -> Text:
-        text = Text(justify="center")
-        text.append("esc closes · ", style="dim italic")
-        text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
-        text.append(" reopens this guide on any tab", style="dim italic")
-        return text
+        return build_guide_footer(registry)

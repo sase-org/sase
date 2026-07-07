@@ -16,6 +16,7 @@ def test_tab_guide_modal_builds_changespec_guide_with_modal_footer() -> None:
     assert isinstance(guide, ChangeSpecOnboarding)
     sections = ChangeSpecOnboarding.render_content(registry)
     assert "esc closes" in sections["#changespec-onboarding-footer"].plain
+    assert modal._guide_border_subtitle() == "esc closes · tab/shift+tab tabs"
 
 
 def test_tab_guide_modal_forwards_agents_onboarding_state() -> None:
@@ -31,12 +32,16 @@ def test_tab_guide_modal_forwards_agents_onboarding_state() -> None:
 
     assert isinstance(guide, AgentOnboarding)
     sections = guide.render_content(registry)
-    assert "pick a project or CL first." in sections["#agent-onboarding-launch"].plain
+    assert (
+        "launch against a specific project or CL instead."
+        in sections["#agent-onboarding-launch"].plain
+    )
     assert guide.numbered_step_titles() == [
         "1 Launch your first agent",
-        "2 The three tabs",
-        "3 Install plugins & keep sase current",
-        "4 Get more help",
+        "2 Inspect the results",
+        "3 The three tabs",
+        "4 Install plugins & keep sase current",
+        "5 Get more help",
     ]
     assert "esc closes" in sections["#agent-onboarding-footer"].plain
 
@@ -64,4 +69,7 @@ def test_tab_guide_modal_refresh_for_tab_rebuilds_guide_state() -> None:
     guide = modal._build_guide()
     assert isinstance(guide, AgentOnboarding)
     sections = guide.render_content(registry)
-    assert "pick a project or CL first." in sections["#agent-onboarding-launch"].plain
+    assert (
+        "launch against a specific project or CL instead."
+        in sections["#agent-onboarding-launch"].plain
+    )

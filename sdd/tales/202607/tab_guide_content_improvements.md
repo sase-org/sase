@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 11:36:06
-status: wip
+status: done
 prompt: sdd/prompts/202607/tab_guide_content_improvements.md
 ---
 # Improve the `,?` Tab Guide Popup Contents

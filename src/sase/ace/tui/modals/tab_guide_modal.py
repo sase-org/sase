@@ -10,7 +10,7 @@ from textual.containers import Container, VerticalScroll
 from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 
-from ..keymaps import KeymapRegistry, load_keymap_registry
+from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..widgets import AgentOnboarding, AxeOnboarding, ChangeSpecOnboarding
 
 if TYPE_CHECKING:
@@ -23,6 +23,13 @@ _TAB_META: dict[TabName, tuple[str, str]] = {
     "agents": ("Agents Guide", "-tab-agents"),
     "axe": ("AXE Guide", "-tab-axe"),
 }
+
+
+def _modal_key_display(key: str) -> str:
+    display = key_display_name(key)
+    if display in {"Tab", "Shift+Tab"}:
+        return display.lower()
+    return display
 
 
 class TabGuideModal(ModalScreen[None]):
@@ -55,8 +62,13 @@ class TabGuideModal(ModalScreen[None]):
         title, tab_class = _TAB_META[self._current_tab]
         with Container(id="tab-guide-container", classes=tab_class) as container:
             container.border_title = title
-            container.border_subtitle = "esc closes"
+            container.border_subtitle = self._guide_border_subtitle()
             yield self._build_guide()
+
+    def _guide_border_subtitle(self) -> str:
+        next_tab = _modal_key_display(self._registry.app.next_tab)
+        prev_tab = _modal_key_display(self._registry.app.prev_tab)
+        return f"esc closes · {next_tab}/{prev_tab} tabs"
 
     def _build_guide(self) -> VerticalScroll:
         """Build a new guide widget for the selected tab."""
@@ -101,6 +113,7 @@ class TabGuideModal(ModalScreen[None]):
 
         title, tab_class = _TAB_META[self._current_tab]
         container.border_title = title
+        container.border_subtitle = self._guide_border_subtitle()
         for _, old_tab_class in _TAB_META.values():
             container.remove_class(old_tab_class)
         container.add_class(tab_class)

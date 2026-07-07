@@ -40,9 +40,9 @@ async def test_tab_guide_axe_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "Automation, always on")
+        assert_page_svg_contains(page, "Axe starts automatically")
         assert_page_svg_contains(page, "Background commands")
-        assert_page_svg_contains(page, "https://sase.sh/axe/")
-        assert_page_svg_contains(page, "https://sase.sh/workflow_spec/")
+        assert_page_svg_contains(page, "with the Axe row selected")
         ace_png_visual.assert_page_png(
             page,
             "tab_guide_axe_120x40",
@@ -75,6 +75,7 @@ async def test_tab_guide_agents_png_snapshot(
 
         assert_page_svg_contains(page, "Welcome to sase ace")
         assert_page_svg_contains(page, "esc closes")
+        assert_page_svg_contains(page, "Read what happened")
         assert_page_svg_contains(page, "https://sase.sh/ace/")
         assert_page_svg_contains(page, "https://sase.sh/xprompt/")
         # The guide content is preserved above. The redesigned empty-state tab
@@ -86,4 +87,34 @@ async def test_tab_guide_agents_png_snapshot(
             title="ACE tab guide modal (Agents)",
             max_diff_pixels=21_000,
             max_diff_ratio=0.014,
+        )
+
+
+async def test_tab_guide_changespecs_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The PRs tab guide has dedicated coverage for its queue workflow copy."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+
+        page.app.push_screen(
+            TabGuideModal(
+                current_tab="changespecs",
+                registry=page.app._keymap_registry,
+            )
+        )
+        await page.expect_modal("TabGuideModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "shipped as PRs")
+        assert_page_svg_contains(page, "One ChangeSpec = one CL/PR")
+        assert_page_svg_contains(page, "Work the queue")
+        ace_png_visual.assert_page_png(
+            page,
+            "tab_guide_changespecs_120x40",
+            title="ACE tab guide modal (PRs)",
         )

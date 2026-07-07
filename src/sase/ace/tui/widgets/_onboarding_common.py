@@ -42,13 +42,20 @@ def leader_key_sequence_display(registry: KeymapRegistry, action_name: str) -> s
     return key_sequence_display(registry.leader_mode.prefix, key)
 
 
-def append_leader_keycaps(
-    text: Text,
-    registry: KeymapRegistry,
-    action_name: str,
-) -> None:
-    """Append the configured leader prefix + subkey as adjacent keycaps."""
-    key = registry.leader_mode.keys[action_name]
-    assert isinstance(key, str)
-    append_keycap(text, key_display_name(registry.leader_mode.prefix))
-    append_keycap(text, key_display_name(key))
+def _guide_footer_key_display(key: str) -> str:
+    display = key_display_name(key)
+    if display in {"Tab", "Shift+Tab"}:
+        return display.lower()
+    return display
+
+
+def build_guide_footer(registry: KeymapRegistry) -> Text:
+    text = Text(justify="center")
+    text.append("esc closes · ", style="dim italic")
+    text.append(_guide_footer_key_display(registry.app.next_tab), style="dim")
+    text.append(" / ", style="dim italic")
+    text.append(_guide_footer_key_display(registry.app.prev_tab), style="dim")
+    text.append(" other tabs' guides · ", style="dim italic")
+    text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
+    text.append(" reopens anytime", style="dim italic")
+    return text

@@ -44,7 +44,33 @@ def test_agent_onboarding_uses_active_keymap_registry() -> None:
     help_text = _section_plain(sections, "#agent-onboarding-help")
 
     assert "f1" in help_text
-    assert "open the help pop-up" in help_text
+    assert "full keybinding reference" in help_text
+
+
+def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
+    registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "next_changespec": "f1",
+                    "prev_changespec": "f2",
+                    "edit_spec": "f3",
+                    "jump_to_agent_changespec": "f4",
+                    "open_agent_artifacts": "f5",
+                }
+            }
+        }
+    )
+    widget = AgentOnboarding()
+
+    sections = widget.render_content(registry)
+    inspect_text = _section_plain(sections, "#agent-onboarding-inspect")
+
+    for key in ("f1", "f2", "f3", "f4", "f5"):
+        assert key in inspect_text
+    assert "open a finished agent's chat transcript" in inspect_text
+    assert "jump to the CL it produced" in inspect_text
+    assert "browse artifacts" in inspect_text
 
 
 def test_plugins_card_includes_admin_center_updates_and_github_copy() -> None:
@@ -77,8 +103,9 @@ def test_agent_onboarding_numbering_hides_plugins_when_installed() -> None:
 
     assert widget.numbered_step_titles() == [
         "1 Launch your first agent",
-        "2 The three tabs",
-        "3 Get more help",
+        "2 Inspect the results",
+        "3 The three tabs",
+        "4 Get more help",
     ]
 
 
@@ -89,9 +116,10 @@ def test_agent_onboarding_numbering_includes_plugins_when_none_installed() -> No
 
     assert widget.numbered_step_titles() == [
         "1 Launch your first agent",
-        "2 The three tabs",
-        "3 Install plugins & keep sase current",
-        "4 Get more help",
+        "2 Inspect the results",
+        "3 The three tabs",
+        "4 Install plugins & keep sase current",
+        "5 Get more help",
     ]
 
 
@@ -103,9 +131,10 @@ def test_launch_card_includes_project_cl_hint_when_targets_exist() -> None:
     )
     launch_text = _section_plain(sections, "#agent-onboarding-launch")
 
-    assert "open the prompt bar in your home workspace." in launch_text
-    assert "pick a project or CL first." in launch_text
-    assert "Works from any tab; shell: sase ace." in launch_text
+    assert "open the prompt bar and describe a task" in launch_text
+    assert "launches an agent in your home workspace." in launch_text
+    assert "launch against a specific project or CL instead." in launch_text
+    assert "The prompt bar works from any tab." in launch_text
 
 
 def test_launch_card_omits_project_cl_hint_without_targets() -> None:
@@ -116,9 +145,9 @@ def test_launch_card_omits_project_cl_hint_without_targets() -> None:
     )
     launch_text = _section_plain(sections, "#agent-onboarding-launch")
 
-    assert "open the prompt bar in your home workspace." in launch_text
-    assert "pick a project or CL first." not in launch_text
-    assert "Works from any tab; shell: sase ace." in launch_text
+    assert "open the prompt bar and describe a task" in launch_text
+    assert "launch against a specific project or CL instead." not in launch_text
+    assert "The prompt bar works from any tab." in launch_text
 
 
 def test_agent_onboarding_footer_is_modal_guide_footer() -> None:
@@ -129,5 +158,6 @@ def test_agent_onboarding_footer_is_modal_guide_footer() -> None:
     footer = _section_plain(sections, "#agent-onboarding-footer")
 
     assert "esc closes" in footer
+    assert "tab / shift+tab other tabs' guides" in footer
     assert ",?" in footer
     assert "Your first agent" not in footer

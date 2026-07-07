@@ -14,10 +14,9 @@ from ._axe_dashboard_render import CHOP_NAME_STYLE, LJ_NAME_STYLE
 from ._onboarding_common import (
     append_doc_link,
     append_keycap,
-    append_leader_keycaps,
     append_section_heading,
+    build_guide_footer,
     key_sequence_display,
-    leader_key_sequence_display,
 )
 
 _ACCENT = "#FF5F5F"
@@ -126,9 +125,11 @@ class AxeOnboarding(VerticalScroll):
         app = registry.app
         text = Text()
         append_section_heading(text, "Background automation loop", accent=_ACCENT)
+        text.append("Axe starts automatically with ")
+        text.append("sase ace", style="bold #FFD700")
         text.append(
-            "Axe starts with sase ace and cycles through hooks, mentors, "
-            "workflow checks, pending checks, and zombie cleanup."
+            " and cycles through hooks, mentors, workflow checks, pending "
+            "checks, and zombie cleanup."
         )
         text.append("\n")
         text.append(
@@ -137,7 +138,7 @@ class AxeOnboarding(VerticalScroll):
         )
         text.append("\n")
         append_keycap(text, key_display_name(app.kill_agent))
-        text.append("start or stop Axe.")
+        text.append("start or stop Axe (with the Axe row selected).")
         append_keycap(text, key_display_name(app.stop_axe_and_quit))
         text.append("open the quit/restart menu.")
         text.append("\n")
@@ -174,7 +175,7 @@ class AxeOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.prev_agent_file))
         text.append("next or previous chop run.")
         append_keycap(text, key_display_name(app.edit_spec))
-        text.append("edit captured output.")
+        text.append("open the captured output in your editor.")
         text.append("\n")
         text.append(
             "Every chop keeps run history: status, duration, and captured output "
@@ -200,7 +201,7 @@ class AxeOnboarding(VerticalScroll):
         )
         text.append("\n")
         append_keycap(text, key_display_name(app.kill_agent))
-        text.append("kill a running command.")
+        text.append("kill the selected running command.")
         append_keycap(text, key_display_name(app.open_agent_cleanup_panel))
         text.append("clear output.")
         append_keycap(text, key_display_name(app.run_workflow))
@@ -230,19 +231,12 @@ class AxeOnboarding(VerticalScroll):
             accent=_ACCENT,
         )
         append_keycap(text, key_display_name(app.show_help))
-        text.append("open the full keybinding reference for this tab.")
+        text.append("full keybinding reference for this tab.")
         text.append("\n")
         text.append(_DOCS_URL, style=f"bold {_ACCENT} link {_DOCS_URL}")
         text.append(" full documentation.", style="dim")
-        text.append("\n")
-        append_leader_keycaps(text, registry, "tab_guide")
-        text.append("opens this guide; it works on every tab.", style="dim")
         return text
 
     @staticmethod
     def _build_footer(registry: KeymapRegistry) -> Text:
-        text = Text(justify="center")
-        text.append("Press ", style="dim italic")
-        text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
-        text.append(" on any tab to open that tab's guide.", style="dim italic")
-        return text
+        return build_guide_footer(registry)

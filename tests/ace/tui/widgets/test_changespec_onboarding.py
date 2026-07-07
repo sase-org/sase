@@ -37,7 +37,36 @@ def test_changespec_onboarding_uses_active_keymap_registry() -> None:
     assert "f2" in how_text
     assert "shift+tab" not in how_text
     assert "f1" in learn_text
-    assert "open the help pop-up" in learn_text
+    assert "full keybinding reference" in learn_text
+
+
+def test_changespec_onboarding_queue_card_uses_active_keymap_registry() -> None:
+    registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "next_changespec": "f1",
+                    "prev_changespec": "f2",
+                    "show_diff": "f3",
+                    "change_status": "f4",
+                    "mail": "f5",
+                    "edit_spec": "f6",
+                    "edit_query": "f7",
+                }
+            }
+        }
+    )
+
+    sections = ChangeSpecOnboarding.render_content(registry)
+    queue_text = _section_plain(sections, "#changespec-onboarding-queue")
+
+    for key in ("f1", "f2", "f3", "f4", "f5", "f6", "f7"):
+        assert key in queue_text
+    assert "show the diff" in queue_text
+    assert "change status" in queue_text
+    assert "mail for review" in queue_text
+    assert "open the spec in $EDITOR" in queue_text
+    assert "filter with a query" in queue_text
 
 
 def test_changespec_onboarding_footer_is_modal_guide_footer() -> None:
@@ -48,5 +77,6 @@ def test_changespec_onboarding_footer_is_modal_guide_footer() -> None:
     footer = _section_plain(sections, "#changespec-onboarding-footer")
 
     assert "esc closes" in footer
+    assert "tab / shift+tab other tabs' guides" in footer
     assert ",?" in footer
     assert "Your first ChangeSpec" not in footer

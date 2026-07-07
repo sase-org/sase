@@ -14,9 +14,8 @@ from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ._onboarding_common import (
     append_doc_link,
     append_keycap,
-    append_leader_keycaps,
     append_section_heading,
-    leader_key_sequence_display,
+    build_guide_footer,
 )
 
 _ACCENT = "#00D7AF"
@@ -56,6 +55,14 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         how.border_title = "How ChangeSpecs get here"
         yield how
+
+        queue = Static(
+            self._build_queue_card(self._registry),
+            id="changespec-onboarding-queue",
+            classes="changespec-onboarding-card",
+        )
+        queue.border_title = "Work the queue"
+        yield queue
 
         learn = Static(
             self._build_learn_card(self._registry),
@@ -101,6 +108,9 @@ class ChangeSpecOnboarding(VerticalScroll):
             "#changespec-onboarding-hero": ChangeSpecOnboarding._build_hero(),
             "#changespec-onboarding-what": ChangeSpecOnboarding._build_what_card(),
             "#changespec-onboarding-how": ChangeSpecOnboarding._build_how_card(
+                registry
+            ),
+            "#changespec-onboarding-queue": ChangeSpecOnboarding._build_queue_card(
                 registry
             ),
             "#changespec-onboarding-learn": ChangeSpecOnboarding._build_learn_card(
@@ -157,13 +167,37 @@ class ChangeSpecOnboarding(VerticalScroll):
         )
         text.append("\n")
         text.append(
-            "The commit workflow appends commits and hook results as the "
-            "agent makes progress.",
+            "As the agent commits, its commits and hook results appear on "
+            "the spec automatically.",
             style="dim",
         )
         text.append("\n")
+        text.append("No specs yet?")
         append_keycap(text, key_display_name(app.prev_tab))
-        text.append("switch to the Agents tab and launch your first agent.")
+        text.append("to the Agents tab and launch your first agent.")
+        return text
+
+    @staticmethod
+    def _build_queue_card(registry: KeymapRegistry) -> Text:
+        app = registry.app
+        text = Text()
+        append_section_heading(text, "Move, inspect, and ship", accent=_ACCENT)
+        append_keycap(text, key_display_name(app.next_changespec))
+        text.append("/")
+        append_keycap(text, key_display_name(app.prev_changespec))
+        text.append("move through specs.")
+        append_keycap(text, key_display_name(app.show_diff))
+        text.append("show the diff.")
+        text.append("\n")
+        append_keycap(text, key_display_name(app.change_status))
+        text.append("change status.")
+        append_keycap(text, key_display_name(app.mail))
+        text.append("mail for review.")
+        append_keycap(text, key_display_name(app.edit_spec))
+        text.append("open the spec in $EDITOR.")
+        text.append("\n")
+        append_keycap(text, key_display_name(app.edit_query))
+        text.append("filter with a query.")
         return text
 
     @staticmethod
@@ -189,16 +223,9 @@ class ChangeSpecOnboarding(VerticalScroll):
             accent=_ACCENT,
         )
         append_keycap(text, key_display_name(app.show_help))
-        text.append("open the help pop-up for this tab.")
-        text.append("\n")
-        append_leader_keycaps(text, registry, "tab_guide")
-        text.append("reopen this guide anytime; it works on every tab.", style="dim")
+        text.append("full keybinding reference for this tab.")
         return text
 
     @staticmethod
     def _build_footer(registry: KeymapRegistry) -> Text:
-        text = Text(justify="center")
-        text.append("esc closes · ", style="dim italic")
-        text.append(leader_key_sequence_display(registry, "tab_guide"), style="dim")
-        text.append(" reopens this guide on any tab", style="dim italic")
-        return text
+        return build_guide_footer(registry)
