@@ -24,6 +24,8 @@ Type "repo_root=$PWD"
 Enter
 Type "export PATH=$repo_root/.venv/bin:$PATH"
 Enter
+Type "export SASE_ACE_RELEASE_VERSION_TITLE=1"
+Enter
 Type "rm -rf /tmp/sase-ace-demo.jsaIeSv0"
 Enter
 Type "eval $(./demos/scripts/seed_sase_ace_demo /tmp/sase-ace-demo.jsaIeSv0)"
@@ -39,6 +41,7 @@ Enter
 Show
 
 Type "sase ace --refresh-interval 0 --tab changespecs -x"
+Hide
 Enter
 Wait+Screen /PRs/
 Wait+Screen /ChangeSpec: 1\/5/
@@ -48,6 +51,7 @@ Wait+Screen /DESCRIPTION:/
 Wait+Screen /COMMITS:/
 Wait+Screen /HOOKS:/
 Wait+Screen /PASSED/
+Show
 Sleep 2.5s
 
 Type ">"
@@ -113,6 +117,7 @@ Wait+Screen /nova_release_notes/
 Wait+Screen /nova_prompt_input/
 Sleep 2s
 
+Hide
 Type "q"
 Sleep 700ms
 Type "exit"

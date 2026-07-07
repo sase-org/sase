@@ -24,7 +24,11 @@ Type "repo_root=$PWD"
 Enter
 Type "export PATH=$repo_root/.venv/bin:$PATH"
 Enter
-Type "eval $(./demos/scripts/seed_sase_ace_demo)"
+Type "export SASE_ACE_RELEASE_VERSION_TITLE=1"
+Enter
+Type "rm -rf /tmp/sase-ace-demo.pIn4Qw2c"
+Enter
+Type "eval $(./demos/scripts/seed_sase_ace_demo /tmp/sase-ace-demo.pIn4Qw2c)"
 Enter
 Type "sase agent index rebuild --json >/dev/null"
 Enter
@@ -34,9 +38,13 @@ Type "clear"
 Enter
 Show
 
-Type "sase ace"
+Type "sase ace --refresh-interval 0 -x"
+Hide
 Enter
 Wait+Screen /Agents/
+Wait+Screen /nova--review/
+Wait+Screen /nova--plan-1/
+Show
 Sleep 2s
 
 Space
@@ -85,8 +93,9 @@ Enter
 Wait+Screen /Launch all/
 Sleep 2.5s
 Escape
-Sleep 700ms
+Sleep 2s
 
+Hide
 Ctrl+C
 Sleep 700ms
 Ctrl+C

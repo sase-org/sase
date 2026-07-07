@@ -24,6 +24,8 @@ Type "repo_root=$PWD"
 Enter
 Type "export PATH=$repo_root/.venv/bin:$PATH"
 Enter
+Type "export SASE_ACE_RELEASE_VERSION_TITLE=1"
+Enter
 Type "rm -rf /tmp/sase-ace-demo.Sx5eykRn"
 Enter
 Type "eval $(./demos/scripts/seed_sase_ace_demo /tmp/sase-ace-demo.Sx5eykRn)"
@@ -37,9 +39,11 @@ Enter
 Show
 
 Type "sase ace --refresh-interval 0 --tab agents -x"
+Hide
 Enter
 Wait+Screen /Agents/
 Wait+Screen /nova--code/
+Show
 Sleep 2s
 
 Space
@@ -92,6 +96,7 @@ Sleep 1.5s
 
 Escape
 Sleep 600ms
+Hide
 Ctrl+C
 Sleep 700ms
 Type "q"

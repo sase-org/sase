@@ -55,11 +55,24 @@ def test_format_app_title_prefixes_with_v() -> None:
 def test_resolved_app_version_returns_host_display_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("SASE_ACE_RELEASE_VERSION_TITLE", raising=False)
     monkeypatch.setattr(
         "sase.version.host_display_version", lambda: "0.8.0+3.g084a6a2.dirty"
     )
 
     assert resolved_app_version() == "0.8.0+3.g084a6a2.dirty"
+
+
+def test_resolved_app_version_is_none_when_release_title_env_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _boom() -> str | None:
+        raise AssertionError("host display version should not be resolved")
+
+    monkeypatch.setenv("SASE_ACE_RELEASE_VERSION_TITLE", "1")
+    monkeypatch.setattr("sase.version.host_display_version", _boom)
+
+    assert resolved_app_version() is None
 
 
 def test_resolved_app_version_is_none_when_resolver_raises(

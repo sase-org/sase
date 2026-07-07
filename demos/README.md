@@ -63,6 +63,8 @@ The recipe writes:
 
 The seed data is fictional and hermetic. It sets both `HOME` and `SASE_HOME`, then runs ACE from a seeded fake workspace
 so prompt `@` file completion never exposes real local project paths. Keep future demos on the same pattern: fixed data,
-fixed geometry, no live agent submission, and no personal project names.
+fixed geometry, pinned seed directories, no live agent submission, and no personal project names. Tapes should disable
+auto-refresh and axe (`--refresh-interval 0 -x`), hide startup and teardown capture with VHS `Hide`/`Show`, and export
+`SASE_ACE_RELEASE_VERSION_TITLE=1` so editable installs render the clean release title in the ACE header.
 
 Future compression work can add a small `ffmpeg`/`gifsicle` post-processing recipe after `gifsicle` is available.

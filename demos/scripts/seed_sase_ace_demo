@@ -278,7 +278,7 @@ HOOKS:
 COMMENTS:
   [review] $sase_home/comments/nova_prompt_input.json - (!: Resolved demo note)
 TIMESTAMPS:
-  260706_085500 STATUS Draft -> Ready
+  [260706_085500] STATUS  Draft -> Ready
 DELTAS:
   + demos/tapes/sase_ace_prompt_input.tape
   + demos/scripts/seed_sase_ace_demo
@@ -293,6 +293,8 @@ STATUS: Draft
 HOOKS:
   just test tests/test_parser.py
       | (1) [260706_091500] PASSED (5s)
+TIMESTAMPS:
+  [260706_091500] STATUS  WIP -> Draft
 
 
 NAME: nova_cli_refresh
@@ -300,6 +302,8 @@ DESCRIPTION: Refresh the CLI help text after parser option changes.
 PARENT: nova_prompt_input
 PR:
 STATUS: WIP
+TIMESTAMPS:
+  [260706_101500] REWORD  Clarified CLI refresh scope
 
 
 NAME: nova_release_notes
@@ -311,6 +315,9 @@ COMMITS:
   (1) Draft release note copy
       | CHAT: $sase_home/chats/nova_release_notes.md
       | DIFF: $sase_home/diffs/nova_release_notes.diff
+TIMESTAMPS:
+  [260705_153000] COMMIT  (1)
+  [260705_160500] STATUS  Ready -> Mailed
 
 
 NAME: nova_seed_cleanup
@@ -323,7 +330,7 @@ COMMITS:
       | CHAT: $sase_home/chats/nova_seed_cleanup.md
       | DIFF: $sase_home/diffs/nova_seed_cleanup.diff
 TIMESTAMPS:
-  260705_170000 STATUS Mailed -> Submitted
+  [260705_170000] STATUS  Mailed -> Submitted
 EOF
 
 mkdir -p "$sase_home/chats" "$sase_home/diffs" "$sase_home/comments"

@@ -12,7 +12,12 @@ version shortly after mount for editable installs:
 
 from __future__ import annotations
 
+import os
+
 import sase
+
+_RELEASE_VERSION_TITLE_ENV = "SASE_ACE_RELEASE_VERSION_TITLE"
+_FALSE_ENV_VALUES = {"", "0", "false", "no", "off"}
 
 
 def initial_app_version() -> str:
@@ -33,12 +38,22 @@ def resolved_app_version() -> str | None:
     best-effort: any failure is swallowed and reported as ``None`` so a broken
     version probe can never break TUI startup.
     """
+    if _release_version_title_requested():
+        return None
+
     try:
         from sase.version import host_display_version
 
         return host_display_version()
     except Exception:
         return None
+
+
+def _release_version_title_requested() -> bool:
+    value = os.environ.get(_RELEASE_VERSION_TITLE_ENV)
+    if value is None:
+        return False
+    return value.strip().lower() not in _FALSE_ENV_VALUES
 
 
 def format_app_title(version: str) -> str:
