@@ -17,7 +17,7 @@ from ._agent_detail_panels import (
 from .file_panel import AgentFilePanel
 from .file_panel._messages import LinkedDeltasRefreshed
 from .prompt_panel import AgentPromptPanel
-from .tools_panel import AgentToolsPanel
+from .tools_panel import AgentToolsPanel, ToolDetailLevel
 from ..util.trace import tui_trace
 
 
@@ -377,6 +377,27 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             True if the tools panel is visible, False otherwise.
         """
         return self._panel_mode == DetailPanelMode.TOOLS
+
+    @property
+    def tools_detail_level(self) -> ToolDetailLevel:
+        """Current detail level for the tools panel."""
+        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
+        return tools_panel.detail_level
+
+    def expand_tools_detail(self) -> bool:
+        """Expand the visible tools panel by one detail level."""
+        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
+        return tools_panel.expand_detail()
+
+    def collapse_tools_detail(self) -> bool:
+        """Collapse the visible tools panel by one detail level."""
+        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
+        return tools_panel.collapse_detail()
+
+    def set_tools_detail_level(self, level: ToolDetailLevel | int) -> bool:
+        """Set the visible tools panel detail level."""
+        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
+        return tools_panel.set_detail_level(level)
 
     def is_info_mode(self) -> bool:
         """Check if the panel is in info-only mode.

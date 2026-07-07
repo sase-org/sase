@@ -19,7 +19,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.tools import cache as tools_cache_module
 from sase.ace.tui.widgets import tools_panel as tools_panel_module
-from sase.ace.tui.widgets.tools_panel import AgentToolsPanel
+from sase.ace.tui.widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -57,6 +57,8 @@ def _codex_pair(
     tool_input_summary: dict[str, Any],
     tool_response_summary: dict[str, Any],
     duration_ms: int,
+    error: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     start = {
         "schema_version": 2,
@@ -80,9 +82,15 @@ def _codex_pair(
         "tool_name": tool_name,
         "tool_use_id": tool_use_id,
         "duration_ms": duration_ms,
+        "completed_at": completed_at,
         "tool_input_summary": tool_input_summary,
         "tool_response_summary": tool_response_summary,
     }
+    if error is not None:
+        result["error"] = error
+    if metadata:
+        start.update(metadata)
+        result.update(metadata)
     return [start, result]
 
 
@@ -199,6 +207,104 @@ def _populate_tool_calls(artifacts_dir: Path) -> None:
             f.write("\n")
 
 
+def _populate_expanded_tool_calls(artifacts_dir: Path) -> None:
+    """Write tool rows that exercise expanded/full detail rendering."""
+    records: list[dict[str, Any]] = []
+    records.extend(
+        _codex_pair(
+            tool_use_id="call_long_bash",
+            tool_name="Bash",
+            started_at="2026-05-09T14:00:30+00:00",
+            completed_at="2026-05-09T14:00:32+00:00",
+            status="success",
+            tool_input_summary={
+                "command": (
+                    "python - <<'PY'\n"
+                    "from pathlib import Path\n"
+                    "for path in Path('src/sase/ace/tui').glob('**/*.py'):\n"
+                    "    print(path)\n"
+                    "PY"
+                ),
+                "timeout": 30,
+                "description": "scan TUI sources",
+            },
+            tool_response_summary={
+                "exit_code": 0,
+                "success": True,
+                "stdout_preview": "\n".join(
+                    [
+                        "src/sase/ace/tui/widgets/tools_panel.py",
+                        "src/sase/ace/tui/widgets/agent_detail.py",
+                        "src/sase/ace/tui/modals/zoom_panel_modal.py",
+                        "src/sase/ace/tui/actions/agents/_folding.py",
+                        "src/sase/ace/tui/widgets/keybinding_footer.py",
+                        "src/sase/ace/tui/commands/_app_metadata.py",
+                        "src/sase/ace/tui/modals/help_modal/agents_bindings.py",
+                    ]
+                ),
+            },
+            duration_ms=2048,
+            metadata={
+                "cwd": "/workspace/sase",
+                "permission_mode": "acceptEdits",
+                "agent_type": "run",
+                "session_id": "visual-session-abcdef123456",
+            },
+        )
+    )
+    records.extend(
+        _codex_pair(
+            tool_use_id="call_failure",
+            tool_name="Bash",
+            started_at="2026-05-09T14:01:10+00:00",
+            completed_at="2026-05-09T14:01:11+00:00",
+            status="failure",
+            tool_input_summary={
+                "command": "pytest tests/ace/tui/widgets/test_missing_panel.py",
+                "timeout": 60,
+            },
+            tool_response_summary={
+                "exit_code": 2,
+                "success": False,
+                "stderr_preview": (
+                    "ERROR: file or directory not found\n"
+                    "tests/ace/tui/widgets/test_missing_panel.py"
+                ),
+            },
+            duration_ms=918,
+            error=(
+                "pytest could not collect the requested file\n"
+                "hint: verify the generated test path"
+            ),
+            metadata={
+                "cwd": "/workspace/sase",
+                "permission_mode": "default",
+                "agent_type": "run",
+                "session_id": "visual-session-abcdef123456",
+            },
+        )
+    )
+    records.append(
+        _codex_pending(
+            tool_use_id="call_pending_edit",
+            tool_name="Edit",
+            recorded_at="2026-05-09T14:01:30+00:00",
+            tool_input_summary={
+                "file_path": "src/sase/ace/tui/widgets/tools_panel.py",
+                "old_string_length": 24,
+                "new_string_length": 128,
+            },
+        )
+    )
+
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    path = artifacts_dir / "tool_calls.jsonl"
+    with path.open("w", encoding="utf-8") as f:
+        for record in records:
+            json.dump(record, f, sort_keys=True)
+            f.write("\n")
+
+
 def _pin_tools_panel_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the Tools panel timestamp formatter to UTC for deterministic output."""
     utc = ZoneInfo("UTC")
@@ -250,6 +356,21 @@ async def _wait_for_tools_loaded(page: AcePage) -> None:
     await page.wait_for(_check, timeout=5.0)
 
 
+async def _open_tools_panel(page: AcePage) -> AgentToolsPanel:
+    await wait_for_startup(page)
+    await page.press("shift+tab")
+    await page.expect_state("tab", "agents")
+    await page.expect_state("agent_count", 1)
+    # Wait for the debounced detail panel update so AgentDetail._current_agent
+    # is populated; without it _next_panel_mode falls back to the short
+    # AUTO -> INFO cycle (because is_agent_entry is checked on _current_agent).
+    await wait_for_visual_idle(page)
+    await page.press("right_square_bracket")
+    await _wait_for_tools_loaded(page)
+    await wait_for_visual_idle(page)
+    return page.app.query_one("#agent-tools-panel", AgentToolsPanel)
+
+
 async def test_agents_tools_panel_populated_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -265,18 +386,7 @@ async def test_agents_tools_panel_populated_png_snapshot(
     patch_startup_loaders(monkeypatch, agents=[agent])
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 1)
-        # Wait for the debounced detail panel update so AgentDetail._current_agent
-        # is populated; without it _next_panel_mode falls back to the short
-        # AUTO -> INFO cycle (because is_agent_entry is checked on _current_agent).
-        await wait_for_visual_idle(page)
-        await page.press("right_square_bracket")
-        await _wait_for_tools_loaded(page)
-        await wait_for_visual_idle(page)
-        panel = page.app.query_one("#agent-tools-panel", AgentToolsPanel)
+        panel = await _open_tools_panel(page)
         assert panel._last_entries is not None
         assert {entry.runtime for entry in panel._last_entries} == {"codex"}
         assert {entry.source for entry in panel._last_entries} == {"stream"}
@@ -285,4 +395,48 @@ async def test_agents_tools_panel_populated_png_snapshot(
             page,
             "agents_tools_panel_populated_120x40",
             title="ACE agents tools panel populated with Codex rows",
+        )
+
+
+@pytest.mark.parametrize(
+    ("detail_level", "snapshot_name", "title"),
+    [
+        (
+            ToolDetailLevel.EXPANDED,
+            "agents_tools_panel_expanded_120x40",
+            "ACE agents tools panel expanded detail",
+        ),
+        (
+            ToolDetailLevel.FULL,
+            "agents_tools_panel_full_120x40",
+            "ACE agents tools panel full detail",
+        ),
+    ],
+)
+async def test_agents_tools_panel_detail_level_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    detail_level: ToolDetailLevel,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    _pin_tools_panel_timezone(monkeypatch)
+    _pin_tools_panel_now(monkeypatch)
+    _clear_tools_cache()
+
+    artifacts_dir = tmp_path / "ace-run" / "20260509100000"
+    _populate_expanded_tool_calls(artifacts_dir)
+    agent = _tools_agent(artifacts_dir)
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        panel = await _open_tools_panel(page)
+        assert panel.set_detail_level(detail_level) is True
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            snapshot_name,
+            title=title,
         )

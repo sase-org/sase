@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from enum import IntEnum
 from typing import Any, cast
 
 from rich.cells import cell_len
@@ -51,6 +52,54 @@ _CHIP_COLORS = (
     "#D787AF",
 )
 _SOURCE_CHIP_WIDTH = 7
+_EXPANDED_GUTTER = "    │ "
+_EXPANDED_WRAP_INDENT = "      "
+_PREVIEW_KEYS = (
+    "stdout_preview",
+    "stderr_preview",
+    "output_preview",
+    "content_preview",
+    "result_preview",
+    "preview",
+)
+_INPUT_PRIMARY_KEYS = (
+    "file_path",
+    "path",
+    "url",
+    "query",
+    "pattern",
+    "command",
+)
+_INPUT_FIELD_ORDER = (
+    "description",
+    "timeout",
+    "replace_all",
+    "offset",
+    "limit",
+    "content_length",
+    "old_string_length",
+    "new_string_length",
+    "edits_count",
+    "subagent_type",
+    "prompt_length",
+    "input_keys",
+    "raw",
+)
+
+
+class ToolDetailLevel(IntEnum):
+    """Progressive disclosure levels for the tools timeline."""
+
+    COMPACT = 0
+    EXPANDED = 1
+    FULL = 2
+
+
+_DETAIL_LEVEL_LABELS: dict[ToolDetailLevel, str] = {
+    ToolDetailLevel.COMPACT: "compact",
+    ToolDetailLevel.EXPANDED: "expanded",
+    ToolDetailLevel.FULL: "full",
+}
 
 
 @dataclass(frozen=True)
@@ -145,6 +194,276 @@ def _append_source_chip(
     )
 
 
+def _coerce_detail_level(level: ToolDetailLevel | int) -> ToolDetailLevel:
+    value = max(
+        ToolDetailLevel.COMPACT,
+        min(ToolDetailLevel.FULL, int(level)),
+    )
+    return ToolDetailLevel(value)
+
+
+def _detail_level_label(level: ToolDetailLevel | int) -> str:
+    return _DETAIL_LEVEL_LABELS[_coerce_detail_level(level)]
+
+
+def _value_to_display(value: Any, *, multiline: bool = False) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_value_to_display(item) for item in value)
+    if isinstance(value, dict):
+        pieces = [f"{key}={_value_to_display(nested)}" for key, nested in value.items()]
+        return ", ".join(piece for piece in pieces if piece)
+    text = str(value)
+    if multiline:
+        return text.replace("\r\n", "\n").replace("\r", "\n")
+    return " ".join(text.replace("\r\n", "\n").replace("\r", "\n").splitlines())
+
+
+def _primary_target(entry: ToolCallEntry) -> tuple[str, str] | None:
+    for key in _INPUT_PRIMARY_KEYS:
+        value = entry.tool_input_summary.get(key)
+        if isinstance(value, str) and value:
+            return key, _value_to_display(value, multiline=True)
+    return None
+
+
+def _compact_target_is_truncated(entry: ToolCallEntry, full_value: str) -> bool:
+    normalized = _value_to_display(full_value)
+    if "\n" in full_value or "\r" in full_value:
+        return True
+    if len(normalized) > 88:
+        return True
+    return normalized != entry.compact_target
+
+
+def _input_field_items(
+    entry: ToolCallEntry, primary_key: str | None
+) -> list[tuple[str, str]]:
+    seen: set[str] = set()
+    keys: list[str] = []
+    for key in _INPUT_FIELD_ORDER:
+        if key in entry.tool_input_summary:
+            keys.append(key)
+            seen.add(key)
+    for key in entry.tool_input_summary:
+        if key not in seen:
+            keys.append(str(key))
+    items: list[tuple[str, str]] = []
+    for key in keys:
+        if key == primary_key:
+            continue
+        value = entry.tool_input_summary.get(key)
+        rendered = _value_to_display(value)
+        if rendered:
+            items.append((key, rendered))
+    return items
+
+
+def _append_detail_line(text: Text, label: str, value: str, *, style: str = "") -> None:
+    text.append(_EXPANDED_GUTTER, style="dim")
+    text.append(f"{label} ", style="dim italic")
+    text.append(value, style=style)
+    text.append("\n")
+
+
+def _append_multiline_detail(
+    text: Text,
+    label: str,
+    value: str,
+    *,
+    style: str = "",
+    max_lines: int = 6,
+) -> None:
+    lines = value.replace("\r\n", "\n").replace("\r", "\n").splitlines() or [value]
+    shown = lines[:max_lines]
+    text.append(_EXPANDED_GUTTER, style="dim")
+    text.append(f"{label}", style="dim italic")
+    text.append("\n")
+    for line in shown:
+        text.append(_EXPANDED_WRAP_INDENT, style="dim")
+        text.append(line, style=style)
+        text.append("\n")
+    remaining = len(lines) - len(shown)
+    if remaining > 0:
+        text.append(_EXPANDED_WRAP_INDENT, style="dim")
+        text.append(f"... (+{remaining} more lines)", style="dim italic")
+        text.append("\n")
+
+
+def _append_input_fields(text: Text, items: list[tuple[str, str]]) -> None:
+    if not items:
+        return
+    line = Text(_EXPANDED_GUTTER, style="dim")
+    for idx, (key, value) in enumerate(items):
+        rendered = f"{key} {value}"
+        if idx and cell_len(line.plain) + cell_len(rendered) + 3 > 118:
+            text.append(line)
+            text.append("\n")
+            line = Text(_EXPANDED_GUTTER, style="dim")
+        elif idx:
+            line.append(" · ", style="dim")
+        line.append(f"{key} ", style="dim italic")
+        line.append(value)
+    text.append(line)
+    text.append("\n")
+
+
+def _response_scalar_parts(entry: ToolCallEntry) -> list[str]:
+    summary = entry.tool_response_summary
+    parts: list[str] = []
+    exit_code = summary.get("exit_code")
+    if isinstance(exit_code, int):
+        parts.append(f"exit {exit_code}")
+    success = summary.get("success")
+    if isinstance(success, bool):
+        parts.append("ok" if success else "failed")
+    elif entry.status == "failure":
+        parts.append("failed")
+    interrupted = summary.get("interrupted")
+    if interrupted is True or entry.status == "interrupted":
+        parts.append("interrupted")
+    return parts
+
+
+def _preview_style(key: str) -> str:
+    if key == "stderr_preview":
+        return "#FF8787"
+    return "dim"
+
+
+def _preview_label(key: str) -> str:
+    return key.removesuffix("_preview").replace("_", " ")
+
+
+def _metadata_line(entry: ToolCallEntry) -> str:
+    parts: list[str] = []
+    if entry.completed_at:
+        parts.append(f"completed {_format_timestamp(entry.completed_at)}")
+    runtime_source = "/".join(
+        part for part in (entry.runtime, entry.source) if isinstance(part, str) and part
+    )
+    if runtime_source:
+        parts.append(runtime_source)
+    for label, value in (
+        ("mode", entry.permission_mode),
+        ("agent", entry.agent_type),
+        ("cwd", entry.cwd),
+        ("tool", entry.tool_use_id),
+    ):
+        if value:
+            parts.append(f"{label} {value}")
+    if entry.session_id:
+        parts.append(f"session {entry.session_id[:12]}")
+    if entry.source_path:
+        source = entry.source_path
+        if entry.line_number:
+            source = f"{source}:{entry.line_number}"
+        parts.append(source)
+    return " · ".join(parts)
+
+
+def _append_expanded_block(
+    output: Text,
+    entry: ToolCallEntry,
+    *,
+    detail_level: ToolDetailLevel,
+) -> None:
+    primary = _primary_target(entry)
+    primary_key: str | None = None
+    if primary is not None:
+        primary_key, full_target = primary
+        if _compact_target_is_truncated(entry, full_target):
+            _append_multiline_detail(
+                output,
+                primary_key.replace("_", " "),
+                full_target,
+                style="#D7D7AF",
+            )
+
+    _append_input_fields(output, _input_field_items(entry, primary_key))
+
+    response_parts = _response_scalar_parts(entry)
+    if response_parts:
+        _append_detail_line(output, "response", " · ".join(response_parts), style="dim")
+    for key in _PREVIEW_KEYS:
+        value = entry.tool_response_summary.get(key)
+        if isinstance(value, str) and value:
+            _append_multiline_detail(
+                output,
+                _preview_label(key),
+                value,
+                style=_preview_style(key),
+            )
+
+    error = entry.error
+    response_error = entry.tool_response_summary.get("error")
+    if not error and isinstance(response_error, str):
+        error = response_error
+    if error:
+        _append_multiline_detail(output, "error", error, style="bold red")
+
+    if detail_level >= ToolDetailLevel.FULL:
+        metadata = _metadata_line(entry)
+        if metadata:
+            _append_detail_line(output, "meta", metadata, style="dim")
+
+
+def _expanded_markdown_lines(
+    entry: ToolCallEntry,
+    *,
+    detail_level: ToolDetailLevel,
+) -> list[str]:
+    lines: list[str] = []
+    primary = _primary_target(entry)
+    primary_key: str | None = None
+    if primary is not None:
+        primary_key, full_target = primary
+        if _compact_target_is_truncated(entry, full_target):
+            lines.append(f"  {primary_key.replace('_', ' ')}:")
+            lines.extend(f"    {line}" for line in full_target.splitlines())
+
+    for key, value in _input_field_items(entry, primary_key):
+        lines.append(f"  {key}: {value}")
+
+    response_parts = _response_scalar_parts(entry)
+    if response_parts:
+        lines.append(f"  response: {' · '.join(response_parts)}")
+    for key in _PREVIEW_KEYS:
+        preview_value = entry.tool_response_summary.get(key)
+        if isinstance(preview_value, str) and preview_value:
+            preview_lines = (
+                preview_value.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+            )
+            lines.append(f"  {_preview_label(key)}:")
+            for preview_line in preview_lines[:6]:
+                lines.append(f"    {preview_line}")
+            remaining = len(preview_lines) - 6
+            if remaining > 0:
+                lines.append(f"    ... (+{remaining} more lines)")
+
+    error = entry.error
+    response_error = entry.tool_response_summary.get("error")
+    if not error and isinstance(response_error, str):
+        error = response_error
+    if error:
+        lines.append("  error:")
+        lines.extend(
+            f"    {line}"
+            for line in error.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+        )
+
+    if detail_level >= ToolDetailLevel.FULL:
+        metadata = _metadata_line(entry)
+        if metadata:
+            lines.append(f"  meta: {metadata}")
+    return lines
+
+
 def _rows_from_entries(
     entries: Sequence[ToolCallEntry] | None,
 ) -> tuple[_ToolTimelineRow, ...] | None:
@@ -225,8 +544,10 @@ def _build_tools_timeline_text(
     *,
     is_stale: bool = False,
     rows: Sequence[_ToolTimelineRow] | None = None,
+    detail_level: ToolDetailLevel | int = ToolDetailLevel.COMPACT,
 ) -> Text:
     """Build the Rich Text timeline for tool-call entries."""
+    detail_level = _coerce_detail_level(detail_level)
     if entries is None:
         return Text("No tools artifact available", style="dim italic")
     if not entries:
@@ -239,11 +560,13 @@ def _build_tools_timeline_text(
     if is_stale:
         output.append(" (refreshing...)", style="dim italic")
     output.append("\n")
-    output.append(
+    summary = (
         f"{len(entries)} calls · {failures} failures · {interrupted} interrupted "
-        f"· refreshed {fetch_time.strftime('%H:%M:%S')}\n\n",
-        style="dim",
+        f"· refreshed {fetch_time.strftime('%H:%M:%S')}"
     )
+    if detail_level >= ToolDetailLevel.EXPANDED:
+        summary = f"{summary} · detail: {_detail_level_label(detail_level)}"
+    output.append(f"{summary}\n\n", style="dim")
 
     timeline_rows = tuple(rows) if rows is not None else _rows_from_entries(entries)
     for row in timeline_rows or ():
@@ -284,6 +607,9 @@ def _build_tools_timeline_text(
             output.append("\n    ")
             _append_bounded(output, detail, style="dim", limit=140)
         output.append("\n")
+        if detail_level >= ToolDetailLevel.EXPANDED:
+            _append_expanded_block(output, entry, detail_level=detail_level)
+            output.append("\n")
 
     return output
 
@@ -293,17 +619,22 @@ def _build_tools_timeline_markdown(
     fetch_time: datetime,
     *,
     rows: Sequence[_ToolTimelineRow] | None = None,
+    detail_level: ToolDetailLevel | int = ToolDetailLevel.COMPACT,
 ) -> str | None:
     """Build a plain markdown rendering for editor/export actions."""
+    detail_level = _coerce_detail_level(detail_level)
     if entries is None:
         return "TOOLS\n\nNo tools artifact available.\n"
     if not entries:
         return "TOOLS\n\nNo tool calls recorded.\n"
 
+    summary = f"{len(entries)} calls · refreshed {fetch_time.strftime('%H:%M:%S')}"
+    if detail_level >= ToolDetailLevel.EXPANDED:
+        summary = f"{summary} · detail: {_detail_level_label(detail_level)}"
     lines = [
         "TOOLS",
         "",
-        f"{len(entries)} calls · refreshed {fetch_time.strftime('%H:%M:%S')}",
+        summary,
         "",
     ]
     timeline_rows = tuple(rows) if rows is not None else _rows_from_entries(entries)
@@ -323,6 +654,9 @@ def _build_tools_timeline_markdown(
         lines.append(" | ".join(pieces))
         if entry.detail:
             lines.append(f"  {entry.detail}")
+        if detail_level >= ToolDetailLevel.EXPANDED:
+            lines.extend(_expanded_markdown_lines(entry, detail_level=detail_level))
+            lines.append("")
     lines.append("")
     return "\n".join(lines)
 
@@ -339,6 +673,57 @@ class AgentToolsPanel(Static):
         self._last_rows: tuple[_ToolTimelineRow, ...] | None = None
         self._last_fetch_time: datetime | None = None
         self._is_background_refreshing: bool = False
+        self._detail_level: ToolDetailLevel = ToolDetailLevel.COMPACT
+
+    @property
+    def detail_level(self) -> ToolDetailLevel:
+        """Current timeline detail level."""
+        return self._detail_level
+
+    def expand_detail(self) -> bool:
+        """Expand the tools timeline by one detail level."""
+        return self.set_detail_level(self._detail_level + 1)
+
+    def collapse_detail(self) -> bool:
+        """Collapse the tools timeline by one detail level."""
+        return self.set_detail_level(self._detail_level - 1)
+
+    def set_detail_level(
+        self,
+        level: ToolDetailLevel | int,
+        *,
+        rerender: bool = True,
+    ) -> bool:
+        """Set the tools timeline detail level.
+
+        Returns True when the level changed. When ``rerender`` is true, empty
+        panels do not change level because the keypress should remain a no-op.
+        """
+        next_level = _coerce_detail_level(level)
+        if next_level == self._detail_level:
+            return False
+        if rerender and not self._has_tool_rows():
+            return False
+        self._detail_level = next_level
+        if rerender:
+            self._rerender_cached_tools()
+        return True
+
+    def _has_tool_rows(self) -> bool:
+        return bool(self._last_entries)
+
+    def _rerender_cached_tools(self) -> None:
+        if self._last_fetch_time is None:
+            return
+        scroll_pos = self._save_scroll_position()
+        self._display_tools_with_timestamp(
+            self._last_entries,
+            self._last_fetch_time,
+            post_visibility_message=False,
+            is_stale=self._is_background_refreshing,
+            rows=self._last_rows,
+        )
+        self._restore_scroll_position(scroll_pos)
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update with agent tool-call records."""
@@ -408,6 +793,7 @@ class AgentToolsPanel(Static):
             self._last_entries,
             self._last_fetch_time,
             rows=self._last_rows,
+            detail_level=self._detail_level,
         )
 
     def show_empty(self) -> None:
@@ -465,6 +851,7 @@ class AgentToolsPanel(Static):
                 fetch_time,
                 is_stale=is_stale,
                 rows=rows,
+                detail_level=self._detail_level,
             )
         )
         self._has_displayed_content = True
@@ -557,6 +944,7 @@ class AgentToolsPanel(Static):
 
 __all__ = [
     "AgentToolsPanel",
+    "ToolDetailLevel",
     "ToolsVisibilityChanged",
     "_ToolsCacheEntry",
     "_build_tools_timeline_markdown",

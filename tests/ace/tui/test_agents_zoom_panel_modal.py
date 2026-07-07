@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from rich.text import Text
+from textual.widgets import Label
 
 from sase.agent.status_buckets import FEEDBACK_STATUS
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
-from sase.ace.tui.modals.zoom_panel_modal import _renderable_to_text, _status_text
+from sase.ace.tui.modals.zoom_panel_modal import (
+    _renderable_to_text,
+    _status_text,
+    _ZoomToolsPanel,
+)
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -21,6 +28,9 @@ from tests.ace.tui._agents_zoom_panel_helpers import (
     _ModalTestApp,
     _make_agent,
 )
+from tests.ace.tui.widgets._tools_panel_helpers import _entry
+
+from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
 
 
 def test_zoom_status_text_renders_stopped_identity() -> None:
@@ -109,3 +119,38 @@ async def test_zoom_metadata_copy_fallback_uses_textual_content() -> None:
         await pilot.pause()
 
         assert modal._zoom_text() == "metadata copy body"
+
+
+async def test_zoom_tools_detail_level_seed_and_keys() -> None:
+    agent = _make_agent(status="RUNNING")
+    modal = ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.TOOLS,
+        seed=ZoomPanelSeed(
+            tools_renderable=Text("seed tools"),
+            has_tools_content=True,
+            tools_detail_level=ToolDetailLevel.EXPANDED,
+        ),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        panel = modal.query_one("#zoom-tools-panel", _ZoomToolsPanel)
+        assert panel.detail_level == ToolDetailLevel.EXPANDED
+        hint = modal.query_one("#zoom-panel-hints", Label)
+        assert "h/l detail" in str(hint.content)
+
+        panel._last_entries = (
+            _entry(tool_input_summary={"command": "echo " + "x" * 120}),
+        )
+        panel._last_fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+        await pilot.press("l")
+        assert panel.detail_level == ToolDetailLevel.FULL
+
+        await pilot.press("h")
+        assert panel.detail_level == ToolDetailLevel.EXPANDED

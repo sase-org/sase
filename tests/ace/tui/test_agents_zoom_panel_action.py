@@ -7,6 +7,7 @@ import pytest
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelTarget
+from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
 
 from tests.ace.tui._agents_zoom_panel_helpers import (
     _FakeDetail,
@@ -73,6 +74,17 @@ def test_action_zoom_panel_provider_resolves_fresh_agent_by_identity() -> None:
     app._agents_with_children = [refreshed]
 
     assert modal._agent_provider() is refreshed
+
+
+def test_action_zoom_panel_seed_carries_tools_detail_level() -> None:
+    detail = _FakeDetail(tools_visible=True, file_visible=False, has_tools=True)
+    detail.tools_detail_level = ToolDetailLevel.FULL  # type: ignore[attr-defined]
+    app = _FakeZoomApp(agent=_make_agent(), detail=detail)
+
+    app.action_zoom_panel()
+
+    modal = app.pushed[0]
+    assert modal._seed.tools_detail_level == ToolDetailLevel.FULL
 
 
 def test_default_z_bindings_route_fold_then_zoom() -> None:

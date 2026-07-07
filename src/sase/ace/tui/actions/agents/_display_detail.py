@@ -355,6 +355,8 @@ class DetailMixin:
                 artifact_viewer_active=artifact_viewer_active,
                 neighbor_count=self._selected_agent_neighbor_count(current_agent),
                 tmux_choice_count=self._selected_agent_tmux_choice_count(current_agent),
+                tools_visible=agent_detail.is_tools_visible(),
+                tools_detail_level=int(agent_detail.tools_detail_level),
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:

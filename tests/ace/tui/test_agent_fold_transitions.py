@@ -34,6 +34,8 @@ class _StubApp(AgentFoldingMixin):
         self.refilter_calls = 0
         self.focus_artifact_result = False
         self.focus_artifact_calls = 0
+        self._detail = None
+        self.footer_refresh_calls = 0
 
     # The mixin calls these via attribute lookups.
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
@@ -47,6 +49,36 @@ class _StubApp(AgentFoldingMixin):
         if 0 <= self.current_idx < len(self._agents):
             return self._agents[self.current_idx]
         return None
+
+    def query_one(self, selector: str, *_args: object) -> object:
+        if selector == "#agent-detail-panel" and self._detail is not None:
+            return self._detail
+        raise KeyError(selector)
+
+    def _refresh_agent_footer_bindings_only(self) -> None:
+        self.footer_refresh_calls += 1
+
+
+class _ToolsDetail:
+    def __init__(self, *, visible: bool = True, changed: bool = True) -> None:
+        self.visible = visible
+        self.changed = changed
+        self.actions: list[str] = []
+
+    def is_tools_visible(self) -> bool:
+        return self.visible
+
+    def expand_tools_detail(self) -> bool:
+        self.actions.append("expand")
+        return self.changed
+
+    def collapse_tools_detail(self) -> bool:
+        self.actions.append("collapse")
+        return self.changed
+
+    def set_tools_detail_level(self, level: object) -> bool:
+        self.actions.append(f"set:{int(level)}")
+        return self.changed
 
 
 def _agent(
@@ -66,6 +98,35 @@ def _agent(
         raw_suffix=raw_suffix,
         agent_name=agent_name,
     )
+
+
+def test_tools_panel_routes_fold_keys_to_detail_level() -> None:
+    agent = _agent(agent_name="coder.claude")
+    detail = _ToolsDetail()
+    app = _StubApp([agent], current_idx=0)
+    app._detail = detail
+
+    app.action_expand_or_layout()
+    app.action_hooks_or_collapse()
+    app.action_expand_all_folds()
+    app.action_hooks_or_collapse_all()
+
+    assert detail.actions == ["expand", "collapse", "set:2", "set:0"]
+    assert app.refilter_calls == 0
+    assert app.footer_refresh_calls == 4
+
+
+def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
+    agent = _agent(agent_name="coder.claude")
+    detail = _ToolsDetail(changed=False)
+    app = _StubApp([agent], current_idx=0)
+    app._detail = detail
+
+    app.action_expand_or_layout()
+
+    assert detail.actions == ["expand"]
+    assert app.refilter_calls == 0
+    assert app.footer_refresh_calls == 0
 
 
 def test_h_on_agent_collapses_only_its_group() -> None:

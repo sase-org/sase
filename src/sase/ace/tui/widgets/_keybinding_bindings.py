@@ -18,6 +18,7 @@ from ...changespec import ChangeSpec
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
 from ..models.agent_status import is_resumable_done_status
+from .tools_panel import ToolDetailLevel
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -97,6 +98,8 @@ class KeybindingBindingsMixin:
         artifact_viewer_active: bool = False,
         neighbor_count: int = 0,
         tmux_choice_count: int = 0,
+        tools_visible: bool = False,
+        tools_detail_level: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -129,6 +132,18 @@ class KeybindingBindingsMixin:
         if artifact_viewer_active:
             bindings.append((self._kd("next_tab"), "focus artifact pane"))
             bindings.append((self._kd("quit"), "close artifact pane"))
+
+        if tools_visible:
+            level = ToolDetailLevel(
+                max(
+                    ToolDetailLevel.COMPACT,
+                    min(ToolDetailLevel.FULL, int(tools_detail_level)),
+                )
+            )
+            if level < ToolDetailLevel.FULL:
+                bindings.append((self._kd("expand_or_layout"), "more detail"))
+            if level > ToolDetailLevel.COMPACT:
+                bindings.append((self._kd("hooks_or_collapse"), "less detail"))
 
         # When marks exist, A operates on the union of marked-agent artifacts.
         # Surface the affordance even if the focused agent has none of its own.

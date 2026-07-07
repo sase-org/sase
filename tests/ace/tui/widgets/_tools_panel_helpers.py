@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.widgets.tools_panel import AgentToolsPanel
+from sase.ace.tui.widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
 
 
 def _entry(**overrides: object) -> ToolCallEntry:
@@ -33,6 +33,7 @@ def _build_panel() -> AgentToolsPanel:
     panel._last_rows = None
     panel._last_fetch_time = None
     panel._is_background_refreshing = False
+    panel._detail_level = ToolDetailLevel.COMPACT
     panel.update = MagicMock()  # type: ignore[method-assign]
     panel.post_message = MagicMock()  # type: ignore[method-assign]
     panel.run_worker = MagicMock(  # type: ignore[method-assign]

@@ -17,7 +17,7 @@ from .changespec_list import ChangeSpecList
 from .changespec_onboarding import ChangeSpecOnboarding
 from .hint_input_bar import HintInputBar
 from .keybinding_footer import KeybindingFooter
-from .tools_panel import AgentToolsPanel, ToolsVisibilityChanged
+from .tools_panel import AgentToolsPanel, ToolDetailLevel, ToolsVisibilityChanged
 from .llm_override_indicator import LLMOverrideIndicator
 from .notification_indicator import NotificationIndicator
 from .prompt_input_bar import PromptInputBar
@@ -45,6 +45,7 @@ __all__ = [
     "AgentDetail",
     "AgentInfoPanel",
     "AgentToolsPanel",
+    "ToolDetailLevel",
     "AgentList",
     "AgentOnboarding",
     "AliasOverridesIndicator",

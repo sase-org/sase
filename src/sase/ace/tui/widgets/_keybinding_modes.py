@@ -47,6 +47,8 @@ class KeybindingModesMixin:
             artifact_viewer_active: bool = False,
             neighbor_count: int = 0,
             tmux_choice_count: int = 0,
+            tools_visible: bool = False,
+            tools_detail_level: int = 0,
         ) -> list[tuple[str, str]]: ...
 
         def _compute_axe_bindings(
@@ -89,6 +91,8 @@ class KeybindingModesMixin:
         artifact_viewer_active: bool = False,
         neighbor_count: int = 0,
         tmux_choice_count: int = 0,
+        tools_visible: bool = False,
+        tools_detail_level: int = 0,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -102,6 +106,8 @@ class KeybindingModesMixin:
             artifact_viewer_active=artifact_viewer_active,
             neighbor_count=neighbor_count,
             tmux_choice_count=tmux_choice_count,
+            tools_visible=tools_visible,
+            tools_detail_level=tools_detail_level,
         )
         self._update_display(bindings)
 

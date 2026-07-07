@@ -39,7 +39,11 @@ from ..widgets.file_panel import (
     FileVisibilityChanged,
 )
 from ..widgets.prompt_panel import AgentPromptPanel
-from ..widgets.tools_panel import AgentToolsPanel, ToolsVisibilityChanged
+from ..widgets.tools_panel import (
+    AgentToolsPanel,
+    ToolDetailLevel,
+    ToolsVisibilityChanged,
+)
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -67,6 +71,7 @@ class ZoomPanelSeed:
     file_index: int = 0
     has_file_content: bool = False
     has_tools_content: bool = False
+    tools_detail_level: ToolDetailLevel = ToolDetailLevel.COMPACT
     attempt_view_mode: str = "merged"
     attempt_number: int | None = None
 
@@ -111,6 +116,10 @@ class ZoomPanelModal(ModalScreen[None]):
         Binding("G", "scroll_bottom", "Bottom"),
         Binding("right_square_bracket", "next_panel", "Next Panel"),
         Binding("left_square_bracket", "prev_panel", "Prev Panel"),
+        Binding("l", "expand_tools_detail", "More Detail"),
+        Binding("h", "collapse_tools_detail", "Less Detail"),
+        Binding("L", "full_tools_detail", "Full Detail"),
+        Binding("H", "compact_tools_detail", "Compact Detail"),
         Binding("ctrl+n", "next_file", "Next File"),
         Binding("ctrl+p", "prev_file", "Prev File"),
         Binding("equals_sign", "show_all_file_lines", "Show All"),
@@ -207,10 +216,13 @@ class ZoomPanelModal(ModalScreen[None]):
                 max(self._seed.file_index, 0),
                 len(self._seed.file_list) - 1,
             )
+        tools_panel = self.query_one("#zoom-tools-panel", _ZoomToolsPanel)
+        tools_panel.set_detail_level(
+            self._seed.tools_detail_level,
+            rerender=False,
+        )
         if self._seed.tools_renderable:
-            self.query_one("#zoom-tools-panel", _ZoomToolsPanel).update(
-                self._seed.tools_renderable
-            )
+            tools_panel.update(self._seed.tools_renderable)
         self.query_one("#zoom-tools-scroll", VerticalScroll).border_subtitle = (
             self._seed.tools_subtitle or ""
         )
@@ -236,7 +248,20 @@ class ZoomPanelModal(ModalScreen[None]):
             else:
                 scroll.add_class("hidden")
         self._update_header()
+        self._update_hints()
         self.call_after_refresh(self._reset_active_scroll)
+
+    def _update_hints(self) -> None:
+        hints = (
+            "j/k g/G ^D/^U scroll  ]/[ panel  ^N/^P file  "
+            "E edit  y copy  r refresh  q close"
+        )
+        if self._target == ZoomPanelTarget.TOOLS:
+            hints = (
+                "j/k g/G ^D/^U scroll  ]/[ panel  h/l detail  "
+                "E edit  y copy  r refresh  q close"
+            )
+        self.query_one("#zoom-panel-hints", Label).update(hints)
 
     def _update_header(self) -> None:
         title = self.query_one("#zoom-panel-title", Static)
@@ -599,6 +624,26 @@ class ZoomPanelModal(ModalScreen[None]):
     def action_reset_file_trim(self) -> None:
         if self._target == ZoomPanelTarget.FILE:
             self.query_one("#zoom-file-panel", _ZoomFilePanel).reset_trim()
+
+    def action_expand_tools_detail(self) -> None:
+        if self._target == ZoomPanelTarget.TOOLS:
+            self.query_one("#zoom-tools-panel", _ZoomToolsPanel).expand_detail()
+
+    def action_collapse_tools_detail(self) -> None:
+        if self._target == ZoomPanelTarget.TOOLS:
+            self.query_one("#zoom-tools-panel", _ZoomToolsPanel).collapse_detail()
+
+    def action_full_tools_detail(self) -> None:
+        if self._target == ZoomPanelTarget.TOOLS:
+            self.query_one("#zoom-tools-panel", _ZoomToolsPanel).set_detail_level(
+                ToolDetailLevel.FULL
+            )
+
+    def action_compact_tools_detail(self) -> None:
+        if self._target == ZoomPanelTarget.TOOLS:
+            self.query_one("#zoom-tools-panel", _ZoomToolsPanel).set_detail_level(
+                ToolDetailLevel.COMPACT
+            )
 
     def action_edit_zoom_content(self) -> None:
         self._open_in_editor(*self._editor_info())

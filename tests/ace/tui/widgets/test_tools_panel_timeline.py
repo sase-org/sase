@@ -4,11 +4,12 @@ from datetime import datetime
 
 from sase.ace.tui.widgets import tools_panel as tools_panel_mod
 from sase.ace.tui.widgets.tools_panel import (
+    ToolDetailLevel,
     _build_tools_timeline_markdown,
     _build_tools_timeline_text,
 )
 
-from ._tools_panel_helpers import _entry
+from ._tools_panel_helpers import _build_panel, _entry
 
 
 def test_tools_timeline_distinguishes_missing_empty_and_present() -> None:
@@ -173,3 +174,117 @@ def test_tools_timeline_renders_source_chips_for_root_aggregate() -> None:
 
     assert "ok     plan" in rendered
     assert "ok     code" in rendered
+
+
+def test_tools_timeline_expanded_surfaces_full_details() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+    long_command = "python - <<'PY'\n" + "print('expanded detail')\n" * 2 + "PY"
+    stdout = "\n".join(f"out {index}" for index in range(8))
+
+    rendered = _build_tools_timeline_text(
+        [
+            _entry(
+                status="failure",
+                tool_input_summary={
+                    "command": long_command,
+                    "timeout": 30,
+                    "description": "runs diagnostics",
+                },
+                tool_response_summary={
+                    "exit_code": 2,
+                    "success": False,
+                    "stdout_preview": stdout,
+                    "stderr_preview": "boom\nbad",
+                },
+                error="line one\nline two",
+            )
+        ],
+        fetch_time,
+        detail_level=ToolDetailLevel.EXPANDED,
+    ).plain
+
+    assert "detail: expanded" in rendered
+    assert "python - <<'PY'" in rendered
+    assert "print('expanded detail')" in rendered
+    assert "timeout 30" in rendered
+    assert "response exit 2 · failed" in rendered
+    assert "stdout" in rendered
+    assert "... (+2 more lines)" in rendered
+    assert "stderr" in rendered
+    assert "line two" in rendered
+
+
+def test_tools_timeline_full_surfaces_provenance() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_text(
+        [
+            _entry(
+                completed_at="2026-05-14T14:00:03+00:00",
+                source="hook",
+                cwd="/repo/sase",
+                permission_mode="acceptEdits",
+                agent_type="run",
+                session_id="session-abcdef123456",
+                source_path="/artifacts/tool_calls.jsonl",
+                line_number=7,
+            )
+        ],
+        fetch_time,
+        detail_level=ToolDetailLevel.FULL,
+    ).plain
+
+    assert "detail: full" in rendered
+    assert "meta completed" in rendered
+    assert "claude/hook" in rendered
+    assert "mode acceptEdits" in rendered
+    assert "cwd /repo/sase" in rendered
+    assert "session session-abcd" in rendered
+    assert "/artifacts/tool_calls.jsonl:7" in rendered
+
+
+def test_tools_timeline_markdown_matches_detail_level() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_markdown(
+        [
+            _entry(
+                tool_input_summary={"command": "echo " + "x" * 120, "timeout": 5},
+                tool_response_summary={"stdout_preview": "ok"},
+                source_path="/artifacts/tool_calls.jsonl",
+                line_number=9,
+            )
+        ],
+        fetch_time,
+        detail_level=ToolDetailLevel.FULL,
+    )
+
+    assert rendered is not None
+    assert "detail: full" in rendered
+    assert "command:" in rendered
+    assert "timeout: 5" in rendered
+    assert "stdout:" in rendered
+    assert "meta:" in rendered
+
+
+def test_tools_panel_detail_level_rerenders_cached_rows() -> None:
+    panel = _build_panel()
+    panel._last_entries = (_entry(tool_input_summary={"command": "echo " + "x" * 120}),)
+    panel._last_fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    assert panel.expand_detail() is True
+    assert panel.detail_level == ToolDetailLevel.EXPANDED
+    assert panel.update.called
+    rendered = panel.update.call_args.args[0].plain
+    assert "detail: expanded" in rendered
+
+    assert panel.set_detail_level(ToolDetailLevel.FULL) is True
+    assert panel.detail_level == ToolDetailLevel.FULL
+    assert panel.expand_detail() is False
+
+
+def test_tools_panel_detail_level_noops_without_content() -> None:
+    panel = _build_panel()
+
+    assert panel.expand_detail() is False
+    assert panel.detail_level == ToolDetailLevel.COMPACT

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ...models.agent_status import is_resumable_done_status
 from ._panel_types import TabName
@@ -225,12 +225,20 @@ class AgentPanelDetailMixin:
         from ...modals import ZoomPanelSeed
         from ...widgets.file_panel import AgentFilePanel
         from ...widgets.prompt_panel import AgentPromptPanel
-        from ...widgets.tools_panel import AgentToolsPanel
+        from ...widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
 
         prompt_panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
         tools_panel = agent_detail.query_one("#agent-tools-panel", AgentToolsPanel)
         file_list = tuple(getattr(file_panel, "_file_list", ()))
+        raw_tools_detail_level = getattr(agent_detail, "tools_detail_level", None)
+        if raw_tools_detail_level is None:
+            raw_tools_detail_level = getattr(
+                tools_panel, "detail_level", ToolDetailLevel.COMPACT
+            )
+        tools_detail_level = ToolDetailLevel(
+            int(cast(ToolDetailLevel | int, raw_tools_detail_level))
+        )
         return ZoomPanelSeed(
             metadata_renderable=getattr(prompt_panel, "content", None),
             file_renderable=getattr(file_panel, "content", None),
@@ -254,6 +262,7 @@ class AgentPanelDetailMixin:
                 agent_detail.is_tools_visible()
                 or getattr(agent_detail, "_has_tools_content", False)
             ),
+            tools_detail_level=tools_detail_level,
             attempt_view_mode=getattr(agent_detail, "attempt_view_mode", "merged"),
             attempt_number=getattr(self, "current_attempt_number", None),
         )

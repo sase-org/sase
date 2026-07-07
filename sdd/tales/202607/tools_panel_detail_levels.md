@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 16:11:52
-status: wip
+status: done
 prompt: sdd/prompts/202607/tools_panel_detail_levels.md
 ---
 # Plan: Collapse/Expand Tools-Panel Detail Levels with `h`/`l`
