@@ -50,7 +50,7 @@ _ACTIVE_CHANGESPEC_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 
 # Schema version for the materialized JSON catalog handed to the Rust LSP. Bump
 # when the on-disk shape changes; the Rust loader tolerates unknown extra keys.
-VCS_PROJECT_CATALOG_SCHEMA_VERSION = 2
+VCS_PROJECT_CATALOG_SCHEMA_VERSION = 3
 
 VcsProjectEntryKind = Literal["project", "changespec"]
 
@@ -140,6 +140,11 @@ def _catalog_signature(projects_dir: Path) -> object | None:
             continue
         file_signatures.append((str(project_file), stat.st_mtime_ns, stat.st_size))
     return (str(projects_dir), tuple(sorted(file_signatures)))
+
+
+def vcs_project_catalog_signature(projects_dir: Path) -> object | None:
+    """Return the cache signature used by the VCS project catalog."""
+    return _catalog_signature(projects_dir)
 
 
 def _iter_active_changespecs(projects_dir: Path) -> Iterator[ChangeSpec]:
@@ -274,7 +279,8 @@ def vcs_project_catalog_payload(
 
     Bundles the active-project entries (from
     :func:`build_vcs_project_completion_entries`) with the full set of known VCS
-    workflow names. The names let the out-of-process Rust LSP replace *any*
+    workflow names and optional ref-root namespaces. The names let the
+    out-of-process Rust LSP replace *any*
     existing workflow tag in a prompt (e.g. ``#git:foo``), not just those of
     active projects, keeping its expansion byte-identical to the Python/TUI
     side. This is the on-disk contract consumed by ``sase-xprompt-lsp``,
@@ -285,14 +291,22 @@ def vcs_project_catalog_payload(
             directory.
 
     Returns:
-        A mapping with ``schema_version``, sorted ``workflow_names``, and the
+        A mapping with ``schema_version``, sorted ``workflow_names``, the
         ordered ``entries`` list (each a plain dict mirroring
-        :class:`VcsProjectEntry`).
+        :class:`VcsProjectEntry`), and ``namespaces`` keyed by workflow.
     """
     entries = build_vcs_project_completion_entries(projects_dir)
+    workflow_names = sorted(get_workflow_names())
+
+    from sase.xprompt.vcs_ref_completion import vcs_ref_namespaces_by_workflow
+
+    namespaces_by_workflow = vcs_ref_namespaces_by_workflow(
+        workflow_names,
+        projects_dir,
+    )
     return {
         "schema_version": VCS_PROJECT_CATALOG_SCHEMA_VERSION,
-        "workflow_names": sorted(get_workflow_names()),
+        "workflow_names": workflow_names,
         "entries": [
             {
                 "name": entry.name,
@@ -307,6 +321,17 @@ def vcs_project_catalog_payload(
             }
             for entry in entries
         ],
+        "namespaces": {
+            workflow: [
+                {
+                    "name": entry.name,
+                    "description": entry.description,
+                    "kind_label": entry.kind_label,
+                }
+                for entry in entries
+            ]
+            for workflow, entries in namespaces_by_workflow.items()
+        },
     }
 
 
@@ -459,5 +484,6 @@ __all__ = [
     "build_vcs_project_completion_entries",
     "filter_vcs_project_entries",
     "find_vcs_project_trigger",
+    "vcs_project_catalog_signature",
     "vcs_project_catalog_payload",
 ]

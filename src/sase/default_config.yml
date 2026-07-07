@@ -350,6 +350,9 @@ vcs_repo_completion:
   cache_ttl_seconds: 600
   max_repos: 200
 
+vcs_ref_completion:
+  enabled: true
+
 telemetry:
   enabled: false
   prometheus:

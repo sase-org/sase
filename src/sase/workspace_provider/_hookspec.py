@@ -66,6 +66,26 @@ class VcsRepoCandidates:
 
 
 @dataclass(frozen=True)
+class VcsNamespaceEntry:
+    """One namespace candidate for a workflow ref root.
+
+    Providers can use this for org/group-style refs that chain into repository
+    completion, e.g. ``#gh:sase-org/``.
+    """
+
+    name: str
+    description: str = ""
+    kind_label: str = "org"
+
+
+@dataclass(frozen=True)
+class VcsRefNamespaces:
+    """Namespace completion response returned by workspace plugins."""
+
+    entries: tuple[VcsNamespaceEntry, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
 class WorkflowMetadata:
     """Metadata declared by a workspace plugin for its workflow type.
 
@@ -129,6 +149,19 @@ class WorkspaceHookSpec:
         self, workflow_type: str, namespace: str
     ) -> VcsRepoCandidates | None:
         """List repository completion candidates for a VCS namespace."""
+        ...
+
+    @hookspec(firstresult=True)
+    def ws_list_ref_namespaces(
+        self,
+        workflow_type: str,
+    ) -> VcsRefNamespaces | None:
+        """List org/group-style namespace candidates for a workflow ref root.
+
+        This hook runs on an interactive completion path and must use only
+        fast local data such as project records or config. Providers should
+        return ``None`` unless they own *workflow_type*.
+        """
         ...
 
     @hookspec(firstresult=True)

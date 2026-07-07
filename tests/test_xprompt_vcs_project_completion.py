@@ -18,6 +18,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
+from sase.workspace_provider import VcsNamespaceEntry
 from sase.xprompt import vcs_project_completion as vpc
 from sase.xprompt.vcs_project_completion import (
     VCS_PROJECT_CATALOG_SCHEMA_VERSION,
@@ -563,6 +564,20 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
         detect_p,
         display_p,
         patch.object(vpc, "get_workflow_names", return_value={"hg", "gh", "git"}),
+        patch(
+            "sase.xprompt.vcs_ref_completion.vcs_ref_namespaces_by_workflow",
+            return_value={
+                "gh": (
+                    VcsNamespaceEntry(
+                        name="sase-org",
+                        description="2 active projects",
+                        kind_label="org",
+                    ),
+                ),
+                "git": (),
+                "hg": (),
+            },
+        ),
     ):
         payload = vcs_project_catalog_payload(projects_dir="/tmp/projects")
 
@@ -595,6 +610,17 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
             "status": "",
         },
     ]
+    assert payload["namespaces"] == {
+        "gh": [
+            {
+                "name": "sase-org",
+                "description": "2 active projects",
+                "kind_label": "org",
+            }
+        ],
+        "git": [],
+        "hg": [],
+    }
 
 
 # --- Filtering -------------------------------------------------------------

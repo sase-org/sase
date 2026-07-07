@@ -150,7 +150,15 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
+        --epic-symbol 'sase-5i(VcsRefCompletionConfig)' \
+        --epic-symbol 'sase-5i(VcsRefTrigger)' \
+        --epic-symbol 'sase-5i(apply_vcs_ref_selection)' \
+        --epic-symbol 'sase-5i(build_vcs_ref_candidates)' \
+        --epic-symbol 'sase-5i(clear_vcs_ref_completion_cache)' \
+        --epic-symbol 'sase-5i(filter_vcs_ref_candidates)' \
+        --epic-symbol 'sase-5i(find_vcs_ref_trigger)' \
+        --epic-symbol 'sase-5i(load_vcs_ref_completion_config)'
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
 _lint-pylimit *args:
@@ -374,6 +382,14 @@ all: fix lint test
 # Find unused Python function/class definitions
 pyvision *args: _setup (_header "pyvision")
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260608 src/sase \
+        --epic-symbol 'sase-5i(VcsRefCompletionConfig)' \
+        --epic-symbol 'sase-5i(VcsRefTrigger)' \
+        --epic-symbol 'sase-5i(apply_vcs_ref_selection)' \
+        --epic-symbol 'sase-5i(build_vcs_ref_candidates)' \
+        --epic-symbol 'sase-5i(clear_vcs_ref_completion_cache)' \
+        --epic-symbol 'sase-5i(filter_vcs_ref_candidates)' \
+        --epic-symbol 'sase-5i(find_vcs_ref_trigger)' \
+        --epic-symbol 'sase-5i(load_vcs_ref_completion_config)' \
         {{ args }}
 
 # Check Python file line counts

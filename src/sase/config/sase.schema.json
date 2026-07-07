@@ -885,6 +885,18 @@
         }
       }
     },
+    "vcs_ref_completion": {
+      "type": "object",
+      "description": "Project, ChangeSpec, and namespace completion at the root of VCS workflow refs such as #gh:.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable completion at the root of VCS workflow refs.",
+          "default": true
+        }
+      }
+    },
     "commit": {
       "type": "object",
       "description": "Configuration for SASE commit enforcement.",

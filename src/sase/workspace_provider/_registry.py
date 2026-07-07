@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 from ._hookspec import (
     ResolvedRef,
+    VcsRefNamespaces,
     VcsRepoCandidates,
     WorkflowMetadata,
     WorkspaceHookSpec,
@@ -198,6 +199,21 @@ def list_repo_candidates(workflow_type: str, namespace: str) -> VcsRepoCandidate
         provider_display=get_display_name(workflow_type) or workflow_type,
         entries=(),
     )
+
+
+def list_ref_namespaces(workflow_type: str) -> VcsRefNamespaces:
+    """List namespace candidates via workspace provider plugins.
+
+    Namespace completion is an interactive local-only path. Provider failures
+    degrade to no namespace rows so project/ChangeSpec completion can continue.
+    """
+    try:
+        result = _get_manager().list_ref_namespaces(workflow_type)
+    except Exception:
+        return VcsRefNamespaces()
+    if result is not None:
+        return result
+    return VcsRefNamespaces()
 
 
 def extract_change_identifier(pr_url: str) -> tuple[str, str] | None:
