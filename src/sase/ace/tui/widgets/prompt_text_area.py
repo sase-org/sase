@@ -101,6 +101,7 @@ class PromptTextArea(
         self._completion_kind: str = "file"
         self._agent_completion_candidates: list[AgentCompletionCandidate] | None = None
         self._vcs_project_catalog_warmed: bool = False
+        self._vcs_ref_completion_has_namespaces: bool = False
         self._vcs_repo_completion_key: tuple[str, str] | None = None
         self._vcs_repo_completion_result: VcsRepoFetchResult | None = None
         self._vcs_repo_completion_inflight: set[tuple[str, str]] = set()

@@ -17,6 +17,11 @@ from sase.ace.tui.widgets.vcs_project_completion import (
     build_no_active_projects_placeholder,
     vcs_project_completion_candidates,
 )
+from sase.ace.tui.widgets.vcs_ref_completion import (
+    VCS_REF_COMPLETION_KIND,
+    build_no_known_refs_placeholder,
+    vcs_ref_completion_candidates,
+)
 from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_candidates,
@@ -94,6 +99,39 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                         self._file_completion_index = i
                         break
             self._update_file_completion_panel(project_trigger.query)
+            return
+
+        if self._completion_kind == VCS_REF_COMPLETION_KIND:
+            ref_trigger = self._get_vcs_ref_trigger()
+            if ref_trigger is None:
+                self._clear_file_completion()
+                return
+            candidates, source_empty, has_namespaces = vcs_ref_completion_candidates(
+                ref_trigger.workflow,
+                ref_trigger.query,
+            )
+            self._vcs_ref_completion_has_namespaces = has_namespaces
+            if source_empty:
+                self._file_completion_candidates = [build_no_known_refs_placeholder()]
+                self._file_completion_index = 0
+                self._update_file_completion_panel(ref_trigger.query)
+                return
+            if not candidates:
+                self._clear_file_completion()
+                return
+            previous = None
+            if self._file_completion_candidates:
+                previous = self._file_completion_candidates[
+                    self._file_completion_index
+                ].name
+            self._file_completion_candidates = candidates
+            self._file_completion_index = 0
+            if previous is not None:
+                for i, candidate in enumerate(candidates):
+                    if candidate.name == previous:
+                        self._file_completion_index = i
+                        break
+            self._update_file_completion_panel(ref_trigger.query)
             return
 
         if self._completion_kind == VCS_REPO_COMPLETION_KIND:

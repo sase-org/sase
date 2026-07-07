@@ -9,6 +9,10 @@ from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.vcs_ref_completion import (
+    VCS_REF_COMPLETION_KIND,
+    vcs_ref_completion_title,
+)
 from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_candidates,
@@ -27,6 +31,7 @@ if TYPE_CHECKING:
         ActiveXPromptArgHint,
         XPromptAssistEntry,
     )
+    from sase.xprompt.vcs_ref_completion import VcsRefTrigger
 
 
 @dataclass(frozen=True)
@@ -55,6 +60,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _vcs_repo_completion_key: tuple[str, str] | None
         _vcs_repo_completion_result: VcsRepoFetchResult | None
         _vcs_repo_completion_inflight: set[tuple[str, str]]
+        _vcs_ref_completion_has_namespaces: bool
 
         def _find_prompt_bar(self) -> Any: ...
 
@@ -65,6 +71,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
+        def _get_vcs_ref_trigger(self) -> VcsRefTrigger | None: ...
         def _get_vcs_repo_trigger(self) -> VcsRepoTrigger | None: ...
         def _note_optional_xprompt_spacer(self, entry: XPromptAssistEntry) -> None: ...
         def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None: ...
@@ -104,13 +111,20 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
                 0, min(self._file_completion_index - half, total - MAX_VISIBLE)
             )
         display_token = token
-        if self._completion_kind == VCS_REPO_COMPLETION_KIND:
-            trigger = self._get_vcs_repo_trigger()
-            if trigger is not None:
+        if self._completion_kind == VCS_REF_COMPLETION_KIND:
+            ref_trigger = self._get_vcs_ref_trigger()
+            if ref_trigger is not None:
+                display_token = vcs_ref_completion_title(
+                    ref_trigger.workflow,
+                    has_namespaces=self._vcs_ref_completion_has_namespaces,
+                )
+        elif self._completion_kind == VCS_REPO_COMPLETION_KIND:
+            repo_trigger = self._get_vcs_repo_trigger()
+            if repo_trigger is not None:
                 display_token = vcs_repo_completion_title(
                     self._vcs_repo_completion_result,
-                    workflow=trigger.workflow,
-                    namespace=trigger.namespace,
+                    workflow=repo_trigger.workflow,
+                    namespace=repo_trigger.namespace,
                 )
 
         bar.show_file_completions(
@@ -130,6 +144,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._agent_completion_candidates = None
         self._vcs_repo_completion_key = None
         self._vcs_repo_completion_result = None
+        self._vcs_ref_completion_has_namespaces = False
         self._update_file_completion_panel("")
         if clear_xprompt_arg_hint:
             self._clear_xprompt_arg_hint()
@@ -255,7 +270,17 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             return
         self._vcs_project_catalog_warmed = True
         self.run_worker(
-            build_vcs_project_completion_entries,
+            _warm_vcs_completion_catalogs,
             name="prompt-vcs-project-catalog",
             thread=True,
         )
+
+
+def _warm_vcs_completion_catalogs() -> None:
+    """Warm VCS project and ref-root namespace completion caches."""
+    build_vcs_project_completion_entries()
+
+    from sase.workspace_provider import get_workflow_names
+    from sase.xprompt.vcs_ref_completion import vcs_ref_namespaces_by_workflow
+
+    vcs_ref_namespaces_by_workflow(get_workflow_names())

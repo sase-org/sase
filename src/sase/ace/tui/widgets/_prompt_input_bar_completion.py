@@ -21,6 +21,7 @@ from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidat
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
+from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     VcsRepoCompletionPlaceholder,
@@ -31,7 +32,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     append_input_hints,
 )
 from sase.project_display_names import project_display_name_for
-from sase.workspace_provider import VcsRepoEntry
+from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 
 if TYPE_CHECKING:
@@ -73,6 +74,18 @@ def _vcs_repo_label_width(candidate: CompletionCandidate) -> int:
     if entry is None:
         return len(candidate.display)
     return len(entry.name)
+
+
+def _vcs_ref_label_width(candidate: CompletionCandidate) -> int:
+    """Visible width for the badge + primary label in a VCS ref row."""
+    metadata = candidate.metadata
+    if isinstance(metadata, VcsProjectEntry):
+        badge_width = 5 if metadata.kind == "changespec" else 4
+        return badge_width + len(metadata.name)
+    if isinstance(metadata, VcsNamespaceEntry):
+        badge_width = len(f"[{metadata.kind_label.upper()}] ")
+        return badge_width + len(metadata.name.rstrip("/") + "/")
+    return len(candidate.display)
 
 
 def _is_agent_completion_candidate(candidate: CompletionCandidate) -> bool:
@@ -141,6 +154,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_xprompt_arg_agent = completion_kind == "xprompt_arg_agent"
         is_jinja = completion_kind == "jinja"
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
+        is_vcs_ref = completion_kind == VCS_REF_COMPLETION_KIND
         is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
         vcs_project_label_width = (
             max(
@@ -148,6 +162,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 default=0,
             )
             if is_vcs_project
+            else 0
+        )
+        vcs_ref_label_width = (
+            max(
+                (_vcs_ref_label_width(candidate) for candidate in visible),
+                default=0,
+            )
+            if is_vcs_ref
             else 0
         )
         vcs_repo_label_width = (
@@ -189,6 +211,13 @@ class PromptInputBarCompletionMixin(_MixinBase):
                     candidate,
                     is_selected,
                     vcs_project_label_width,
+                )
+            elif is_vcs_ref:
+                self._append_vcs_ref_completion_row(
+                    content,
+                    candidate,
+                    is_selected,
+                    vcs_ref_label_width,
                 )
             elif is_vcs_repo:
                 self._append_vcs_repo_completion_row(
@@ -232,6 +261,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "directive values"
         elif is_vcs_project:
             panel.border_title = "projects & PRs"
+        elif is_vcs_ref:
+            panel.border_title = token
         elif is_vcs_repo:
             panel.border_title = token
         elif is_xprompt_arg_agent:
@@ -465,6 +496,92 @@ class PromptInputBarCompletionMixin(_MixinBase):
 
         if entry.description:
             content.append(f"  {_truncate_cell(entry.description, 72)}", style="dim")
+
+    def _append_vcs_ref_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+        label_width: int = 0,
+    ) -> None:
+        """Append one VCS ref-root completion row or placeholder state."""
+        metadata = candidate.metadata
+        if isinstance(metadata, VcsProjectEntry):
+            self._append_vcs_ref_project_row(
+                content,
+                metadata,
+                is_selected,
+                label_width,
+            )
+            return
+        if isinstance(metadata, VcsNamespaceEntry):
+            self._append_vcs_ref_namespace_row(
+                content,
+                metadata,
+                is_selected,
+                label_width,
+            )
+            return
+
+        content.append(candidate.display, style="dim italic")
+
+    def _append_vcs_ref_project_row(
+        self,
+        content: Text,
+        entry: VcsProjectEntry,
+        is_selected: bool,
+        label_width: int,
+    ) -> None:
+        """Append one project or ChangeSpec row in a VCS ref-root menu."""
+        if entry.kind == "changespec":
+            badge = "[PR] "
+            badge_style = "bold #00D7AF"
+            name_style = "bold #00D7AF" if is_selected else "#00D7AF"
+        else:
+            badge = "[P] "
+            badge_style = "bold #87D7FF"
+            name_style = "bold #87D7FF" if is_selected else "#87D7FF"
+
+        content.append(badge, style=badge_style)
+        content.append(entry.name, style=name_style)
+        padding = max(0, label_width - (len(badge) + len(entry.name)))
+        if padding:
+            content.append(" " * padding)
+
+        if entry.kind == "changespec":
+            if entry.status:
+                content.append(f"  {entry.status}", style="dim")
+            if entry.project:
+                content.append(
+                    f"  · {project_display_name_for(entry.project)}",
+                    style="dim",
+                )
+            return
+
+        content.append(f"  {entry.provider_display}", style="dim")
+        if entry.description:
+            content.append(f"  {entry.description}", style="dim")
+
+    def _append_vcs_ref_namespace_row(
+        self,
+        content: Text,
+        entry: VcsNamespaceEntry,
+        is_selected: bool,
+        label_width: int,
+    ) -> None:
+        """Append one namespace row in a VCS ref-root menu."""
+        badge = f"[{entry.kind_label.upper()}] "
+        label = entry.name.rstrip("/") + "/"
+        badge_style = "bold #FFAF5F"
+        name_style = "bold #FFAF5F" if is_selected else "#FFAF5F"
+
+        content.append(badge, style=badge_style)
+        content.append(label, style=name_style)
+        padding = max(0, label_width - (len(badge) + len(label)))
+        if padding:
+            content.append(" " * padding)
+        if entry.description:
+            content.append(f"  {entry.description}", style="dim")
 
     def _append_jinja_completion_row(
         self,

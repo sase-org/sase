@@ -25,6 +25,11 @@ from sase.ace.tui.widgets.vcs_project_completion import (
     build_no_active_projects_placeholder,
     vcs_project_completion_candidates,
 )
+from sase.ace.tui.widgets.vcs_ref_completion import (
+    VCS_REF_COMPLETION_KIND,
+    build_no_known_refs_placeholder,
+    vcs_ref_completion_candidates,
+)
 from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     build_loading_placeholder,
@@ -111,6 +116,41 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         self._update_file_completion_panel(trigger.query)
         return True
 
+    def _try_vcs_ref_completion(self, *, force: bool = False) -> bool:
+        """Open the VCS ref-root completion menu inside a workflow ref.
+
+        Returns ``True`` whenever a ref-root trigger is present, even when
+        candidate-gated auto-open stays silent, so lower-priority prompt
+        reference menus do not take over known VCS refs.
+        """
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        trigger = self._get_vcs_ref_trigger()
+        if trigger is None:
+            return False
+
+        candidates, source_empty, has_namespaces = vcs_ref_completion_candidates(
+            trigger.workflow,
+            trigger.query,
+        )
+        self._vcs_ref_completion_has_namespaces = has_namespaces
+        if source_empty:
+            if not force:
+                self._clear_file_completion()
+                return True
+            candidates = [build_no_known_refs_placeholder()]
+        elif not candidates:
+            self._clear_file_completion()
+            return True
+
+        self._completion_kind = VCS_REF_COMPLETION_KIND
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(trigger.query)
+        return True
+
     def _try_auto_prompt_reference_completion(self) -> bool:
         """Open the directive or xprompt/skill menu while typing a reference.
 
@@ -127,6 +167,8 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
 
         settings = self._prompt_completion_settings()
         if settings.auto_xprompt_menu and self._try_vcs_repo_completion():
+            return True
+        if settings.auto_xprompt_menu and self._try_vcs_ref_completion():
             return True
         if settings.auto_directive_menu:
             if self._try_auto_directive_arg_completion():
@@ -252,6 +294,8 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         if self._try_vcs_project_completion():
             return True
         if self._try_vcs_repo_completion():
+            return True
+        if self._try_vcs_ref_completion(force=True):
             return True
 
         cursor_offset = self._absolute_offset(self.cursor_location)

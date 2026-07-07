@@ -549,6 +549,8 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         if plan is None:
             return False
         self._apply_planned_text_edit(plan)
+        if char == "(":
+            self._open_auto_reference_completion_after_change(char)
         return True
 
     def _apply_planned_text_edit(self, plan: TextEdit) -> None:
