@@ -266,6 +266,7 @@ demos *args:
     vhs demos/tapes/sase_ace_agents_observability.tape
     vhs demos/tapes/sase_ace_prompt_history_stash.tape
     vhs demos/tapes/sase_ace_prs_pipeline.tape
+    vhs demos/tapes/sase_ace_multi_model_fanout.tape
     date +%Y-%m-%dT%H:%M:%S > demos/out/last_generated_date.txt
 
     if ! git status --porcelain -- demos/out | grep -q .; then

@@ -57,6 +57,12 @@ writes:
 - `demos/out/sase_ace_prs_pipeline.gif`
 - `demos/out/sase_ace_prs_pipeline.mp4`
 
+The multi-model fan-out tape shows one prompt becoming three launch-previewed agents across Claude, Codex, and Gemini,
+then stops at the Launch Approval modal without approving, and writes:
+
+- `demos/out/sase_ace_multi_model_fanout.gif`
+- `demos/out/sase_ace_multi_model_fanout.mp4`
+
 The recipe writes:
 
 - `demos/out/last_generated_date.txt`

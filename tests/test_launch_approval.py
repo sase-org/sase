@@ -273,6 +273,43 @@ def test_launch_preview_markdown_uses_safe_fence_for_backticks(
     assert f"````sase\n{prompt}\n````" in preview
 
 
+def test_launch_preview_models_come_from_prompt_directives(tmp_path: Path) -> None:
+    plan = plan_fake_fanout(
+        "multi_prompt",
+        [
+            "#git:nova %model:claude-sonnet-4-6\nAudit parser handling.",
+            "#git:nova %model:gpt-5-codex\nAdd parser tests.",
+            "#git:nova %model:gemini-2.5-pro\nReview release notes.",
+        ],
+    )
+    request = build_launch_preview_request(
+        plan=plan,
+        context=_context(tmp_path),
+        source_surface="ace",
+        request_id="launch-models",
+        submitted_prompt="ignored",
+        created_at_unix=10.0,
+    )
+
+    models = [slot["model"] for slot in request["slots"]]
+    assert models == [
+        "claude-sonnet-4-6",
+        "gpt-5-codex",
+        "gemini-2.5-pro",
+    ]
+
+    paths = write_launch_preview_files(request, response_dir=tmp_path / "launch")
+    preview = paths["preview"].read_text(encoding="utf-8")
+    assert (
+        "**3 agents** · source `ace` · all-or-nothing · models "
+        "`claude-sonnet-4-6`, `gpt-5-codex`, `gemini-2.5-pro` · "
+        "request `launch-models`"
+    ) in preview
+    assert "model `claude-sonnet-4-6`" in preview
+    assert "model `gpt-5-codex`" in preview
+    assert "model `gemini-2.5-pro`" in preview
+
+
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
     response_dir = tmp_path / "launch"
     response_dir.mkdir()

@@ -60,8 +60,9 @@ def build_launch_preview_request(
             slot_planned_names.get(slot.slot_index) if slot_planned_names else None
         )
         kinds[slot.launch_kind] += 1
-        if slot.model:
-            models[slot.model] += 1
+        model = slot.model or _model_directive_for_preview(slot.prompt)
+        if model:
+            models[model] += 1
         slots.append(
             {
                 "slot_index": slot.slot_index,
@@ -72,7 +73,7 @@ def build_launch_preview_request(
                 "planned_name": planned_name,
                 "timestamp": slot.timestamp,
                 "workflow_name": slot.workflow_name,
-                "model": slot.model,
+                "model": model,
                 "repeat_name": slot.repeat_name,
                 "wait_for_previous": slot.wait_for_previous,
                 "name_generated": slot.name_generated,
@@ -149,6 +150,9 @@ def _render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
         f"source `{source}`",
         policy,
     ]
+    model_summary = _model_summary_for_preview(request)
+    if model_summary:
+        summary.append(f"models {model_summary}")
     if request_id:
         summary.append(f"request `{request_id}`")
     lines = [
@@ -202,6 +206,41 @@ def _markdown_code_fence(text: str, language: str) -> tuple[str, str]:
     )
     fence = "`" * max(3, longest_backtick_run + 1)
     return f"{fence}{language}", fence
+
+
+def _model_summary_for_preview(request: Mapping[str, Any]) -> str | None:
+    """Return a compact, stable model list for the preview header."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    counts: Counter[str] = Counter()
+    for slot in request.get("slots", []):
+        if not isinstance(slot, Mapping):
+            continue
+        model = str(slot.get("model") or "").strip()
+        if not model:
+            continue
+        counts[model] += 1
+        if model in seen:
+            continue
+        seen.add(model)
+        ordered.append(model)
+    if not ordered:
+        return None
+    return ", ".join(
+        f"`{model}`" if counts[model] == 1 else f"`{model}` x{counts[model]}"
+        for model in ordered
+    )
+
+
+def _model_directive_for_preview(prompt: str) -> str | None:
+    """Return the parsed ``%model`` value for read-only launch previews."""
+    try:
+        from sase.xprompt.directives import extract_prompt_directives
+
+        _, directives = extract_prompt_directives(prompt)
+    except Exception:
+        return None
+    return directives.model
 
 
 def _context_preview(context: LaunchExecutionContext) -> dict[str, Any]:
