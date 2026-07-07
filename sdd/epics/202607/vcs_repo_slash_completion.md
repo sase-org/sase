@@ -1,5 +1,7 @@
 ---
 create_time: 2026-07-07 13:10:16
+bead_id: sase-5h
+tier: epic
 status: wip
 prompt: sdd/prompts/202607/vcs_repo_slash_completion.md
 ---
