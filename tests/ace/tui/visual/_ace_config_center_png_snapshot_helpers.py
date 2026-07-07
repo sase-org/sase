@@ -31,10 +31,12 @@ from sase.updates.incoming_commits import (
     RepoIncomingCommits,
 )
 from sase.logs import (
+    toast_log,
     events_log_path,
     launch_failures_log_path,
     runs_log_path,
     tui_log_path,
+    tui_toasts_jsonl_path,
 )
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -379,6 +381,11 @@ def _write_log(path: Path, text: str) -> None:
 
 
 def _seed_logs_tab_files() -> None:
+    current_session = toast_log._reset_current_toast_session(
+        session_started_at=datetime(2026, 6, 17, 14, 24, tzinfo=UTC),
+        pid=4242,
+    )
+    assert current_session is not None
     _write_log(
         launch_failures_log_path(),
         "\n".join(
@@ -455,6 +462,91 @@ def _seed_logs_tab_files() -> None:
                 "name": "visual-auth",
                 "outcome": "failure",
             }
+        )
+        + "\n",
+    )
+    _write_log(
+        tui_toasts_jsonl_path(),
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-16T22:03:12Z",
+                        "session_id": "20260616T220100Z-98111",
+                        "session_started_at": "2026-06-16T22:01:00Z",
+                        "pid": 98111,
+                        "severity": "warning",
+                        "title": "",
+                        "message": "ChangeSpec must be Ready to mail",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-16T22:15:33Z",
+                        "session_id": "20260616T220100Z-98111",
+                        "session_started_at": "2026-06-16T22:01:00Z",
+                        "pid": 98111,
+                        "severity": "information",
+                        "title": "",
+                        "message": "Saved query to slot 2",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-17T14:24:15Z",
+                        "session_id": current_session.session_id,
+                        "session_started_at": current_session.session_started_at,
+                        "pid": current_session.pid,
+                        "severity": "information",
+                        "title": "",
+                        "message": "Refreshing Agents from full history",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-17T14:24:31Z",
+                        "session_id": current_session.session_id,
+                        "session_started_at": current_session.session_started_at,
+                        "pid": current_session.pid,
+                        "severity": "information",
+                        "title": "",
+                        "message": "Refreshed",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-17T14:24:32Z",
+                        "session_id": current_session.session_id,
+                        "session_started_at": current_session.session_started_at,
+                        "pid": current_session.pid,
+                        "severity": "information",
+                        "title": "",
+                        "message": "Refreshed",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-17T14:25:47Z",
+                        "session_id": current_session.session_id,
+                        "session_started_at": current_session.session_started_at,
+                        "pid": current_session.pid,
+                        "severity": "warning",
+                        "title": "",
+                        "message": "PR is not set",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-06-17T14:26:03Z",
+                        "session_id": current_session.session_id,
+                        "session_started_at": current_session.session_started_at,
+                        "pid": current_session.pid,
+                        "severity": "error",
+                        "title": "Workflow error",
+                        "message": "provider exited before metadata\nretry queued",
+                    }
+                ),
+            ]
         )
         + "\n",
     )

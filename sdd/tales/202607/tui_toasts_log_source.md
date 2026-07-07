@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 13:46:49
-status: wip
+status: done
 prompt: sdd/prompts/202607/tui_toasts_log_source.md
 ---
 # Plan: "TUI Toasts" Log Source in the SASE Admin Center Logs Tab

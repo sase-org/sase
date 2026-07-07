@@ -27,6 +27,16 @@ from sase.logs.tui_telemetry import (
     tui_launch_timing_jsonl_path,
     tui_stalls_jsonl_path,
 )
+from sase.logs.toast_log import (
+    TOAST_HISTORY_LIMIT,
+    ToastRecord,
+    ToastSession,
+    current_toast_session,
+    flush_toasts,
+    read_recent_toasts,
+    record_toast,
+    tui_toasts_jsonl_path,
+)
 
 __all__ = [
     "events_log_path",
@@ -41,9 +51,17 @@ __all__ = [
     "log_tui_git_operation",
     "log_tui_launch_timing",
     "log_tui_stall",
+    "TOAST_HISTORY_LIMIT",
+    "ToastRecord",
+    "ToastSession",
+    "current_toast_session",
     "tui_external_tools_jsonl_path",
     "tui_git_ops_jsonl_path",
     "tui_launch_timing_jsonl_path",
     "tui_stalls_jsonl_path",
+    "flush_toasts",
+    "read_recent_toasts",
+    "record_toast",
+    "tui_toasts_jsonl_path",
     "tui_log_path",
 ]

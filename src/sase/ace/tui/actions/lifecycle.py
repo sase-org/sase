@@ -42,7 +42,9 @@ class LifecycleMixin:
         from sase.ace.tui.models._loaders._json_cache import (
             shutdown_loader_executor,
         )
+        from sase.logs import flush_toasts
 
+        flush_toasts(timeout=1.0)
         shutdown_loader_executor()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_tmux_decoration", None
@@ -241,6 +243,11 @@ class LifecycleMixin:
 
             shutdown()
 
+        def flush_tui_toasts() -> None:
+            from sase.logs import flush_toasts
+
+            flush_toasts(timeout=1.0)
+
         def restore_artifact_tmux_decoration() -> None:
             restore_artifact_decoration = getattr(
                 self, "_restore_artifact_tmux_decoration", None
@@ -261,6 +268,7 @@ class LifecycleMixin:
             cleanup(stop_artifact_watcher)
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)
+            cleanup(flush_tui_toasts)
             cleanup(shutdown_loader_executor)
             cleanup(restore_artifact_tmux_decoration)
             cleanup(restore_artifact_viewer_signal_handler)

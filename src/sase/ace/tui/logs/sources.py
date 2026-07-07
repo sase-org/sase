@@ -26,9 +26,10 @@ from sase.logs import (
     tui_launch_timing_jsonl_path,
     tui_log_path,
     tui_stalls_jsonl_path,
+    tui_toasts_jsonl_path,
 )
 
-RenderMode = Literal["text", "jsonl"]
+RenderMode = Literal["text", "jsonl", "toasts"]
 
 # Per-record fields shown in the human-readable header rather than as trailing
 # ``key=value`` pairs, plus noisy fields omitted from the compact line.
@@ -80,7 +81,7 @@ class LogSource:
         raw = self.read_tail(max_lines)
         if not raw:
             return ""
-        if self.render == "jsonl":
+        if self.render in {"jsonl", "toasts"}:
             return _render_jsonl_tail(raw)
         return raw
 
@@ -105,6 +106,13 @@ def log_sources() -> list[LogSource]:
             description="Catch-all warnings and errors from the ace TUI",
             path=tui_log_path(),
             render="text",
+        ),
+        LogSource(
+            id="tui_toasts",
+            title="TUI Toasts",
+            description="Toast notifications shown in this and previous TUI sessions",
+            path=tui_toasts_jsonl_path(),
+            render="toasts",
         ),
         LogSource(
             id="tui_stalls",

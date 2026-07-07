@@ -13,6 +13,7 @@ from sase.logs import (
     tui_launch_timing_jsonl_path,
     tui_log_path,
     tui_stalls_jsonl_path,
+    tui_toasts_jsonl_path,
 )
 
 
@@ -30,6 +31,7 @@ class TestRegistryShape:
         assert [s.id for s in sources] == [
             "launch_failures",
             "tui",
+            "tui_toasts",
             "tui_stalls",
             "tui_external_tools",
             "tui_git_ops",
@@ -41,6 +43,7 @@ class TestRegistryShape:
     def test_render_modes(self) -> None:
         assert _source("launch_failures").render == "text"
         assert _source("tui").render == "text"
+        assert _source("tui_toasts").render == "toasts"
         assert _source("tui_stalls").render == "jsonl"
         assert _source("tui_external_tools").render == "jsonl"
         assert _source("tui_git_ops").render == "jsonl"
@@ -52,6 +55,7 @@ class TestRegistryShape:
         # log_sources() resolves canonical paths live, so isolated ~/.sase wins.
         assert _source("launch_failures").path == launch_failures_log_path()
         assert _source("tui").path == tui_log_path()
+        assert _source("tui_toasts").path == tui_toasts_jsonl_path()
         assert _source("tui_stalls").path == tui_stalls_jsonl_path()
         assert _source("tui_external_tools").path == tui_external_tools_jsonl_path()
         assert _source("tui_git_ops").path == tui_git_ops_jsonl_path()

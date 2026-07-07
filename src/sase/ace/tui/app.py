@@ -10,6 +10,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Header
 
+from sase.logs import current_toast_session, record_toast
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from ..changespec import ChangeSpec
@@ -220,6 +222,7 @@ class AceApp(
         from .util.app_version import format_app_title, initial_app_version
 
         self.title = format_app_title(initial_app_version())
+        current_toast_session()
         self._jk_perf = JKPerfTimer() if _perf_enabled() else None
         self._init_app_state(
             query=query,
@@ -229,6 +232,25 @@ class AceApp(
             restart_axe=restart_axe,
             initial_tab=initial_tab,
         )
+
+    def notify(
+        self,
+        message: str,
+        *,
+        title: str = "",
+        severity: Literal["information", "warning", "error"] = "information",
+        timeout: float | None = None,
+        markup: bool = True,
+    ) -> None:
+        """Show a Textual toast and persist it to the TUI toast history."""
+        super().notify(
+            message,
+            title=title,
+            severity=severity,
+            timeout=timeout,
+            markup=markup,
+        )
+        record_toast(message=message, title=title, severity=severity)
 
     @property
     def canonical_query_string(self) -> str:

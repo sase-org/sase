@@ -43,3 +43,35 @@ async def test_config_center_logs_tab_png_snapshot(
             "config_center_logs_tab_120x40",
             title="ACE SASE Admin Center - Logs tab",
         )
+
+
+async def test_config_center_logs_tab_toasts_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, None)
+    _seed_logs_tab_files()
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_logs_modal(page)
+
+        await page.press("j")
+        await page.wait_for(lambda _s: not pane._loading)
+        await page.press("j")
+        await page.wait_for(
+            lambda _s: (
+                not pane._loading and "TUI Toasts" in pane._last_detail_text.plain
+            )
+        )
+        assert "This session" in pane._last_detail_text.plain
+        assert "Workflow error" in pane._last_detail_text.plain
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_logs_tab_toasts_120x40",
+            title="ACE SASE Admin Center - Logs tab - TUI Toasts",
+        )

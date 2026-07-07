@@ -17,9 +17,11 @@ from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
 from sase.core.paths import sase_home
+from sase.logs import TOAST_HISTORY_LIMIT, current_toast_session, read_recent_toasts
 
 from ..logs import LogSource, log_sources
 from .base import CopyModeForwardingMixin
+from .logs_pane_toasts import render_toast_detail_body
 
 # Palette shared with the other log-style modals (HelpModal / AgentRunLogModal).
 _CYAN = "#87D7FF"
@@ -92,6 +94,8 @@ def _empty_message(source: LogSource) -> str:
     """Friendly empty-state copy for a missing/empty *source*."""
     if source.id == "launch_failures":
         return "No launch failures logged."
+    if source.id == "tui_toasts":
+        return "No toasts yet — notifications shown in the TUI will appear here."
     return f"No {source.title.lower()} yet."
 
 
@@ -136,7 +140,20 @@ def _styled_log_line(line: str) -> Text:
 
 def _render_log_detail(source: LogSource, max_lines: int = _MAX_TAIL_LINES) -> Text:
     """Build the full colorized detail body (header + tail) for *source*."""
-    body = source.read_rendered_tail(max_lines)
+    body = "" if source.render == "toasts" else source.read_rendered_tail(max_lines)
+    body_text: Text | None = None
+    toast_count: int | None = None
+    if source.render == "toasts":
+        records = read_recent_toasts(TOAST_HISTORY_LIMIT)
+        toast_count = len(records)
+        if records:
+            body_text = render_toast_detail_body(
+                records,
+                current_toast_session().session_id,
+            )
+            body = body_text.plain
+        else:
+            body = ""
     text = Text()
 
     # Header: source title, path, last modified, and shown line count.
@@ -148,13 +165,20 @@ def _render_log_detail(source: LogSource, max_lines: int = _MAX_TAIL_LINES) -> T
     if mtime is not None:
         text.append(f"  ·  {mtime}", style="dim")
     if body:
-        shown = len(body.splitlines())
-        text.append(f"  ·  {shown} lines", style="dim")
+        if toast_count is not None:
+            text.append(f"  ·  {toast_count} toasts", style="dim")
+        else:
+            shown = len(body.splitlines())
+            text.append(f"  ·  {shown} lines", style="dim")
     text.append("\n")
     text.append("─" * 48 + "\n", style="dim")
 
     if not body:
         text.append(_empty_message(source), style="dim italic")
+        return text
+
+    if body_text is not None:
+        text.append_text(body_text)
         return text
 
     for line in body.splitlines():
