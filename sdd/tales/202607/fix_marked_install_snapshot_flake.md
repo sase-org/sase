@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 11:13:06
-status: wip
+status: done
 prompt: sdd/prompts/202607/fix_marked_install_snapshot_flake.md
 ---
 # Fix flaky visual snapshot: `test_config_center_plugins_marked_install_png_snapshot`
