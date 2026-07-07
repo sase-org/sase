@@ -31,9 +31,27 @@ def stream_json_lines(
 ) -> tuple[str, int]:
     """Stream stdout JSON lines through *handle_stdout_line* and collect stderr."""
     stderr_lines: list[str] = []
+    stdout_buffer = ""
 
     prepare_nonblocking_text_stream(process.stdout)
     prepare_nonblocking_text_stream(process.stderr)
+
+    def dispatch_stdout_chunk(chunk: str) -> None:
+        nonlocal stdout_buffer
+        stdout_buffer += chunk
+        while True:
+            newline_index = stdout_buffer.find("\n")
+            if newline_index == -1:
+                break
+            line = stdout_buffer[: newline_index + 1]
+            stdout_buffer = stdout_buffer[newline_index + 1 :]
+            handle_stdout_line(line)
+
+    def flush_stdout_buffer() -> None:
+        nonlocal stdout_buffer
+        if stdout_buffer:
+            handle_stdout_line(stdout_buffer)
+            stdout_buffer = ""
 
     while True:
         readable: list[object] = []
@@ -50,7 +68,7 @@ def stream_json_lines(
         if process.stdout and process.stdout in ready:
             line = process.stdout.readline()
             if line:
-                handle_stdout_line(line)
+                dispatch_stdout_chunk(line)
 
         if process.stderr and process.stderr in ready:
             line = process.stderr.readline()
@@ -63,7 +81,8 @@ def stream_json_lines(
             if process.stdout:
                 os.set_blocking(process.stdout.fileno(), True)
                 for line in process.stdout:
-                    handle_stdout_line(line)
+                    dispatch_stdout_chunk(line)
+                flush_stdout_buffer()
             if process.stderr:
                 os.set_blocking(process.stderr.fileno(), True)
                 for line in process.stderr:

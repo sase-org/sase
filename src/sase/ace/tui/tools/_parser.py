@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -98,7 +99,48 @@ def collapse_tool_use_pairs(
             merged[start_index] = _merge_use_and_result(start_entry, entry)
             merged[index] = None
 
-    return [entry for entry in merged if entry is not None]
+    return _reconcile_incomplete_tool_uses(
+        [entry for entry in merged if entry is not None]
+    )
+
+
+def _reconcile_incomplete_tool_uses(
+    entries: list[ToolCallEntry],
+) -> list[ToolCallEntry]:
+    """Bound orphaned pending starts superseded by a later assistant message."""
+    pending_by_stream: dict[tuple[str, str, str], list[int]] = {}
+    reconciled: list[ToolCallEntry] = list(entries)
+
+    for index, entry in enumerate(entries):
+        if entry.event != "ToolUse":
+            continue
+        stream_key = _tool_stream_key(entry)
+        if stream_key is None:
+            continue
+
+        pending_indexes = pending_by_stream.get(stream_key, [])
+        still_pending: list[int] = []
+        for pending_index in pending_indexes:
+            pending_entry = reconciled[pending_index]
+            if (
+                pending_entry.status == "pending"
+                and pending_entry.message_id
+                and pending_entry.message_id != entry.message_id
+                and entry.recorded_at
+            ):
+                reconciled[pending_index] = replace(
+                    pending_entry,
+                    status="incomplete",
+                    completed_at=entry.recorded_at,
+                )
+            else:
+                still_pending.append(pending_index)
+        pending_by_stream[stream_key] = still_pending
+
+        if entry.status == "pending":
+            pending_by_stream[stream_key].append(index)
+
+    return reconciled
 
 
 def read_tool_call_file(
@@ -163,6 +205,7 @@ def _parse_tool_call_line(
         agent_id=_str_or_none(record.get("agent_id")),
         agent_type=_str_or_none(record.get("agent_type")),
         parent_tool_use_id=_str_or_none(record.get("parent_tool_use_id")),
+        message_id=_str_or_none(record.get("message_id")),
         error=_str_or_none(record.get("error")),
         is_interrupt=record.get("is_interrupt") is True,
         source=_str_or_none(record.get("source")),
@@ -178,6 +221,13 @@ def _tool_pair_key(entry: ToolCallEntry) -> tuple[str, str, str]:
     """Return the scope in which a provider tool-use id is unique."""
     scope = entry.session_id or entry.artifact_dir or ""
     return entry.runtime, entry.tool_use_id or "", scope
+
+
+def _tool_stream_key(entry: ToolCallEntry) -> tuple[str, str, str] | None:
+    """Return the logical stream scope for assistant-message ordering."""
+    if not entry.session_id or not entry.message_id:
+        return None
+    return entry.runtime, entry.session_id, entry.parent_tool_use_id or ""
 
 
 def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallEntry:
@@ -201,6 +251,7 @@ def _merge_use_and_result(start: ToolCallEntry, end: ToolCallEntry) -> ToolCallE
         agent_id=start.agent_id or end.agent_id,
         agent_type=start.agent_type or end.agent_type,
         parent_tool_use_id=start.parent_tool_use_id or end.parent_tool_use_id,
+        message_id=start.message_id or end.message_id,
         error=start.error or end.error,
         is_interrupt=start.is_interrupt or end.is_interrupt,
         source=start.source or end.source,

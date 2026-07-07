@@ -29,6 +29,7 @@ class ToolCallEntry:
     agent_id: str | None = None
     agent_type: str | None = None
     parent_tool_use_id: str | None = None
+    message_id: str | None = None
     error: str | None = None
     is_interrupt: bool = False
     source: str | None = None

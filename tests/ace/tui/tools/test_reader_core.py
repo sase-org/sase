@@ -145,6 +145,105 @@ def test_read_tool_calls_for_agent_keeps_orphan_tool_use_as_pending(
     assert entries[0].tool_use_id == "toolu_orphan"
 
 
+def test_read_tool_calls_for_agent_marks_orphan_superseded_by_later_message(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [
+            _tool_use_record(
+                tool_use_id="toolu_lost",
+                session_id="session-1",
+                message_id="msg_1",
+                recorded_at="2026-05-14T14:00:00+00:00",
+            ),
+            _tool_use_record(
+                tool_use_id="toolu_next",
+                session_id="session-1",
+                message_id="msg_2",
+                recorded_at="2026-05-14T14:00:45+00:00",
+            ),
+            _tool_result_record(
+                tool_use_id="toolu_next",
+                session_id="session-1",
+                recorded_at="2026-05-14T14:00:46+00:00",
+            ),
+        ],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    lost = entries[0]
+    assert lost.tool_use_id == "toolu_lost"
+    assert lost.status == "incomplete"
+    assert lost.completed_at == "2026-05-14T14:00:45+00:00"
+    assert entries[1].tool_use_id == "toolu_next"
+    assert entries[1].status == "success"
+
+
+def test_read_tool_calls_for_agent_keeps_pending_sibling_in_same_message(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [
+            _tool_use_record(
+                tool_use_id="toolu_pending",
+                session_id="session-1",
+                message_id="msg_1",
+                recorded_at="2026-05-14T14:00:00+00:00",
+            ),
+            _tool_use_record(
+                tool_use_id="toolu_sibling",
+                session_id="session-1",
+                message_id="msg_1",
+                recorded_at="2026-05-14T14:00:00+00:00",
+            ),
+            _tool_result_record(
+                tool_use_id="toolu_sibling",
+                session_id="session-1",
+                recorded_at="2026-05-14T14:00:10+00:00",
+            ),
+        ],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    assert [entry.status for entry in entries] == ["pending", "success"]
+    assert entries[0].tool_use_id == "toolu_pending"
+
+
+def test_read_tool_calls_for_agent_leaves_rows_without_message_id_pending(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "20260514140000"
+    _write_jsonl(
+        artifacts_dir / "tool_calls.jsonl",
+        [
+            _tool_use_record(
+                tool_use_id="toolu_legacy",
+                session_id="session-1",
+                recorded_at="2026-05-14T14:00:00+00:00",
+            ),
+            _tool_use_record(
+                tool_use_id="toolu_next",
+                session_id="session-1",
+                message_id="msg_2",
+                recorded_at="2026-05-14T14:00:45+00:00",
+            ),
+        ],
+    )
+
+    entries = read_tool_calls_for_agent(_agent(artifacts_dir))
+
+    assert entries is not None
+    assert [entry.status for entry in entries] == ["pending", "pending"]
+
+
 def test_read_tool_calls_for_agent_propagates_failure_status(
     tmp_path: Path,
 ) -> None:

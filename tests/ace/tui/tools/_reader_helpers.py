@@ -45,6 +45,8 @@ def _tool_use_record(
     runtime: str = "claude",
     source: str | None = None,
     session_id: str | None = None,
+    parent_tool_use_id: str | None = None,
+    message_id: str | None = None,
     recorded_at: str = "2026-05-14T14:00:00+00:00",
     tool_input_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -63,6 +65,10 @@ def _tool_use_record(
         record["source"] = source
     if session_id is not None:
         record["session_id"] = session_id
+    if parent_tool_use_id is not None:
+        record["parent_tool_use_id"] = parent_tool_use_id
+    if message_id is not None:
+        record["message_id"] = message_id
     return record
 
 
@@ -73,6 +79,8 @@ def _tool_result_record(
     runtime: str = "claude",
     source: str | None = None,
     session_id: str | None = None,
+    parent_tool_use_id: str | None = None,
+    message_id: str | None = None,
     status: str = "success",
     recorded_at: str = "2026-05-14T14:00:01+00:00",
     duration_ms: int | None = None,
@@ -96,6 +104,10 @@ def _tool_result_record(
         record["source"] = source
     if session_id is not None:
         record["session_id"] = session_id
+    if parent_tool_use_id is not None:
+        record["parent_tool_use_id"] = parent_tool_use_id
+    if message_id is not None:
+        record["message_id"] = message_id
     if duration_ms is not None:
         record["duration_ms"] = duration_ms
     return record

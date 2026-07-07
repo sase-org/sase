@@ -14,6 +14,7 @@ from ._subprocess_artifacts import (
     open_live_reply_timestamps_file,
     write_usage_artifact,
 )
+from ._subprocess_diagnostics import record_stdout_json_decode_diagnostic
 from ._subprocess_stream import append_error_events, stream_json_lines
 
 
@@ -71,10 +72,11 @@ def _process_opencode_json_line(
 
     try:
         event = json.loads(line)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        record_stdout_json_decode_diagnostic("opencode", line, exc)
         return
 
-    if not isinstance(event, dict):
+    if not isinstance(event, Mapping):
         return
 
     event_type = event.get("type")

@@ -108,6 +108,27 @@ def test_pending_terminated_call_uses_stable_end_reference() -> None:
     assert selected[0].effective_duration_ms == 45_000
 
 
+def test_incomplete_call_uses_bounded_completed_at_even_when_agent_active() -> None:
+    selected = select_slow_tool_calls(
+        (
+            _entry(
+                status="incomplete",
+                duration_ms=None,
+                recorded_at="2026-07-03T14:00:00+00:00",
+                completed_at="2026-07-03T14:00:45+00:00",
+            ),
+        ),
+        now=_dt("2026-07-03T14:10:00+00:00"),
+        agent_is_active=True,
+        agent_end_reference=None,
+    )
+
+    assert len(selected) == 1
+    assert selected[0].did_not_complete is True
+    assert selected[0].is_running is False
+    assert selected[0].effective_duration_ms == 45_000
+
+
 def test_subagent_markers_are_excluded() -> None:
     selected = select_slow_tool_calls(
         (

@@ -2,7 +2,9 @@
 
 TOOL_CALLS_FILENAME = "tool_calls.jsonl"
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3})
-KNOWN_STATUSES = frozenset({"success", "failure", "interrupted", "subagent", "pending"})
+KNOWN_STATUSES = frozenset(
+    {"success", "failure", "interrupted", "subagent", "pending", "incomplete"}
+)
 LINEAGE_METADATA_KEYS = (
     "parent_timestamp",
     "retry_of_timestamp",

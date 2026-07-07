@@ -77,7 +77,17 @@ def select_slow_tool_calls(
         if start is None:
             continue
 
-        if entry.status == "pending":
+        if entry.status == "incomplete":
+            completed_duration_ms = _completed_duration_ms(entry, start)
+            if completed_duration_ms is None:
+                continue
+            candidate = SlowToolCall(
+                entry=entry,
+                started_at=start,
+                effective_duration_ms=completed_duration_ms,
+                did_not_complete=True,
+            )
+        elif entry.status == "pending":
             if agent_is_active:
                 duration_ms = _duration_ms(start, now_utc)
                 candidate = SlowToolCall(

@@ -10,6 +10,8 @@ exception.
 
 import io
 import os
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 from sase.llm_provider._subprocess_stream import (
@@ -108,3 +110,107 @@ def test_stream_json_lines_prepares_both_streams() -> None:
     assert prepare.call_args_list[1].args == (stderr,)
     assert stderr_content == ""
     assert return_code == 0
+
+
+def test_stream_json_lines_reassembles_partial_stdout_line() -> None:
+    """Fragments from non-blocking readline are dispatched as one JSON line."""
+    stdout = MagicMock(spec=io.TextIOWrapper)
+    stderr = MagicMock(spec=io.TextIOWrapper)
+    stdout.readline.side_effect = ['{"payload":', '"ok"}\n']
+
+    process = MagicMock()
+    process.stdout = stdout
+    process.stderr = stderr
+    process.poll.side_effect = [None, 0]
+    process.stdout.__iter__ = lambda self: iter([])
+    process.stderr.__iter__ = lambda self: iter([])
+    process.wait.return_value = 0
+
+    handled: list[str] = []
+
+    with (
+        patch("sase.llm_provider._subprocess_stream.prepare_nonblocking_text_stream"),
+        patch("sase.llm_provider._subprocess_stream.os.set_blocking"),
+        patch(
+            "sase.llm_provider._subprocess_stream.select.select",
+            side_effect=[([stdout], [], []), ([stdout], [], [])],
+        ),
+    ):
+        stderr_content, return_code = stream_json_lines(
+            process, handled.append, suppress_output=True
+        )
+
+    assert handled == ['{"payload":"ok"}\n']
+    assert stderr_content == ""
+    assert return_code == 0
+
+
+def test_stream_json_lines_flushes_buffered_stdout_on_exit_drain() -> None:
+    """A line split between non-blocking and post-exit drain still survives."""
+    stdout = MagicMock(spec=io.TextIOWrapper)
+    stderr = MagicMock(spec=io.TextIOWrapper)
+    stdout.readline.return_value = '{"payload":'
+
+    process = MagicMock()
+    process.stdout = stdout
+    process.stderr = stderr
+    process.poll.return_value = 0
+    process.stdout.__iter__ = lambda self: iter(['"ok"}'])
+    process.stderr.__iter__ = lambda self: iter([])
+    process.wait.return_value = 0
+
+    handled: list[str] = []
+
+    with (
+        patch("sase.llm_provider._subprocess_stream.prepare_nonblocking_text_stream"),
+        patch("sase.llm_provider._subprocess_stream.os.set_blocking"),
+        patch(
+            "sase.llm_provider._subprocess_stream.select.select",
+            return_value=([stdout], [], []),
+        ),
+    ):
+        stderr_content, return_code = stream_json_lines(
+            process, handled.append, suppress_output=True
+        )
+
+    assert handled == ['{"payload":"ok"}']
+    assert stderr_content == ""
+    assert return_code == 0
+
+
+def test_stream_json_lines_preserves_dribbled_large_json_and_trailing_line() -> None:
+    """End-to-end repro: large JSON lines dribbled in chunks are not shredded."""
+    script = r"""
+import json
+import sys
+import time
+
+events = [
+    json.dumps({"index": 0, "payload": "x" * 400_000}) + "\n",
+    json.dumps({"index": 1, "payload": "tail"}),
+]
+for event in events:
+    for index in range(0, len(event), 50_000):
+        sys.stdout.write(event[index:index + 50_000])
+        sys.stdout.flush()
+        time.sleep(0.001)
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    handled: list[str] = []
+
+    stderr_content, return_code = stream_json_lines(
+        process, handled.append, suppress_output=True
+    )
+
+    assert return_code == 0
+    assert stderr_content == ""
+    assert len(handled) == 2
+    assert handled[0].endswith("\n")
+    assert '"index": 0' in handled[0]
+    assert len(handled[0]) > 400_000
+    assert handled[1] == '{"index": 1, "payload": "tail"}'

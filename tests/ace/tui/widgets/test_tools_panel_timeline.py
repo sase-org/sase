@@ -87,6 +87,25 @@ def test_tools_timeline_shows_pending_state() -> None:
     assert "Bash" in rendered
 
 
+def test_tools_timeline_shows_incomplete_state() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+
+    rendered = _build_tools_timeline_text(
+        [
+            _entry(
+                status="incomplete",
+                duration_ms=None,
+                completed_at="2026-05-14T14:00:45+00:00",
+                tool_response_summary={},
+            )
+        ],
+        fetch_time,
+    ).plain
+
+    assert "miss" in rendered
+    assert "Bash" in rendered
+
+
 def test_tools_timeline_truncates_long_command() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
     long_command = "echo " + "x" * 200

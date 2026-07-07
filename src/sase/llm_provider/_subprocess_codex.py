@@ -13,6 +13,7 @@ from ._subprocess_artifacts import (
     open_live_reply_timestamps_file,
     write_reply_timestamp,
 )
+from ._subprocess_diagnostics import record_stdout_json_decode_diagnostic
 from ._subprocess_stream import append_error_events, stream_json_lines
 from ._tool_calls import append_codex_tool_call_event
 
@@ -84,7 +85,8 @@ def _process_codex_json_line(
 
     try:
         event = json.loads(line)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        record_stdout_json_decode_diagnostic("codex", line, exc)
         return
     if not isinstance(event, Mapping):
         return

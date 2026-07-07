@@ -155,6 +155,7 @@ def _status_label(status: str) -> str:
         "interrupted": "stop",
         "subagent": "agent",
         "pending": "wait",
+        "incomplete": "miss",
     }.get(status, status or "unknown")
 
 
@@ -165,6 +166,7 @@ def _status_style(status: str) -> str:
         "interrupted": "bold yellow",
         "subagent": "bold #87D7FF",
         "pending": "bold #FFD787",
+        "incomplete": "dim #FFD787",
     }.get(status, "dim")
 
 

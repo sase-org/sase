@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 16:27:38
-status: wip
+status: done
 prompt: sdd/prompts/202607/stuck_pending_tool_calls.md
 ---
 # Fix never-completing tool calls in the SLOW TOOL CALLS panel
