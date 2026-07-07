@@ -68,6 +68,9 @@ from tests.main.init_skills_handler_helpers import make_args
                 "launch_response.json",
                 "%n(parent, reviewer)",
                 "Do not run `sase run`",
+                "#git:home",
+                "%w(",
+                "sase xprompt list",
             ),
         ),
         (

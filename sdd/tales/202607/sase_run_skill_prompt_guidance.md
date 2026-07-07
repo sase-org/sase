@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 22:40:55
-status: wip
+status: done
 prompt: sdd/prompts/202607/sase_run_skill_prompt_guidance.md
 ---
 # Plan: Teach the /sase_run skill to compose better launch prompts
