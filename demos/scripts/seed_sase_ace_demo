@@ -39,8 +39,11 @@ mkdir -p \
   "$project_dir/artifacts/ace-run" \
   "$sase_tmpdir" \
   "$(dirname "$bare_repo")" \
-  "$workspace/src" \
+  "$workspace/.github/workflows" \
+  "$workspace/examples" \
+  "$workspace/src/nova/renderers" \
   "$workspace/tests" \
+  "$workspace/tests/fixtures" \
   "$workspace/docs"
 
 cat >"$demo_home/.config/sase/sase.yml" <<'YAML'
@@ -80,7 +83,15 @@ version = "0.1.0"
 description = "Fictional parser service for SASE demos"
 TOML
 
-cat >"$workspace/src/parser.py" <<'PY'
+cat >"$workspace/src/nova/__init__.py" <<'PY'
+"""Nova demo package."""
+
+from nova.parser import ParsedCommand, parse_command
+
+__all__ = ["ParsedCommand", "parse_command"]
+PY
+
+cat >"$workspace/src/nova/parser.py" <<'PY'
 from dataclasses import dataclass
 
 
@@ -97,14 +108,52 @@ def parse_command(line: str) -> ParsedCommand:
     return ParsedCommand(name=parts[0], args=parts[1:])
 PY
 
-cat >"$workspace/src/cli.py" <<'PY'
+cat >"$workspace/src/nova/cli.py" <<'PY'
+from nova.config import load_settings
 from nova.parser import parse_command
+from nova.renderers.summary import command_summary
 
 
 def main(argv: list[str]) -> int:
+    settings = load_settings()
     command = parse_command(" ".join(argv))
-    print(f"dispatching {command.name}")
+    print(command_summary(command, environment=settings.environment))
     return 0
+PY
+
+cat >"$workspace/src/nova/config.py" <<'PY'
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Settings:
+    environment: str = "demo"
+    dry_run: bool = True
+
+
+def load_settings() -> Settings:
+    return Settings()
+PY
+
+cat >"$workspace/src/nova/renderers/summary.py" <<'PY'
+from nova.parser import ParsedCommand
+
+
+def command_summary(command: ParsedCommand, *, environment: str) -> str:
+    args = " ".join(command.args) if command.args else "no args"
+    return f"{environment}: dispatch {command.name} ({args})"
+PY
+
+cat >"$workspace/src/parser.py" <<'PY'
+from nova.parser import ParsedCommand, parse_command
+
+__all__ = ["ParsedCommand", "parse_command"]
+PY
+
+cat >"$workspace/src/cli.py" <<'PY'
+from nova.cli import main
+
+__all__ = ["main"]
 PY
 
 cat >"$workspace/tests/test_parser.py" <<'PY'
@@ -124,19 +173,78 @@ def test_parse_command_rejects_empty_input() -> None:
         parse_command("   ")
 PY
 
+cat >"$workspace/tests/test_cli.py" <<'PY'
+from nova.cli import main
+
+
+def test_main_dispatches_command(capsys) -> None:
+    assert main(["deploy", "staging"]) == 0
+    assert "demo: dispatch deploy (staging)" in capsys.readouterr().out
+PY
+
+cat >"$workspace/tests/test_config.py" <<'PY'
+from nova.config import load_settings
+
+
+def test_load_settings_uses_demo_defaults() -> None:
+    settings = load_settings()
+    assert settings.environment == "demo"
+    assert settings.dry_run is True
+PY
+
+cat >"$workspace/tests/fixtures/commands.txt" <<'TEXT'
+deploy staging --dry-run
+render summary --format markdown
+validate config --strict
+TEXT
+
 cat >"$workspace/docs/prompt_input_notes.md" <<'MARKDOWN'
 # Prompt Input Notes
 
 - `#add_tests` demonstrates xprompt completion with a path input.
-- `@src/parser.py` demonstrates file completion rooted in the fake workspace.
+- `@src/nova/parser.py` demonstrates file completion rooted in the fake workspace.
 MARKDOWN
+
+cat >"$workspace/docs/architecture.md" <<'MARKDOWN'
+# Nova Architecture
+
+Nova keeps parsing, configuration, and rendering in separate modules so the demo
+workspace has realistic file-completion targets.
+MARKDOWN
+
+cat >"$workspace/docs/release_checklist.md" <<'MARKDOWN'
+# Release Checklist
+
+- Run parser and CLI tests.
+- Review command fixtures.
+- Update prompt-input notes when demo paths change.
+MARKDOWN
+
+cat >"$workspace/examples/basic_command.txt" <<'TEXT'
+deploy staging --dry-run
+TEXT
+
+cat >"$workspace/.github/workflows/ci.yml" <<'YAML'
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pytest
+YAML
 
 git init -q --bare "$bare_repo"
 git init -q "$workspace"
 git -C "$workspace" checkout -q -B main
 git -C "$workspace" config user.name "SASE Demo"
 git -C "$workspace" config user.email "demo@example.test"
-git -C "$workspace" add README.md pyproject.toml src tests docs
+git -C "$workspace" add README.md pyproject.toml src tests docs examples .github
 git -C "$workspace" commit -q -m "Initial demo workspace"
 git -C "$workspace" remote add origin "$bare_repo"
 git -C "$workspace" push -q -u origin main

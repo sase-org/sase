@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-06 19:35:55
-status: wip
+status: done
 prompt: sdd/prompts/202607/ace_prompt_input_demo.md
 ---
 # ACE Prompt Input Demo Tape Plan

@@ -34,7 +34,7 @@ Type "clear"
 Enter
 Show
 
-Type "sase ace --refresh-interval 0 --tab agents -x"
+Type "sase ace"
 Enter
 Wait+Screen /Agents/
 Sleep 2s
@@ -43,6 +43,13 @@ Space
 Wait+Screen /history/
 Sleep 1s
 
+Type "+nov"
+Wait+Screen /#git:nova/
+Sleep 800ms
+Ctrl+L
+Wait+Screen /#git:nova/
+Sleep 800ms
+
 Type "Add parser coverage with "
 Type "#add_te"
 Wait+Screen /add_tests/
@@ -50,12 +57,18 @@ Sleep 800ms
 Ctrl+L
 Wait+Screen /file_path/
 Sleep 800ms
-Type "src/parser.py "
-Sleep 600ms
-
-Type "and inspect @src/par"
+Type "src/nova/par"
 Ctrl+T
 Wait+Screen /parser.py/
+Sleep 800ms
+Ctrl+L
+Sleep 600ms
+Type " "
+Sleep 600ms
+
+Type "and inspect @docs/rel"
+Ctrl+T
+Wait+Screen /release_checklist.md/
 Sleep 800ms
 Ctrl+L
 Sleep 1s
@@ -74,8 +87,11 @@ Sleep 2.5s
 Escape
 Sleep 700ms
 
-Ctrl+G
+Ctrl+C
+Sleep 700ms
 Ctrl+C
 Sleep 700ms
 Type "q"
-Sleep 1s
+Sleep 4s
+Type "exit"
+Enter
