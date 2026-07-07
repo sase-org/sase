@@ -13,10 +13,13 @@ from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
 from sase.plugins.render_common import build_incoming_commits_renderable
+from sase.updates import OutdatedComponent
 from sase.updates.incoming_commits import (
     CommitSourceSpec,
     CommitSummary,
     IncomingCommits,
+    allocate_commit_budget,
+    component_commit_spec,
     core_package_commit_spec,
     dev_update_root_commit_spec,
     fetch_incoming_commit_groups,
@@ -201,6 +204,16 @@ def test_git_source_uses_rev_list_total_and_delimited_log_subjects() -> None:
     )
 
 
+def test_allocate_commit_budget_water_fills_global_budget() -> None:
+    assert allocate_commit_budget([20], 20) == [20]
+    assert allocate_commit_budget([20, 20], 20) == [10, 10]
+    assert allocate_commit_budget([3, 2, 30], 20) == [3, 2, 15]
+    assert allocate_commit_budget([3, 2, 4], 20) == [3, 2, 4]
+    assert allocate_commit_budget([5, 5, 5], 2) == [1, 1, 0]
+    assert allocate_commit_budget([0, -1, 4], 3) == [0, 0, 3]
+    assert allocate_commit_budget([4, 4], 0) == [0, 0]
+
+
 def test_source_specs_map_core_and_plugins() -> None:
     core = CorePackageVersion(
         name="sase-core",
@@ -238,6 +251,62 @@ def test_source_specs_map_core_and_plugins() -> None:
     assert editable_spec.source == "git"
     assert editable_spec.git_root == "/repo/sase-github"
     assert editable_spec.upstream_ref == "origin/main"
+
+
+def test_component_commit_spec_maps_cached_components() -> None:
+    editable = OutdatedComponent(
+        display_name="github",
+        role="plugin",
+        installed_version="1.2.0+1.gabc1234",
+        latest_version="1.2.0+3.gdef5678",
+        distribution_name="sase-github",
+        install_type="editable",
+        source_root="/repo/sase-github",
+        upstream_ref="origin/main",
+    )
+    editable_spec = component_commit_spec(editable)
+    assert editable_spec is not None
+    assert editable_spec.source == "git"
+    assert editable_spec.repo_full_name == "github"
+    assert editable_spec.git_root == "/repo/sase-github"
+    assert editable_spec.upstream_ref == "origin/main"
+
+    host = OutdatedComponent(
+        display_name="sase",
+        role="host",
+        installed_version="0.5.0",
+        latest_version="0.6.0",
+        distribution_name="sase",
+    )
+    host_spec = component_commit_spec(host)
+    assert host_spec is not None
+    assert host_spec.source == "github"
+    assert host_spec.repo_full_name == "sase-org/sase"
+    assert host_spec.base_ref == "v0.5.0"
+    assert host_spec.head_ref == "v0.6.0"
+
+    core = OutdatedComponent(
+        display_name="sase-core",
+        role="core",
+        installed_version="v0.4.0",
+        latest_version="v0.4.1",
+        distribution_name="sase-core-rs",
+    )
+    core_spec = component_commit_spec(core)
+    assert core_spec is not None
+    assert core_spec.source == "github"
+    assert core_spec.repo_full_name == "sase-org/sase-core"
+    assert core_spec.base_ref == "v0.4.0"
+    assert core_spec.head_ref == "v0.4.1"
+
+    plugin = OutdatedComponent(
+        display_name="telegram",
+        role="plugin",
+        installed_version="0.1.0",
+        latest_version="0.2.0",
+        distribution_name="sase-telegram",
+    )
+    assert component_commit_spec(plugin) is None
 
 
 def test_dev_update_root_commit_spec() -> None:

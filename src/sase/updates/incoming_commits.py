@@ -9,12 +9,15 @@ import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.dev_update.models import DevUpdateRootPlan
 from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.github_source import GH_TIMEOUT_SECONDS
 from sase.uv_tool.versions import CorePackageVersion
+
+if TYPE_CHECKING:
+    from sase.updates.status import OutdatedComponent
 
 CommitSource = Literal["git", "github", "unavailable"]
 
@@ -153,6 +156,58 @@ def dev_update_root_commit_spec(root: DevUpdateRootPlan) -> CommitSourceSpec | N
         git_root=root.git_root,
         upstream_ref=root.upstream,
     )
+
+
+def component_commit_spec(component: OutdatedComponent) -> CommitSourceSpec | None:
+    """Return an incoming-commit source for a cached outdated component."""
+    repo_full_name = _component_repo_full_name(component)
+    if component.install_type == "editable":
+        if component.source_root and component.upstream_ref:
+            return CommitSourceSpec(
+                source="git",
+                repo_full_name=repo_full_name or component.display_name,
+                git_root=component.source_root,
+                upstream_ref=component.upstream_ref,
+            )
+        return None
+    if repo_full_name is None:
+        return None
+    if not component.installed_version or not component.latest_version:
+        return None
+    return CommitSourceSpec(
+        source="github",
+        repo_full_name=repo_full_name,
+        base_ref=_release_tag(component.installed_version),
+        head_ref=_release_tag(component.latest_version),
+    )
+
+
+def allocate_commit_budget(totals: Sequence[int], budget: int) -> list[int]:
+    """Allocate a global commit-line budget across repos using water filling."""
+    remaining = max(0, budget)
+    normalized_totals = [max(0, total) for total in totals]
+    allocations = [0] * len(normalized_totals)
+    active = [idx for idx, total in enumerate(normalized_totals) if total > 0]
+    while remaining > 0 and active:
+        share = remaining // len(active)
+        if share == 0:
+            break
+        next_active: list[int] = []
+        for idx in active:
+            wanted = normalized_totals[idx] - allocations[idx]
+            give = min(share, wanted)
+            allocations[idx] += give
+            remaining -= give
+            if allocations[idx] < normalized_totals[idx]:
+                next_active.append(idx)
+        active = next_active
+    for idx in active:
+        if remaining <= 0:
+            break
+        if allocations[idx] < normalized_totals[idx]:
+            allocations[idx] += 1
+            remaining -= 1
+    return allocations
 
 
 def fetch_incoming_commit_groups(
@@ -348,6 +403,14 @@ def _core_repo_full_name(package: CorePackageVersion) -> str | None:
     return None
 
 
+def _component_repo_full_name(component: OutdatedComponent) -> str | None:
+    if component.role == "host":
+        return "sase-org/sase"
+    if component.role == "core":
+        return "sase-org/sase-core"
+    return None
+
+
 def _release_tag(version: str) -> str:
     return version if version.startswith("v") else f"v{version}"
 
@@ -402,6 +465,8 @@ __all__ = [
     "IncomingCommits",
     "IncomingCommitsCacheKey",
     "RepoIncomingCommits",
+    "allocate_commit_budget",
+    "component_commit_spec",
     "core_package_commit_spec",
     "dev_update_root_commit_spec",
     "fetch_incoming_commit_groups",

@@ -43,6 +43,7 @@ ace:
       extra_mpv_args: []
   updates:
     startup_toast: true
+    startup_toast_max_commits: 20
     post_update_toast: true
     post_update_toast_diffstat: true
     indicator: true

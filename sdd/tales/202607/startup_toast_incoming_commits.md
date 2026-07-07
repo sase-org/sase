@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 16:31:14
-status: wip
+status: done
 prompt: sdd/prompts/202607/startup_toast_incoming_commits.md
 ---
 # Plan: Show grouped incoming commits in the startup "Updates available" toast

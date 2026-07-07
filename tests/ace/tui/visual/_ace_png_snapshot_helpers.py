@@ -352,6 +352,7 @@ def patch_startup_loaders(
     from sase.ace.tui.models.changespec_groups import ChangeSpecGroupingMode
     from sase.ace.tui.widgets import llm_override_indicator
     from sase.llm_provider import temporary_override
+    from sase.updates import IncomingCommits
 
     state = AgentLoadState(
         tier="tier2",
@@ -479,6 +480,16 @@ def patch_startup_loaders(
         update_toast,
         "get_cached_update_status",
         lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_fetch_incoming_commits",
+        lambda *_args, **_kwargs: IncomingCommits(
+            total=0,
+            commits=(),
+            source="unavailable",
+            error="visual snapshot stub",
+        ),
     )
 
     assert (

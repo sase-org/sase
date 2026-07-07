@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -10,8 +12,14 @@ from textual.markup import escape
 
 from sase.config.core import load_merged_config
 from sase.updates import (
+    CommitSourceSpec,
+    CommitSummary,
     DEFAULT_UPDATE_STATUS_TTL_SECONDS,
+    IncomingCommits,
     UpdateStatus,
+    allocate_commit_budget,
+    component_commit_spec,
+    fetch_incoming_commits,
     get_cached_update_status,
     read_update_status_snapshot,
     revalidate_update_status,
@@ -33,7 +41,11 @@ _TOAST_TIMEOUT_SECONDS = 12.0
 # the 10-minute default so a garbage override never silently re-enables a day.
 _DEFAULT_CHECK_TTL_MINUTES = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 60.0
 _DEFAULT_CHECK_TTL_HOURS = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 3600.0
-_MAX_COMPONENT_LINES = 3
+_DEFAULT_STARTUP_TOAST_MAX_COMMITS = 20
+_STARTUP_TOAST_DEADLINE_SECONDS = 8.0
+_COMMIT_SUBJECT_WIDTH = 58
+
+FetchIncomingCommitsFn = Callable[..., IncomingCommits]
 
 
 @dataclass(frozen=True)
@@ -45,6 +57,19 @@ class _UpdateToastConfig:
     post_update_toast_diffstat: bool = True
     indicator: bool = True
     check_ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS
+    incoming_commits_enabled: bool = True
+    startup_toast_max_commits: int = _DEFAULT_STARTUP_TOAST_MAX_COMMITS
+
+
+@dataclass(frozen=True)
+class _ToastRepoSection:
+    """One repository section in the startup update toast."""
+
+    label: str
+    installed_version: str
+    latest_version: str
+    commits: tuple[CommitSummary, ...] = ()
+    total: int = 0
 
 
 class UpdateToastMixin:
@@ -73,10 +98,18 @@ class UpdateToastMixin:
             status = get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
             if status is None:
                 return
+            if config.indicator:
+                self.call_from_thread(  # type: ignore[attr-defined]
+                    self._refresh_updates_indicator,
+                    status,
+                )
+            if not config.startup_toast or not status.has_updates:
+                return
+            sections = _build_startup_toast_sections(status, config)
             self.call_from_thread(  # type: ignore[attr-defined]
-                self._apply_startup_update_status,
+                self._show_startup_update_toast,
                 status,
-                config,
+                sections,
             )
         except Exception:
             log.debug("Startup update-status check failed", exc_info=True)
@@ -85,14 +118,19 @@ class UpdateToastMixin:
         self,
         status: UpdateStatus,
         config: _UpdateToastConfig,
+        sections: Sequence[_ToastRepoSection] | None = None,
     ) -> None:
         """Apply startup update status to all UI surfaces."""
         if config.indicator:
             self._refresh_updates_indicator(status)
         if config.startup_toast:
-            self._show_startup_update_toast(status)
+            self._show_startup_update_toast(status, sections)
 
-    def _show_startup_update_toast(self, status: UpdateStatus) -> None:
+    def _show_startup_update_toast(
+        self,
+        status: UpdateStatus,
+        sections: Sequence[_ToastRepoSection] | None = None,
+    ) -> None:
         """Show the startup update toast once per TUI session."""
         if getattr(self, "_update_toast_shown", False):
             return
@@ -100,7 +138,7 @@ class UpdateToastMixin:
             return
         self._update_toast_shown = True
         self.notify(  # type: ignore[attr-defined]
-            _format_update_toast_message(status),
+            _format_update_toast_message(status, sections),
             title=_TOAST_TITLE,
             severity="information",
             timeout=_TOAST_TIMEOUT_SECONDS,
@@ -175,6 +213,11 @@ def _load_update_toast_config() -> _UpdateToastConfig:
         ),
         indicator=_coerce_bool(updates.get("indicator"), default=True),
         check_ttl_seconds=_resolve_check_ttl_seconds(updates),
+        incoming_commits_enabled=_incoming_commits_enabled(updates),
+        startup_toast_max_commits=_coerce_nonnegative_int(
+            updates.get("startup_toast_max_commits"),
+            default=_DEFAULT_STARTUP_TOAST_MAX_COMMITS,
+        ),
     )
 
 
@@ -196,25 +239,150 @@ def _resolve_check_ttl_seconds(updates: dict[str, Any]) -> float:
     return DEFAULT_UPDATE_STATUS_TTL_SECONDS
 
 
-def _format_update_toast_message(status: UpdateStatus) -> str:
+def _incoming_commits_enabled(updates: dict[str, Any]) -> bool:
+    incoming = updates.get("incoming_commits")
+    if not isinstance(incoming, dict):
+        return True
+    return _coerce_bool(incoming.get("enabled"), default=True)
+
+
+def _build_startup_toast_sections(
+    status: UpdateStatus,
+    config: _UpdateToastConfig,
+) -> tuple[_ToastRepoSection, ...]:
+    if not config.incoming_commits_enabled or config.startup_toast_max_commits <= 0:
+        return _header_only_sections(status.components)
+    return _build_toast_commit_sections(
+        status.components,
+        fetch_fn=_fetch_incoming_commits,
+        max_total=config.startup_toast_max_commits,
+        offline=False,
+        deadline=time.monotonic() + _STARTUP_TOAST_DEADLINE_SECONDS,
+    )
+
+
+def _build_toast_commit_sections(
+    components: Sequence[OutdatedComponent],
+    *,
+    fetch_fn: FetchIncomingCommitsFn,
+    max_total: int,
+    offline: bool,
+    deadline: float,
+) -> tuple[_ToastRepoSection, ...]:
+    """Fetch, fairly truncate, and align incoming commits to update components."""
+    if max_total <= 0:
+        return _header_only_sections(components)
+    incoming_by_index: dict[int, IncomingCommits] = {}
+    targets: list[tuple[int, CommitSourceSpec]] = []
+    for index, component in enumerate(components):
+        spec = component_commit_spec(component)
+        if spec is not None:
+            targets.append((index, spec))
+    targets.sort(key=lambda item: (1 if item[1].source == "github" else 0, item[0]))
+    for index, spec in targets:
+        if time.monotonic() >= deadline:
+            break
+        try:
+            incoming_by_index[index] = fetch_fn(
+                spec,
+                limit=max_total,
+                offline=offline,
+            )
+        except Exception:  # noqa: BLE001 - update hints must never break startup.
+            log.debug(
+                "Failed to fetch incoming commits for startup update toast",
+                exc_info=True,
+            )
+    totals = [
+        _fetchable_total(incoming_by_index.get(index))
+        for index, _component in enumerate(components)
+    ]
+    allocations = allocate_commit_budget(totals, max_total)
+    sections: list[_ToastRepoSection] = []
+    for index, component in enumerate(components):
+        incoming = incoming_by_index.get(index)
+        total = totals[index]
+        allocated = allocations[index]
+        commits = incoming.commits[:allocated] if incoming is not None else ()
+        sections.append(
+            _ToastRepoSection(
+                label=component.display_name,
+                installed_version=component.installed_version or "unknown",
+                latest_version=component.latest_version or "unknown",
+                commits=tuple(commits),
+                total=total,
+            )
+        )
+    return tuple(sections)
+
+
+def _fetchable_total(incoming: IncomingCommits | None) -> int:
+    if incoming is None or incoming.source == "unavailable":
+        return 0
+    return max(0, incoming.total)
+
+
+def _header_only_sections(
+    components: Sequence[OutdatedComponent],
+) -> tuple[_ToastRepoSection, ...]:
+    return tuple(
+        _ToastRepoSection(
+            label=component.display_name,
+            installed_version=component.installed_version or "unknown",
+            latest_version=component.latest_version or "unknown",
+        )
+        for component in components
+    )
+
+
+def _format_update_toast_message(
+    status: UpdateStatus,
+    sections: Sequence[_ToastRepoSection] | None = None,
+) -> str:
     """Build the Rich/Textual markup body for the update toast."""
     accent = center_tab_accent("updates") or "#AF87FF"
     count = status.count
     noun = "update" if count == 1 else "updates"
+    repo_sections = (
+        tuple(sections)
+        if sections is not None
+        else _header_only_sections(status.components)
+    )
     lines = [f"[bold {accent}]{count} {noun}[/] available"]
-    for component in status.components[:_MAX_COMPONENT_LINES]:
-        lines.append(_component_line(component))
-    overflow = count - _MAX_COMPONENT_LINES
-    if overflow > 0:
-        lines.append(f"…and {overflow} more")
+    if repo_sections:
+        lines.append("")
+    for index, section in enumerate(repo_sections):
+        if index:
+            lines.append("")
+        lines.extend(_repo_section_lines(section, accent))
+    if repo_sections:
+        lines.append("")
     lines.append(_shortcut_line(accent))
     return "\n".join(lines)
 
 
-def _component_line(component: OutdatedComponent) -> str:
-    installed = component.installed_version or "unknown"
-    latest = component.latest_version or "unknown"
-    return f"• {escape(component.display_name)}  {escape(installed)} → {escape(latest)}"
+def _repo_section_lines(section: _ToastRepoSection, accent: str) -> list[str]:
+    lines = [
+        (
+            f"[bold {accent}]{_UPDATE_GLYPH} {escape(section.label)}[/]  "
+            f"[dim]{escape(section.installed_version)} → "
+            f"{escape(section.latest_version)}[/]"
+        )
+    ]
+    for commit in section.commits:
+        lines.append(_commit_line(commit))
+    extra = max(0, section.total - len(section.commits))
+    if extra > 0:
+        lines.append(f"  [dim]+{extra} more…[/]")
+    return lines
+
+
+def _commit_line(commit: CommitSummary) -> str:
+    subject = _ellipsize(commit.subject.strip(), _COMMIT_SUBJECT_WIDTH)
+    sha = escape(commit.short_sha.strip())
+    if not subject:
+        return f"  [dim]{sha}[/]"
+    return f"  [dim]{sha}[/]  {escape(subject)}"
 
 
 def _shortcut_line(accent: str) -> str:
@@ -233,6 +401,23 @@ def _coerce_bool(value: object, *, default: bool) -> bool:
     return default
 
 
+def _coerce_nonnegative_int(value: object, *, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value if value >= 0 else default
+    if isinstance(value, float) and value.is_integer():
+        parsed = int(value)
+        return parsed if parsed >= 0 else default
+    if isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            return default
+        return parsed if parsed >= 0 else default
+    return default
+
+
 def _coerce_positive_float(value: object, *, default: float) -> float:
     if isinstance(value, bool):
         return default
@@ -247,4 +432,17 @@ def _coerce_positive_float(value: object, *, default: float) -> float:
     return default
 
 
-__all__ = ["UpdateToastMixin"]
+def _ellipsize(value: str, width: int) -> str:
+    if width <= 0 or len(value) <= width:
+        return value
+    if width == 1:
+        return "…"
+    return f"{value[: width - 1]}…"
+
+
+_fetch_incoming_commits = fetch_incoming_commits
+
+
+__all__ = [
+    "UpdateToastMixin",
+]
