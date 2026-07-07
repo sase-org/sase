@@ -12,7 +12,12 @@ import pluggy
 if TYPE_CHECKING:
     from rich.console import Console
 
-from ._hookspec import ResolvedRef, WorkflowMetadata, WorkspaceHookSpec
+from ._hookspec import (
+    ResolvedRef,
+    VcsRepoCandidates,
+    WorkflowMetadata,
+    WorkspaceHookSpec,
+)
 from ._plugin_manager import WorkspacePluginManager
 
 _manager: WorkspacePluginManager | None = None
@@ -174,6 +179,20 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
         return result
 
     raise ValueError(f"No workspace plugin found for workflow type '{workflow_type}'")
+
+
+def list_repo_candidates(workflow_type: str, namespace: str) -> VcsRepoCandidates:
+    """List repository completion candidates via workspace provider plugins."""
+    result = _get_manager().list_repo_candidates(workflow_type, namespace)
+    if result is not None:
+        return result
+    return VcsRepoCandidates(
+        status="error",
+        error_kind="unknown",
+        message=f"No workspace plugin found for workflow type '{workflow_type}'",
+        provider_display=get_display_name(workflow_type) or workflow_type,
+        entries=(),
+    )
 
 
 def extract_change_identifier(pr_url: str) -> tuple[str, str] | None:

@@ -345,6 +345,11 @@ vcs_provider:
   use_project_pr_prefix: false
   pr_tags: {}
 
+vcs_repo_completion:
+  enabled: true
+  cache_ttl_seconds: 600
+  max_repos: 200
+
 telemetry:
   enabled: false
   prometheus:

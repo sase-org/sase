@@ -255,7 +255,8 @@ The keystone phase: everything other phases depend on, all headless (no UI).
   (`src/sase/workspace_provider/`).
 - `src/sase/xprompt/vcs_repo_completion.py`: trigger detection, accept transform, fetch orchestration + on-disk TTL
   cache (stale-if-error), filtering/ranking, bridge response builder. Define the **golden-vector table** here — it is
-  the parity contract Phase 4 mirrors.
+  the parity contract Phase 4 mirrors. Public contract objects include `VcsRepoCompletionConfig`, `VcsRepoTrigger`,
+  `VcsRepoFetchResult`, and `load_vcs_repo_completion_config`.
 - `vcs-repo-catalog` helper-bridge op (parser + handler). **Requires `/sase_memory_read` of `memory/cli_rules.md`.**
 - Config plumbing (`default_config.yml` + reader).
 - Tests: golden vectors; trigger positive/negative suites (colon/paren/HITL, `~`/URL/empty-namespace negatives,

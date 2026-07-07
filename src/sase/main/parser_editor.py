@@ -23,10 +23,14 @@ def register_editor_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="editor_helper_bridge_subcommand",
     )
     helper_bridge_subparsers.add_parser(
-        "xprompt-catalog",
+        "snippet-catalog",
         help=argparse.SUPPRESS,
     )
     helper_bridge_subparsers.add_parser(
-        "snippet-catalog",
+        "vcs-repo-catalog",
+        help=argparse.SUPPRESS,
+    )
+    helper_bridge_subparsers.add_parser(
+        "xprompt-catalog",
         help=argparse.SUPPRESS,
     )

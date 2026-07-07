@@ -1,6 +1,7 @@
 """Pluggy hook specifications for workspace provider plugins."""
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 import pluggy
 
@@ -8,6 +9,16 @@ hookspec = pluggy.HookspecMarker("sase_workspace")
 hookimpl = pluggy.HookimplMarker("sase_workspace")
 
 SUBMITTED_CHECK_EXIT_CODE_CLOSED = 20
+
+VcsRepoCandidateStatus = Literal["ok", "error"]
+VcsRepoCandidateErrorKind = Literal[
+    "auth",
+    "network",
+    "not_found",
+    "tool_missing",
+    "unsupported_namespace",
+    "unknown",
+]
 
 
 @dataclass
@@ -24,6 +35,34 @@ class ResolvedRef:
     checkout_target: str
     extra: dict[str, str] = field(default_factory=dict)
     canonical_ref: str | None = None
+
+
+@dataclass(frozen=True)
+class VcsRepoEntry:
+    """One repository completion candidate returned by a workspace plugin.
+
+    ``name`` is the repository's short name. ``ref`` is the full provider ref
+    inserted into a prompt, usually ``namespace/name``.
+    """
+
+    name: str
+    ref: str
+    description: str = ""
+    visibility: str = ""
+    is_fork: bool = False
+    is_archived: bool = False
+    pushed_at: str | None = None
+
+
+@dataclass(frozen=True)
+class VcsRepoCandidates:
+    """Repository completion response returned by workspace plugins."""
+
+    status: VcsRepoCandidateStatus
+    error_kind: VcsRepoCandidateErrorKind | None = None
+    message: str = ""
+    provider_display: str = ""
+    entries: tuple[VcsRepoEntry, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -73,6 +112,13 @@ class WorkspaceHookSpec:
 
     @hookspec(firstresult=True)
     def ws_resolve_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_list_repo_candidates(
+        self, workflow_type: str, namespace: str
+    ) -> VcsRepoCandidates | None:
+        """List repository completion candidates for a VCS namespace."""
+        ...
 
     @hookspec(firstresult=True)
     def ws_submit(

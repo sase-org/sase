@@ -7,6 +7,8 @@ import json
 import sys
 from typing import TextIO
 
+from sase.xprompt.vcs_repo_completion import vcs_repo_catalog_response
+
 from ._editor_helper_snippets import snippet_catalog_response
 from ._mobile_helper_common import (
     MobileHelperBridgeError as _MobileHelperBridgeError,
@@ -28,6 +30,17 @@ def handle_editor_helper_bridge(
         try:
             request = _read_request(stdin)
             response = snippet_catalog_response(request)
+        except (_MobileHelperBridgeError, ValueError, TypeError) as exc:
+            print(f"editor helper bridge error: {exc}", file=stderr)
+            return 2
+
+        json.dump(response, stdout, separators=(",", ":"))
+        stdout.write("\n")
+        return 0
+    if operation == "vcs-repo-catalog":
+        try:
+            request = _read_request(stdin)
+            response = vcs_repo_catalog_response(request)
         except (_MobileHelperBridgeError, ValueError, TypeError) as exc:
             print(f"editor helper bridge error: {exc}", file=stderr)
             return 2

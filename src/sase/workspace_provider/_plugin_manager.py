@@ -2,7 +2,7 @@
 
 import pluggy
 
-from ._hookspec import ResolvedRef, WorkflowMetadata
+from ._hookspec import ResolvedRef, VcsRepoCandidates, WorkflowMetadata
 
 
 class WorkspacePluginManager:
@@ -36,6 +36,14 @@ class WorkspacePluginManager:
     def resolve_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None:
         return self._pm.hook.ws_resolve_ref(  # type: ignore[no-any-return]
             ref=ref, workflow_type=workflow_type
+        )
+
+    def list_repo_candidates(
+        self, workflow_type: str, namespace: str
+    ) -> VcsRepoCandidates | None:
+        return self._pm.hook.ws_list_repo_candidates(  # type: ignore[no-any-return]
+            workflow_type=workflow_type,
+            namespace=namespace,
         )
 
     def submit(

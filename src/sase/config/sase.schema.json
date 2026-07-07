@@ -861,6 +861,30 @@
         }
       }
     },
+    "vcs_repo_completion": {
+      "type": "object",
+      "description": "Repository-name completion inside VCS workflow refs such as #gh:owner/.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable repository completion inside VCS workflow refs.",
+          "default": true
+        },
+        "cache_ttl_seconds": {
+          "type": "integer",
+          "description": "Seconds before cached repository lists are refreshed.",
+          "default": 600,
+          "minimum": 0
+        },
+        "max_repos": {
+          "type": "integer",
+          "description": "Maximum repositories requested from providers and returned to completion callers.",
+          "default": 200,
+          "minimum": 1
+        }
+      }
+    },
     "commit": {
       "type": "object",
       "description": "Configuration for SASE commit enforcement.",
