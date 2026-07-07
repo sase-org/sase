@@ -153,6 +153,7 @@ def _dev_package_plan_json(package: DevUpdatePackagePlan) -> dict[str, Any]:
         "upstream": package.upstream,
         "ahead": package.ahead,
         "behind": package.behind,
+        "fetch_error": package.fetch_error,
     }
 
 
@@ -167,6 +168,7 @@ def _dev_root_plan_json(root: DevUpdateRootPlan) -> dict[str, Any]:
         "packages": list(root.packages),
         "ahead": root.ahead,
         "behind": root.behind,
+        "fetch_error": root.fetch_error,
     }
 
 

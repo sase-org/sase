@@ -21,6 +21,7 @@ from sase.version._display import derive_display_version
 from sase.version._git import (
     GitUpstreamStatus,
     classify_git_upstream,
+    fetch_git_upstream,
     probe_git_metadata_at_ref,
 )
 from sase.version._models import CORE_DISTRIBUTION_NAME, VersionPackageRecord
@@ -46,6 +47,7 @@ def plan_dev_update(
     packages: list[DevUpdatePackagePlan] = []
     by_root: OrderedDict[str, list[VersionPackageRecord]] = OrderedDict()
     root_statuses: OrderedDict[str, GitUpstreamStatus] = OrderedDict()
+    root_fetch_errors: OrderedDict[str, str | None] = OrderedDict()
 
     for record in records:
         if record.install_type != "editable":
@@ -79,10 +81,16 @@ def plan_dev_update(
         by_root.setdefault(status.root, []).append(record)
         root_statuses.setdefault(status.root, status)
 
+    for root, status in root_statuses.items():
+        refreshed_status, fetch_error = _refresh_root_status(status)
+        root_statuses[root] = refreshed_status
+        root_fetch_errors[root] = fetch_error
+
     root_plans: list[DevUpdateRootPlan] = []
     for root, root_records in by_root.items():
         status = root_statuses[root]
-        root_status, reason = _classify_plan_status(status)
+        fetch_error = root_fetch_errors.get(root)
+        root_status, reason = _classify_plan_status(status, fetch_error=fetch_error)
         root_plans.append(
             DevUpdateRootPlan(
                 git_root=root,
@@ -94,10 +102,19 @@ def plan_dev_update(
                 packages=tuple(record.name for record in root_records),
                 ahead=status.ahead,
                 behind=status.behind,
+                fetch_error=fetch_error,
             )
         )
         for record in root_records:
-            packages.append(_from_status(record, status, root_status, reason))
+            packages.append(
+                _from_status(
+                    record,
+                    status,
+                    root_status,
+                    reason,
+                    fetch_error=fetch_error,
+                )
+            )
 
     reconcile_steps = _reconcile_steps(
         [pkg.record for pkg in packages if pkg.status == "actionable"],
@@ -112,8 +129,25 @@ def plan_dev_update(
     )
 
 
-def _classify_plan_status(
+def _refresh_root_status(
     status: GitUpstreamStatus,
+) -> tuple[GitUpstreamStatus, str | None]:
+    if status.detached or not status.has_upstream:
+        return status, None
+    try:
+        fetch_git_upstream(status)
+        return classify_git_upstream(Path(status.root)), None
+    except (
+        FileNotFoundError,
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ) as exc:
+        return status, _format_fetch_error(exc)
+
+
+def _classify_plan_status(
+    status: GitUpstreamStatus, *, fetch_error: str | None = None
 ) -> tuple[DevPackagePlanStatus, str]:
     if status.detached:
         return "skipped", "checkout is detached"
@@ -126,6 +160,8 @@ def _classify_plan_status(
     if status.strictly_behind:
         return "actionable", f"behind upstream by {status.behind} commit(s)"
     if status.up_to_date:
+        if fetch_error is not None:
+            return "skipped", f"fetch failed; using cached upstream ref: {fetch_error}"
         return "skipped", "already current"
     if status.ahead and status.ahead > 0:
         return "skipped", "checkout is ahead of upstream"
@@ -137,6 +173,8 @@ def _from_status(
     status: GitUpstreamStatus,
     plan_status: DevPackagePlanStatus,
     reason: str,
+    *,
+    fetch_error: str | None = None,
 ) -> DevUpdatePackagePlan:
     latest_version = _latest_version(record, status)
     return DevUpdatePackagePlan(
@@ -151,6 +189,7 @@ def _from_status(
         remote_branch=status.remote_branch,
         ahead=status.ahead,
         behind=status.behind,
+        fetch_error=fetch_error,
     )
 
 
@@ -176,6 +215,15 @@ def _latest_version(
         record.source_version or record.distribution_version,
         result.metadata,
     )
+
+
+def _format_fetch_error(exc: BaseException) -> str:
+    if isinstance(exc, subprocess.CalledProcessError):
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return stderr.strip() or str(exc)
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return "git fetch timed out"
+    return str(exc)
 
 
 def _reconcile_steps(

@@ -77,6 +77,7 @@ class DevUpdatePackagePlan:
     remote_branch: str | None = None
     ahead: int | None = None
     behind: int | None = None
+    fetch_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +93,7 @@ class DevUpdateRootPlan:
     packages: tuple[str, ...]
     ahead: int | None = None
     behind: int | None = None
+    fetch_error: str | None = None
 
 
 @dataclass(frozen=True)

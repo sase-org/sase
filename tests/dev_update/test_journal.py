@@ -52,6 +52,7 @@ def _plan() -> DevUpdatePlan:
         remote_branch="main",
         ahead=0,
         behind=1,
+        fetch_error="network down",
     )
     return DevUpdatePlan(
         packages=(package,),
@@ -64,6 +65,7 @@ def _plan() -> DevUpdatePlan:
                 remote="origin",
                 remote_branch="main",
                 packages=("sase",),
+                fetch_error="network down",
             ),
         ),
         reconcile_steps=(
@@ -118,6 +120,8 @@ def test_dev_update_journal_record_summarizes_plan_result_and_command_tails() ->
     record = _dev_update_journal_record(plan, _result(plan))
 
     assert record["schema_version"] == 1
+    assert record["plan"]["packages"][0]["fetch_error"] == "network down"
+    assert record["plan"]["roots"][0]["fetch_error"] == "network down"
     assert record["plan"]["reconcile_steps"][0]["kind"] == "rust_health_check"
     assert record["plan"]["reconcile_steps"][0]["repair_command"][-1] == (
         "sase-core-rs<0.4.0,>=0.3.2"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -73,6 +74,131 @@ def _probe(_root: Path, _ref: str = "HEAD") -> GitProbeResult:
             dirty=False,
         )
     )
+
+
+@pytest.fixture(autouse=True)
+def _stub_fetch_git_upstream(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(plan_mod, "fetch_git_upstream", lambda _status: None)
+
+
+def test_plan_dev_update_fetches_before_classifying_root_actionability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _record("sase", role="host", source_root="/repo")
+    fetched = False
+    classify_calls: list[tuple[str, bool]] = []
+
+    def classify(root: Path) -> GitUpstreamStatus:
+        classify_calls.append((str(root), fetched))
+        return _status("/repo", behind=2 if fetched else 0)
+
+    def fetch(status: GitUpstreamStatus) -> None:
+        nonlocal fetched
+        assert status.behind == 0
+        fetched = True
+
+    monkeypatch.setattr(plan_mod, "classify_git_upstream", classify)
+    monkeypatch.setattr(plan_mod, "fetch_git_upstream", fetch)
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update([host], host_record=host)
+
+    assert classify_calls == [("/repo", False), ("/repo", True)]
+    assert plan.roots[0].status == "actionable"
+    assert plan.roots[0].behind == 2
+    assert [pkg.record.name for pkg in plan.actionable] == ["sase"]
+
+
+def test_plan_dev_update_fetches_once_per_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _record("sase", role="host", source_root="/repo")
+    plugin = _record("sase-github", role="plugin", source_root="/repo/plugins/github")
+    fetches: list[GitUpstreamStatus] = []
+
+    monkeypatch.setattr(
+        plan_mod, "classify_git_upstream", lambda _root: _status("/repo")
+    )
+    monkeypatch.setattr(plan_mod, "fetch_git_upstream", fetches.append)
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update([host, plugin], host_record=host)
+
+    assert len(fetches) == 1
+    assert plan.roots[0].packages == ("sase", "sase-github")
+
+
+def test_plan_dev_update_fetch_failure_degrades_honestly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = _record("sase", role="host", source_root="/repo/current")
+    behind = _record("sase-github", role="plugin", source_root="/repo/behind")
+    statuses = {
+        "/repo/current": _status("/repo/current", behind=0),
+        "/repo/behind": _status("/repo/behind", behind=3),
+    }
+
+    def classify(root: Path) -> GitUpstreamStatus:
+        return statuses[str(root)]
+
+    def fail_fetch(_status: GitUpstreamStatus) -> None:
+        raise subprocess.CalledProcessError(1, ["git"], stderr="network down")
+
+    monkeypatch.setattr(plan_mod, "classify_git_upstream", classify)
+    monkeypatch.setattr(plan_mod, "fetch_git_upstream", fail_fetch)
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update([current, behind], host_record=current)
+
+    current_root = plan.roots[0]
+    behind_root = plan.roots[1]
+    assert current_root.status == "skipped"
+    assert "fetch failed; using cached upstream ref: network down" in (
+        current_root.reason
+    )
+    assert current_root.fetch_error == "network down"
+    assert plan.packages[0].fetch_error == "network down"
+    assert behind_root.status == "actionable"
+    assert behind_root.reason == "behind upstream by 3 commit(s)"
+    assert behind_root.fetch_error == "network down"
+    assert plan.packages[1].status == "actionable"
+    assert plan.packages[1].fetch_error == "network down"
+
+
+def test_plan_dev_update_does_not_fetch_no_upstream_or_detached_roots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    no_upstream = _record("sase", role="host", source_root="/repo/no-upstream")
+    detached = _record("sase-core-rs", role="core", source_root="/repo/detached")
+    statuses = {
+        "/repo/no-upstream": _status(
+            "/repo/no-upstream", upstream=None, ahead=None, behind=None
+        ),
+        "/repo/detached": _status(
+            "/repo/detached",
+            detached=True,
+            upstream=None,
+            ahead=None,
+            behind=None,
+        ),
+    }
+
+    def classify(root: Path) -> GitUpstreamStatus:
+        return statuses[str(root)]
+
+    def fail_fetch(_status: GitUpstreamStatus) -> None:
+        raise AssertionError("no-upstream and detached roots must not fetch")
+
+    monkeypatch.setattr(plan_mod, "classify_git_upstream", classify)
+    monkeypatch.setattr(plan_mod, "fetch_git_upstream", fail_fetch)
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update([no_upstream, detached], host_record=no_upstream)
+
+    assert plan.actionable == ()
+    assert [root.fetch_error for root in plan.roots] == [None, None]
+    assert "no upstream" in plan.roots[0].reason
+    assert "detached" in plan.roots[1].reason
 
 
 def test_plan_dev_update_dedupes_roots_and_builds_uv_reconcile(

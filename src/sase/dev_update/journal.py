@@ -66,6 +66,7 @@ def _dev_update_journal_record(
                     "git_root": package.git_root,
                     "current_version": package.current_version,
                     "latest_version": package.latest_version,
+                    "fetch_error": package.fetch_error,
                 }
                 for package in plan.packages
             ],
@@ -76,6 +77,7 @@ def _dev_update_journal_record(
                     "reason": root.reason,
                     "upstream": root.upstream,
                     "packages": list(root.packages),
+                    "fetch_error": root.fetch_error,
                 }
                 for root in plan.roots
             ],
