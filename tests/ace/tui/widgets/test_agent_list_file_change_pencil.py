@@ -73,6 +73,35 @@ class TestAgentListFileChangePencil:
         assert "✏️" not in left.plain
         assert "✏️" not in suffix.plain
 
+    def test_row_with_linked_file_change_hint_renders_pencil(self) -> None:
+        agent = make_agent(linked_file_change_hint=True, llm_provider=None)
+
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️"
+
+    def test_row_with_false_linked_file_change_hint_omits_pencil(self) -> None:
+        agent = make_agent(linked_file_change_hint=False, llm_provider=None)
+
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" not in left.plain
+        assert "✏️" not in suffix.plain
+
+    def test_linked_change_overrides_bookkeeping_primary_diff(self) -> None:
+        agent = make_agent(
+            diff_path="/tmp/sase/demo.diff",
+            diff_has_real_edits=False,
+            linked_file_change_hint=True,
+            llm_provider=None,
+        )
+
+        left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "✏️" not in left.plain
+        assert suffix.plain == "✏️"
+
     def test_persisted_classification_wins_over_live_hint(self) -> None:
         # A persisted bookkeeping-only classification stays authoritative even
         # if a stale live hint says otherwise.

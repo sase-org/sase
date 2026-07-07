@@ -10,6 +10,7 @@ import pytest
 
 from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
+from sase.linked_repos import record_opened_linked_repo
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 
 
@@ -42,6 +43,7 @@ class _FakeLinkedDiffProvider:
 
 @pytest.fixture(autouse=True)
 def _clear_linked_delta_caches() -> None:
+    linked_deltas_mod._linked_diff_text_cache.clear()
     linked_deltas_mod._linked_delta_cache.clear()
     linked_deltas_mod._selected_agent_linked_delta_cache.clear()
     linked_deltas_mod._selected_agent_cache_monotonic.clear()
@@ -217,3 +219,86 @@ def test_should_refresh_linked_delta_groups_is_memory_only(
 
     monkeypatch.setattr(linked_deltas_mod.time, "monotonic", lambda: 12.0)
     assert linked_deltas_mod.should_refresh_linked_delta_groups(agent) is True
+
+
+def test_compute_linked_delta_groups_includes_opened_workspace_records(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    opened_workspace = tmp_path / "sase-core_9"
+    artifacts_dir.mkdir()
+    opened_workspace.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    record_opened_linked_repo(
+        "sase-core",
+        str(opened_workspace),
+        reason="inspect linked repo",
+        opened_at="2026-07-07T16:00:00+00:00",
+    )
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace={str(opened_workspace): " M src/lib.rs"},
+        diff_by_workspace={
+            str(opened_workspace): """diff --git a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1 +1 @@
+-old
++new
+""",
+        },
+    )
+    _patch_provider(monkeypatch, provider)
+    agent = _agent()
+    agent.artifacts_dir = str(artifacts_dir)
+
+    groups = linked_deltas_mod.compute_linked_delta_groups(agent)
+
+    assert [group.repo_name for group in groups] == ["sase-core"]
+    assert groups[0].entries == (
+        DeltaEntry(
+            path="src/lib.rs",
+            change_type="M",
+            line_stats=DeltaLineStats(modified=1),
+        ),
+    )
+    assert provider.has_changes_calls == [str(opened_workspace)]
+
+
+def test_opened_workspace_skips_static_none_strategy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    opened_workspace = tmp_path / "sase-core_9"
+    artifacts_dir.mkdir()
+    opened_workspace.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    record_opened_linked_repo(
+        "sase-core",
+        str(opened_workspace),
+        reason="manual open",
+        opened_at="2026-07-07T16:00:00+00:00",
+    )
+
+    def fail_provider(_workspace_dir: str) -> Any:
+        raise AssertionError("workspace.strategy=none should not be probed")
+
+    monkeypatch.setattr(
+        linked_deltas_mod,
+        "resolve_vcs_provider_for_live_diff",
+        fail_provider,
+    )
+    agent = _agent(
+        linked_repos=(
+            LinkedRepoMetadata(
+                name="sase-core",
+                workspace_dir=str(opened_workspace),
+                workspace_strategy="none",
+            ),
+        )
+    )
+    agent.artifacts_dir = str(artifacts_dir)
+
+    assert linked_deltas_mod.compute_linked_delta_groups(agent) == ()
+    assert linked_deltas_mod.linked_agent_file_change_hint(agent) is None

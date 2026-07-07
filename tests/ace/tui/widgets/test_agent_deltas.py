@@ -31,6 +31,7 @@ from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 
 @pytest.fixture(autouse=True)
 def _clear_linked_delta_caches() -> None:
+    linked_deltas_mod._linked_diff_text_cache.clear()
     linked_deltas_mod._linked_delta_cache.clear()
     linked_deltas_mod._selected_agent_linked_delta_cache.clear()
     linked_deltas_mod._selected_agent_cache_monotonic.clear()

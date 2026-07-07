@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Lock
+from typing import NamedTuple
 
 from sase.agent.status_buckets import status_bucket_for_values
 from sase.ace.changespec.models import DeltaEntry
@@ -16,6 +17,7 @@ from ...models.agent import Agent, LinkedRepoMetadata
 from ._diff import (
     DIFF_CACHE_TTL_SECONDS,
     git_index_signature_for_live_diff,
+    resolve_agent_diff_source,
     resolve_vcs_provider_for_live_diff,
 )
 
@@ -42,6 +44,7 @@ LinkedDeltaCacheKey = tuple[
     int,  # TTL bucket
 ]
 
+_linked_diff_text_cache: dict[LinkedDeltaCacheKey, str | None] = {}
 _linked_delta_cache: dict[LinkedDeltaCacheKey, LinkedDeltaGroup | None] = {}
 _selected_agent_linked_delta_cache: dict[
     tuple[object, ...],
@@ -62,25 +65,107 @@ def _existing_workspace_dir(workspace_dir: str) -> str | None:
     return os.path.normpath(expanded)
 
 
+def _normalized_workspace_dir(workspace_dir: str) -> str | None:
+    if not workspace_dir.strip():
+        return None
+    return os.path.normpath(os.path.expanduser(workspace_dir))
+
+
+class _LinkedWorkspaceCandidate(NamedTuple):
+    repo_name: str
+    workspace_dir: str
+
+
+def _linked_metadata_agents(agent: Agent) -> tuple[Agent, ...]:
+    source = resolve_agent_diff_source(agent)
+    if source is agent:
+        return (agent,)
+    return (agent, source)
+
+
 def _suffix_workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
     repos: list[LinkedRepoMetadata] = []
-    seen_names: set[str] = set()
-    for repo in agent.linked_repos:
-        if repo.name in seen_names:
-            continue
-        seen_names.add(repo.name)
-        if repo.workspace_strategy != "suffix":
-            continue
-        if not repo.workspace_dir:
-            continue
-        repos.append(repo)
+    seen: set[tuple[str, str]] = set()
+    for metadata_agent in _linked_metadata_agents(agent):
+        for repo in metadata_agent.linked_repos:
+            if repo.workspace_strategy != "suffix":
+                continue
+            workspace_dir = _normalized_workspace_dir(repo.workspace_dir)
+            if workspace_dir is None:
+                continue
+            key = (repo.name, workspace_dir)
+            if key in seen:
+                continue
+            seen.add(key)
+            repos.append(
+                LinkedRepoMetadata(
+                    name=repo.name,
+                    workspace_dir=workspace_dir,
+                    workspace_strategy=repo.workspace_strategy,
+                )
+            )
     return tuple(repos)
 
 
-def _eligible_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
-    if not _status_allows_linked_deltas(agent.status):
+def _static_none_workspace_names(agent: Agent) -> frozenset[str]:
+    return frozenset(
+        repo.name
+        for metadata_agent in _linked_metadata_agents(agent)
+        for repo in metadata_agent.linked_repos
+        if repo.workspace_strategy == "none"
+    )
+
+
+def _has_possible_opened_workspace_markers(agent: Agent) -> bool:
+    if agent.artifacts_dir:
+        return True
+    return any(bool(child.artifacts_dir) for child in agent.followup_agents)
+
+
+def _eligible_static_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
+    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
         return ()
     return _suffix_workspace_linked_repos(agent)
+
+
+def _eligible_linked_workspace_candidates(
+    agent: Agent,
+) -> tuple[_LinkedWorkspaceCandidate, ...]:
+    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
+        return ()
+
+    candidates: list[_LinkedWorkspaceCandidate] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(repo_name: str, workspace_dir: str) -> None:
+        normalized = _normalized_workspace_dir(workspace_dir)
+        if normalized is None:
+            return
+        key = (repo_name, normalized)
+        if key in seen:
+            return
+        seen.add(key)
+        candidates.append(_LinkedWorkspaceCandidate(repo_name, normalized))
+
+    for repo in _suffix_workspace_linked_repos(agent):
+        add(repo.name, repo.workspace_dir)
+
+    static_none_names = _static_none_workspace_names(agent)
+    try:
+        from sase.ace.tui.opened_workspaces import (
+            load_opened_workspaces_for_agent_context,
+        )
+
+        opened_events = load_opened_workspaces_for_agent_context(agent)
+    except Exception:
+        opened_events = ()
+
+    for event in opened_events:
+        if event.name in static_none_names:
+            continue
+        add(event.name, event.workspace_dir)
+
+    return tuple(candidates)
 
 
 def should_refresh_linked_delta_groups(agent: Agent) -> bool:
@@ -89,7 +174,11 @@ def should_refresh_linked_delta_groups(agent: Agent) -> bool:
     This is intentionally an in-memory decision so the render path can ask it
     without touching Git or the filesystem.
     """
-    if not _eligible_linked_repos(agent):
+    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
+        return False
+    if not _eligible_static_linked_repos(
+        agent
+    ) and not _has_possible_opened_workspace_markers(agent):
         return False
 
     identity = agent.identity
@@ -102,7 +191,7 @@ def should_refresh_linked_delta_groups(agent: Agent) -> bool:
 
 def get_cached_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
     """Return cached linked delta groups for *agent* without doing I/O."""
-    if not _eligible_linked_repos(agent):
+    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
         return ()
     with _linked_delta_cache_lock:
         return _selected_agent_linked_delta_cache.get(agent.identity, ())
@@ -147,19 +236,7 @@ def _compute_repo_group(
         if key in _linked_delta_cache:
             return _linked_delta_cache[key]
 
-    try:
-        has_changes_ok, changes = provider.has_local_changes(workspace_dir)  # type: ignore[attr-defined]
-    except Exception:
-        return None
-    if not has_changes_ok or not changes:
-        with _linked_delta_cache_lock:
-            _linked_delta_cache[key] = None
-        return None
-
-    try:
-        _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)  # type: ignore[attr-defined]
-    except Exception:
-        return None
+    diff_text = _fetch_repo_diff_text(key, provider, workspace_dir)
     if not diff_text:
         with _linked_delta_cache_lock:
             _linked_delta_cache[key] = None
@@ -184,6 +261,62 @@ def _compute_repo_group(
     return group
 
 
+def _fetch_repo_diff_text(
+    key: LinkedDeltaCacheKey,
+    provider: object,
+    workspace_dir: str,
+) -> str | None:
+    with _linked_delta_cache_lock:
+        if key in _linked_diff_text_cache:
+            return _linked_diff_text_cache[key]
+
+    try:
+        has_changes_ok, changes = provider.has_local_changes(workspace_dir)  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    if not has_changes_ok or not changes:
+        with _linked_delta_cache_lock:
+            _linked_diff_text_cache[key] = None
+        return None
+
+    try:
+        _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    if not diff_text:
+        with _linked_delta_cache_lock:
+            _linked_diff_text_cache[key] = None
+        return None
+
+    with _linked_delta_cache_lock:
+        _linked_diff_text_cache[key] = diff_text
+    return diff_text
+
+
+def linked_agent_file_change_hint(agent: Agent) -> bool | None:
+    """Return whether live linked workspaces have real edits for *agent*."""
+    candidates = _eligible_linked_workspace_candidates(agent)
+    if not candidates:
+        return None
+
+    from ...models._diff_badge import diff_text_has_real_edits
+
+    saw_probe = False
+    for candidate in candidates:
+        workspace_dir = _existing_workspace_dir(candidate.workspace_dir)
+        if workspace_dir is None:
+            continue
+        keyed_provider = _cache_key(agent, candidate.repo_name, workspace_dir)
+        if keyed_provider is None:
+            continue
+        key, provider = keyed_provider
+        diff_text = _fetch_repo_diff_text(key, provider, workspace_dir)
+        saw_probe = True
+        if diff_text and diff_text_has_real_edits(diff_text):
+            return True
+    return False if saw_probe or candidates else None
+
+
 def compute_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
     """Compute linked-repo delta groups for *agent*.
 
@@ -191,11 +324,11 @@ def compute_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
     Textual event loop.
     """
     groups: list[LinkedDeltaGroup] = []
-    for repo in _eligible_linked_repos(agent):
-        workspace_dir = _existing_workspace_dir(repo.workspace_dir)
+    for candidate in _eligible_linked_workspace_candidates(agent):
+        workspace_dir = _existing_workspace_dir(candidate.workspace_dir)
         if workspace_dir is None:
             continue
-        group = _compute_repo_group(agent, repo.name, workspace_dir)
+        group = _compute_repo_group(agent, candidate.repo_name, workspace_dir)
         if group is not None and group.entries:
             groups.append(group)
 

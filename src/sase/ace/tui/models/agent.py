@@ -116,6 +116,10 @@ class Agent:
     # authoritative for completed rows. None means "no live signal yet".
     live_file_change_hint: bool | None = field(default=None, compare=False)
 
+    # Precomputed badge classification for persisted linked-repo commit diffs.
+    # None means no linked diff metadata was available to classify.
+    linked_file_change_hint: bool | None = field(default=None, compare=False)
+
     # Additional file paths (plans, etc.) for multi-file panel display
     extra_files: list[str] = field(default_factory=list)
 

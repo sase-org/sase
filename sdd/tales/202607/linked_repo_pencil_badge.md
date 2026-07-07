@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 14:01:54
-status: wip
+status: done
 prompt: sdd/prompts/202607/linked_repo_pencil_badge.md
 ---
 # Linked Repo Pencil Badge Plan

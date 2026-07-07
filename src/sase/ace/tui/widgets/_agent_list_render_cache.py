@@ -67,8 +67,13 @@ def agent_file_change_hint(agent: Agent) -> bool:
         # child's diff is propagated onto the row, normal precedence resumes.
         return bool(agent.live_file_change_hint)
     classified = agent.diff_has_real_edits
-    if classified is not None:
-        return classified
+    if classified is True:
+        return True
+    linked = agent.linked_file_change_hint
+    if linked is True:
+        return True
+    if classified is False or linked is False:
+        return False
     live = agent.live_file_change_hint
     if live is not None:
         return live

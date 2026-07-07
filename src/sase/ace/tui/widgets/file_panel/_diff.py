@@ -276,14 +276,15 @@ def live_agent_file_change_hint(agent: Agent) -> bool | None:
     """Classify an active agent's live workspace edits for the Agents-tab badge.
 
     Mirrors the detail pane's live-diff path so a running agent's row shows the
-    pencil badge as soon as its workspace has real edits, even before a
-    ``diff_path`` is persisted at finalization.
+    pencil badge as soon as its primary workspace or linked workspaces have
+    real edits, even before a ``diff_path`` is persisted at finalization.
 
     Returns ``None`` when the live signal does not apply: the resolved diff
     source already has a persisted ``diff_path`` (the persisted classification
     is authoritative), the agent is terminal, or no workspace/VCS provider
-    resolves. Otherwise returns whether the live diff touches non-bookkeeping
-    paths, using the same exclusion as :func:`diff_has_real_edits`.
+    resolves. Otherwise returns whether the live primary or linked diff touches
+    non-bookkeeping paths, using the same exclusion as
+    :func:`diff_has_real_edits`.
     """
     diff_source = _resolve_agent_diff_source(agent)
     if diff_source.diff_path:
@@ -292,15 +293,25 @@ def live_agent_file_change_hint(agent: Agent) -> bool | None:
         return None
 
     diff_text = get_agent_diff(agent)
+    primary_hint = False
     if not diff_text:
         # No resolvable workspace, a provider error, or a genuinely clean
         # working tree all collapse to "no live edits": fail closed so the row
         # badge stays stable rather than guessing a pencil.
+        primary_hint = False
+    else:
+        from ...models._diff_badge import diff_text_has_real_edits
+
+        primary_hint = diff_text_has_real_edits(diff_text)
+
+    from ._linked_deltas import linked_agent_file_change_hint
+
+    linked_hint = linked_agent_file_change_hint(agent)
+    if primary_hint or linked_hint is True:
+        return True
+    if linked_hint is False:
         return False
-
-    from ...models._diff_badge import diff_text_has_real_edits
-
-    return diff_text_has_real_edits(diff_text)
+    return primary_hint
 
 
 def get_agent_diff(agent: Agent) -> str | None:

@@ -4,6 +4,22 @@ from ._diff_badge import diff_has_real_edits
 from .agent import Agent
 
 
+def _classify_linked_commit_diffs(agent: Agent) -> bool | None:
+    """Classify persisted non-primary commit diffs for the row badge."""
+    from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_diffs
+
+    linked_diffs = [
+        commit_diff
+        for commit_diff in agent_commit_diffs(agent)
+        if not commit_diff.is_primary
+    ]
+    if not linked_diffs:
+        return None
+    return any(
+        diff_has_real_edits(commit_diff.diff_path) for commit_diff in linked_diffs
+    )
+
+
 def classify_live_file_change_hint(agent: Agent) -> bool | None:
     """Compute the active-workspace pencil hint for a row without a diff_path.
 
@@ -54,3 +70,4 @@ def classify_diff_badges(agents: list[Agent]) -> None:
         agent.diff_has_real_edits = (
             diff_has_real_edits(agent.diff_path) if agent.diff_path else None
         )
+        agent.linked_file_change_hint = _classify_linked_commit_diffs(agent)
