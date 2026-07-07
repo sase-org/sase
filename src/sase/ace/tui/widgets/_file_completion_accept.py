@@ -8,15 +8,18 @@ from sase.ace.tui.widgets._file_completion_base import FileCompletionBaseMixin
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
+from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     detect_xprompt_arg_hint_at_cursor,
     xprompt_completion_skeleton,
 )
+from sase.workspace_provider import VcsRepoEntry
 from sase.xprompt.vcs_project_completion import (
     VcsProjectEntry,
     apply_vcs_project_selection,
 )
+from sase.xprompt.vcs_repo_completion import apply_vcs_repo_selection
 
 
 class FileCompletionAcceptMixin(FileCompletionBaseMixin):
@@ -41,6 +44,22 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         new_text = apply_vcs_project_selection(
             old_text, trigger.span, entry.display_tag
         )
+        self._replace_absolute_range(0, len(old_text), new_text)
+        self._clear_file_completion()
+        return True
+
+    def _accept_vcs_repo_completion(self, selected: CompletionCandidate) -> bool:
+        """Apply the canonical expansion for the selected repository."""
+        entry = selected.metadata
+        if not isinstance(entry, VcsRepoEntry):
+            self._clear_file_completion()
+            return False
+        trigger = self._get_vcs_repo_trigger()
+        if trigger is None:
+            self._clear_file_completion()
+            return False
+        old_text = self.text
+        new_text = apply_vcs_repo_selection(old_text, trigger, entry.ref)
         self._replace_absolute_range(0, len(old_text), new_text)
         self._clear_file_completion()
         return True
@@ -111,8 +130,16 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             self._update_file_completion_panel("" if result is None else result.prefix)
             return True
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
-            trigger = self._get_vcs_project_trigger()
-            self._update_file_completion_panel("" if trigger is None else trigger.query)
+            project_trigger = self._get_vcs_project_trigger()
+            self._update_file_completion_panel(
+                "" if project_trigger is None else project_trigger.query
+            )
+            return True
+        if self._completion_kind == VCS_REPO_COMPLETION_KIND:
+            repo_trigger = self._get_vcs_repo_trigger()
+            self._update_file_completion_panel(
+                "" if repo_trigger is None else repo_trigger.query
+            )
             return True
         ctx = self._get_token_context()
         self._update_file_completion_panel("" if ctx is None else ctx[3])
@@ -125,6 +152,8 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         selected = self._file_completion_candidates[self._file_completion_index]
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
             return self._accept_vcs_project_completion(selected)
+        if self._completion_kind == VCS_REPO_COMPLETION_KIND:
+            return self._accept_vcs_repo_completion(selected)
         if self._completion_kind == "jinja":
             result = build_jinja_completion_result(
                 self.text,

@@ -105,7 +105,6 @@ class VcsRepoCompletionConfig:
     max_repos: int = DEFAULT_VCS_REPO_MAX_REPOS
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
 @dataclass(frozen=True)
 class VcsRepoTrigger:
     """A detected VCS repository completion context."""
@@ -132,7 +131,6 @@ class VcsRepoTrigger:
         return (self.ref_start, self.ref_end)
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
 @dataclass(frozen=True)
 class VcsRepoFetchResult:
     """Repository completion data after cache/fetch orchestration."""
@@ -155,7 +153,6 @@ class _CachedRepoPayload:
 _MEMO_CACHE: dict[tuple[str, str], _CachedRepoPayload] = {}
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
 def load_vcs_repo_completion_config(
     config: dict[str, Any] | None = None,
 ) -> VcsRepoCompletionConfig:
@@ -189,7 +186,6 @@ def _coerce_int(value: object, *, default: int, minimum: int) -> int:
     return max(value, minimum)
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
 def find_vcs_repo_trigger(
     prompt: str,
     cursor: int,
@@ -290,7 +286,6 @@ def _find_ref_end(
     return end, end
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
 def apply_vcs_repo_selection(
     prompt: str,
     trigger: VcsRepoTrigger,
@@ -308,7 +303,6 @@ def apply_vcs_repo_selection(
     return f"{before}{selected_ref}{suffix}{after}"
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
 def fetch_repo_candidates(
     workflow_type: str,
     namespace: str,
@@ -373,7 +367,42 @@ def fetch_repo_candidates(
     )
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
+def peek_cached_repo_candidates(
+    workflow_type: str,
+    namespace: str,
+    *,
+    config: VcsRepoCompletionConfig | None = None,
+) -> VcsRepoFetchResult | None:
+    """Return fresh cached repo candidates without invoking a provider.
+
+    This is the TUI hot-path helper: it may read the small on-disk cache file,
+    but it never calls :func:`workspace_provider.list_repo_candidates`, so a
+    completion menu can decide whether to render rows immediately or show a
+    loading placeholder before scheduling a worker.
+    """
+    settings = config or load_vcs_repo_completion_config()
+    if not settings.enabled:
+        return VcsRepoFetchResult(status="ok", entries=())
+
+    key = (workflow_type, namespace)
+    now = time.time()
+    memo_payload = _MEMO_CACHE.get(key)
+    if memo_payload is not None and _is_fresh(
+        memo_payload,
+        now,
+        settings.cache_ttl_seconds,
+    ):
+        return _result_from_cache(memo_payload)
+
+    disk_payload = _read_cache_payload(_cache_path(workflow_type, namespace))
+    if disk_payload is None:
+        return None
+    _MEMO_CACHE[key] = disk_payload
+    if not _is_fresh(disk_payload, now, settings.cache_ttl_seconds):
+        return None
+    return _result_from_cache(disk_payload)
+
+
 def filter_vcs_repo_entries(
     entries: list[VcsRepoEntry] | tuple[VcsRepoEntry, ...],
     query: str,
@@ -569,5 +598,6 @@ __all__ = [
     "filter_vcs_repo_entries",
     "find_vcs_repo_trigger",
     "load_vcs_repo_completion_config",
+    "peek_cached_repo_candidates",
     "vcs_repo_catalog_response",
 ]

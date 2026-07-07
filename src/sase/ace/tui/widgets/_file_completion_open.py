@@ -25,6 +25,12 @@ from sase.ace.tui.widgets.vcs_project_completion import (
     build_no_active_projects_placeholder,
     vcs_project_completion_candidates,
 )
+from sase.ace.tui.widgets.vcs_repo_completion import (
+    VCS_REPO_COMPLETION_KIND,
+    build_loading_placeholder,
+    vcs_repo_completion_candidates,
+)
+from sase.xprompt.vcs_repo_completion import peek_cached_repo_candidates
 from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
 
 if TYPE_CHECKING:
@@ -70,6 +76,41 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         self._update_file_completion_panel(trigger.query)
         return True
 
+    def _try_vcs_repo_completion(self) -> bool:
+        """Open the repository completion menu inside a VCS workflow ref."""
+        bar = self._find_prompt_bar()
+        if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
+            return False
+        trigger = self._get_vcs_repo_trigger()
+        if trigger is None:
+            return False
+
+        key = (trigger.workflow, trigger.namespace)
+        result = peek_cached_repo_candidates(trigger.workflow, trigger.namespace)
+        if result is None:
+            candidates = [build_loading_placeholder(trigger.namespace)]
+            self._vcs_repo_completion_key = key
+            self._vcs_repo_completion_result = None
+            self._schedule_vcs_repo_completion_fetch(trigger)
+        else:
+            candidates, used_placeholder = vcs_repo_completion_candidates(
+                result,
+                trigger.query,
+                trigger.namespace,
+            )
+            if not candidates and not used_placeholder:
+                self._clear_file_completion()
+                return True
+            self._vcs_repo_completion_key = key
+            self._vcs_repo_completion_result = result
+
+        self._completion_kind = VCS_REPO_COMPLETION_KIND
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(trigger.query)
+        return True
+
     def _try_auto_prompt_reference_completion(self) -> bool:
         """Open the directive or xprompt/skill menu while typing a reference.
 
@@ -85,6 +126,8 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
             return False
 
         settings = self._prompt_completion_settings()
+        if settings.auto_xprompt_menu and self._try_vcs_repo_completion():
+            return True
         if settings.auto_directive_menu:
             if self._try_auto_directive_arg_completion():
                 return True
@@ -207,6 +250,8 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
     def _try_file_completion_tab(self) -> bool:
         """Handle Ctrl+T-driven completion for path, xprompt, or history."""
         if self._try_vcs_project_completion():
+            return True
+        if self._try_vcs_repo_completion():
             return True
 
         cursor_offset = self._absolute_offset(self.cursor_location)

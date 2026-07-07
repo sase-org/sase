@@ -17,6 +17,10 @@ from sase.ace.tui.widgets.vcs_project_completion import (
     build_no_active_projects_placeholder,
     vcs_project_completion_candidates,
 )
+from sase.ace.tui.widgets.vcs_repo_completion import (
+    VCS_REPO_COMPLETION_KIND,
+    vcs_repo_completion_candidates,
+)
 
 
 class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
@@ -60,17 +64,19 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             return
 
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
-            trigger = self._get_vcs_project_trigger()
-            if trigger is None:
+            project_trigger = self._get_vcs_project_trigger()
+            if project_trigger is None:
                 self._clear_file_completion()
                 return
-            candidates, catalog_empty = vcs_project_completion_candidates(trigger.query)
+            candidates, catalog_empty = vcs_project_completion_candidates(
+                project_trigger.query
+            )
             if catalog_empty:
                 self._file_completion_candidates = [
                     build_no_active_projects_placeholder()
                 ]
                 self._file_completion_index = 0
-                self._update_file_completion_panel(trigger.query)
+                self._update_file_completion_panel(project_trigger.query)
                 return
             if not candidates:
                 self._clear_file_completion()
@@ -87,7 +93,39 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                     if candidate.name == previous:
                         self._file_completion_index = i
                         break
-            self._update_file_completion_panel(trigger.query)
+            self._update_file_completion_panel(project_trigger.query)
+            return
+
+        if self._completion_kind == VCS_REPO_COMPLETION_KIND:
+            repo_trigger = self._get_vcs_repo_trigger()
+            if repo_trigger is None:
+                self._clear_file_completion()
+                return
+            repo_result = self._vcs_repo_completion_result
+            if repo_result is None:
+                self._update_file_completion_panel(repo_trigger.query)
+                return
+            candidates, used_placeholder = vcs_repo_completion_candidates(
+                repo_result,
+                repo_trigger.query,
+                repo_trigger.namespace,
+            )
+            if not candidates and not used_placeholder:
+                self._clear_file_completion()
+                return
+            previous = None
+            if self._file_completion_candidates:
+                previous = self._file_completion_candidates[
+                    self._file_completion_index
+                ].name
+            self._file_completion_candidates = candidates
+            self._file_completion_index = 0
+            if previous is not None:
+                for i, candidate in enumerate(candidates):
+                    if candidate.name == previous:
+                        self._file_completion_index = i
+                        break
+            self._update_file_completion_panel(repo_trigger.query)
             return
 
         # file_history mode has no active token - any edit that creates one

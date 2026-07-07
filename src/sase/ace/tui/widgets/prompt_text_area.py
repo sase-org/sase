@@ -29,6 +29,7 @@ from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
 )
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
+from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     PendingOptionalSpacer,
@@ -100,6 +101,9 @@ class PromptTextArea(
         self._completion_kind: str = "file"
         self._agent_completion_candidates: list[AgentCompletionCandidate] | None = None
         self._vcs_project_catalog_warmed: bool = False
+        self._vcs_repo_completion_key: tuple[str, str] | None = None
+        self._vcs_repo_completion_result: VcsRepoFetchResult | None = None
+        self._vcs_repo_completion_inflight: set[tuple[str, str]] = set()
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._pending_optional_spacer: PendingOptionalSpacer | None = None
         self._xprompt_arg_assist_entries_by_project: dict[

@@ -40,6 +40,11 @@ from sase.xprompt.vcs_project_completion import (
     VcsProjectTrigger,
     find_vcs_project_trigger,
 )
+from sase.xprompt.vcs_repo_completion import (
+    VcsRepoTrigger,
+    find_vcs_repo_trigger,
+    load_vcs_repo_completion_config,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -252,6 +257,22 @@ class FileCompletionContextMixin(_MixinBase):
         """
         cursor_offset = self._absolute_offset(self.cursor_location)
         return find_vcs_project_trigger(self.text, cursor_offset)
+
+    def _get_vcs_repo_trigger(self) -> VcsRepoTrigger | None:
+        """Return a VCS repository completion trigger at the cursor."""
+        if "/" not in self.text or "#" not in self.text:
+            return None
+        if not load_vcs_repo_completion_config().enabled:
+            return None
+
+        from sase.workspace_provider import get_workflow_names
+
+        try:
+            workflow_names = get_workflow_names()
+        except Exception:
+            return None
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        return find_vcs_repo_trigger(self.text, cursor_offset, workflow_names)
 
     def _get_xprompt_arg_token_context(self) -> tuple[int, int, int, str] | None:
         """Return row-local token context for active xprompt argument completion."""

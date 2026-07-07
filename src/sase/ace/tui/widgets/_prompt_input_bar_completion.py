@@ -21,12 +21,17 @@ from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidat
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
+from sase.ace.tui.widgets.vcs_repo_completion import (
+    VCS_REPO_COMPLETION_KIND,
+    VcsRepoCompletionPlaceholder,
+)
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
     XPromptAssistEntry,
     append_input_hints,
 )
 from sase.project_display_names import project_display_name_for
+from sase.workspace_provider import VcsRepoEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 
 if TYPE_CHECKING:
@@ -60,6 +65,14 @@ def _vcs_project_label_width(candidate: CompletionCandidate) -> int:
         return len(candidate.display)
     badge_width = 5 if entry.kind == "changespec" else 4
     return badge_width + len(entry.name)
+
+
+def _vcs_repo_label_width(candidate: CompletionCandidate) -> int:
+    """Visible width for the primary label in a repo completion row."""
+    entry = candidate.metadata if isinstance(candidate.metadata, VcsRepoEntry) else None
+    if entry is None:
+        return len(candidate.display)
+    return len(entry.name)
 
 
 def _is_agent_completion_candidate(candidate: CompletionCandidate) -> bool:
@@ -128,12 +141,21 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_xprompt_arg_agent = completion_kind == "xprompt_arg_agent"
         is_jinja = completion_kind == "jinja"
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
+        is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
         vcs_project_label_width = (
             max(
                 (_vcs_project_label_width(candidate) for candidate in visible),
                 default=0,
             )
             if is_vcs_project
+            else 0
+        )
+        vcs_repo_label_width = (
+            max(
+                (_vcs_repo_label_width(candidate) for candidate in visible),
+                default=0,
+            )
+            if is_vcs_repo
             else 0
         )
         panel.remove_class("jinja-diagnostics")
@@ -167,6 +189,13 @@ class PromptInputBarCompletionMixin(_MixinBase):
                     candidate,
                     is_selected,
                     vcs_project_label_width,
+                )
+            elif is_vcs_repo:
+                self._append_vcs_repo_completion_row(
+                    content,
+                    candidate,
+                    is_selected,
+                    vcs_repo_label_width,
                 )
             elif is_arg_completion:
                 content.append(
@@ -203,6 +232,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "directive values"
         elif is_vcs_project:
             panel.border_title = "projects & PRs"
+        elif is_vcs_repo:
+            panel.border_title = token
         elif is_xprompt_arg_agent:
             panel.border_title = "fork agent"
         elif completion_kind == "xprompt_arg_name":
@@ -391,6 +422,49 @@ class PromptInputBarCompletionMixin(_MixinBase):
             content.append(f"  {entry.provider_display}", style="dim")
             if entry.description:
                 content.append(f"  {entry.description}", style="dim")
+
+    def _append_vcs_repo_completion_row(
+        self,
+        content: Text,
+        candidate: CompletionCandidate,
+        is_selected: bool,
+        label_width: int = 0,
+    ) -> None:
+        """Append one repository completion row or placeholder state."""
+        entry = (
+            candidate.metadata if isinstance(candidate.metadata, VcsRepoEntry) else None
+        )
+        if entry is None:
+            placeholder = (
+                candidate.metadata
+                if isinstance(candidate.metadata, VcsRepoCompletionPlaceholder)
+                else None
+            )
+            style = "dim italic"
+            if placeholder is not None and placeholder.kind == "error":
+                style = "bold red" if is_selected else "red"
+            content.append(candidate.display, style=style)
+            return
+
+        name_style = "bold #87D7FF" if is_selected else "#87D7FF"
+        content.append(entry.name, style=name_style)
+        padding = max(0, label_width - len(entry.name))
+        if padding:
+            content.append(" " * padding)
+
+        badges: list[tuple[str, str]] = []
+        if entry.visibility.casefold() == "private":
+            badges.append(("[private]", "bold #D7AF5F"))
+        if entry.is_fork:
+            badges.append(("[fork]", "bold #00D7AF"))
+        if entry.is_archived:
+            badges.append(("[archived]", "bold #808080"))
+        for label, style in badges:
+            content.append("  ")
+            content.append(label, style=style)
+
+        if entry.description:
+            content.append(f"  {_truncate_cell(entry.description, 72)}", style="dim")
 
     def _append_jinja_completion_row(
         self,
