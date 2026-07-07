@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-from sase.core.paths import sase_projects_dir
+from sase.core.paths import make_safe_filename, sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import project_display_name_map
 
@@ -173,10 +173,40 @@ def humanize_vcs_refs_in_text(
     )
 
 
+# pyvision: sdd/tales/202607/telegram_project_display_names_1.md
+def humanize_safe_stem(
+    stem: str,
+    projects_root: Path | str | None = None,
+) -> str:
+    """Rewrite a filename-safe project/ChangeSpec stem prefix for display."""
+    display_names = _project_display_name_map_cached(projects_root)
+    if not stem or not display_names:
+        return stem
+
+    safe_prefixes: list[tuple[str, str]] = []
+    for key, display in display_names.items():
+        safe_key = make_safe_filename(key)
+        if safe_key:
+            safe_prefixes.append((safe_key, display))
+    for safe_key, display in sorted(
+        safe_prefixes,
+        key=lambda item: len(item[0]),
+        reverse=True,
+    ):
+        if stem == safe_key:
+            return display
+        for separator in ("-", "_"):
+            prefix = f"{safe_key}{separator}"
+            if stem.startswith(prefix):
+                return f"{display}{separator}{stem[len(prefix) :]}"
+    return stem
+
+
 __all__ = [
     "attach_project_display_names",
     "humanize_cl_names_in_text",
     "humanize_cl_name",
+    "humanize_safe_stem",
     "humanize_vcs_refs_in_text",
     "project_display_name_map_signature",
     "project_display_name_for",

@@ -132,6 +132,95 @@ def test_humanize_cl_names_in_text_rewrites_tokens_but_not_paths(
     )
 
 
+def test_humanize_safe_stem_rewrites_exact_match(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [_record("gh_acme__widgets", "widgets")]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert pdn.humanize_safe_stem("gh_acme__widgets", root) == "widgets"
+
+
+def test_humanize_safe_stem_rewrites_joined_prefixes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [_record("gh_acme__widgets", "widgets")]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert (
+        pdn.humanize_safe_stem("gh_acme__widgets-ace_run-260707", root)
+        == "widgets-ace_run-260707"
+    )
+    assert (
+        pdn.humanize_safe_stem("gh_acme__widgets_fix_button-260707", root)
+        == "widgets_fix_button-260707"
+    )
+
+
+def test_humanize_safe_stem_matches_sanitized_hyphenated_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [_record("gh_sase-org__sase", "sase")]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert (
+        pdn.humanize_safe_stem("gh_sase_org__sase-ace_run-260707_011513", root)
+        == "sase-ace_run-260707_011513"
+    )
+
+
+def test_humanize_safe_stem_unknown_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [_record("gh_acme__widgets", "widgets")]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert (
+        pdn.humanize_safe_stem("gh_other__widgets-ace_run-260707", root)
+        == "gh_other__widgets-ace_run-260707"
+    )
+
+
+def test_humanize_safe_stem_prefers_longest_safe_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    records = [
+        _record("gh_acme__widgets", "widgets"),
+        _record("gh_acme__widgets_extra", "widgets_extra"),
+    ]
+
+    monkeypatch.setattr(pdn, "list_project_records", lambda *_a, **_kw: records)
+    monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+    assert (
+        pdn.humanize_safe_stem("gh_acme__widgets_extra_fix_button-260707", root)
+        == "widgets_extra_fix_button-260707"
+    )
+
+
 def test_project_display_name_cache_invalidates_on_projects_dir_mtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
