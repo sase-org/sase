@@ -19,6 +19,7 @@ and CLI flags.
   - [linked_repos](#linked_repos)
   - [vcs_provider](#vcs_provider)
   - [vcs_repo_completion](#vcs_repo_completion)
+  - [vcs_ref_completion](#vcs_ref_completion)
   - [axe](#axe)
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
@@ -612,6 +613,25 @@ network requirements belong to the installed plugin. For GitHub, the `sase-githu
 return private repositories visible to the authenticated user.
 
 Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_repo_completion.py`
+
+### vcs_ref_completion
+
+Configures project, ChangeSpec, and namespace completion at the root of VCS workflow refs such as `#gh:` and `#git:`.
+
+```yaml
+vcs_ref_completion:
+  enabled: true
+```
+
+| Field                        | Type | Default | Description                                                             |
+| ---------------------------- | ---- | ------- | ----------------------------------------------------------------------- |
+| `vcs_ref_completion.enabled` | bool | `true`  | Enable ACE and xprompt LSP completion at the root of VCS workflow refs. |
+
+When disabled, ACE does not detect VCS ref-root completion triggers and the materialized xprompt LSP VCS catalog omits
+namespace rows. Project and ChangeSpec candidates come from local ProjectSpecs; provider namespace rows come from fast
+local workspace-provider hooks.
+
+Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_ref_completion.py`
 
 ### axe
 

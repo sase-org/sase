@@ -351,6 +351,13 @@ PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status. Accepting a
 directory-key project name, project alias, or ChangeSpec name prefix, and it ignores system-managed `home`, inactive
 projects, sibling records, and non-launchable projects.
 
+ACE and the xprompt LSP also provide token-local completion at the root of registered VCS workflow refs. Typing `:` or
+`(` after a workflow tag, such as `#gh:` or `#git(`, opens project and active PR-sized ChangeSpec rows scoped to that
+provider. Providers can add fast local namespace rows; the GitHub plugin derives organization rows from active GitHub
+project records and `github_orgs`. Accepting a project or ChangeSpec completes the current token, for example
+`#gh:sase ` or `#gh(sase)`. Accepting a namespace inserts a trailing slash such as `#gh:sase-org/` without closing the
+token, so repository completion can immediately take over.
+
 ACE and the xprompt LSP also complete repositories inside provider refs after the namespace slash. Typing
 `#gh:bbugyi200/` asks the registered GitHub workspace plugin for repositories owned by `bbugyi200`; typing
 `#gh:bbugyi200/sa` narrows the menu toward matching repository names. Accepting a row rewrites only the current ref

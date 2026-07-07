@@ -1884,6 +1884,12 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   alias, or ChangeSpec name prefix. Accepting a row inserts the canonical workspace tag such as `#gh:sase` or
   `#gh:my_change`, replacing existing line-start VCS tags when present or placing the tag after leading
   frontmatter/directives when no tag exists.
+- **VCS ref completion**: When the cursor is inside the root segment of a registered VCS workflow ref, such as `#gh:`,
+  `#gh:sa`, or `#git(`, completion lists that provider's projects and active PR-sized ChangeSpecs. Providers can add
+  namespace rows, such as GitHub organization rows, from local project/config data. Accepting a project or ChangeSpec
+  completes only the current ref token, producing `#gh:sase ` in colon form or `#gh(sase)` in parenthesized form.
+  Accepting a namespace inserts a trailing slash such as `#gh:sase-org/` and immediately hands off to repository
+  completion.
 - **VCS repository completion**: When the cursor is inside a registered VCS workflow ref that already contains an owner
   or namespace plus `/`, completion lists repositories for that namespace through the owning workspace plugin. For
   example, `#gh:bbugyi200/` opens GitHub repositories for `bbugyi200`, and `#gh:bbugyi200/sa` narrows locally or through
@@ -1942,11 +1948,12 @@ completion is disabled by default because it can scan the filesystem while typin
 `%name` tokens; disable it with `ace.prompt_completion.auto_directive_menu: false`. Both auto-menus open only once at
 least one identifier character follows the marker (bare `#`, `/`, and `%` stay quiet) and never auto-accept a single
 match. The `#+` / offset-zero `+` project/ChangeSpec picker opens when `+` completes a valid trigger and is also
-available through manual `Ctrl+T`. The VCS repository menu opens when `/` completes a known workflow ref trigger such as
-`#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a background worker. Manual `Ctrl+T`
-completion still supports file paths, xprompt names, directives, skills, project/ChangeSpec tags, and VCS repository
-refs regardless of those settings. Live suggestions pause while the manual completion panel is open, while snippet
-tabstops are active, in NORMAL mode, and during feedback prompts.
+available through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` completes a known workflow ref trigger
+such as `#gh:` and local candidates exist. The VCS repository menu opens when `/` completes a known workflow ref trigger
+such as `#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a background worker. Manual
+`Ctrl+T` completion still supports file paths, xprompt names, directives, skills, project/ChangeSpec tags, VCS ref
+roots, and VCS repository refs regardless of those settings. Live suggestions pause while the manual completion panel is
+open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

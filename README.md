@@ -155,17 +155,19 @@ SASE keeps durable state outside any one chat session:
   registered workspace-provider refs and known-project refs such as `#git:sase` or `#gh:sase-org/sase` can root
   completion in that project checkout. Typing `+` at the absolute start of the prompt, or `#+` at a token boundary,
   opens a project/ChangeSpec picker for active launchable projects and active PR-sized ChangeSpecs; accepting a row
-  inserts the canonical VCS workspace tag such as `#gh:sase`. Typing `/` inside a known VCS ref such as `#gh:bbugyi200/`
-  opens repository completion through the owning workspace plugin and accepts a token-local owner/repo edit. If no
-  prompt workspace ref resolves, ACE uses the TUI process directory. When ACE loads a prompt with literal top-level
-  `---` multi-agent separators, it renders a stack of prompt panes so each agent segment can be edited, reordered,
-  launched individually, or submitted together in top-to-bottom order. In prompt NORMAL mode, use `g-` to add panes,
-  `gj`/`gk` to focus panes, and `gJ`/`gK` to reorder them. Prompt-level frontmatter is edited from the Frontmatter Panel
-  with `g=`, the active pane can be stashed with `Ctrl+S`, all non-empty panes can be bundled into one stash row with
-  `gs`, the current stack can overwrite a pinned stash with `gS`, and the current stack can be saved as a reusable
-  xprompt with `gx`; open the unified stashed-prompt picker with `Ctrl+G p` from the prompt bar or `@` from the main ACE
-  tabs. `Ctrl+P` moves through recent workspace prefixes toward older entries and `Ctrl+N` toward newer entries; both
-  pass through a no-prefix stop. Use `%wait` when one segment must wait for another to finish.
+  inserts the canonical VCS workspace tag such as `#gh:sase`. Typing `:` after a registered VCS workflow tag, such as
+  `#gh:` or `#git:`, opens token-local ref completion for that provider's projects and active PR-sized ChangeSpecs; VCS
+  plugins can add namespace rows such as `sase-org/` that chain into repository completion. Typing `/` inside a known
+  VCS ref such as `#gh:bbugyi200/` opens repository completion through the owning workspace plugin and accepts a
+  token-local owner/repo edit. If no prompt workspace ref resolves, ACE uses the TUI process directory. When ACE loads a
+  prompt with literal top-level `---` multi-agent separators, it renders a stack of prompt panes so each agent segment
+  can be edited, reordered, launched individually, or submitted together in top-to-bottom order. In prompt NORMAL mode,
+  use `g-` to add panes, `gj`/`gk` to focus panes, and `gJ`/`gK` to reorder them. Prompt-level frontmatter is edited
+  from the Frontmatter Panel with `g=`, the active pane can be stashed with `Ctrl+S`, all non-empty panes can be bundled
+  into one stash row with `gs`, the current stack can overwrite a pinned stash with `gS`, and the current stack can be
+  saved as a reusable xprompt with `gx`; open the unified stashed-prompt picker with `Ctrl+G p` from the prompt bar or
+  `@` from the main ACE tabs. `Ctrl+P` moves through recent workspace prefixes toward older entries and `Ctrl+N` toward
+  newer entries; both pass through a no-prefix stop. Use `%wait` when one segment must wait for another to finish.
 - **Provider retries** - The LLM provider layer can retry matching provider errors, preserve the workspace across
   retries, and fall back to another model when configured. Claude adds built-in matching for context-limit,
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under
