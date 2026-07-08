@@ -15,6 +15,13 @@ if TYPE_CHECKING:
     from ..models import Agent
 
 
+def zoom_target_view_selector(target: ZoomPanelTarget) -> str:
+    """Return the top-level view selector for a zoom panel target."""
+    if target == ZoomPanelTarget.FILE:
+        return "#zoom-file-view"
+    return f"#zoom-{target.value}-scroll"
+
+
 def available_targets(modal: Any) -> list[ZoomPanelTarget]:
     targets = [ZoomPanelTarget.METADATA]
     if modal._has_file_content:
@@ -31,11 +38,11 @@ def show_target(modal: Any, target: ZoomPanelTarget) -> None:
     modal._target = target
 
     for item in _TARGET_ORDER:
-        scroll = modal.query_one(f"#zoom-{item.value}-scroll", VerticalScroll)
+        view = modal.query_one(zoom_target_view_selector(item))
         if item == modal._target:
-            scroll.remove_class("hidden")
+            view.remove_class("hidden")
         else:
-            scroll.add_class("hidden")
+            view.add_class("hidden")
     modal._update_header()
     modal._update_hints()
     modal.call_after_refresh(modal._reset_active_scroll)

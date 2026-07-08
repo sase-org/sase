@@ -114,6 +114,12 @@ def _make_panel() -> MagicMock:
     panel.current_source_label = types.MethodType(
         AgentFilePanel.current_source_label, panel
     )
+    panel.source_label_for_slot = types.MethodType(
+        AgentFilePanel.source_label_for_slot, panel
+    )
+    panel.file_source_labels = types.MethodType(
+        AgentFilePanel.file_source_labels, panel
+    )
 
     # Stub out side-effecting internals that would touch the filesystem,
     # spawn workers, or render UI.

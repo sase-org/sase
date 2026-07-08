@@ -20,6 +20,7 @@ from sase.ace.tui.widgets._vim_search import (
 from sase.ace.tui.widgets.search_command_line import render_search_command_line
 
 from .zoom_panel_rendering import renderable_to_text
+from .zoom_panel_navigation import zoom_target_view_selector
 from .zoom_panel_types import _TARGET_ORDER, ZoomPanelTarget
 from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
 
@@ -364,9 +365,7 @@ class ZoomSearchMixin(_MixinBase):
         except Exception:
             pass
         for target in _TARGET_ORDER:
-            self.query_one(f"#zoom-{target.value}-scroll", VerticalScroll).add_class(
-                "hidden"
-            )
+            self.query_one(zoom_target_view_selector(target)).add_class("hidden")
         search_scroll = self.query_one("#zoom-search-scroll", VerticalScroll)
         search_scroll.border_subtitle = subtitle
         search_scroll.remove_class("hidden")

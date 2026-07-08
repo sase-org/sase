@@ -1,6 +1,7 @@
 """File list navigation and source selection for the agent file panel."""
 
 import os
+from dataclasses import dataclass
 
 from rich.text import Text
 from textual.worker import Worker
@@ -26,6 +27,14 @@ from ._messages import (
     linked_slot_id,
     linked_slot_repo_name,
 )
+
+
+@dataclass(frozen=True)
+class FileSourceLabel:
+    """Display label metadata for one file-panel page slot."""
+
+    tag: str
+    label: str
 
 
 class FilePanelFileListMixin:
@@ -118,6 +127,11 @@ class FilePanelFileListMixin:
     def current_file_index(self) -> int:
         """Return the current file index (0-based)."""
         return self._current_file_index
+
+    @property
+    def current_file_slots(self) -> tuple[str, ...]:
+        """Return the current ordered file-panel page slots."""
+        return tuple(self._file_list)
 
     def _display_file_at_current_index(self) -> None:
         """Display the file at the current index.
@@ -347,20 +361,36 @@ class FilePanelFileListMixin:
         current = self._current_file_value()
         if current is None:
             return None
-        if current == _LIVE_DIFF_SENTINEL:
-            return "diff"
-        if is_commit_slot(current):
-            info = self._commit_diff_info_for_slot(current)
-            if info is None:
-                return "commit diff"
-            label = " ".join(part for part in (info.repo_name, info.short_sha) if part)
-            if not label:
-                label = "commit diff"
-            return label if info.is_primary else f"{WORKSPACE_GLYPH} {label}"
-        if is_linked_slot(current):
-            return f"{WORKSPACE_GLYPH} {linked_slot_repo_name(current)}"
-        expanded = os.path.expanduser(current)
-        return os.path.basename(expanded) or expanded
+        return self.source_label_for_slot(current).label
+
+    def source_label_for_slot(self, slot: str) -> FileSourceLabel:
+        """Return compact display metadata for a file-panel page slot."""
+        if slot == _LIVE_DIFF_SENTINEL:
+            return FileSourceLabel(tag="diff", label="diff")
+        if is_commit_slot(slot):
+            label = "commit diff"
+            info = self._commit_diff_info_for_slot(slot)
+            if info is not None:
+                label = " ".join(
+                    part for part in (info.repo_name, info.short_sha) if part
+                )
+                if not label:
+                    label = "commit diff"
+                if not info.is_primary:
+                    label = f"{WORKSPACE_GLYPH} {label}"
+            return FileSourceLabel(tag="git", label=label)
+        if is_linked_slot(slot):
+            return FileSourceLabel(
+                tag="repo",
+                label=f"{WORKSPACE_GLYPH} {linked_slot_repo_name(slot)}",
+            )
+        expanded = os.path.expanduser(slot)
+        label = os.path.basename(expanded) or expanded
+        return FileSourceLabel(tag="file", label=label)
+
+    def file_source_labels(self) -> tuple[FileSourceLabel, ...]:
+        """Return display label metadata for all current file-panel page slots."""
+        return tuple(self.source_label_for_slot(slot) for slot in self._file_list)
 
     def get_current_image_path(self) -> str | None:
         """Return the current existing image file path, or None."""

@@ -7,6 +7,8 @@ from typing import Any
 from rich.text import Text
 
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
+from sase.ace.tui.modals.zoom_panel_modal import _renderable_to_text
+from sase.ace.tui.widgets.file_panel import _LIVE_DIFF_SENTINEL
 
 from tests.ace.tui._agents_zoom_panel_helpers import (
     _ModalTestApp,
@@ -154,6 +156,123 @@ async def test_zoom_next_file_wraps_last_to_first(tmp_path: Any) -> None:
         assert panel.current_file_index == 0
         assert panel._full_content == "first file body\n"
         assert paths[0] in rendered
+
+
+async def test_zoom_seeded_file_list_freezes_across_terminal_refresh(
+    tmp_path: Any,
+) -> None:
+    raw_diff = tmp_path / "raw.diff"
+    raw_diff.write_text("raw diff body\n", encoding="utf-8")
+    first = tmp_path / "first.md"
+    first.write_text("first file body\n", encoding="utf-8")
+    second = tmp_path / "second.md"
+    second.write_text("second file body\n", encoding="utf-8")
+    seed_list = (_LIVE_DIFF_SENTINEL, str(first), str(second))
+
+    agent = _make_agent(
+        status="DONE",
+        diff_path=str(raw_diff),
+        extra_files=[str(first), str(second)],
+    )
+    modal = ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.FILE,
+        seed=ZoomPanelSeed(
+            file_list=seed_list,
+            file_index=2,
+            has_file_content=True,
+        ),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        await _wait_for_file_content(pilot, panel, "second file body")
+
+        assert panel.is_file_list_frozen
+        assert panel.current_file_slots == seed_list
+        assert panel.current_file_index == 2
+
+        modal._refresh_active_panel(force=False)
+        await pilot.pause()
+
+        assert panel.current_file_slots == seed_list
+        assert panel.current_file_index == 2
+
+
+async def test_zoom_next_file_wrap_survives_refresh_tick(tmp_path: Any) -> None:
+    paths = _write_named_files(tmp_path, ["first", "second", "third"])
+    modal = _seeded_files_modal(paths, file_index=2)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        await _wait_for_file_content(pilot, panel, "third file body")
+
+        modal._refresh_active_panel(force=False)
+        await pilot.pause()
+        await pilot.press("ctrl+n")
+        rendered = await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert panel.current_file_index == 0
+        assert paths[0] in rendered
+
+
+async def test_zoom_file_rail_lists_files_and_tracks_active(
+    tmp_path: Any,
+) -> None:
+    paths = _write_named_files(tmp_path, ["first", "second", "third"])
+    modal = _seeded_files_modal(paths)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel, _ZoomFileRail
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        rail = modal.query_one("#zoom-file-rail", _ZoomFileRail)
+        await _wait_for_file_content(pilot, panel, "first file body")
+
+        plain = _renderable_to_text(rail.render()) or ""
+        assert not rail.has_class("collapsed")
+        assert "first.md" in plain
+        assert "second.md" in plain
+        assert "third.md" in plain
+        assert "● file first.md" in plain
+
+        await pilot.press("ctrl+n")
+        await _wait_for_file_content(pilot, panel, "second file body")
+        plain = _renderable_to_text(rail.render()) or ""
+
+        assert "● file second.md" in plain
+
+
+async def test_zoom_file_rail_collapses_for_single_file(tmp_path: Any) -> None:
+    paths = _write_named_files(tmp_path, ["first"])
+    modal = _seeded_files_modal(paths)
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel, _ZoomFileRail
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        rail = modal.query_one("#zoom-file-rail", _ZoomFileRail)
+        await _wait_for_file_content(pilot, panel, "first file body")
+
+        assert rail.has_class("collapsed")
 
 
 async def test_zoom_next_file_reveals_file_panel_from_metadata(
@@ -321,7 +440,7 @@ async def test_zoom_ctrl_p_returns_to_metadata_after_reveal_single_file(
         await _wait_for_file_content(pilot, panel, "first file body")
 
         assert modal._target == ZoomPanelTarget.FILE
-        assert not modal.query_one("#zoom-file-scroll").has_class("hidden")
+        assert not modal.query_one("#zoom-file-view").has_class("hidden")
 
         # Ctrl-P immediately after must undo the reveal and return to metadata,
         # not "page" the lone file (which would leave the UI stuck).
@@ -329,7 +448,7 @@ async def test_zoom_ctrl_p_returns_to_metadata_after_reveal_single_file(
         await pilot.pause()
 
         assert modal._target == ZoomPanelTarget.METADATA
-        assert modal.query_one("#zoom-file-scroll").has_class("hidden")
+        assert modal.query_one("#zoom-file-view").has_class("hidden")
         assert not modal.query_one("#zoom-metadata-scroll").has_class("hidden")
 
 
@@ -396,7 +515,7 @@ async def test_zoom_ctrl_n_returns_to_metadata_after_prev_reveal(
         await pilot.pause()
 
         assert modal._target == ZoomPanelTarget.METADATA
-        assert modal.query_one("#zoom-file-scroll").has_class("hidden")
+        assert modal.query_one("#zoom-file-view").has_class("hidden")
 
 
 async def test_zoom_next_file_warns_when_metadata_agent_has_no_files() -> None:
@@ -417,7 +536,7 @@ async def test_zoom_next_file_warns_when_metadata_agent_has_no_files() -> None:
         await pilot.pause()
 
         assert modal._target == ZoomPanelTarget.METADATA
-        assert modal.query_one("#zoom-file-scroll").has_class("hidden")
+        assert modal.query_one("#zoom-file-view").has_class("hidden")
         assert modal.notifications == [("No files for this agent", "warning")]
 
 

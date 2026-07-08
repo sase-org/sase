@@ -47,6 +47,7 @@ def seed_panels(modal: Any) -> None:
             max(modal._seed.file_index, 0),
             len(modal._seed.file_list) - 1,
         )
+        file_panel.freeze_current_list()
     tools_panel = modal.query_one("#zoom-tools-panel", ZoomToolsPanel)
     tools_panel.set_detail_level(
         modal._seed.tools_detail_level,
@@ -146,6 +147,7 @@ def refresh_file(modal: Any, agent: Agent, *, force: bool) -> None:
         panel.set_file_list(files, start_index=start_index)
     else:
         panel.update_display(agent, stale_threshold_seconds=modal._refresh_interval)
+    panel.freeze_current_list()
     # Initial renders can happen before the modal is laid out (hidden container
     # -> trim size 0), so retry the default trim until the panel has a measured
     # viewport. Once a trim size is established, leave it alone: re-trimming

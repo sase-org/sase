@@ -66,7 +66,7 @@ from .zoom_panel_navigation import (
 from .zoom_panel_rendering import agent_label, renderable_to_text, status_text
 from .zoom_panel_search import ZoomSearchMixin
 from .zoom_panel_types import ZoomPanelSeed, ZoomPanelTarget
-from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
+from .zoom_panel_widgets import ZoomFilePanel, ZoomFileRail, ZoomToolsPanel
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -75,7 +75,14 @@ if TYPE_CHECKING:
 _renderable_to_text = renderable_to_text
 _status_text = status_text
 _ZoomFilePanel = ZoomFilePanel
+_ZoomFileRail = ZoomFileRail
 _ZoomToolsPanel = ZoomToolsPanel
+
+_HEADER_TAB_STYLE = {
+    ZoomPanelTarget.METADATA: "bold black on #D7AF5F",
+    ZoomPanelTarget.FILE: "bold black on #A8FF60",
+    ZoomPanelTarget.TOOLS: "bold black on #87D7FF",
+}
 
 
 class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
@@ -141,8 +148,10 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
                 id="zoom-metadata-scroll", classes="hidden zoom-scroll"
             ):
                 yield AgentPromptPanel(id="zoom-metadata-panel")
-            with VerticalScroll(id="zoom-file-scroll", classes="hidden zoom-scroll"):
-                yield ZoomFilePanel(id="zoom-file-panel")
+            with Horizontal(id="zoom-file-view", classes="hidden"):
+                yield ZoomFileRail(id="zoom-file-rail", classes="collapsed")
+                with VerticalScroll(id="zoom-file-scroll", classes="zoom-scroll"):
+                    yield ZoomFilePanel(id="zoom-file-panel")
             with VerticalScroll(id="zoom-tools-scroll", classes="hidden zoom-scroll"):
                 yield ZoomToolsPanel(id="zoom-tools-panel")
             with VerticalScroll(id="zoom-search-scroll", classes="hidden zoom-scroll"):
@@ -186,21 +195,25 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
         agent_label_widget = self.query_one("#zoom-panel-agent", Static)
 
         available = self._available_targets()
-        position = available.index(self._target) + 1 if self._target in available else 1
-        total = len(available)
-        target_name = self._target.value.upper()
-        if self._target == ZoomPanelTarget.FILE and self._has_file_content:
-            file_panel = self.query_one("#zoom-file-panel", ZoomFilePanel)
-            if file_panel.current_file_count > 1:
-                target_name = (
-                    f"FILE ({file_panel.current_file_index + 1}/"
-                    f"{file_panel.current_file_count})"
-                )
-            source_label = file_panel.current_source_label()
-            if source_label:
-                target_name = f"{target_name} · {source_label}"
+        text = Text("ZOOM  ", style="bold")
+        for index, target in enumerate(available):
+            if index > 0:
+                text.append(" · ", style="dim")
+            label = target.value.upper()
+            if target == ZoomPanelTarget.FILE and self._has_file_content:
+                file_panel = self.query_one("#zoom-file-panel", ZoomFilePanel)
+                if file_panel.current_file_count > 1:
+                    label = (
+                        f"FILE {file_panel.current_file_index + 1}/"
+                        f"{file_panel.current_file_count}"
+                    )
+            if target == self._target:
+                text.append(f" {label} ", style=_HEADER_TAB_STYLE[target])
+            else:
+                text.append(label, style="dim")
 
-        title.update(f"⛶ ZOOM - {target_name} ({position}/{total})")
+        title.update(text)
+        self._update_rail()
 
         agent = self._agent_provider() or self._last_agent
         if agent is not None:
@@ -208,6 +221,16 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
         label = agent_label(agent)
         status = status_text(agent.status if agent is not None else "MISSING")
         agent_label_widget.update(Text.assemble((label, "bold"), "  ", status))
+
+    def _update_rail(self) -> None:
+        rail = self.query_one("#zoom-file-rail", ZoomFileRail)
+        if self._target != ZoomPanelTarget.FILE or not self._has_file_content:
+            rail.update_entries((), 0)
+            return
+        file_panel = self.query_one("#zoom-file-panel", ZoomFilePanel)
+        rail.update_entries(
+            file_panel.file_source_labels(), file_panel.current_file_index
+        )
 
     def _seed_panels(self) -> None:
         seed_panels(self)

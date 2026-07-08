@@ -235,6 +235,7 @@ async def test_zoom_search_structural_key_exits_and_then_pages_file(
         await pilot.press("slash", "f", "i", "r", "s", "t", "enter")
         await pilot.pause()
         assert modal._zoom_search_mode == "committed"
+        assert modal.query_one("#zoom-file-view").has_class("hidden")
 
         await pilot.press("ctrl+n")
         await _wait_for_file_content(pilot, panel, "second beta")
@@ -242,6 +243,7 @@ async def test_zoom_search_structural_key_exits_and_then_pages_file(
         assert modal._zoom_search_mode == "off"
         assert panel.current_file_index == 1
         assert _search_scroll(modal).has_class("hidden")
+        assert not modal.query_one("#zoom-file-view").has_class("hidden")
 
 
 async def test_zoom_search_empty_file_panel_notifies_without_state_change() -> None:

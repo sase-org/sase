@@ -1248,9 +1248,18 @@ never leaves you staring at a trimmed page.
 
 ## Agents Zoom Panel
 
-Press `z` on the Agents tab to open a near-fullscreen view of the active detail panel. Inside the zoom modal, `/` starts
-forward search, `?` starts backward search, and typed queries jump to the first match as you type. Press `Enter` to keep
-the highlighted matches, then use `n` / `N` to move to the next / previous match with wrap-around feedback.
+Press `z` on the Agents tab to open a near-fullscreen view of the active detail panel. The header shows the available
+panel tabs (`METADATA`, `FILE`, `TOOLS`) with the active panel highlighted; use `]` / `[` to cycle those panels with
+wrap-around.
+
+When the zoom modal shows files, the file list is fixed for the life of that modal so refreshes cannot add, remove,
+reorder, or jump the selected file. Use `Ctrl+N` / `Ctrl+P` to cycle files with first-to-last wrap-around. Multi-file
+views show a left rail listing every frozen file entry and marking the active one; single-file views use the full width
+for content.
+
+Inside the zoom modal, `/` starts forward search, `?` starts backward search, and typed queries jump to the first match
+as you type. Press `Enter` to keep the highlighted matches, then use `n` / `N` to move to the next / previous match with
+wrap-around feedback.
 
 Search covers the full text behind the zoomed panel, including file content below the current trim. `Esc` or `Ctrl+C`
 cancels an in-progress search; after a search is committed, `Esc` leaves search and returns to the normal zoomed panel.

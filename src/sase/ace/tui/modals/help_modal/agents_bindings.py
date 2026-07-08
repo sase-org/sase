@@ -218,9 +218,12 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Zoom Modal",
             [
+                ("] / [", "Next / previous panel tab"),
+                ("Ctrl-N / Ctrl-P", "Next / previous file, wraps"),
                 ("/ / ?", "Search forward / backward"),
                 ("n / N", "Next / previous match"),
                 ("Esc", "Exit search before closing"),
+                ("File rail", "Lists files frozen at open"),
             ],
         ),
         (
