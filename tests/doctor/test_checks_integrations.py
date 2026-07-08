@@ -4,8 +4,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.doctor.checks_integrations import _check_mobile_push_config
+from sase.doctor.checks_integrations import (
+    _check_mobile_gateway_binary,
+    _check_mobile_push_config,
+    integration_check_specs,
+)
+from sase.doctor.runner import DoctorContext
 from sase.integrations.mobile_gateway import MobileGatewayConfig
+
+
+def test_integration_check_specs_registers_mobile_gateway_binary_as_deep(
+    tmp_path: Path,
+) -> None:
+    specs = integration_check_specs(
+        DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path / ".sase")
+    )
+
+    assert [spec.id for spec in specs] == [
+        "integrations.mobile_push_config",
+        "integrations.mobile_gateway_binary",
+    ]
+    assert specs[1].deep is True
 
 
 def test_mobile_push_config_skips_when_disabled() -> None:
@@ -107,3 +126,84 @@ def test_mobile_push_config_errors_with_both_required_fcm_fields_missing() -> No
         "missing: mobile_gateway.fcm_project_id",
         "missing: mobile_gateway.fcm_service_account_json or mobile_gateway.fcm_credential_env",
     )
+
+
+def test_mobile_gateway_binary_skips_when_mobile_is_unused() -> None:
+    def fail_resolver() -> tuple[str, ...]:
+        raise AssertionError("unused mobile config should not resolve gateway binary")
+
+    check = _check_mobile_gateway_binary(
+        config=MobileGatewayConfig(),
+        resolve_gateway_command=fail_resolver,
+    )
+
+    assert check.id == "integrations.mobile_gateway_binary"
+    assert check.group == "integrations"
+    assert check.status == "SKIP"
+    assert check.summary == "mobile gateway is not configured"
+    assert check.data["mobile_configured"] is False
+    assert check.data["command_resolved"] is False
+
+
+def test_mobile_gateway_binary_warns_when_configured_binary_is_missing() -> None:
+    check = _check_mobile_gateway_binary(
+        config=MobileGatewayConfig(push_provider="test"),
+        resolve_gateway_command=lambda: (),
+    )
+
+    assert check.status == "WARN"
+    assert (
+        check.summary
+        == "mobile gateway is configured but no sase_gateway command resolves"
+    )
+    assert "sase-core target/debug" in check.details[0]
+    assert any("cargo build -p sase_gateway" in step for step in check.next_steps)
+    assert check.data["mobile_configured"] is True
+    assert check.data["push_enabled"] is True
+    assert check.data["command_resolved"] is False
+    assert check.data["resolver"] == "sase_gateway"
+
+
+def test_mobile_gateway_binary_ok_when_default_resolver_finds_gateway() -> None:
+    check = _check_mobile_gateway_binary(
+        config=MobileGatewayConfig(push_provider="test"),
+        resolve_gateway_command=lambda: ("/opt/sase/bin/sase_gateway",),
+    )
+
+    assert check.status == "OK"
+    assert check.summary == "sase_gateway command resolves for mobile gateway startup"
+    assert check.data["command_resolved"] is True
+    assert check.data["resolver"] == "sase_gateway"
+
+
+def test_mobile_gateway_binary_ok_when_configured_command_is_available() -> None:
+    check = _check_mobile_gateway_binary(
+        config=MobileGatewayConfig(command=("/opt/sase/bin/sase_gateway",)),
+        resolve_gateway_command=lambda: (),
+        command_head_available=lambda head: head == "/opt/sase/bin/sase_gateway",
+    )
+
+    assert check.status == "OK"
+    assert check.summary == "configured mobile gateway command is available"
+    assert check.data["command_configured"] is True
+    assert check.data["command_resolved"] is True
+    assert check.data["resolver"] == "configured"
+
+
+def test_mobile_gateway_binary_warns_when_configured_command_is_missing() -> None:
+    check = _check_mobile_gateway_binary(
+        config=MobileGatewayConfig(command=("missing-sase-gateway",)),
+        resolve_gateway_command=lambda: ("/unused/sase_gateway",),
+        command_head_available=lambda _head: False,
+    )
+
+    assert check.status == "WARN"
+    assert (
+        check.summary
+        == "mobile gateway is configured but the configured command was not found"
+    )
+    assert check.details == ("missing command head: missing-sase-gateway",)
+    assert any("mobile_gateway.command" in step for step in check.next_steps)
+    assert check.data["command_configured"] is True
+    assert check.data["command_resolved"] is False
+    assert check.data["resolver"] == "configured"

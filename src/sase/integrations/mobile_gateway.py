@@ -278,6 +278,11 @@ def _request_json(
     return payload
 
 
+def resolve_gateway_command() -> tuple[str, ...]:
+    """Resolve the mobile gateway command without launching it."""
+    return _resolve_gateway_command()
+
+
 def _resolve_gateway_command() -> tuple[str, ...]:
     path = shutil.which("sase_gateway")
     if path:
