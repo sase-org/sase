@@ -271,10 +271,28 @@ def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
     if push.returncode == 0:
         return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
 
+    rebase = subprocess.run(["git", "pull", "--rebase"], cwd=repo_root, check=False)
+    if rebase.returncode != 0:
+        return _PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=(
+                f"git push failed with exit code {push.returncode}; "
+                f"git pull --rebase failed with exit code {rebase.returncode}"
+            ),
+        )
+
+    retry = subprocess.run(["git", "push"], cwd=repo_root, check=False)
+    if retry.returncode == 0:
+        return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
+
     return _PushOutcome(
         pushed=False,
         skipped_no_remote=False,
-        error=f"git push failed with exit code {push.returncode}",
+        error=(
+            f"git push failed with exit code {push.returncode}; "
+            f"retry failed with exit code {retry.returncode}"
+        ),
     )
 
 
@@ -311,7 +329,7 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
     log_path = log_dir / f"push-{generate_timestamp()}.log"
     with open(log_path, "w", encoding="utf-8") as log_file:
         process = subprocess.Popen(
-            ["git", "push"],
+            ["sh", "-c", "git push || (git pull --rebase && git push)"],
             cwd=repo_root,
             stdin=subprocess.DEVNULL,
             stdout=log_file,

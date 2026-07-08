@@ -21,6 +21,17 @@ def _sync_status(beads_dir: Path) -> bool:
 def _init_git_repo(path):
     """Initialize a git repo at the given path."""
     subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+    _configure_git_identity(path)
+    # Create initial commit so HEAD exists
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=path,
+        capture_output=True,
+        check=True,
+    )
+
+
+def _configure_git_identity(path):
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
         cwd=path,
@@ -33,9 +44,8 @@ def _init_git_repo(path):
         capture_output=True,
         check=True,
     )
-    # Create initial commit so HEAD exists
     subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
+        ["git", "config", "commit.gpgsign", "false"],
         cwd=path,
         capture_output=True,
         check=True,
@@ -551,6 +561,89 @@ def test_push_bead_work_launch_pushes_to_remote(tmp_path):
         check=True,
     ).stdout.strip()
     assert local_head == remote_head
+
+
+def test_push_bead_work_launch_rebases_and_retries_rejected_push(tmp_path):
+    bare = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(bare)],
+        capture_output=True,
+        check=True,
+    )
+
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    _init_git_repo(seed)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(bare)],
+        cwd=seed,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "push", "-u", "origin", "main"],
+        cwd=seed,
+        capture_output=True,
+        check=True,
+    )
+
+    repo = tmp_path / "repo"
+    other = tmp_path / "other"
+    subprocess.run(
+        ["git", "clone", str(bare), str(repo)], capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "clone", str(bare), str(other)], capture_output=True, check=True
+    )
+    _configure_git_identity(repo)
+    _configure_git_identity(other)
+
+    (other / "remote.md").write_text("remote\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "remote.md"], cwd=other, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "remote change"],
+        cwd=other,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(["git", "push"], cwd=other, capture_output=True, check=True)
+
+    beads_dir = repo / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "issues.jsonl").write_text('{"id":"local"}\n', encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "sdd/beads/issues.jsonl"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "local bead change"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+
+    outcome = push_bead_work_launch(beads_dir)
+
+    assert outcome.pushed is True
+    assert outcome.skipped_no_remote is False
+    assert outcome.error is None
+    assert (repo / "remote.md").read_text(encoding="utf-8") == "remote\n"
+
+    verify = tmp_path / "verify"
+    subprocess.run(
+        ["git", "clone", str(bare), str(verify)],
+        capture_output=True,
+        check=True,
+    )
+    assert (verify / "remote.md").read_text(encoding="utf-8") == "remote\n"
+    assert (verify / "sdd/beads/issues.jsonl").read_text(encoding="utf-8") == (
+        '{"id":"local"}\n'
+    )
 
 
 def test_push_bead_work_launch_returns_error_on_failure(tmp_path):

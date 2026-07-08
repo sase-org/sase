@@ -182,15 +182,15 @@ def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> Non
     assert (tmp_path / "workflow_state.json").is_file()
 
 
-def test_prepare_workspace_if_needed_invokes_sdd_link_after_prepare() -> None:
+def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
     calls: list[tuple[str, object]] = []
 
     def prepare_workspace(*args: object, **kwargs: object) -> bool:
         calls.append(("prepare", args))
         return True
 
-    def ensure_workspace_sdd_link(workspace_dir: str, workspace_num: int) -> None:
-        calls.append(("link", (workspace_dir, workspace_num)))
+    def ensure_workspace_sdd_clone(workspace_dir: str, workspace_num: int) -> None:
+        calls.append(("clone", (workspace_dir, workspace_num)))
 
     with (
         patch(
@@ -198,8 +198,8 @@ def test_prepare_workspace_if_needed_invokes_sdd_link_after_prepare() -> None:
             side_effect=prepare_workspace,
         ),
         patch(
-            "sase.sdd.store.ensure_workspace_sdd_link",
-            side_effect=ensure_workspace_sdd_link,
+            "sase.sdd.store.ensure_workspace_sdd_clone",
+            side_effect=ensure_workspace_sdd_clone,
         ),
     ):
         prepare_workspace_if_needed(
@@ -214,14 +214,14 @@ def test_prepare_workspace_if_needed_invokes_sdd_link_after_prepare() -> None:
 
     assert calls == [
         ("prepare", ("/tmp/workspace", "feature", "main")),
-        ("link", ("/tmp/workspace", 7)),
+        ("clone", ("/tmp/workspace", 7)),
     ]
 
 
-def test_prepare_workspace_if_needed_skips_sdd_link_for_home_mode() -> None:
+def test_prepare_workspace_if_needed_skips_sdd_clone_for_home_mode() -> None:
     with (
         patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
-        patch("sase.sdd.store.ensure_workspace_sdd_link") as ensure_link,
+        patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
     ):
         prepare_workspace_if_needed(
             workspace_dir="/tmp/workspace",
@@ -234,13 +234,13 @@ def test_prepare_workspace_if_needed_skips_sdd_link_for_home_mode() -> None:
         )
 
     prepare.assert_not_called()
-    ensure_link.assert_not_called()
+    ensure_clone.assert_not_called()
 
 
-def test_prepare_workspace_if_needed_skips_sdd_link_for_retry_handoff() -> None:
+def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None:
     with (
         patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
-        patch("sase.sdd.store.ensure_workspace_sdd_link") as ensure_link,
+        patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
     ):
         prepare_workspace_if_needed(
             workspace_dir="/tmp/workspace",
@@ -253,7 +253,7 @@ def test_prepare_workspace_if_needed_skips_sdd_link_for_retry_handoff() -> None:
         )
 
     prepare.assert_not_called()
-    ensure_link.assert_not_called()
+    ensure_clone.assert_not_called()
 
 
 def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note(

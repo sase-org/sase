@@ -20,7 +20,7 @@ from sase.sdd.store import (
     SddMaterializationError,
     _record_cache,
     _write_sdd_store_record,
-    ensure_workspace_sdd_link,
+    ensure_workspace_sdd_clone,
     get_configured_sdd_storage,
     materialize_sdd_store,
     read_sdd_store_record,
@@ -185,18 +185,18 @@ def test_resolve_sdd_store_equivalence_matrix(
     store = resolve_sdd_store(workspace, 2)
 
     assert store.storage == expected_storage
-    expected_sdd_dir = (
-        workspace / "sdd"
-        if expected_storage == SDD_STORAGE_IN_TREE
-        else primary / ".sase" / "sdd"
-    )
+    expected_sdd_dir = {
+        SDD_STORAGE_IN_TREE: workspace / "sdd",
+        SDD_STORAGE_LOCAL: primary / ".sase" / "sdd",
+        SDD_STORAGE_SEPARATE_REPO: workspace / ".sase" / "sdd",
+    }[expected_storage]
     assert store.sdd_dir == expected_sdd_dir
 
-    expected_beads_dir = (
-        workspace / BEADS_DIRNAME
-        if expected_storage == SDD_STORAGE_IN_TREE
-        else primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
-    )
+    expected_beads_dir = {
+        SDD_STORAGE_IN_TREE: workspace / BEADS_DIRNAME,
+        SDD_STORAGE_LOCAL: primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC,
+        SDD_STORAGE_SEPARATE_REPO: workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC,
+    }[expected_storage]
     assert store.sdd_dir / "beads" == expected_beads_dir
 
 
@@ -248,7 +248,7 @@ def test_record_precedence_under_auto(
     store = resolve_sdd_store(workspace, 2)
 
     assert store.storage == SDD_STORAGE_SEPARATE_REPO
-    assert store.sdd_dir == primary / ".sase" / "sdd"
+    assert store.sdd_dir == workspace / ".sase" / "sdd"
     assert store.provider == "github"
     assert store.remote_url == "git@github.com:owner/repo-sdd.git"
 
@@ -316,31 +316,36 @@ def test_explicit_storage_wins_over_record(
 
 
 @pytest.mark.parametrize(
-    ("sdd_config", "legacy_in_tree"),
+    ("sdd_config", "expected_storage"),
     [
-        ({"storage": "in_tree", "version_controlled": False}, True),
-        ({"storage": "local", "version_controlled": True}, False),
-        ({"storage": "separate_repo", "version_controlled": False}, False),
+        ({"storage": "in_tree", "version_controlled": False}, SDD_STORAGE_IN_TREE),
+        ({"storage": "local", "version_controlled": True}, SDD_STORAGE_LOCAL),
+        (
+            {"storage": "separate_repo", "version_controlled": False},
+            SDD_STORAGE_SEPARATE_REPO,
+        ),
     ],
 )
-def test_resolve_sdd_dir_matches_legacy_paths(
+def test_resolve_sdd_dir_matches_storage_paths(
     tmp_path: Path,
     config_patch,
     provider_patch,
     sdd_config: dict[str, Any],
-    legacy_in_tree: bool,
+    expected_storage: str,
 ) -> None:
     workspace = tmp_path / "repo_2"
-    (tmp_path / "repo").mkdir()
+    primary = tmp_path / "repo"
+    primary.mkdir()
     workspace.mkdir()
     config_patch({"sdd": sdd_config})
     provider_patch(None)
 
-    assert resolve_sdd_dir(workspace, 2) == get_sdd_dir(
-        str(workspace),
-        2,
-        version_controlled=legacy_in_tree,
-    )
+    expected = {
+        SDD_STORAGE_IN_TREE: get_sdd_dir(str(workspace), 2, version_controlled=True),
+        SDD_STORAGE_LOCAL: get_sdd_dir(str(workspace), 2, version_controlled=False),
+        SDD_STORAGE_SEPARATE_REPO: workspace / ".sase" / "sdd",
+    }[expected_storage]
+    assert resolve_sdd_dir(workspace, 2) == expected
 
 
 def test_write_sdd_store_record_round_trips(
@@ -404,7 +409,8 @@ def test_materialize_sdd_store_fake_provider_writes_record_and_bootstraps(
             options: dict[str, object],
         ) -> dict[str, object] | None:
             calls.append(options)
-            (Path(primary_workspace_dir) / ".sase" / "sdd").mkdir(parents=True)
+            del primary_workspace_dir
+            (Path(workspace_dir) / ".sase" / "sdd").mkdir(parents=True)
             return {
                 "schema_version": 1,
                 "storage": "separate_repo",
@@ -431,7 +437,7 @@ def test_materialize_sdd_store_fake_provider_writes_record_and_bootstraps(
     store = materialize_sdd_store(workspace, 2)
 
     assert store.storage == SDD_STORAGE_SEPARATE_REPO
-    assert store.sdd_dir == primary / ".sase" / "sdd"
+    assert store.sdd_dir == workspace / ".sase" / "sdd"
     assert calls and calls[0]["workspace_num"] == 2
     record = read_sdd_store_record(primary)
     assert record is not None
@@ -582,102 +588,13 @@ def test_explicit_separate_repo_without_materialization_errors(
     assert "sase sdd migrate" in message
 
 
-def test_ensure_workspace_sdd_link_managed_separate_repo(
+def test_ensure_workspace_sdd_clone_managed_separate_repo(
     tmp_path: Path,
     config_patch,
     provider_patch,
 ) -> None:
-    primary = tmp_path / "repo"
-    workspace = tmp_path / "repo_2"
-    store_dir = primary / ".sase" / "sdd"
-    plan_path = store_dir / "tales" / "202607" / "feature.md"
-    workspace.mkdir()
-    plan_path.parent.mkdir(parents=True)
-    plan_path.write_text("# Plan\n", encoding="utf-8")
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
-    provider_patch(None)
-
-    ensure_workspace_sdd_link(workspace, 2)
-
-    workspace_sdd = workspace / ".sase" / "sdd"
-    assert workspace_sdd.is_symlink()
-    assert workspace_sdd.resolve() == store_dir.resolve()
-    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
-        encoding="utf-8"
-    ) == "# Plan\n"
-
-
-def test_ensure_workspace_sdd_link_in_tree_noop(
-    tmp_path: Path,
-    config_patch,
-    provider_patch,
-) -> None:
-    workspace = tmp_path / "repo_2"
-    (tmp_path / "repo").mkdir()
-    workspace.mkdir()
-    config_patch({"sdd": {"storage": "in_tree", "version_controlled": False}})
-    provider_patch(None)
-
-    ensure_workspace_sdd_link(workspace, 2)
-
-    assert not (workspace / ".sase" / "sdd").exists()
-
-
-def test_ensure_workspace_sdd_link_colocated_store_refreshes_without_symlink(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    config_patch,
-    provider_patch,
-) -> None:
-    workspace = tmp_path / "repo"
-    workspace_sdd = workspace / ".sase" / "sdd"
-    workspace.mkdir()
-    config_patch({"sdd": {"storage": "local", "version_controlled": False}})
-    provider_patch(None)
-    refreshed: list[Path] = []
-    monkeypatch.setattr(
-        "sase.sdd.store._refresh_materialized_store",
-        lambda path: refreshed.append(path),
-    )
-
-    ensure_workspace_sdd_link(workspace, 1)
-
-    assert refreshed == [workspace_sdd]
-    assert not workspace_sdd.is_symlink()
-
-
-def test_ensure_workspace_sdd_link_preserves_non_store_real_dir(
-    tmp_path: Path,
-    config_patch,
-    provider_patch,
-) -> None:
-    """A real ``.sase/sdd`` that is not a git clone of the store is left alone."""
-    primary = tmp_path / "repo"
-    workspace = tmp_path / "repo_2"
-    store_dir = primary / ".sase" / "sdd"
-    workspace_sdd = workspace / ".sase" / "sdd"
-    store_dir.mkdir(parents=True)
-    workspace_sdd.mkdir(parents=True)
-    (workspace_sdd / "keep.md").write_text("# Keep\n", encoding="utf-8")
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
-    provider_patch(None)
-
-    ensure_workspace_sdd_link(workspace, 2)
-
-    assert workspace_sdd.is_dir()
-    assert not workspace_sdd.is_symlink()
-    assert (workspace_sdd / "keep.md").read_text(encoding="utf-8") == "# Keep\n"
-    assert not workspace_sdd.with_name("sdd.stale-backup").exists()
-
-
-def test_ensure_workspace_sdd_link_replaces_stale_clean_clone(
-    tmp_path: Path,
-    config_patch,
-    provider_patch,
-) -> None:
-    """The agent-29 regression: a clean, stale store clone is replaced with a
-    symlink to the primary store so a primary-only tale becomes reachable."""
-    companion, primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    companion, _primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    shutil.rmtree(workspace_sdd)
     _write_sdd_store_record(
         tmp_path / "repo",
         {
@@ -690,91 +607,183 @@ def test_ensure_workspace_sdd_link_replaces_stale_clean_clone(
     config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
-    ensure_workspace_sdd_link(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
 
-    assert workspace_sdd.is_symlink()
-    assert workspace_sdd.resolve() == primary_sdd.resolve()
+    assert workspace_sdd.is_dir()
+    assert not workspace_sdd.is_symlink()
+    assert (workspace_sdd / ".git").is_dir()
     assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
-    backup = workspace_sdd.with_name("sdd.stale-backup")
-    assert backup.is_dir()
-    assert not backup.is_symlink()
-    # The moved-aside clone is the stale content that never carried the tale.
-    assert not (backup / "tales" / "202607" / "feature.md").exists()
 
 
-def test_ensure_workspace_sdd_link_replace_is_idempotent(
+def test_ensure_workspace_sdd_clone_in_tree_noop(
     tmp_path: Path,
     config_patch,
     provider_patch,
 ) -> None:
-    """After replacement, a second launch just repoints the symlink; the stale
-    backup is not duplicated."""
-    companion, primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    workspace = tmp_path / "repo_2"
+    (tmp_path / "repo").mkdir()
+    workspace.mkdir()
+    config_patch({"sdd": {"storage": "in_tree", "version_controlled": False}})
     provider_patch(None)
 
-    ensure_workspace_sdd_link(tmp_path / "repo_2", 2)
-    ensure_workspace_sdd_link(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(workspace, 2)
 
-    assert workspace_sdd.is_symlink()
-    assert workspace_sdd.resolve() == primary_sdd.resolve()
-    backups = list((tmp_path / "repo_2" / ".sase").glob("sdd.stale-backup*"))
-    assert backups == [workspace_sdd.with_name("sdd.stale-backup")]
+    assert not (workspace / ".sase" / "sdd").exists()
 
 
-def test_ensure_workspace_sdd_link_store_clone_with_commits_ahead_is_preserved(
+def test_ensure_workspace_sdd_clone_local_noop(
     tmp_path: Path,
     config_patch,
     provider_patch,
 ) -> None:
-    """A store clone with an unpushed local commit is never discarded."""
-    companion, primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
-    (workspace_sdd / "local_work.md").write_text("wip\n", encoding="utf-8")
-    _commit_all(workspace_sdd, "Local work")
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    config_patch({"sdd": {"storage": "local", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_clone(workspace, 1)
+
+    assert not (workspace / ".sase" / "sdd").exists()
+
+
+def test_ensure_workspace_sdd_clone_preserves_non_store_real_dir(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    workspace = tmp_path / "repo_2"
+    workspace_sdd = workspace / ".sase" / "sdd"
+    workspace_sdd.mkdir(parents=True)
+    (workspace_sdd / "keep.md").write_text("# Keep\n", encoding="utf-8")
     config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
-    ensure_workspace_sdd_link(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(workspace, 2)
 
-    assert not workspace_sdd.is_symlink()
     assert workspace_sdd.is_dir()
-    assert (workspace_sdd / "local_work.md").read_text(encoding="utf-8") == "wip\n"
+    assert not workspace_sdd.is_symlink()
+    assert (workspace_sdd / "keep.md").read_text(encoding="utf-8") == "# Keep\n"
+
+
+def test_ensure_workspace_sdd_clone_pulls_stale_clean_clone(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    companion, _primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    _write_sdd_store_record(
+        tmp_path / "repo",
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(companion),
+            "discovery": "found",
+        },
+    )
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
+
+    assert workspace_sdd.is_dir()
+    assert not workspace_sdd.is_symlink()
+    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+        encoding="utf-8"
+    ) == "# Plan\n"
     assert not workspace_sdd.with_name("sdd.stale-backup").exists()
 
 
-def test_ensure_workspace_sdd_link_store_clone_with_dirty_tree_is_preserved(
+def test_ensure_workspace_sdd_clone_is_idempotent(
     tmp_path: Path,
     config_patch,
     provider_patch,
 ) -> None:
-    """A dirty store clone is preserved but best-effort fast-forwarded from the
-    primary so the tale still becomes reachable without discarding local work."""
-    companion, primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
-    (workspace_sdd / "local_notes.md").write_text("draft\n", encoding="utf-8")
+    companion, _primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    _write_sdd_store_record(
+        tmp_path / "repo",
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(companion),
+            "discovery": "found",
+        },
+    )
     config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
-    ensure_workspace_sdd_link(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
+
+    assert workspace_sdd.is_dir()
+    assert not workspace_sdd.is_symlink()
+    assert not list((tmp_path / "repo_2" / ".sase").glob("sdd.stale-backup*"))
+
+
+def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    companion, _primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    (workspace_sdd / "local_work.md").write_text("wip\n", encoding="utf-8")
+    _commit_all(workspace_sdd, "Local work")
+    _write_sdd_store_record(
+        tmp_path / "repo",
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(companion),
+            "discovery": "found",
+        },
+    )
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
 
     assert not workspace_sdd.is_symlink()
-    assert workspace_sdd.is_dir()
+    assert (workspace_sdd / "local_work.md").read_text(encoding="utf-8") == "wip\n"
+    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+        encoding="utf-8"
+    ) == "# Plan\n"
+
+
+def test_ensure_workspace_sdd_clone_store_clone_with_dirty_tree_is_preserved(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    companion, _primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    (workspace_sdd / "local_notes.md").write_text("draft\n", encoding="utf-8")
+    _write_sdd_store_record(
+        tmp_path / "repo",
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(companion),
+            "discovery": "found",
+        },
+    )
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
+
+    assert not workspace_sdd.is_symlink()
     assert (workspace_sdd / "local_notes.md").read_text(encoding="utf-8") == "draft\n"
     assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
-    assert not workspace_sdd.with_name("sdd.stale-backup").exists()
 
 
-def test_ensure_workspace_sdd_link_non_matching_remote_clone_is_preserved(
+def test_ensure_workspace_sdd_clone_non_matching_remote_clone_is_preserved(
     tmp_path: Path,
     config_patch,
     provider_patch,
 ) -> None:
-    """A git clone whose origin does not match the store remote is unrelated
-    content and must be preserved, not discarded."""
-    companion, primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    companion, _primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
     shutil.rmtree(workspace_sdd)
     other = tmp_path / "other.git"
     _init_bare_repo(other)
@@ -792,86 +801,104 @@ def test_ensure_workspace_sdd_link_non_matching_remote_clone_is_preserved(
     config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
-    ensure_workspace_sdd_link(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
 
     assert not workspace_sdd.is_symlink()
-    assert workspace_sdd.is_dir()
     assert (workspace_sdd / "unrelated.md").read_text(encoding="utf-8") == "unrelated\n"
-    assert not workspace_sdd.with_name("sdd.stale-backup").exists()
 
 
-def test_ensure_workspace_sdd_link_stale_clone_makes_relative_prompt_ref_resolve(
+def test_ensure_workspace_sdd_clone_stale_clone_makes_relative_prompt_ref_resolve(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     config_patch,
     provider_patch,
 ) -> None:
-    """End-to-end: with a stale real clone in place, the coder hand-off's
-    relative ``@.sase/sdd/...`` reference resolves from the workspace CWD, so the
-    ``process_file_references`` ``sys.exit(1)`` path cannot re-trigger."""
     from sase.file_references import process_file_references
 
-    _companion, _primary_sdd, _workspace_sdd = _build_separate_repo_clones(tmp_path)
+    companion, _primary_sdd, _workspace_sdd = _build_separate_repo_clones(tmp_path)
+    _write_sdd_store_record(
+        tmp_path / "repo",
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(companion),
+            "discovery": "found",
+        },
+    )
     config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
-    ensure_workspace_sdd_link(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
     monkeypatch.chdir(tmp_path / "repo_2")
 
     prompt = "@.sase/sdd/tales/202607/feature.md\nImplement it now."
     assert process_file_references(prompt) == prompt
 
 
-def test_ensure_workspace_sdd_link_repoints_stale_symlink_and_is_idempotent(
+def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
     tmp_path: Path,
     config_patch,
     provider_patch,
 ) -> None:
-    primary = tmp_path / "repo"
-    workspace = tmp_path / "repo_2"
-    store_dir = primary / ".sase" / "sdd"
+    companion, _primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    shutil.rmtree(workspace_sdd)
     stale_target = tmp_path / "old-sdd"
-    workspace_sdd = workspace / ".sase" / "sdd"
-    store_dir.mkdir(parents=True)
     stale_target.mkdir()
-    workspace_sdd.parent.mkdir(parents=True)
+    workspace_sdd.parent.mkdir(parents=True, exist_ok=True)
     workspace_sdd.symlink_to(stale_target, target_is_directory=True)
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
-    provider_patch(None)
-
-    ensure_workspace_sdd_link(workspace, 2)
-    ensure_workspace_sdd_link(workspace, 2)
-
-    assert workspace_sdd.is_symlink()
-    assert workspace_sdd.resolve() == store_dir.resolve()
-
-
-def test_ensure_workspace_sdd_link_refresh_failure_still_links(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    config_patch,
-    provider_patch,
-) -> None:
-    primary = tmp_path / "repo"
-    workspace = tmp_path / "repo_2"
-    store_dir = primary / ".sase" / "sdd"
-    (store_dir / ".git").mkdir(parents=True)
-    workspace.mkdir()
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
-    provider_patch(None)
-    monkeypatch.setattr(
-        "sase.sdd.store.subprocess.run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0], 1, stdout="", stderr="pull failed"
-        ),
+    _write_sdd_store_record(
+        tmp_path / "repo",
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(companion),
+            "discovery": "found",
+        },
     )
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
 
-    ensure_workspace_sdd_link(workspace, 2)
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
 
-    assert (workspace / ".sase" / "sdd").resolve() == store_dir.resolve()
+    assert workspace_sdd.is_dir()
+    assert not workspace_sdd.is_symlink()
+    assert (workspace_sdd / "tales" / "202607" / "feature.md").exists()
 
 
-def test_ensure_workspace_sdd_link_missing_store_is_best_effort(
+def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    _companion, primary_sdd, workspace_sdd = _build_separate_repo_clones(tmp_path)
+    shutil.rmtree(workspace_sdd)
+    _write_sdd_store_record(
+        tmp_path / "repo",
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "remote_url": str(tmp_path / "missing.git"),
+            "discovery": "found",
+        },
+    )
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
+
+    assert workspace_sdd.is_dir()
+    assert not workspace_sdd.is_symlink()
+    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+        encoding="utf-8"
+    ) == "# Plan\n"
+    assert _git(["remote", "get-url", "origin"], workspace_sdd).stdout.strip() == str(
+        tmp_path / "missing.git"
+    )
+    assert (primary_sdd / "tales" / "202607" / "feature.md").exists()
+
+
+def test_ensure_workspace_sdd_clone_missing_store_is_best_effort(
     tmp_path: Path,
     config_patch,
     provider_patch,
@@ -881,30 +908,6 @@ def test_ensure_workspace_sdd_link_missing_store_is_best_effort(
     config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
-    ensure_workspace_sdd_link(workspace, 2)
+    ensure_workspace_sdd_clone(workspace, 2)
 
     assert not (workspace / ".sase" / "sdd").exists()
-
-
-def test_ensure_workspace_sdd_link_makes_relative_prompt_ref_resolve(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    config_patch,
-    provider_patch,
-) -> None:
-    from sase.file_references import process_file_references
-
-    primary = tmp_path / "repo"
-    workspace = tmp_path / "repo_2"
-    plan_path = primary / ".sase" / "sdd" / "tales" / "202607" / "approved_plan.md"
-    workspace.mkdir()
-    plan_path.parent.mkdir(parents=True)
-    plan_path.write_text("# Approved\n", encoding="utf-8")
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
-    provider_patch(None)
-
-    ensure_workspace_sdd_link(workspace, 2)
-    monkeypatch.chdir(workspace)
-
-    prompt = "@.sase/sdd/tales/202607/approved_plan.md\nImplement it now."
-    assert process_file_references(prompt) == prompt

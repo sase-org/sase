@@ -336,6 +336,12 @@ def ensure_workspace_checkout(
         primary_workspace_dir, workspace_num, path.checkout_dir
     )
     _record_managed_workspace(store, path)
+    try:
+        from sase.sdd.store import ensure_workspace_sdd_clone
+
+        ensure_workspace_sdd_clone(checkout_dir, workspace_num)
+    except Exception:
+        pass
     return checkout_dir
 
 

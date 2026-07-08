@@ -327,6 +327,7 @@ def handle_accepted_plan(
                 sdd_store,
                 f"Add SDD files for {sdd_plan_name}",
                 paths=sdd_commit_paths,
+                push_after_commit=True,
             )
     except Exception:
         logger.warning("SDD file generation failed", exc_info=True)
@@ -352,6 +353,7 @@ def handle_accepted_plan(
                 sdd_store,
                 f"Add SDD files for {sdd_plan_name}",
                 paths=sdd_commit_paths,
+                push_after_commit=True,
             )
     elif should_commit:
         required_sdd_commit_succeeded = False

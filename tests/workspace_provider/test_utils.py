@@ -221,6 +221,32 @@ class TestEnsureWorkspaceCheckout:
         assert result == expected
 
     @patch("sase.workspace_provider.utils.subprocess.run")
+    def test_materialized_checkout_syncs_workspace_sdd_clone(
+        self,
+        mock_run: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="https://github.com/u/r.git\n"
+        )
+        primary = str(tmp_path / "repo") + "/"
+        os.makedirs(primary)
+        config = {"workspace": {"root": "adjacent"}}
+        calls: list[tuple[str, int]] = []
+        monkeypatch.setattr(
+            "sase.sdd.store.ensure_workspace_sdd_clone",
+            lambda workspace_dir, workspace_num: calls.append(
+                (workspace_dir, workspace_num)
+            ),
+        )
+
+        result = ensure_workspace_checkout(primary, 2, config=config, env={})
+
+        assert result == str(tmp_path / "repo") + "_2/"
+        assert calls == [(result, 2)]
+
+    @patch("sase.workspace_provider.utils.subprocess.run")
     def test_xdg_state_materializes_under_managed_root(
         self,
         mock_run: MagicMock,

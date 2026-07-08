@@ -8,6 +8,7 @@ import pytest
 from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.sdd.store import SddStore
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
@@ -81,6 +82,52 @@ class TestPlanFollowupApprovals:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
         assert order[:2] == ["ensure", "write"]
+
+    def test_separate_repo_plan_commit_pushes_synchronously(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text("# Plan")
+        store_root = tmp_path / ".sase" / "sdd"
+        store_root.mkdir(parents=True)
+        sdd_store = SddStore(
+            storage="separate_repo",
+            sdd_dir=store_root,
+            repo_root=store_root,
+            provider="github",
+            remote_url="git@example.com:owner/repo-sdd.git",
+        )
+        commit_kwargs: list[dict[str, object]] = []
+
+        def commit_sdd_store_files(*_args: object, **kwargs: object) -> bool:
+            commit_kwargs.append(kwargs)
+            return True
+
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=True,
+            commit_plan=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch("sase.sdd.store.materialize_sdd_store", return_value=sdd_store),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.sdd.files.commit_sdd_store_files",
+                side_effect=commit_sdd_store_files,
+            ),
+        ):
+            handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert commit_kwargs
+        assert all(kwargs["push_after_commit"] is True for kwargs in commit_kwargs)
 
     def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
         """Legend approval writes to sdd/legends and launches bd/new_legend."""

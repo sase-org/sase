@@ -13,7 +13,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import shutil
 import subprocess
 from typing import Any, Literal, cast
 from collections.abc import Mapping
@@ -104,42 +103,18 @@ def get_configured_sdd_storage(
 def resolve_sdd_dir(workspace_dir: str | Path, workspace_num: int) -> Path:
     """Resolve only the effective SDD root directory.
 
-    This intentionally does not read the store record. In-tree storage is the
-    only decision that affects the physical directory; local and separate-repo
-    storage both live under ``<primary>/.sase/sdd`` in v1.
+    Separate-repo storage reads the primary checkout's store record, but the
+    effective working tree is workspace-local: ``<workspace>/.sase/sdd``.
     """
 
-    configured = get_configured_sdd_storage()
-    if configured == SDD_STORAGE_IN_TREE:
-        return _sdd_dir_for_storage(workspace_dir, workspace_num, SDD_STORAGE_IN_TREE)
-    if configured in (SDD_STORAGE_LOCAL, SDD_STORAGE_SEPARATE_REPO):
-        return _sdd_dir_for_storage(workspace_dir, workspace_num, SDD_STORAGE_LOCAL)
-
-    policy = _provider_sdd_storage_policy(workspace_dir)
-    if policy == SDD_STORAGE_IN_TREE:
-        return _sdd_dir_for_storage(workspace_dir, workspace_num, SDD_STORAGE_IN_TREE)
-    return _sdd_dir_for_storage(workspace_dir, workspace_num, SDD_STORAGE_LOCAL)
+    storage, _record, _primary = _resolve_sdd_storage(workspace_dir, workspace_num)
+    return _sdd_dir_for_storage(workspace_dir, workspace_num, storage)
 
 
 def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore:
     """Resolve the effective SDD storage policy and paths."""
 
-    configured = get_configured_sdd_storage()
-    primary = Path(
-        get_primary_workspace_dir(str(Path(workspace_dir).expanduser()), workspace_num)
-    )
-    record = read_sdd_store_record(primary)
-
-    storage: SddStorage
-    if configured != SDD_STORAGE_AUTO:
-        storage = cast(SddStorage, configured)
-    elif _is_materialized_record(record):
-        storage = SDD_STORAGE_SEPARATE_REPO
-    else:
-        policy = _provider_sdd_storage_policy(workspace_dir)
-        storage = (
-            SDD_STORAGE_IN_TREE if policy == SDD_STORAGE_IN_TREE else SDD_STORAGE_LOCAL
-        )
+    storage, record, _primary = _resolve_sdd_storage(workspace_dir, workspace_num)
 
     sdd_dir = _sdd_dir_for_storage(workspace_dir, workspace_num, storage)
     provider = (
@@ -174,6 +149,9 @@ def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddS
             record
         ):
             raise SddMaterializationError(_store_not_materialized_message(record))
+        store = resolve_sdd_store(workspace, workspace_num)
+        if store.storage == SDD_STORAGE_SEPARATE_REPO:
+            ensure_workspace_sdd_clone(workspace, workspace_num)
         return resolve_sdd_store(workspace, workspace_num)
 
     policy = _provider_sdd_storage_policy(workspace)
@@ -200,144 +178,250 @@ def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddS
             )
         return resolve_sdd_store(workspace, workspace_num)
 
+    ensure_workspace_sdd_clone(workspace, workspace_num)
     store = resolve_sdd_store(workspace, workspace_num)
-    _refresh_materialized_store(store.sdd_dir)
-    _ensure_materialized_store_initialized(store)
+    if store.sdd_dir.exists():
+        _refresh_materialized_store(store.sdd_dir)
+        _ensure_materialized_store_initialized(store)
     return resolve_sdd_store(workspace, workspace_num)
 
 
-def ensure_workspace_sdd_link(workspace_dir: str | Path, workspace_num: int) -> None:
-    """Best-effort workspace-local view of a non-in-tree SDD store.
-
-    Managed workspaces validate relative prompt references from their own CWD,
-    while local/separate SDD stores live under the primary checkout.  Link the
-    workspace's ``.sase/sdd`` to that primary store so relative references such
-    as ``@.sase/sdd/tales/...`` resolve before prompt validation runs.
-    """
+def ensure_workspace_sdd_clone(workspace_dir: str | Path, workspace_num: int) -> None:
+    """Best-effort workspace-local clone of a separate-repo SDD store."""
 
     workspace = Path(workspace_dir).expanduser()
     try:
         store = resolve_sdd_store(workspace, workspace_num)
-        if store.is_in_tree:
+        if store.storage != SDD_STORAGE_SEPARATE_REPO:
             return
 
         workspace_sdd = workspace / ".sase" / "sdd"
-        if _paths_same_file(workspace_sdd, store.sdd_dir):
-            _refresh_materialized_store(store.sdd_dir)
-            return
-
-        if not store.sdd_dir.exists():
-            try:
-                store = materialize_sdd_store(workspace, workspace_num)
-            except Exception:
-                _logger.warning(
-                    "Failed to materialize SDD store for workspace %s",
-                    workspace,
-                    exc_info=True,
-                )
-                return
-            if not store.sdd_dir.exists():
-                _logger.warning(
-                    "SDD store directory does not exist for workspace %s: %s",
-                    workspace,
-                    store.sdd_dir,
-                )
-                return
-
-        _refresh_materialized_store(store.sdd_dir)
-
-        if _paths_same_file(workspace_sdd, store.sdd_dir):
-            return
+        primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
+        primary_sdd = primary / ".sase" / "sdd"
 
         workspace_sdd.parent.mkdir(parents=True, exist_ok=True)
         if workspace_sdd.is_symlink():
             workspace_sdd.unlink()
-        elif os.path.lexists(workspace_sdd):
-            if not _replace_stale_workspace_sdd_clone(workspace_sdd, store):
-                return
 
-        workspace_sdd.symlink_to(store.sdd_dir, target_is_directory=True)
+        if os.path.lexists(workspace_sdd):
+            if not workspace_sdd.is_dir():
+                _logger.warning("Refusing to overwrite SDD path at %s", workspace_sdd)
+                return
+            if not (workspace_sdd / ".git").is_dir():
+                _logger.warning(
+                    "Refusing to overwrite non-git SDD directory at %s",
+                    workspace_sdd,
+                )
+                return
+            if not _is_matching_store_clone(workspace_sdd, store):
+                _logger.warning(
+                    "Refusing to sync SDD clone at %s because its origin does not "
+                    "match the configured SDD store remote",
+                    workspace_sdd,
+                )
+                return
+            _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
+            return
+
+        cloned = False
+        if store.remote_url:
+            cloned = _clone_sdd_store(store.remote_url, workspace_sdd)
+        if not cloned:
+            cloned = _clone_sdd_store_from_primary(primary_sdd, workspace_sdd)
+            if cloned and store.remote_url:
+                _set_sdd_origin(workspace_sdd, store.remote_url)
+        if cloned:
+            _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
     except Exception:
         _logger.warning(
-            "Failed to ensure workspace SDD link for workspace %s",
+            "Failed to ensure workspace SDD clone for workspace %s",
             workspace,
             exc_info=True,
         )
 
 
-def _replace_stale_workspace_sdd_clone(workspace_sdd: Path, store: SddStore) -> bool:
-    """Decide what to do with a pre-existing real ``.sase/sdd`` directory.
+def _sync_workspace_sdd_clone(
+    workspace_sdd: Path,
+    primary_sdd: Path,
+    remote_url: str | None,
+) -> None:
+    """Refresh an existing workspace SDD clone without failing launch."""
 
-    Returns ``True`` when the directory was a regenerable SDD-store clone that has
-    been moved aside, so the caller may create the symlink to the primary store.
-    Returns ``False`` when the directory must be preserved — either unrelated
-    content or a store clone carrying local work — in which case the caller leaves
-    it untouched and skips linking.
-    """
+    if remote_url is not None:
+        _set_sdd_origin(workspace_sdd, remote_url)
 
-    if _is_regenerable_store_clone(workspace_sdd, store):
-        _move_aside_stale_store_clone(workspace_sdd)
-        _logger.info(
-            "Replaced stale SDD store clone at %s with a symlink to the primary "
-            "store %s (stale clone moved to %s)",
-            workspace_sdd,
-            store.sdd_dir,
-            _stale_backup_path(workspace_sdd),
+    if _pull_sdd_clone(workspace_sdd):
+        return
+
+    if not _paths_same_file(workspace_sdd, primary_sdd):
+        _fast_forward_workspace_clone_from_primary(workspace_sdd, primary_sdd)
+
+
+def _pull_sdd_clone(workspace_sdd: Path) -> bool:
+    from sase.sdd._commit import (
+        SddGitCommandTimeout,
+        network_git_timeout,
+        run_sdd_git,
+    )
+
+    try:
+        result = run_sdd_git(
+            ["pull", "--rebase"],
+            cwd=workspace_sdd,
+            op="sdd.clone.pull",
+            timeout=network_git_timeout(),
+            check=False,
+            capture_output=True,
+            text=True,
         )
-        return True
-
-    if _is_matching_store_clone(workspace_sdd, store):
-        _logger.warning(
-            "Workspace SDD store clone at %s carries local work (dirty tree, "
-            "commits ahead of upstream, or no upstream); refusing to discard it "
-            "and fast-forwarding from the primary store %s instead",
-            workspace_sdd,
-            store.sdd_dir,
-        )
-        _fast_forward_workspace_clone_from_primary(workspace_sdd, store.sdd_dir)
+    except SddGitCommandTimeout:
+        _logger.warning("Timed out pulling workspace SDD clone %s", workspace_sdd)
         return False
-
+    except Exception:
+        _logger.warning(
+            "Failed to pull workspace SDD clone %s",
+            workspace_sdd,
+            exc_info=True,
+        )
+        return False
+    if result.returncode == 0:
+        return True
+    detail = (result.stderr or result.stdout or "").strip()
     _logger.warning(
-        "Refusing to overwrite real SDD directory at %s",
+        "Failed to pull workspace SDD clone %s: %s",
         workspace_sdd,
+        detail or f"git pull exited {result.returncode}",
     )
     return False
 
 
-def _stale_backup_path(workspace_sdd: Path) -> Path:
-    return workspace_sdd.with_name(workspace_sdd.name + ".stale-backup")
+def _clone_sdd_store(remote_url: str, workspace_sdd: Path) -> bool:
+    from sase.sdd._commit import (
+        SddGitCommandTimeout,
+        network_git_timeout,
+        run_sdd_git,
+    )
 
-
-def _move_aside_stale_store_clone(workspace_sdd: Path) -> None:
-    """Move a regenerable stale store clone to its sibling backup path.
-
-    Any prior backup is replaced so backups never accumulate. Move-aside (rather
-    than delete) keeps the replacement reversible; once the path becomes a
-    symlink, later launches only repoint it and never re-enter this branch.
-    """
-
-    backup = _stale_backup_path(workspace_sdd)
-    if os.path.lexists(backup):
-        if backup.is_dir() and not backup.is_symlink():
-            shutil.rmtree(backup)
-        else:
-            backup.unlink()
-    workspace_sdd.rename(backup)
-
-
-def _is_regenerable_store_clone(path: Path, store: SddStore) -> bool:
-    """Return true when *path* is a clean store clone with nothing unique to lose.
-
-    Safe-to-discard requires all of: a git working clone whose ``origin`` matches
-    the store remote (when known), a clean working tree, and no commits ahead of
-    its upstream.
-    """
-
-    if not _is_matching_store_clone(path, store):
+    try:
+        result = run_sdd_git(
+            ["clone", remote_url, str(workspace_sdd)],
+            cwd=workspace_sdd.parent,
+            op="sdd.clone.remote",
+            timeout=network_git_timeout(),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except SddGitCommandTimeout:
+        _logger.warning("Timed out cloning SDD store %s", remote_url)
         return False
-    if not _git_working_tree_clean(path):
+    except Exception:
+        _logger.warning(
+            "Failed to clone SDD store %s into %s",
+            remote_url,
+            workspace_sdd,
+            exc_info=True,
+        )
         return False
-    return _git_commits_ahead_of_upstream(path) == 0
+    if result.returncode == 0:
+        return True
+    detail = (result.stderr or result.stdout or "").strip()
+    _logger.warning(
+        "Failed to clone SDD store %s into %s: %s",
+        remote_url,
+        workspace_sdd,
+        detail or f"git clone exited {result.returncode}",
+    )
+    return False
+
+
+def _clone_sdd_store_from_primary(primary_sdd: Path, workspace_sdd: Path) -> bool:
+    if not (primary_sdd / ".git").is_dir():
+        return False
+    if _paths_same_file(primary_sdd, workspace_sdd):
+        return workspace_sdd.is_dir()
+
+    from sase.sdd._commit import (
+        SddGitCommandTimeout,
+        network_git_timeout,
+        run_sdd_git,
+    )
+
+    try:
+        result = run_sdd_git(
+            ["clone", str(primary_sdd), str(workspace_sdd)],
+            cwd=workspace_sdd.parent,
+            op="sdd.clone.primary",
+            timeout=network_git_timeout(),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except SddGitCommandTimeout:
+        _logger.warning(
+            "Timed out cloning workspace SDD store %s from primary %s",
+            workspace_sdd,
+            primary_sdd,
+        )
+        return False
+    except Exception:
+        _logger.warning(
+            "Failed to clone workspace SDD store %s from primary %s",
+            workspace_sdd,
+            primary_sdd,
+            exc_info=True,
+        )
+        return False
+    if result.returncode == 0:
+        return True
+    detail = (result.stderr or result.stdout or "").strip()
+    _logger.warning(
+        "Failed to clone workspace SDD store %s from primary %s: %s",
+        workspace_sdd,
+        primary_sdd,
+        detail or f"git clone exited {result.returncode}",
+    )
+    return False
+
+
+def _set_sdd_origin(workspace_sdd: Path, remote_url: str) -> None:
+    current = _git_remote_url(workspace_sdd)
+    if current is not None and _same_git_remote(current, remote_url):
+        return
+
+    from sase.sdd._commit import SddGitCommandTimeout, run_sdd_git
+
+    command = (
+        ["remote", "set-url", "origin", remote_url]
+        if current
+        else ["remote", "add", "origin", remote_url]
+    )
+    try:
+        result = run_sdd_git(
+            command,
+            cwd=workspace_sdd,
+            op="sdd.clone.origin",
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except SddGitCommandTimeout:
+        _logger.warning("Timed out setting SDD origin in %s", workspace_sdd)
+        return
+    except Exception:
+        _logger.warning(
+            "Failed to set SDD origin in %s",
+            workspace_sdd,
+            exc_info=True,
+        )
+        return
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        _logger.warning(
+            "Failed to set SDD origin in %s: %s",
+            workspace_sdd,
+            detail or f"git remote exited {result.returncode}",
+        )
 
 
 def _is_matching_store_clone(path: Path, store: SddStore) -> bool:
@@ -379,7 +463,7 @@ def _fast_forward_workspace_clone_from_primary(
         result = run_sdd_git(
             ["pull", "--ff-only", str(primary_sdd)],
             cwd=workspace_sdd,
-            op="sdd.link.fast_forward",
+            op="sdd.clone.fast_forward",
             timeout=network_git_timeout(),
             check=False,
             capture_output=True,
@@ -410,36 +494,9 @@ def _fast_forward_workspace_clone_from_primary(
         )
 
 
-def _git_working_tree_clean(path: Path) -> bool:
-    result = _run_local_git(["status", "--porcelain"], cwd=path, op="sdd.link.status")
-    if result is None or result.returncode != 0:
-        return False
-    return not result.stdout.strip()
-
-
-def _git_commits_ahead_of_upstream(path: Path) -> int | None:
-    """Return commits on HEAD not on its upstream, or ``None`` when unknown.
-
-    ``None`` (no upstream configured, or the query failed) means we cannot prove
-    the clone has nothing unique, so callers treat it as not-safe-to-discard.
-    """
-
-    result = _run_local_git(
-        ["rev-list", "--count", "@{upstream}..HEAD"],
-        cwd=path,
-        op="sdd.link.ahead",
-    )
-    if result is None or result.returncode != 0:
-        return None
-    try:
-        return int(result.stdout.strip())
-    except ValueError:
-        return None
-
-
 def _git_remote_url(path: Path) -> str | None:
     result = _run_local_git(
-        ["remote", "get-url", "origin"], cwd=path, op="sdd.link.remote"
+        ["remote", "get-url", "origin"], cwd=path, op="sdd.clone.remote"
     )
     if result is None or result.returncode != 0:
         return None
@@ -533,6 +590,27 @@ def delete_sdd_store_record(primary_workspace_dir: str | Path) -> bool:
     return True
 
 
+def _resolve_sdd_storage(
+    workspace_dir: str | Path,
+    workspace_num: int,
+) -> tuple[SddStorage, SddStoreRecord | None, Path]:
+    workspace = Path(workspace_dir).expanduser()
+    primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
+    record = read_sdd_store_record(primary)
+
+    configured = get_configured_sdd_storage()
+    if configured != SDD_STORAGE_AUTO:
+        return cast(SddStorage, configured), record, primary
+    if _is_materialized_record(record):
+        return SDD_STORAGE_SEPARATE_REPO, record, primary
+
+    policy = _provider_sdd_storage_policy(workspace)
+    storage = (
+        SDD_STORAGE_IN_TREE if policy == SDD_STORAGE_IN_TREE else SDD_STORAGE_LOCAL
+    )
+    return storage, record, primary
+
+
 def _write_sdd_store_record(
     primary_workspace_dir: str | Path,
     record: SddStoreRecord | Mapping[str, Any],
@@ -575,6 +653,8 @@ def _sdd_dir_for_storage(
     workspace = Path(workspace_dir)
     if storage == SDD_STORAGE_IN_TREE:
         return workspace / "sdd"
+    if storage == SDD_STORAGE_SEPARATE_REPO:
+        return workspace / ".sase" / "sdd"
     primary = get_primary_workspace_dir(str(workspace), workspace_num)
     return Path(primary) / ".sase" / "sdd"
 

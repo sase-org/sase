@@ -68,9 +68,9 @@ def prepare_workspace_if_needed(
         project_basename=project_name,
     ):
         raise RuntimeError("Failed to prepare workspace")
-    from sase.sdd.store import ensure_workspace_sdd_link
+    from sase.sdd.store import ensure_workspace_sdd_clone
 
-    ensure_workspace_sdd_link(workspace_dir, workspace_num)
+    ensure_workspace_sdd_clone(workspace_dir, workspace_num)
     print("===========================")
     print()
 
