@@ -40,16 +40,13 @@ def resolve_sdd_root(path: str | None = None, *, cwd: Path | None = None) -> Pat
     """Resolve an SDD root from either an SDD dir or a project dir."""
     base = Path.cwd() if cwd is None else cwd
     if path is None:
-        for candidate in (base / "sdd", base / ".sase" / "sdd"):
-            if candidate.is_dir():
-                return candidate.resolve()
-        return (base / "sdd").resolve()
+        return _resolve_project_sdd_root(base).resolve()
 
     candidate = Path(path).expanduser()
     if not candidate.is_absolute():
         candidate = base / candidate
     if candidate.is_dir() and _looks_like_project_root(candidate):
-        candidate = candidate / "sdd"
+        candidate = _resolve_project_sdd_root(candidate)
     return candidate.resolve()
 
 
@@ -464,6 +461,45 @@ def _apply_legacy_error_allowlist(issues: list[_SddIssue]) -> list[_SddIssue]:
 
 
 def _looks_like_project_root(path: Path) -> bool:
-    return (path / "sdd").is_dir() and not any(
+    if path.name == "sdd" and path.parent.name == ".sase":
+        return False
+    has_project_marker = (
+        (path / "sase.yml").is_file()
+        or (path / ".git").exists()
+        or (path / "sdd").is_dir()
+        or (path / ".sase" / "sdd").is_dir()
+    )
+    return has_project_marker and not any(
         (path / kind).is_dir() for kind in (*LIST_KINDS, *LEGACY_PLAN_KINDS)
+    )
+
+
+def _resolve_project_sdd_root(project_root: Path) -> Path:
+    storage, version_controlled = _read_project_sdd_config(project_root)
+    if storage in {"auto", "local", "separate_repo"}:
+        return project_root / ".sase" / "sdd"
+    if storage == "in_tree" or version_controlled is True:
+        return project_root / "sdd"
+
+    for candidate in (project_root / "sdd", project_root / ".sase" / "sdd"):
+        if candidate.is_dir():
+            return candidate
+    return project_root / "sdd"
+
+
+def _read_project_sdd_config(project_root: Path) -> tuple[str | None, bool | None]:
+    try:
+        data = yaml.safe_load((project_root / "sase.yml").read_text(encoding="utf-8"))
+    except Exception:
+        return None, None
+    if not isinstance(data, dict):
+        return None, None
+    sdd = data.get("sdd")
+    if not isinstance(sdd, dict):
+        return None, None
+    storage = sdd.get("storage")
+    version_controlled = sdd.get("version_controlled")
+    return (
+        storage if isinstance(storage, str) else None,
+        version_controlled if isinstance(version_controlled, bool) else None,
     )

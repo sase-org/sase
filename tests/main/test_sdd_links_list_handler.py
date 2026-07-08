@@ -64,6 +64,26 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert all(row["bidirectional"] for row in rows)
 
 
+def test_list_default_uses_configured_separate_repo_store(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: separate_repo\n", encoding="utf-8"
+    )
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    root = tmp_path / ".sase" / "sdd"
+    write_pair(root)
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(
+            make_args(sdd_subcommand="list", path=None, kind="tales", json=False)
+        )
+
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out == "tales\ttales/202605/linked.md\n"
+
+
 def test_list_invalid_path_exits_nonzero(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

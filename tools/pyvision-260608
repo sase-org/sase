@@ -748,7 +748,7 @@ def _validate_pragmas(
                     )
                 continue
 
-            ref_file = git_root / pragma.ref_path
+            ref_file = _resolve_local_pragma_ref_file(git_root, pragma.ref_path)
 
             # Referenced file doesn't exist
             if not ref_file.is_file():
@@ -781,6 +781,18 @@ def _validate_pragmas(
                 )
 
     return errors
+
+
+def _resolve_local_pragma_ref_file(git_root: Path, ref_path: str) -> Path:
+    ref_file = git_root / ref_path
+    if ref_file.is_file():
+        return ref_file
+
+    path = Path(ref_path)
+    if path.parts and path.parts[0] == "sdd":
+        return git_root / ".sase" / path
+
+    return ref_file
 
 
 def _is_test_reference_path(ref_path: str) -> bool:

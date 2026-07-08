@@ -108,6 +108,7 @@ def run_sdd_init(args: argparse.Namespace) -> int:
         return 1
 
     project_root = _sdd_init_project_root(path)
+    configured_storage = _configured_project_sdd_storage(project_root)
     try:
         from sase.sdd.store import SddMaterializationError, materialize_sdd_store
 
@@ -117,9 +118,11 @@ def run_sdd_init(args: argparse.Namespace) -> int:
             materialize_sdd_store(project_root, 1)
         elif storage in {"in_tree", "local"}:
             write_sdd_init_config(path, storage=storage)
-        else:
+        elif configured_storage in {"auto", "local", "separate_repo"}:
             _delete_negative_sdd_record(project_root)
             materialize_sdd_store(project_root, 1)
+            write_sdd_init_config(path)
+        else:
             write_sdd_init_config(path)
     except SddMaterializationError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -208,9 +211,37 @@ def _sdd_init_project_root(path: str | Path | None) -> Path:
 def _sdd_init_generated_path(
     path: str | Path | None, project_root: Path, storage: str | None
 ) -> str | None:
-    if storage in {"auto", "local", "separate_repo"}:
+    effective_storage = storage
+    if effective_storage is None:
+        effective_storage = _configured_project_sdd_storage(project_root)
+    if effective_storage in {"auto", "local", "separate_repo"}:
         return str(project_root / ".sase" / "sdd")
     return str(path) if path is not None else None
+
+
+def _configured_project_sdd_storage(project_root: Path) -> str | None:
+    config_path = project_root / "sase.yml"
+    try:
+        text = config_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    try:
+        import yaml  # type: ignore[import-untyped]
+
+        data = yaml.safe_load(text)
+    except Exception:
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    sdd_config = data.get("sdd")
+    if not isinstance(sdd_config, dict):
+        return None
+    storage = sdd_config.get("storage")
+    if storage in {"auto", "in_tree", "local", "separate_repo"}:
+        return str(storage)
+    return None
 
 
 def _delete_negative_sdd_record(project_root: Path) -> None:

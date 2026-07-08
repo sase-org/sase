@@ -375,7 +375,7 @@ sdd:
   repo:
     # Optional companion SDD repo override for providers that support
     # separate_repo storage. Accepts "name" or "owner/name"; empty uses the
-    # provider convention (GitHub: <repo>-sdd).
+    # provider default order (GitHub: <owner>/sdd, then <owner>/<repo>-sdd).
     name: ""
   # Controls `git push` after SDD commits in separate_repo storage. Accepts:
   #   true  - push synchronously; failures only warn and the local commit is

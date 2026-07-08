@@ -17,13 +17,22 @@ from sase.sdd.files import (
 )
 
 
-def _args(path: Path) -> argparse.Namespace:
-    return argparse.Namespace(path=str(path))
+def _args(path: Path, **overrides: object) -> argparse.Namespace:
+    values: dict[str, object] = {"path": str(path)}
+    values.update(overrides)
+    return argparse.Namespace(**values)
 
 
 def _write_enabled_config(path: Path) -> None:
     (path / "sase.yml").write_text(
         "sdd:\n  version_controlled: true\n",
+        encoding="utf-8",
+    )
+
+
+def _write_storage_config(path: Path, storage: str) -> None:
+    (path / "sase.yml").write_text(
+        f"sdd:\n  storage: {storage}\n",
         encoding="utf-8",
     )
 
@@ -89,7 +98,7 @@ def test_sdd_run_non_project_skips_without_writing(
     assert not (tmp_path / "sase.yml").exists()
 
 
-def test_sdd_run_invokes_materialization_before_writes(
+def test_sdd_run_explicit_separate_repo_invokes_materialization(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -101,7 +110,7 @@ def test_sdd_run_invokes_materialization_before_writes(
 
     monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", fake_materialize)
 
-    assert run_sdd_init(_args(tmp_path)) == 0
+    assert run_sdd_init(_args(tmp_path, storage="separate_repo")) == 0
     assert calls == [(tmp_path, 1)]
     assert (tmp_path / "sase.yml").exists()
 
@@ -173,6 +182,22 @@ def test_sdd_plan_existing_enabled_config_reports_no_config_action(
     plan = plan_sdd_init(_args(tmp_path))
 
     assert tmp_path / "sase.yml" not in {action.path for action in plan.actions}
+
+
+def test_sdd_plan_existing_separate_repo_config_checks_dot_sase_sdd(
+    tmp_path: Path,
+) -> None:
+    _mark_project(tmp_path)
+    _write_storage_config(tmp_path, "separate_repo")
+    sdd_root = tmp_path / ".sase" / "sdd"
+    write_sdd_readme(str(sdd_root))
+
+    plan = plan_sdd_init(_args(tmp_path))
+
+    assert plan.actions == ()
+    assert plan.has_changes is False
+    assert "current" in plan.summary
+    assert not (tmp_path / "sdd").exists()
 
 
 def test_sdd_init_registry_includes_sdd_planner() -> None:

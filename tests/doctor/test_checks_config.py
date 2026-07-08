@@ -105,6 +105,47 @@ def test_config_sdd_errors_when_separate_repo_has_no_record(tmp_path: Path) -> N
     )
 
 
+def test_config_sdd_uses_configured_separate_repo_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: separate_repo\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    _write_sdd_pair(tmp_path / ".sase" / "sdd")
+    _write_materialized_sdd_record(tmp_path)
+
+    def fake_git_stdout(_cwd: Path, args: list[str]) -> str | None:
+        if args == ["remote", "get-url", "origin"]:
+            return "git@github.com:acme/widget-sdd.git"
+        return None
+
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout",
+        fake_git_stdout,
+    )
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["sdd_root"] == str((tmp_path / ".sase" / "sdd").resolve())
+    assert check.data["file_count"] == 2
+
+
+def test_config_sdd_allows_non_strict_validation_warnings(tmp_path: Path) -> None:
+    tale = tmp_path / "sdd" / "tales" / "202605" / "unpaired.md"
+    tale.parent.mkdir(parents=True)
+    tale.write_text("# Unpaired\n", encoding="utf-8")
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "OK"
+    assert "1 warnings" in check.summary
+    assert check.details == ()
+    assert check.data["warning_count"] == 1
+
+
 def test_config_sdd_errors_on_orphaned_store_record(tmp_path: Path) -> None:
     from sase.sdd.store import write_sdd_store_record
 
@@ -150,6 +191,21 @@ def _write_materialized_sdd_record(
         },
     )
     (primary / ".sase" / "sdd" / ".git").mkdir(parents=True)
+
+
+def _write_sdd_pair(root: Path) -> None:
+    prompt = root / "prompts" / "202605" / "linked.md"
+    tale = root / "tales" / "202605" / "linked.md"
+    prompt.parent.mkdir(parents=True, exist_ok=True)
+    tale.parent.mkdir(parents=True, exist_ok=True)
+    prompt.write_text(
+        "---\nplan: .sase/sdd/tales/202605/linked.md\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    tale.write_text(
+        "---\nprompt: .sase/sdd/prompts/202605/linked.md\n---\n# Tale\n",
+        encoding="utf-8",
+    )
 
 
 def test_config_sdd_warns_when_record_ignored_by_explicit_config(

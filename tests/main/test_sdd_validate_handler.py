@@ -57,6 +57,23 @@ def test_validate_show_warnings_flag_displays_warning_lines(
     assert "(use --show-warnings to display)" not in out
 
 
+def test_validate_default_uses_configured_separate_repo_store(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: separate_repo\n", encoding="utf-8"
+    )
+    (tmp_path / "sdd" / "beads").mkdir(parents=True)
+    write_pair(tmp_path / ".sase" / "sdd")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=None))
+
+    assert excinfo.value.code == 0
+    assert "SDD validation passed: 2 files" in capsys.readouterr().out
+
+
 def test_validate_strict_fails_unpaired_warnings(tmp_path: Path) -> None:
     root = tmp_path / "sdd"
     (root / "prompts" / "202605").mkdir(parents=True)

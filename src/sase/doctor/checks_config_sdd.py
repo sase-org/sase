@@ -60,24 +60,27 @@ def check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
     )
     status: CheckStatus = (
         "ERROR"
-        if storage_error_count
+        if error_count or storage_error_count
         else "WARN"
-        if validation.issues or storage_issues
+        if storage_issues
         else "OK"
     )
     summary = (
-        f"SDD validation passed: {len(validation.files)} files"
-        if not validation.issues and not storage_issues
+        _validation_passed_summary(len(validation.files), warning_count)
+        if not error_count and not storage_issues
         else (
             "SDD validation/storage found "
             f"{error_count + storage_error_count} errors and "
             f"{warning_count + storage_warning_count} warnings"
         )
     )
+    reported_validation_issues = [
+        issue for issue in validation.issues if issue.severity == "error"
+    ]
     details = (
         *(
             f"{issue.severity}: {issue.path}: {issue.message} ({issue.code})"
-            for issue in validation.issues[:MAX_DETAIL_ROWS]
+            for issue in reported_validation_issues[:MAX_DETAIL_ROWS]
         ),
         *(
             f"{issue.severity}: {issue.message} ({issue.code})"
@@ -86,7 +89,7 @@ def check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
     )[:MAX_DETAIL_ROWS]
 
     next_steps: tuple[str, ...] = ()
-    if validation.issues:
+    if reported_validation_issues:
         next_steps += (f"Run `sase sdd validate -p {root} -W`.",)
     if storage_issues:
         next_steps += ("Run `sase sdd migrate` or update sdd.storage in sase.yml.",)
@@ -148,6 +151,12 @@ def _storage_only_check(storage_issues: list[_StorageIssue]) -> DiagnosticCheck:
             ],
         },
     )
+
+
+def _validation_passed_summary(file_count: int, warning_count: int) -> str:
+    if warning_count:
+        return f"SDD validation passed: {file_count} files, {warning_count} warnings"
+    return f"SDD validation passed: {file_count} files"
 
 
 def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
@@ -323,7 +332,7 @@ def _git_stdout(cwd: Path, args: list[str]) -> str | None:
 
 
 def _existing_sdd_root(cwd: Path) -> Path | None:
-    for candidate in (cwd / "sdd", cwd / ".sase" / "sdd"):
-        if candidate.is_dir():
-            return resolve_sdd_root(str(candidate), cwd=cwd)
+    candidate = resolve_sdd_root(None, cwd=cwd)
+    if candidate.is_dir():
+        return candidate
     return None

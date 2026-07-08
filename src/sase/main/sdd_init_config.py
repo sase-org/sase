@@ -77,7 +77,7 @@ def plan_sdd_init_config(
         and isinstance(sdd_config, dict)
         and (
             sdd_config.get("version_controlled") is True
-            or sdd_config.get("storage") == "in_tree"
+            or sdd_config.get("storage") in {"in_tree", "local", "separate_repo"}
         )
     ):
         return _SddInitConfigPlan(path=config_path)
@@ -219,10 +219,11 @@ def _updated_config_text(
     sdd_config = data.get("sdd")
     if not isinstance(sdd_config, dict):
         return _insert_version_controlled_line(text)
-    if (
-        sdd_config.get("version_controlled") is True
-        or sdd_config.get("storage") == "in_tree"
-    ):
+    if sdd_config.get("version_controlled") is True or sdd_config.get("storage") in {
+        "in_tree",
+        "local",
+        "separate_repo",
+    }:
         return text
     if "version_controlled" in sdd_config:
         replaced = _replace_version_controlled_value(text)

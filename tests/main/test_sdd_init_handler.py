@@ -211,6 +211,30 @@ def test_init_check_current_sdd_exits_zero(
     assert "Checked: sdd." in out
 
 
+def test_init_check_current_separate_repo_sdd_exits_zero(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.sdd.files import write_sdd_readme
+
+    write_sdd_readme(str(tmp_path / ".sase" / "sdd"))
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: separate_repo\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(
+            make_args(sdd_subcommand="init", path=str(tmp_path), check=True)
+        )
+
+    assert excinfo.value.code == 0
+    assert not (tmp_path / "sdd").exists()
+    out = capsys.readouterr().out
+    assert "SASE is initialized. No init subcommands need to run." in out
+    assert "Checked: sdd." in out
+
+
 def test_init_check_reports_missing_config_without_writing(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
