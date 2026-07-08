@@ -13,6 +13,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
 import subprocess
 from typing import Any, Literal, cast
 from collections.abc import Mapping
@@ -252,11 +253,8 @@ def ensure_workspace_sdd_link(workspace_dir: str | Path, workspace_num: int) -> 
         if workspace_sdd.is_symlink():
             workspace_sdd.unlink()
         elif os.path.lexists(workspace_sdd):
-            _logger.warning(
-                "Refusing to overwrite real SDD directory at %s",
-                workspace_sdd,
-            )
-            return
+            if not _replace_stale_workspace_sdd_clone(workspace_sdd, store):
+                return
 
         workspace_sdd.symlink_to(store.sdd_dir, target_is_directory=True)
     except Exception:
@@ -265,6 +263,224 @@ def ensure_workspace_sdd_link(workspace_dir: str | Path, workspace_num: int) -> 
             workspace,
             exc_info=True,
         )
+
+
+def _replace_stale_workspace_sdd_clone(workspace_sdd: Path, store: SddStore) -> bool:
+    """Decide what to do with a pre-existing real ``.sase/sdd`` directory.
+
+    Returns ``True`` when the directory was a regenerable SDD-store clone that has
+    been moved aside, so the caller may create the symlink to the primary store.
+    Returns ``False`` when the directory must be preserved — either unrelated
+    content or a store clone carrying local work — in which case the caller leaves
+    it untouched and skips linking.
+    """
+
+    if _is_regenerable_store_clone(workspace_sdd, store):
+        _move_aside_stale_store_clone(workspace_sdd)
+        _logger.info(
+            "Replaced stale SDD store clone at %s with a symlink to the primary "
+            "store %s (stale clone moved to %s)",
+            workspace_sdd,
+            store.sdd_dir,
+            _stale_backup_path(workspace_sdd),
+        )
+        return True
+
+    if _is_matching_store_clone(workspace_sdd, store):
+        _logger.warning(
+            "Workspace SDD store clone at %s carries local work (dirty tree, "
+            "commits ahead of upstream, or no upstream); refusing to discard it "
+            "and fast-forwarding from the primary store %s instead",
+            workspace_sdd,
+            store.sdd_dir,
+        )
+        _fast_forward_workspace_clone_from_primary(workspace_sdd, store.sdd_dir)
+        return False
+
+    _logger.warning(
+        "Refusing to overwrite real SDD directory at %s",
+        workspace_sdd,
+    )
+    return False
+
+
+def _stale_backup_path(workspace_sdd: Path) -> Path:
+    return workspace_sdd.with_name(workspace_sdd.name + ".stale-backup")
+
+
+def _move_aside_stale_store_clone(workspace_sdd: Path) -> None:
+    """Move a regenerable stale store clone to its sibling backup path.
+
+    Any prior backup is replaced so backups never accumulate. Move-aside (rather
+    than delete) keeps the replacement reversible; once the path becomes a
+    symlink, later launches only repoint it and never re-enter this branch.
+    """
+
+    backup = _stale_backup_path(workspace_sdd)
+    if os.path.lexists(backup):
+        if backup.is_dir() and not backup.is_symlink():
+            shutil.rmtree(backup)
+        else:
+            backup.unlink()
+    workspace_sdd.rename(backup)
+
+
+def _is_regenerable_store_clone(path: Path, store: SddStore) -> bool:
+    """Return true when *path* is a clean store clone with nothing unique to lose.
+
+    Safe-to-discard requires all of: a git working clone whose ``origin`` matches
+    the store remote (when known), a clean working tree, and no commits ahead of
+    its upstream.
+    """
+
+    if not _is_matching_store_clone(path, store):
+        return False
+    if not _git_working_tree_clean(path):
+        return False
+    return _git_commits_ahead_of_upstream(path) == 0
+
+
+def _is_matching_store_clone(path: Path, store: SddStore) -> bool:
+    """Return true when *path* looks like a clone of the SDD companion repo.
+
+    A missing ``.git`` marks unrelated content. When the store's remote URL is
+    known, the clone's ``origin`` must match it; an unknown store remote skips the
+    check so a legitimately lagging clone is still recognized as a store clone.
+    """
+
+    if not (path / ".git").is_dir():
+        return False
+    if store.remote_url is None:
+        return True
+    origin = _git_remote_url(path)
+    if origin is None:
+        return False
+    return _same_git_remote(origin, store.remote_url)
+
+
+def _fast_forward_workspace_clone_from_primary(
+    workspace_sdd: Path, primary_sdd: Path
+) -> None:
+    """Best-effort fast-forward a workspace store clone from the primary store.
+
+    Pulling from the on-disk primary store (already committed synchronously) is
+    race-free and needs no network. Never raises into the launch path.
+    """
+
+    if not (primary_sdd / ".git").is_dir():
+        return
+    from sase.sdd._commit import (
+        SddGitCommandTimeout,
+        network_git_timeout,
+        run_sdd_git,
+    )
+
+    try:
+        result = run_sdd_git(
+            ["pull", "--ff-only", str(primary_sdd)],
+            cwd=workspace_sdd,
+            op="sdd.link.fast_forward",
+            timeout=network_git_timeout(),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except SddGitCommandTimeout:
+        _logger.warning(
+            "Timed out fast-forwarding workspace SDD clone %s from %s",
+            workspace_sdd,
+            primary_sdd,
+        )
+        return
+    except Exception:
+        _logger.warning(
+            "Failed to fast-forward workspace SDD clone %s from %s",
+            workspace_sdd,
+            primary_sdd,
+            exc_info=True,
+        )
+        return
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        _logger.warning(
+            "Failed to fast-forward workspace SDD clone %s from %s: %s",
+            workspace_sdd,
+            primary_sdd,
+            detail or f"git pull exited {result.returncode}",
+        )
+
+
+def _git_working_tree_clean(path: Path) -> bool:
+    result = _run_local_git(["status", "--porcelain"], cwd=path, op="sdd.link.status")
+    if result is None or result.returncode != 0:
+        return False
+    return not result.stdout.strip()
+
+
+def _git_commits_ahead_of_upstream(path: Path) -> int | None:
+    """Return commits on HEAD not on its upstream, or ``None`` when unknown.
+
+    ``None`` (no upstream configured, or the query failed) means we cannot prove
+    the clone has nothing unique, so callers treat it as not-safe-to-discard.
+    """
+
+    result = _run_local_git(
+        ["rev-list", "--count", "@{upstream}..HEAD"],
+        cwd=path,
+        op="sdd.link.ahead",
+    )
+    if result is None or result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+def _git_remote_url(path: Path) -> str | None:
+    result = _run_local_git(
+        ["remote", "get-url", "origin"], cwd=path, op="sdd.link.remote"
+    )
+    if result is None or result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _same_git_remote(left: str, right: str) -> bool:
+    return _normalize_git_remote(left) == _normalize_git_remote(right)
+
+
+def _normalize_git_remote(url: str) -> str:
+    trimmed = url.strip().rstrip("/")
+    if trimmed.endswith(".git"):
+        trimmed = trimmed[: -len(".git")]
+    return trimmed
+
+
+def _run_local_git(
+    args: list[str], *, cwd: Path, op: str
+) -> subprocess.CompletedProcess[str] | None:
+    from sase.sdd._commit import SddGitCommandTimeout, run_sdd_git
+
+    try:
+        return run_sdd_git(
+            args,
+            cwd=cwd,
+            op=op,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except SddGitCommandTimeout:
+        return None
+    except Exception:
+        _logger.warning(
+            "Local git command failed in %s: git %s",
+            cwd,
+            " ".join(args),
+            exc_info=True,
+        )
+        return None
 
 
 def read_sdd_store_record(primary_workspace_dir: str | Path) -> SddStoreRecord | None:
