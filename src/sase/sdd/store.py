@@ -7,75 +7,89 @@ continues to receive fully resolved paths.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import UTC, datetime
-import json
 import logging
-import os
 from pathlib import Path
 import subprocess
-from typing import Any, Literal, cast
-from collections.abc import Mapping
+from typing import Any, cast
 
 from sase.config import load_merged_config
 from sase.sdd._paths import get_primary_workspace_dir
+from sase.sdd._store_link import ensure_workspace_sdd_clone as _ensure_sdd_clone
+from sase.sdd._store_records import (
+    coerce_sdd_store_record,
+    delete_sdd_store_record,
+    is_materialized_record,
+    load_sdd_store_record,
+    normalize_sdd_store_record,
+    optional_str,
+    read_sdd_store_record,
+    record_cache,
+    record_to_json,
+    sdd_store_record_path,
+    store_not_materialized_message,
+    write_sdd_store_record,
+)
+from sase.sdd._store_types import (
+    _CONFIGURED_STORAGE_VALUES,
+    _STORAGE_VALUES,
+    SDD_STORAGE_AUTO,
+    SDD_STORAGE_IN_TREE,
+    SDD_STORAGE_LOCAL,
+    SDD_STORAGE_SEPARATE_REPO,
+    SDD_STORE_RECORD_FILENAME,
+    SddConfiguredStorage,
+    SddMaterializationError,
+    SddPushAfterCommit,
+    SddStorage,
+    SddStore,
+    SddStoreRecord,
+)
 
 _logger = logging.getLogger(__name__)
 
-SddStorage = Literal["in_tree", "local", "separate_repo"]
-SddConfiguredStorage = Literal["auto", "in_tree", "local", "separate_repo"]
-SddPushAfterCommit = bool | Literal["async"]
+_coerce_sdd_store_record = coerce_sdd_store_record
+_is_materialized_record = is_materialized_record
+_load_sdd_store_record = load_sdd_store_record
+_optional_str = optional_str
+_record_cache = record_cache
+_record_to_json = record_to_json
+_sdd_store_record_path = sdd_store_record_path
+_store_not_materialized_message = store_not_materialized_message
+_write_sdd_store_record = write_sdd_store_record
 
-SDD_STORAGE_AUTO: SddConfiguredStorage = "auto"
-SDD_STORAGE_IN_TREE: SddStorage = "in_tree"
-SDD_STORAGE_LOCAL: SddStorage = "local"
-SDD_STORAGE_SEPARATE_REPO: SddStorage = "separate_repo"
-
-SDD_STORE_RECORD_FILENAME = "sdd-store.json"
-
-_CONFIGURED_STORAGE_VALUES: frozenset[str] = frozenset(
-    {"auto", "in_tree", "local", "separate_repo"}
-)
-_STORAGE_VALUES: frozenset[str] = frozenset({"in_tree", "local", "separate_repo"})
-_DISCOVERY_VALUES: frozenset[str] = frozenset({"found", "not_found"})
-
-
-class SddMaterializationError(RuntimeError):
-    """Raised when explicit separate-repo SDD storage cannot be materialized."""
-
-
-@dataclass(frozen=True)
-class SddStoreRecord:
-    """Persisted metadata for a materialized SDD store."""
-
-    schema_version: int
-    storage: SddStorage
-    provider: str | None = None
-    host: str | None = None
-    repo: str | None = None
-    remote_url: str | None = None
-    discovery: str | None = None
-    probed_at: str | None = None
-
-
-@dataclass(frozen=True)
-class SddStore:
-    """Resolved SDD storage policy and concrete filesystem locations."""
-
-    storage: SddStorage
-    sdd_dir: Path
-    repo_root: Path
-    provider: str | None = None
-    remote_url: str | None = None
-
-    @property
-    def is_in_tree(self) -> bool:
-        return self.storage == SDD_STORAGE_IN_TREE
-
-
-_RecordCacheToken = tuple[int, int]
-_RecordCacheEntry = tuple[_RecordCacheToken, SddStoreRecord | None]
-_record_cache: dict[Path, _RecordCacheEntry] = {}
+__all__ = [
+    "SDD_STORAGE_AUTO",
+    "SDD_STORAGE_IN_TREE",
+    "SDD_STORAGE_LOCAL",
+    "SDD_STORAGE_SEPARATE_REPO",
+    "SDD_STORE_RECORD_FILENAME",
+    "SddConfiguredStorage",
+    "SddMaterializationError",
+    "SddPushAfterCommit",
+    "SddStorage",
+    "SddStore",
+    "SddStoreRecord",
+    "_coerce_sdd_store_record",
+    "_is_materialized_record",
+    "_load_sdd_store_record",
+    "_optional_str",
+    "_record_cache",
+    "_record_to_json",
+    "_refresh_materialized_store",
+    "_sdd_store_record_path",
+    "_store_not_materialized_message",
+    "_write_sdd_store_record",
+    "delete_sdd_store_record",
+    "ensure_workspace_sdd_clone",
+    "get_configured_sdd_storage",
+    "materialize_sdd_store",
+    "normalize_sdd_store_record",
+    "read_sdd_store_record",
+    "resolve_sdd_dir",
+    "resolve_sdd_store",
+    "sdd_dir_for_in_tree_bool",
+    "write_sdd_store_record",
+]
 
 
 def get_configured_sdd_storage(
@@ -189,405 +203,21 @@ def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddS
 def ensure_workspace_sdd_clone(workspace_dir: str | Path, workspace_num: int) -> None:
     """Best-effort workspace-local clone of a separate-repo SDD store."""
 
-    workspace = Path(workspace_dir).expanduser()
-    try:
-        store = resolve_sdd_store(workspace, workspace_num)
-        if store.storage != SDD_STORAGE_SEPARATE_REPO:
-            return
-
-        workspace_sdd = workspace / ".sase" / "sdd"
-        primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
-        primary_sdd = primary / ".sase" / "sdd"
-
-        workspace_sdd.parent.mkdir(parents=True, exist_ok=True)
-        if workspace_sdd.is_symlink():
-            workspace_sdd.unlink()
-
-        if os.path.lexists(workspace_sdd):
-            if not workspace_sdd.is_dir():
-                _logger.warning("Refusing to overwrite SDD path at %s", workspace_sdd)
-                return
-            if not (workspace_sdd / ".git").is_dir():
-                _logger.warning(
-                    "Refusing to overwrite non-git SDD directory at %s",
-                    workspace_sdd,
-                )
-                return
-            if not _is_matching_store_clone(workspace_sdd, store):
-                _logger.warning(
-                    "Refusing to sync SDD clone at %s because its origin does not "
-                    "match the configured SDD store remote",
-                    workspace_sdd,
-                )
-                return
-            _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
-            return
-
-        cloned = False
-        if store.remote_url:
-            cloned = _clone_sdd_store(store.remote_url, workspace_sdd)
-        if not cloned:
-            cloned = _clone_sdd_store_from_primary(primary_sdd, workspace_sdd)
-            if cloned and store.remote_url:
-                _set_sdd_origin(workspace_sdd, store.remote_url)
-        if cloned:
-            _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
-    except Exception:
-        _logger.warning(
-            "Failed to ensure workspace SDD clone for workspace %s",
-            workspace,
-            exc_info=True,
-        )
-
-
-def _sync_workspace_sdd_clone(
-    workspace_sdd: Path,
-    primary_sdd: Path,
-    remote_url: str | None,
-) -> None:
-    """Refresh an existing workspace SDD clone without failing launch."""
-
-    if remote_url is not None:
-        _set_sdd_origin(workspace_sdd, remote_url)
-
-    if _pull_sdd_clone(workspace_sdd):
-        return
-
-    if not _paths_same_file(workspace_sdd, primary_sdd):
-        _fast_forward_workspace_clone_from_primary(workspace_sdd, primary_sdd)
-
-
-def _pull_sdd_clone(workspace_sdd: Path) -> bool:
-    from sase.sdd._commit import (
-        SddGitCommandTimeout,
-        network_git_timeout,
-        run_sdd_git,
+    _ensure_sdd_clone(
+        workspace_dir,
+        workspace_num,
+        resolve_store=resolve_sdd_store,
+        primary_workspace_dir=get_primary_workspace_dir,
     )
 
-    try:
-        result = run_sdd_git(
-            ["pull", "--rebase"],
-            cwd=workspace_sdd,
-            op="sdd.clone.pull",
-            timeout=network_git_timeout(),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except SddGitCommandTimeout:
-        _logger.warning("Timed out pulling workspace SDD clone %s", workspace_sdd)
-        return False
-    except Exception:
-        _logger.warning(
-            "Failed to pull workspace SDD clone %s",
-            workspace_sdd,
-            exc_info=True,
-        )
-        return False
-    if result.returncode == 0:
-        return True
-    detail = (result.stderr or result.stdout or "").strip()
-    _logger.warning(
-        "Failed to pull workspace SDD clone %s: %s",
-        workspace_sdd,
-        detail or f"git pull exited {result.returncode}",
-    )
-    return False
 
+def sdd_dir_for_in_tree_bool(
+    workspace_dir: str | Path, workspace_num: int, in_tree: bool
+) -> Path:
+    """Compatibility path helper for the legacy boolean API."""
 
-def _clone_sdd_store(remote_url: str, workspace_sdd: Path) -> bool:
-    from sase.sdd._commit import (
-        SddGitCommandTimeout,
-        network_git_timeout,
-        run_sdd_git,
-    )
-
-    try:
-        result = run_sdd_git(
-            ["clone", remote_url, str(workspace_sdd)],
-            cwd=workspace_sdd.parent,
-            op="sdd.clone.remote",
-            timeout=network_git_timeout(),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except SddGitCommandTimeout:
-        _logger.warning("Timed out cloning SDD store %s", remote_url)
-        return False
-    except Exception:
-        _logger.warning(
-            "Failed to clone SDD store %s into %s",
-            remote_url,
-            workspace_sdd,
-            exc_info=True,
-        )
-        return False
-    if result.returncode == 0:
-        return True
-    detail = (result.stderr or result.stdout or "").strip()
-    _logger.warning(
-        "Failed to clone SDD store %s into %s: %s",
-        remote_url,
-        workspace_sdd,
-        detail or f"git clone exited {result.returncode}",
-    )
-    return False
-
-
-def _clone_sdd_store_from_primary(primary_sdd: Path, workspace_sdd: Path) -> bool:
-    if not (primary_sdd / ".git").is_dir():
-        return False
-    if _paths_same_file(primary_sdd, workspace_sdd):
-        return workspace_sdd.is_dir()
-
-    from sase.sdd._commit import (
-        SddGitCommandTimeout,
-        network_git_timeout,
-        run_sdd_git,
-    )
-
-    try:
-        result = run_sdd_git(
-            ["clone", str(primary_sdd), str(workspace_sdd)],
-            cwd=workspace_sdd.parent,
-            op="sdd.clone.primary",
-            timeout=network_git_timeout(),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except SddGitCommandTimeout:
-        _logger.warning(
-            "Timed out cloning workspace SDD store %s from primary %s",
-            workspace_sdd,
-            primary_sdd,
-        )
-        return False
-    except Exception:
-        _logger.warning(
-            "Failed to clone workspace SDD store %s from primary %s",
-            workspace_sdd,
-            primary_sdd,
-            exc_info=True,
-        )
-        return False
-    if result.returncode == 0:
-        return True
-    detail = (result.stderr or result.stdout or "").strip()
-    _logger.warning(
-        "Failed to clone workspace SDD store %s from primary %s: %s",
-        workspace_sdd,
-        primary_sdd,
-        detail or f"git clone exited {result.returncode}",
-    )
-    return False
-
-
-def _set_sdd_origin(workspace_sdd: Path, remote_url: str) -> None:
-    current = _git_remote_url(workspace_sdd)
-    if current is not None and _same_git_remote(current, remote_url):
-        return
-
-    from sase.sdd._commit import SddGitCommandTimeout, run_sdd_git
-
-    command = (
-        ["remote", "set-url", "origin", remote_url]
-        if current
-        else ["remote", "add", "origin", remote_url]
-    )
-    try:
-        result = run_sdd_git(
-            command,
-            cwd=workspace_sdd,
-            op="sdd.clone.origin",
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except SddGitCommandTimeout:
-        _logger.warning("Timed out setting SDD origin in %s", workspace_sdd)
-        return
-    except Exception:
-        _logger.warning(
-            "Failed to set SDD origin in %s",
-            workspace_sdd,
-            exc_info=True,
-        )
-        return
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
-        _logger.warning(
-            "Failed to set SDD origin in %s: %s",
-            workspace_sdd,
-            detail or f"git remote exited {result.returncode}",
-        )
-
-
-def _is_matching_store_clone(path: Path, store: SddStore) -> bool:
-    """Return true when *path* looks like a clone of the SDD companion repo.
-
-    A missing ``.git`` marks unrelated content. When the store's remote URL is
-    known, the clone's ``origin`` must match it; an unknown store remote skips the
-    check so a legitimately lagging clone is still recognized as a store clone.
-    """
-
-    if not (path / ".git").is_dir():
-        return False
-    if store.remote_url is None:
-        return True
-    origin = _git_remote_url(path)
-    if origin is None:
-        return False
-    return _same_git_remote(origin, store.remote_url)
-
-
-def _fast_forward_workspace_clone_from_primary(
-    workspace_sdd: Path, primary_sdd: Path
-) -> None:
-    """Best-effort fast-forward a workspace store clone from the primary store.
-
-    Pulling from the on-disk primary store (already committed synchronously) is
-    race-free and needs no network. Never raises into the launch path.
-    """
-
-    if not (primary_sdd / ".git").is_dir():
-        return
-    from sase.sdd._commit import (
-        SddGitCommandTimeout,
-        network_git_timeout,
-        run_sdd_git,
-    )
-
-    try:
-        result = run_sdd_git(
-            ["pull", "--ff-only", str(primary_sdd)],
-            cwd=workspace_sdd,
-            op="sdd.clone.fast_forward",
-            timeout=network_git_timeout(),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except SddGitCommandTimeout:
-        _logger.warning(
-            "Timed out fast-forwarding workspace SDD clone %s from %s",
-            workspace_sdd,
-            primary_sdd,
-        )
-        return
-    except Exception:
-        _logger.warning(
-            "Failed to fast-forward workspace SDD clone %s from %s",
-            workspace_sdd,
-            primary_sdd,
-            exc_info=True,
-        )
-        return
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
-        _logger.warning(
-            "Failed to fast-forward workspace SDD clone %s from %s: %s",
-            workspace_sdd,
-            primary_sdd,
-            detail or f"git pull exited {result.returncode}",
-        )
-
-
-def _git_remote_url(path: Path) -> str | None:
-    result = _run_local_git(
-        ["remote", "get-url", "origin"], cwd=path, op="sdd.clone.remote"
-    )
-    if result is None or result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
-
-
-def _same_git_remote(left: str, right: str) -> bool:
-    return _normalize_git_remote(left) == _normalize_git_remote(right)
-
-
-def _normalize_git_remote(url: str) -> str:
-    trimmed = url.strip().rstrip("/")
-    if trimmed.endswith(".git"):
-        trimmed = trimmed[: -len(".git")]
-    return trimmed
-
-
-def _run_local_git(
-    args: list[str], *, cwd: Path, op: str
-) -> subprocess.CompletedProcess[str] | None:
-    from sase.sdd._commit import SddGitCommandTimeout, run_sdd_git
-
-    try:
-        return run_sdd_git(
-            args,
-            cwd=cwd,
-            op=op,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except SddGitCommandTimeout:
-        return None
-    except Exception:
-        _logger.warning(
-            "Local git command failed in %s: git %s",
-            cwd,
-            " ".join(args),
-            exc_info=True,
-        )
-        return None
-
-
-def read_sdd_store_record(primary_workspace_dir: str | Path) -> SddStoreRecord | None:
-    """Read the optional store record with an mtime/size cache."""
-
-    record_path = _sdd_store_record_path(primary_workspace_dir)
-    try:
-        stat = record_path.stat()
-    except FileNotFoundError:
-        _record_cache.pop(record_path, None)
-        return None
-
-    token = (stat.st_mtime_ns, stat.st_size)
-    cached = _record_cache.get(record_path)
-    if cached and cached[0] == token:
-        return cached[1]
-
-    record = _load_sdd_store_record(record_path)
-    _record_cache[record_path] = (token, record)
-    return record
-
-
-def write_sdd_store_record(
-    primary_workspace_dir: str | Path,
-    record: SddStoreRecord | Mapping[str, Any],
-) -> SddStoreRecord:
-    """Validate and atomically write the materialized-store record."""
-
-    return _write_sdd_store_record(primary_workspace_dir, record)
-
-
-def normalize_sdd_store_record(
-    record: SddStoreRecord | Mapping[str, Any],
-) -> SddStoreRecord:
-    """Validate and normalize a materialized-store record without writing it."""
-
-    return _coerce_sdd_store_record(record)
-
-
-def delete_sdd_store_record(primary_workspace_dir: str | Path) -> bool:
-    """Delete the optional store record, returning true when it existed."""
-
-    record_path = _sdd_store_record_path(primary_workspace_dir)
-    try:
-        record_path.unlink()
-    except FileNotFoundError:
-        _record_cache.pop(record_path, None)
-        return False
-    _record_cache.pop(record_path, None)
-    return True
+    storage = SDD_STORAGE_IN_TREE if in_tree else SDD_STORAGE_LOCAL
+    return _sdd_dir_for_storage(workspace_dir, workspace_num, storage)
 
 
 def _resolve_sdd_storage(
@@ -611,42 +241,6 @@ def _resolve_sdd_storage(
     return storage, record, primary
 
 
-def _write_sdd_store_record(
-    primary_workspace_dir: str | Path,
-    record: SddStoreRecord | Mapping[str, Any],
-) -> SddStoreRecord:
-    """Validate and atomically write the materialized-store record."""
-
-    normalized = _coerce_sdd_store_record(record)
-    record_path = _sdd_store_record_path(primary_workspace_dir)
-    record_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = record_path.with_name(f".{record_path.name}.tmp")
-    temp_path.write_text(
-        json.dumps(_record_to_json(normalized), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    temp_path.replace(record_path)
-    _record_cache.pop(record_path, None)
-    return normalized
-
-
-def _sdd_store_record_path(primary_workspace_dir: str | Path) -> Path:
-    """Return the record path next to the SDD store."""
-
-    return (
-        Path(primary_workspace_dir).expanduser() / ".sase" / SDD_STORE_RECORD_FILENAME
-    )
-
-
-def sdd_dir_for_in_tree_bool(
-    workspace_dir: str | Path, workspace_num: int, in_tree: bool
-) -> Path:
-    """Compatibility path helper for the legacy boolean API."""
-
-    storage = SDD_STORAGE_IN_TREE if in_tree else SDD_STORAGE_LOCAL
-    return _sdd_dir_for_storage(workspace_dir, workspace_num, storage)
-
-
 def _sdd_dir_for_storage(
     workspace_dir: str | Path, workspace_num: int, storage: SddStorage
 ) -> Path:
@@ -657,15 +251,6 @@ def _sdd_dir_for_storage(
         return workspace / ".sase" / "sdd"
     primary = get_primary_workspace_dir(str(workspace), workspace_num)
     return Path(primary) / ".sase" / "sdd"
-
-
-def _paths_same_file(left: Path, right: Path) -> bool:
-    if left.expanduser().absolute() == right.expanduser().absolute():
-        return True
-    try:
-        return left.samefile(right)
-    except OSError:
-        return False
 
 
 def _provider_sdd_storage_policy(workspace_dir: str | Path) -> SddStorage | None:
@@ -700,7 +285,7 @@ def _dispatch_materialize_sdd_store(
     workspace_num: int,
     configured_storage: SddConfiguredStorage,
     provider_policy: SddStorage | None,
-) -> Mapping[str, Any] | None:
+) -> dict[str, Any] | None:
     try:
         from sase.workspace_provider import materialize_sdd_store as dispatch
 
@@ -780,109 +365,7 @@ def _ensure_materialized_store_initialized(store: SddStore) -> None:
         )
 
 
-def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
-    try:
-        raw = json.loads(record_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    if not isinstance(raw, dict):
-        return None
-
-    storage = raw.get("storage")
-    if storage not in _STORAGE_VALUES:
-        return None
-
-    schema_version = raw.get("schema_version", 1)
-    try:
-        schema_version_int = int(schema_version)
-    except (TypeError, ValueError):
-        schema_version_int = 1
-
-    return SddStoreRecord(
-        schema_version=schema_version_int,
-        storage=cast(SddStorage, storage),
-        provider=_optional_str(raw.get("provider")),
-        host=_optional_str(raw.get("host")),
-        repo=_optional_str(raw.get("repo")),
-        remote_url=_optional_str(raw.get("remote_url")),
-        discovery=_optional_str(raw.get("discovery")),
-        probed_at=_optional_str(raw.get("probed_at")),
-    )
-
-
-def _is_materialized_record(record: SddStoreRecord | None) -> bool:
-    if record is None:
-        return False
-    return (
-        record.storage == SDD_STORAGE_SEPARATE_REPO and record.discovery != "not_found"
-    )
-
-
 def _coerce_configured_storage(value: object) -> SddConfiguredStorage:
     if isinstance(value, str) and value in _CONFIGURED_STORAGE_VALUES:
         return cast(SddConfiguredStorage, value)
     return SDD_STORAGE_AUTO
-
-
-def _coerce_sdd_store_record(
-    record: SddStoreRecord | Mapping[str, Any],
-) -> SddStoreRecord:
-    if isinstance(record, SddStoreRecord):
-        raw: Mapping[str, Any] = _record_to_json(record)
-    else:
-        raw = record
-
-    storage = raw.get("storage")
-    if storage != SDD_STORAGE_SEPARATE_REPO:
-        raise ValueError("SDD store record storage must be 'separate_repo'")
-
-    discovery = raw.get("discovery") or "found"
-    if discovery not in _DISCOVERY_VALUES:
-        raise ValueError("SDD store record discovery must be 'found' or 'not_found'")
-
-    schema_version = raw.get("schema_version", 1)
-    try:
-        schema_version_int = int(schema_version)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("SDD store record schema_version must be an integer") from exc
-
-    return SddStoreRecord(
-        schema_version=schema_version_int,
-        storage=SDD_STORAGE_SEPARATE_REPO,
-        provider=_optional_str(raw.get("provider")),
-        host=_optional_str(raw.get("host")),
-        repo=_optional_str(raw.get("repo")),
-        remote_url=_optional_str(raw.get("remote_url")),
-        discovery=cast(str, discovery),
-        probed_at=_optional_str(raw.get("probed_at")) or _utc_now_iso(),
-    )
-
-
-def _record_to_json(record: SddStoreRecord) -> dict[str, Any]:
-    data: dict[str, Any] = {
-        "schema_version": record.schema_version,
-        "storage": record.storage,
-    }
-    for key in ("provider", "host", "repo", "remote_url", "discovery", "probed_at"):
-        value = getattr(record, key)
-        if value is not None:
-            data[key] = value
-    return data
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
-
-
-def _store_not_materialized_message(record: SddStoreRecord | None) -> str:
-    repo = record.repo if record is not None and record.repo else None
-    target = f"'{repo}'" if repo else "the expected SDD companion repository"
-    return (
-        f"SDD storage is configured as separate_repo, but {target} is not "
-        "materialized. Run `sase sdd migrate` to create or connect the "
-        "companion repository before using separate_repo storage."
-    )
-
-
-def _optional_str(value: object) -> str | None:
-    return value if isinstance(value, str) and value else None
