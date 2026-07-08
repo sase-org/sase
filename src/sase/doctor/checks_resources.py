@@ -1,48 +1,33 @@
-"""Resource capacity checks for ``sase doctor``."""
+"""Resource capacity check registry for ``sase doctor``."""
 
 from __future__ import annotations
 
-import sys
-import shutil
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
-from sase.ace.tui.util.fs_watcher import MAX_INOTIFY_WATCHES
-from sase.axe.config import AxeConfig, load_axe_config
-from sase.config.core import CHEZMOI_HOME, get_use_chezmoi, load_merged_config
-from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
-from sase.workspace_provider.store import WorkspaceStore
+from sase.axe.config import AxeConfig
+from sase.diagnostics import CheckSpec, DiagnosticCheck
+from sase.doctor import checks_resources_disk as _disk
+from sase.doctor import checks_resources_ulimits as _ulimits
+from sase.doctor.checks_resources_chezmoi import check_chezmoi
+from sase.doctor.checks_resources_inotify import (
+    INOTIFY_MIN_USER_INSTANCES,
+    check_inotify,
+)
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
-_GIB = 1024**3
-_DISK_ERROR_FREE_BYTES = _GIB
-_DISK_WARN_FREE_BYTES = 3 * _GIB
-_ULIMIT_NOFILE_BASE_FLOOR = 1024
-_ULIMIT_NOFILE_PER_RUNNER = 128
-_ULIMIT_NPROC_BASE_FLOOR = 128
-_ULIMIT_NPROC_PER_RUNNER = 16
-_INOTIFY_PROC_DIR = Path("/proc/sys/fs/inotify")
-_INOTIFY_LIMIT_NAMES = ("max_user_watches", "max_user_instances", "max_queued_events")
-_INOTIFY_MIN_USER_INSTANCES = 8
-
-
-class _DiskUsage(Protocol):
-    @property
-    def total(self) -> int: ...
-
-    @property
-    def used(self) -> int: ...
-
-    @property
-    def free(self) -> int: ...
-
-
-type _DiskUsageFn = Callable[[str], _DiskUsage]
-type _CommandResolver = Callable[[str], str | None]
-type _GetRLimitFn = Callable[[int], tuple[int, int]]
+_DISK_ERROR_FREE_BYTES = _disk._DISK_ERROR_FREE_BYTES
+_DISK_WARN_FREE_BYTES = _disk._DISK_WARN_FREE_BYTES
+_INOTIFY_MIN_USER_INSTANCES = INOTIFY_MIN_USER_INSTANCES
+_check_chezmoi = check_chezmoi
+_check_inotify = check_inotify
+_workspace_root_path: Callable[[DoctorContext], tuple[Path | None, str | None]] = (
+    _disk._workspace_root_path
+)
+_import_resource_module: Callable[[], Any | None] = _ulimits._import_resource_module
 
 
 def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -58,7 +43,7 @@ def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             id="resources.chezmoi",
             group="resources",
             title="Chezmoi source",
-            runner=_check_chezmoi,
+            runner=check_chezmoi,
             deep=True,
         ),
         CheckSpec(
@@ -72,7 +57,7 @@ def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             id="resources.inotify",
             group="resources",
             title="Linux inotify limits",
-            runner=_check_inotify,
+            runner=check_inotify,
             deep=True,
         ),
     )
@@ -81,649 +66,26 @@ def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 def _check_disk_free(
     context: DoctorContext,
     *,
-    disk_usage_fn: _DiskUsageFn | None = None,
+    disk_usage_fn: Callable[[str], Any] | None = None,
 ) -> DiagnosticCheck:
     """Check free space where managed workspaces and SASE state live."""
-    if disk_usage_fn is None:
-        disk_usage_fn = _disk_usage
-
-    workspace_root, workspace_error = _workspace_root_path(context)
-    if workspace_error is not None or workspace_root is None:
-        return DiagnosticCheck(
-            id="resources.disk_free",
-            group="resources",
-            status="ERROR",
-            title="Free disk space",
-            summary="workspace root free space could not be checked",
-            details=(workspace_error or "workspace root was not resolved",),
-            next_steps=("Fix workspace root configuration, then rerun `sase doctor`.",),
-            data={
-                "paths": (),
-                "workspace_error": workspace_error,
-                "error_threshold_bytes": _DISK_ERROR_FREE_BYTES,
-                "warn_threshold_bytes": _DISK_WARN_FREE_BYTES,
-            },
-        )
-
-    rows = (
-        _disk_target("workspace_root", "primary", workspace_root, disk_usage_fn),
-        _disk_target("sase_home", "secondary", context.sase_home, disk_usage_fn),
-    )
-    status = _aggregate_disk_status(rows)
-    problem_rows = tuple(row for row in rows if row["status"] != "OK")
-    worst = _worst_disk_row(rows)
-
-    return DiagnosticCheck(
-        id="resources.disk_free",
-        group="resources",
-        status=status,
-        title="Free disk space",
-        summary=_disk_summary(status, worst, len(rows)),
-        details=tuple(_disk_detail(row) for row in rows),
-        next_steps=_disk_next_steps() if problem_rows else (),
-        data={
-            "paths": rows,
-            "workspace_error": None,
-            "error_threshold_bytes": _DISK_ERROR_FREE_BYTES,
-            "warn_threshold_bytes": _DISK_WARN_FREE_BYTES,
-        },
-    )
-
-
-def _check_chezmoi(
-    *,
-    use_chezmoi: bool | None = None,
-    source_home: Path | None = None,
-    command_resolver: _CommandResolver | None = None,
-) -> DiagnosticCheck:
-    """Check the optional chezmoi source tree used for home-managed files."""
-    if use_chezmoi is None:
-        use_chezmoi = get_use_chezmoi()
-    source_home = source_home or CHEZMOI_HOME
-    command_resolver = command_resolver or shutil.which
-
-    source_exists = source_home.exists()
-    source_is_dir = source_home.is_dir() if source_exists else False
-    command_path = command_resolver("chezmoi")
-    source_entry_count = _source_entry_count(source_home) if source_is_dir else None
-    data = {
-        "use_chezmoi": use_chezmoi,
-        "source_path": str(source_home),
-        "source_exists": source_exists,
-        "source_is_dir": source_is_dir,
-        "source_entry_count": source_entry_count,
-        "command_found": command_path is not None,
-        "command_path": command_path,
-    }
-
-    if not use_chezmoi and not source_exists:
-        return DiagnosticCheck(
-            id="resources.chezmoi",
-            group="resources",
-            status="SKIP",
-            title="Chezmoi source",
-            summary="chezmoi remapping is disabled and no source tree was found",
-            data=data,
-        )
-
-    problems = _chezmoi_source_problems(
-        use_chezmoi=use_chezmoi,
-        source_home=source_home,
-        source_exists=source_exists,
-        source_is_dir=source_is_dir,
-        source_entry_count=source_entry_count,
-        command_found=command_path is not None,
-    )
-
-    if use_chezmoi and command_path is None:
-        return DiagnosticCheck(
-            id="resources.chezmoi",
-            group="resources",
-            status="ERROR",
-            title="Chezmoi source",
-            summary="use_chezmoi is enabled but the chezmoi command is missing",
-            details=tuple(problems),
-            next_steps=(
-                "Install `chezmoi` or set `use_chezmoi: false` if SASE should write live home files directly.",
-            ),
-            data=data,
-        )
-
-    if problems:
-        return DiagnosticCheck(
-            id="resources.chezmoi",
-            group="resources",
-            status="WARN",
-            title="Chezmoi source",
-            summary="chezmoi source state needs attention",
-            details=tuple(problems),
-            next_steps=_chezmoi_next_steps(problems),
-            data=data,
-        )
-
-    return DiagnosticCheck(
-        id="resources.chezmoi",
-        group="resources",
-        status="OK",
-        title="Chezmoi source",
-        summary=(
-            "chezmoi command and source state look usable"
-            if use_chezmoi
-            else "chezmoi source tree exists; SASE chezmoi remapping is disabled"
-        ),
-        data=data,
+    return _disk.check_disk_free(
+        context,
+        disk_usage_fn=disk_usage_fn,
+        workspace_root_fn=_workspace_root_path,
     )
 
 
 def _check_ulimits(
     *,
     axe_config: AxeConfig | None = None,
-    getrlimit_fn: _GetRLimitFn | None = None,
+    getrlimit_fn: Callable[[int], tuple[int, int]] | None = None,
     resource_module: Any | None = None,
 ) -> DiagnosticCheck:
     """Check soft process/file limits against configured runner concurrency."""
-    resource_module = resource_module or _import_resource_module()
-    if resource_module is None:
-        return DiagnosticCheck(
-            id="resources.ulimits",
-            group="resources",
-            status="SKIP",
-            title="Process resource limits",
-            summary="Python resource limits are unavailable on this platform",
-            data={"available": False, "limits": []},
-        )
-
-    axe_config = axe_config or load_axe_config()
-    getrlimit_fn = getrlimit_fn or resource_module.getrlimit
-    concurrency = _configured_runner_concurrency(axe_config)
-    floors = _ulimit_floors(concurrency)
-    rows: list[dict[str, Any]] = []
-
-    for row_name, resource_name, floor in (
-        ("nofile", "RLIMIT_NOFILE", floors["nofile"]),
-        ("nproc", "RLIMIT_NPROC", floors["nproc"]),
-    ):
-        constant = getattr(resource_module, resource_name, None)
-        if constant is None:
-            rows.append(
-                {
-                    "name": row_name,
-                    "resource": resource_name,
-                    "available": False,
-                    "status": "SKIP",
-                    "soft": None,
-                    "hard": None,
-                    "soft_display": None,
-                    "hard_display": None,
-                    "floor": floor,
-                    "problem": f"{resource_name} is unavailable on this platform",
-                }
-            )
-            continue
-        try:
-            soft, hard = getrlimit_fn(constant)
-        except OSError as exc:
-            rows.append(
-                {
-                    "name": row_name,
-                    "resource": resource_name,
-                    "available": True,
-                    "status": "WARN",
-                    "soft": None,
-                    "hard": None,
-                    "soft_display": None,
-                    "hard_display": None,
-                    "floor": floor,
-                    "problem": f"{resource_name} could not be read: {type(exc).__name__}: {exc}",
-                }
-            )
-            continue
-        rows.append(
-            _ulimit_row(
-                name=row_name,
-                resource_name=resource_name,
-                soft=int(soft),
-                hard=int(hard),
-                floor=floor,
-                infinity=int(resource_module.RLIM_INFINITY),
-            )
-        )
-
-    statuses = {row["status"] for row in rows}
-    problems = tuple(str(row["problem"]) for row in rows if row.get("problem"))
-    status: CheckStatus
-    if "WARN" in statuses:
-        status = "WARN"
-    elif statuses == {"SKIP"}:
-        status = "SKIP"
-    else:
-        status = "OK"
-
-    return DiagnosticCheck(
-        id="resources.ulimits",
-        group="resources",
-        status=status,
-        title="Process resource limits",
-        summary=_ulimit_summary(status, rows, concurrency),
-        details=problems,
-        next_steps=_ulimit_next_steps() if status == "WARN" else (),
-        data={
-            "available": status != "SKIP",
-            "max_hook_runners": axe_config.max_hook_runners,
-            "max_agent_runners": axe_config.max_agent_runners,
-            "configured_runner_concurrency": concurrency,
-            "floors": floors,
-            "limits": rows,
-        },
+    return _ulimits.check_ulimits(
+        axe_config=axe_config,
+        getrlimit_fn=getrlimit_fn,
+        resource_module=resource_module,
+        import_resource_module_fn=_import_resource_module,
     )
-
-
-def _check_inotify(
-    *,
-    platform: str | None = None,
-    proc_dir: Path | None = None,
-) -> DiagnosticCheck:
-    """Check Linux inotify sysctl limits used by ACE event refresh."""
-    platform = platform or sys.platform
-    proc_dir = proc_dir or _INOTIFY_PROC_DIR
-    if not platform.startswith("linux"):
-        return DiagnosticCheck(
-            id="resources.inotify",
-            group="resources",
-            status="SKIP",
-            title="Linux inotify limits",
-            summary="inotify is Linux-only; ACE will use polling fallback here",
-            data={"platform": platform, "proc_dir": str(proc_dir), "limits": []},
-        )
-
-    rows = _read_inotify_limits(proc_dir)
-    readable = [row for row in rows if row["status"] != "SKIP"]
-    if not readable:
-        return DiagnosticCheck(
-            id="resources.inotify",
-            group="resources",
-            status="SKIP",
-            title="Linux inotify limits",
-            summary="inotify sysctl limits are unavailable",
-            details=tuple(str(row["problem"]) for row in rows if row.get("problem")),
-            data={"platform": platform, "proc_dir": str(proc_dir), "limits": rows},
-        )
-
-    problems = _inotify_problems(rows)
-    status: CheckStatus = "WARN" if problems else "OK"
-    summary = (
-        "inotify limits look high enough for ACE event refresh"
-        if status == "OK"
-        else "inotify limits may force ACE event refresh back to polling"
-    )
-    return DiagnosticCheck(
-        id="resources.inotify",
-        group="resources",
-        status=status,
-        title="Linux inotify limits",
-        summary=summary,
-        details=tuple(problems),
-        next_steps=_inotify_next_steps() if problems else (),
-        data={
-            "platform": platform,
-            "proc_dir": str(proc_dir),
-            "limits": rows,
-            "watch_floor": MAX_INOTIFY_WATCHES,
-            "instance_floor": _INOTIFY_MIN_USER_INSTANCES,
-        },
-    )
-
-
-def _workspace_root_path(context: DoctorContext) -> tuple[Path | None, str | None]:
-    try:
-        config = load_merged_config()
-        store = WorkspaceStore(
-            str(context.cwd),
-            config=config,
-            env=context.env,
-        )
-    except Exception as exc:  # noqa: BLE001 - report config/root resolution failures.
-        return None, f"{type(exc).__name__}: {exc}"
-    return Path(store.root_dir), None
-
-
-def _disk_usage(path: str) -> _DiskUsage:
-    return shutil.disk_usage(path)
-
-
-def _disk_target(
-    label: str,
-    role: str,
-    path: Path,
-    disk_usage_fn: _DiskUsageFn,
-) -> dict[str, Any]:
-    expanded = path.expanduser()
-    measured_path = _nearest_existing_parent(expanded)
-    if measured_path is None:
-        return {
-            "label": label,
-            "role": role,
-            "path": str(expanded),
-            "measurement_path": None,
-            "status": "ERROR",
-            "problem": f"{expanded} has no existing parent path to inspect",
-        }
-
-    try:
-        usage = disk_usage_fn(str(measured_path))
-    except OSError as exc:
-        return {
-            "label": label,
-            "role": role,
-            "path": str(expanded),
-            "measurement_path": str(measured_path),
-            "status": "ERROR",
-            "problem": f"{type(exc).__name__}: {exc}",
-        }
-
-    free_bytes = int(usage.free)
-    status = _free_space_status(free_bytes)
-    problem = None
-    if status == "ERROR":
-        problem = (
-            f"{label} has less than 1 GB free ({_format_bytes(free_bytes)} available)"
-        )
-    elif status == "WARN":
-        problem = (
-            f"{label} has less than 3 GB free ({_format_bytes(free_bytes)} available)"
-        )
-
-    return {
-        "label": label,
-        "role": role,
-        "path": str(expanded),
-        "measurement_path": str(measured_path),
-        "status": status,
-        "problem": problem,
-        "total_bytes": int(usage.total),
-        "used_bytes": int(usage.used),
-        "free_bytes": free_bytes,
-        "free_gib": round(free_bytes / _GIB, 2),
-    }
-
-
-def _free_space_status(free_bytes: int) -> CheckStatus:
-    if free_bytes < _DISK_ERROR_FREE_BYTES:
-        return "ERROR"
-    if free_bytes < _DISK_WARN_FREE_BYTES:
-        return "WARN"
-    return "OK"
-
-
-def _aggregate_disk_status(rows: tuple[dict[str, Any], ...]) -> CheckStatus:
-    statuses = {row["status"] for row in rows}
-    if "ERROR" in statuses:
-        return "ERROR"
-    if "WARN" in statuses:
-        return "WARN"
-    return "OK"
-
-
-def _worst_disk_row(rows: tuple[dict[str, Any], ...]) -> dict[str, Any]:
-    severity = {"ERROR": 2, "WARN": 1, "OK": 0}
-    return max(
-        rows,
-        key=lambda row: (severity[row["status"]], -row.get("free_bytes", 0)),
-    )
-
-
-def _disk_summary(status: CheckStatus, row: dict[str, Any], path_count: int) -> str:
-    label = str(row["label"])
-    free_bytes = row.get("free_bytes")
-    if status == "ERROR":
-        if isinstance(free_bytes, int):
-            return (
-                f"{label} has less than 1 GB free "
-                f"({_format_bytes(free_bytes)} available)"
-            )
-        return f"{label} free space could not be checked"
-    if status == "WARN":
-        if not isinstance(free_bytes, int):
-            return f"{label} free space could not be checked"
-        return (
-            f"{label} has less than 3 GB free ({_format_bytes(free_bytes)} available)"
-        )
-    return f"{path_count} resource path(s) have at least 3 GB free"
-
-
-def _disk_detail(row: dict[str, Any]) -> str:
-    problem = row.get("problem")
-    if problem:
-        return str(problem)
-    free_bytes = int(row["free_bytes"])
-    return (
-        f"{row['label']}: {_format_bytes(free_bytes)} free at "
-        f"{row['measurement_path']} (path: {row['path']})"
-    )
-
-
-def _disk_next_steps() -> tuple[str, ...]:
-    return (
-        "Free disk space or run `sase workspace cleanup`.",
-        "Live workspaces can consume hundreds of MB to over 1 GB after checkout and `.venv` creation.",
-    )
-
-
-def _chezmoi_source_problems(
-    *,
-    use_chezmoi: bool,
-    source_home: Path,
-    source_exists: bool,
-    source_is_dir: bool,
-    source_entry_count: int | None,
-    command_found: bool,
-) -> list[str]:
-    problems: list[str] = []
-    if use_chezmoi and not source_exists:
-        problems.append(
-            f"`use_chezmoi` is true but the chezmoi source home is missing: {source_home}"
-        )
-    if source_exists and not source_is_dir:
-        problems.append(f"chezmoi source home is not a directory: {source_home}")
-    if source_is_dir and source_entry_count == 0:
-        problems.append(f"chezmoi source home is empty: {source_home}")
-    if source_exists and not command_found:
-        problems.append("chezmoi source tree exists but `chezmoi` is not on PATH")
-    return problems
-
-
-def _source_entry_count(source_home: Path) -> int | None:
-    try:
-        return sum(1 for _entry in source_home.iterdir())
-    except OSError:
-        return None
-
-
-def _chezmoi_next_steps(problems: list[str]) -> tuple[str, ...]:
-    steps: list[str] = []
-    if any("not a directory" in problem for problem in problems):
-        steps.append("Move or remove the non-directory chezmoi source path.")
-    if any("missing" in problem or "empty" in problem for problem in problems):
-        steps.append(
-            "Create or restore the chezmoi source tree, then rerun `sase doctor -D`."
-        )
-    if any("not on PATH" in problem for problem in problems):
-        steps.append("Install `chezmoi` or remove the unused source tree.")
-    return tuple(steps)
-
-
-def _import_resource_module() -> Any | None:
-    try:
-        import resource
-    except ImportError:
-        return None
-    return resource
-
-
-def _configured_runner_concurrency(config: AxeConfig) -> int:
-    values = (config.max_hook_runners, config.max_agent_runners)
-    return max(1, sum(_positive_int(value) for value in values))
-
-
-def _positive_int(value: object) -> int:
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, int):
-        return max(value, 0)
-    if not isinstance(value, str):
-        return 0
-    try:
-        parsed = int(value)
-    except ValueError:
-        return 0
-    return max(parsed, 0)
-
-
-def _ulimit_floors(concurrency: int) -> dict[str, int]:
-    return {
-        "nofile": max(
-            _ULIMIT_NOFILE_BASE_FLOOR,
-            concurrency * _ULIMIT_NOFILE_PER_RUNNER,
-        ),
-        "nproc": max(
-            _ULIMIT_NPROC_BASE_FLOOR,
-            concurrency * _ULIMIT_NPROC_PER_RUNNER,
-        ),
-    }
-
-
-def _ulimit_row(
-    *,
-    name: str,
-    resource_name: str,
-    soft: int,
-    hard: int,
-    floor: int,
-    infinity: int,
-) -> dict[str, Any]:
-    soft_unlimited = _is_unlimited_limit(soft, infinity)
-    hard_unlimited = _is_unlimited_limit(hard, infinity)
-    problem = None
-    status: CheckStatus = "OK"
-    if not soft_unlimited and soft < floor:
-        status = "WARN"
-        problem = (
-            f"{resource_name} soft limit {soft} is below the recommended floor {floor}"
-        )
-    return {
-        "name": name,
-        "resource": resource_name,
-        "available": True,
-        "status": status,
-        "soft": None if soft_unlimited else soft,
-        "hard": None if hard_unlimited else hard,
-        "soft_display": "unlimited" if soft_unlimited else str(soft),
-        "hard_display": "unlimited" if hard_unlimited else str(hard),
-        "floor": floor,
-        "problem": problem,
-    }
-
-
-def _is_unlimited_limit(value: int, infinity: int) -> bool:
-    return value == infinity or value < 0
-
-
-def _ulimit_summary(
-    status: CheckStatus,
-    rows: list[dict[str, Any]],
-    concurrency: int,
-) -> str:
-    if status == "SKIP":
-        return "process resource limits are unavailable"
-    if status == "WARN":
-        failed = [row for row in rows if row["status"] == "WARN"]
-        return (
-            f"{len(failed)} resource limit(s) are low for {concurrency} runner slot(s)"
-        )
-    checked = sum(1 for row in rows if row["status"] == "OK")
-    return (
-        f"{checked} resource limit(s) meet the floor for {concurrency} runner slot(s)"
-    )
-
-
-def _ulimit_next_steps() -> tuple[str, ...]:
-    return (
-        "Raise the reported soft limit(s), for example with shell `ulimit` settings or systemd `LimitNOFILE`/`TasksMax` configuration.",
-        "Lower `axe.max_hook_runners` or `axe.max_agent_runners` if this host intentionally runs fewer concurrent jobs.",
-    )
-
-
-def _read_inotify_limits(proc_dir: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for name in _INOTIFY_LIMIT_NAMES:
-        path = proc_dir / name
-        try:
-            raw = path.read_text(encoding="utf-8").strip()
-            value = int(raw)
-        except FileNotFoundError:
-            rows.append(
-                {
-                    "name": name,
-                    "path": str(path),
-                    "status": "SKIP",
-                    "value": None,
-                    "problem": f"{path} is missing",
-                }
-            )
-        except (OSError, ValueError) as exc:
-            rows.append(
-                {
-                    "name": name,
-                    "path": str(path),
-                    "status": "SKIP",
-                    "value": None,
-                    "problem": f"{path} could not be read: {type(exc).__name__}: {exc}",
-                }
-            )
-        else:
-            rows.append(
-                {
-                    "name": name,
-                    "path": str(path),
-                    "status": "OK",
-                    "value": value,
-                    "problem": None,
-                }
-            )
-    return rows
-
-
-def _inotify_problems(rows: list[dict[str, Any]]) -> list[str]:
-    by_name = {str(row["name"]): row for row in rows}
-    problems: list[str] = []
-    watches = by_name.get("max_user_watches", {}).get("value")
-    if isinstance(watches, int) and watches < MAX_INOTIFY_WATCHES:
-        problems.append(
-            f"max_user_watches={watches} is below ACE's {MAX_INOTIFY_WATCHES} watch ceiling"
-        )
-    instances = by_name.get("max_user_instances", {}).get("value")
-    if isinstance(instances, int) and instances < _INOTIFY_MIN_USER_INSTANCES:
-        problems.append(
-            f"max_user_instances={instances} leaves little room for concurrent ACE/prompt watchers"
-        )
-    return problems
-
-
-def _inotify_next_steps() -> tuple[str, ...]:
-    return (
-        "Raise the reported `/proc/sys/fs/inotify/*` limit(s) with sysctl if ACE refreshes are falling back to polling.",
-        "Close unused ACE sessions to release inotify instances and watches.",
-    )
-
-
-def _format_bytes(value: int) -> str:
-    if value >= _GIB:
-        return f"{value / _GIB:.1f} GiB"
-    return f"{value / (1024**2):.0f} MiB"
-
-
-def _nearest_existing_parent(path: Path) -> Path | None:
-    for candidate in (path, *path.parents):
-        if candidate.exists():
-            return candidate if candidate.is_dir() else candidate.parent
-    return None
