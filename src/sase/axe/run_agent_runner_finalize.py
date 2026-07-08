@@ -13,9 +13,11 @@ from typing import Any
 from sase.axe.image_attachments import append_unique_paths
 from sase.axe.run_agent_helpers import read_commit_result_metadata
 from sase.axe.run_agent_phases import build_done_marker, record_stop_time
+from sase.axe.run_agent_repeat_stop import STOP_OUTPUT_VARIABLE
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_output_variables import read_agent_output_variables
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
     AGENT_RUN_DURATION,
@@ -154,6 +156,23 @@ def _completion_explicit_artifact_paths(current_artifacts_dir: str | None) -> li
     return paths
 
 
+def _completion_output_variables(
+    current_artifacts_dir: str | None,
+) -> dict[str, str]:
+    """Return user-facing output variables for completion notifications."""
+    if not current_artifacts_dir:
+        return {}
+
+    try:
+        variables = read_agent_output_variables(current_artifacts_dir)
+    except Exception:
+        return {}
+
+    return {
+        key: variables[key] for key in sorted(variables) if key != STOP_OUTPUT_VARIABLE
+    }
+
+
 def _commit_message_for_notification(
     step_output: dict[str, Any] | None, current_artifacts_dir: str | None
 ) -> str | None:
@@ -242,6 +261,18 @@ def send_completion_notification(
         agent_name, include_description=True
     )
     runtime_data = {"runtime": runtime} if runtime else {}
+    output_variables = _completion_output_variables(current_artifacts_dir)
+    output_variables_data = (
+        {
+            "output_variables": json.dumps(
+                output_variables,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        }
+        if output_variables
+        else {}
+    )
 
     action: str
     action_data: dict[str, str]
@@ -256,6 +287,7 @@ def send_completion_notification(
             **({"commit_message": commit_message} if commit_message else {}),
             **({"pr_url": pr_url} if pr_url else {}),
             **runtime_data,
+            **output_variables_data,
         }
     else:
         action = "JumpToAgent"
@@ -270,6 +302,7 @@ def send_completion_notification(
             **({"commit_message": commit_message} if commit_message else {}),
             **({"pr_url": pr_url} if pr_url else {}),
             **runtime_data,
+            **output_variables_data,
         }
 
     notify_workflow_complete(

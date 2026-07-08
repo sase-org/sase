@@ -1830,9 +1830,9 @@ expose both values for auditability.
 
 `sase var set` attaches small named string values to the current SASE agent run by merging them into
 `agent_meta.json["output_variables"]`. The command is agent-scoped and requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR`.
-The variables appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata panel. Later agents that wait on this agent with
-`%wait` load the stored strings when they start and can render them through the `agents` Jinja dictionary in prompts and
-xprompt workflows.
+The variables appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata panel and in Telegram agent-completion messages.
+Later agents that wait on this agent with `%wait` load the stored strings when they start and can render them through
+the `agents` Jinja dictionary in prompts and xprompt workflows.
 
 | Form                           | Flags / arguments      | Description                                               |
 | ------------------------------ | ---------------------- | --------------------------------------------------------- |
@@ -1844,7 +1844,7 @@ key replace earlier values. The command does not update prompts that have alread
 before the producing agent completes and before dependent agents unblock. Downstream prompts read each producer's
 variables from the single `agents` dictionary keyed by the producer's stable agent name, e.g.
 `{{ agents["build"].report_path }}` (or `{{ agents.build.report_path }}` for identifier-safe names). Do not store
-secrets; output variables are persisted in `agent_meta.json` and shown in ACE.
+secrets; output variables are persisted in `agent_meta.json` and shown in ACE and Telegram completion messages.
 
 `STOP` is a reserved output variable. `sase var set` stays generic and stores it like any other key, but repeat
 orchestration interprets it: setting `STOP` (e.g. `sase var set STOP=1`) inside a `%repeat` / `%r` iteration stops the

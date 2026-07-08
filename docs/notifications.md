@@ -129,6 +129,10 @@ persisted or synthesized as ACE artifact-list entries, but they are not appended
 unless they also appear in `done.json.image_paths` / `done.json.video_paths` or were saved explicitly with
 `sase artifact create`.
 
+When an agent sets output variables with `sase var set`, non-reserved variables are snapshotted into the completion
+notification and rendered in Telegram agent-completion messages. The reserved repeat-control variable `STOP` is omitted
+from Telegram completion summaries.
+
 The Agents tab also treats user-agent completions as unread work items. When a terminal agent is selected after it has
 been marked unread, or when the user jumps to it with the unread-agent shortcut, ACE clears the row's unread marker and
 dismisses the matching completion notification. Plan approvals and user questions remain explicit response workflows and

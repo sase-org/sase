@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 23:00:21
-status: wip
+status: done
 prompt: sdd/prompts/202607/telegram_output_variables.md
 ---
 # Plan: Show `/sase_var` Output Variables in the Telegram Agent-Completion Message

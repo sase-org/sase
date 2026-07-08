@@ -1748,8 +1748,8 @@ munging, so dotted, hyphenated, and digit-leading names all work via bracket acc
 `{{ agents["research.final"].report_path }}`, and `%name:0n.cld` → `{{ agents["0n.cld"].report_path }}`. Identifier-safe
 keys also support attribute access such as `{{ agents.build.report_path }}`. `agents` is a reserved agent-run Jinja
 name; a workflow input named `agents` collides and fails clearly. Output variables are persisted in the producer's
-`agent_meta.json` and also appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata section. They are visible metadata,
-not secret storage.
+`agent_meta.json` and also appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata section and Telegram agent-completion
+messages. They are visible metadata, not secret storage.
 
 `STOP` is a reserved output-variable name, but only for `%repeat` / `%r` chain continuation: setting it stops later
 repeat slots (see [Stopping a repeat chain early with `STOP`](#stopping-a-repeat-chain-early-with-stop)). It has no

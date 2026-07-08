@@ -82,6 +82,7 @@ from tests.main.init_skills_handler_helpers import make_args
                 "sase var set KEY=VALUE",
                 "%name:build-@",
                 '{{ agents["build"].result_path }}',
+                "Telegram completion message",
                 "sase var set STOP=1",
                 "only affects later `%repeat` / `%r` slots",
             ),

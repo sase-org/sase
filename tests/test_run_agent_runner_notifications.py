@@ -77,6 +77,48 @@ def test_success_completion_notification_includes_runtime(base_kwargs):
     assert action_data["runtime"] == "4m32s"
 
 
+def test_success_completion_notification_includes_output_variables(base_kwargs):
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "output_variables": {
+                    "status": "ok",
+                    "STOP": "1",
+                    "report_path": "dist/report.md",
+                }
+            }
+        )
+    )
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["output_variables"] == (
+        '{"report_path": "dist/report.md", "status": "ok"}'
+    )
+    assert json.loads(action_data["output_variables"]) == {
+        "report_path": "dist/report.md",
+        "status": "ok",
+    }
+
+
+def test_completion_notification_omits_empty_output_variables(base_kwargs):
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"output_variables": {"STOP": "1"}})
+    )
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert "output_variables" not in action_data
+
+
 def test_success_completion_notification_tags_done(base_kwargs):
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
         send_completion_notification(**base_kwargs)
@@ -226,6 +268,29 @@ def test_failure_error_report_notification_includes_runtime(base_kwargs, tmp_pat
     assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
     action_data = mock_notify.call_args.kwargs["action_data"]
     assert action_data["runtime"] == "1m05s"
+
+
+def test_failure_error_report_notification_includes_output_variables(
+    base_kwargs, tmp_path
+):
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"output_variables": {"summary_path": "reports/error.md"}})
+    )
+    error_report = tmp_path / "error.md"
+    error_report.write_text("boom\n")
+    base_kwargs["success"] = False
+    base_kwargs["error_report_path"] = str(error_report)
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert json.loads(action_data["output_variables"]) == {
+        "summary_path": "reports/error.md"
+    }
 
 
 def test_completion_notification_appends_image_paths_after_standard_files(
