@@ -6,15 +6,28 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 
 
 def _clipboard_commands() -> list[list[str]]:
     """Return candidate clipboard commands for the current platform."""
-    if sys.platform == "darwin":
+    return clipboard_commands()
+
+
+def clipboard_commands(
+    *,
+    env: Mapping[str, str] | None = None,
+    platform: str | None = None,
+) -> list[list[str]]:
+    """Return candidate clipboard commands for the supplied environment."""
+    environment = os.environ if env is None else env
+    current_platform = sys.platform if platform is None else platform
+
+    if current_platform == "darwin":
         return [["pbcopy"]]
-    if sys.platform.startswith("linux"):
-        wayland = bool(os.environ.get("WAYLAND_DISPLAY"))
-        x11 = bool(os.environ.get("DISPLAY"))
+    if current_platform.startswith("linux"):
+        wayland = bool(environment.get("WAYLAND_DISPLAY"))
+        x11 = bool(environment.get("DISPLAY"))
         if not wayland and not x11:
             return [
                 ["wl-copy"],
@@ -49,6 +62,15 @@ def copy_to_system_clipboard(content: str) -> bool:
     return False
 
 
-def clipboard_available() -> bool:
+def clipboard_available(
+    *,
+    env: Mapping[str, str] | None = None,
+    platform: str | None = None,
+) -> bool:
     """Return True when a usable system clipboard command is on PATH."""
-    return any(shutil.which(cmd[0]) is not None for cmd in _clipboard_commands())
+    commands = (
+        _clipboard_commands()
+        if env is None and platform is None
+        else clipboard_commands(env=env, platform=platform)
+    )
+    return any(shutil.which(cmd[0]) is not None for cmd in commands)

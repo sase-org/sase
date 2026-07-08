@@ -1,18 +1,113 @@
-"""Tests for Phase 4 doctor optional-tool checks."""
+"""Tests for doctor tool checks."""
 
 from __future__ import annotations
 
-from sase.doctor.checks_tools import _check_optional_tools
+from pathlib import Path
+
+from sase.doctor import checks_tools
+from sase.doctor.runner import DoctorContext
+
+
+def _context(env: dict[str, str] | None = None) -> DoctorContext:
+    return DoctorContext(
+        cwd=Path("/repo"),
+        project=None,
+        sase_home=Path("/home/user/.sase"),
+        env={} if env is None else env,
+    )
+
+
+def test_tmux_check_warns_without_blocking_agent_runtime(monkeypatch) -> None:
+    monkeypatch.setattr(checks_tools.shutil, "which", lambda _command: None)
+
+    check = checks_tools._check_tmux()
+
+    assert check.status == "WARN"
+    assert "`sase ace --tmux` exits with code 2" in check.details[0]
+    assert check.next_steps == ("Install `tmux` or run ACE without `--tmux`.",)
+    assert check.data["required_for_agents"] is False
+
+
+def test_tmux_check_ok_when_command_resolves(monkeypatch) -> None:
+    monkeypatch.setattr(checks_tools.shutil, "which", lambda _command: "/usr/bin/tmux")
+
+    check = checks_tools._check_tmux()
+
+    assert check.status == "OK"
+    assert check.data["resolved_path"] == "/usr/bin/tmux"
+
+
+def test_clipboard_check_warns_with_wayland_next_step(monkeypatch) -> None:
+    monkeypatch.setattr(
+        checks_tools,
+        "clipboard_available",
+        lambda **_kwargs: False,
+    )
+
+    check = checks_tools._check_clipboard(
+        _context({"WAYLAND_DISPLAY": "wayland-0"}),
+        platform="linux",
+    )
+
+    assert check.status == "WARN"
+    assert check.summary == "no Linux clipboard helper is available"
+    assert check.next_steps == ("Install `wl-clipboard` for the `wl-copy` command.",)
+    assert check.data["command_heads"] == ("wl-copy",)
+
+
+def test_clipboard_check_warns_with_linux_fallback_next_steps(monkeypatch) -> None:
+    monkeypatch.setattr(
+        checks_tools,
+        "clipboard_available",
+        lambda **_kwargs: False,
+    )
+
+    check = checks_tools._check_clipboard(_context({}), platform="linux")
+
+    assert check.status == "WARN"
+    assert check.next_steps == (
+        "Install `wl-clipboard`, `xclip`, or `xsel`, and ensure WAYLAND_DISPLAY or DISPLAY is set for graphical clipboard sessions.",
+    )
+    assert check.data["command_heads"] == ("wl-copy", "xclip", "xsel")
+
+
+def test_clipboard_check_warns_with_macos_next_step(monkeypatch) -> None:
+    monkeypatch.setattr(
+        checks_tools,
+        "clipboard_available",
+        lambda **_kwargs: False,
+    )
+
+    check = checks_tools._check_clipboard(_context({}), platform="darwin")
+
+    assert check.status == "WARN"
+    assert check.next_steps == ("Ensure `pbcopy` is available on PATH.",)
+    assert check.data["command_heads"] == ("pbcopy",)
+
+
+def test_clipboard_check_ok_when_helper_available(monkeypatch) -> None:
+    monkeypatch.setattr(
+        checks_tools,
+        "clipboard_available",
+        lambda **_kwargs: True,
+    )
+
+    check = checks_tools._check_clipboard(_context({}), platform="darwin")
+
+    assert check.status == "OK"
+    assert check.next_steps == ()
 
 
 def test_optional_tools_warns_with_affected_features(monkeypatch) -> None:
     monkeypatch.setattr(
         "sase.doctor.checks_tools.shutil.which",
-        lambda command: "/usr/bin/tmux" if command == "tmux" else None,
+        lambda command: "/usr/bin/bat" if command == "bat" else None,
     )
 
-    check = _check_optional_tools()
+    check = checks_tools._check_optional_tools()
 
     assert check.status == "WARN"
+    rows = {row["id"]: row for row in check.data["tools"]}
+    assert "tmux" not in rows
+    assert rows["bat"]["available"] is True
     assert any("terminal image artifact display" in detail for detail in check.details)
-    assert check.data["tools"][0]["available"] is True

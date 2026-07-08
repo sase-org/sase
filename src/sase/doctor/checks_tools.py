@@ -1,11 +1,13 @@
-"""Optional tool checks for ``sase doctor`` deep mode."""
+"""Tool checks for ``sase doctor``."""
 
 from __future__ import annotations
 
 import shutil
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from sase.core.clipboard import clipboard_available, clipboard_commands
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.editor_resolver import EditorResolution, resolve_editor
 
@@ -24,7 +26,6 @@ class _ToolRequirement:
 
 
 _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
-    _ToolRequirement("tmux", ("tmux",), "ACE tmux windows and artifact panes"),
     _ToolRequirement("bat", ("bat",), "syntax-highlighted file previews"),
     _ToolRequirement("kitten", ("kitten",), "terminal image artifact display"),
     _ToolRequirement("mpv", ("mpv",), "terminal video artifact playback"),
@@ -54,9 +55,21 @@ def tools_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_editor(context),
         ),
         CheckSpec(
+            id="tools.tmux",
+            group="tools",
+            title="tmux command",
+            runner=_check_tmux,
+        ),
+        CheckSpec(
+            id="tools.clipboard",
+            group="tools",
+            title="System clipboard",
+            runner=lambda: _check_clipboard(context),
+        ),
+        CheckSpec(
             id="tools.optional",
             group="tools",
-            title="Optional tools",
+            title="Optional artifact tools",
             runner=_check_optional_tools,
             deep=True,
         ),
@@ -128,6 +141,128 @@ def _editor_next_steps(resolution: EditorResolution) -> tuple[str, ...]:
     )
 
 
+def _check_tmux() -> DiagnosticCheck:
+    """Check whether the tmux command is available for ACE tmux workflows."""
+    resolved_path = shutil.which("tmux")
+    if resolved_path:
+        return DiagnosticCheck(
+            id="tools.tmux",
+            group="tools",
+            status="OK",
+            title="tmux command",
+            summary="tmux is available for ACE tmux workflows",
+            details=(f"Command: {resolved_path}",),
+            data={
+                "command": "tmux",
+                "resolved_path": resolved_path,
+                "required_for_agents": False,
+            },
+        )
+
+    return DiagnosticCheck(
+        id="tools.tmux",
+        group="tools",
+        status="WARN",
+        title="tmux command",
+        summary="tmux is not installed or not on PATH",
+        details=(
+            "`sase ace --tmux` exits with code 2 when tmux is missing.",
+            "Agents can run without tmux, but workspace windows, inline artifact panes, and artifact zoom are degraded.",
+        ),
+        next_steps=("Install `tmux` or run ACE without `--tmux`.",),
+        data={
+            "command": "tmux",
+            "resolved_path": None,
+            "required_for_agents": False,
+        },
+    )
+
+
+def _check_clipboard(
+    context: DoctorContext,
+    *,
+    platform: str | None = None,
+) -> DiagnosticCheck:
+    """Check whether a system clipboard helper is available."""
+    current_platform = sys.platform if platform is None else platform
+    candidates = clipboard_commands(env=context.env, platform=current_platform)
+    command_heads = tuple(dict.fromkeys(command[0] for command in candidates))
+    available = clipboard_available(env=context.env, platform=current_platform)
+    status: CheckStatus = "OK" if available else "WARN"
+
+    return DiagnosticCheck(
+        id="tools.clipboard",
+        group="tools",
+        status=status,
+        title="System clipboard",
+        summary=(
+            "system clipboard helper is available"
+            if available
+            else _clipboard_missing_summary(current_platform)
+        ),
+        details=_clipboard_details(available=available, command_heads=command_heads),
+        next_steps=_clipboard_next_steps(
+            available=available,
+            env=context.env,
+            platform=current_platform,
+        ),
+        data={
+            "available": available,
+            "platform": current_platform,
+            "wayland_session": bool(context.env.get("WAYLAND_DISPLAY")),
+            "x11_session": bool(context.env.get("DISPLAY")),
+            "commands": candidates,
+            "command_heads": list(command_heads),
+        },
+    )
+
+
+def _clipboard_missing_summary(platform: str) -> str:
+    if platform == "darwin":
+        return "pbcopy is not available for clipboard workflows"
+    if platform.startswith("linux"):
+        return "no Linux clipboard helper is available"
+    return "no supported system clipboard helper is available"
+
+
+def _clipboard_details(
+    *,
+    available: bool,
+    command_heads: tuple[str, ...],
+) -> tuple[str, ...]:
+    if available:
+        return ()
+    if command_heads:
+        return (
+            f"Checked clipboard helper command(s): {', '.join(command_heads)}.",
+            "Copy and yank workflows need one of these helpers on PATH.",
+        )
+    return ("No clipboard helper commands are registered for this platform.",)
+
+
+def _clipboard_next_steps(
+    *,
+    available: bool,
+    env: dict[str, str],
+    platform: str,
+) -> tuple[str, ...]:
+    if available:
+        return ()
+    if platform == "darwin":
+        return ("Ensure `pbcopy` is available on PATH.",)
+    if platform.startswith("linux"):
+        if env.get("WAYLAND_DISPLAY"):
+            return ("Install `wl-clipboard` for the `wl-copy` command.",)
+        if env.get("DISPLAY"):
+            return ("Install `xclip` or `xsel` for X11 clipboard support.",)
+        return (
+            "Install `wl-clipboard`, `xclip`, or `xsel`, and ensure WAYLAND_DISPLAY or DISPLAY is set for graphical clipboard sessions.",
+        )
+    return (
+        "Install a supported clipboard helper such as `wl-clipboard`, `xclip`, `xsel`, or `pbcopy` for your platform.",
+    )
+
+
 def _check_optional_tools() -> DiagnosticCheck:
     """Check optional executable availability with feature-specific warnings."""
     rows: list[dict[str, Any]] = [
@@ -151,7 +286,7 @@ def _check_optional_tools() -> DiagnosticCheck:
         id="tools.optional",
         group="tools",
         status=status,
-        title="Optional tools",
+        title="Optional artifact tools",
         summary=summary,
         details=details,
         data={"tools": rows},
