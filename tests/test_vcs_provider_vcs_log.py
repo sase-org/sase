@@ -8,7 +8,9 @@ merge-commit exclusion, the ``limit`` cap, and multi-line body handling.
 
 import shutil
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
+from collections.abc import Mapping
 
 import pluggy
 import pytest
@@ -30,8 +32,15 @@ def _make_git_provider() -> VCSPluginManager:
     return VCSPluginManager(pm)
 
 
-def _git(args: list[str], cwd: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, capture_output=True, check=True, text=True)
+def _git(args: list[str], cwd: str, *, env: Mapping[str, str] | None = None) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        check=True,
+        text=True,
+        env=env,
+    )
 
 
 @pytest.fixture()
@@ -43,10 +52,33 @@ def repo(tmp_path: Path) -> str:
     return cwd
 
 
-def _commit(cwd: str, filename: str, message: str) -> None:
+def _commit(
+    cwd: str,
+    filename: str,
+    message: str,
+    *,
+    timestamp: int | None = None,
+    author_name: str | None = None,
+    author_email: str | None = None,
+) -> None:
+    import os
+
     (Path(cwd) / filename).write_text("content\n")
     _git(["add", filename], cwd)
-    _git(["commit", "-q", "-m", message], cwd)
+    env = os.environ.copy()
+    if timestamp is not None:
+        raw_date = datetime.fromtimestamp(timestamp, UTC).strftime(
+            "%Y-%m-%dT%H:%M:%S %z"
+        )
+        env["GIT_AUTHOR_DATE"] = raw_date
+        env["GIT_COMMITTER_DATE"] = raw_date
+    if author_name is not None:
+        env["GIT_AUTHOR_NAME"] = author_name
+        env["GIT_COMMITTER_NAME"] = author_name
+    if author_email is not None:
+        env["GIT_AUTHOR_EMAIL"] = author_email
+        env["GIT_COMMITTER_EMAIL"] = author_email
+    _git(["commit", "-q", "-m", message], cwd, env=env)
 
 
 def test_vcs_log_parses_commit_fields(repo: str) -> None:
@@ -83,6 +115,73 @@ def test_vcs_log_respects_limit(repo: str) -> None:
     commits = BareGitPlugin().vcs_log(repo, 2)
 
     assert [c.subject for c in commits] == ["commit 4", "commit 3"]
+
+
+def test_vcs_log_limit_zero_returns_all_commits(repo: str) -> None:
+    for i in range(5):
+        _commit(repo, f"f{i}.txt", f"commit {i}")
+
+    commits = BareGitPlugin().vcs_log(repo, 0)
+
+    assert [c.subject for c in commits] == [
+        "commit 4",
+        "commit 3",
+        "commit 2",
+        "commit 1",
+        "commit 0",
+    ]
+
+
+def test_vcs_log_since_until_filter_before_limit(repo: str) -> None:
+    base = 1_700_000_000
+    _commit(repo, "a.txt", "old", timestamp=base)
+    _commit(repo, "b.txt", "middle", timestamp=base + 1_000)
+    _commit(repo, "c.txt", "new", timestamp=base + 2_000)
+
+    commits = BareGitPlugin().vcs_log(repo, 1, since=base + 500, until=base + 1_500)
+
+    assert [c.subject for c in commits] == ["middle"]
+
+
+def test_vcs_log_author_filter_is_literal_case_insensitive_or(repo: str) -> None:
+    base = 1_700_000_000
+    _commit(
+        repo,
+        "a.txt",
+        "bryan work",
+        timestamp=base,
+        author_name="Bryan Bugyi",
+        author_email="bryan@example.com",
+    )
+    _commit(
+        repo,
+        "b.txt",
+        "amy work",
+        timestamp=base + 1_000,
+        author_name="Amy",
+        author_email="amy@example.com",
+    )
+    _commit(
+        repo,
+        "c.txt",
+        "literal author",
+        timestamp=base + 2_000,
+        author_name="A.B",
+        author_email="literal@example.com",
+    )
+
+    plugin = BareGitPlugin()
+
+    assert [c.subject for c in plugin.vcs_log(repo, 10, authors=("BRYAN",))] == [
+        "bryan work"
+    ]
+    assert [c.subject for c in plugin.vcs_log(repo, 10, authors=("bryan", "amy"))] == [
+        "amy work",
+        "bryan work",
+    ]
+    assert [c.subject for c in plugin.vcs_log(repo, 10, authors=("A.B",))] == [
+        "literal author"
+    ]
 
 
 def test_vcs_log_preserves_multiline_body(repo: str) -> None:
@@ -127,6 +226,6 @@ def test_provider_log_delegates_to_hook(repo: str) -> None:
     _commit(repo, "a.txt", "only commit")
 
     provider = _make_git_provider()
-    commits = provider.log(cwd=repo, limit=10)
+    commits = provider.log(cwd=repo, limit=10, authors=("bryan",))
 
     assert [c.subject for c in commits] == ["only commit"]

@@ -181,6 +181,12 @@ def test_aggregate_truncates_to_limit() -> None:
     assert [r.commit.full_id for r in out] == ["a", "b"]
 
 
+def test_aggregate_negative_limit_is_unlimited() -> None:
+    repos = [("sase", [_commit("a", 500), _commit("b", 400), _commit("c", 300)])]
+    out = aggregate_commit_log(repos, -1)
+    assert [r.commit.full_id for r in out] == ["a", "b", "c"]
+
+
 # ---------------------------------------------------------------------------
 # Wire helpers
 # ---------------------------------------------------------------------------

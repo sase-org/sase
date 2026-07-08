@@ -7,8 +7,25 @@ from typing import Literal
 
 from sase.core.vcs_log_wire import AggregatedCommitWire
 
+#: Internal limit sentinel meaning "fetch and aggregate without a row cap".
+UNLIMITED = -1
+
 #: Which slot of the project constellation a repo occupies.
 LogRepoKind = Literal["primary", "linked", "sdd"]
+
+
+@dataclass(frozen=True)
+class CommitFilters:
+    """Provider-neutral commit-selection filters for ``sase vcs log``.
+
+    ``since`` and ``until`` are epoch-second bounds. ``authors`` are
+    case-insensitive substrings matched by providers against author identity
+    with OR semantics.
+    """
+
+    since: int | None = None
+    until: int | None = None
+    authors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -44,4 +61,4 @@ class VcsLogResult:
     warnings: tuple[str, ...]
 
 
-__all__ = ["LogRepo", "LogRepoKind", "VcsLogResult"]
+__all__ = ["UNLIMITED", "CommitFilters", "LogRepo", "LogRepoKind", "VcsLogResult"]

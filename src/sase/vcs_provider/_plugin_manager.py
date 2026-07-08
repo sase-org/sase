@@ -200,8 +200,18 @@ class VCSPluginManager(VCSProvider):
             )
         return result  # type: ignore[return-value]
 
-    def log(self, cwd: str, limit: int) -> list["VcsCommitWire"]:
-        result = self._pm.hook.vcs_log(cwd=cwd, limit=limit)
+    def log(
+        self,
+        cwd: str,
+        limit: int,
+        *,
+        since: int | None = None,
+        until: int | None = None,
+        authors: tuple[str, ...] = (),
+    ) -> list["VcsCommitWire"]:
+        result = self._pm.hook.vcs_log(
+            cwd=cwd, limit=limit, since=since, until=until, authors=authors
+        )
         if result is None:
             raise NotImplementedError("log is not supported by this VCS provider")
         return result  # type: ignore[return-value]

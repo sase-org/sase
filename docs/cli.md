@@ -26,6 +26,7 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase prompt run`               | Replay a stored prompt by selector, optionally editing or re-prefixing it first.                                     | [Prompt history](prompt.md)                           |
 | `sase prompt save`              | Save a stored prompt as a reusable xprompt, or `export` it to a file or SDD snapshot.                                | [Prompt history](prompt.md), [XPrompts](xprompt.md)   |
 | `sase prompt prune`             | Curate the prompt-history store with `delete`, `prune`, and read-only `doctor`/`stats`.                              | [Prompt history](prompt.md)                           |
+| `sase vcs log`                  | Show a cross-repository commit timeline with date, author, ordering, and output-format filters.                      | [VCS](vcs.md#sase-vcs-log)                            |
 | `sase notify`                   | Shortcut for `sase notify list`.                                                                                     | [Notifications](notifications.md)                     |
 | `sase notify create`            | Create a notification from JSON input.                                                                               | [Notifications](notifications.md)                     |
 | `sase notify list`              | List recent notifications, optionally filtered by sender, tag, unread state, or query.                               | [Notifications](notifications.md)                     |

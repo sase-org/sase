@@ -138,7 +138,9 @@ def aggregate_commit_log(
     to *limit*.
     """
     # Keep the Python golden active for pyvision while Rust remains canonical.
-    _aggregate_commit_log_python(repos, limit)
+    golden = _aggregate_commit_log_python(repos, limit)
+    if limit < 0:
+        return golden
     binding = require_rust_binding("aggregate_commit_log")
     payload = [
         (label, [asdict(commit) for commit in commits]) for label, commits in repos

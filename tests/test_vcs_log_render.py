@@ -10,12 +10,17 @@ import pytest
 
 import sase.vcs_log.render as render_mod
 from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
-from sase.vcs_log.models import LogRepo, VcsLogResult
+from sase.vcs_log.models import CommitFilters, LogRepo, VcsLogResult
 from sase.vcs_log.render import render
 
 
 def _entry(
-    repo: str, full: str, ts: int, subject: str, author: str = "bryan"
+    repo: str,
+    full: str,
+    ts: int,
+    subject: str,
+    author: str = "bryan",
+    body: str = "",
 ) -> AggregatedCommitWire:
     return AggregatedCommitWire(
         repo=repo,
@@ -26,7 +31,7 @@ def _entry(
             author_email="b@x",
             timestamp=ts,
             subject=subject,
-            body="",
+            body=body,
         ),
     )
 
@@ -46,9 +51,25 @@ def _result() -> VcsLogResult:
     )
 
 
-def _render(result: VcsLogResult, fmt: str, color: str = "never") -> str:
+def _render(
+    result: VcsLogResult,
+    fmt: str,
+    color: str = "never",
+    *,
+    limit: int = 20,
+    filters: CommitFilters | None = None,
+    reverse: bool = False,
+) -> str:
     out = io.StringIO()
-    render(result, fmt=fmt, color=color, out=out)
+    render(
+        result,
+        fmt=fmt,
+        color=color,
+        out=out,
+        limit=limit,
+        filters=filters,
+        reverse=reverse,
+    )
     return out.getvalue()
 
 
@@ -67,7 +88,7 @@ def test_oneline_empty_is_blank() -> None:
 
 def test_json_shape_and_ordering() -> None:
     payload = json.loads(_render(_result(), "json"))
-    assert list(payload.keys()) == ["commits", "repos", "warnings"]
+    assert list(payload.keys()) == ["commits", "query", "repos", "warnings"]
     assert [c["short_id"] for c in payload["commits"]] == [
         "a1b2c3d",
         "9f8e7d6",
@@ -84,6 +105,13 @@ def test_json_shape_and_ordering() -> None:
         "subject": "fix(sdd): link store",
         "timestamp": 300,
     }
+    assert payload["query"] == {
+        "authors": [],
+        "limit": 20,
+        "reverse": False,
+        "since": None,
+        "until": None,
+    }
     assert payload["repos"][0] == {
         "kind": "primary",
         "name": "sase",
@@ -95,7 +123,43 @@ def test_json_shape_and_ordering() -> None:
 def test_json_empty_result() -> None:
     empty = VcsLogResult(repos=(), commits=(), warnings=())
     payload = json.loads(_render(empty, "json"))
-    assert payload == {"commits": [], "repos": [], "warnings": []}
+    assert payload == {
+        "commits": [],
+        "query": {
+            "authors": [],
+            "limit": 20,
+            "reverse": False,
+            "since": None,
+            "until": None,
+        },
+        "repos": [],
+        "warnings": [],
+    }
+
+
+def test_json_reverse_and_query_filters() -> None:
+    payload = json.loads(
+        _render(
+            _result(),
+            "json",
+            limit=0,
+            filters=CommitFilters(since=100, until=300, authors=("bryan",)),
+            reverse=True,
+        )
+    )
+
+    assert [c["short_id"] for c in payload["commits"]] == [
+        "4c5d6e7",
+        "9f8e7d6",
+        "a1b2c3d",
+    ]
+    assert payload["query"] == {
+        "authors": ["bryan"],
+        "limit": 0,
+        "reverse": True,
+        "since": 100,
+        "until": 300,
+    }
 
 
 def test_pretty_day_groups_labels_and_order(
@@ -128,6 +192,78 @@ def test_pretty_day_groups_labels_and_order(
     assert text.index("fix(sdd): link store") < text.index("docs: notes")
     # Warnings surfaced in a trailing block.
     assert "⚠ sase-telegram: no such checkout" in text
+
+
+def test_pretty_reverse_uses_ascending_day_groups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 8, 15, 0)
+    local = {
+        300: datetime(2026, 7, 8, 14, 22),
+        200: datetime(2026, 7, 8, 13, 5),
+        100: datetime(2026, 7, 7, 18, 40),
+    }
+    monkeypatch.setattr(render_mod, "_local_now", lambda: now)
+    monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
+
+    text = _render(_result(), "pretty", reverse=True)
+
+    assert text.index("── Yesterday ") < text.index("── Today ")
+    assert text.index("docs: notes") < text.index("feat(core): parser")
+    assert text.index("feat(core): parser") < text.index("fix(sdd): link store")
+
+
+def test_pretty_filter_summary_and_empty_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local = {
+        100: datetime(2026, 7, 7, 0, 0),
+        200: datetime(2026, 7, 8, 14, 30),
+        300: datetime(2026, 7, 8, 15, 30),
+    }
+    monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
+    filters = CommitFilters(since=100, until=200, authors=("bryan",))
+
+    text = _render(_result(), "pretty", filters=filters)
+    assert "since 2026-07-07" in text
+    assert "until 2026-07-08T14:30" in text
+    assert "author bryan" in text
+
+    empty = VcsLogResult(repos=(), commits=(), warnings=())
+    text = _render(empty, "pretty", filters=filters)
+    assert (
+        "No commits found (since 2026-07-07, until 2026-07-08T14:30, author bryan)"
+    ) in text
+
+
+def test_full_format_shows_body_and_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "a1b2c3d4",
+                300,
+                "feat: full message",
+                body="body one\nbody two",
+            ),
+        ),
+        warnings=(),
+    )
+    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
+    monkeypatch.setattr(
+        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    )
+    monkeypatch.setattr(render_mod, "_relative_age", lambda dt: "38m ago")
+
+    text = _render(result, "full")
+
+    assert "▌ sase  feat: full message" in text
+    assert "body one" in text
+    assert "body two" in text
+    assert "a1b2c3d · bryan <b@x> · 14:22 · 38m ago" in text
 
 
 def test_pretty_empty_shows_no_commits() -> None:

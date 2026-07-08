@@ -42,7 +42,7 @@ The hooks are organized into several groups:
   `vcs_prune`, `vcs_stash_and_clean`
 - **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_changespec_head_ref`, `vcs_show_revision`,
   `vcs_diff_with_untracked`, `vcs_committed_diff`, `vcs_get_default_parent_revision`, `vcs_diff_name_status`,
-  `vcs_diff_line_stats`, `vcs_file_at_revision`
+  `vcs_diff_line_stats`, `vcs_log`, `vcs_file_at_revision`
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`, `vcs_get_conflicted_files`,
   `vcs_continue_sync`, `vcs_abort_sync`
 - **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`, `vcs_create_pull_request` (the three commit workflow
@@ -130,6 +130,38 @@ Additional plugins may return their own provider names. `detect_vcs_family()` co
 `"git"` for contexts that only care about the VCS family.
 
 ## Per-Command VCS Usage
+
+### `sase vcs log`
+
+Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
+store when present. A bare `sase vcs` delegates to `sase vcs log` with default options.
+
+Common forms:
+
+```bash
+sase vcs log
+sase vcs log --since 2w --author bryan
+sase vcs log --limit 0 --since 2026-07-01 --format full
+sase vcs log --reverse --format json
+```
+
+Options:
+
+| Option                                    | Purpose                                                                                 |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| `-a`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
+| `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                   |
+| `-f`, `--format pretty/full/oneline/json` | Choose compact pretty output, full commit-message blocks, pipe-friendly lines, or JSON. |
+| `-n`, `--limit N`                         | Max commits in the merged timeline; `0` means unlimited.                                |
+| `-o`, `--current-only`                    | Read only the current/primary repo.                                                     |
+| `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                           |
+| `-R`, `--reverse`                         | Display the selected commits oldest-first.                                              |
+| `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                     |
+| `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                    |
+
+`DATE` accepts relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM`. Dates are
+resolved in the configured SASE timezone and pushed into the provider query before the limit is applied, so filtered
+top-N results do not silently miss matching commits.
 
 ### `sase commit`
 

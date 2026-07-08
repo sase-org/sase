@@ -126,7 +126,15 @@ class VCSHookSpec:
     ) -> list[tuple[str, str, str]]: ...
 
     @hookspec(firstresult=True)
-    def vcs_log(self, cwd: str, limit: int) -> list["VcsCommitWire"]: ...
+    def vcs_log(
+        self,
+        cwd: str,
+        limit: int,
+        *,
+        since: int | None = None,
+        until: int | None = None,
+        authors: tuple[str, ...] = (),
+    ) -> list["VcsCommitWire"]: ...
 
     @hookspec(firstresult=True)
     def vcs_file_at_revision(

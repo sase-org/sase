@@ -232,13 +232,25 @@ class VCSProvider(ABC):
             "diff_line_stats is not supported by this VCS provider"
         )
 
-    def log(self, cwd: str, limit: int) -> list["VcsCommitWire"]:
+    def log(
+        self,
+        cwd: str,
+        limit: int,
+        *,
+        since: int | None = None,
+        until: int | None = None,
+        authors: tuple[str, ...] = (),
+    ) -> list["VcsCommitWire"]:
         """Return up to *limit* recent commits, newest-first.
 
         Each commit is a provider-agnostic :class:`VcsCommitWire`
         carrying the full/short id, author name/email, epoch author
         timestamp, subject, and body. Merge commits are excluded so the
         timeline reflects authored change history.
+
+        ``since`` and ``until`` are optional epoch-second bounds. ``authors``
+        are case-insensitive substrings matched against author identity with
+        OR semantics. ``limit <= 0`` means unbounded.
 
         Raises:
             VCSOperationError: When the underlying VCS query fails.

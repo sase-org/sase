@@ -1,4 +1,4 @@
-"""Renderers for ``sase vcs log`` — ``pretty``, ``oneline``, and ``json``.
+"""Renderers for ``sase vcs log`` — ``pretty``, ``full``, ``oneline``, and ``json``.
 
 Mirrors the dual-output + ``--color`` contract used by ``sase plan
 search``: the JSON branch returns a plain string (no Rich), and the
@@ -20,7 +20,7 @@ from rich.console import Console
 from rich.text import Text
 
 from sase.core.vcs_log_wire import AggregatedCommitWire
-from sase.vcs_log.models import VcsLogResult
+from sase.vcs_log.models import CommitFilters, VcsLogResult
 
 #: House gold accent used for short SHAs (matches the CLI convention).
 _GOLD = "#D7AF5F"
@@ -64,16 +64,24 @@ def render(
     fmt: str,
     color: str,
     out: TextIO | None = None,
+    limit: int = 20,
+    filters: CommitFilters | None = None,
+    reverse: bool = False,
 ) -> None:
     """Render *result* in the requested format to *out* (default stdout)."""
     stream = out if out is not None else sys.stdout
+    filters = filters or CommitFilters()
+    commits = _ordered_commits(result, reverse=reverse)
     if fmt == "json":
-        stream.write(_render_json(result))
+        stream.write(_render_json(result, commits, limit, filters, reverse))
         return
     if fmt == "oneline":
-        stream.write(_render_oneline(result))
+        stream.write(_render_oneline(commits))
         return
-    _render_pretty(result, color=color, out=stream)
+    if fmt == "full":
+        _render_full(result, commits, color=color, out=stream, filters=filters)
+        return
+    _render_pretty(result, commits, color=color, out=stream, filters=filters)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +89,13 @@ def render(
 # ---------------------------------------------------------------------------
 
 
-def _render_json(result: VcsLogResult) -> str:
+def _render_json(
+    result: VcsLogResult,
+    commits: tuple[AggregatedCommitWire, ...],
+    limit: int,
+    filters: CommitFilters,
+    reverse: bool,
+) -> str:
     payload = {
         "repos": [
             {"name": repo.name, "kind": repo.kind, "path": repo.path}
@@ -97,8 +111,15 @@ def _render_json(result: VcsLogResult) -> str:
                 "timestamp": entry.commit.timestamp,
                 "subject": entry.commit.subject,
             }
-            for entry in result.commits
+            for entry in commits
         ],
+        "query": {
+            "limit": limit,
+            "since": filters.since,
+            "until": filters.until,
+            "authors": list(filters.authors),
+            "reverse": reverse,
+        },
         "warnings": list(result.warnings),
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
@@ -109,15 +130,15 @@ def _render_json(result: VcsLogResult) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _render_oneline(result: VcsLogResult) -> str:
-    if not result.commits:
+def _render_oneline(commits: tuple[AggregatedCommitWire, ...]) -> str:
+    if not commits:
         return ""
-    repo_width = max(len(entry.repo) for entry in result.commits)
-    sha_width = max(len(entry.commit.short_id) for entry in result.commits)
+    repo_width = max(len(entry.repo) for entry in commits)
+    sha_width = max(len(entry.commit.short_id) for entry in commits)
     lines = [
         f"{entry.commit.short_id.ljust(sha_width)} "
         f"{entry.repo.ljust(repo_width)} {entry.commit.subject}"
-        for entry in result.commits
+        for entry in commits
     ]
     return "\n".join(lines) + "\n"
 
@@ -127,23 +148,30 @@ def _render_oneline(result: VcsLogResult) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _render_pretty(result: VcsLogResult, *, color: str, out: TextIO) -> None:
+def _render_pretty(
+    result: VcsLogResult,
+    commits: tuple[AggregatedCommitWire, ...],
+    *,
+    color: str,
+    out: TextIO,
+    filters: CommitFilters,
+) -> None:
     console = _make_console(color, file=out)
     colors = _repo_colors(result)
 
-    if not result.commits:
-        console.print(Text("No commits found", style="dim"))
+    if not commits:
+        console.print(Text(_empty_message(filters), style="dim"))
         _print_warnings(console, result)
         return
 
-    console.print(_legend(result, colors))
+    console.print(_legend(result, commits, colors, filters))
     console.print()
 
-    repo_width = max(len(entry.repo) for entry in result.commits)
-    sha_width = max(len(entry.commit.short_id) for entry in result.commits)
+    repo_width = max(len(entry.repo) for entry in commits)
+    sha_width = max(len(entry.commit.short_id) for entry in commits)
     now_local = _local_now()
     current_day: str | None = None
-    for entry in result.commits:
+    for entry in commits:
         dt_local = _to_local(entry.commit.timestamp)
         day = _day_label(dt_local, now_local)
         if day != current_day:
@@ -157,9 +185,48 @@ def _render_pretty(result: VcsLogResult, *, color: str, out: TextIO) -> None:
     _print_warnings(console, result)
 
 
-def _legend(result: VcsLogResult, colors: dict[str, str]) -> Text:
+def _render_full(
+    result: VcsLogResult,
+    commits: tuple[AggregatedCommitWire, ...],
+    *,
+    color: str,
+    out: TextIO,
+    filters: CommitFilters,
+) -> None:
+    console = _make_console(color, file=out)
+    colors = _repo_colors(result)
+
+    if not commits:
+        console.print(Text(_empty_message(filters), style="dim"))
+        _print_warnings(console, result)
+        return
+
+    console.print(_legend(result, commits, colors, filters))
+    console.print()
+
+    now_local = _local_now()
+    current_day: str | None = None
+    for i, entry in enumerate(commits):
+        dt_local = _to_local(entry.commit.timestamp)
+        day = _day_label(dt_local, now_local)
+        if day != current_day:
+            console.print(_day_header(day), soft_wrap=True)
+            current_day = day
+        _print_full_commit(console, entry, colors, dt_local)
+        if i != len(commits) - 1:
+            console.print()
+
+    _print_warnings(console, result)
+
+
+def _legend(
+    result: VcsLogResult,
+    commits: tuple[AggregatedCommitWire, ...],
+    colors: dict[str, str],
+    filters: CommitFilters,
+) -> Text:
     counts: dict[str, int] = {}
-    for entry in result.commits:
+    for entry in commits:
         counts[entry.repo] = counts.get(entry.repo, 0) + 1
 
     text = Text("  ")
@@ -170,6 +237,10 @@ def _legend(result: VcsLogResult, colors: dict[str, str]) -> Text:
         text.append(repo.name, style=f"bold {style}".strip())
         count = counts.get(repo.name, 0)
         text.append(f" ({count})", style="dim")
+    summary = _filter_summary(filters)
+    if summary:
+        text.append("  ·  ", style="dim")
+        text.append(summary, style="dim")
     return text
 
 
@@ -207,6 +278,38 @@ def _commit_line(
     return line
 
 
+def _print_full_commit(
+    console: Console,
+    entry: AggregatedCommitWire,
+    colors: dict[str, str],
+    dt_local: datetime,
+) -> None:
+    commit = entry.commit
+    repo_color = colors.get(entry.repo, "")
+
+    header = Text("   ")
+    header.append("▌ ", style=repo_color or None)
+    header.append(entry.repo, style=f"bold {repo_color}".strip() or None)
+    header.append("  ")
+    header.append(commit.subject, style="bold")
+    console.print(header, soft_wrap=True)
+
+    body = commit.body.strip("\n")
+    if body:
+        for line in body.splitlines():
+            console.print(Text(f"     {line}", style="dim"), soft_wrap=True)
+
+    author = commit.author_name
+    if commit.author_email:
+        author = f"{author} <{commit.author_email}>" if author else commit.author_email
+    footer = Text("     ")
+    footer.append(
+        f"{commit.short_id} · {author} · {dt_local:%H:%M} · {_relative_age(dt_local)}",
+        style="dim",
+    )
+    console.print(footer, soft_wrap=True)
+
+
 def _print_warnings(console: Console, result: VcsLogResult) -> None:
     if not result.warnings:
         return
@@ -226,6 +329,51 @@ def _repo_colors(result: VcsLogResult) -> dict[str, str]:
     for i, repo in enumerate(result.repos):
         colors.setdefault(repo.name, _REPO_PALETTE[i % len(_REPO_PALETTE)])
     return colors
+
+
+def _ordered_commits(
+    result: VcsLogResult, *, reverse: bool
+) -> tuple[AggregatedCommitWire, ...]:
+    commits = tuple(result.commits)
+    return tuple(reversed(commits)) if reverse else commits
+
+
+def _filter_summary(filters: CommitFilters) -> str:
+    parts: list[str] = []
+    if filters.since is not None:
+        parts.append(f"since {_format_bound(filters.since)}")
+    if filters.until is not None:
+        parts.append(f"until {_format_bound(filters.until)}")
+    if filters.authors:
+        parts.append(f"author {' or '.join(filters.authors)}")
+    return " · ".join(parts)
+
+
+def _empty_message(filters: CommitFilters) -> str:
+    summary = _filter_summary(filters).replace(" · ", ", ")
+    if not summary:
+        return "No commits found"
+    return f"No commits found ({summary})"
+
+
+def _format_bound(timestamp: int) -> str:
+    dt_local = _to_local(timestamp)
+    if (
+        dt_local.hour,
+        dt_local.minute,
+        dt_local.second,
+        dt_local.microsecond,
+    ) == (0, 0, 0, 0):
+        return f"{dt_local:%Y-%m-%d}"
+    if dt_local.second or dt_local.microsecond:
+        return f"{dt_local:%Y-%m-%dT%H:%M:%S}"
+    return f"{dt_local:%Y-%m-%dT%H:%M}"
+
+
+def _relative_age(dt_local: datetime) -> str:
+    from sase.notifications.models import format_relative_time
+
+    return format_relative_time(dt_local.isoformat(timespec="seconds"))
 
 
 def _to_local(timestamp: int) -> datetime:

@@ -357,20 +357,31 @@ class GitQueryOpsMixin(CommandRunner):
         return parse_git_numstat_z(out.stdout)
 
     @hookimpl
-    def vcs_log(self, cwd: str, limit: int) -> list[VcsCommitWire]:
+    def vcs_log(
+        self,
+        cwd: str,
+        limit: int,
+        *,
+        since: int | None = None,
+        until: int | None = None,
+        authors: tuple[str, ...] = (),
+    ) -> list[VcsCommitWire]:
         from sase.vcs_provider._errors import VCSOperationError
 
-        out = self._run(
-            [
-                "git",
-                "log",
-                "-n",
-                str(limit),
-                "--no-merges",
-                f"--format={VCS_LOG_GIT_FORMAT}",
-            ],
-            cwd,
-        )
+        args = ["git", "log"]
+        if limit >= 1:
+            args.extend(["-n", str(limit)])
+        args.append("--no-merges")
+        if since is not None:
+            args.append(f"--since=@{since}")
+        if until is not None:
+            args.append(f"--until=@{until}")
+        if authors:
+            args.extend(["--fixed-strings", "--regexp-ignore-case"])
+            args.extend(f"--author={author}" for author in authors)
+        args.append(f"--format={VCS_LOG_GIT_FORMAT}")
+
+        out = self._run(args, cwd)
         if not out.success:
             raise VCSOperationError("log", out.stderr.strip() or "git log failed")
         return parse_git_log(out.stdout)

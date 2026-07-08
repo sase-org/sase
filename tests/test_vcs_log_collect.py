@@ -7,7 +7,7 @@ import pytest
 from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_log import collect as collect_module
 from sase.vcs_log.collect import collect_vcs_log, run_vcs_log
-from sase.vcs_log.models import LogRepo
+from sase.vcs_log.models import CommitFilters, LogRepo, UNLIMITED
 from sase.vcs_log.resolve import ResolvedRepos
 
 
@@ -27,12 +27,30 @@ class _FakeProvider:
     def __init__(self, commits: list[VcsCommitWire]) -> None:
         self._commits = commits
 
-    def log(self, cwd: str, limit: int) -> list[VcsCommitWire]:
-        return self._commits[:limit]
+    def log(
+        self,
+        cwd: str,
+        limit: int,
+        *,
+        since: int | None = None,
+        until: int | None = None,
+        authors: tuple[str, ...] = (),
+    ) -> list[VcsCommitWire]:
+        del cwd, since, until, authors
+        return self._commits if limit < 0 else self._commits[:limit]
 
 
 class _FailProvider:
-    def log(self, cwd: str, limit: int) -> list[VcsCommitWire]:
+    def log(
+        self,
+        cwd: str,
+        limit: int,
+        *,
+        since: int | None = None,
+        until: int | None = None,
+        authors: tuple[str, ...] = (),
+    ) -> list[VcsCommitWire]:
+        del cwd, limit, since, until, authors
         raise RuntimeError("no such checkout")
 
 
@@ -77,13 +95,62 @@ def test_collect_fetches_limit_per_repo() -> None:
         def __init__(self, path: str) -> None:
             self.path = path
 
-        def log(self, cwd: str, limit: int) -> list[VcsCommitWire]:
+        def log(
+            self,
+            cwd: str,
+            limit: int,
+            *,
+            since: int | None = None,
+            until: int | None = None,
+            authors: tuple[str, ...] = (),
+        ) -> list[VcsCommitWire]:
+            del cwd, since, until, authors
             seen[self.path] = limit
             return [_commit("x", 1)]
 
     repos = [LogRepo("a", "/a", "primary"), LogRepo("b", "/b", "linked")]
     collect_vcs_log(repos, limit=7, provider_factory=_Recorder)
     assert seen == {"/a": 7, "/b": 7}
+
+
+def test_collect_threads_filters_and_unlimited_sentinel() -> None:
+    seen: dict[str, object] = {}
+
+    class _Recorder:
+        def __init__(self, path: str) -> None:
+            self.path = path
+
+        def log(
+            self,
+            cwd: str,
+            limit: int,
+            *,
+            since: int | None = None,
+            until: int | None = None,
+            authors: tuple[str, ...] = (),
+        ) -> list[VcsCommitWire]:
+            seen["cwd"] = cwd
+            seen["limit"] = limit
+            seen["since"] = since
+            seen["until"] = until
+            seen["authors"] = authors
+            return [_commit("x", 1)]
+
+    repos = [LogRepo("a", "/a", "primary")]
+    collect_vcs_log(
+        repos,
+        limit=0,
+        filters=CommitFilters(since=10, until=20, authors=("bryan", "amy")),
+        provider_factory=_Recorder,
+    )
+
+    assert seen == {
+        "cwd": "/a",
+        "limit": UNLIMITED,
+        "since": 10,
+        "until": 20,
+        "authors": ("bryan", "amy"),
+    }
 
 
 def test_run_merges_resolution_warnings_ahead_of_collection(
