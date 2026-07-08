@@ -1,0 +1,68 @@
+"""Shared family attach data types."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
+
+
+@dataclass(frozen=True)
+class _ParsedNameDirective:
+    plain_name: str | None = None
+    family_parent: str | None = None
+    family_suffix: str | None = None
+
+
+@dataclass(frozen=True)
+class _FamilyAttachDirective:
+    parent: str
+    suffix: str
+
+
+@dataclass(frozen=True)
+class _FamilyAttachLaunchPlan:
+    parent_arg: str
+    suffix_arg: str
+    parent_name: str
+    parent_base: str
+    parent_timestamp: str
+    parent_artifacts_dir: str
+    role_suffix: str
+    agent_name: str
+    agent_family_role: str
+    parent_project_name: str
+    parent_is_running: bool = False
+    parent_cl_name: str | None = None
+    parent_workspace_dir: str | None = None
+    parent_workspace_num: int | None = None
+    sase_plan: str | None = None
+
+
+@dataclass(frozen=True)
+class FamilyAttachSibling:
+    """Launch-batch sibling known before its async artifact metadata is written."""
+
+    name: str
+    family_base: str
+    timestamp: str
+    artifact_dir: str
+    project_name: str
+    cl_name: str | None = None
+    workspace_dir: str | None = None
+    workspace_num: int | None = None
+    can_attach_parent: bool = True
+
+
+class _FamilyAttachError(RuntimeError):
+    """Raised when a ``%n(parent, suffix)`` launch cannot be prepared."""
+
+
+__all__ = [
+    "FAMILY_ATTACH_ENV",
+    "FamilyAttachSibling",
+    "_FamilyAttachDirective",
+    "_FamilyAttachError",
+    "_FamilyAttachLaunchPlan",
+    "_ParsedNameDirective",
+]

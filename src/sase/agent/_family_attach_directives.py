@@ -1,0 +1,165 @@
+"""Directive parsing helpers for ``%n(parent, suffix)`` family attach."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from sase.agent import _family_attach_types as _types
+from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+
+_SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def parse_name_directive_args(
+    positional_args: list[str],
+    named_args: dict[str, str],
+    *,
+    source: str,
+) -> _types._ParsedNameDirective:
+    """Classify ``%name`` / ``%n`` arguments as plain naming or family attach."""
+
+    if named_args:
+        keys = ", ".join(f"{key}=" for key in sorted(named_args))
+        raise ValueError(
+            f"Unsupported keyword on {source}: {keys}. "
+            "Use %n(parent, suffix) for family attach; keyword arguments "
+            "are not supported."
+        )
+    if len(positional_args) > 2:
+        raise ValueError(
+            f"{source} accepts at most two positional arguments. "
+            "Use %n(parent, suffix) for family attach."
+        )
+    if len(positional_args) == 2:
+        parent, suffix = (arg.strip() for arg in positional_args)
+        if not parent or not suffix:
+            raise ValueError("%n(parent, suffix) requires both parent and suffix.")
+        _normalize_family_suffix_arg(suffix)
+        return _types._ParsedNameDirective(
+            family_parent=parent,
+            family_suffix=suffix,
+        )
+    return _types._ParsedNameDirective(
+        plain_name=positional_args[0] if positional_args else ""
+    )
+
+
+def _extract_family_attach_directive(
+    prompt: str,
+) -> _types._FamilyAttachDirective | None:
+    """Return the first top-level family attach directive in *prompt*."""
+
+    if "%" not in prompt:
+        return None
+
+    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+    from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+            continue
+        if match.group(2) is None:
+            continue
+        paren_start = match.end() - 1
+        paren_end = find_matching_paren_for_args(protected, paren_start)
+        if paren_end is None:
+            continue
+        positional_args, named_args = parse_args(protected[paren_start + 1 : paren_end])
+        parsed = parse_name_directive_args(
+            positional_args,
+            named_args,
+            source=f"%{raw_name}",
+        )
+        if parsed.family_parent is not None and parsed.family_suffix is not None:
+            return _types._FamilyAttachDirective(
+                parsed.family_parent,
+                parsed.family_suffix,
+            )
+    return None
+
+
+def _family_attach_parent_from_prompt(prompt: str) -> str | None:
+    """Return the parent named by a top-level ``%n(parent, suffix)`` directive."""
+    directive = _extract_family_attach_directive(prompt)
+    return None if directive is None else directive.parent
+
+
+def default_with_feedback_parent_from_family_attach(
+    workflow_name: str,
+    args: dict[str, Any],
+    *,
+    prompt: str,
+    reference_offset: int | None = None,
+    fenced_ranges: list[tuple[int, int]] | None = None,
+) -> None:
+    """Default ``#with_feedback``'s parent from a co-occurring family attach."""
+    if workflow_name != "with_feedback" or args.get("parent"):
+        return
+    if reference_offset is not None:
+        prompt = _prompt_segment_at_offset(
+            prompt,
+            reference_offset,
+            fenced_ranges or [],
+        )
+    parent = _family_attach_parent_from_prompt(prompt)
+    if parent:
+        args["parent"] = parent
+
+
+def _prompt_segment_at_offset(
+    prompt: str,
+    offset: int,
+    fenced_ranges: list[tuple[int, int]],
+) -> str:
+    """Return the top-level ``---`` segment containing *offset*."""
+    from sase.xprompt._parsing import _SEGMENT_SEPARATOR_RE
+
+    start = 0
+    end = len(prompt)
+    for match in _SEGMENT_SEPARATOR_RE.finditer(prompt):
+        if any(
+            range_start <= match.start() < range_end
+            for range_start, range_end in fenced_ranges
+        ):
+            continue
+        if match.end() <= offset:
+            start = match.end()
+            continue
+        end = match.start()
+        break
+    return prompt[start:end]
+
+
+def _normalize_family_suffix_arg(suffix: str) -> str:
+    if suffix == "@":
+        return f"{AGENT_FAMILY_SEPARATOR}@"
+    if suffix.startswith((".", "-")) or AGENT_FAMILY_SEPARATOR in suffix:
+        raise ValueError(
+            f"Invalid %n family suffix '{suffix}'. Pass the bare suffix "
+            "without a family separator, e.g. %n(parent, reviewer)."
+        )
+    if not _SUFFIX_TOKEN_RE.fullmatch(suffix):
+        raise ValueError(
+            f"Invalid %n family suffix '{suffix}'. Use letters, numbers, "
+            "and underscores only, or @ to allocate the next free suffix."
+        )
+    return f"{AGENT_FAMILY_SEPARATOR}{suffix}"
+
+
+__all__ = [
+    "default_with_feedback_parent_from_family_attach",
+    "parse_name_directive_args",
+    "_extract_family_attach_directive",
+    "_family_attach_parent_from_prompt",
+    "_normalize_family_suffix_arg",
+    "_prompt_segment_at_offset",
+]
