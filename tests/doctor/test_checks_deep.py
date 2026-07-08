@@ -5,15 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from sase.doctor.checks_deep import (
-    _check_agent_index_verify,
-    _check_axe_state,
-    _check_kitty_graphics,
-    _check_provider_cli_versions,
-    _check_tmux_version,
-    _check_truecolor,
-    _check_xprompt_lsp,
+from sase.doctor.checks_deep_agent_index import check_agent_index_verify
+from sase.doctor.checks_deep_axe import check_axe_state
+from sase.doctor.checks_deep_providers import check_provider_cli_versions
+from sase.doctor.checks_deep_terminal import (
+    check_kitty_graphics,
+    check_tmux_version,
+    check_truecolor,
 )
+from sase.doctor.checks_deep_xprompt_lsp import check_xprompt_lsp
 from sase.doctor.runner import DoctorContext
 from sase.integrations import xprompt_lsp
 
@@ -29,15 +29,15 @@ def _context(tmp_path: Path) -> DoctorContext:
 
 def test_agent_index_verify_warns_on_drift(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.default_agent_artifact_index_path",
+        "sase.doctor.checks_deep_agent_index.default_agent_artifact_index_path",
         lambda: tmp_path / "index.sqlite",
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.sase_projects_dir",
+        "sase.doctor.checks_deep_agent_index.sase_projects_dir",
         lambda: tmp_path / "projects",
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.verify_agent_artifact_index",
+        "sase.doctor.checks_deep_agent_index.verify_agent_artifact_index",
         lambda *_args: SimpleNamespace(
             ok=False,
             schema_version=3,
@@ -52,7 +52,7 @@ def test_agent_index_verify_warns_on_drift(monkeypatch, tmp_path: Path) -> None:
         ),
     )
 
-    check = _check_agent_index_verify()
+    check = check_agent_index_verify()
 
     assert check.status == "WARN"
     assert "missing_rows=1" in check.summary
@@ -61,7 +61,7 @@ def test_agent_index_verify_warns_on_drift(monkeypatch, tmp_path: Path) -> None:
 
 def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.llm_registry.get_llm_metadata_payload",
+        "sase.doctor.checks_deep_providers.llm_registry.get_llm_metadata_payload",
         lambda: {
             "providers": {
                 "codex": {
@@ -72,11 +72,11 @@ def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> N
         },
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep._resolve_executable",
+        "sase.doctor.checks_deep_providers._resolve_executable",
         lambda _command: "/usr/bin/codex",
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep._run_version_probe",
+        "sase.doctor.checks_deep_providers._run_version_probe",
         lambda _executable: {
             "probe_status": "ok",
             "detail": "codex 1.2.3",
@@ -85,7 +85,7 @@ def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> N
         },
     )
 
-    check = _check_provider_cli_versions(_context(tmp_path))
+    check = check_provider_cli_versions(_context(tmp_path))
 
     assert check.status == "OK"
     assert "1/1" in check.summary
@@ -94,7 +94,7 @@ def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> N
 
 def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.load_axe_config",
+        "sase.doctor.checks_deep_axe.load_axe_config",
         lambda: SimpleNamespace(
             lumberjacks={"hooks": object()},
             max_hook_runners=3,
@@ -103,15 +103,15 @@ def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.read_lumberjack_status",
+        "sase.doctor.checks_deep_axe.read_lumberjack_status",
         lambda _name: None,
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.read_maintenance",
+        "sase.doctor.checks_deep_axe.read_maintenance",
         lambda: None,
     )
 
-    check = _check_axe_state()
+    check = check_axe_state()
 
     assert check.status == "OK"
     assert "1 configured" in check.summary
@@ -119,11 +119,11 @@ def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
 
 def test_xprompt_lsp_ok_when_env_override_resolves(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.xprompt_lsp.resolve_xprompt_lsp_command",
+        "sase.doctor.checks_deep_xprompt_lsp.xprompt_lsp.resolve_xprompt_lsp_command",
         lambda **_kwargs: ("/opt/sase/bin/sase-xprompt-lsp",),
     )
 
-    check = _check_xprompt_lsp(
+    check = check_xprompt_lsp(
         DoctorContext(
             cwd=tmp_path,
             project=None,
@@ -144,11 +144,11 @@ def test_xprompt_lsp_warns_when_resolver_fails(monkeypatch, tmp_path: Path) -> N
         raise xprompt_lsp.XPromptLspLaunchError("xprompt LSP binary not found")
 
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.xprompt_lsp.resolve_xprompt_lsp_command",
+        "sase.doctor.checks_deep_xprompt_lsp.xprompt_lsp.resolve_xprompt_lsp_command",
         fail_resolve,
     )
 
-    check = _check_xprompt_lsp(_context(tmp_path))
+    check = check_xprompt_lsp(_context(tmp_path))
 
     assert check.status == "WARN"
     assert "does not resolve" in check.summary
@@ -158,7 +158,7 @@ def test_xprompt_lsp_warns_when_resolver_fails(monkeypatch, tmp_path: Path) -> N
 
 def test_xprompt_lsp_warns_on_cargo_fallback(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.xprompt_lsp.resolve_xprompt_lsp_command",
+        "sase.doctor.checks_deep_xprompt_lsp.xprompt_lsp.resolve_xprompt_lsp_command",
         lambda **_kwargs: (
             "cargo",
             "run",
@@ -170,7 +170,7 @@ def test_xprompt_lsp_warns_on_cargo_fallback(monkeypatch, tmp_path: Path) -> Non
         ),
     )
 
-    check = _check_xprompt_lsp(_context(tmp_path))
+    check = check_xprompt_lsp(_context(tmp_path))
 
     assert check.status == "WARN"
     assert "slow cargo fallback" in check.summary
@@ -181,11 +181,11 @@ def test_kitty_graphics_ok_with_supported_terminal_and_kitten(
     monkeypatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.shutil.which",
+        "sase.doctor.checks_deep_terminal.shutil.which",
         lambda command: "/usr/bin/kitten" if command == "kitten" else None,
     )
 
-    check = _check_kitty_graphics(
+    check = check_kitty_graphics(
         DoctorContext(
             cwd=tmp_path,
             project=None,
@@ -202,9 +202,11 @@ def test_kitty_graphics_ok_with_supported_terminal_and_kitten(
 def test_kitty_graphics_warns_when_terminal_or_kitten_missing(
     monkeypatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr("sase.doctor.checks_deep.shutil.which", lambda _command: None)
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_terminal.shutil.which", lambda _command: None
+    )
 
-    check = _check_kitty_graphics(_context(tmp_path))
+    check = check_kitty_graphics(_context(tmp_path))
 
     assert check.status == "WARN"
     assert any("Inline image/PDF/Markdown" in detail for detail in check.details)
@@ -212,9 +214,11 @@ def test_kitty_graphics_warns_when_terminal_or_kitten_missing(
 
 
 def test_tmux_version_skips_when_tmux_is_missing(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("sase.doctor.checks_deep.shutil.which", lambda _command: None)
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_terminal.shutil.which", lambda _command: None
+    )
 
-    check = _check_tmux_version(_context(tmp_path))
+    check = check_tmux_version(_context(tmp_path))
 
     assert check.status == "SKIP"
     assert check.data["resolved_path"] is None
@@ -224,11 +228,11 @@ def test_tmux_version_warns_below_passthrough_floor(
     monkeypatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.shutil.which",
+        "sase.doctor.checks_deep_terminal.shutil.which",
         lambda command: "/usr/bin/tmux" if command == "tmux" else None,
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep._run_tmux_version_probe",
+        "sase.doctor.checks_deep_terminal._run_tmux_version_probe",
         lambda _path: {
             "probe_status": "ok",
             "detail": "tmux 3.2a",
@@ -237,7 +241,7 @@ def test_tmux_version_warns_below_passthrough_floor(
         },
     )
 
-    check = _check_tmux_version(_context(tmp_path))
+    check = check_tmux_version(_context(tmp_path))
 
     assert check.status == "WARN"
     assert "older than the passthrough floor" in check.summary
@@ -246,11 +250,11 @@ def test_tmux_version_warns_below_passthrough_floor(
 
 def test_tmux_version_ok_at_passthrough_floor(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_deep.shutil.which",
+        "sase.doctor.checks_deep_terminal.shutil.which",
         lambda command: "/usr/bin/tmux" if command == "tmux" else None,
     )
     monkeypatch.setattr(
-        "sase.doctor.checks_deep._run_tmux_version_probe",
+        "sase.doctor.checks_deep_terminal._run_tmux_version_probe",
         lambda _path: {
             "probe_status": "ok",
             "detail": "tmux 3.3a",
@@ -259,7 +263,7 @@ def test_tmux_version_ok_at_passthrough_floor(monkeypatch, tmp_path: Path) -> No
         },
     )
 
-    check = _check_tmux_version(
+    check = check_tmux_version(
         DoctorContext(
             cwd=tmp_path,
             project=None,
@@ -274,14 +278,14 @@ def test_tmux_version_ok_at_passthrough_floor(monkeypatch, tmp_path: Path) -> No
 
 
 def test_truecolor_skips_without_terminal_environment(tmp_path: Path) -> None:
-    check = _check_truecolor(_context(tmp_path))
+    check = check_truecolor(_context(tmp_path))
 
     assert check.status == "SKIP"
     assert "unavailable" in check.summary
 
 
 def test_truecolor_ok_when_terminal_advertises_24_bit_color(tmp_path: Path) -> None:
-    check = _check_truecolor(
+    check = check_truecolor(
         DoctorContext(
             cwd=tmp_path,
             project=None,
@@ -297,7 +301,7 @@ def test_truecolor_ok_when_terminal_advertises_24_bit_color(tmp_path: Path) -> N
 def test_truecolor_warns_when_interactive_terminal_lacks_marker(
     tmp_path: Path,
 ) -> None:
-    check = _check_truecolor(
+    check = check_truecolor(
         DoctorContext(
             cwd=tmp_path,
             project=None,
