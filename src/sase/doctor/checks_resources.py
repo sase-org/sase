@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, TYPE_CHECKING
 
+from sase.ace.tui.util.fs_watcher import MAX_INOTIFY_WATCHES
+from sase.axe.config import AxeConfig, load_axe_config
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi, load_merged_config
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.workspace_provider.store import WorkspaceStore
@@ -17,6 +20,13 @@ if TYPE_CHECKING:
 _GIB = 1024**3
 _DISK_ERROR_FREE_BYTES = _GIB
 _DISK_WARN_FREE_BYTES = 3 * _GIB
+_ULIMIT_NOFILE_BASE_FLOOR = 1024
+_ULIMIT_NOFILE_PER_RUNNER = 128
+_ULIMIT_NPROC_BASE_FLOOR = 128
+_ULIMIT_NPROC_PER_RUNNER = 16
+_INOTIFY_PROC_DIR = Path("/proc/sys/fs/inotify")
+_INOTIFY_LIMIT_NAMES = ("max_user_watches", "max_user_instances", "max_queued_events")
+_INOTIFY_MIN_USER_INSTANCES = 8
 
 
 class _DiskUsage(Protocol):
@@ -32,6 +42,7 @@ class _DiskUsage(Protocol):
 
 type _DiskUsageFn = Callable[[str], _DiskUsage]
 type _CommandResolver = Callable[[str], str | None]
+type _GetRLimitFn = Callable[[int], tuple[int, int]]
 
 
 def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -48,6 +59,20 @@ def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="resources",
             title="Chezmoi source",
             runner=_check_chezmoi,
+            deep=True,
+        ),
+        CheckSpec(
+            id="resources.ulimits",
+            group="resources",
+            title="Process resource limits",
+            runner=_check_ulimits,
+            deep=True,
+        ),
+        CheckSpec(
+            id="resources.inotify",
+            group="resources",
+            title="Linux inotify limits",
+            runner=_check_inotify,
             deep=True,
         ),
     )
@@ -187,6 +212,165 @@ def _check_chezmoi(
             else "chezmoi source tree exists; SASE chezmoi remapping is disabled"
         ),
         data=data,
+    )
+
+
+def _check_ulimits(
+    *,
+    axe_config: AxeConfig | None = None,
+    getrlimit_fn: _GetRLimitFn | None = None,
+    resource_module: Any | None = None,
+) -> DiagnosticCheck:
+    """Check soft process/file limits against configured runner concurrency."""
+    resource_module = resource_module or _import_resource_module()
+    if resource_module is None:
+        return DiagnosticCheck(
+            id="resources.ulimits",
+            group="resources",
+            status="SKIP",
+            title="Process resource limits",
+            summary="Python resource limits are unavailable on this platform",
+            data={"available": False, "limits": []},
+        )
+
+    axe_config = axe_config or load_axe_config()
+    getrlimit_fn = getrlimit_fn or resource_module.getrlimit
+    concurrency = _configured_runner_concurrency(axe_config)
+    floors = _ulimit_floors(concurrency)
+    rows: list[dict[str, Any]] = []
+
+    for row_name, resource_name, floor in (
+        ("nofile", "RLIMIT_NOFILE", floors["nofile"]),
+        ("nproc", "RLIMIT_NPROC", floors["nproc"]),
+    ):
+        constant = getattr(resource_module, resource_name, None)
+        if constant is None:
+            rows.append(
+                {
+                    "name": row_name,
+                    "resource": resource_name,
+                    "available": False,
+                    "status": "SKIP",
+                    "soft": None,
+                    "hard": None,
+                    "soft_display": None,
+                    "hard_display": None,
+                    "floor": floor,
+                    "problem": f"{resource_name} is unavailable on this platform",
+                }
+            )
+            continue
+        try:
+            soft, hard = getrlimit_fn(constant)
+        except OSError as exc:
+            rows.append(
+                {
+                    "name": row_name,
+                    "resource": resource_name,
+                    "available": True,
+                    "status": "WARN",
+                    "soft": None,
+                    "hard": None,
+                    "soft_display": None,
+                    "hard_display": None,
+                    "floor": floor,
+                    "problem": f"{resource_name} could not be read: {type(exc).__name__}: {exc}",
+                }
+            )
+            continue
+        rows.append(
+            _ulimit_row(
+                name=row_name,
+                resource_name=resource_name,
+                soft=int(soft),
+                hard=int(hard),
+                floor=floor,
+                infinity=int(resource_module.RLIM_INFINITY),
+            )
+        )
+
+    statuses = {row["status"] for row in rows}
+    problems = tuple(str(row["problem"]) for row in rows if row.get("problem"))
+    status: CheckStatus
+    if "WARN" in statuses:
+        status = "WARN"
+    elif statuses == {"SKIP"}:
+        status = "SKIP"
+    else:
+        status = "OK"
+
+    return DiagnosticCheck(
+        id="resources.ulimits",
+        group="resources",
+        status=status,
+        title="Process resource limits",
+        summary=_ulimit_summary(status, rows, concurrency),
+        details=problems,
+        next_steps=_ulimit_next_steps() if status == "WARN" else (),
+        data={
+            "available": status != "SKIP",
+            "max_hook_runners": axe_config.max_hook_runners,
+            "max_agent_runners": axe_config.max_agent_runners,
+            "configured_runner_concurrency": concurrency,
+            "floors": floors,
+            "limits": rows,
+        },
+    )
+
+
+def _check_inotify(
+    *,
+    platform: str | None = None,
+    proc_dir: Path | None = None,
+) -> DiagnosticCheck:
+    """Check Linux inotify sysctl limits used by ACE event refresh."""
+    platform = platform or sys.platform
+    proc_dir = proc_dir or _INOTIFY_PROC_DIR
+    if not platform.startswith("linux"):
+        return DiagnosticCheck(
+            id="resources.inotify",
+            group="resources",
+            status="SKIP",
+            title="Linux inotify limits",
+            summary="inotify is Linux-only; ACE will use polling fallback here",
+            data={"platform": platform, "proc_dir": str(proc_dir), "limits": []},
+        )
+
+    rows = _read_inotify_limits(proc_dir)
+    readable = [row for row in rows if row["status"] != "SKIP"]
+    if not readable:
+        return DiagnosticCheck(
+            id="resources.inotify",
+            group="resources",
+            status="SKIP",
+            title="Linux inotify limits",
+            summary="inotify sysctl limits are unavailable",
+            details=tuple(str(row["problem"]) for row in rows if row.get("problem")),
+            data={"platform": platform, "proc_dir": str(proc_dir), "limits": rows},
+        )
+
+    problems = _inotify_problems(rows)
+    status: CheckStatus = "WARN" if problems else "OK"
+    summary = (
+        "inotify limits look high enough for ACE event refresh"
+        if status == "OK"
+        else "inotify limits may force ACE event refresh back to polling"
+    )
+    return DiagnosticCheck(
+        id="resources.inotify",
+        group="resources",
+        status=status,
+        title="Linux inotify limits",
+        summary=summary,
+        details=tuple(problems),
+        next_steps=_inotify_next_steps() if problems else (),
+        data={
+            "platform": platform,
+            "proc_dir": str(proc_dir),
+            "limits": rows,
+            "watch_floor": MAX_INOTIFY_WATCHES,
+            "instance_floor": _INOTIFY_MIN_USER_INSTANCES,
+        },
     )
 
 
@@ -366,6 +550,170 @@ def _chezmoi_next_steps(problems: list[str]) -> tuple[str, ...]:
     if any("not on PATH" in problem for problem in problems):
         steps.append("Install `chezmoi` or remove the unused source tree.")
     return tuple(steps)
+
+
+def _import_resource_module() -> Any | None:
+    try:
+        import resource
+    except ImportError:
+        return None
+    return resource
+
+
+def _configured_runner_concurrency(config: AxeConfig) -> int:
+    values = (config.max_hook_runners, config.max_agent_runners)
+    return max(1, sum(_positive_int(value) for value in values))
+
+
+def _positive_int(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return max(value, 0)
+    if not isinstance(value, str):
+        return 0
+    try:
+        parsed = int(value)
+    except ValueError:
+        return 0
+    return max(parsed, 0)
+
+
+def _ulimit_floors(concurrency: int) -> dict[str, int]:
+    return {
+        "nofile": max(
+            _ULIMIT_NOFILE_BASE_FLOOR,
+            concurrency * _ULIMIT_NOFILE_PER_RUNNER,
+        ),
+        "nproc": max(
+            _ULIMIT_NPROC_BASE_FLOOR,
+            concurrency * _ULIMIT_NPROC_PER_RUNNER,
+        ),
+    }
+
+
+def _ulimit_row(
+    *,
+    name: str,
+    resource_name: str,
+    soft: int,
+    hard: int,
+    floor: int,
+    infinity: int,
+) -> dict[str, Any]:
+    soft_unlimited = _is_unlimited_limit(soft, infinity)
+    hard_unlimited = _is_unlimited_limit(hard, infinity)
+    problem = None
+    status: CheckStatus = "OK"
+    if not soft_unlimited and soft < floor:
+        status = "WARN"
+        problem = (
+            f"{resource_name} soft limit {soft} is below the recommended floor {floor}"
+        )
+    return {
+        "name": name,
+        "resource": resource_name,
+        "available": True,
+        "status": status,
+        "soft": None if soft_unlimited else soft,
+        "hard": None if hard_unlimited else hard,
+        "soft_display": "unlimited" if soft_unlimited else str(soft),
+        "hard_display": "unlimited" if hard_unlimited else str(hard),
+        "floor": floor,
+        "problem": problem,
+    }
+
+
+def _is_unlimited_limit(value: int, infinity: int) -> bool:
+    return value == infinity or value < 0
+
+
+def _ulimit_summary(
+    status: CheckStatus,
+    rows: list[dict[str, Any]],
+    concurrency: int,
+) -> str:
+    if status == "SKIP":
+        return "process resource limits are unavailable"
+    if status == "WARN":
+        failed = [row for row in rows if row["status"] == "WARN"]
+        return (
+            f"{len(failed)} resource limit(s) are low for {concurrency} runner slot(s)"
+        )
+    checked = sum(1 for row in rows if row["status"] == "OK")
+    return (
+        f"{checked} resource limit(s) meet the floor for {concurrency} runner slot(s)"
+    )
+
+
+def _ulimit_next_steps() -> tuple[str, ...]:
+    return (
+        "Raise the reported soft limit(s), for example with shell `ulimit` settings or systemd `LimitNOFILE`/`TasksMax` configuration.",
+        "Lower `axe.max_hook_runners` or `axe.max_agent_runners` if this host intentionally runs fewer concurrent jobs.",
+    )
+
+
+def _read_inotify_limits(proc_dir: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for name in _INOTIFY_LIMIT_NAMES:
+        path = proc_dir / name
+        try:
+            raw = path.read_text(encoding="utf-8").strip()
+            value = int(raw)
+        except FileNotFoundError:
+            rows.append(
+                {
+                    "name": name,
+                    "path": str(path),
+                    "status": "SKIP",
+                    "value": None,
+                    "problem": f"{path} is missing",
+                }
+            )
+        except (OSError, ValueError) as exc:
+            rows.append(
+                {
+                    "name": name,
+                    "path": str(path),
+                    "status": "SKIP",
+                    "value": None,
+                    "problem": f"{path} could not be read: {type(exc).__name__}: {exc}",
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "name": name,
+                    "path": str(path),
+                    "status": "OK",
+                    "value": value,
+                    "problem": None,
+                }
+            )
+    return rows
+
+
+def _inotify_problems(rows: list[dict[str, Any]]) -> list[str]:
+    by_name = {str(row["name"]): row for row in rows}
+    problems: list[str] = []
+    watches = by_name.get("max_user_watches", {}).get("value")
+    if isinstance(watches, int) and watches < MAX_INOTIFY_WATCHES:
+        problems.append(
+            f"max_user_watches={watches} is below ACE's {MAX_INOTIFY_WATCHES} watch ceiling"
+        )
+    instances = by_name.get("max_user_instances", {}).get("value")
+    if isinstance(instances, int) and instances < _INOTIFY_MIN_USER_INSTANCES:
+        problems.append(
+            f"max_user_instances={instances} leaves little room for concurrent ACE/prompt watchers"
+        )
+    return problems
+
+
+def _inotify_next_steps() -> tuple[str, ...]:
+    return (
+        "Raise the reported `/proc/sys/fs/inotify/*` limit(s) with sysctl if ACE refreshes are falling back to polling.",
+        "Close unused ACE sessions to release inotify instances and watches.",
+    )
 
 
 def _format_bytes(value: int) -> str:

@@ -11,6 +11,7 @@ from sase.doctor.checks_deep import (
     _check_kitty_graphics,
     _check_provider_cli_versions,
     _check_tmux_version,
+    _check_truecolor,
     _check_xprompt_lsp,
 )
 from sase.doctor.runner import DoctorContext
@@ -270,3 +271,41 @@ def test_tmux_version_ok_at_passthrough_floor(monkeypatch, tmp_path: Path) -> No
     assert check.status == "OK"
     assert check.data["inside_tmux"] is True
     assert check.data["parsed_version"] == (3, 3)
+
+
+def test_truecolor_skips_without_terminal_environment(tmp_path: Path) -> None:
+    check = _check_truecolor(_context(tmp_path))
+
+    assert check.status == "SKIP"
+    assert "unavailable" in check.summary
+
+
+def test_truecolor_ok_when_terminal_advertises_24_bit_color(tmp_path: Path) -> None:
+    check = _check_truecolor(
+        DoctorContext(
+            cwd=tmp_path,
+            project=None,
+            sase_home=tmp_path / ".sase",
+            env={"TERM": "xterm-256color", "COLORTERM": "truecolor"},
+        )
+    )
+
+    assert check.status == "OK"
+    assert check.data["truecolor"] is True
+
+
+def test_truecolor_warns_when_interactive_terminal_lacks_marker(
+    tmp_path: Path,
+) -> None:
+    check = _check_truecolor(
+        DoctorContext(
+            cwd=tmp_path,
+            project=None,
+            sase_home=tmp_path / ".sase",
+            env={"TERM": "xterm-256color"},
+        )
+    )
+
+    assert check.status == "WARN"
+    assert "does not advertise truecolor" in check.summary
+    assert "COLORTERM=truecolor" in check.next_steps[0]

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.hooks.processes import is_process_running
+from sase.ace.tui.graphics.capability import image_render_context
 from sase.axe.config import load_axe_config
 from sase.axe.maintenance import read_maintenance
 from sase.axe.state import read_lumberjack_status
@@ -74,6 +75,13 @@ def deep_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="tools",
             title="tmux passthrough version",
             runner=lambda: _check_tmux_version(context),
+            deep=True,
+        ),
+        CheckSpec(
+            id="terminal.truecolor",
+            group="terminal",
+            title="Terminal truecolor",
+            runner=lambda: _check_truecolor(context),
             deep=True,
         ),
     )
@@ -585,6 +593,81 @@ def _check_tmux_version(context: DoctorContext) -> DiagnosticCheck:
             "minimum_version": _format_tmux_version(_TMUX_PASSTHROUGH_MIN_VERSION),
             "inside_tmux": bool(context.env.get("TMUX")),
             **probe,
+        },
+    )
+
+
+def _check_truecolor(context: DoctorContext) -> DiagnosticCheck:
+    """Check whether image previews can use 24-bit terminal colors."""
+    term = context.env.get("TERM", "")
+    colorterm = context.env.get("COLORTERM", "")
+    if not term and not colorterm:
+        return DiagnosticCheck(
+            id="terminal.truecolor",
+            group="terminal",
+            status="SKIP",
+            title="Terminal truecolor",
+            summary="terminal color environment is unavailable",
+            details=(
+                "ACE image-preview fidelity only matters inside an interactive terminal.",
+            ),
+            data={
+                "term": None,
+                "colorterm": None,
+                "truecolor": False,
+                "reason": "no TERM or COLORTERM value was set",
+            },
+        )
+    if term.lower() == "dumb" and not colorterm:
+        return DiagnosticCheck(
+            id="terminal.truecolor",
+            group="terminal",
+            status="SKIP",
+            title="Terminal truecolor",
+            summary="terminal is marked dumb; image-preview fidelity check skipped",
+            data={
+                "term": term,
+                "colorterm": None,
+                "truecolor": False,
+                "reason": "TERM=dumb",
+            },
+        )
+
+    render_context = image_render_context(context.env)
+    if render_context.truecolor:
+        return DiagnosticCheck(
+            id="terminal.truecolor",
+            group="terminal",
+            status="OK",
+            title="Terminal truecolor",
+            summary="terminal advertises truecolor for image previews",
+            details=(render_context.reason,),
+            data={
+                "term": term or None,
+                "colorterm": colorterm or None,
+                "truecolor": True,
+                "reason": render_context.reason,
+            },
+        )
+
+    return DiagnosticCheck(
+        id="terminal.truecolor",
+        group="terminal",
+        status="WARN",
+        title="Terminal truecolor",
+        summary="terminal does not advertise truecolor for image previews",
+        details=(
+            render_context.reason,
+            "ACE falls back to 256-color cell image previews, which are lower fidelity.",
+        ),
+        next_steps=(
+            "Use a terminal that advertises 24-bit color, or set `COLORTERM=truecolor` if your terminal supports it.",
+        ),
+        data={
+            "term": term or None,
+            "colorterm": colorterm or None,
+            "truecolor": False,
+            "reason": render_context.reason,
         },
     )
 

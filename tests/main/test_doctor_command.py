@@ -177,6 +177,8 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
     assert {
         "config.skills.applied",
         "resources.chezmoi",
+        "resources.ulimits",
+        "resources.inotify",
         "state.agent_index_verify",
         "ops.telemetry_health",
         "ops.axe",
@@ -184,6 +186,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "tools.xprompt_lsp",
         "terminal.kitty_graphics",
         "tools.tmux_version",
+        "terminal.truecolor",
         "tools.optional",
     } <= deep_ids
 
