@@ -167,6 +167,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "state.agent_index",
         "project.beads",
         "ops.telemetry_status",
+        "integrations.mobile_push_config",
         "tools.editor",
         "tools.tmux",
         "tools.clipboard",

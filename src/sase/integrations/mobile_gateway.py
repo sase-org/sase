@@ -47,6 +47,9 @@ class _MobileGatewayConfig:
     startup_timeout_seconds: float = DEFAULT_STARTUP_TIMEOUT_SECONDS
 
 
+MobileGatewayConfig = _MobileGatewayConfig
+
+
 @dataclass(frozen=True)
 class _MobileGatewayLaunch:
     argv: list[str]
@@ -85,6 +88,11 @@ def _load_mobile_gateway_config() -> _MobileGatewayConfig:
             raw.get("startup_timeout_seconds"), DEFAULT_STARTUP_TIMEOUT_SECONDS
         ),
     )
+
+
+def load_mobile_gateway_config() -> MobileGatewayConfig:
+    """Read and normalize the ``mobile_gateway`` merged-config section."""
+    return _load_mobile_gateway_config()
 
 
 def _prepare_mobile_gateway_launch(
