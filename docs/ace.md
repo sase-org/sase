@@ -1615,8 +1615,8 @@ The question modal also supports `y` to copy questions and selected answers.
 
 Pressing `c` in the plan approval modal opens a custom approval dialog. Choose the approval outcome directly: Approve,
 Tale, Epic, or Legend. These choices map to the same response protocol used by external approval transports: Approve
-runs the coder without asking the runner to commit an SDD plan, Tale commits under `sdd/tales`, Epic commits under
-`sdd/epics`, and Legend commits under `sdd/legends`.
+runs the coder without asking the runner to commit an SDD plan, while Tale, Epic, and Legend commit the plan under the
+matching tier in the resolved SDD store (`sdd/tales|epics|legends` in in-tree mode, `.sase/sdd/...` otherwise).
 
 | Key          | Action                                    |
 | ------------ | ----------------------------------------- |

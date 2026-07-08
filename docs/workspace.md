@@ -43,9 +43,14 @@ Each workspace plugin declares metadata about the workflow type it supports:
 | `pre_allocated_env_prefix` | string | Env-var prefix for pre-allocated workspace variables                   |
 | `vcs_family`               | string | VCS family (e.g., `"git"`, `"hg"`)                                     |
 | `vcs_provider_name`        | string | Specific VCS provider name (e.g., `"bare_git"`, `"github"`)            |
+| `sdd_storage_policy`       | string | Optional provider SDD policy declaration: `in_tree` or `separate_repo` |
 
 Built-in metadata includes `SASE_CD` for `#cd` and `SASE_GIT` for `#git`. Plugin packages can add prefixes such as
 `SASE_GH` and `SASE_HG`.
+
+SASE uses `sdd_storage_policy` only while `sdd.storage` is `auto`. `in_tree` takes effect immediately, as it does for
+the built-in bare-git provider. `separate_repo` is a provider capability declaration; `auto` stays on the local
+`.sase/sdd/` path until `.sase/sdd-store.json` records a found companion store.
 
 ### ResolvedRef
 
@@ -128,6 +133,7 @@ manager. These are the primary API for consumers:
 | `get_display_name()`               | Get display name for a workflow type       |
 | `get_display_name_by_vcs()`        | Get display name by VCS provider name      |
 | `get_display_name_by_vcs_family()` | Get display name by VCS family             |
+| `get_sdd_storage_policy_by_vcs()`  | Get an SDD storage policy declared by VCS  |
 | `get_workspace_name()`             | Get workspace/project name for a directory |
 | `get_ref_patterns()`               | Get all registered ref patterns            |
 | `get_pre_allocated_env_prefix()`   | Get env-var prefix for a workflow type     |

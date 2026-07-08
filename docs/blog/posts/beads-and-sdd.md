@@ -41,22 +41,24 @@ Three plan tiers, three on-disk locations:
 - **Epics** — executable multi-phase plans, at `sdd/epics/{YYYYMM}/{name}.md`.
 - **Legends** — higher-level coordination plans that own linked epics, at `sdd/legends/{YYYYMM}/{name}.md`.
 
-There are two storage modes. The default (`sdd.version_controlled: false`) keeps everything in a standalone git repo
-inside the primary workspace at `.sase/sdd/`, so SDD history stays separate from project history. With
-`sdd.version_controlled: true`, the same trees live at `sdd/` at the project root and ship with code commits. Pick the
-mode that matches how you want the audit trail reviewed.
+Storage is resolved through `sdd.storage`. The default, `auto`, keeps provider defaults: built-in bare-git projects use
+in-tree `sdd/`, while other providers use a standalone git repo inside the primary workspace at `.sase/sdd/` unless
+explicit config or a materialized companion-store record selects `separate_repo`. The older
+`sdd.version_controlled: true` setting is still accepted as an alias for in-tree storage while `sdd.storage` is `auto`.
+Pick the mode that matches how you want the audit trail reviewed.
 
-`sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init`
-enables version-controlled SDD and refreshes the generated READMEs and directory-map asset. The reference is in
+`sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init` opts
+the project into in-tree SDD and refreshes the generated READMEs and directory-map asset. The reference is in
 [`sdd.md`](../../sdd.md).
 
 ## Beads Are the Work Unit
 
 A **bead** is a git-portable issue record backed by a canonical append-only event store. Status moves through `open` →
 `in_progress` → `closed`. Beads have dependency edges. Each one can carry a plan reference (the `design` field), a tier
-(`plan`, `epic`, or `legend`), and a model annotation (`-m/--model`). Storage lives under `sdd/beads/`: `events/**` is
-the source of truth, `issues.jsonl` is a generated compatibility projection, and `beads.db` is a gitignored
-compatibility cache. Fresh clones read the tracked event store directly and can rebuild the mirrors on demand.
+(`plan`, `epic`, or `legend`), and a model annotation (`-m/--model`). Storage lives under the resolved SDD store:
+`events/**` is the source of truth, `issues.jsonl` is a generated compatibility projection, and `beads.db` is a
+gitignored compatibility cache. Fresh clones read the tracked event store directly and can rebuild the mirrors on
+demand.
 
 Two issue types:
 
@@ -94,9 +96,9 @@ The most useful single command in this layer turns an epic-tier plan into actual
    every launched phase agent.
 
 Because every segment uses `%name:!<agent_name>` (force-reuse) and `%auto:tale`, `sase bead work` is safe to retry after
-a killed or failed run while still committing submitted phase and landing plans into `sdd/tales/`. AXE's `wait_checks`
-chop is what unblocks each phase the moment its blockers have `done.json` outcomes of `completed`. Failed or killed
-phases keep the land agent parked until that phase name retries successfully — there is no fail-open.
+a killed or failed run while still committing submitted phase and landing plans into the resolved SDD tale directory.
+AXE's `wait_checks` chop is what unblocks each phase the moment its blockers have `done.json` outcomes of `completed`.
+Failed or killed phases keep the land agent parked until that phase name retries successfully — there is no fail-open.
 
 Legend-tier work is similar in shape but plans rather than executes: `sase bead work <legend-id>` launches one
 epic-planning agent per stored `epic_count` (sequentially via `%wait` chaining), then a final `land_legend` agent. Those
@@ -118,14 +120,15 @@ stays as a `CHAT:` drawer on the eventual commit.
 
 ## Workspace Behavior
 
-SDD plan artifacts are shared through the normal project workflow, while version-controlled bead state is deliberately
+SDD plan artifacts are shared through the normal project workflow. In in-tree mode, bead state is deliberately
 checkout-local: `sase bead` reads and mutates the `sdd/beads/` event store in the checkout where the command runs. An
 agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`, `myproject_2/`, and
-`myproject_3/`.
+`myproject_3/`. In local and separate-repo mode, numbered checkouts resolve back to the primary workspace's
+`.sase/sdd/beads/` store.
 
-That keeps the source of truth inspectable and unsurprising. When several agents coordinate on the same epic, bead state
-moves between checkouts through the same VCS sync path as code and SDD files, and ID allocation uses the active
-checkout's local `config.json` and canonical event state.
+That keeps the source of truth inspectable and unsurprising. For in-tree work, bead state moves between checkouts
+through the same VCS sync path as code and SDD files, and ID allocation uses the active checkout's local `config.json`
+and canonical event state. For local and separate-repo stores, agents share the primary workspace's `.sase/sdd/` store.
 
 ## What To Read Next
 

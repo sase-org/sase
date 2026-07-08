@@ -75,7 +75,7 @@ and commit-workflow infographics, whose PNGs are stale and intentionally not emb
   another.
 - Show `events/**` as the git-portable source of truth, `issues.jsonl` as a compatibility projection, and `beads.db` as
   the local compatibility cache, all owned by Rust-backed bead operations.
-- Show the current checkout's `sdd/beads/` event store as the version-controlled source of truth.
+- Show the current checkout's in-tree `sdd/beads/` event store as the source of truth for in-tree SDD.
 - For epic work, show Kahn waves, pre-claimed phase beads, one agent per phase, waits from dependency edges, and a final
   land agent waiting on every phase agent.
 - Do not reproduce the full command table inside the image.

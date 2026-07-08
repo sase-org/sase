@@ -295,17 +295,17 @@ The forked agent gets a new record and a new workspace. You still have lineage, 
 
 ## SDD: Prompts, Tales, Epics, And Beads
 
-SASE's [Spec-Driven Development](../../sdd.md) directory is where agent intent becomes durable project state.
+SASE's [Spec-Driven Development](../../sdd.md) store is where agent intent becomes durable project state. The store is
+`sdd/` in in-tree mode and `.sase/sdd/` in local or separate-repo mode.
 
 The core folders are:
 
-- `sdd/prompts/`: expanded prompt snapshots. XPrompts are resolved, directives are stripped, and the exact prompt that
+- `prompts/`: expanded prompt snapshots. XPrompts are resolved, directives are stripped, and the exact prompt that
   launched work is saved with metadata.
-- `sdd/tales/`: ordinary approved implementation plans. A tale is the plan you want a human or agent to understand
-  later.
-- `sdd/epics/`: executable multi-phase plans. An epic can be turned into Beads and driven by `sase bead work`.
-- `sdd/beads/`: git-portable issue/dependency state: bead data, events, JSONL compatibility output, and the SQLite query
-  cache.
+- `tales/`: ordinary approved implementation plans. A tale is the plan you want a human or agent to understand later.
+- `epics/`: executable multi-phase plans. An epic can be turned into Beads and driven by `sase bead work`.
+- `beads/`: git-portable issue/dependency state under the resolved SDD store, with bead data, events, JSONL
+  compatibility output, and the SQLite query cache.
 
 The flow is intentionally concrete:
 
@@ -328,8 +328,8 @@ plans, ChangeSpecs, ACE, AXE, and local workspace orchestration.
 ARCHITECTURE DIAGRAM BRIEF 2 - place here after the SDD/Beads section.
 Title: "Durable work state graph"
 Shape: graph/flow diagram, not a stack.
-Nodes: user prompt -> sdd/prompts snapshot -> tale OR epic -> phase beads in sdd/beads -> agent runs -> commits ->
-ChangeSpec -> PR provider -> final archive.
+Nodes: user prompt -> resolved SDD prompt snapshot -> tale OR epic -> phase beads in the resolved SDD store -> agent
+runs -> commits -> ChangeSpec -> PR provider -> final archive.
 Side nodes: ACE reads ChangeSpecs/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
 Draw dependencies between phase beads clearly, with ready beads highlighted.
 Purpose: show that chat history is not the source of truth; durable files and state records are.

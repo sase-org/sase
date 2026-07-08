@@ -114,12 +114,13 @@ sdd/beads/
   beads.db              # SQLite compatibility cache (gitignored)
 ```
 
-In local and separate-repo modes, the directory is `.sase/sdd/beads/` with the same structure.
+In local and separate-repo modes, the directory is `.sase/sdd/beads/` with the same structure. In v1, `separate_repo`
+uses the primary workspace's `.sase/sdd/` path and records provider/remote metadata in `.sase/sdd-store.json`.
 
 Normal bead commands read and write one store for the active checkout. In in-tree mode, canonical bead state lives in
-the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. If the event store is absent,
-reads fall back to legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into normal
-`sase bead` reads.
+the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. In local and separate-repo mode,
+commands route to the primary workspace's `.sase/sdd/beads/` store. If the event store is absent, reads fall back to
+legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into normal `sase bead` reads.
 
 ### Event Log + Compatibility Projections
 
@@ -137,8 +138,8 @@ The `.gitignore` excludes `beads.db*` files. The event store, `issues.jsonl`, an
 ### Sync Mechanism
 
 `sase bead sync` regenerates the compatibility projection from the canonical event store and stages the bead state in
-git, including `sdd/beads/events/**`, `issues.jsonl`, and `config.json`. The projection contains one JSON object per
-line, sorted by issue ID for clean diffs.
+the owning git repo, including `events/**`, `issues.jsonl`, and `config.json`. The projection contains one JSON object
+per line, sorted by issue ID for clean diffs.
 
 When both stores exist, the event store wins. Manual edits to `issues.jsonl` do not change command output unless the
 event store is absent.

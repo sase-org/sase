@@ -184,6 +184,11 @@ SASE keeps durable state outside any one chat session:
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
   in the producer's `OUTPUT VARIABLES` metadata panel.
+- **SDD storage** - `sdd.storage` resolves where prompt snapshots, tales, epics, legends, myths, research notes, and
+  beads live. `auto` keeps provider defaults: built-in bare-git projects use in-tree `sdd/`, while other providers use
+  the primary workspace's `.sase/sdd/` local store unless explicit config or a materialized `.sase/sdd-store.json`
+  companion-store record selects `separate_repo`. The legacy `sdd.version_controlled: true` alias still maps to
+  `in_tree` while `sdd.storage` is `auto`.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
   `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` and `sase plan reject [id]`
   write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without

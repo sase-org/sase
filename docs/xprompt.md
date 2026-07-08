@@ -873,8 +873,8 @@ When `bug_id` is supplied, `changespec` must also be supplied; the generated pla
 `legend_bead_id`, the epic is linked under that legend with `--type plan(<plan_file>,<legend_bead_id>) --tier epic`. It
 creates the epic plan bead first, then creates phase beads sequentially in the order they appear in the plan file. Phase
 bead creation is intentionally not parallelized because child bead suffixes are allocated by creation order.
-`#bd/new_legend` creates a `--tier legend --epic-count <count>` plan bead for `sdd/legends/{YYYYMM}/...`, writes
-`legend_bead_id`, `tier: legend`, and `epic_count` frontmatter to the legend plan, commits that metadata, then runs
+`#bd/new_legend` creates a `--tier legend --epic-count <count>` plan bead for the resolved legend plan file, writes
+`legend_bead_id`, `tier: legend`, and `epic_count` frontmatter to that plan, commits the metadata, then runs
 `sase bead work <legend_bead_id> --yes`.
 
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
@@ -1264,8 +1264,8 @@ Use `%auto:tale` or `%auto:epic` to plan first, then auto-approve and commit the
 tier. Unknown modes raise a `DirectiveError`; valid modes are `plan`, `tale`, and `epic`.
 
 When an agent launched with `%auto:tale` later submits a plan with `/sase_plan` or `sase plan propose`, sase
-auto-approves and commits it as an SDD tale (under `sdd/tales/YYYYMM/`) and launches the coder follow-up — the same path
-as the TUI Tale action:
+auto-approves and commits it as an SDD tale in the resolved store (`sdd/tales/YYYYMM/` in in-tree mode,
+`.sase/sdd/tales/YYYYMM/` otherwise) and launches the coder follow-up — the same path as the TUI Tale action:
 
 ```
 %auto:tale

@@ -232,5 +232,6 @@ mode behavior.
 ## Multi-Workspace Behavior
 
 SDD artifact placement follows the configured storage mode and project workflow. In in-tree mode, bead commands read and
-write the current checkout's `sdd/beads/` store; they do not merge bead records from numbered sibling workspaces.
-Coordinate bead state between checkouts through the normal VCS sync path.
+write the current checkout's `sdd/beads/` store; they do not merge bead records from numbered sibling workspaces. In
+local and separate-repo mode, commands route to the primary workspace's `.sase/sdd/beads/` store. Coordinate in-tree
+bead state between checkouts through the normal VCS sync path.

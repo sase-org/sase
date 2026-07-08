@@ -163,10 +163,11 @@ the saved path into the agent prompt. Launch, kill, retry, upload, and per-devic
 Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list`, `beads-show`, `update-start`, and
 `update-status`. ChangeSpec, xprompt, and bead helpers are read-only. The only mutating helper operation is
 `update-start`, which starts the built-in SASE update worker and reports status through structured polling. Bead helper
-reads use one canonical bead store per project, typically the project's current checkout at `sdd/beads/`, where
-`events/**` is canonical and `issues.jsonl` is a compatibility projection; they do not merge numbered sibling workspaces
-or legacy bead stores. The structured xprompt catalog includes `definition_path` when the source can be resolved to a
-real file, so mobile and editor clients can offer jump-to-definition without reverse-engineering display paths.
+reads use one resolved bead store per project: `sdd/beads/` in in-tree mode, or the primary workspace's
+`.sase/sdd/beads/` store in local/separate-repo mode. `events/**` is canonical and `issues.jsonl` is a compatibility
+projection; helper reads do not merge numbered sibling workspaces or legacy bead stores. The structured xprompt catalog
+includes `definition_path` when the source can be resolved to a real file, so mobile and editor clients can offer
+jump-to-definition without reverse-engineering display paths.
 
 All-known helper reads are lifecycle-aware and enumerate active projects by default. Inactive projects are left out of
 broad ChangeSpec tag, xprompt catalog, and bead lists. Explicit ChangeSpec tag and xprompt catalog requests for an
