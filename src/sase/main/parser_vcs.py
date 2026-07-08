@@ -68,6 +68,14 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         help="Filter by author name/email substring (repeatable; ORed)",
     )
     parser.add_argument(
+        "-b",
+        "--branch",
+        "--ref",
+        dest="remote_ref",
+        metavar="REF",
+        help="Compare against REF on origin instead of the resolved remote ref",
+    )
+    parser.add_argument(
         "-c",
         "--color",
         choices=["auto", "always", "never"],
@@ -94,6 +102,12 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         default=_DEFAULT_LIMIT,
         metavar="N",
         help=f"Max commits in the merged timeline; 0 means unlimited (default: {_DEFAULT_LIMIT})",
+    )
+    parser.add_argument(
+        "-N",
+        "--no-fetch",
+        action="store_true",
+        help="Skip remote fetch; compare against existing remote-tracking refs",
     )
     parser.add_argument(
         "-r",

@@ -1,5 +1,6 @@
 """VCS plugin manager that delegates to pluggy hooks."""
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import pluggy
@@ -209,12 +210,45 @@ class VCSPluginManager(VCSProvider):
         since: int | None = None,
         until: int | None = None,
         authors: tuple[str, ...] = (),
+        revs: Sequence[str] = ("HEAD",),
     ) -> list["VcsCommitWire"]:
         result = self._pm.hook.vcs_log(
-            cwd=cwd, limit=limit, since=since, until=until, authors=authors
+            cwd=cwd,
+            limit=limit,
+            since=since,
+            until=until,
+            authors=authors,
+            revs=revs,
         )
         if result is None:
             raise NotImplementedError("log is not supported by this VCS provider")
+        return result  # type: ignore[return-value]
+
+    def resolve_remote_log_ref(
+        self, cwd: str, ref_name: str | None = None
+    ) -> str | None:
+        result = self._pm.hook.vcs_resolve_remote_log_ref(cwd=cwd, ref_name=ref_name)
+        if result is None:
+            return None
+        return result  # type: ignore[return-value]
+
+    def fetch_remote(
+        self, cwd: str, refs: Sequence[str], *, timeout: int = 120
+    ) -> tuple[bool, str | None]:
+        return self._call_or_raise(
+            "vcs_fetch_remote", cwd=cwd, refs=refs, timeout=timeout
+        )
+
+    def partition_commits(
+        self, cwd: str, *, local_ref: str, remote_ref: str
+    ) -> tuple[set[str], set[str]]:
+        result = self._pm.hook.vcs_partition_commits(
+            cwd=cwd, local_ref=local_ref, remote_ref=remote_ref
+        )
+        if result is None:
+            raise NotImplementedError(
+                "partition_commits is not supported by this VCS provider"
+            )
         return result  # type: ignore[return-value]
 
     def repo_stats(self, cwd: str) -> "VcsRepoStatsWire":

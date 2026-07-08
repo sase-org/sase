@@ -1,5 +1,6 @@
 """Pluggy hook specifications for VCS provider plugins."""
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import pluggy
@@ -135,7 +136,23 @@ class VCSHookSpec:
         since: int | None = None,
         until: int | None = None,
         authors: tuple[str, ...] = (),
+        revs: Sequence[str] = ("HEAD",),
     ) -> list["VcsCommitWire"]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_resolve_remote_log_ref(
+        self, cwd: str, ref_name: str | None = None
+    ) -> str | None: ...
+
+    @hookspec(firstresult=True)
+    def vcs_fetch_remote(
+        self, cwd: str, refs: Sequence[str], timeout: int = 120
+    ) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_partition_commits(
+        self, cwd: str, local_ref: str, remote_ref: str
+    ) -> tuple[set[str], set[str]]: ...
 
     @hookspec(firstresult=True)
     def vcs_repo_stats(self, cwd: str) -> "VcsRepoStatsWire": ...

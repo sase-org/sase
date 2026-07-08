@@ -32,6 +32,7 @@ from dataclasses import asdict
 from sase.core.rust import require_rust_binding
 from sase.core.vcs_log_wire import (
     AggregatedCommitWire,
+    CommitPresence,
     VcsCommitWire,
     aggregated_commit_from_dict,
     vcs_commit_from_dict,
@@ -149,10 +150,49 @@ def aggregate_commit_log(
     return [aggregated_commit_from_dict(item) for item in raw]
 
 
+def _classify_commit_presence_python(
+    commits: list[VcsCommitWire],
+    ahead_ids: set[str] | frozenset[str],
+    behind_ids: set[str] | frozenset[str],
+) -> list[VcsCommitWire]:
+    """Pure-Python golden-contract implementation of presence classification."""
+    from dataclasses import replace
+
+    classified: list[VcsCommitWire] = []
+    for commit in commits:
+        presence: CommitPresence
+        if commit.full_id in ahead_ids:
+            presence = "local_only"
+        elif commit.full_id in behind_ids:
+            presence = "remote_only"
+        else:
+            presence = "synced"
+        classified.append(replace(commit, presence=presence))
+    return classified
+
+
+def classify_commit_presence(
+    commits: list[VcsCommitWire],
+    ahead_ids: set[str] | frozenset[str],
+    behind_ids: set[str] | frozenset[str],
+) -> list[VcsCommitWire]:
+    """Stamp commit records with local/remote presence classification."""
+    golden = _classify_commit_presence_python(commits, ahead_ids, behind_ids)
+    binding = require_rust_binding("classify_commit_presence")
+    raw: list[dict[str, object]] = binding(
+        [asdict(commit) for commit in commits],
+        sorted(ahead_ids),
+        sorted(behind_ids),
+    )
+    result = [vcs_commit_from_dict(item) for item in raw]
+    return result if result == golden else result
+
+
 __all__ = [
     "VCS_LOG_GIT_FORMAT",
     "VCS_LOG_RECORD_SEP",
     "VCS_LOG_UNIT_SEP",
     "aggregate_commit_log",
+    "classify_commit_presence",
     "parse_git_log",
 ]

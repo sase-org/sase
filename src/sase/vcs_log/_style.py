@@ -12,6 +12,10 @@ from rich.console import Console
 #: House gold accent used for short SHAs (matches the CLI convention).
 GOLD = "#D7AF5F"
 
+#: Presence accents for incoming and local-only commits.
+INCOMING = "#5FD7FF"
+UNPUSHED = "#D7AF5F"
+
 #: Deterministic per-repo accent palette, cycled in resolved-repo order
 #: (primary first, then linked sorted by name, then SDD).
 REPO_PALETTE = (
@@ -52,4 +56,11 @@ def repo_colors(repos: Iterable[Any]) -> dict[str, str]:
     return colors
 
 
-__all__ = ["GOLD", "REPO_PALETTE", "make_console", "repo_colors"]
+__all__ = [
+    "GOLD",
+    "INCOMING",
+    "REPO_PALETTE",
+    "UNPUSHED",
+    "make_console",
+    "repo_colors",
+]

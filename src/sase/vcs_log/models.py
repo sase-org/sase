@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from sase.core.vcs_log_wire import AggregatedCommitWire
+from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
 
 #: Internal limit sentinel meaning "fetch and aggregate without a row cap".
 UNLIMITED = -1
@@ -45,6 +45,17 @@ class LogRepo:
 
 
 @dataclass(frozen=True)
+class RepoRemoteState:
+    """Remote comparison state for one repository."""
+
+    name: str
+    remote_ref: str | None
+    ahead: int
+    behind: int
+    fetched: bool
+
+
+@dataclass(frozen=True)
 class VcsLogResult:
     """The resolved repos, merged timeline, and any non-fatal warnings.
 
@@ -54,11 +65,22 @@ class VcsLogResult:
         commits: The interleaved, newest-first timeline.
         warnings: Human-readable notes about repos that could not be read
             (missing checkout, non-VCS path, provider error, ...).
+        remote_states: Per-repo local/remote comparison state used by
+            renderers and JSON output.
     """
 
     repos: tuple[LogRepo, ...]
     commits: tuple[AggregatedCommitWire, ...]
     warnings: tuple[str, ...]
+    remote_states: tuple[RepoRemoteState, ...] = ()
 
 
-__all__ = ["UNLIMITED", "CommitFilters", "LogRepo", "LogRepoKind", "VcsLogResult"]
+__all__ = [
+    "UNLIMITED",
+    "CommitFilters",
+    "CommitPresence",
+    "LogRepo",
+    "LogRepoKind",
+    "RepoRemoteState",
+    "VcsLogResult",
+]

@@ -214,6 +214,74 @@ def test_vcs_log_excludes_merge_commits(repo: str) -> None:
     assert {"base", "feature work", "main work"} == set(subjects)
 
 
+def test_remote_log_ops_fetch_partition_and_union_log(repo: str) -> None:
+    provider = BareGitPlugin()
+    origin = Path(repo).parent / "origin.git"
+    remote_work = Path(repo).parent / "remote-work"
+
+    _commit(repo, "base.txt", "base")
+    _git(["init", "--bare", "-q", str(origin)], repo)
+    _git(["remote", "add", "origin", str(origin)], repo)
+    _git(["push", "-u", "origin", "main"], repo)
+    _git(["--git-dir", str(origin), "symbolic-ref", "HEAD", "refs/heads/main"], repo)
+
+    assert provider.vcs_resolve_remote_log_ref(repo) == "origin/main"
+
+    _commit(repo, "local.txt", "local only")
+    local_id = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+    ).strip()
+
+    subprocess.run(
+        ["git", "clone", "-q", str(origin), str(remote_work)],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    _git(["config", "user.email", "remote@example.com"], str(remote_work))
+    _git(["config", "user.name", "Remote"], str(remote_work))
+    _commit(str(remote_work), "remote.txt", "remote only")
+    remote_id = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=str(remote_work), text=True
+    ).strip()
+    _git(["push", "origin", "main"], str(remote_work))
+
+    branch_before = subprocess.check_output(
+        ["git", "branch", "--show-current"], cwd=repo, text=True
+    ).strip()
+    status_before = subprocess.check_output(
+        ["git", "status", "--porcelain"], cwd=repo, text=True
+    )
+
+    ok, error = provider.vcs_fetch_remote(repo, refs=("origin/main",))
+    assert ok is True, error
+
+    branch_after = subprocess.check_output(
+        ["git", "branch", "--show-current"], cwd=repo, text=True
+    ).strip()
+    status_after = subprocess.check_output(
+        ["git", "status", "--porcelain"], cwd=repo, text=True
+    )
+    assert branch_after == branch_before
+    assert status_after == status_before
+
+    ahead, behind = provider.vcs_partition_commits(
+        repo, local_ref="HEAD", remote_ref="origin/main"
+    )
+    assert local_id in ahead
+    assert remote_id in behind
+
+    subjects = {
+        commit.subject
+        for commit in provider.vcs_log(repo, 10, revs=("HEAD", "origin/main"))
+    }
+    assert {"base", "local only", "remote only"} <= subjects
+
+
+def test_remote_log_ref_returns_none_without_origin(repo: str) -> None:
+    assert BareGitPlugin().vcs_resolve_remote_log_ref(repo) is None
+
+
 def test_vcs_log_empty_repo_returns_empty(repo: str) -> None:
     # A repo with no commits: `git log` fails (no HEAD); the hook surfaces
     # that as a VCSOperationError rather than a silent empty list.

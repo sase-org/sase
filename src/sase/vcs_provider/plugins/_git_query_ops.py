@@ -6,6 +6,7 @@ git-based VCS plugins.
 """
 
 import os
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from sase.core.git_query_facade import (
@@ -313,6 +314,97 @@ class GitQueryOpsMixin(CommandRunner):
         return f"origin/{self._get_default_branch(cwd)}"
 
     @hookimpl
+    def vcs_resolve_remote_log_ref(
+        self, cwd: str, ref_name: str | None = None
+    ) -> str | None:
+        """Resolve the remote-tracking ref used for ``sase vcs log``."""
+        remote_out = self._run(["git", "remote", "get-url", "origin"], cwd)
+        if not remote_out.success or not remote_out.stdout.strip():
+            return None
+
+        if ref_name:
+            return self._normalize_remote_log_ref(ref_name)
+
+        upstream = self._run(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+            cwd,
+        )
+        upstream_ref = upstream.stdout.strip() if upstream.success else ""
+        if upstream_ref.startswith("origin/") and self._git_ref_exists(
+            cwd, upstream_ref
+        ):
+            return upstream_ref
+
+        branch_out = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd)
+        current_branch = (
+            parse_git_branch_name(branch_out.stdout) if branch_out.success else None
+        )
+        if current_branch:
+            current_ref = f"origin/{current_branch}"
+            if self._git_ref_exists(cwd, current_ref):
+                return current_ref
+
+        return f"origin/{self._get_default_branch(cwd)}"
+
+    @hookimpl
+    def vcs_fetch_remote(
+        self, cwd: str, refs: Sequence[str], timeout: int = 120
+    ) -> tuple[bool, str | None]:
+        """Fetch only the remote branches needed for the log comparison."""
+        branches = tuple(
+            dict.fromkeys(self._remote_branch_from_ref(ref) for ref in refs)
+        )
+        branches = tuple(branch for branch in branches if branch)
+        if not branches:
+            return (True, None)
+
+        refspecs = [
+            f"+refs/heads/{branch}:refs/remotes/origin/{branch}" for branch in branches
+        ]
+        args = [
+            "git",
+            "fetch",
+            "--no-tags",
+            "--no-write-fetch-head",
+            "origin",
+            *refspecs,
+        ]
+        out = self._run(args, cwd, timeout=timeout)
+        if not out.success and "--no-write-fetch-head" in (out.stderr + out.stdout):
+            out = self._run(
+                ["git", "fetch", "--no-tags", "origin", *refspecs],
+                cwd,
+                timeout=timeout,
+            )
+        return self._to_result(out, "git fetch origin")
+
+    @hookimpl
+    def vcs_partition_commits(
+        self, cwd: str, local_ref: str, remote_ref: str
+    ) -> tuple[set[str], set[str]]:
+        from sase.vcs_provider._errors import VCSOperationError
+
+        ahead_out = self._run(
+            ["git", "rev-list", "--no-merges", local_ref, f"^{remote_ref}"],
+            cwd,
+        )
+        if not ahead_out.success:
+            raise VCSOperationError(
+                "partition_commits",
+                ahead_out.stderr.strip() or "git rev-list ahead failed",
+            )
+        behind_out = self._run(
+            ["git", "rev-list", "--no-merges", remote_ref, f"^{local_ref}"],
+            cwd,
+        )
+        if not behind_out.success:
+            raise VCSOperationError(
+                "partition_commits",
+                behind_out.stderr.strip() or "git rev-list behind failed",
+            )
+        return (_sha_set(ahead_out.stdout), _sha_set(behind_out.stdout))
+
+    @hookimpl
     def vcs_diff_name_status(
         self, parent_ref: str, head_ref: str, cwd: str
     ) -> list[tuple[str, str]]:
@@ -367,6 +459,7 @@ class GitQueryOpsMixin(CommandRunner):
         since: int | None = None,
         until: int | None = None,
         authors: tuple[str, ...] = (),
+        revs: Sequence[str] = ("HEAD",),
     ) -> list[VcsCommitWire]:
         from sase.vcs_provider._errors import VCSOperationError
 
@@ -381,6 +474,7 @@ class GitQueryOpsMixin(CommandRunner):
         if authors:
             args.extend(["--fixed-strings", "--regexp-ignore-case"])
             args.extend(f"--author={author}" for author in authors)
+        args.extend(revs or ("HEAD",))
         args.append(f"--format={VCS_LOG_GIT_FORMAT}")
 
         out = self._run(args, cwd)
@@ -498,6 +592,34 @@ class GitQueryOpsMixin(CommandRunner):
     def vcs_upload(self, cwd: str) -> tuple[bool, str | None]:
         return (True, None)
 
+    def _git_ref_exists(self, cwd: str, ref: str) -> bool:
+        out = self._run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            cwd,
+        )
+        return out.success
+
+    def _normalize_remote_log_ref(self, ref_name: str) -> str:
+        ref = ref_name.strip()
+        if ref.startswith("refs/remotes/"):
+            return ref.removeprefix("refs/remotes/")
+        if ref.startswith("refs/heads/"):
+            return f"origin/{ref.removeprefix('refs/heads/')}"
+        if ref.startswith("origin/"):
+            return ref
+        return f"origin/{ref}"
+
+    def _remote_branch_from_ref(self, ref: str | None) -> str:
+        if not ref:
+            return ""
+        if ref.startswith("refs/remotes/origin/"):
+            return ref.removeprefix("refs/remotes/origin/")
+        if ref.startswith("refs/heads/"):
+            return ref.removeprefix("refs/heads/")
+        if ref.startswith("origin/"):
+            return ref.removeprefix("origin/")
+        return ref
+
     # --- Sync operations ---
 
     @hookimpl
@@ -562,3 +684,7 @@ class GitQueryOpsMixin(CommandRunner):
         new_msg = f"{current_msg}\n{tag_name}={tag_value}"
         amend_out = self._run(["git", "commit", "--amend", "-m", new_msg], cwd)
         return self._to_result(amend_out, "git commit --amend")
+
+
+def _sha_set(stdout: str) -> set[str]:
+    return {line.strip() for line in stdout.splitlines() if line.strip()}

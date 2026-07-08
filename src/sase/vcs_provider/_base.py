@@ -1,6 +1,7 @@
 """Abstract base class defining the VCS provider interface."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -241,6 +242,7 @@ class VCSProvider(ABC):
         since: int | None = None,
         until: int | None = None,
         authors: tuple[str, ...] = (),
+        revs: Sequence[str] = ("HEAD",),
     ) -> list["VcsCommitWire"]:
         """Return up to *limit* recent commits, newest-first.
 
@@ -251,12 +253,41 @@ class VCSProvider(ABC):
 
         ``since`` and ``until`` are optional epoch-second bounds. ``authors``
         are case-insensitive substrings matched against author identity with
-        OR semantics. ``limit <= 0`` means unbounded.
+        OR semantics. ``revs`` selects the revision tips to union. ``limit <= 0``
+        means unbounded.
 
         Raises:
             VCSOperationError: When the underlying VCS query fails.
         """
         raise NotImplementedError("log is not supported by this VCS provider")
+
+    def resolve_remote_log_ref(
+        self, cwd: str, ref_name: str | None = None
+    ) -> str | None:
+        """Resolve the remote-tracking ref used by ``sase vcs log``.
+
+        When *ref_name* is provided, providers should interpret it as an
+        explicit remote branch/ref override. Returning ``None`` means no usable
+        remote comparison is available, and callers should fall back to local
+        history with unknown presence.
+        """
+        raise NotImplementedError(
+            "resolve_remote_log_ref is not supported by this VCS provider"
+        )
+
+    def fetch_remote(
+        self, cwd: str, refs: Sequence[str], *, timeout: int = 120
+    ) -> tuple[bool, str | None]:
+        """Fetch only the remote refs needed by ``sase vcs log``."""
+        raise NotImplementedError("fetch_remote is not supported by this VCS provider")
+
+    def partition_commits(
+        self, cwd: str, *, local_ref: str, remote_ref: str
+    ) -> tuple[set[str], set[str]]:
+        """Return ``(ahead_ids, behind_ids)`` for two refs."""
+        raise NotImplementedError(
+            "partition_commits is not supported by this VCS provider"
+        )
 
     def repo_stats(self, cwd: str) -> "VcsRepoStatsWire":
         """Return aggregate repository stats for ``sase vcs list``.

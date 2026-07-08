@@ -34,7 +34,7 @@ JSON shape conventions
   job.
 - ``AggregatedCommitWire`` JSON is flat:
   ``{"repo", "full_id", "short_id", "author_name", "author_email",
-  "timestamp", "subject", "body"}``.
+  "timestamp", "subject", "body", "presence"}``.
 
 Schema version
 --------------
@@ -47,9 +47,15 @@ its serde structs; mismatches surface immediately in the rehydrators.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
-VCS_LOG_WIRE_SCHEMA_VERSION = 1
+VCS_LOG_WIRE_SCHEMA_VERSION = 2
+
+CommitPresence = Literal["synced", "remote_only", "local_only", "unknown"]
+
+_PRESENCE_VALUES: frozenset[str] = frozenset(
+    ("synced", "remote_only", "local_only", "unknown")
+)
 
 
 @dataclass(frozen=True)
@@ -66,6 +72,7 @@ class VcsCommitWire:
             from this.
         subject: First line of the commit message.
         body: Remaining commit-message body (may be empty or multi-line).
+        presence: Local/remote presence classification.
     """
 
     full_id: str
@@ -75,6 +82,7 @@ class VcsCommitWire:
     timestamp: int
     subject: str
     body: str
+    presence: CommitPresence = "unknown"
 
 
 @dataclass(frozen=True)
@@ -105,6 +113,7 @@ def vcs_commit_from_dict(data: dict[str, Any]) -> VcsCommitWire:
         timestamp=int(data["timestamp"]),
         subject=str(data["subject"]),
         body=str(data["body"]),
+        presence=_presence_from_dict(data),
     )
 
 
@@ -124,7 +133,15 @@ def aggregated_commit_from_dict(data: dict[str, Any]) -> AggregatedCommitWire:
 __all__ = [
     "VCS_LOG_WIRE_SCHEMA_VERSION",
     "AggregatedCommitWire",
+    "CommitPresence",
     "VcsCommitWire",
     "aggregated_commit_from_dict",
     "vcs_commit_from_dict",
 ]
+
+
+def _presence_from_dict(data: dict[str, Any]) -> CommitPresence:
+    raw = str(data.get("presence", "unknown"))
+    if raw in _PRESENCE_VALUES:
+        return raw  # type: ignore[return-value]
+    return "unknown"

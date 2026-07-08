@@ -31,8 +31,10 @@ from sase.core.vcs_log_facade import (
     VCS_LOG_RECORD_SEP,
     VCS_LOG_UNIT_SEP,
     _aggregate_commit_log_python,
+    _classify_commit_presence_python,
     _parse_git_log_python,
     aggregate_commit_log,
+    classify_commit_presence,
     parse_git_log,
 )
 from sase.core.vcs_log_wire import (
@@ -192,15 +194,28 @@ def test_aggregate_negative_limit_is_unlimited() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_vcs_log_wire_schema_version_is_one() -> None:
-    assert VCS_LOG_WIRE_SCHEMA_VERSION == 1
+def test_vcs_log_wire_schema_version_is_two() -> None:
+    assert VCS_LOG_WIRE_SCHEMA_VERSION == 2
 
 
 def test_vcs_commit_round_trips_through_dict() -> None:
-    from dataclasses import asdict
+    from dataclasses import asdict, replace
 
-    commit = _commit("deadbeef", 42, "subject")
+    commit = replace(_commit("deadbeef", 42, "subject"), presence="local_only")
     assert vcs_commit_from_dict(asdict(commit)) == commit
+
+
+def test_vcs_commit_missing_presence_defaults_unknown() -> None:
+    data = {
+        "full_id": "deadbeef",
+        "short_id": "deadbee",
+        "author_name": "bryan",
+        "author_email": "bryan@example.com",
+        "timestamp": 42,
+        "subject": "subject",
+        "body": "",
+    }
+    assert vcs_commit_from_dict(data).presence == "unknown"
 
 
 def test_aggregated_commit_from_flat_dict() -> None:
@@ -213,6 +228,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
         "timestamp": 1700000000,
         "subject": "fix: thing",
         "body": "",
+        "presence": "remote_only",
     }
     row = aggregated_commit_from_dict(flat)
     assert row == AggregatedCommitWire(
@@ -225,6 +241,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
             timestamp=1700000000,
             subject="fix: thing",
             body="",
+            presence="remote_only",
         ),
     )
 
@@ -256,6 +273,13 @@ def test_aggregate_matches_python_golden() -> None:
         ("core", [_commit("a", 300), _commit("c", 250)]),
     ]
     assert aggregate_commit_log(repos, 3) == _aggregate_commit_log_python(repos, 3)
+
+
+def test_classify_matches_python_golden() -> None:
+    commits = [_commit("synced", 300), _commit("ahead", 200), _commit("behind", 100)]
+    assert classify_commit_presence(
+        commits, {"ahead"}, {"behind"}
+    ) == _classify_commit_presence_python(commits, {"ahead"}, {"behind"})
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +333,7 @@ def test_parse_routes_through_registered_binding(
                 "timestamp": 1,
                 "subject": "s",
                 "body": "",
+                "presence": "synced",
             }
         ]
 
@@ -324,6 +349,7 @@ def test_parse_routes_through_registered_binding(
             timestamp=1,
             subject="s",
             body="",
+            presence="synced",
         )
     ]
 
@@ -348,6 +374,7 @@ def test_aggregate_routes_through_registered_binding(
                 "timestamp": 5,
                 "subject": "s",
                 "body": "",
+                "presence": "unknown",
             }
         ]
 
@@ -359,3 +386,29 @@ def test_aggregate_routes_through_registered_binding(
     assert captured["repos"][0][1][0]["full_id"] == "a"
     assert out[0].repo == "sase"
     assert out[0].commit.full_id == "a"
+
+
+def test_classify_routes_through_registered_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_classify(
+        commits: list[dict[str, object]],
+        ahead_ids: list[str],
+        behind_ids: list[str],
+    ) -> list[dict[str, object]]:
+        captured["commits"] = commits
+        captured["ahead_ids"] = ahead_ids
+        captured["behind_ids"] = behind_ids
+        out = dict(commits[0])
+        out["presence"] = "local_only"
+        return [out]
+
+    _install_fake_module(monkeypatch, classify_commit_presence=fake_classify)
+    result = classify_commit_presence([_commit("a", 5)], {"a"}, set())
+
+    assert captured["ahead_ids"] == ["a"]
+    assert captured["behind_ids"] == []
+    assert captured["commits"][0]["full_id"] == "a"
+    assert result[0].presence == "local_only"

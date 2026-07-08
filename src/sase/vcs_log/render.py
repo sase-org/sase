@@ -19,9 +19,9 @@ from typing import TextIO
 from rich.console import Console
 from rich.text import Text
 
-from sase.core.vcs_log_wire import AggregatedCommitWire
-from sase.vcs_log.models import CommitFilters, VcsLogResult
-from sase.vcs_log._style import GOLD, make_console, repo_colors
+from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
+from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
+from sase.vcs_log._style import GOLD, INCOMING, UNPUSHED, make_console, repo_colors
 
 _HEADER_WIDTH = 56
 
@@ -64,11 +64,9 @@ def _render_json(
     filters: CommitFilters,
     reverse: bool,
 ) -> str:
+    states = {state.name: state for state in result.remote_states}
     payload = {
-        "repos": [
-            {"name": repo.name, "kind": repo.kind, "path": repo.path}
-            for repo in result.repos
-        ],
+        "repos": [_repo_json(repo, states) for repo in result.repos],
         "commits": [
             {
                 "repo": entry.repo,
@@ -78,6 +76,7 @@ def _render_json(
                 "author_email": entry.commit.author_email,
                 "timestamp": entry.commit.timestamp,
                 "subject": entry.commit.subject,
+                "presence": entry.commit.presence,
             }
             for entry in commits
         ],
@@ -93,6 +92,19 @@ def _render_json(
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
+def _repo_json(repo: LogRepo, states: dict[str, RepoRemoteState]) -> dict[str, object]:
+    state = states.get(repo.name, RepoRemoteState(repo.name, None, 0, 0, False))
+    return {
+        "name": repo.name,
+        "kind": repo.kind,
+        "path": repo.path,
+        "remote_ref": state.remote_ref,
+        "ahead": state.ahead,
+        "behind": state.behind,
+        "fetched": state.fetched,
+    }
+
+
 # ---------------------------------------------------------------------------
 # oneline
 # ---------------------------------------------------------------------------
@@ -104,6 +116,7 @@ def _render_oneline(commits: tuple[AggregatedCommitWire, ...]) -> str:
     repo_width = max(len(entry.repo) for entry in commits)
     sha_width = max(len(entry.commit.short_id) for entry in commits)
     lines = [
+        f"{_presence_glyph(entry.commit.presence)} "
         f"{entry.commit.short_id.ljust(sha_width)} "
         f"{entry.repo.ljust(repo_width)} {entry.commit.subject}"
         for entry in commits
@@ -132,7 +145,7 @@ def _render_pretty(
         _print_warnings(console, result)
         return
 
-    console.print(_legend(result, commits, colors, filters))
+    console.print(_legend(result, commits, colors, filters), soft_wrap=True)
     console.print()
 
     repo_width = max(len(entry.repo) for entry in commits)
@@ -169,7 +182,7 @@ def _render_full(
         _print_warnings(console, result)
         return
 
-    console.print(_legend(result, commits, colors, filters))
+    console.print(_legend(result, commits, colors, filters), soft_wrap=True)
     console.print()
 
     now_local = _local_now()
@@ -205,10 +218,23 @@ def _legend(
         text.append(repo.name, style=f"bold {style}".strip())
         count = counts.get(repo.name, 0)
         text.append(f" ({count})", style="dim")
+        state = _remote_state(result, repo.name)
+        if state.remote_ref is not None or state.ahead or state.behind:
+            text.append(f"  ↑{state.ahead} ↓{state.behind}", style="dim")
     summary = _filter_summary(filters)
     if summary:
         text.append("  ·  ", style="dim")
         text.append(summary, style="dim")
+    text.append("  ·  ", style="dim")
+    text.append("↑ unpushed", style=UNPUSHED)
+    text.append("  ", style="dim")
+    text.append("↓ GitHub-only", style=INCOMING)
+    text.append("  ", style="dim")
+    text.append("● synced", style="dim")
+    remote_summary = _remote_summary(result.remote_states)
+    if remote_summary:
+        text.append("\n  ", style="dim")
+        text.append(remote_summary, style="dim")
     return text
 
 
@@ -232,7 +258,10 @@ def _commit_line(
     repo_color = colors.get(entry.repo, "")
 
     line = Text("   ")
-    line.append("● ", style=repo_color or None)
+    line.append(
+        f"{_presence_glyph(commit.presence)} ",
+        style=_presence_style(commit.presence, repo_color),
+    )
     line.append(f"{dt_local:%H:%M}  ", style="dim")
     line.append(f"{commit.short_id.ljust(sha_width)}  ", style=GOLD)
     line.append(
@@ -275,6 +304,7 @@ def _print_full_commit(
         f"{commit.short_id} · {author} · {dt_local:%H:%M} · {_relative_age(dt_local)}",
         style="dim",
     )
+    footer.append(f" · {_presence_label(commit.presence)}", style="dim")
     console.print(footer, soft_wrap=True)
 
 
@@ -289,6 +319,59 @@ def _print_warnings(console: Console, result: VcsLogResult) -> None:
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+
+def _presence_glyph(presence: CommitPresence) -> str:
+    return {
+        "synced": "●",
+        "remote_only": "↓",
+        "local_only": "↑",
+        "unknown": "·",
+    }.get(presence, "·")
+
+
+def _presence_style(presence: CommitPresence, repo_color: str) -> str | None:
+    if presence == "remote_only":
+        return INCOMING
+    if presence == "local_only":
+        return UNPUSHED
+    if presence == "unknown":
+        return "dim"
+    return repo_color or None
+
+
+def _presence_label(presence: CommitPresence) -> str:
+    return {
+        "synced": "synced",
+        "remote_only": "GitHub-only",
+        "local_only": "unpushed",
+        "unknown": "unknown",
+    }.get(presence, "unknown")
+
+
+def _remote_state(result: VcsLogResult, repo_name: str) -> RepoRemoteState:
+    for state in result.remote_states:
+        if state.name == repo_name:
+            return state
+    return RepoRemoteState(repo_name, None, 0, 0, False)
+
+
+def _remote_summary(states: tuple[RepoRemoteState, ...]) -> str:
+    known = [state for state in states if state.remote_ref]
+    if not known:
+        return ""
+    refs = {state.remote_ref for state in known}
+    if len(refs) == 1:
+        ref_text = next(iter(refs)) or ""
+    else:
+        ref_text = ", ".join(f"{state.name}={state.remote_ref}" for state in known)
+    if all(state.fetched for state in known):
+        fetch_text = "fetched"
+    elif any(state.fetched for state in known):
+        fetch_text = "partly fetched"
+    else:
+        fetch_text = "not fetched"
+    return f"vs {ref_text} · {fetch_text}"
 
 
 def _repo_colors(result: VcsLogResult) -> dict[str, str]:

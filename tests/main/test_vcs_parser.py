@@ -66,6 +66,8 @@ class TestVcsParser:
         assert ns.authors == []
         assert ns.format == "pretty"
         assert ns.color == "auto"
+        assert ns.no_fetch is False
+        assert ns.remote_ref is None
         assert ns.reverse is False
         assert ns.since is None
         assert ns.until is None
@@ -84,6 +86,17 @@ class TestVcsParser:
 
         assert ns.format == "json"
         assert ns.color == "never"
+
+    def test_log_remote_options(self) -> None:
+        ns = create_parser().parse_args(["vcs", "log", "-b", "main", "-N"])
+
+        assert ns.remote_ref == "main"
+        assert ns.no_fetch is True
+
+    def test_log_ref_alias(self) -> None:
+        ns = create_parser().parse_args(["vcs", "log", "--ref", "release"])
+
+        assert ns.remote_ref == "release"
 
     def test_log_repo_is_repeatable(self) -> None:
         ns = create_parser().parse_args(
@@ -167,6 +180,8 @@ class TestVcsHandlerDispatch:
             current_only=False,
             format="pretty",
             color="auto",
+            no_fetch=False,
+            remote_ref=None,
             reverse=False,
             since="last week",
             until=None,
@@ -187,6 +202,8 @@ class TestVcsHandlerDispatch:
             current_only=False,
             format="pretty",
             color="auto",
+            no_fetch=False,
+            remote_ref=None,
             reverse=False,
             since="2026-07-09",
             until="2026-07-08",

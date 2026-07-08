@@ -164,12 +164,14 @@ one repo is shown as a warning and does not hide the other repos.
 
 Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
 store when present. `sase vcs log` uses the same repo resolver as `sase vcs list`, so both commands operate on the same
-constellation.
+constellation. By default it refreshes the compared `origin` ref with a narrow `git fetch` and marks each commit as
+synced, unpushed, GitHub-only, or unknown when no remote comparison is available.
 
 Common forms:
 
 ```bash
 sase vcs log
+sase vcs log --branch main --no-fetch
 sase vcs log --since 2w --author bryan
 sase vcs log --limit 0 --since 2026-07-01 --format full
 sase vcs log --reverse --format json
@@ -180,9 +182,11 @@ Options:
 | Option                                    | Purpose                                                                                 |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
 | `-a`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
+| `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                        |
 | `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                   |
 | `-f`, `--format pretty/full/oneline/json` | Choose compact pretty output, full commit-message blocks, pipe-friendly lines, or JSON. |
 | `-n`, `--limit N`                         | Max commits in the merged timeline; `0` means unlimited.                                |
+| `-N`, `--no-fetch`                        | Skip the remote fetch and compare against existing remote-tracking refs.                |
 | `-o`, `--current-only`                    | Read only the current/primary repo.                                                     |
 | `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                           |
 | `-R`, `--reverse`                         | Display the selected commits oldest-first.                                              |

@@ -9,8 +9,12 @@ from datetime import datetime
 import pytest
 
 import sase.vcs_log.render as render_mod
-from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
-from sase.vcs_log.models import CommitFilters, LogRepo, VcsLogResult
+from sase.core.vcs_log_wire import (
+    AggregatedCommitWire,
+    CommitPresence,
+    VcsCommitWire,
+)
+from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log.render import render
 
 
@@ -21,6 +25,7 @@ def _entry(
     subject: str,
     author: str = "bryan",
     body: str = "",
+    presence: CommitPresence = "synced",
 ) -> AggregatedCommitWire:
     return AggregatedCommitWire(
         repo=repo,
@@ -32,6 +37,7 @@ def _entry(
             timestamp=ts,
             subject=subject,
             body=body,
+            presence=presence,
         ),
     )
 
@@ -43,11 +49,28 @@ def _result() -> VcsLogResult:
             LogRepo("sase-core", "/p/core", "linked"),
         ),
         commits=(
-            _entry("sase", "a1b2c3d4", 300, "fix(sdd): link store"),
-            _entry("sase-core", "9f8e7d6c", 200, "feat(core): parser", "amy"),
-            _entry("sase", "4c5d6e7f", 100, "docs: notes"),
+            _entry(
+                "sase",
+                "a1b2c3d4",
+                300,
+                "fix(sdd): link store",
+                presence="local_only",
+            ),
+            _entry(
+                "sase-core",
+                "9f8e7d6c",
+                200,
+                "feat(core): parser",
+                "amy",
+                presence="remote_only",
+            ),
+            _entry("sase", "4c5d6e7f", 100, "docs: notes", presence="synced"),
         ),
         warnings=("sase-telegram: no such checkout",),
+        remote_states=(
+            RepoRemoteState("sase", "origin/main", 1, 0, True),
+            RepoRemoteState("sase-core", "origin/main", 0, 1, True),
+        ),
     )
 
 
@@ -75,9 +98,9 @@ def _render(
 
 def test_oneline_golden() -> None:
     assert _render(_result(), "oneline") == (
-        "a1b2c3d sase      fix(sdd): link store\n"
-        "9f8e7d6 sase-core feat(core): parser\n"
-        "4c5d6e7 sase      docs: notes\n"
+        "↑ a1b2c3d sase      fix(sdd): link store\n"
+        "↓ 9f8e7d6 sase-core feat(core): parser\n"
+        "● 4c5d6e7 sase      docs: notes\n"
     )
 
 
@@ -100,6 +123,7 @@ def test_json_shape_and_ordering() -> None:
         "author_email": "b@x",
         "author_name": "bryan",
         "full_id": "a1b2c3d4",
+        "presence": "local_only",
         "repo": "sase",
         "short_id": "a1b2c3d",
         "subject": "fix(sdd): link store",
@@ -116,6 +140,10 @@ def test_json_shape_and_ordering() -> None:
         "kind": "primary",
         "name": "sase",
         "path": "/p/sase",
+        "remote_ref": "origin/main",
+        "ahead": 1,
+        "behind": 0,
+        "fetched": True,
     }
     assert payload["warnings"] == ["sase-telegram: no such checkout"]
 
@@ -182,7 +210,12 @@ def test_pretty_day_groups_labels_and_order(
     assert text.index("── Today ") < text.index("── Yesterday ")
     # Legend lists both repos with counts.
     assert "sase (2)" in text
+    assert "↑1 ↓0" in text
     assert "sase-core (1)" in text
+    assert "↑0 ↓1" in text
+    assert "↑ unpushed" in text
+    assert "↓ GitHub-only" in text
+    assert "vs origin/main · fetched" in text
     # Rows carry short SHA, repo label, subject, author, and time.
     assert "a1b2c3d" in text
     assert "14:22" in text
@@ -263,7 +296,7 @@ def test_full_format_shows_body_and_metadata(
     assert "▌ sase  feat: full message" in text
     assert "body one" in text
     assert "body two" in text
-    assert "a1b2c3d · bryan <b@x> · 14:22 · 38m ago" in text
+    assert "a1b2c3d · bryan <b@x> · 14:22 · 38m ago · synced" in text
 
 
 def test_pretty_empty_shows_no_commits() -> None:

@@ -62,6 +62,8 @@ def _handle_log(args: argparse.Namespace) -> int:
         filters=filters,
         repo_filters=args.repos,
         current_only=args.current_only,
+        no_fetch=args.no_fetch,
+        remote_ref=args.remote_ref,
     )
     render(
         result,
