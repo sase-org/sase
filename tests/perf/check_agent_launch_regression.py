@@ -26,12 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 from tests.perf.bench_agent_launch import run_benchmark  # noqa: E402
 
 DEFAULT_BASELINE_PATH = (
-    REPO_ROOT
-    / "sdd"
-    / "tales"
-    / "202605"
-    / "perf_artifacts"
-    / "agent_launch_phase1_baseline.json"
+    REPO_ROOT / "tests" / "perf" / "agent_launch_phase1_baseline.json"
 )
 DEFAULT_REPORT_PATH = (
     REPO_ROOT

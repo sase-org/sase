@@ -345,12 +345,12 @@ docs-deploy-artifact-check:
     test -f site/downloads/sase-handbook.pdf
     test "$(head -c 4 site/downloads/sase-handbook.pdf)" = "%PDF"
     test -f site/blog/index.html
-    test -f site/blog/posts/hello-sase-your-first-15-minutes/index.html
-    test -f site/blog/posts/why-coding-agents-need-orchestration/index.html
-    test "$(find site/blog/posts -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "2"
-    test -f site/series/agentic-software-engineering/index.html
-    grep -Fq 'href="blog/posts/hello-sase-your-first-15-minutes/"' site/index.html
-    ! grep -Fq 'href="blog/why-coding-agents-need-orchestration/"' site/index.html
+    test -f site/blog/posts/structured-agentic-software-engineering/index.html
+    test "$(find site/blog/posts -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "1"
+    grep -Fq 'href="blog/posts/structured-agentic-software-engineering/"' site/index.html
+    test ! -d site/blog/posts/hello-sase-your-first-15-minutes
+    test ! -d site/blog/posts/why-coding-agents-need-orchestration
+    test ! -d site/series/agentic-software-engineering
     @set -e; \
     draft_slugs='xprompts-in-depth axe-background-daemon beads-and-sdd commit-workflows-plugins changespecs-in-practice telegram-mobile-agents prompt-widget-and-nvim whats-next-memory-mobile-web'; \
     for slug in $draft_slugs; do \

@@ -82,7 +82,7 @@ def stream_process_output(
         prepare_nonblocking_text_stream(process.stderr)
 
         while True:
-            readable: list[object] = []
+            readable: list[IO[str]] = []
             if process.stdout:
                 readable.append(process.stdout)
             if process.stderr:

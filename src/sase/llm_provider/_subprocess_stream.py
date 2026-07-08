@@ -54,7 +54,7 @@ def stream_json_lines(
             stdout_buffer = ""
 
     while True:
-        readable: list[object] = []
+        readable: list[IO[str]] = []
         if process.stdout:
             readable.append(process.stdout)
         if process.stderr:

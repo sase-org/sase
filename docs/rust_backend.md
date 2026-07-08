@@ -400,8 +400,7 @@ push the boundary further toward provider resolution without invalidating the co
 
 Driver: `tests/perf/bench_agent_launch.py`; regression check: `tests/perf/check_agent_launch_regression.py`. The harness
 uses temp ProjectSpec files and fake subprocess writes so it never starts an LLM CLI, but it now runs launch preparation
-through the production Rust binding. The committed Phase 1 baseline is
-`sdd/tales/202605/perf_artifacts/agent_launch_phase1_baseline.json`.
+through the production Rust binding. The committed Phase 1 baseline is `tests/perf/agent_launch_phase1_baseline.json`.
 
 The Phase 1 baseline intentionally includes parent-side fan-out sleeps: three-way `%model` and `%r` launches each spent
 about 2,001 ms in the parent before the migration. `just launch-perf-check` runs the current harness without those
@@ -447,9 +446,9 @@ route keep `must_beat_python: true` because both comparable rows are still produ
 `phase7-perf-floor` GitHub Actions job runs the checker (`tests/perf/phase7_check_regression.py`) on every PR and
 uploads `rust_backend_phase7_floor_check.json` as the build artifact.
 
-`sdd/tales/202605/perf_artifacts/agent_launch_phase1_baseline.json` pins the launch migration baseline. The
-`launch-perf-floor` GitHub Actions job runs `just launch-perf-check` on every PR and uploads
-`agent_launch_regression_check.json` so a fan-out latency regression has a comparable report.
+`tests/perf/agent_launch_phase1_baseline.json` pins the launch migration baseline. The `launch-perf-floor` GitHub
+Actions job runs `just launch-perf-check` on every PR and uploads `agent_launch_regression_check.json` so a fan-out
+latency regression has a comparable report.
 
 ### Triage support note
 

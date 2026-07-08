@@ -17,11 +17,12 @@ def _payload(**medians: float) -> dict[str, object]:
     }
 
 
-def test_default_artifact_paths_live_under_sdd_tales() -> None:
-    expected_dir = REPO_ROOT / "sdd" / "tales" / "202605" / "perf_artifacts"
+def test_default_baseline_and_report_paths_live_in_expected_locations() -> None:
+    perf_dir = REPO_ROOT / "tests" / "perf"
+    report_dir = REPO_ROOT / "sdd" / "tales" / "202605" / "perf_artifacts"
 
-    assert DEFAULT_BASELINE_PATH == expected_dir / "agent_launch_phase1_baseline.json"
-    assert DEFAULT_REPORT_PATH == expected_dir / "agent_launch_regression_check.json"
+    assert DEFAULT_BASELINE_PATH == perf_dir / "agent_launch_phase1_baseline.json"
+    assert DEFAULT_REPORT_PATH == report_dir / "agent_launch_regression_check.json"
 
 
 def test_check_scenarios_passes_under_absolute_and_ratio_thresholds() -> None:
