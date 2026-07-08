@@ -60,6 +60,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     from sase.doctor.checks_plugins import plugin_check_specs
     from sase.doctor.checks_project import project_check_specs
     from sase.doctor.checks_providers import provider_check_specs
+    from sase.doctor.checks_resources import resource_check_specs
     from sase.doctor.checks_runtime import runtime_check_specs
     from sase.doctor.checks_telemetry import telemetry_check_specs
     from sase.doctor.checks_tools import tools_check_specs
@@ -71,6 +72,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *config_check_specs(context),
             *provider_check_specs(context),
             *plugin_check_specs(context),
+            *resource_check_specs(context),
             *axe_check_specs(context),
             *project_check_specs(context),
             *workspace_check_specs(context),
