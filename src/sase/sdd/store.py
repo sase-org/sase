@@ -511,8 +511,8 @@ def _store_not_materialized_message(record: SddStoreRecord | None) -> str:
     target = f"'{repo}'" if repo else "the expected SDD companion repository"
     return (
         f"SDD storage is configured as separate_repo, but {target} is not "
-        "materialized. Use provider setup or migration support to create or "
-        "connect the companion repository before using separate_repo storage."
+        "materialized. Run `sase sdd migrate` to create or connect the "
+        "companion repository before using separate_repo storage."
     )
 
 

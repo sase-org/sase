@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -124,6 +126,123 @@ def test_config_sdd_errors_on_orphaned_store_record(tmp_path: Path) -> None:
     assert check.status == "ERROR"
     assert any(
         issue["code"] == "orphaned-store-record"
+        for issue in check.data["storage_issues"]
+    )
+
+
+def _write_materialized_sdd_record(
+    primary: Path,
+    *,
+    remote_url: str = "git@github.com:acme/widget-sdd.git",
+) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": "acme/widget-sdd",
+            "remote_url": remote_url,
+            "discovery": "found",
+        },
+    )
+    (primary / ".sase" / "sdd" / ".git").mkdir(parents=True)
+
+
+def test_config_sdd_warns_when_record_ignored_by_explicit_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: local\n",
+        encoding="utf-8",
+    )
+    _write_materialized_sdd_record(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        issue["code"] == "record-ignored-by-config"
+        for issue in check.data["storage_issues"]
+    )
+
+
+def test_config_sdd_warns_when_companion_diverged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote_url = "git@github.com:acme/widget-sdd.git"
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: separate_repo\n",
+        encoding="utf-8",
+    )
+    _write_materialized_sdd_record(tmp_path, remote_url=remote_url)
+    git_commands: list[list[str]] = []
+
+    def fake_run(
+        args: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        git_commands.append(args)
+        if args == ["git", "remote", "get-url", "origin"]:
+            return subprocess.CompletedProcess(args, 0, f"{remote_url}\n", "")
+        if args == [
+            "git",
+            "rev-list",
+            "--left-right",
+            "--count",
+            "@{upstream}...HEAD",
+        ]:
+            return subprocess.CompletedProcess(args, 0, "2 3\n", "")
+        return subprocess.CompletedProcess(args, 1, "", "unexpected git command")
+
+    monkeypatch.setattr("sase.doctor.checks_config_sdd.subprocess.run", fake_run)
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert all("fetch" not in command for command in git_commands)
+    assert any(
+        issue["code"] == "companion-diverged"
+        and "3 ahead and 2 behind" in issue["message"]
+        for issue in check.data["storage_issues"]
+    )
+
+
+def test_config_sdd_warns_on_duplicate_companion_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote_url = "git@github.com:acme/shared-sdd.git"
+    other = tmp_path / "other"
+    other.mkdir()
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: separate_repo\n",
+        encoding="utf-8",
+    )
+    _write_materialized_sdd_record(tmp_path, remote_url=remote_url)
+    _write_materialized_sdd_record(other, remote_url=remote_url)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_project.resolve_current_project_record",
+        lambda _context: SimpleNamespace(
+            records=(
+                SimpleNamespace(project_name="alpha", workspace_dir=str(tmp_path)),
+                SimpleNamespace(project_name="beta", workspace_dir=str(other)),
+            )
+        ),
+    )
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        issue["code"] == "duplicate-companion-remote" and "beta" in issue["message"]
         for issue in check.data["storage_issues"]
     )
 

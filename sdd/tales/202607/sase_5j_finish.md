@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-08 02:46:34
-status: wip
+status: done
 prompt: sdd/prompts/202607/sase_5j_finish.md
 ---
 # Plan: Finish sase-5j — close remaining gaps in the Separate-SDD-Repo epic
