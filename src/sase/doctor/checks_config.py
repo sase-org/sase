@@ -8,6 +8,7 @@ from sase.diagnostics import CheckSpec
 from sase.doctor.checks_config_init import check_config_init
 from sase.doctor.checks_config_layers import check_config_layers
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
+from sase.doctor.checks_config_skills import check_config_skills_applied
 from sase.doctor.checks_config_sdd import check_config_sdd
 from sase.doctor.checks_config_xprompts import (
     check_config_model_xprompts,
@@ -57,6 +58,13 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="XPrompt definitions",
             runner=lambda: check_config_xprompt_definitions(context),
         ),
+        CheckSpec(
+            id="config.skills.applied",
+            group="config",
+            title="Applied generated skills",
+            runner=check_config_skills_applied,
+            deep=True,
+        ),
     )
 
 
@@ -66,6 +74,7 @@ _check_config_sdd = check_config_sdd
 _check_config_model_aliases = check_config_model_aliases
 _check_config_model_xprompts = check_config_model_xprompts
 _check_config_xprompt_definitions = check_config_xprompt_definitions
+_check_config_skills_applied = check_config_skills_applied
 
 
 __all__ = [

@@ -18,6 +18,7 @@ from sase.skills.inventory import (
     SkillSourceEntry,
     SkillTargetEntry,
     SkillsInventory,
+    build_applied_skills_inventory,
     build_skills_inventory,
 )
 from sase.skills.use_log import read_skill_use_events
@@ -341,6 +342,43 @@ def test_skills_inventory_classifies_generated_targets(
     assert sources["current"].current_count == 1
     assert sources["missing"].missing_count == 1
     assert sources["stale"].stale_count == 1
+
+
+def test_applied_skills_inventory_compares_chezmoi_source_to_home_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompt = XPrompt(
+        name="foo",
+        content="body\n",
+        source_path=str(tmp_path / "skills" / "foo.md"),
+        description="foo description",
+        skill=["claude"],
+    )
+    monkeypatch.setattr(init_skills_handler, "load_xprompts_from_internal", lambda: {})
+    monkeypatch.setattr(
+        init_skills_handler, "get_all_xprompts", lambda project="": {"foo": xprompt}
+    )
+    monkeypatch.setattr(init_skills_handler, "_all_providers", lambda: ["claude"])
+    monkeypatch.setattr(init_skills_handler, "_provider_context", lambda _provider: {})
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _command: None)
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", tmp_path / "chezmoi")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    source = _get_target_path("claude", "foo", use_chezmoi=True)
+    home = _get_target_path("claude", "foo", use_chezmoi=False)
+    _write(source, "rendered skill\n")
+    _write(home, "stale applied copy\n")
+
+    inventory = build_applied_skills_inventory(use_prettier=False)
+
+    assert inventory.target_count == 1
+    assert inventory.stale_count == 1
+    target = inventory.targets[0]
+    assert target.source_path == source
+    assert target.home_path == home
+    assert target.status == "stale"
+    assert target.source_status == "stale"
 
 
 def test_skills_list_dashboard_renders_summary_and_drift(

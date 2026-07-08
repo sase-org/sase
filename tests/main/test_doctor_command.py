@@ -175,6 +175,8 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "tools.fzf",
     } <= ids
     assert {
+        "config.skills.applied",
+        "resources.chezmoi",
         "state.agent_index_verify",
         "ops.telemetry_health",
         "ops.axe",

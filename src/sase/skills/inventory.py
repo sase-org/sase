@@ -10,6 +10,7 @@ from sase.main import init_skills_handler
 from sase.xprompt.models import XPrompt
 
 SkillTargetStatus = Literal["current", "stale", "missing"]
+AppliedSkillTargetStatus = Literal["current", "stale", "missing", "source_missing"]
 SkillDeployMode = Literal["home", "chezmoi"]
 
 
@@ -98,6 +99,54 @@ class SkillsInventory:
         return sum(_count_status(source.targets, status) for source in self.sources)
 
 
+@dataclass(frozen=True)
+class AppliedSkillTargetEntry:
+    """One chezmoi source skill target compared with its live home target."""
+
+    source_path: Path
+    home_path: Path
+    provider: str
+    skill_name: str
+    status: AppliedSkillTargetStatus
+    source_status: SkillTargetStatus
+
+
+@dataclass(frozen=True)
+class AppliedSkillsInventory:
+    """Summary of live home skill targets derived from chezmoi sources."""
+
+    targets: tuple[AppliedSkillTargetEntry, ...]
+    provider_filter: str | None = None
+    prettier_available: bool = True
+
+    @property
+    def target_count(self) -> int:
+        return len(self.targets)
+
+    @property
+    def current_count(self) -> int:
+        return self._status_count("current")
+
+    @property
+    def stale_count(self) -> int:
+        return self._status_count("stale")
+
+    @property
+    def missing_count(self) -> int:
+        return self._status_count("missing")
+
+    @property
+    def source_missing_count(self) -> int:
+        return self._status_count("source_missing")
+
+    @property
+    def drift_targets(self) -> tuple[AppliedSkillTargetEntry, ...]:
+        return tuple(target for target in self.targets if target.status != "current")
+
+    def _status_count(self, status: AppliedSkillTargetStatus) -> int:
+        return sum(1 for target in self.targets if target.status == status)
+
+
 def build_skills_inventory(
     *,
     provider_filter: str | None = None,
@@ -145,6 +194,47 @@ def build_skills_inventory(
     )
 
 
+def build_applied_skills_inventory(
+    *,
+    provider_filter: str | None = None,
+    use_prettier: bool | None = None,
+) -> AppliedSkillsInventory:
+    """Build a read-only inventory comparing chezmoi skill sources to home."""
+    if use_prettier is None:
+        use_prettier = init_skills_handler.prettier_available()
+
+    xprompts = init_skills_handler.load_skill_xprompts()
+    source_targets = init_skills_handler.render_skill_targets(
+        xprompts,
+        provider_filter=provider_filter,
+        use_chezmoi=True,
+        use_prettier=use_prettier,
+    )
+    home_targets = init_skills_handler.render_skill_targets(
+        xprompts,
+        provider_filter=provider_filter,
+        use_chezmoi=False,
+        use_prettier=use_prettier,
+    )
+
+    targets = tuple(
+        AppliedSkillTargetEntry(
+            source_path=source.path,
+            home_path=home.path,
+            provider=source.provider,
+            skill_name=source.skill_name,
+            status=_applied_target_status(source.path, home.path),
+            source_status=_target_status(source),
+        )
+        for source, home in zip(source_targets, home_targets, strict=True)
+    )
+    return AppliedSkillsInventory(
+        targets=targets,
+        provider_filter=provider_filter,
+        prettier_available=use_prettier,
+    )
+
+
 def _source_entry(
     xprompt: XPrompt,
     *,
@@ -185,6 +275,30 @@ def _target_status(
     if operation == "create":
         return "missing"
     return "stale"
+
+
+def _applied_target_status(
+    source_path: Path,
+    home_path: Path,
+) -> AppliedSkillTargetStatus:
+    source_text = _read_text(source_path)
+    if source_text is None:
+        return "source_missing" if not source_path.exists() else "stale"
+
+    home_text = _read_text(home_path)
+    if home_text is None:
+        return "missing" if not home_path.exists() else "stale"
+
+    if home_text == source_text:
+        return "current"
+    return "stale"
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def _count_status(
