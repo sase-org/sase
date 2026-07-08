@@ -48,6 +48,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "memory",
         "bead",
         "project",
+        "vcs",
         "workspace",
     }
     assert (

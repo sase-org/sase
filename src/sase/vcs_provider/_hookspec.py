@@ -1,6 +1,11 @@
 """Pluggy hook specifications for VCS provider plugins."""
 
+from typing import TYPE_CHECKING
+
 import pluggy
+
+if TYPE_CHECKING:
+    from sase.core.vcs_log_wire import VcsCommitWire
 
 hookspec = pluggy.HookspecMarker("sase_vcs")
 hookimpl = pluggy.HookimplMarker("sase_vcs")
@@ -119,6 +124,9 @@ class VCSHookSpec:
     def vcs_diff_line_stats(
         self, parent_ref: str, head_ref: str, cwd: str
     ) -> list[tuple[str, str, str]]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_log(self, cwd: str, limit: int) -> list["VcsCommitWire"]: ...
 
     @hookspec(firstresult=True)
     def vcs_file_at_revision(

@@ -51,6 +51,7 @@ from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_update import register_update_parser
 from sase.main.parser_validate import register_validate_parser
 from sase.main.parser_var import register_var_parser
+from sase.main.parser_vcs import register_vcs_parser
 from sase.main.parser_version import register_version_parser
 from sase.main.parser_workspace import register_workspace_parser
 from sase.main.parser_xprompt import register_xprompt_parser
@@ -103,6 +104,10 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     _CompactRootCommand(
         "project",
         "List active projects and hide or reactivate dormant work.",
+    ),
+    _CompactRootCommand(
+        "vcs",
+        "Show a chronological commit timeline across primary, linked, and SDD repos.",
     ),
     _CompactRootCommand(
         "workspace",
@@ -440,6 +445,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_update_parser(top_level_subparsers)
     register_validate_parser(top_level_subparsers)
     register_var_parser(top_level_subparsers)
+    register_vcs_parser(top_level_subparsers)
     register_version_parser(top_level_subparsers)
     register_workspace_parser(top_level_subparsers)
     register_xprompt_parser(top_level_subparsers)

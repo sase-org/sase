@@ -1,8 +1,13 @@
 """VCS plugin manager that delegates to pluggy hooks."""
 
+from typing import TYPE_CHECKING
+
 import pluggy
 
 from ._base import VCSProvider
+
+if TYPE_CHECKING:
+    from sase.core.vcs_log_wire import VcsCommitWire
 
 
 class VCSPluginManager(VCSProvider):
@@ -193,6 +198,12 @@ class VCSPluginManager(VCSProvider):
             raise NotImplementedError(
                 "diff_line_stats is not supported by this VCS provider"
             )
+        return result  # type: ignore[return-value]
+
+    def log(self, cwd: str, limit: int) -> list["VcsCommitWire"]:
+        result = self._pm.hook.vcs_log(cwd=cwd, limit=limit)
+        if result is None:
+            raise NotImplementedError("log is not supported by this VCS provider")
         return result  # type: ignore[return-value]
 
     def file_at_revision(

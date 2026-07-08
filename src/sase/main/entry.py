@@ -356,6 +356,12 @@ def main() -> NoReturn:
 
         handle_var_command(args)
 
+    # --- vcs ---
+    if args.command == "vcs":
+        from .vcs_handler import handle_vcs_command
+
+        handle_vcs_command(args)
+
     # --- version ---
     if args.command == "version":
         from .version_handler import handle_version_command

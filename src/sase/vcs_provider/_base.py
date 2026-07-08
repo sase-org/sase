@@ -1,6 +1,10 @@
 """Abstract base class defining the VCS provider interface."""
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.core.vcs_log_wire import VcsCommitWire
 
 
 class VCSProvider(ABC):
@@ -227,6 +231,19 @@ class VCSProvider(ABC):
         raise NotImplementedError(
             "diff_line_stats is not supported by this VCS provider"
         )
+
+    def log(self, cwd: str, limit: int) -> list["VcsCommitWire"]:
+        """Return up to *limit* recent commits, newest-first.
+
+        Each commit is a provider-agnostic :class:`VcsCommitWire`
+        carrying the full/short id, author name/email, epoch author
+        timestamp, subject, and body. Merge commits are excluded so the
+        timeline reflects authored change history.
+
+        Raises:
+            VCSOperationError: When the underlying VCS query fails.
+        """
+        raise NotImplementedError("log is not supported by this VCS provider")
 
     def file_at_revision(
         self, revision: str, file_path: str, cwd: str

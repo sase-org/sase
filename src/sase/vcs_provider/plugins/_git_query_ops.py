@@ -16,6 +16,8 @@ from sase.core.git_query_facade import (
     parse_git_name_status_z,
     parse_git_numstat_z,
 )
+from sase.core.vcs_log_facade import VCS_LOG_GIT_FORMAT, parse_git_log
+from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
@@ -353,6 +355,25 @@ class GitQueryOpsMixin(CommandRunner):
                 out.stderr.strip() or "git diff --numstat failed",
             )
         return parse_git_numstat_z(out.stdout)
+
+    @hookimpl
+    def vcs_log(self, cwd: str, limit: int) -> list[VcsCommitWire]:
+        from sase.vcs_provider._errors import VCSOperationError
+
+        out = self._run(
+            [
+                "git",
+                "log",
+                "-n",
+                str(limit),
+                "--no-merges",
+                f"--format={VCS_LOG_GIT_FORMAT}",
+            ],
+            cwd,
+        )
+        if not out.success:
+            raise VCSOperationError("log", out.stderr.strip() or "git log failed")
+        return parse_git_log(out.stdout)
 
     @hookimpl
     def vcs_file_at_revision(
