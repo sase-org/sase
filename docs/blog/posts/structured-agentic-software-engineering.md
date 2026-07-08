@@ -60,7 +60,7 @@ This post is the front door: how SASE wraps agent CLIs instead of model APIs, ho
 ACE changes the day-to-day UX, and how to install and initialize the system. The deeper engineering pieces get their own
 posts.
 
-<!-- MEDIA: window_farm_vs_control_tower.prompt.md — placeholder for a diagram brief contrasting tmux windows with the ACE control surface. -->
+<!-- DIAGRAM: window_farm_vs_control_tower.prompt.md — placeholder for a diagram brief contrasting tmux windows with the ACE control surface. -->
 
 ## SASE Wraps Agent CLIs, Not Models
 
@@ -97,8 +97,12 @@ tool protocols than it would have if it called raw model APIs directly. It also 
 CLI behavior changes. I still prefer that bargain. The agent CLIs are where the provider-specific work is moving
 fastest, and SASE is more useful as a durable control plane around them than as a second-rate replacement for them.
 
-<!-- MEDIA: sase_ace_multi_model_fanout.gif — caption: One prompt fans out to Claude, Codex, and a Gemini-named model routed through the Antigravity CLI; SASE previews the launches before they run. -->
-<!-- MEDIA: one_prompt_five_clis.prompt.md — placeholder for a diagram brief showing one SASE operating layer routing to five provider CLIs. -->
+![ACE launch review previewing three agent launches with Claude, Codex, and a Gemini-named model](../../images/blog/sase_ace_multi_model_fanout.gif)
+
+_One prompt fans out to Claude, Codex, and a Gemini-named model routed through the Antigravity CLI; SASE previews the
+launches before they run._
+
+<!-- DIAGRAM: one_prompt_five_clis.prompt.md — placeholder for a diagram brief showing one SASE operating layer routing to five provider CLIs. -->
 
 ## XPrompts
 
@@ -121,7 +125,9 @@ in `sase.yml`; project-local definitions win when names collide. The full discov
 built-ins, but day one is simple: put reusable prompts near the work, then move them outward when they become personal
 tools.
 
-<!-- MEDIA: sase_ace_prompt_input.gif — caption: ACE prompt input expands an XPrompt reference, offers completion, and keeps the workspace prefix visible. -->
+![ACE prompt input expanding an XPrompt reference with workspace and file completion](../../images/blog/sase_ace_prompt_input.gif)
+
+_ACE prompt input expands an XPrompt reference, offers completion, and keeps the workspace prefix visible._
 
 Typed inputs turn that Markdown file into a small interface. The reference example is deliberately boring:
 
@@ -203,8 +209,11 @@ You type the same language in several places. `sase run` accepts it directly. Th
 (`Ctrl+S`). The [sase-nvim plugin](https://github.com/sase-org/sase-nvim) and `sase lsp` bring the same catalog to an
 editor through completion, hover, diagnostics, and jump-to-definition.
 
-<!-- MEDIA: sase_ace_prompt_history_stash.gif — caption: Prompt history and stashes make useful launches recoverable instead of leaving them in shell history. -->
-<!-- MEDIA: prompt_burrito.prompt.md — placeholder for a funny diagram brief showing directives, workspace refs, XPrompts, and prompt text as layers. -->
+![ACE prompt history and stash modals recovering a previous launch prompt](../../images/blog/sase_ace_prompt_history_stash.gif)
+
+_Prompt history and stashes make useful launches recoverable instead of leaving them in shell history._
+
+<!-- DIAGRAM: prompt_burrito.prompt.md — placeholder for a funny diagram brief showing directives, workspace refs, XPrompts, and prompt text as layers. -->
 
 ## The Agents Tab In ACE
 
@@ -222,8 +231,13 @@ Claude, 🪐 Antigravity, 🤖 Codex, 🐼 Qwen, and 🐙 OpenCode.
 State you used to keep in your head becomes a display. Which agent is waiting? Which one failed? Which one produced a
 plan? Which completed row is still unread? Which provider/model did it use? The row already knows.
 
-<!-- MEDIA: sase_ace_agents_observability.gif — caption: The Agents tab groups runs, shows status/provider/model cues, and keeps the selected agent's artifacts nearby. -->
-<!-- MEDIA: agents_observability_still.png — placeholder for a still frame showing agent families plus the detail pane. -->
+![ACE Agents tab grouping runs with status, provider, model, and artifact details](../../images/blog/sase_ace_agents_observability.gif)
+
+_The Agents tab groups runs, shows status/provider/model cues, and keeps the selected agent's artifacts nearby._
+
+![Static ACE Agents tab frame showing families, model metadata, and tool call details](../../images/blog/agents_observability_still.png)
+
+_A still frame makes the family grouping, selected model, and detail pane easier to inspect than the loop._
 
 Two naming ideas make dense views navigable. Agent families use `--` suffixes to keep one unit of work together:
 `nova--plan`, `nova--code`, and `nova--review` render as related workflow rows under a root. Agent hoods use dotted
