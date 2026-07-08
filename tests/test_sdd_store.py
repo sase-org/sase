@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 from typing import Any
 
 import pluggy
@@ -18,6 +19,7 @@ from sase.sdd.store import (
     SddMaterializationError,
     _record_cache,
     _write_sdd_store_record,
+    ensure_workspace_sdd_link,
     get_configured_sdd_storage,
     materialize_sdd_store,
     read_sdd_store_record,
@@ -505,3 +507,177 @@ def test_explicit_separate_repo_without_materialization_errors(
     message = str(excinfo.value)
     assert "expected SDD companion repository" in message
     assert "sase sdd migrate" in message
+
+
+def test_ensure_workspace_sdd_link_managed_separate_repo(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    store_dir = primary / ".sase" / "sdd"
+    plan_path = store_dir / "tales" / "202607" / "feature.md"
+    workspace.mkdir()
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text("# Plan\n", encoding="utf-8")
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_link(workspace, 2)
+
+    workspace_sdd = workspace / ".sase" / "sdd"
+    assert workspace_sdd.is_symlink()
+    assert workspace_sdd.resolve() == store_dir.resolve()
+    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+        encoding="utf-8"
+    ) == "# Plan\n"
+
+
+def test_ensure_workspace_sdd_link_in_tree_noop(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    workspace = tmp_path / "repo_2"
+    (tmp_path / "repo").mkdir()
+    workspace.mkdir()
+    config_patch({"sdd": {"storage": "in_tree", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_link(workspace, 2)
+
+    assert not (workspace / ".sase" / "sdd").exists()
+
+
+def test_ensure_workspace_sdd_link_colocated_store_refreshes_without_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_patch,
+    provider_patch,
+) -> None:
+    workspace = tmp_path / "repo"
+    workspace_sdd = workspace / ".sase" / "sdd"
+    workspace.mkdir()
+    config_patch({"sdd": {"storage": "local", "version_controlled": False}})
+    provider_patch(None)
+    refreshed: list[Path] = []
+    monkeypatch.setattr(
+        "sase.sdd.store._refresh_materialized_store",
+        lambda path: refreshed.append(path),
+    )
+
+    ensure_workspace_sdd_link(workspace, 1)
+
+    assert refreshed == [workspace_sdd]
+    assert not workspace_sdd.is_symlink()
+
+
+def test_ensure_workspace_sdd_link_refuses_real_workspace_sdd_dir(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    store_dir = primary / ".sase" / "sdd"
+    workspace_sdd = workspace / ".sase" / "sdd"
+    store_dir.mkdir(parents=True)
+    workspace_sdd.mkdir(parents=True)
+    (workspace_sdd / "keep.md").write_text("# Keep\n", encoding="utf-8")
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_link(workspace, 2)
+
+    assert workspace_sdd.is_dir()
+    assert not workspace_sdd.is_symlink()
+    assert (workspace_sdd / "keep.md").read_text(encoding="utf-8") == "# Keep\n"
+
+
+def test_ensure_workspace_sdd_link_repoints_stale_symlink_and_is_idempotent(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    store_dir = primary / ".sase" / "sdd"
+    stale_target = tmp_path / "old-sdd"
+    workspace_sdd = workspace / ".sase" / "sdd"
+    store_dir.mkdir(parents=True)
+    stale_target.mkdir()
+    workspace_sdd.parent.mkdir(parents=True)
+    workspace_sdd.symlink_to(stale_target, target_is_directory=True)
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_link(workspace, 2)
+    ensure_workspace_sdd_link(workspace, 2)
+
+    assert workspace_sdd.is_symlink()
+    assert workspace_sdd.resolve() == store_dir.resolve()
+
+
+def test_ensure_workspace_sdd_link_refresh_failure_still_links(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_patch,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    store_dir = primary / ".sase" / "sdd"
+    (store_dir / ".git").mkdir(parents=True)
+    workspace.mkdir()
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+    monkeypatch.setattr(
+        "sase.sdd.store.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 1, stdout="", stderr="pull failed"
+        ),
+    )
+
+    ensure_workspace_sdd_link(workspace, 2)
+
+    assert (workspace / ".sase" / "sdd").resolve() == store_dir.resolve()
+
+
+def test_ensure_workspace_sdd_link_missing_store_is_best_effort(
+    tmp_path: Path,
+    config_patch,
+    provider_patch,
+) -> None:
+    workspace = tmp_path / "repo_2"
+    workspace.mkdir()
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_link(workspace, 2)
+
+    assert not (workspace / ".sase" / "sdd").exists()
+
+
+def test_ensure_workspace_sdd_link_makes_relative_prompt_ref_resolve(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_patch,
+    provider_patch,
+) -> None:
+    from sase.file_references import process_file_references
+
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    plan_path = primary / ".sase" / "sdd" / "tales" / "202607" / "approved_plan.md"
+    workspace.mkdir()
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text("# Approved\n", encoding="utf-8")
+    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
+    provider_patch(None)
+
+    ensure_workspace_sdd_link(workspace, 2)
+    monkeypatch.chdir(workspace)
+
+    prompt = "@.sase/sdd/tales/202607/approved_plan.md\nImplement it now."
+    assert process_file_references(prompt) == prompt

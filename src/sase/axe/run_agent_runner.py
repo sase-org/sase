@@ -299,6 +299,7 @@ def main() -> None:
             else:
                 prepare_workspace_if_needed(
                     workspace_dir=workspace_dir,
+                    workspace_num=workspace_num,
                     cl_name=cl_name,
                     update_target=update_target,
                     project_name=project_name,
@@ -439,6 +440,7 @@ def main() -> None:
                         )
                         prepare_workspace_if_needed(
                             workspace_dir=workspace_dir,
+                            workspace_num=workspace_num,
                             cl_name=cl_name,
                             update_target=update_target,
                             project_name=project_name,

@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 def prepare_workspace_if_needed(
     *,
     workspace_dir: str,
+    workspace_num: int,
     cl_name: str,
     update_target: str,
     project_name: str,
@@ -67,6 +68,9 @@ def prepare_workspace_if_needed(
         project_basename=project_name,
     ):
         raise RuntimeError("Failed to prepare workspace")
+    from sase.sdd.store import ensure_workspace_sdd_link
+
+    ensure_workspace_sdd_link(workspace_dir, workspace_num)
     print("===========================")
     print()
 

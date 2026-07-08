@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
 import logging
+import os
 from pathlib import Path
 import subprocess
 from typing import Any, Literal, cast
@@ -204,6 +205,68 @@ def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddS
     return resolve_sdd_store(workspace, workspace_num)
 
 
+def ensure_workspace_sdd_link(workspace_dir: str | Path, workspace_num: int) -> None:
+    """Best-effort workspace-local view of a non-in-tree SDD store.
+
+    Managed workspaces validate relative prompt references from their own CWD,
+    while local/separate SDD stores live under the primary checkout.  Link the
+    workspace's ``.sase/sdd`` to that primary store so relative references such
+    as ``@.sase/sdd/tales/...`` resolve before prompt validation runs.
+    """
+
+    workspace = Path(workspace_dir).expanduser()
+    try:
+        store = resolve_sdd_store(workspace, workspace_num)
+        if store.is_in_tree:
+            return
+
+        workspace_sdd = workspace / ".sase" / "sdd"
+        if _paths_same_file(workspace_sdd, store.sdd_dir):
+            _refresh_materialized_store(store.sdd_dir)
+            return
+
+        if not store.sdd_dir.exists():
+            try:
+                store = materialize_sdd_store(workspace, workspace_num)
+            except Exception:
+                _logger.warning(
+                    "Failed to materialize SDD store for workspace %s",
+                    workspace,
+                    exc_info=True,
+                )
+                return
+            if not store.sdd_dir.exists():
+                _logger.warning(
+                    "SDD store directory does not exist for workspace %s: %s",
+                    workspace,
+                    store.sdd_dir,
+                )
+                return
+
+        _refresh_materialized_store(store.sdd_dir)
+
+        if _paths_same_file(workspace_sdd, store.sdd_dir):
+            return
+
+        workspace_sdd.parent.mkdir(parents=True, exist_ok=True)
+        if workspace_sdd.is_symlink():
+            workspace_sdd.unlink()
+        elif os.path.lexists(workspace_sdd):
+            _logger.warning(
+                "Refusing to overwrite real SDD directory at %s",
+                workspace_sdd,
+            )
+            return
+
+        workspace_sdd.symlink_to(store.sdd_dir, target_is_directory=True)
+    except Exception:
+        _logger.warning(
+            "Failed to ensure workspace SDD link for workspace %s",
+            workspace,
+            exc_info=True,
+        )
+
+
 def read_sdd_store_record(primary_workspace_dir: str | Path) -> SddStoreRecord | None:
     """Read the optional store record with an mtime/size cache."""
 
@@ -298,6 +361,15 @@ def _sdd_dir_for_storage(
         return workspace / "sdd"
     primary = get_primary_workspace_dir(str(workspace), workspace_num)
     return Path(primary) / ".sase" / "sdd"
+
+
+def _paths_same_file(left: Path, right: Path) -> bool:
+    if left.expanduser().absolute() == right.expanduser().absolute():
+        return True
+    try:
+        return left.samefile(right)
+    except OSError:
+        return False
 
 
 def _provider_sdd_storage_policy(workspace_dir: str | Path) -> SddStorage | None:

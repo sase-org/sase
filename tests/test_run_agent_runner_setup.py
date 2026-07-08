@@ -13,6 +13,7 @@ from sase.axe.run_agent_exec_markers import (
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
     prepare_linked_repo_workspaces_if_needed,
+    prepare_workspace_if_needed,
     preprocess_prompt_xprompts,
     refresh_linked_repos_for_workspace,
     setup_artifacts_directory,
@@ -179,6 +180,80 @@ def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> Non
 
     assert calls == [str(tmp_path)]
     assert (tmp_path / "workflow_state.json").is_file()
+
+
+def test_prepare_workspace_if_needed_invokes_sdd_link_after_prepare() -> None:
+    calls: list[tuple[str, object]] = []
+
+    def prepare_workspace(*args: object, **kwargs: object) -> bool:
+        calls.append(("prepare", args))
+        return True
+
+    def ensure_workspace_sdd_link(workspace_dir: str, workspace_num: int) -> None:
+        calls.append(("link", (workspace_dir, workspace_num)))
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            side_effect=prepare_workspace,
+        ),
+        patch(
+            "sase.sdd.store.ensure_workspace_sdd_link",
+            side_effect=ensure_workspace_sdd_link,
+        ),
+    ):
+        prepare_workspace_if_needed(
+            workspace_dir="/tmp/workspace",
+            workspace_num=7,
+            cl_name="feature",
+            update_target="main",
+            project_name="sase",
+            is_home_mode=False,
+            retry_handoff=None,
+        )
+
+    assert calls == [
+        ("prepare", ("/tmp/workspace", "feature", "main")),
+        ("link", ("/tmp/workspace", 7)),
+    ]
+
+
+def test_prepare_workspace_if_needed_skips_sdd_link_for_home_mode() -> None:
+    with (
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch("sase.sdd.store.ensure_workspace_sdd_link") as ensure_link,
+    ):
+        prepare_workspace_if_needed(
+            workspace_dir="/tmp/workspace",
+            workspace_num=7,
+            cl_name="feature",
+            update_target="main",
+            project_name="sase",
+            is_home_mode=True,
+            retry_handoff=None,
+        )
+
+    prepare.assert_not_called()
+    ensure_link.assert_not_called()
+
+
+def test_prepare_workspace_if_needed_skips_sdd_link_for_retry_handoff() -> None:
+    with (
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch("sase.sdd.store.ensure_workspace_sdd_link") as ensure_link,
+    ):
+        prepare_workspace_if_needed(
+            workspace_dir="/tmp/workspace",
+            workspace_num=7,
+            cl_name="feature",
+            update_target="main",
+            project_name="sase",
+            is_home_mode=False,
+            retry_handoff=object(),
+        )
+
+    prepare.assert_not_called()
+    ensure_link.assert_not_called()
 
 
 def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note(
