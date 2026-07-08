@@ -187,6 +187,21 @@ class WorkspaceHookSpec:
     ) -> dict[str, str] | None: ...
 
     @hookspec(firstresult=True)
+    def ws_materialize_sdd_store(
+        self,
+        primary_workspace_dir: str,
+        workspace_dir: str,
+        options: dict[str, object],
+    ) -> dict[str, object] | None:
+        """Materialize an opted-in external SDD store at setup time.
+
+        Providers should return a schema-versioned record mapping for
+        ``.sase/sdd-store.json`` or ``None`` when they do not own the current
+        workspace.
+        """
+        ...
+
+    @hookspec(firstresult=True)
     def ws_extract_change_identifier(self, pr_url: str) -> tuple[str, str] | None: ...
 
     @hookspec(firstresult=True)

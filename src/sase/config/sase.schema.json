@@ -991,6 +991,21 @@
           "type": "boolean",
           "description": "Deprecated alias for sdd.storage: true maps to in_tree and false maps to auto when sdd.storage is auto",
           "default": false
+        },
+        "push_after_commit": {
+          "description": "Controls git push after SDD commits in separate_repo storage. true pushes synchronously, false skips push, and async starts a detached background push.",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "async"
+              ]
+            }
+          ],
+          "default": "async"
         }
       }
     },

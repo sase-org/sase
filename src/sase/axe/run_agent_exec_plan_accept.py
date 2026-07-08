@@ -275,12 +275,12 @@ def handle_accepted_plan(
 
     # Write SDD files (spec + plan) to project
     from sase.sdd.files import (
-        commit_sdd_files,
+        commit_sdd_store_files,
         ensure_bare_git_sdd_initialized,
         expand_prompt_for_spec,
         write_sdd_files,
     )
-    from sase.sdd.store import resolve_sdd_store
+    from sase.sdd.store import materialize_sdd_store
 
     sdd_plan_name: str | None = None
     sdd_plan_path: Path | None = None
@@ -288,7 +288,7 @@ def handle_accepted_plan(
     sdd_in_tree = True  # safe default (in-tree path is the no-op path)
     sdd_dir = Path(ctx.workspace_dir)
     try:
-        sdd_store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num)
+        sdd_store = materialize_sdd_store(ctx.workspace_dir, ctx.workspace_num)
         sdd_in_tree = sdd_store.is_in_tree
         sdd_dir = sdd_store.sdd_dir
         if sdd_in_tree:
@@ -323,8 +323,8 @@ def handle_accepted_plan(
             },
         )
         if not sdd_in_tree:
-            commit_sdd_files(
-                sdd_dir,
+            commit_sdd_store_files(
+                sdd_store,
                 f"Add SDD files for {sdd_plan_name}",
                 paths=sdd_commit_paths,
             )
@@ -348,8 +348,8 @@ def handle_accepted_plan(
                 plan_kind=plan_kind,
             )
         else:
-            commit_sdd_files(
-                sdd_dir,
+            commit_sdd_store_files(
+                sdd_store,
                 f"Add SDD files for {sdd_plan_name}",
                 paths=sdd_commit_paths,
             )

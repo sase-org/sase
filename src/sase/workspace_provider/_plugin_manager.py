@@ -86,6 +86,18 @@ class WorkspacePluginManager:
             ref=ref, workflow_type=workflow_type, n=n, release=release
         )
 
+    def materialize_sdd_store(
+        self,
+        primary_workspace_dir: str,
+        workspace_dir: str,
+        options: dict[str, object],
+    ) -> dict[str, object] | None:
+        return self._pm.hook.ws_materialize_sdd_store(  # type: ignore[no-any-return]
+            primary_workspace_dir=primary_workspace_dir,
+            workspace_dir=workspace_dir,
+            options=options,
+        )
+
     def extract_change_identifier(self, pr_url: str) -> tuple[str, str] | None:
         return self._pm.hook.ws_extract_change_identifier(  # type: ignore[no-any-return]
             pr_url=pr_url

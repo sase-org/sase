@@ -4,10 +4,13 @@ import subprocess
 from pathlib import Path
 
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
-from sase.sdd.files import get_primary_workspace_dir, commit_sdd_files
+from sase.sdd.files import get_primary_workspace_dir, commit_sdd_store_files
 from sase.sdd.store import (
+    SDD_STORAGE_LOCAL,
     SDD_STORAGE_IN_TREE,
+    SddStore,
     get_configured_sdd_storage,
+    materialize_sdd_store,
     resolve_sdd_store,
 )
 
@@ -34,6 +37,12 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
     """
     primary = get_primary_workspace_dir(workspace_dir, workspace_num)
     sdd_dir = Path(primary) / ".sase" / "sdd"
+    resolved_store = resolve_sdd_store(workspace_dir, workspace_num)
+    store = (
+        resolved_store
+        if resolved_store.sdd_dir == sdd_dir
+        else SddStore(SDD_STORAGE_LOCAL, sdd_dir, sdd_dir)
+    )
 
     print(f"  Creating {sdd_dir}", flush=True)
     sdd_dir.mkdir(parents=True, exist_ok=True)
@@ -62,8 +71,8 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
         print("  Initializing beads ...", flush=True)
         BeadProject.init(sdd_dir, beads_dirname=BEADS_DIRNAME_NON_VC)
 
-    commit_sdd_files(
-        sdd_dir,
+    commit_sdd_store_files(
+        store,
         "Initialize beads",
         auto_commit_type="beads",
         paths=[gitignore, beads_dir],
@@ -79,7 +88,7 @@ def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
     For other repos: delegates to ``init_beads()`` for ``.sase/sdd/beads/``.
     """
     primary = get_primary_workspace_dir(workspace_dir, workspace_num)
-    store = resolve_sdd_store(workspace_dir, workspace_num)
+    store = materialize_sdd_store(workspace_dir, workspace_num)
     if store.is_in_tree:
         beads_dir = Path(primary, BEADS_DIRNAME)
         if not beads_dir.is_dir():
@@ -92,6 +101,6 @@ def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
             )
             BeadProject.init(Path(primary))
     else:
-        beads_dir = Path(primary, ".sase", "sdd", BEADS_DIRNAME_NON_VC)
+        beads_dir = store.sdd_dir / BEADS_DIRNAME_NON_VC
         if not beads_dir.is_dir():
             init_beads(workspace_dir, workspace_num)

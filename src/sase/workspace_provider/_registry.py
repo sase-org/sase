@@ -269,6 +269,19 @@ def get_workspace_directory(
     )
 
 
+def materialize_sdd_store(
+    primary_workspace_dir: str,
+    workspace_dir: str,
+    options: dict[str, object],
+) -> dict[str, object] | None:
+    """Materialize an external SDD store via workspace provider plugins."""
+    return _get_manager().materialize_sdd_store(
+        primary_workspace_dir=primary_workspace_dir,
+        workspace_dir=workspace_dir,
+        options=options,
+    )
+
+
 def prepare_mail(
     changespec_name: str,
     changespec_parent: str | None,

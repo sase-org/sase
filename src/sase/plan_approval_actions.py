@@ -314,17 +314,18 @@ def _archive_plan_for_approval(
         from sase.llm_provider._plan_utils import add_create_time_frontmatter
         from sase.running_field import get_workspace_directory
         from sase.sdd.files import (
+            commit_sdd_store_files,
             ensure_bare_git_sdd_initialized,
             get_yyyymm,
         )
-        from sase.sdd.store import resolve_sdd_store
+        from sase.sdd.store import materialize_sdd_store
 
         project_dir = notification.host_action_data.get("project_dir")
         if not project_dir:
             return None
         project_basename = os.path.basename(str(project_dir))
         workspace_dir = get_workspace_directory(project_basename, 1)
-        sdd_store = resolve_sdd_store(workspace_dir, 1)
+        sdd_store = materialize_sdd_store(workspace_dir, 1)
         sdd_dir = sdd_store.sdd_dir
         if sdd_store.is_in_tree:
             ensure_bare_git_sdd_initialized(
@@ -345,6 +346,12 @@ def _archive_plan_for_approval(
         content = format_with_prettier(src_plan.read_text(encoding="utf-8"))
         dest = dest_dir / src_plan.name
         dest.write_text(add_create_time_frontmatter(content), encoding="utf-8")
+        if not sdd_store.is_in_tree:
+            commit_sdd_store_files(
+                sdd_store,
+                f"Archive approved plan {src_plan.stem}",
+                paths=[dest],
+            )
         return str(dest)
     except Exception:
         return None

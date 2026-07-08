@@ -6,9 +6,12 @@ import subprocess
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.sdd._init_files import ensure_sdd_initialized
+
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
 
 _logger = logging.getLogger(__name__)
 
@@ -162,6 +165,11 @@ def _network_git_timeout() -> float:
     return _float_env(ENV_NETWORK_TIMEOUT, DEFAULT_NETWORK_GIT_TIMEOUT_SECONDS)
 
 
+def network_git_timeout() -> float:
+    """Return the configured timeout for SDD network git operations."""
+    return _network_git_timeout()
+
+
 def _slow_git_ms() -> float:
     return _float_env(ENV_SLOW_MS, DEFAULT_SLOW_GIT_MS)
 
@@ -183,18 +191,19 @@ def commit_sdd_files(
     *,
     auto_commit_type: str = "sdd",
     paths: Iterable[str | Path] | None = None,
-) -> None:
+) -> bool:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
-    No-op if `sdd_dir` is not a git repo or there are no staged changes.
+    Returns true only when a new commit is created. No-ops if `sdd_dir` is not
+    a git repo or there are no staged changes.
     """
     if not (sdd_dir / ".git").is_dir():
-        return
+        return False
 
     pathspecs = normalize_sdd_commit_pathspecs(sdd_dir, paths)
     changed_files = changed_sdd_files(sdd_dir, pathspecs)
     if not changed_files:
-        return
+        return False
 
     _run_git(
         ["add", "--"] + changed_files,
@@ -224,6 +233,82 @@ def commit_sdd_files(
             capture_output=True,
             op="sdd.commit",
         )
+        return True
+    return False
+
+
+def commit_sdd_store_files(
+    store: "SddStore",
+    message: str,
+    *,
+    auto_commit_type: str = "sdd",
+    paths: Iterable[str | Path] | None = None,
+    push_after_commit: bool | Literal["async"] | None = None,
+) -> bool:
+    """Commit SDD files and push separate-repo stores per config.
+
+    Push failure never changes the commit result; the local commit is
+    preserved and failures are logged.
+    """
+
+    committed = commit_sdd_files(
+        store.repo_root,
+        message,
+        auto_commit_type=auto_commit_type,
+        paths=paths,
+    )
+    if committed:
+        _push_sdd_store_after_commit(store, push_after_commit=push_after_commit)
+    return committed
+
+
+def _sdd_push_after_commit_config() -> bool | Literal["async"]:
+    """Return the configured SDD push mode."""
+
+    try:
+        from sase.config import load_merged_config
+
+        raw = load_merged_config().get("sdd", {}).get("push_after_commit", "async")
+    except Exception:
+        return "async"
+    if raw in (True, False, "async"):
+        return raw  # type: ignore[return-value]
+    return "async"
+
+
+def _push_sdd_store_after_commit(
+    store: "SddStore",
+    *,
+    push_after_commit: bool | Literal["async"] | None,
+) -> None:
+    from sase.sdd.store import SDD_STORAGE_SEPARATE_REPO
+
+    if store.storage != SDD_STORAGE_SEPARATE_REPO:
+        return
+
+    mode = (
+        _sdd_push_after_commit_config()
+        if push_after_commit is None
+        else push_after_commit
+    )
+    if mode is False:
+        return
+
+    from sase.bead.sync import push_bead_work_launch, push_bead_work_launch_async
+
+    if mode == "async":
+        handle = push_bead_work_launch_async(store.repo_root)
+        if handle is not None:
+            _logger.info(
+                "Started async SDD push pid=%s log=%s",
+                handle.pid,
+                handle.log_path,
+            )
+        return
+
+    outcome = push_bead_work_launch(store.repo_root)
+    if outcome.error:
+        _logger.warning("SDD git push failed after local commit: %s", outcome.error)
 
 
 def ensure_bare_git_sdd_initialized(

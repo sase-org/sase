@@ -372,6 +372,12 @@ telemetry:
 sdd:
   storage: auto
   version_controlled: false
+  # Controls `git push` after SDD commits in separate_repo storage. Accepts:
+  #   true  - push synchronously; failures only warn and the local commit is
+  #           preserved so the user can push manually later.
+  #   false - never push; commit locally only.
+  #   async - launch a detached background `git push` (default).
+  push_after_commit: async
 
 workspace:
   # Workspace root policy: "xdg-state" (default platform state dir),

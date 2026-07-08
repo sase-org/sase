@@ -63,6 +63,15 @@ def run_sdd_init(args: argparse.Namespace) -> int:
         print(_NON_PROJECT_SDD_MESSAGE, file=sys.stderr)
         return 1
 
+    project_root = _sdd_init_project_root(path)
+    try:
+        from sase.sdd.store import SddMaterializationError, materialize_sdd_store
+
+        materialize_sdd_store(project_root, 1)
+    except SddMaterializationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
     try:
         write_sdd_init_config(path)
     except SddInitConfigError as exc:

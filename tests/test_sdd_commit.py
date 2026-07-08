@@ -3,10 +3,14 @@
 import subprocess
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.axe.run_agent_exec_plan_accept import _commit_sdd_files
-from sase.sdd.files import commit_sdd_files
+from sase.sdd.files import commit_sdd_files, commit_sdd_store_files
+from sase.sdd.store import SddStore
 
 
 def test_commit_sdd_files() -> None:
@@ -287,3 +291,70 @@ def test_commit_sdd_files_logs_failure() -> None:
             in mock_logger.warning.call_args[0][0]
             % mock_logger.warning.call_args[0][1:]
         )
+
+
+@pytest.mark.parametrize(
+    ("mode", "async_remote", "sync_error", "expected_sync", "expected_async"),
+    [
+        (True, True, None, 1, 0),
+        (False, True, None, 0, 0),
+        ("async", True, None, 0, 1),
+        ("async", False, None, 0, 1),
+        (True, True, "push failed", 1, 0),
+    ],
+)
+def test_commit_sdd_store_files_push_matrix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: bool | str,
+    async_remote: bool,
+    sync_error: str | None,
+    expected_sync: int,
+    expected_async: int,
+) -> None:
+    store = SddStore(
+        storage="separate_repo",
+        sdd_dir=tmp_path,
+        repo_root=tmp_path,
+        remote_url="git@example.com:owner/repo-sdd.git" if async_remote else None,
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"sdd": {"push_after_commit": mode}},
+    )
+    monkeypatch.setattr("sase.sdd._commit.commit_sdd_files", lambda *a, **k: True)
+    sync_calls: list[Path] = []
+    async_calls: list[Path] = []
+
+    def fake_sync(path: Path) -> SimpleNamespace:
+        sync_calls.append(path)
+        return SimpleNamespace(pushed=sync_error is None, error=sync_error)
+
+    def fake_async(path: Path) -> SimpleNamespace | None:
+        async_calls.append(path)
+        if not async_remote:
+            return None
+        return SimpleNamespace(pid=123, log_path=tmp_path / "push.log")
+
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_sync)
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch_async", fake_async)
+
+    assert commit_sdd_store_files(store, "Commit SDD") is True
+    assert sync_calls == [tmp_path] * expected_sync
+    assert async_calls == [tmp_path] * expected_async
+
+
+def test_commit_sdd_store_files_does_not_push_local_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SddStore(storage="local", sdd_dir=tmp_path, repo_root=tmp_path)
+    monkeypatch.setattr("sase.sdd._commit.commit_sdd_files", lambda *a, **k: True)
+    sync = MagicMock()
+    async_push = MagicMock()
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", sync)
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch_async", async_push)
+
+    assert commit_sdd_store_files(store, "Commit SDD") is True
+    sync.assert_not_called()
+    async_push.assert_not_called()

@@ -8,15 +8,22 @@ continues to receive fully resolved paths.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 import json
+import logging
 from pathlib import Path
+import subprocess
 from typing import Any, Literal, cast
+from collections.abc import Mapping
 
 from sase.config import load_merged_config
 from sase.sdd._paths import get_primary_workspace_dir
 
+_logger = logging.getLogger(__name__)
+
 SddStorage = Literal["in_tree", "local", "separate_repo"]
 SddConfiguredStorage = Literal["auto", "in_tree", "local", "separate_repo"]
+SddPushAfterCommit = bool | Literal["async"]
 
 SDD_STORAGE_AUTO: SddConfiguredStorage = "auto"
 SDD_STORAGE_IN_TREE: SddStorage = "in_tree"
@@ -29,6 +36,11 @@ _CONFIGURED_STORAGE_VALUES: frozenset[str] = frozenset(
     {"auto", "in_tree", "local", "separate_repo"}
 )
 _STORAGE_VALUES: frozenset[str] = frozenset({"in_tree", "local", "separate_repo"})
+_DISCOVERY_VALUES: frozenset[str] = frozenset({"found", "not_found"})
+
+
+class SddMaterializationError(RuntimeError):
+    """Raised when explicit separate-repo SDD storage cannot be materialized."""
 
 
 @dataclass(frozen=True)
@@ -42,6 +54,7 @@ class SddStoreRecord:
     repo: str | None = None
     remote_url: str | None = None
     discovery: str | None = None
+    probed_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +155,55 @@ def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore
     )
 
 
+def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore:
+    """Run setup-time SDD store materialization when a provider opts in.
+
+    Providers are only consulted when either config explicitly requests
+    ``separate_repo`` storage or the detected provider declares that policy.
+    Existing records are trusted and keep this path local-only.
+    """
+
+    workspace = Path(workspace_dir).expanduser()
+    primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
+    configured = get_configured_sdd_storage()
+    record = read_sdd_store_record(primary)
+    if record is not None:
+        if configured == SDD_STORAGE_SEPARATE_REPO and not _is_materialized_record(
+            record
+        ):
+            raise SddMaterializationError(_store_not_materialized_message(record))
+        return resolve_sdd_store(workspace, workspace_num)
+
+    policy = _provider_sdd_storage_policy(workspace)
+    if configured != SDD_STORAGE_SEPARATE_REPO and policy != SDD_STORAGE_SEPARATE_REPO:
+        return resolve_sdd_store(workspace, workspace_num)
+
+    result = _dispatch_materialize_sdd_store(
+        primary,
+        workspace,
+        workspace_num=workspace_num,
+        configured_storage=configured,
+        provider_policy=policy,
+    )
+    if result is None:
+        if configured == SDD_STORAGE_SEPARATE_REPO:
+            raise SddMaterializationError(_store_not_materialized_message(None))
+        return resolve_sdd_store(workspace, workspace_num)
+
+    written_record = _write_sdd_store_record(primary, result)
+    if not _is_materialized_record(written_record):
+        if configured == SDD_STORAGE_SEPARATE_REPO:
+            raise SddMaterializationError(
+                _store_not_materialized_message(written_record)
+            )
+        return resolve_sdd_store(workspace, workspace_num)
+
+    store = resolve_sdd_store(workspace, workspace_num)
+    _refresh_materialized_store(store.sdd_dir)
+    _ensure_materialized_store_initialized(store)
+    return resolve_sdd_store(workspace, workspace_num)
+
+
 def read_sdd_store_record(primary_workspace_dir: str | Path) -> SddStoreRecord | None:
     """Read the optional store record with an mtime/size cache."""
 
@@ -160,6 +222,25 @@ def read_sdd_store_record(primary_workspace_dir: str | Path) -> SddStoreRecord |
     record = _load_sdd_store_record(record_path)
     _record_cache[record_path] = (token, record)
     return record
+
+
+def _write_sdd_store_record(
+    primary_workspace_dir: str | Path,
+    record: SddStoreRecord | Mapping[str, Any],
+) -> SddStoreRecord:
+    """Validate and atomically write the materialized-store record."""
+
+    normalized = _coerce_sdd_store_record(record)
+    record_path = _sdd_store_record_path(primary_workspace_dir)
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = record_path.with_name(f".{record_path.name}.tmp")
+    temp_path.write_text(
+        json.dumps(_record_to_json(normalized), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temp_path.replace(record_path)
+    _record_cache.pop(record_path, None)
+    return normalized
 
 
 def _sdd_store_record_path(primary_workspace_dir: str | Path) -> Path:
@@ -190,13 +271,12 @@ def _sdd_dir_for_storage(
 
 
 def _provider_sdd_storage_policy(workspace_dir: str | Path) -> SddStorage | None:
+    vcs_name = _detect_vcs_name(workspace_dir)
+    if not vcs_name:
+        return None
     try:
-        from sase.vcs_provider import detect_vcs
         from sase.workspace_provider import get_sdd_storage_policy_by_vcs
 
-        vcs_name = detect_vcs(str(Path(workspace_dir).expanduser()))
-        if not vcs_name:
-            return None
         policy = get_sdd_storage_policy_by_vcs(vcs_name)
     except Exception:
         return None
@@ -204,6 +284,102 @@ def _provider_sdd_storage_policy(workspace_dir: str | Path) -> SddStorage | None
     if policy in _STORAGE_VALUES:
         return cast(SddStorage, policy)
     return None
+
+
+def _detect_vcs_name(workspace_dir: str | Path) -> str | None:
+    try:
+        from sase.vcs_provider import detect_vcs
+
+        return detect_vcs(str(Path(workspace_dir).expanduser()))
+    except Exception:
+        return None
+
+
+def _dispatch_materialize_sdd_store(
+    primary: Path,
+    workspace: Path,
+    *,
+    workspace_num: int,
+    configured_storage: SddConfiguredStorage,
+    provider_policy: SddStorage | None,
+) -> Mapping[str, Any] | None:
+    try:
+        from sase.workspace_provider import materialize_sdd_store as dispatch
+
+        result = dispatch(
+            str(primary),
+            str(workspace),
+            {
+                "workspace_num": workspace_num,
+                "configured_storage": configured_storage,
+                "provider_policy": provider_policy or "",
+                "vcs_name": _detect_vcs_name(workspace) or "",
+            },
+        )
+    except Exception:
+        if configured_storage == SDD_STORAGE_SEPARATE_REPO:
+            raise
+        _logger.warning("SDD store materialization hook failed", exc_info=True)
+        return None
+    return result
+
+
+def _refresh_materialized_store(sdd_dir: Path) -> None:
+    """Best-effort fast-forward refresh for an existing materialized clone."""
+
+    if not (sdd_dir / ".git").is_dir():
+        return
+    try:
+        from sase.sdd._commit import network_git_timeout
+
+        result = subprocess.run(
+            ["git", "pull", "--ff-only"],
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+            timeout=network_git_timeout(),
+            check=False,
+        )
+    except Exception:
+        _logger.warning("Failed to refresh materialized SDD store", exc_info=True)
+        return
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        _logger.warning(
+            "Failed to refresh materialized SDD store in %s: %s",
+            sdd_dir,
+            detail or f"git pull exited {result.returncode}",
+        )
+
+
+def _ensure_materialized_store_initialized(store: SddStore) -> None:
+    """Create generated guides and bead files inside a materialized store."""
+
+    from sase.bead.project import BEADS_DIRNAME_NON_VC, BeadProject
+    from sase.sdd._commit import commit_sdd_store_files
+    from sase.sdd.files import ensure_sdd_initialized
+
+    sdd_dir = store.sdd_dir
+    sdd_dir.mkdir(parents=True, exist_ok=True)
+    changed_paths: list[Path] = list(ensure_sdd_initialized(sdd_dir))
+
+    gitignore = sdd_dir / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text("beads/beads.db\n", encoding="utf-8")
+        changed_paths.append(gitignore)
+
+    beads_dir = sdd_dir / BEADS_DIRNAME_NON_VC
+    if not beads_dir.is_dir():
+        BeadProject.init(sdd_dir, beads_dirname=BEADS_DIRNAME_NON_VC)
+        changed_paths.append(beads_dir)
+
+    if changed_paths:
+        commit_sdd_store_files(
+            store,
+            "Initialize SDD store",
+            auto_commit_type="beads",
+            paths=changed_paths,
+        )
 
 
 def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
@@ -232,6 +408,7 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
         repo=_optional_str(raw.get("repo")),
         remote_url=_optional_str(raw.get("remote_url")),
         discovery=_optional_str(raw.get("discovery")),
+        probed_at=_optional_str(raw.get("probed_at")),
     )
 
 
@@ -247,6 +424,66 @@ def _coerce_configured_storage(value: object) -> SddConfiguredStorage:
     if isinstance(value, str) and value in _CONFIGURED_STORAGE_VALUES:
         return cast(SddConfiguredStorage, value)
     return SDD_STORAGE_AUTO
+
+
+def _coerce_sdd_store_record(
+    record: SddStoreRecord | Mapping[str, Any],
+) -> SddStoreRecord:
+    if isinstance(record, SddStoreRecord):
+        raw: Mapping[str, Any] = _record_to_json(record)
+    else:
+        raw = record
+
+    storage = raw.get("storage")
+    if storage != SDD_STORAGE_SEPARATE_REPO:
+        raise ValueError("SDD store record storage must be 'separate_repo'")
+
+    discovery = raw.get("discovery") or "found"
+    if discovery not in _DISCOVERY_VALUES:
+        raise ValueError("SDD store record discovery must be 'found' or 'not_found'")
+
+    schema_version = raw.get("schema_version", 1)
+    try:
+        schema_version_int = int(schema_version)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("SDD store record schema_version must be an integer") from exc
+
+    return SddStoreRecord(
+        schema_version=schema_version_int,
+        storage=SDD_STORAGE_SEPARATE_REPO,
+        provider=_optional_str(raw.get("provider")),
+        host=_optional_str(raw.get("host")),
+        repo=_optional_str(raw.get("repo")),
+        remote_url=_optional_str(raw.get("remote_url")),
+        discovery=cast(str, discovery),
+        probed_at=_optional_str(raw.get("probed_at")) or _utc_now_iso(),
+    )
+
+
+def _record_to_json(record: SddStoreRecord) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "schema_version": record.schema_version,
+        "storage": record.storage,
+    }
+    for key in ("provider", "host", "repo", "remote_url", "discovery", "probed_at"):
+        value = getattr(record, key)
+        if value is not None:
+            data[key] = value
+    return data
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _store_not_materialized_message(record: SddStoreRecord | None) -> str:
+    repo = record.repo if record is not None and record.repo else None
+    target = f"'{repo}'" if repo else "the expected SDD companion repository"
+    return (
+        f"SDD storage is configured as separate_repo, but {target} is not "
+        "materialized. Run `sase sdd migrate` to create or connect the "
+        "companion repository."
+    )
 
 
 def _optional_str(value: object) -> str | None:

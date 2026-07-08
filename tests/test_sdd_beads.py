@@ -89,7 +89,7 @@ def testinit_beads_creates_sdd_git_repo() -> None:
         with (
             patch("sase.sdd.beads.subprocess.run") as mock_run,
             patch("sase.sdd.beads.BeadProject.init") as mock_bead_init,
-            patch("sase.sdd.beads.commit_sdd_files") as mock_commit,
+            patch("sase.sdd.beads.commit_sdd_store_files") as mock_commit,
         ):
             mock_run.return_value = subprocess.CompletedProcess([], 0)
             result = init_beads(tmpdir, 1)
@@ -101,12 +101,13 @@ def testinit_beads_creates_sdd_git_repo() -> None:
         assert gitignore.exists()
         assert "beads/beads.db" in gitignore.read_text(encoding="utf-8")
         mock_bead_init.assert_called_once_with(sdd_dir, beads_dirname="beads")
-        mock_commit.assert_called_once_with(
-            sdd_dir,
-            "Initialize beads",
-            auto_commit_type="beads",
-            paths=[gitignore, sdd_dir / "beads"],
-        )
+        args, kwargs = mock_commit.call_args
+        assert args[0].sdd_dir == sdd_dir
+        assert args[1] == "Initialize beads"
+        assert kwargs == {
+            "auto_commit_type": "beads",
+            "paths": [gitignore, sdd_dir / "beads"],
+        }
 
 
 def testinit_beads_idempotent() -> None:

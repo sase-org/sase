@@ -89,6 +89,23 @@ def test_sdd_run_non_project_skips_without_writing(
     assert not (tmp_path / "sase.yml").exists()
 
 
+def test_sdd_run_invokes_materialization_before_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    calls: list[tuple[Path, int]] = []
+
+    def fake_materialize(path: Path, workspace_num: int) -> None:
+        calls.append((path, workspace_num))
+
+    monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", fake_materialize)
+
+    assert run_sdd_init(_args(tmp_path)) == 0
+    assert calls == [(tmp_path, 1)]
+    assert (tmp_path / "sase.yml").exists()
+
+
 def test_sdd_plan_stale_readmes_report_update_actions(tmp_path: Path) -> None:
     _mark_project(tmp_path)
     write_sdd_readme(str(tmp_path))
