@@ -182,17 +182,22 @@ Review this code for edge cases.
 For ordered multi-agent work, use literal `---` segment separators. Each segment becomes an agent, and `%wait` decides
 which ones depend on earlier work:
 
-```markdown
+```text
 ---
 xprompts:
   _common: "Follow the project coding conventions."
 ---
 
-%name:step1 #\_common Implement the new feature.
+%name:step1
+#_common
+Implement the new feature.
 
 ---
 
-%name:step2 %wait:step1 #\_common Write tests for the new feature.
+%name:step2
+%wait:step1
+#_common
+Write tests for the new feature.
 ```
 
 That launches two agents. `step2` starts after `step1` succeeds because the second segment waits on the first. YAML
