@@ -1006,6 +1006,21 @@
             }
           ],
           "default": "async"
+        },
+        "repo": {
+          "type": "object",
+          "description": "Companion SDD repository options for providers that support separate_repo storage",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Optional companion SDD repo override. Accepts a repo name or owner/repo; empty uses the provider convention.",
+              "default": ""
+            }
+          },
+          "default": {
+            "name": ""
+          }
         }
       }
     },
