@@ -13,6 +13,11 @@ from sase.main.init_registry import iter_init_command_specs
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
+_PRETTIER_MISSING_SKILL_DRIFT_NOTE = (
+    "stale counts may be inflated: prettier missing; generated skill files render "
+    "without deployed formatting"
+)
+
 
 def check_config_init(context: DoctorContext) -> DiagnosticCheck:
     """Run registered read-only init planners and summarize drift."""
@@ -33,6 +38,7 @@ def check_config_init(context: DoctorContext) -> DiagnosticCheck:
     blockers: list[str] = []
     warnings: list[str] = []
     action_count = 0
+    prettier_missing_skill_drift = False
 
     for spec in iter_init_command_specs():
         try:
@@ -56,6 +62,8 @@ def check_config_init(context: DoctorContext) -> DiagnosticCheck:
         rows.append(row)
         action_count += len(row["actions"])
         warnings.extend(str(item) for item in plan.warnings)
+        if _plan_has_prettier_missing_skill_drift(plan):
+            prettier_missing_skill_drift = True
         blockers.extend(str(item) for item in plan.blockers)
         if plan.actions:
             problems.append(f"{plan.command}: {plan.summary}")
@@ -69,7 +77,12 @@ def check_config_init(context: DoctorContext) -> DiagnosticCheck:
         warning_count=len(warnings),
         blocker_count=len(blockers),
     )
-    details = [*blockers, *warnings, *problems]
+    details = [
+        *blockers,
+        *([_PRETTIER_MISSING_SKILL_DRIFT_NOTE] if prettier_missing_skill_drift else []),
+        *warnings,
+        *problems,
+    ]
     next_steps = []
     if blockers or warnings or problems:
         next_steps.append("Run `sase init --check` for the full initialization plan.")
@@ -90,6 +103,7 @@ def check_config_init(context: DoctorContext) -> DiagnosticCheck:
             "action_count": action_count,
             "warning_count": len(warnings),
             "blocker_count": len(blockers),
+            "prettier_missing_skill_drift_note": prettier_missing_skill_drift,
         },
     )
 
@@ -111,6 +125,14 @@ def _plan_row(plan: InitPlan) -> dict[str, Any]:
         "warnings": list(plan.warnings),
         "blockers": list(plan.blockers),
     }
+
+
+def _plan_has_prettier_missing_skill_drift(plan: InitPlan) -> bool:
+    if plan.command != "skills" or not plan.actions:
+        return False
+    return any(
+        "prettier not found" in str(warning).lower() for warning in plan.warnings
+    )
 
 
 def _init_summary(

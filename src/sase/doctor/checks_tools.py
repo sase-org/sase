@@ -40,7 +40,8 @@ _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
     _ToolRequirement(
         "prettier",
         ("prettier",),
-        "prompt and generated Markdown formatting",
+        "prompt and generated skill Markdown formatting; missing Prettier can "
+        "inflate skill-drift reports",
     ),
 )
 

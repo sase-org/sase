@@ -135,3 +135,11 @@ def test_optional_tools_warns_with_affected_features(monkeypatch) -> None:
     assert "tmux" not in rows
     assert rows["bat"]["available"] is True
     assert any("terminal image artifact display" in detail for detail in check.details)
+    assert rows["prettier"]["feature"] == (
+        "prompt and generated skill Markdown formatting; missing Prettier can "
+        "inflate skill-drift reports"
+    )
+    assert any(
+        "missing Prettier can inflate skill-drift reports" in detail
+        for detail in check.details
+    )
