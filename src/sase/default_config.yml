@@ -35,6 +35,8 @@ mobile_gateway:
 ace:
   repro_output_dir: ""
   snippets: {}
+  tool_calls:
+    slow_threshold_seconds: 20
   artifact_viewer:
     video:
       audio: false

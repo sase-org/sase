@@ -135,6 +135,34 @@ def test_config_schema_accepts_agent_family_plan_approval_defaults() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_ace_tool_call_slow_threshold() -> None:
+    schema = _schema()
+    config = {"ace": {"tool_calls": {"slow_threshold_seconds": 30}}}
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
+
+
+def test_config_schema_rejects_negative_ace_tool_call_slow_threshold() -> None:
+    schema = _schema()
+    config = {"ace": {"tool_calls": {"slow_threshold_seconds": -1}}}
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path) == ["ace", "tool_calls", "slow_threshold_seconds"]
+        and "less than the minimum" in error.message
+        for error in errors
+    )
+
+
 def test_config_schema_rejects_worker_models_mapping() -> None:
     """``worker_models`` was removed by the model-alias migration (epic sase-5d)."""
     schema = _schema()

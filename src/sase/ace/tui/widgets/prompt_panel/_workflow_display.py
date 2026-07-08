@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.worker import Worker, WorkerState
 
 from ...tools import build_slow_tool_sources, supports_slow_tool_sources
+from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...models._loaders._json_cache import load_json_cached
 from ...models.agent import Agent
 from ._workflow_data import (
@@ -48,11 +49,13 @@ class WorkflowDisplayMixin:
             if supports_slow_tool_sources(agent)
             else None
         )
+        slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_widget(self)
         self.update(  # type: ignore[attr-defined]
             _build_workflow_detail_renderable(
                 agent,
                 snapshot,
                 slow_tool_sources=slow_tool_sources,
+                slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
             )
         )
 
@@ -79,6 +82,7 @@ class WorkflowDisplayMixin:
             is_current=is_current,
         )
         self._workflow_detail_request = request  # type: ignore[attr-defined]
+        slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_widget(self)
 
         def render_task() -> Group:
             snapshot = _load_workflow_detail_snapshot(agent)
@@ -91,6 +95,7 @@ class WorkflowDisplayMixin:
                 agent,
                 snapshot,
                 slow_tool_sources=slow_tool_sources,
+                slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
             )
 
         self._workflow_detail_worker = self.run_worker(  # type: ignore[attr-defined]

@@ -10,7 +10,10 @@ from rich.text import Text
 
 from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
-from sase.ace.tui.tools.slow import format_long_duration
+from sase.ace.tui.tools.slow import (
+    format_long_duration,
+    normalize_slow_tool_call_threshold_ms,
+)
 
 from ._tools_panel_details import append_expanded_block, expanded_markdown_lines
 from ._tools_panel_time import format_timestamp
@@ -33,10 +36,15 @@ _CHIP_COLORS = (
 _SOURCE_CHIP_WIDTH = 7
 
 
-def format_duration(duration_ms: int | None) -> str:
+def format_duration(
+    duration_ms: int | None,
+    *,
+    threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+) -> str:
     if duration_ms is None:
         return ""
-    if duration_ms >= SLOW_TOOL_CALL_THRESHOLD_MS:
+    threshold_ms = normalize_slow_tool_call_threshold_ms(threshold_ms)
+    if duration_ms >= threshold_ms:
         return format_long_duration(duration_ms)
     if duration_ms < 1000:
         return f"{duration_ms}ms"
@@ -137,9 +145,13 @@ def build_tools_timeline_text(
     is_stale: bool = False,
     rows: Sequence[ToolTimelineRow] | None = None,
     detail_level: ToolDetailLevel | int = ToolDetailLevel.COMPACT,
+    slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
 ) -> Text:
     """Build the Rich Text timeline for tool-call entries."""
     detail_level = coerce_detail_level(detail_level)
+    slow_tool_call_threshold_ms = normalize_slow_tool_call_threshold_ms(
+        slow_tool_call_threshold_ms
+    )
     if entries is None:
         return Text("No tools artifact available", style="dim italic")
     if not entries:
@@ -183,13 +195,16 @@ def build_tools_timeline_text(
             output.append("  ")
             _append_bounded(output, target, style="#D7D7AF", limit=88)
 
-        duration = format_duration(entry.duration_ms)
+        duration = format_duration(
+            entry.duration_ms,
+            threshold_ms=slow_tool_call_threshold_ms,
+        )
         if duration:
             output.append("  ")
             style = (
                 "bold #FFAF5F"
                 if entry.duration_ms is not None
-                and entry.duration_ms >= SLOW_TOOL_CALL_THRESHOLD_MS
+                and entry.duration_ms >= slow_tool_call_threshold_ms
                 else "dim"
             )
             output.append(duration, style=style)
@@ -212,9 +227,13 @@ def build_tools_timeline_markdown(
     *,
     rows: Sequence[ToolTimelineRow] | None = None,
     detail_level: ToolDetailLevel | int = ToolDetailLevel.COMPACT,
+    slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
 ) -> str | None:
     """Build a plain markdown rendering for editor/export actions."""
     detail_level = coerce_detail_level(detail_level)
+    slow_tool_call_threshold_ms = normalize_slow_tool_call_threshold_ms(
+        slow_tool_call_threshold_ms
+    )
     if entries is None:
         return "TOOLS\n\nNo tools artifact available.\n"
     if not entries:
@@ -241,8 +260,12 @@ def build_tools_timeline_markdown(
         pieces.append(entry.display_tool_name)
         if entry.compact_target:
             pieces.append(entry.compact_target)
-        if format_duration(entry.duration_ms):
-            pieces.append(format_duration(entry.duration_ms))
+        duration = format_duration(
+            entry.duration_ms,
+            threshold_ms=slow_tool_call_threshold_ms,
+        )
+        if duration:
+            pieces.append(duration)
         lines.append(" | ".join(pieces))
         if entry.detail:
             lines.append(f"  {entry.detail}")

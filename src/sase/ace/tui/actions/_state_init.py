@@ -119,6 +119,9 @@ class StateInitMixin:
         self.query_string = query
         self.parsed_query = parse_query(query)
         self.refresh_interval = refresh_interval
+        from ..tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+
+        self._slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS
         self._refresh_timer: Timer | None = None
         self._countdown_timer: Timer | None = None
         self._countdown_remaining = refresh_interval

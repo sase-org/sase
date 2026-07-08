@@ -4,6 +4,7 @@ from rich.text import Text
 
 from sase.project_display_names import humanize_vcs_refs_in_text
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
@@ -140,6 +141,7 @@ class AgentHintsDisplayMixin:
             hint_state=header_hint_state,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
+            slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
         )
         hint_counter = header_hint_state.hint_counter
 

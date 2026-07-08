@@ -15,6 +15,7 @@ from rich.text import Text
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.prompt_panel._workflow_display import (
@@ -22,6 +23,7 @@ from sase.ace.tui.widgets.prompt_panel._workflow_display import (
     _build_workflow_detail_renderable,
     _load_workflow_detail_snapshot,
 )
+from sase.ace.tui.widgets.prompt_panel._workflow_types import WorkflowDetailSnapshot
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -45,6 +47,48 @@ def _plain(renderable: object) -> str:
     if isinstance(renderable, Group):
         return "\n".join(_plain(item) for item in renderable.renderables)
     return str(renderable)
+
+
+def _workflow_snapshot() -> WorkflowDetailSnapshot:
+    return WorkflowDetailSnapshot(
+        artifacts_path=None,
+        workflow_state=None,
+        inputs=None,
+        meta_raw=None,
+        meta_fields=[],
+        steps=[],
+        error=None,
+        traceback=None,
+        prompt_content=None,
+        embedded_markers={},
+        embedded_meta={},
+    )
+
+
+def _tool_entry(**overrides: object) -> ToolCallEntry:
+    kwargs = {
+        "recorded_at": "2026-07-03T14:00:00+00:00",
+        "runtime": "codex",
+        "event": "ToolUse",
+        "status": "success",
+        "tool_name": "Bash",
+        "tool_use_id": "call_1",
+        "duration_ms": 30_000,
+        "tool_input_summary": {"command": "just test"},
+        "tool_response_summary": {"exit_code": 0},
+    }
+    kwargs.update(overrides)
+    return ToolCallEntry(**kwargs)  # type: ignore[arg-type]
+
+
+def _slow_source(*entries: ToolCallEntry) -> SlowToolSource:
+    return SlowToolSource(
+        label=None,
+        entries=tuple(entries),
+        agent_is_active=False,
+        end_reference=None,
+        palette_index=0,
+    )
 
 
 class _Panel(WorkflowDisplayMixin):
@@ -186,6 +230,32 @@ def test_workflow_snapshot_renders_prompt_markers_and_embedded_meta_in_order(
     assert plain.index("#deploy(env=prod)") < plain.index("prep")
     assert plain.index("prep") < plain.index("cleanup")
     assert plain.index("AGENT PROMPT") < plain.index("early prompt")
+
+
+def test_workflow_detail_uses_custom_slow_tool_threshold() -> None:
+    agent = _make_agent()
+    renderable = _build_workflow_detail_renderable(
+        agent,
+        _workflow_snapshot(),
+        slow_tool_sources=(
+            _slow_source(
+                _tool_entry(
+                    duration_ms=29_999,
+                    tool_input_summary={"command": "under threshold"},
+                ),
+                _tool_entry(
+                    duration_ms=30_000,
+                    tool_input_summary={"command": "exact threshold"},
+                ),
+            ),
+        ),
+        slow_tool_call_threshold_ms=30_000,
+    )
+
+    plain = _plain(renderable)
+    assert "SLOW TOOL CALLS · ≥30s · 1 call" in plain
+    assert "exact threshold" in plain
+    assert "under threshold" not in plain
 
 
 class _FakePromptPanel:

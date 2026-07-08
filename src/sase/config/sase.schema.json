@@ -149,6 +149,19 @@
             "type": "string"
           }
         },
+        "tool_calls": {
+          "type": "object",
+          "description": "Tool-call presentation settings for the ACE TUI",
+          "additionalProperties": false,
+          "properties": {
+            "slow_threshold_seconds": {
+              "type": "integer",
+              "description": "Minimum tool-call duration, in seconds, shown as slow in ACE metadata and timelines",
+              "minimum": 0,
+              "default": 20
+            }
+          }
+        },
         "artifact_viewer": {
           "type": "object",
           "description": "Settings for ACE's external artifact viewer panes",

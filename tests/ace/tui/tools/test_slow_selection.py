@@ -6,6 +6,7 @@ from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools.slow import (
     format_long_duration,
     select_slow_tool_calls,
+    slow_tool_call_threshold_ms_from_config,
 )
 
 
@@ -33,6 +34,35 @@ def test_format_long_duration_promotes_minutes() -> None:
     assert format_long_duration(92_000) == "1m 32s"
     assert format_long_duration(120_000) == "2m"
     assert format_long_duration(3_600_000) == "1h"
+
+
+def test_slow_tool_threshold_config_defaults_and_invalid_fallback() -> None:
+    assert slow_tool_call_threshold_ms_from_config({}) == 20_000
+    assert slow_tool_call_threshold_ms_from_config({"tool_calls": {}}) == 20_000
+    assert (
+        slow_tool_call_threshold_ms_from_config(
+            {"tool_calls": {"slow_threshold_seconds": 30}}
+        )
+        == 30_000
+    )
+    assert (
+        slow_tool_call_threshold_ms_from_config(
+            {"tool_calls": {"slow_threshold_seconds": -1}}
+        )
+        == 20_000
+    )
+    assert (
+        slow_tool_call_threshold_ms_from_config(
+            {"tool_calls": {"slow_threshold_seconds": "nope"}}
+        )
+        == 20_000
+    )
+    assert (
+        slow_tool_call_threshold_ms_from_config(
+            {"tool_calls": {"slow_threshold_seconds": True}}
+        )
+        == 20_000
+    )
 
 
 def test_pending_active_call_crosses_threshold_live() -> None:
@@ -64,6 +94,22 @@ def test_completed_duration_threshold_is_inclusive() -> None:
         now=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
         agent_is_active=False,
         agent_end_reference=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
+    )
+
+    assert [item.entry.tool_use_id for item in selected] == ["exact", "over"]
+
+
+def test_completed_duration_custom_threshold_is_inclusive() -> None:
+    selected = select_slow_tool_calls(
+        (
+            _entry(tool_use_id="under", duration_ms=29_999),
+            _entry(tool_use_id="exact", duration_ms=30_000),
+            _entry(tool_use_id="over", duration_ms=30_001),
+        ),
+        now=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
+        agent_is_active=False,
+        agent_end_reference=datetime(2026, 7, 3, 14, 1, tzinfo=UTC),
+        threshold_ms=30_000,
     )
 
     assert [item.entry.tool_use_id for item in selected] == ["exact", "over"]

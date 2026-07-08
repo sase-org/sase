@@ -357,6 +357,39 @@ def test_full_header_renders_slow_tool_calls_before_error(tmp_path: Path) -> Non
     _assert_dim_divider_before(header, "SLOW TOOL CALLS")
 
 
+def test_full_header_uses_custom_slow_tool_threshold(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    agent = _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
+    summary = DetailHeaderSummary(
+        slow_tool_sources=(
+            _slow_source(
+                _tool_entry(
+                    duration_ms=29_999,
+                    tool_input_summary={"command": "under threshold"},
+                ),
+                _tool_entry(
+                    duration_ms=30_000,
+                    tool_input_summary={"command": "exact threshold"},
+                ),
+            ),
+        )
+    )
+
+    header, _ = build_header_text(
+        agent,
+        summary=summary,
+        slow_tool_call_threshold_ms=30_000,
+    )
+    plain = header.plain
+
+    assert "SLOW TOOL CALLS · ≥30s · 1 call" in plain
+    assert "exact threshold" in plain
+    assert "under threshold" not in plain
+
+
 def test_cheap_header_omits_slow_tool_calls_even_with_summary(tmp_path: Path) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()

@@ -89,6 +89,36 @@ def test_slow_tools_section_renders_summary_and_completed_row() -> None:
     assert "1m 32s" in plain
 
 
+def test_slow_tools_section_uses_custom_threshold_label_and_filter() -> None:
+    text = Text()
+
+    append_slow_tool_calls_section(
+        text,
+        sources=(
+            _source(
+                _entry(
+                    tool_use_id="under",
+                    duration_ms=29_999,
+                    tool_input_summary={"command": "under threshold"},
+                ),
+                _entry(
+                    tool_use_id="exact",
+                    duration_ms=30_000,
+                    tool_input_summary={"command": "exact threshold"},
+                ),
+            ),
+        ),
+        agent=SimpleNamespace(status="DONE", stop_time=None),
+        now=datetime(2026, 7, 3, 14, 2, tzinfo=UTC),
+        threshold_ms=30_000,
+    )
+
+    plain = text.plain
+    assert "SLOW TOOL CALLS · ≥30s · 1 call" in plain
+    assert "exact threshold" in plain
+    assert "under threshold" not in plain
+
+
 def test_slow_tools_section_renders_running_badge() -> None:
     text = Text()
 

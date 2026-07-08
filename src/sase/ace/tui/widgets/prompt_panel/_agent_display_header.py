@@ -10,6 +10,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
+from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent
@@ -96,6 +97,7 @@ def build_header_text(
     hint_state: HeaderHintState | None = None,
     summary: DetailHeaderSummary | None = None,
     agent_status_buckets: Mapping[str, str] | None = None,
+    slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
 ) -> tuple[Text, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -408,6 +410,7 @@ def build_header_text(
             agent=agent,
             now=DateTime.now(),
             hint_state=hint_state,
+            threshold_ms=slow_tool_call_threshold_ms,
         )
 
     # Error message (for failed agents)

@@ -16,6 +16,7 @@ from sase.ace.tui.tools._constants import (
 from sase.ace.tui.tools.slow import (
     SlowToolCall,
     format_long_duration,
+    normalize_slow_tool_call_threshold_ms,
     select_slow_tool_calls,
 )
 from sase.ace.tui.tools.report import (
@@ -71,19 +72,23 @@ def append_slow_tool_calls_section(
     agent: object,
     now: datetime,
     hint_state: HeaderHintState | None = None,
+    threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
 ) -> None:
     """Append the SLOW TOOL CALLS section when any calls qualify."""
     if not sources:
         return
 
-    slow_calls = _select_sourced_slow_tool_calls(sources, now=now)
+    threshold_ms = normalize_slow_tool_call_threshold_ms(threshold_ms)
+    slow_calls = _select_sourced_slow_tool_calls(
+        sources, now=now, threshold_ms=threshold_ms
+    )
     if not slow_calls:
         return
 
     labeled = any(item.source.label for item in slow_calls)
     running_count = sum(1 for item in slow_calls if item.slow_call.is_running)
     summary_parts = [
-        f"\u2265{format_long_duration(SLOW_TOOL_CALL_THRESHOLD_MS)}",
+        f"\u2265{format_long_duration(threshold_ms)}",
         count_phrase(len(slow_calls), "call"),
     ]
     if running_count:
@@ -132,6 +137,7 @@ def _select_sourced_slow_tool_calls(
     sources: tuple[SlowToolSource, ...],
     *,
     now: datetime,
+    threshold_ms: int,
 ) -> tuple[_SourcedSlowToolCall, ...]:
     selected: list[_SourcedSlowToolCall] = []
     for source_index, source in enumerate(sources):
@@ -140,6 +146,7 @@ def _select_sourced_slow_tool_calls(
             now=now,
             agent_is_active=source.agent_is_active,
             agent_end_reference=source.end_reference,
+            threshold_ms=threshold_ms,
         ):
             selected.append(
                 _SourcedSlowToolCall(

@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from sase.agent.status_buckets import status_bucket_for_values
 from sase.core.time import get_timezone
 
-from ._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from ._constants import (
+    DEFAULT_SLOW_TOOL_CALL_THRESHOLD_SECONDS,
+    SLOW_TOOL_CALL_THRESHOLD_MS,
+)
 from ._entry import ToolCallEntry
 
 
@@ -53,14 +58,56 @@ def agent_is_active_for_slow_tool_calls(agent: object) -> bool:
     }
 
 
+def slow_tool_call_threshold_ms_from_config(
+    config: Mapping[str, Any] | None,
+) -> int:
+    """Return ACE slow-tool threshold milliseconds from config-like data."""
+    section = _tool_calls_config_section(config)
+    value = section.get(
+        "slow_threshold_seconds", DEFAULT_SLOW_TOOL_CALL_THRESHOLD_SECONDS
+    )
+    seconds = _coerce_non_negative_int(value)
+    if seconds is None:
+        seconds = DEFAULT_SLOW_TOOL_CALL_THRESHOLD_SECONDS
+    return seconds * 1000
+
+
+def normalize_slow_tool_call_threshold_ms(value: object) -> int:
+    """Return a valid millisecond threshold, falling back to the default."""
+    threshold_ms = _coerce_non_negative_int(value)
+    if threshold_ms is None:
+        return SLOW_TOOL_CALL_THRESHOLD_MS
+    return threshold_ms
+
+
+def _slow_tool_call_threshold_ms_from_app(app: object | None) -> int:
+    """Return the cached ACE slow-tool threshold from an app-like object."""
+    if app is None:
+        return SLOW_TOOL_CALL_THRESHOLD_MS
+    return normalize_slow_tool_call_threshold_ms(
+        getattr(app, "_slow_tool_call_threshold_ms", SLOW_TOOL_CALL_THRESHOLD_MS)
+    )
+
+
+def slow_tool_call_threshold_ms_from_widget(widget: object) -> int:
+    """Return the cached ACE slow-tool threshold for a widget-like object."""
+    try:
+        app = cast(Any, widget).app
+    except Exception:
+        return SLOW_TOOL_CALL_THRESHOLD_MS
+    return _slow_tool_call_threshold_ms_from_app(app)
+
+
 def select_slow_tool_calls(
     entries: tuple[ToolCallEntry, ...],
     *,
     now: datetime,
     agent_is_active: bool,
     agent_end_reference: datetime | None,
+    threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
 ) -> tuple[SlowToolCall, ...]:
     """Return slow tool calls in ascending command start-time order."""
+    threshold_ms = normalize_slow_tool_call_threshold_ms(threshold_ms)
     now_utc = _coerce_datetime(now)
     assert now_utc is not None
     end_reference_utc = _coerce_datetime(agent_end_reference)
@@ -116,12 +163,46 @@ def select_slow_tool_calls(
                 effective_duration_ms=completed_duration_ms,
             )
 
-        if candidate.effective_duration_ms >= SLOW_TOOL_CALL_THRESHOLD_MS:
+        if candidate.effective_duration_ms >= threshold_ms:
             slow_calls.append(candidate)
 
     return tuple(
         sorted(slow_calls, key=lambda item: (item.started_at, item.entry.line_number))
     )
+
+
+def _tool_calls_config_section(config: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    if not isinstance(config, Mapping):
+        return {}
+    ace_config = config.get("ace")
+    if isinstance(ace_config, Mapping):
+        config = ace_config
+    tool_calls_config = config.get("tool_calls")
+    if isinstance(tool_calls_config, Mapping):
+        return tool_calls_config
+    return config
+
+
+def _coerce_non_negative_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        candidate = value
+    elif isinstance(value, float) and value.is_integer():
+        candidate = int(value)
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            candidate = int(stripped, 10)
+        except ValueError:
+            return None
+    else:
+        return None
+    if candidate < 0:
+        return None
+    return candidate
 
 
 def _completed_duration_ms(entry: ToolCallEntry, start: datetime) -> int | None:
@@ -159,5 +240,8 @@ __all__ = [
     "SlowToolCall",
     "agent_is_active_for_slow_tool_calls",
     "format_long_duration",
+    "normalize_slow_tool_call_threshold_ms",
     "select_slow_tool_calls",
+    "slow_tool_call_threshold_ms_from_config",
+    "slow_tool_call_threshold_ms_from_widget",
 ]

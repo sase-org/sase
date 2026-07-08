@@ -17,6 +17,7 @@ from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_te
 
 from ...models.agent import Agent
 from ...tools import SlowToolSource
+from ...tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from ...util.lazy_syntax import lazy_renderable
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
@@ -32,6 +33,7 @@ def build_workflow_detail_renderable(
     snapshot: WorkflowDetailSnapshot,
     *,
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None,
+    slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
 ) -> Group:
     """Build the rich workflow-detail renderable from an existing snapshot."""
     header_text = Text()
@@ -170,6 +172,7 @@ def build_workflow_detail_renderable(
             sources=slow_tool_sources,
             agent=agent,
             now=DateTime.now(),
+            threshold_ms=slow_tool_call_threshold_ms,
         )
 
     # Separator + WORKFLOW STEPS header

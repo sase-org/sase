@@ -97,3 +97,4 @@ class StartupMixin(
     _prompt_source_watched_projects: set[str | None]
     _prompt_source_debounce_timer: Timer | None
     _prompt_completion_settings: PromptCompletionSettings
+    _slow_tool_call_threshold_ms: int

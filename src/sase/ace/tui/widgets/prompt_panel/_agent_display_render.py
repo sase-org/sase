@@ -15,6 +15,7 @@ from sase.project_display_names import (
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
+from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
 from ._agent_display_attempts import (
     AgentAttemptDisplayMixin,
@@ -132,6 +133,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             agent,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
+            slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
         )
 
         # Check if this is a bash/python workflow step - display differently

@@ -25,6 +25,7 @@ from sase.ace.tui.tools.cache import (
     peek_tool_calls_cache_entry,
     tools_cache,
 )
+from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 from sase.core.time import get_timezone
 
 from ..util.trace import tui_trace
@@ -209,6 +210,7 @@ class AgentToolsPanel(Static):
             self._last_fetch_time,
             rows=self._last_rows,
             detail_level=self._detail_level,
+            slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
         )
 
     def show_empty(self) -> None:
@@ -267,6 +269,9 @@ class AgentToolsPanel(Static):
                 is_stale=is_stale,
                 rows=rows,
                 detail_level=self._detail_level,
+                slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(
+                    self
+                ),
             )
         )
         self._has_displayed_content = True

@@ -6,6 +6,7 @@ from rich.console import Group
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent
+from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.trace import tui_trace
 from ._agent_display_attempts import (
     find_attempt,
@@ -74,6 +75,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 agent,
                 cheap=True,
                 agent_status_buckets=agent_status_buckets,
+                slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(
+                    self
+                ),
             )
             if error_tb_syntax is not None:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]

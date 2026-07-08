@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sase.ace.tui.widgets import tools_panel as tools_panel_mod
 from sase.ace.tui.widgets.tools_panel import (
@@ -8,6 +9,7 @@ from sase.ace.tui.widgets.tools_panel import (
     _build_tools_timeline_markdown,
     _build_tools_timeline_text,
 )
+from sase.ace.tui.widgets._tools_panel_timeline import format_duration
 
 from ._tools_panel_helpers import _build_panel, _entry
 
@@ -25,6 +27,30 @@ def test_tools_timeline_distinguishes_missing_empty_and_present() -> None:
     assert "Bash" in present
     assert "pytest tests/ace/tui/tools" in present
     assert "1.2s" in present
+
+
+def test_tools_timeline_uses_custom_slow_threshold_for_duration_formatting() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+    entry = _entry(duration_ms=65_000)
+
+    assert format_duration(65_000) == "1m 5s"
+    assert format_duration(65_000, threshold_ms=90_000) == "65s"
+
+    rendered = _build_tools_timeline_text(
+        [entry],
+        fetch_time,
+        slow_tool_call_threshold_ms=90_000,
+    ).plain
+    markdown = _build_tools_timeline_markdown(
+        [entry],
+        fetch_time,
+        slow_tool_call_threshold_ms=90_000,
+    )
+
+    assert "65s" in rendered
+    assert "1m 5s" not in rendered
+    assert markdown is not None
+    assert "65s" in markdown
 
 
 def test_tools_timeline_markdown_is_exportable() -> None:
@@ -359,6 +385,24 @@ def test_tools_panel_detail_level_rerenders_cached_rows() -> None:
     assert panel.set_detail_level(ToolDetailLevel.FULL) is True
     assert panel.detail_level == ToolDetailLevel.FULL
     assert panel.expand_detail() is False
+
+
+def test_tools_panel_display_uses_widget_slow_threshold(monkeypatch: Any) -> None:
+    panel = _build_panel()
+    monkeypatch.setattr(
+        tools_panel_mod,
+        "slow_tool_call_threshold_ms_from_widget",
+        lambda _widget: 90_000,
+    )
+
+    panel._display_tools_with_timestamp(
+        (_entry(duration_ms=65_000),),
+        datetime(2026, 5, 14, 10, 30, 0),
+    )
+
+    rendered = panel.update.call_args.args[0].plain
+    assert "65s" in rendered
+    assert "1m 5s" not in rendered
 
 
 def test_tools_panel_detail_level_noops_without_content() -> None:
