@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 MemoryChangeOperation = Literal["create", "update", "overwrite", "delete"]
+MemoryExpectedContent = str | bytes
 MemoryWritePolicy = Literal["overwrite", "create_if_missing"]
 WorkspaceStrategy = Literal["suffix", "none"]
 
@@ -23,7 +24,7 @@ class LinkedRepoMemoryEntry:
 @dataclass(frozen=True)
 class MemoryExpectedFile:
     path: Path
-    content: str
+    content: MemoryExpectedContent
     detail: str
     write_policy: MemoryWritePolicy = "overwrite"
     stale_operation: MemoryChangeOperation = "update"

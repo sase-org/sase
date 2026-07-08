@@ -9,11 +9,16 @@ import pytest
 
 from sase.amd.constants import PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
+from sase.main.init_memory.roots import read_memory_directory_map_bytes
+from sase.memory.inventory import stats_for_text
 from tests.main.init_memory_handler_helpers import (
     SASE_MEMORY_HEADER,
+    long_note,
     patch_standard_paths,
+    plan_memory,
     run_handler,
     single_line,
+    short_note,
     write,
 )
 
@@ -142,6 +147,79 @@ linked_repos:
     assert (home_root / "memory" / "sase.md").exists()
     assert (home_root / "AGENTS.md").exists()
     git_run.assert_not_called()
+
+
+def test_init_memory_renders_data_driven_readme_and_asset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    extra_note = short_note("# Extra\n\nAlways loaded.\n")
+    reference_note = long_note(
+        "# Reference\n\nDetailed reference.\n",
+        description="Detailed reference note.",
+    )
+    write(project_root / "memory" / "extra.md", extra_note)
+    write(project_root / "memory" / "reference.md", reference_note)
+
+    assert run_handler() == 0
+
+    readme = (project_root / "memory" / "README.md").read_text(encoding="utf-8")
+    assert (
+        "![How SASE memory files are used](assets/memory-directory-map.png)" in readme
+    )
+    assert "## How Memory Files Are Used" in readme
+    assert "## Memory Notes" in readme
+    assert "## Statistics" in readme
+    assert "## Commands" in readme
+    assert readme.index("### `memory/extra.md`") < readme.index("### `memory/sase.md`")
+    assert readme.index("### `memory/sase.md`") < readme.index(
+        "### `memory/reference.md`"
+    )
+    assert "- Type: `short`" in readme
+    assert "- Type: `long`" in readme
+    assert "- Description: Detailed reference note." in readme
+    assert "- Parent: `AGENTS.md`" in readme
+    extra_stats = stats_for_text(
+        (project_root / "memory" / "extra.md").read_text(encoding="utf-8")
+    )
+    reference_stats = stats_for_text(
+        (project_root / "memory" / "reference.md").read_text(encoding="utf-8")
+    )
+    assert f"- Lines: {extra_stats.line_count}" in readme
+    assert f"- Approx. tokens: {extra_stats.approx_token_count}" in readme
+    assert f"- Lines: {reference_stats.line_count}" in readme
+    assert f"- Approx. tokens: {reference_stats.approx_token_count}" in readme
+    assert "- Total notes: 3" in readme
+    assert "- Short notes: 2" in readme
+    assert "- Long notes: 1" in readme
+
+    asset_path = project_root / "memory" / "assets" / "memory-directory-map.png"
+    expected_asset = read_memory_directory_map_bytes()
+    assert asset_path.read_bytes() == expected_asset
+    assert run_handler(check=True) == 0
+
+    asset_path.write_bytes(b"stale asset")
+    plan = plan_memory()
+    assert any(
+        action.path == asset_path
+        and action.operation == "update"
+        and action.detail == "memory directory map asset"
+        for action in plan.actions
+    )
+    assert run_handler() == 0
+    assert asset_path.read_bytes() == expected_asset
+    assert run_handler(check=True) == 0
 
 
 def test_init_memory_static_linked_repos_use_paths_without_workspace_open(

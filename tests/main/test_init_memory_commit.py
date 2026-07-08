@@ -147,12 +147,19 @@ def test_init_memory_default_commits_and_pushes_project_changes(
         "add",
         "add",
         "add",
+        "add",
         "diff",
         "commit",
         "rev-parse",
         "pull",
         "push",
     ]
+    add_paths = [
+        Path(cmd[-1])
+        for cmd in deploy_git_calls
+        if cmd[0] == "git" and cmd[cmd.index("git") + 3] == "add"
+    ]
+    assert project_root / "memory" / "assets" / "memory-directory-map.png" in add_paths
     commit_calls = [cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd]
     assert commit_calls
     message = commit_calls[0][commit_calls[0].index("-m") + 1]

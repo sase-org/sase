@@ -58,6 +58,9 @@ class _MemoryStats:
     approx_token_count: int
 
 
+MemoryStats = _MemoryStats
+
+
 @dataclass(frozen=True)
 class MemoryReference:
     kind: ReferenceKind
@@ -348,6 +351,10 @@ def _stats_for_text(text: str) -> _MemoryStats:
         line_count=len(text.splitlines()),
         approx_token_count=ceil(len(text) / 4) if text else 0,
     )
+
+
+def stats_for_text(text: str) -> MemoryStats:
+    return _stats_for_text(text)
 
 
 def _stats_for_file(path: Path) -> _MemoryStats | None:
