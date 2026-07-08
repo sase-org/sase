@@ -28,8 +28,11 @@ SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
-class _XPromptLspLaunchError(RuntimeError):
+class XPromptLspLaunchError(RuntimeError):
     """User-facing xprompt LSP startup error."""
+
+
+_XPromptLspLaunchError = XPromptLspLaunchError
 
 
 def handle_xprompt_lsp_command(args: argparse.Namespace) -> NoReturn:
@@ -38,7 +41,7 @@ def handle_xprompt_lsp_command(args: argparse.Namespace) -> NoReturn:
         argv = _build_xprompt_lsp_argv(args)
         _prepare_xprompt_lsp_environment(os.environ)
         os.execvp(argv[0], argv)
-    except _XPromptLspLaunchError as exc:
+    except XPromptLspLaunchError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
@@ -65,6 +68,20 @@ def _build_xprompt_lsp_argv(
     return [*command, *server_args]
 
 
+def resolve_xprompt_lsp_command(
+    *,
+    environ: Mapping[str, str],
+    which: Callable[[str], str | None] = shutil.which,
+    repo_root: Path | None = None,
+) -> tuple[str, ...]:
+    """Resolve the xprompt LSP server command without launching it."""
+    return _resolve_xprompt_lsp_command(
+        environ=environ,
+        which=which,
+        repo_root=repo_root,
+    )
+
+
 def _resolve_xprompt_lsp_command(
     *,
     environ: Mapping[str, str],
@@ -76,7 +93,7 @@ def _resolve_xprompt_lsp_command(
         try:
             command = tuple(shlex.split(override))
         except ValueError as exc:
-            raise _XPromptLspLaunchError(
+            raise XPromptLspLaunchError(
                 f"{SASE_XPROMPT_LSP_CMD_ENV} is not a valid shell-style command: {exc}"
             ) from exc
         if command:
@@ -119,7 +136,7 @@ def _resolve_xprompt_lsp_command(
             "--",
         )
 
-    raise _XPromptLspLaunchError(
+    raise XPromptLspLaunchError(
         "xprompt LSP binary not found; install `sase-xprompt-lsp` into the "
         f"current venv, install it on PATH, or set {SASE_XPROMPT_LSP_CMD_ENV}"
     )
