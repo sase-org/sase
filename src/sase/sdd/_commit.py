@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.sdd._init_files import ensure_sdd_initialized
+from sase.sdd._store_types import SDD_STORAGE_SEPARATE_REPO
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
@@ -214,6 +215,9 @@ def commit_sdd_files(
     *,
     auto_commit_type: str = "sdd",
     paths: Iterable[str | Path] | None = None,
+    artifacts_dir: str | Path | None = None,
+    repo_name: str | None = None,
+    record_commit_marker: bool = True,
 ) -> bool:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
@@ -256,6 +260,13 @@ def commit_sdd_files(
             capture_output=True,
             op="sdd.commit",
         )
+        if record_commit_marker:
+            _record_sdd_commit_marker(
+                sdd_dir,
+                message=message,
+                artifacts_dir=artifacts_dir,
+                repo_name=repo_name,
+            )
         return True
     return False
 
@@ -267,6 +278,7 @@ def commit_sdd_store_files(
     auto_commit_type: str = "sdd",
     paths: Iterable[str | Path] | None = None,
     push_after_commit: bool | Literal["async"] | None = None,
+    artifacts_dir: str | Path | None = None,
 ) -> bool:
     """Commit SDD files and push separate-repo stores per config.
 
@@ -279,10 +291,104 @@ def commit_sdd_store_files(
         message,
         auto_commit_type=auto_commit_type,
         paths=paths,
+        artifacts_dir=artifacts_dir,
+        repo_name=_sdd_store_label(store),
+        record_commit_marker=store.storage == SDD_STORAGE_SEPARATE_REPO,
     )
     if committed:
         _push_sdd_store_after_commit(store, push_after_commit=push_after_commit)
     return committed
+
+
+def _record_sdd_commit_marker(
+    sdd_dir: Path,
+    *,
+    message: str,
+    artifacts_dir: str | Path | None,
+    repo_name: str | None,
+) -> None:
+    try:
+        sha = _git_head_sha(sdd_dir)
+        if not sha:
+            return
+        from sase.workflows.commit.commit_tracking import (
+            record_sdd_commit_result_marker,
+        )
+
+        record_sdd_commit_result_marker(
+            cwd=sdd_dir.expanduser().resolve(),
+            result=sha,
+            message=message,
+            repo_name=repo_name,
+            artifacts_dir=artifacts_dir,
+        )
+    except Exception:
+        _logger.debug("failed to record SDD commit marker", exc_info=True)
+
+
+def _git_head_sha(repo_dir: Path) -> str | None:
+    try:
+        result = _run_git(
+            ["rev-parse", "HEAD"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+            op="sdd.rev_parse_head",
+        )
+    except (subprocess.CalledProcessError, SddGitCommandTimeout):
+        return None
+    sha = result.stdout.strip()
+    return sha or None
+
+
+def _sdd_store_label(store: "SddStore") -> str | None:
+    if store.storage != SDD_STORAGE_SEPARATE_REPO:
+        return None
+
+    label = _sdd_store_record_label(store)
+    if label:
+        return label
+    if store.remote_url:
+        label = _repo_label_from_remote_url(store.remote_url)
+        if label:
+            return label
+    return "sdd"
+
+
+def _sdd_store_record_label(store: "SddStore") -> str | None:
+    try:
+        from sase.sdd.store import read_sdd_store_record
+
+        workspace_dir = store.sdd_dir.parent.parent
+        record = read_sdd_store_record(workspace_dir)
+    except Exception:
+        return None
+    if record is not None and record.repo:
+        return record.repo
+    return None
+
+
+def _repo_label_from_remote_url(remote_url: str) -> str | None:
+    raw = remote_url.strip().rstrip("/")
+    if not raw:
+        return None
+    if raw.endswith(".git"):
+        raw = raw[:-4]
+
+    path_part = raw
+    if "://" in path_part:
+        _, _, without_scheme = path_part.partition("://")
+        _, _, path_part = without_scheme.partition("/")
+    elif ":" in path_part and not path_part.startswith(("/", ".")):
+        path_part = path_part.rsplit(":", 1)[1]
+
+    parts = [part for part in path_part.split("/") if part]
+    if len(parts) >= 2:
+        return "/".join(parts[-2:])
+    if parts:
+        return parts[-1]
+    return None
 
 
 def _sdd_push_after_commit_config() -> bool | Literal["async"]:

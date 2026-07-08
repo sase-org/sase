@@ -1,5 +1,6 @@
 """Tests for committing SDD files."""
 
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -102,6 +103,93 @@ def test_commit_sdd_files_stages_only_targeted_paths() -> None:
             "tales/202605/targeted.md",
         ]
         assert status == "?? research/202605/notes.md\n"
+
+
+def test_commit_sdd_files_records_agent_marker_when_artifacts_dir_is_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sdd_dir = tmp_path / "sdd"
+    artifacts_dir = tmp_path / "artifacts"
+    sdd_dir.mkdir()
+    artifacts_dir.mkdir()
+    subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=sdd_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=sdd_dir,
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260708120000")
+    monkeypatch.setattr(
+        "sase.workflows.commit.commit_tracking."
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda *_args, **_kwargs: None,
+    )
+
+    (sdd_dir / "test.md").write_text("hello", encoding="utf-8")
+
+    assert (
+        commit_sdd_files(
+            sdd_dir,
+            "Record SDD commit",
+            repo_name="sase-org/sdd",
+        )
+        is True
+    )
+
+    results = json.loads((artifacts_dir / "commit_results.json").read_text())
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=sdd_dir,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert not (artifacts_dir / "commit_result.json").exists()
+    assert results[0]["run_id"] == "20260708120000"
+    assert results[0]["cwd"] == str(sdd_dir)
+    assert results[0]["result"] == head
+    assert results[0]["message"].startswith("Record SDD commit")
+    assert results[0]["repo_name"] == "sase-org/sdd"
+
+
+def test_commit_sdd_files_skips_agent_marker_when_artifacts_dir_is_unset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sdd_dir = tmp_path / "sdd"
+    artifacts_dir = tmp_path / "artifacts"
+    sdd_dir.mkdir()
+    artifacts_dir.mkdir()
+    subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=sdd_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=sdd_dir,
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.delenv("SASE_AGENT_TIMESTAMP", raising=False)
+
+    (sdd_dir / "test.md").write_text("hello", encoding="utf-8")
+
+    assert commit_sdd_files(sdd_dir, "Record SDD commit") is True
+
+    assert not (artifacts_dir / "commit_results.json").exists()
 
 
 def test_commit_sdd_files_no_changes() -> None:

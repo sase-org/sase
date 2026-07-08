@@ -68,6 +68,8 @@ def _commit_result_list_record(item: dict[str, Any]) -> dict[str, str] | None:
         record["sha"] = sha
     if cwd := _text(item.get("cwd")):
         record["cwd"] = cwd
+    if repo_name := _text(item.get("repo_name")):
+        record["repo_name"] = repo_name
     if diff_path := (
         _text(item.get("diff_path")) or _text(item.get("commit_diff_path"))
     ):

@@ -11,6 +11,7 @@ views.
 
 from concurrent.futures import CancelledError
 from pathlib import Path
+from typing import Any
 
 from sase.core.agent_scan_wire import (
     DONE_WORKFLOW_DIR_NAMES,
@@ -62,36 +63,83 @@ def _single_commit_record_from_metadata(
     return record or None
 
 
+def _commit_results_marker_exists(artifact_dir: str | Path | None) -> bool:
+    if artifact_dir is None:
+        return False
+    return (Path(artifact_dir).expanduser() / "commit_results.json").is_file()
+
+
+def _commit_record_key(record: dict[str, Any]) -> tuple[str, str] | None:
+    cwd = record.get("cwd")
+    sha = record.get("sha") or record.get("result") or record.get("commit_result")
+    cwd_text = cwd if isinstance(cwd, str) else ""
+    sha_text = sha if isinstance(sha, str) else ""
+    if not cwd_text and not sha_text:
+        return None
+    return (cwd_text, sha_text)
+
+
+def _merge_commit_records(
+    existing_records: list[object],
+    loaded_records: list[dict[str, str]],
+) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    index_by_key: dict[tuple[str, str], int] = {}
+
+    for raw_record in [*existing_records, *loaded_records]:
+        if not isinstance(raw_record, dict):
+            continue
+        record = dict(raw_record)
+        key = _commit_record_key(record)
+        if key is not None and key in index_by_key:
+            merged[index_by_key[key]].update(record)
+            continue
+        if key is not None:
+            index_by_key[key] = len(merged)
+        merged.append(record)
+    return merged
+
+
 def _enrich_missing_commit_metadata(
     agent: Agent, artifact_dir: str | Path | None
 ) -> None:
-    """Backfill commit cwd/list metadata for old done markers."""
+    """Backfill and merge commit cwd/list metadata for done markers."""
     from sase.axe.run_agent_helpers_state import (
         read_commit_result_metadata,
         read_commit_results_metadata,
     )
 
     step_output = agent.step_output
+    marker_exists = _commit_results_marker_exists(artifact_dir)
+    artifact_dir_str = str(artifact_dir) if artifact_dir else None
+    commits = read_commit_results_metadata(artifact_dir_str) if marker_exists else []
     if not isinstance(step_output, dict):
-        return
-    if not (
+        if not commits:
+            return
+        step_output = {}
+        agent.step_output = step_output
+
+    has_primary_commit = bool(
         step_output.get("meta_commit_message") or step_output.get("meta_new_commit")
-    ):
+    )
+    existing_raw = step_output.get("meta_commits")
+    existing_commits = existing_raw if isinstance(existing_raw, list) else []
+
+    if not (has_primary_commit or existing_commits or marker_exists):
         return
 
-    artifact_dir_str = str(artifact_dir) if artifact_dir else None
     single_metadata: dict[str, str] | None = None
 
-    if not step_output.get("meta_commits"):
-        commits = read_commit_results_metadata(artifact_dir_str)
-        if not commits:
-            single_metadata = read_commit_result_metadata(artifact_dir_str)
-            single_commit = _single_commit_record_from_metadata(single_metadata)
-            commits = [single_commit] if single_commit else []
-        if commits:
-            step_output["meta_commits"] = commits
+    if not commits and has_primary_commit and not existing_commits:
+        single_metadata = read_commit_result_metadata(artifact_dir_str)
+        single_commit = _single_commit_record_from_metadata(single_metadata)
+        commits = [single_commit] if single_commit else []
+    if existing_commits or commits:
+        merged_commits = _merge_commit_records(existing_commits, commits)
+        if merged_commits:
+            step_output["meta_commits"] = merged_commits
 
-    if not step_output.get("meta_commit_cwd"):
+    if has_primary_commit and not step_output.get("meta_commit_cwd"):
         if single_metadata is None:
             single_metadata = read_commit_result_metadata(artifact_dir_str)
         commit_cwd = single_metadata.get("meta_commit_cwd")

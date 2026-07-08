@@ -294,6 +294,7 @@ def _archive_plan_for_approval(
     try:
         from sase.file_references import format_with_prettier
         from sase.llm_provider._plan_utils import add_create_time_frontmatter
+        from sase.plan_approval_actions import resolve_plan_agent_artifacts_dir
         from sase.running_field import get_workspace_directory
         from sase.sdd.files import (
             commit_sdd_store_files,
@@ -320,11 +321,13 @@ def _archive_plan_for_approval(
         content = format_with_prettier(content)
         dest_plan.write_text(add_create_time_frontmatter(content), encoding="utf-8")
         if not sdd_store.is_in_tree:
+            artifacts_dir = resolve_plan_agent_artifacts_dir(notification.action_data)
             commit_sdd_store_files(
                 sdd_store,
                 f"Archive approved plan {src_plan.stem}",
                 paths=[dest_plan],
                 push_after_commit="async",
+                artifacts_dir=artifacts_dir,
             )
         return str(dest_plan)
     except Exception:

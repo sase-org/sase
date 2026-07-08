@@ -156,6 +156,24 @@ def _repo_name_for_commit_cwd(
     return _repo_name_from_cwd(str(cwd_raw))
 
 
+def _repo_name_for_commit_record(
+    agent: Agent,
+    step_output: dict[str, Any] | None,
+    record: dict[str, Any],
+) -> str:
+    explicit_repo_name = _explicit_repo_name_from_record(record)
+    if explicit_repo_name is not None:
+        return explicit_repo_name
+    return _repo_name_for_commit_cwd(agent, step_output, record.get("cwd"))
+
+
+def _explicit_repo_name_from_record(record: dict[str, Any]) -> str | None:
+    repo_name = record.get("repo_name")
+    return (
+        repo_name.strip() if isinstance(repo_name, str) and repo_name.strip() else None
+    )
+
+
 def _commit_cwd_is_primary(agent: Agent, cwd_raw: object) -> bool:
     cwd = _norm_path(cwd_raw)
     if cwd is None:
@@ -188,11 +206,7 @@ def _persisted_commit_groups(
             commit = _commit_info_from_record(raw_record)
             if commit is None:
                 continue
-            repo_name = _repo_name_for_commit_cwd(
-                agent,
-                step_output,
-                raw_record.get("cwd"),
-            )
+            repo_name = _repo_name_for_commit_record(agent, step_output, raw_record)
             if repo_name not in grouped:
                 grouped[repo_name] = []
                 group_order.append(repo_name)
@@ -247,14 +261,11 @@ def agent_commit_diffs(agent: Agent) -> list[CommitDiffInfo]:
             continue
         seen_paths.add(path_key)
 
-        repo_name = _repo_name_for_commit_cwd(
-            agent,
-            step_output,
-            raw_record.get("cwd"),
-        )
+        repo_name = _repo_name_for_commit_record(agent, step_output, raw_record)
         if repo_name not in grouped:
             grouped[repo_name] = []
             group_order.append(repo_name)
+        explicit_repo_name = _explicit_repo_name_from_record(raw_record)
         grouped[repo_name].append(
             CommitDiffInfo(
                 repo_name=repo_name,
@@ -262,7 +273,10 @@ def agent_commit_diffs(agent: Agent) -> list[CommitDiffInfo]:
                 subject=commit.subject,
                 diff_path=diff_path,
                 is_primary=repo_name == primary_name
-                or _commit_cwd_is_primary(agent, raw_record.get("cwd")),
+                or (
+                    explicit_repo_name is None
+                    and _commit_cwd_is_primary(agent, raw_record.get("cwd"))
+                ),
             )
         )
 

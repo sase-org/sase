@@ -10,6 +10,7 @@ import pytest
 
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
+    record_sdd_commit_result_marker,
     write_result_marker,
 )
 from sase.workflows.commit.precommit_hooks import handle_beads, handle_sase_plan
@@ -240,6 +241,45 @@ class TestWriteResultMarker:
         with patch.dict("os.environ", {}, clear=True):
             # Should not raise
             write_result_marker("create_commit", payload, None, "abc", None)
+
+    def test_records_sdd_commit_in_results_list_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch(
+                "sase.workflows.commit.commit_tracking."
+                "update_agent_artifact_index_for_marker_mutation"
+            ) as update_index:
+                record_sdd_commit_result_marker(
+                    artifacts_dir=tmpdir,
+                    cwd="/workspace/sase/.sase/sdd",
+                    result="abc123",
+                    message="Archive approved plan demo\n\nSASE_TYPE=sdd",
+                    repo_name="sase-org/sdd",
+                )
+                record_sdd_commit_result_marker(
+                    artifacts_dir=tmpdir,
+                    cwd="/workspace/sase/.sase/sdd",
+                    result="abc123",
+                    message="Archive approved plan demo updated\n\nSASE_TYPE=sdd",
+                    repo_name="sase-org/sdd",
+                )
+
+            assert not (Path(tmpdir) / "commit_result.json").exists()
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert results == [
+                {
+                    "method": "sdd_commit",
+                    "run_id": Path(tmpdir).name,
+                    "cwd": "/workspace/sase/.sase/sdd",
+                    "result": "abc123",
+                    "commit_result": "abc123",
+                    "message": "Archive approved plan demo updated\n\nSASE_TYPE=sdd",
+                    "repo_name": "sase-org/sdd",
+                    "diff_path": None,
+                    "commit_diff_path": None,
+                }
+            ]
+            assert update_index.call_count == 2
+            update_index.assert_called_with(tmpdir)
 
 
 class TestBuildPrBody:

@@ -111,6 +111,7 @@ def test_extract_step_output_surfaces_commit_results_list(
                     "message": "fix: linked",
                     "result": "def456",
                     "cwd": "/workspace/sase-core_7",
+                    "repo_name": "sase-core",
                     "commit_diff_path": "/tmp/linked.diff",
                     "entry_id": "2",
                 },
@@ -136,6 +137,7 @@ def test_extract_step_output_surfaces_commit_results_list(
             "message": "fix: linked",
             "sha": "def456",
             "cwd": "/workspace/sase-core_7",
+            "repo_name": "sase-core",
             "diff_path": "/tmp/linked.diff",
         },
     ]
@@ -408,6 +410,95 @@ def test_done_agent_loader_backfills_commit_results_list(
     ]
 
 
+def test_done_agent_loader_hydrates_sdd_commits_without_primary_meta(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120045"
+    artifact_dir.mkdir()
+    sdd_cwd = tmp_path / "sase_7" / ".sase" / "sdd"
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "sase-test",
+                "outcome": "completed",
+                "project_file": str(tmp_path / "sase.sase"),
+                "step_output": {"result": "ok"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "message": "Archive approved plan demo",
+                    "result": "abc123",
+                    "cwd": str(sdd_cwd),
+                    "repo_name": "sase-org/sdd",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.step_output is not None
+    assert agent.step_output["meta_commits"] == [
+        {
+            "message": "Archive approved plan demo",
+            "sha": "abc123",
+            "cwd": str(sdd_cwd),
+            "repo_name": "sase-org/sdd",
+        }
+    ]
+
+
+def test_done_agent_loader_hydrates_sdd_commits_without_step_output(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "20260624120050"
+    artifact_dir.mkdir()
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "sase-test",
+                "outcome": "completed",
+                "project_file": str(tmp_path / "sase.sase"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "message": "Archive approved plan demo",
+                    "result": "abc123",
+                    "cwd": "/workspace/sase/.sase/sdd",
+                    "repo_name": "sase-org/sdd",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.step_output == {
+        "meta_commits": [
+            {
+                "message": "Archive approved plan demo",
+                "sha": "abc123",
+                "cwd": "/workspace/sase/.sase/sdd",
+                "repo_name": "sase-org/sdd",
+            }
+        ]
+    }
+
+
 def test_done_agent_loader_keeps_existing_commit_cwd(
     tmp_path: Path,
 ) -> None:
@@ -440,7 +531,7 @@ def test_done_agent_loader_keeps_existing_commit_cwd(
     assert agent.step_output["meta_commit_cwd"] == "/kept"
 
 
-def test_done_agent_loader_keeps_existing_meta_commits(
+def test_done_agent_loader_merges_existing_meta_commits(
     tmp_path: Path,
 ) -> None:
     artifact_dir = tmp_path / "20260624120130"
@@ -473,7 +564,10 @@ def test_done_agent_loader_keeps_existing_meta_commits(
 
     assert agent is not None
     assert agent.step_output is not None
-    assert agent.step_output["meta_commits"] == existing_commits
+    assert agent.step_output["meta_commits"] == [
+        {"message": "feat: kept", "sha": "111aaa", "cwd": "/kept"},
+        {"message": "feat: ignored", "sha": "222bbb", "cwd": "/ignored"},
+    ]
 
 
 def test_done_agent_snapshot_loader_backfills_commit_cwd(

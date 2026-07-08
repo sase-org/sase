@@ -290,6 +290,47 @@ def _upsert_commit_results_marker(
         return
 
 
+def record_sdd_commit_result_marker(
+    *,
+    cwd: str | os.PathLike[str],
+    result: str,
+    message: str,
+    repo_name: str | None = None,
+    artifacts_dir: str | os.PathLike[str] | None = None,
+    diff_path: str | None = None,
+) -> None:
+    """Append an SDD commit to an agent's commit-results marker list.
+
+    SDD commits are additional repo commits, not the primary workflow commit,
+    so this deliberately does not write ``commit_result.json``.
+    """
+    resolved_artifacts_dir = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
+    if not resolved_artifacts_dir:
+        return
+
+    artifacts_dir_str = os.fspath(resolved_artifacts_dir)
+    if not os.path.isdir(artifacts_dir_str):
+        return
+
+    run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "").strip()
+    if not run_id:
+        run_id = os.path.basename(os.path.normpath(artifacts_dir_str))
+
+    marker: dict[str, Any] = {
+        "method": "sdd_commit",
+        "run_id": run_id,
+        "cwd": os.fspath(cwd),
+        "result": result,
+        "commit_result": result,
+        "message": message,
+        "repo_name": repo_name or "sdd",
+        "diff_path": diff_path,
+        "commit_diff_path": diff_path,
+    }
+    _upsert_commit_results_marker(artifacts_dir_str, marker)
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir_str)
+
+
 def write_result_marker(
     method: str,
     payload: dict,

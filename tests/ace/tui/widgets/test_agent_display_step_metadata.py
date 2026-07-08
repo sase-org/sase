@@ -302,6 +302,61 @@ class TestWorkflowVariablesHeader:
         assert "  ▣ sase-core\n" in header.plain
         assert "    abcdef123456 fix: linked without metadata\n" in header.plain
 
+    def test_meta_commits_record_repo_name_overrides_cwd_group(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_18"
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "Archive approved plan demo",
+                        "sha": "abcdef123456",
+                        "cwd": str(workspace / ".sase" / "sdd"),
+                        "repo_name": "sase-org/sdd",
+                        "diff_path": str(tmp_path / "sdd.diff"),
+                    }
+                ],
+            },
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+        commit_diffs = agent_commit_diffs(agent)
+
+        assert "COMMITS:\n" in header.plain
+        assert "  ▣ sase-org/sdd\n" in header.plain
+        assert "  ▣ test\n" not in header.plain
+        assert "    abcdef123456 Archive approved plan demo\n" in header.plain
+        assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
+            ("sase-org/sdd", False)
+        ]
+
+    def test_meta_commits_sdd_cwd_without_repo_name_falls_back_to_sdd(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_18"
+        agent = make_agent(
+            workspace_dir=str(tmp_path / "other_18"),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "Archive approved plan demo",
+                        "sha": "abcdef123456",
+                        "cwd": str(workspace / ".sase" / "sdd"),
+                    }
+                ],
+            },
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "COMMITS:\n" in header.plain
+        assert "  ▣ sdd\n" in header.plain
+        assert "    abcdef123456 Archive approved plan demo\n" in header.plain
+
     def test_workflow_variables_keep_non_commit_meta_fields(self) -> None:
         agent = make_agent(
             step_output={
