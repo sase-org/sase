@@ -4,6 +4,9 @@ This document describes the LLM provider abstraction layer in sase. The system s
 Code, Codex, Antigravity CLI (`agy`), Qwen Code, and OpenCode are bundled; additional providers can ship as external
 plugins) behind a shared orchestration layer that handles preprocessing, invocation, and postprocessing.
 
+> This page documents how SASE _integrates_ each provider. To install and authenticate a provider CLI in the first
+> place, see [Installing & Authenticating Agent Providers](agent_providers.md).
+
 ## Table of Contents
 
 - [Overview](#overview)

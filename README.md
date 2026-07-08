@@ -49,7 +49,8 @@ sase agent list
 ```
 
 If `sase doctor` reports a missing provider executable or authentication gap, install and authenticate one of the
-supported CLIs, then run `sase doctor` again.
+supported CLIs, then run `sase doctor` again. See [Installing & Authenticating Agent Providers](docs/agent_providers.md)
+for the per-provider install and auth commands.
 
 For the guided beginner path, follow the [Getting Started guide](https://sase.sh/getting_started/).
 
@@ -220,6 +221,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 
 - [ACE TUI](https://sase.sh/ace/) ([local](docs/ace.md))
 - [Initialization](https://sase.sh/init/) ([local](docs/init.md))
+- [Agent Providers](https://sase.sh/agent_providers/) ([local](docs/agent_providers.md))
 - [Memory](https://sase.sh/memory/) ([local](docs/memory.md))
 - [AXE Automation](https://sase.sh/axe/) ([local](docs/axe.md))
 - [Spec-Driven Development](https://sase.sh/sdd/) ([local](docs/sdd.md))

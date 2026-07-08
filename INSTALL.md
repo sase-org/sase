@@ -126,6 +126,9 @@ output is always the authoritative check for your machine. The lists below descr
 | One coding-agent CLI | SASE orchestrates an existing provider CLI. At least one of `claude` (Claude Code), `codex` (Codex), `agy` (Antigravity CLI), `qwen` (Qwen Code), or `opencode` (OpenCode) must be installed **and authenticated**. `sase doctor` reports readiness. |
 | A text editor        | Commit-message editing uses `$EDITOR`, falling back to `nvim`, then `vim`.                                                                                                                                                                           |
 
+For per-provider install and authentication commands, see
+[Installing & Authenticating Agent Providers](docs/agent_providers.md).
+
 ### Recommended / optional
 
 Missing tools degrade the specific feature listed; everything else keeps working. `sase doctor -D` reports exactly which

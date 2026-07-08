@@ -39,8 +39,9 @@ sase doctor
 ```
 
 If the provider check reports a missing executable or an authentication gap, install and authenticate one provider CLI,
-then run `sase doctor` again. The [LLM provider reference](llms.md) keeps the setup pointers in one place so this
-quickstart can stay focused.
+then run `sase doctor` again. [Installing & Authenticating Agent Providers](agent_providers.md) has the per-provider
+install and auth commands; the [LLM provider reference](llms.md) covers how SASE integrates each provider once it is
+ready.
 
 **What you just did.** Verified that SASE can find a usable coding-agent provider before spending time on an agent run.
 
