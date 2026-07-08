@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.core.paths import sase_projects_dir, sase_subdir
@@ -19,6 +20,7 @@ class StartupWatchersMixin:
     """Mixin for artifact and prompt-source watcher lifecycle."""
 
     _fs_watcher: ArtifactWatcher | None
+    _sdd_beads_dir: Path | None
     _prompt_source_watcher: ArtifactWatcher | None
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]
@@ -30,7 +32,7 @@ class StartupWatchersMixin:
         Falls back silently when inotify is unavailable; the auto-refresh
         timer remains the polling safety net in that case.
         """
-        from pathlib import Path
+        from .event_refresh._sdd_paths import resolve_current_sdd_beads_dir
 
         if self._fs_watcher is not None:
             return
@@ -50,7 +52,8 @@ class StartupWatchersMixin:
             # Project spec files live directly in ``project_dir``;
             # watching the dir picks up RUNNING-field updates.
             watch_paths.append(project_dir)
-        beads_dir = Path.cwd() / "sdd" / "beads"
+        beads_dir = resolve_current_sdd_beads_dir()
+        self._sdd_beads_dir = beads_dir
         if beads_dir.is_dir():
             watch_paths.append(beads_dir)
         notifications_dir = sase_subdir("notifications")

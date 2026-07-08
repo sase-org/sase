@@ -55,7 +55,12 @@ class _FakeApp(EventHandlersMixin):
     a full :class:`AceApp`.
     """
 
-    def __init__(self, *, watcher_active: bool) -> None:
+    def __init__(
+        self,
+        *,
+        watcher_active: bool,
+        sdd_beads_dir: Path | None = None,
+    ) -> None:
         self._nav_gate = NavigationGate(window_s=0.25)
         self.refresh_interval = 10
         self._countdown_remaining = 10
@@ -69,6 +74,7 @@ class _FakeApp(EventHandlersMixin):
         self._plan_feedback_context = None
         self._mounted_prompt_bar = False
         self._fs_watcher = object() if watcher_active else None
+        self._sdd_beads_dir = sdd_beads_dir
         self._dirty_changespecs = False
         self._dirty_agents = False
         self._dirty_agent_artifact_dirs: tuple[Path, ...] = ()

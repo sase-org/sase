@@ -4,10 +4,10 @@ The Rust core (``crates/sase_core``) owns plan discovery, filtering, and ranking
 this facade resolves the two source roots, decides which to scan from
 ``--source``, and forwards the filters across the ``plan_search`` binding.
 
-Two sources are searched, repo prioritized:
+Two sources are searched, SDD-store prioritized:
 
-* **repo** — committed ``sdd/`` plans, located via
-  :func:`sase.sdd.links.resolve_sdd_root`.
+* **repo** — plans in the resolved SDD store, located via
+  :func:`sase.sdd.store.resolve_sdd_dir`.
 * **local** — the machine-local archive under ``~/.sase/plans/`` (resolved via
   :func:`sase.core.paths.sase_subdir`).
 
@@ -28,6 +28,7 @@ from sase.core.rust import require_rust_binding
 from sase.plan_search.model import PlanSearchMatch
 from sase.plan_search.wire import plan_search_matches_from_list
 from sase.sdd.links import resolve_sdd_root
+from sase.sdd.store import resolve_sdd_dir
 
 SOURCE_ALL = "all"
 SOURCE_REPO = "repo"
@@ -40,7 +41,7 @@ LOCAL_PLANS_SUBDIR = "plans"
 def _repo_sdd_root(
     override: Path | str | None = None, *, cwd: Path | None = None
 ) -> Path:
-    """Resolve the repo ``sdd/`` root for plan search.
+    """Resolve the SDD-store root for plan search.
 
     With no override, resolve from the current (or given) working directory;
     an override is run through :func:`resolve_sdd_root` so a project root is
@@ -48,7 +49,8 @@ def _repo_sdd_root(
     """
     if override is not None:
         return resolve_sdd_root(str(override), cwd=cwd)
-    return resolve_sdd_root(cwd=cwd)
+    base = Path.cwd() if cwd is None else cwd
+    return resolve_sdd_dir(base, 1).resolve()
 
 
 def _local_plans_dir(override: Path | str | None = None) -> Path:

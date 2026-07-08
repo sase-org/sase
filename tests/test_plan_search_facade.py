@@ -77,6 +77,13 @@ def _search(corpus: tuple[Path, Path], **kwargs: object) -> list:
     return facade.search(repo_root=sdd, local_dir=local, **kwargs)  # type: ignore[arg-type]
 
 
+def _patch_sdd_storage(monkeypatch: pytest.MonkeyPatch, storage: str) -> None:
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": storage}},
+    )
+
+
 # --- root resolution -----------------------------------------------------
 
 
@@ -91,9 +98,50 @@ def test_local_plans_dir_override_wins() -> None:
     assert facade._local_plans_dir("/custom/plans") == Path("/custom/plans")
 
 
-def test_repo_sdd_root_resolves_from_cwd(tmp_path: Path) -> None:
+def test_repo_sdd_root_resolves_from_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     (tmp_path / "sdd").mkdir()
+    _patch_sdd_storage(monkeypatch, "in_tree")
     assert facade._repo_sdd_root(cwd=tmp_path) == (tmp_path / "sdd").resolve()
+
+
+def test_repo_sdd_root_resolves_local_store_from_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / ".sase" / "sdd"
+    store.mkdir(parents=True)
+    _patch_sdd_storage(monkeypatch, "local")
+
+    assert facade._repo_sdd_root(cwd=tmp_path) == store.resolve()
+
+
+def test_search_uses_resolved_local_sdd_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    local = tmp_path / "local_plans"
+    store = repo / ".sase" / "sdd"
+    _write_plan(
+        store / "tales" / "202607" / "local_store_plan.md",
+        title="Local store plan",
+        status="wip",
+        create_time="2026-07-01 10:00:00",
+        body="This plan lives in the resolved SDD store.",
+    )
+    _patch_sdd_storage(monkeypatch, "local")
+
+    matches = facade.search(
+        "resolved",
+        source=facade.SOURCE_REPO,
+        cwd=repo,
+        local_dir=local,
+    )
+
+    assert _names(matches) == ["local_store_plan"]
 
 
 def test_invalid_source_raises() -> None:

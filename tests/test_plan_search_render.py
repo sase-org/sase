@@ -73,6 +73,13 @@ def test_display_path_keeps_local_shard_and_handles_flat() -> None:
     assert R._display_path(flat) == "flat_note"
 
 
+def test_repo_source_root_label_reflects_local_sdd_store() -> None:
+    match = _match(relpath="tales/202607/store_plan.md")
+    match.plan.path = "/repo/.sase/sdd/tales/202607/store_plan.md"
+
+    assert R._source_root_label("repo", [match]) == ".sase/sdd/"
+
+
 def test_status_icons_use_bead_vocabulary() -> None:
     assert R._status_icon("wip") == "◐"
     assert R._status_icon("done") == "✓"

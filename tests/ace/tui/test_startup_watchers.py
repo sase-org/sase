@@ -1,0 +1,59 @@
+"""Startup watcher path selection tests."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from sase.ace.tui.actions._startup_watchers import StartupWatchersMixin
+
+
+class _Harness(StartupWatchersMixin):
+    def __init__(self) -> None:
+        self._fs_watcher = None
+        self._sdd_beads_dir = None
+
+    def _on_artifact_change(
+        self, changed_paths: tuple[Path, ...] | None = None
+    ) -> None:
+        del changed_paths
+
+    def call_from_thread(self, callback: Any, *args: Any, **kwargs: Any) -> None:
+        del callback, args, kwargs
+
+
+def test_artifact_watcher_targets_resolved_local_sdd_beads_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase_home"))
+    (tmp_path / "sase_home" / "projects").mkdir(parents=True)
+    beads_dir = tmp_path / ".sase" / "sdd" / "beads"
+    beads_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": "local"}},
+    )
+    captured_paths: list[Path] = []
+
+    class _FakeWatcher:
+        def __init__(self, watch_paths: list[Path], **kwargs: Any) -> None:
+            del kwargs
+            captured_paths.extend(watch_paths)
+
+        def start(self) -> bool:
+            return True
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions._startup_watchers.ArtifactWatcher",
+        _FakeWatcher,
+    )
+    app = _Harness()
+
+    app._start_artifact_watcher()
+
+    assert app._sdd_beads_dir == beads_dir
+    assert beads_dir in captured_paths

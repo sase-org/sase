@@ -131,6 +131,7 @@ class StateInitMixin:
         # post-load and cleared on quit.
         self._nav_gate = NavigationGate()
         self._fs_watcher: ArtifactWatcher | None = None
+        self._sdd_beads_dir: Path | None = None
         self._stall_watchdog: Any = None
         self._stall_watchdog_suspend_signals_wired: bool = False
 

@@ -165,12 +165,13 @@ def _build_export_content(record: PromptHistoryRecord, *, metadata: bool) -> str
 
 
 def _sdd_snapshot_path(record: PromptHistoryRecord) -> Path:
-    """Return the default ``sdd/prompts/YYYYMM/<slug>_<id>.md`` snapshot path."""
+    """Return the default SDD ``prompts/YYYYMM/<slug>_<id>.md`` snapshot path."""
     from sase.sdd._paths import get_yyyymm
+    from sase.sdd.store import resolve_sdd_dir
 
     slug = _slugify(record.text)
     basename = f"{slug}_{record.id}" if slug else record.id
-    return Path.cwd() / "sdd" / "prompts" / get_yyyymm() / f"{basename}.md"
+    return resolve_sdd_dir(Path.cwd(), 1) / "prompts" / get_yyyymm() / f"{basename}.md"
 
 
 # ---------------------------------------------------------------------------

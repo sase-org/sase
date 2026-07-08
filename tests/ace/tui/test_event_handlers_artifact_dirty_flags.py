@@ -362,6 +362,21 @@ def test_artifact_change_schedules_only_changespecs_for_bead_file() -> None:
     assert app.refresh_calls == ["schedule_changespecs"]
 
 
+def test_artifact_change_uses_cached_sdd_beads_dir_for_local_store(
+    tmp_path: Path,
+) -> None:
+    beads_dir = tmp_path / ".sase" / "sdd" / "beads"
+    app = _FakeApp(watcher_active=True, sdd_beads_dir=beads_dir)
+
+    app._on_artifact_change((beads_dir / "issues.jsonl",))
+
+    assert app._dirty_changespecs is True
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app._dirty_axe is False
+    assert app.refresh_calls == ["schedule_changespecs"]
+
+
 def test_artifact_change_does_not_schedule_agent_load_for_notifications() -> None:
     app = _FakeApp(watcher_active=True)
     path = Path.home() / ".sase" / "notifications" / "notification.json"

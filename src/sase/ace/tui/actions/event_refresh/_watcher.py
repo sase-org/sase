@@ -9,6 +9,7 @@ from sase.core.paths import sase_projects_dir, sase_subdir
 from ._artifact_delta import EventArtifactDeltaMixin
 from ._artifact_paths import artifact_path_affects_agents
 from ._constants import PROMPT_INPUT_DEFER_SECONDS
+from ._sdd_paths import cached_sdd_beads_dir
 
 
 class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
@@ -83,7 +84,7 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
         ignored_artifact_path = False
         projects_root = sase_projects_dir()
         notifications_root = sase_subdir("notifications")
-        beads_dir = Path.cwd() / "sdd" / "beads"
+        beads_dir = cached_sdd_beads_dir(self)
         for path in changed_paths:
             parts = path.parts
             if notifications_root in (path, *path.parents):

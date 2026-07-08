@@ -20,6 +20,7 @@ honoring ``NO_COLOR`` and TTY detection (``rich`` handles both natively in
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import TextIO
 
 from rich.console import Console, Group, RenderableType
@@ -115,6 +116,26 @@ def _display_path(plan: Plan) -> str:
     return rel
 
 
+def _source_root_label(source: str, matches: list[PlanSearchMatch]) -> str:
+    """Return the root label for a source group."""
+    if source != SOURCE_REPO or not matches:
+        return _SOURCE_ROOTS.get(source, source)
+
+    plan = matches[0].plan
+    try:
+        root = Path(plan.path)
+        for _ in Path(plan.relpath).parts:
+            root = root.parent
+    except (OSError, RuntimeError, ValueError):
+        return _SOURCE_ROOTS[SOURCE_REPO]
+
+    if root.name == "sdd" and root.parent.name == ".sase":
+        return ".sase/sdd/"
+    if root.name == "sdd":
+        return "sdd/"
+    return _SOURCE_ROOTS[SOURCE_REPO]
+
+
 def _created_date(plan: Plan) -> str:
     """The date portion of the ISO ``created_at`` (``YYYY-MM-DD``)."""
     return plan.created_at.split("T", 1)[0] if plan.created_at else ""
@@ -208,11 +229,11 @@ def _snippet_text(match: PlanSearchMatch, query: str | None) -> Text | None:
 # --- compact -------------------------------------------------------------
 
 
-def _group_header(source: str, count: int, width: int) -> Text:
+def _group_header(source: str, group: list[PlanSearchMatch], width: int) -> Text:
     text = Text()
     text.append(_SOURCE_LABELS.get(source, source.upper()), style="bold")
-    text.append(f"  ▸ {_SOURCE_ROOTS.get(source, source)}", style="dim")
-    right = _plural(count)
+    text.append(f"  ▸ {_source_root_label(source, group)}", style="dim")
+    right = _plural(len(group))
     pad = max(1, width - text.cell_len - len(right))
     text.append(" " * pad)
     text.append(right, style="dim")
@@ -253,7 +274,7 @@ def _render_compact(
         group = grouped[source]
         if i:
             console.print()
-        console.print(_group_header(source, len(group), console.width))
+        console.print(_group_header(source, group, console.width))
         for match in group:
             console.print(_compact_row(match, kind_w, path_w), no_wrap=True, crop=False)
             snippet = _snippet_text(match, query)
@@ -393,7 +414,7 @@ def _render_markdown(
         group = grouped[source]
         lines.append(
             f"## {_SOURCE_LABELS.get(source, source.upper())} — "
-            f"{_SOURCE_ROOTS.get(source, source)}"
+            f"{_source_root_label(source, group)}"
         )
         lines.append("")
         rows = [

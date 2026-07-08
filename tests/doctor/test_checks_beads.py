@@ -55,6 +55,40 @@ def test_project_beads_adapts_warning_messages(monkeypatch, tmp_path: Path) -> N
     assert check.data["beads_dir"] == str(beads_dir)
 
 
+def test_project_beads_prefers_resolved_local_store(
+    monkeypatch, tmp_path: Path
+) -> None:
+    in_tree_beads = tmp_path / "sdd" / "beads"
+    local_beads = tmp_path / ".sase" / "sdd" / "beads"
+    in_tree_beads.mkdir(parents=True)
+    local_beads.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": "local"}},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.resolve_current_project_record",
+        lambda _context: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.doctor",
+        lambda _path: ["OK: no issues found"],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.rust_beads.stats",
+        lambda _path: {"open": 1, "in_progress": 0, "closed": 0},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_beads.bead_state_is_clean",
+        lambda _path: True,
+    )
+
+    check = _check_project_beads(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["beads_dir"] == str(local_beads)
+
+
 def test_project_beads_degrades_when_git_is_unavailable(
     monkeypatch,
     tmp_path: Path,

@@ -101,6 +101,7 @@ def _find_existing_beads_dir(context: DoctorContext) -> Path | None:
 def _candidate_beads_dirs(context: DoctorContext) -> tuple[Path, ...]:
     candidates: list[Path] = []
     cwd = context.cwd.expanduser().resolve(strict=False)
+    _append_resolved_beads_candidate(candidates, cwd)
     for parent in (cwd, *cwd.parents):
         candidates.append(parent / BEADS_DIRNAME)
         candidates.append(parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC)
@@ -113,10 +114,20 @@ def _candidate_beads_dirs(context: DoctorContext) -> tuple[Path, ...]:
     workspace_dir = getattr(record, "workspace_dir", None)
     if isinstance(workspace_dir, str) and workspace_dir:
         primary = Path(workspace_dir).expanduser()
+        _append_resolved_beads_candidate(candidates, primary)
         candidates.append(primary / BEADS_DIRNAME)
         candidates.append(primary / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC)
 
     return _dedupe_paths(candidates)
+
+
+def _append_resolved_beads_candidate(candidates: list[Path], workspace: Path) -> None:
+    try:
+        from sase.sdd.store import resolve_sdd_dir
+
+        candidates.append(resolve_sdd_dir(workspace, 1) / BEADS_DIRNAME_NON_VC)
+    except Exception:  # noqa: BLE001 - doctor candidate resolution is best-effort.
+        return
 
 
 def _dedupe_paths(paths: list[Path]) -> tuple[Path, ...]:

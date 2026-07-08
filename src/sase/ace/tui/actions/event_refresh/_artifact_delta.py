@@ -23,6 +23,7 @@ from ._constants import (
     EXPECTED_AGENT_ARTIFACT_DELETION_TTL_SECONDS,
 )
 from ._helpers import callable_accepts_kwarg
+from ._sdd_paths import cached_sdd_beads_dir
 
 
 class EventArtifactDeltaMixin(EventHandlersBase):
@@ -35,7 +36,7 @@ class EventArtifactDeltaMixin(EventHandlersBase):
         notifications_root = sase_subdir("notifications")
         if notifications_root in (path, *path.parents):
             return None, False, False
-        beads_dir = Path.cwd() / "sdd" / "beads"
+        beads_dir = cached_sdd_beads_dir(self)
         if beads_dir in (path, *path.parents):
             return None, False, False
         if path.suffix in {".sase", ".gp"}:

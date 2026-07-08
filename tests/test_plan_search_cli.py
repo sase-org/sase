@@ -40,6 +40,11 @@ def corpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """
     repo = tmp_path / "repo"
     sase_home = tmp_path / ".sase"
+    (repo / "sase.yml").parent.mkdir(parents=True, exist_ok=True)
+    (repo / "sase.yml").write_text(
+        "sdd:\n  storage: in_tree\n",
+        encoding="utf-8",
+    )
 
     _write_plan(
         repo / "sdd" / "tales" / "202606" / "auth_token_refresh.md",
