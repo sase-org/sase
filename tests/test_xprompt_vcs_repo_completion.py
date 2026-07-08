@@ -17,6 +17,7 @@ from sase.xprompt.vcs_repo_completion import (
     filter_vcs_repo_entries,
     find_vcs_repo_trigger,
     load_vcs_repo_completion_config,
+    peek_cached_repo_candidates,
     vcs_repo_catalog_response,
 )
 
@@ -173,6 +174,71 @@ def test_fetch_repo_candidates_uses_memo_and_disk_cache(
     assert [entry.name for entry in second.entries] == ["sase"]
     assert [entry.name for entry in third.entries] == ["sase"]
     assert calls == [("gh", "bbugyi200")]
+
+
+def test_fetch_repo_candidates_applies_max_repos_to_cached_results(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase_home"))
+    monkeypatch.setattr(vrc.time, "time", lambda: 1000.0)
+    entries = tuple(_entry(f"repo-{index}") for index in range(3))
+
+    monkeypatch.setattr(
+        vrc.workspace_provider,
+        "list_repo_candidates",
+        lambda _workflow, _namespace: VcsRepoCandidates(
+            status="ok",
+            provider_display="GitHub",
+            entries=entries,
+        ),
+    )
+
+    first = fetch_repo_candidates(
+        "gh",
+        "bbugyi200",
+        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=3),
+    )
+    second = fetch_repo_candidates(
+        "gh",
+        "bbugyi200",
+        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=1),
+    )
+
+    assert [entry.name for entry in first.entries] == ["repo-0", "repo-1", "repo-2"]
+    assert [entry.name for entry in second.entries] == ["repo-0"]
+
+
+def test_peek_cached_repo_candidates_applies_max_repos_to_disk_cache(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase_home"))
+    monkeypatch.setattr(vrc.time, "time", lambda: 1000.0)
+    entries = tuple(_entry(f"repo-{index}") for index in range(3))
+
+    monkeypatch.setattr(
+        vrc.workspace_provider,
+        "list_repo_candidates",
+        lambda _workflow, _namespace: VcsRepoCandidates(
+            status="ok",
+            provider_display="GitHub",
+            entries=entries,
+        ),
+    )
+    fetch_repo_candidates(
+        "gh",
+        "bbugyi200",
+        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=3),
+    )
+    vrc._MEMO_CACHE.clear()
+
+    cached = peek_cached_repo_candidates(
+        "gh",
+        "bbugyi200",
+        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=1),
+    )
+
+    assert cached is not None
+    assert [entry.name for entry in cached.entries] == ["repo-0"]
 
 
 def test_fetch_repo_candidates_serves_stale_entries_on_error(

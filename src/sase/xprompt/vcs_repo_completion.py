@@ -321,7 +321,7 @@ def fetch_repo_candidates(
     memo_payload = _MEMO_CACHE.get(key)
     if memo_payload is not None:
         if _is_fresh(memo_payload, now, settings.cache_ttl_seconds):
-            return _result_from_cache(memo_payload)
+            return _result_from_cache(memo_payload, max_repos=settings.max_repos)
         stale_payload = memo_payload
 
     cache_path = _cache_path(workflow_type, namespace)
@@ -329,7 +329,7 @@ def fetch_repo_candidates(
     if disk_payload is not None:
         _MEMO_CACHE[key] = disk_payload
         if _is_fresh(disk_payload, now, settings.cache_ttl_seconds):
-            return _result_from_cache(disk_payload)
+            return _result_from_cache(disk_payload, max_repos=settings.max_repos)
         stale_payload = disk_payload
 
     fetched = workspace_provider.list_repo_candidates(workflow_type, namespace)
@@ -392,7 +392,7 @@ def peek_cached_repo_candidates(
         now,
         settings.cache_ttl_seconds,
     ):
-        return _result_from_cache(memo_payload)
+        return _result_from_cache(memo_payload, max_repos=settings.max_repos)
 
     disk_payload = _read_cache_payload(_cache_path(workflow_type, namespace))
     if disk_payload is None:
@@ -400,7 +400,7 @@ def peek_cached_repo_candidates(
     _MEMO_CACHE[key] = disk_payload
     if not _is_fresh(disk_payload, now, settings.cache_ttl_seconds):
         return None
-    return _result_from_cache(disk_payload)
+    return _result_from_cache(disk_payload, max_repos=settings.max_repos)
 
 
 def filter_vcs_repo_entries(
@@ -445,11 +445,13 @@ def _response_payload(result: VcsRepoFetchResult) -> dict[str, object]:
     }
 
 
-def _result_from_cache(payload: _CachedRepoPayload) -> VcsRepoFetchResult:
+def _result_from_cache(
+    payload: _CachedRepoPayload, *, max_repos: int
+) -> VcsRepoFetchResult:
     return VcsRepoFetchResult(
         status="ok",
         provider_display=payload.provider_display,
-        entries=payload.entries,
+        entries=payload.entries[:max_repos],
     )
 
 
