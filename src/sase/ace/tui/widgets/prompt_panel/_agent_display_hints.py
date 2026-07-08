@@ -90,7 +90,7 @@ class AgentHintsDisplayMixin:
             agent: The Agent to display.
 
         Returns:
-            File hint mappings and deferred failed-tool report specs.
+            File hint mappings and deferred tool-call report specs.
         """
         # Workflow top-level or bash/python/parallel: no hint support
         if (

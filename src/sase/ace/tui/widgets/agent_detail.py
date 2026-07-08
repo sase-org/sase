@@ -277,7 +277,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             agent: The Agent to display with hints.
 
         Returns:
-            File hint mappings and deferred failed-tool report specs.
+            File hint mappings and deferred tool-call report specs.
         """
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         return prompt_panel.update_display_with_hints(agent)

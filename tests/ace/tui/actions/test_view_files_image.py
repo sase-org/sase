@@ -43,18 +43,27 @@ def _make_app(*paths: str) -> _ViewApp:
     return _ViewApp({i + 1: path for i, path in enumerate(paths)})
 
 
-def _report_spec(report_path: str) -> SlowToolCallReportSpec:
+def _report_spec(
+    report_path: str,
+    *,
+    status: str = "failure",
+) -> SlowToolCallReportSpec:
+    response_summary = (
+        {"stdout_preview": "succeeded"}
+        if status == "success"
+        else {"stderr_preview": "failed"}
+    )
     return SlowToolCallReportSpec(
         entry=ToolCallEntry(
             recorded_at="2026-07-07T14:35:02+00:00",
             runtime="codex",
             event="ToolUse",
-            status="failure",
+            status=status,
             tool_name="Bash",
             tool_use_id="call_1",
             duration_ms=30_000,
             tool_input_summary={"command": "just test"},
-            tool_response_summary={"stderr_preview": "failed"},
+            tool_response_summary=response_summary,
             source_path="/artifacts/tool_calls.jsonl",
             line_number=4,
         ),
@@ -86,13 +95,15 @@ def test_tool_call_report_hint_is_materialized_for_pager(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     report_path = str(tmp_path / ".sase" / "tool_call_reports" / "report.md")
     app = _make_app(report_path)
-    app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
+    app._hint_tool_call_reports = {
+        report_path: _report_spec(report_path, status="success")
+    }
     app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
 
     app._process_view_input("1")
 
     assert Path(report_path).is_file()
-    assert "failed" in Path(report_path).read_text(encoding="utf-8")
+    assert "succeeded" in Path(report_path).read_text(encoding="utf-8")
     app._view_files_with_pager.assert_called_once_with([report_path])
 
 
@@ -140,7 +151,7 @@ def test_tool_call_report_materialization_failure_drops_path(
     app._hint_tool_call_reports = {report_path: _report_spec(report_path)}
     app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
     monkeypatch.setattr(
-        "sase.ace.tui.actions.hints._processing.write_failed_tool_call_report",
+        "sase.ace.tui.actions.hints._processing.write_tool_call_report",
         lambda _spec: None,
     )
 

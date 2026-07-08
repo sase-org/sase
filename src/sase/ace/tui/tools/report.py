@@ -1,4 +1,4 @@
-"""Markdown reports for failed slow tool-call hints."""
+"""Markdown reports for slow tool-call hints."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ _TEXT_RESULT_KEYS = (
 
 @dataclass(frozen=True)
 class SlowToolCallReportSpec:
-    """Deferred report write request for one failed tool call."""
+    """Deferred report write request for one tool call."""
 
     entry: ToolCallEntry
     source_label: str | None
@@ -63,7 +63,7 @@ class _TranscriptRecovery:
     note: str
 
 
-def failed_tool_call_report_path(entry: ToolCallEntry) -> str:
+def tool_call_report_path(entry: ToolCallEntry) -> str:
     """Return the deterministic report path for ``entry`` without writing."""
     tool = _safe_filename(entry.display_tool_name)
     hhmmss = _timestamp_hhmmss(entry.recorded_at)
@@ -71,24 +71,22 @@ def failed_tool_call_report_path(entry: ToolCallEntry) -> str:
     return str(sase_subdir(_REPORT_SUBDIR) / f"{tool}-{hhmmss}-{digest}.md")
 
 
-def _build_failed_tool_call_report(
+def _build_tool_call_report(
     spec: SlowToolCallReportSpec,
     *,
     transcript_recovery: _TranscriptRecovery | None = None,
 ) -> str:
-    """Build the Markdown report body for a failed tool call."""
+    """Build the Markdown report body for a tool call."""
     entry = spec.entry
     duration = (
         f" after {format_long_duration(entry.duration_ms)}"
         if entry.duration_ms is not None
         else ""
     )
-    title_status = entry.status or "failed"
-    if title_status == "failure":
-        title_status = "failed"
+    title_glyph, title_status = _title_status(entry)
 
-    lines = [
-        f"# \u2718 {entry.display_tool_name} - {title_status}{duration}",
+    lines: list[str] = [
+        f"# {title_glyph} {entry.display_tool_name} - {title_status}{duration}",
         "",
         *_metadata_lines(spec),
         "",
@@ -100,34 +98,43 @@ def _build_failed_tool_call_report(
         "",
         *_tool_input_lines(entry),
         "",
-        "## Error",
-        "",
-        *_error_lines(entry),
-        "",
-        "## Recorded Output",
-        "",
-        *_recorded_output_lines(entry),
-        "",
-        "## Full Output (transcript)",
-        "",
-        *_transcript_lines(transcript_recovery),
-        "",
-        "## Provenance",
-        "",
-        *_provenance_lines(entry),
-        "",
     ]
+    if _include_error_section(entry):
+        lines.extend(
+            (
+                "## Error",
+                "",
+                *_error_lines(entry),
+                "",
+            )
+        )
+    lines.extend(
+        [
+            "## Recorded Output",
+            "",
+            *_recorded_output_lines(entry),
+            "",
+            "## Full Output (transcript)",
+            "",
+            *_transcript_lines(transcript_recovery),
+            "",
+            "## Provenance",
+            "",
+            *_provenance_lines(entry),
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
-def write_failed_tool_call_report(spec: SlowToolCallReportSpec) -> str | None:
-    """Write a failed tool-call report atomically and return its path."""
+def write_tool_call_report(spec: SlowToolCallReportSpec) -> str | None:
+    """Write a tool-call report atomically and return its path."""
     try:
         report_dir = Path(ensure_sase_directory(_REPORT_SUBDIR))
         report_path = Path(spec.report_path)
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        transcript_recovery = _recover_failed_tool_call_output(spec.entry)
-        content = _build_failed_tool_call_report(
+        transcript_recovery = _recover_tool_call_output(spec.entry)
+        content = _build_tool_call_report(
             spec,
             transcript_recovery=transcript_recovery,
         )
@@ -139,8 +146,8 @@ def write_failed_tool_call_report(spec: SlowToolCallReportSpec) -> str | None:
         return None
 
 
-def _recover_failed_tool_call_output(entry: ToolCallEntry) -> _TranscriptRecovery:
-    """Best-effort transcript recovery for a failed tool call."""
+def _recover_tool_call_output(entry: ToolCallEntry) -> _TranscriptRecovery:
+    """Best-effort transcript recovery for a tool call."""
     tool_use_id = entry.tool_use_id
     if not tool_use_id:
         return _TranscriptRecovery(None, "Not recovered: tool use ID unavailable.")
@@ -235,7 +242,28 @@ def _tool_input_lines(entry: ToolCallEntry) -> list[str]:
     return [_fenced(_json_dumps(entry.tool_input_summary), "json")]
 
 
+def _title_status(entry: ToolCallEntry) -> tuple[str, str]:
+    status = (entry.status or "").lower()
+    if status == "success":
+        return "\u2714", "succeeded"
+    if status in {"failure", "failed"}:
+        return "\u2718", "failed"
+    return "\u25fc", status.replace("_", " ") or "completed"
+
+
+def _include_error_section(entry: ToolCallEntry) -> bool:
+    status = (entry.status or "").lower()
+    return status in {"failure", "failed"} or bool(_error_values(entry))
+
+
 def _error_lines(entry: ToolCallEntry) -> list[str]:
+    errors = _error_values(entry)
+    if not errors:
+        return ["No explicit error recorded."]
+    return [_fenced("\n\n".join(errors), "text")]
+
+
+def _error_values(entry: ToolCallEntry) -> list[str]:
     errors: list[str] = []
     if entry.error:
         errors.append(entry.error)
@@ -246,9 +274,7 @@ def _error_lines(entry: ToolCallEntry) -> list[str]:
             if isinstance(response_error, str)
             else _json_dumps(response_error)
         )
-    if not errors:
-        return ["No explicit error recorded."]
-    return [_fenced("\n\n".join(errors), "text")]
+    return errors
 
 
 def _recorded_output_lines(entry: ToolCallEntry) -> list[str]:
@@ -429,6 +455,6 @@ def _text_values(value: Any) -> list[str]:
 
 __all__ = [
     "SlowToolCallReportSpec",
-    "failed_tool_call_report_path",
-    "write_failed_tool_call_report",
+    "tool_call_report_path",
+    "write_tool_call_report",
 ]

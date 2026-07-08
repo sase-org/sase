@@ -362,7 +362,7 @@ def test_slow_tools_section_uses_per_source_pending_state() -> None:
     assert "30s ● running" in plain
 
 
-def test_failed_slow_tools_get_hint_markers_and_report_specs(
+def test_completed_slow_tools_get_hint_markers_and_report_specs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -401,18 +401,24 @@ def test_failed_slow_tools_get_hint_markers_and_report_specs(
     plain = text.plain
     lines = [line for line in plain.splitlines() if "just " in line]
     assert "✘ [12] code" in plain
-    assert "✔      code" in plain
+    assert "✔ [13] code" in plain
     assert lines[0].index("Bash") == lines[1].index("Bash")
-    assert state.hint_counter == 13
-    report_path = state.hint_mappings[12]
-    assert report_path.startswith(str(tmp_path / ".sase" / "tool_call_reports"))
-    spec = state.tool_call_reports[report_path]
-    assert spec.entry is failed
-    assert spec.source_label == "code"
-    assert spec.agent_name == "root"
+    assert state.hint_counter == 14
+    failed_report_path = state.hint_mappings[12]
+    success_report_path = state.hint_mappings[13]
+    assert failed_report_path.startswith(str(tmp_path / ".sase" / "tool_call_reports"))
+    assert success_report_path.startswith(str(tmp_path / ".sase" / "tool_call_reports"))
+    failed_spec = state.tool_call_reports[failed_report_path]
+    success_spec = state.tool_call_reports[success_report_path]
+    assert failed_spec.entry is failed
+    assert success_spec.entry is success
+    assert failed_spec.source_label == "code"
+    assert success_spec.source_label == "code"
+    assert failed_spec.agent_name == "root"
+    assert success_spec.agent_name == "root"
 
 
-def test_slow_tool_hints_ignore_non_failure_rows(
+def test_slow_tool_hints_ignore_non_reportable_rows(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -429,22 +435,42 @@ def test_slow_tool_hints_ignore_non_failure_rows(
         text,
         sources=(
             _source(
-                _entry(status="success", tool_use_id="success"),
+                _entry(
+                    status="success",
+                    tool_use_id="success",
+                    duration_ms=45_000,
+                    tool_input_summary={"command": "just ok"},
+                ),
                 _entry(
                     status="pending",
                     tool_use_id="pending",
                     duration_ms=None,
-                    recorded_at="2026-07-03T14:00:00+00:00",
+                    recorded_at="2026-07-03T14:00:01+00:00",
+                    tool_input_summary={"command": "still running"},
                 ),
-                end_reference=datetime(2026, 7, 3, 14, 0, 45, tzinfo=UTC),
+                _entry(
+                    status="incomplete",
+                    tool_use_id="incomplete",
+                    duration_ms=50_000,
+                    recorded_at="2026-07-03T14:00:02+00:00",
+                    tool_input_summary={"command": "partial"},
+                ),
+                active=True,
             ),
         ),
-        agent=SimpleNamespace(status="DONE", stop_time=None),
+        agent=SimpleNamespace(status="RUNNING", stop_time=None),
         now=datetime(2026, 7, 3, 14, 2, tzinfo=UTC),
         hint_state=state,
     )
 
-    assert "[1]" not in text.plain
-    assert state.hint_counter == 1
-    assert state.hint_mappings == {}
-    assert state.tool_call_reports == {}
+    plain = text.plain
+    lines = [line for line in plain.splitlines() if "Bash" in line]
+    assert "✔ [1] Bash" in plain
+    assert "⏳     Bash" in plain
+    assert "◼     Bash" in plain
+    assert lines[0].index("Bash") == lines[1].index("Bash")
+    assert lines[0].index("Bash") == lines[2].index("Bash")
+    assert state.hint_counter == 2
+    assert set(state.hint_mappings) == {1}
+    spec = state.tool_call_reports[state.hint_mappings[1]]
+    assert spec.entry.tool_use_id == "success"

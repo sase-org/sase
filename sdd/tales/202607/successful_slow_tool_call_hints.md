@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 20:40:01
-status: wip
+status: done
 prompt: sdd/prompts/202607/successful_slow_tool_call_hints.md
 ---
 # Plan: `v` Hints for Successful SLOW TOOL CALLS

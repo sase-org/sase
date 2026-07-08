@@ -9,7 +9,7 @@ from ....hints import (
     parse_test_targets,
     parse_view_input,
 )
-from ...tools.report import SlowToolCallReportSpec, write_failed_tool_call_report
+from ...tools.report import SlowToolCallReportSpec, write_tool_call_report
 from ...widgets import HintInputBar
 from ._types import HintMixinBase
 
@@ -122,7 +122,7 @@ class InputProcessingMixin(HintMixinBase):
             if spec is None:
                 materialized.append(file_path)
                 continue
-            report_path = write_failed_tool_call_report(spec)
+            report_path = write_tool_call_report(spec)
             if report_path is None:
                 self.notify(  # type: ignore[attr-defined]
                     f"Failed to build tool-call report: {file_path}",
