@@ -9,6 +9,7 @@ from sase.plan_chain import (
     agent_family_base,
     agent_family_phase_name,
     agent_family_role_for_suffix,
+    agent_family_suffix_token,
     canonical_plan_chain_suffix,
     is_agent_family_member,
     is_plan_feedback_suffix,
@@ -39,6 +40,17 @@ def test_agent_family_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
     assert agent_family_role_for_suffix("-2") == "feedback"
     assert agent_family_role_for_suffix(".code") == "code"
     assert agent_family_role_for_suffix(".unknown") is None
+
+
+def test_agent_family_suffix_token_strips_known_separators() -> None:
+    assert agent_family_suffix_token("--bar") == "bar"
+    assert agent_family_suffix_token("--0") == "0"
+    assert agent_family_suffix_token("--reviewer") == "reviewer"
+    assert agent_family_suffix_token(".xyz") == "xyz"
+    assert agent_family_suffix_token("-2") == "2"
+    assert agent_family_suffix_token(None) is None
+    assert agent_family_suffix_token("") is None
+    assert agent_family_suffix_token("--") is None
 
 
 def test_new_plan_feedback_suffixes_classify_as_feedback() -> None:

@@ -135,6 +135,58 @@ class TestAgentXPromptRendering:
         assert "#gh:widgets response" in plain
         assert "#gh:gh_acme__widgets" not in plain
 
+    def test_custom_family_reply_dividers_include_member_ids(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        root_base = tmp_path / "root"
+        followup_base = tmp_path / "followup"
+        root_base.mkdir()
+        followup_base.mkdir()
+        root = make_artifact_agent(root_base, status="DONE")
+        followup = make_artifact_agent(followup_base, status="DONE")
+        root.role_suffix = "--0"
+        root.agent_family_role = "root"
+        root.plan_chain_root = False
+        followup.role_suffix = "--bar"
+        followup.agent_family_role = "bar"
+        root.followup_agents = [followup]
+
+        panel = FakePromptPanel()
+        panel.update_display(root)
+        plain = plain_of(panel.captured[-1])
+
+        assert "AGENT REPLY" in plain
+        assert "AGENT (0)" in plain
+        assert "AGENT (bar)" in plain
+        assert "QUESTIONS" not in plain
+
+    def test_hint_mode_custom_family_reply_dividers_include_member_ids(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        root_base = tmp_path / "root"
+        followup_base = tmp_path / "followup"
+        root_base.mkdir()
+        followup_base.mkdir()
+        root = make_artifact_agent(root_base, status="DONE")
+        followup = make_artifact_agent(followup_base, status="DONE")
+        root.role_suffix = "--0"
+        root.agent_family_role = "root"
+        root.plan_chain_root = False
+        followup.role_suffix = "--bar"
+        followup.agent_family_role = "bar"
+        root.followup_agents = [followup]
+
+        panel = FakePromptPanel()
+        panel.update_display_with_hints(root)
+        plain = plain_of(panel.captured[-1])
+
+        assert "AGENT REPLY" in plain
+        assert "AGENT (0)" in plain
+        assert "AGENT (bar)" in plain
+        assert "QUESTIONS" not in plain
+
     def test_hint_mode_renders_raw_xprompt_for_terminal_agent(
         self,
         tmp_path: Path,

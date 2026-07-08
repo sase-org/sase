@@ -17,6 +17,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
     agent_family_role_for_suffix,
+    agent_family_suffix_token,
     canonical_plan_chain_suffix,
     plan_chain_feedback_round,
 )
@@ -57,7 +58,8 @@ def get_phase_label(agent: Agent) -> str:
         agent.role_suffix,
         agent_family_role=agent.agent_family_role,
     )
-    if role == "q":
+    is_promoted_root = agent.agent_family_role == "root" and not agent.plan_chain_root
+    if role == "q" and not is_promoted_root:
         return "QUESTIONS"
     if role == "code":
         return "CODER"
@@ -77,6 +79,9 @@ def get_phase_label(agent: Agent) -> str:
     )
     if feedback_round is not None:
         return f"PLANNER (round {feedback_round})"
+    token = agent_family_suffix_token(agent.role_suffix)
+    if token is not None:
+        return f"AGENT ({token})"
     return "AGENT"
 
 

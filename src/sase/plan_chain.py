@@ -343,6 +343,17 @@ def _agent_family_suffix(
     return split[1] if split is not None else None
 
 
+def agent_family_suffix_token(suffix: object) -> str | None:
+    """Return the bare token from an agent-family suffix."""
+    if not isinstance(suffix, str):
+        return None
+    for separator in (AGENT_FAMILY_SEPARATOR, ".", "-"):
+        if suffix.startswith(separator):
+            token = suffix[len(separator) :]
+            return token or None
+    return None
+
+
 def is_agent_family_member(name: object, *, include_legacy_dash: bool = False) -> bool:
     """Return whether *name* has a known agent-family suffix."""
     return (
