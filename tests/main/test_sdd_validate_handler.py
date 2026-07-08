@@ -1,0 +1,193 @@
+"""Tests for ``sase sdd validate`` handling."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from sase.main.sdd_handler import handle_sdd_command
+from tests.main.sdd_handler_helpers import (
+    make_args,
+    mark_tmp_path_as_project,
+    write_pair,
+)
+
+__all__ = ["mark_tmp_path_as_project"]
+
+pytestmark = pytest.mark.usefixtures("mark_tmp_path_as_project")
+
+
+def test_validate_allows_default_unpaired_warnings(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    write_pair(root)
+    unpaired = root / "tales" / "202605" / "legacy.md"
+    unpaired.parent.mkdir(parents=True, exist_ok=True)
+    unpaired.write_text("# Legacy plan\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root)))
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert "SDD validation passed" in out
+    assert "unpaired-file" not in out
+    assert "(use --show-warnings to display)" in out
+
+
+def test_validate_show_warnings_flag_displays_warning_lines(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    write_pair(root)
+    unpaired = root / "tales" / "202605" / "legacy.md"
+    unpaired.parent.mkdir(parents=True, exist_ok=True)
+    unpaired.write_text("# Legacy plan\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), show_warnings=True))
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert "SDD validation passed" in out
+    assert "unpaired-file" in out
+    assert "(use --show-warnings to display)" not in out
+
+
+def test_validate_strict_fails_unpaired_warnings(tmp_path: Path) -> None:
+    root = tmp_path / "sdd"
+    (root / "prompts" / "202605").mkdir(parents=True)
+    (root / "prompts" / "202605" / "legacy.md").write_text(
+        "# Legacy prompt\n", encoding="utf-8"
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), strict=True, quiet=True))
+
+    assert excinfo.value.code == 1
+
+
+def test_validate_fails_broken_bidirectional_link(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    prompt, plan = write_pair(root)
+    plan.write_text(
+        "---\nprompt: sdd/prompts/202605/other.md\n---\n# Plan\n", encoding="utf-8"
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), json=True))
+
+    assert excinfo.value.code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert any(error["code"] == "link-missing-target" for error in payload["errors"])
+    assert prompt.exists()
+
+
+def test_validate_reports_invalid_yaml_frontmatter(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "sdd"
+    path = root / "prompts" / "202605" / "bad.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("---\nplan: [unterminated\n---\n# Bad\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), json=True))
+
+    assert excinfo.value.code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["errors"][0]["code"] == "frontmatter-parse"
+
+
+def test_validate_downgrades_allowlisted_legacy_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.sdd.links as links
+
+    root = tmp_path / "sdd"
+    path = root / "prompts" / "202605" / "legacy.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\nplan: sdd/tales/202605/missing.md\n---\n# Legacy prompt\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        links,
+        "LEGACY_INVALID_SDD_ERROR_ALLOWLIST",
+        frozenset({"prompts/202605/legacy.md"}),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), json=True))
+
+    assert excinfo.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["errors"] == []
+    assert payload["warnings"] == [
+        {
+            "severity": "warning",
+            "code": "link-missing-target-legacy-allowed",
+            "path": "prompts/202605/legacy.md",
+            "message": "'plan' target does not exist: "
+            "sdd/tales/202605/missing.md; "
+            "legacy SDD validation error allowlisted",
+        }
+    ]
+
+
+def test_validate_does_not_allowlist_other_paths(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.sdd.links as links
+
+    root = tmp_path / "sdd"
+    path = root / "prompts" / "202605" / "new.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\nplan: sdd/tales/202605/missing.md\n---\n# New prompt\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        links,
+        "LEGACY_INVALID_SDD_ERROR_ALLOWLIST",
+        frozenset({"prompts/202605/legacy.md"}),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), json=True))
+
+    assert excinfo.value.code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "link-missing-target"
+    assert payload["warnings"] == []
+
+
+def test_validate_resolves_legacy_plans_link_to_canonical_tales(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "sdd"
+    prompt = root / "prompts" / "202605" / "linked.md"
+    plan = root / "tales" / "202605" / "linked.md"
+    prompt.parent.mkdir(parents=True)
+    plan.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: sdd/plans/202605/linked.md\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    plan.write_text(
+        "---\nprompt: sdd/prompts/202605/linked.md\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), quiet=True))
+
+    assert excinfo.value.code == 0
