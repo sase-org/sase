@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 22:38:26
-status: wip
+status: done
 prompt: sdd/prompts/202607/logs_apostrophe_jump.md
 ---
 # Add apostrophe entry-jump support to Admin Center Logs

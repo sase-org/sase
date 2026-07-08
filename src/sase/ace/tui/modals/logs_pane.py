@@ -19,6 +19,7 @@ from textual.worker import Worker, WorkerState
 from sase.core.paths import sase_home
 from sase.logs import TOAST_HISTORY_LIMIT, current_toast_session, read_recent_toasts
 
+from ..actions.navigation.jump_hints import build_jump_hint_maps, normalize_jump_key
 from ..logs import LogSource, log_sources
 from .base import CopyModeForwardingMixin
 from .logs_pane_toasts import render_toast_detail_body
@@ -308,11 +309,13 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         ("G", "scroll_to_bottom", "Bottom"),
         ("shift+g", "scroll_to_bottom", "Bottom"),
         ("r", "refresh", "Refresh"),
+        ("apostrophe", "jump_to_entry", "Jump"),
     ]
 
     def __init__(self, *, auto_load: bool = True, **kwargs: Any) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._sources: list[LogSource] = log_sources()
+        self._source_options: list[tuple[str, Text]] = []
         self._active_count = 0
         self._loading = auto_load
         self._worker: Worker[Any] | None = None
@@ -320,6 +323,10 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         self._syncing_options = False
         self._selected_index = 0
         self._last_detail_text: Text = Text("Loading logs...", style="dim")
+        self._log_jump_mode_active = False
+        self._log_jump_hint_to_index: dict[str, int] = {}
+        self._log_jump_index_to_hint: dict[int, str] = {}
+        self._log_jump_back_stack: list[int] = []
 
     def compose(self) -> ComposeResult:
         yield Label(self._title_text(), id="logs-pane-title")
@@ -348,8 +355,18 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         CopyModeForwardingMixin.on_key(self, event)
         if getattr(event, "_stop_propagation", False):
             return
+        if self._log_jump_mode_active:
+            key = normalize_jump_key(event.key, event.character)
+            if self._handle_log_jump_key(key):
+                event.prevent_default()
+                event.stop()
+                return
         character = getattr(event, "character", None)
-        if event.key in ("G", "shift+g") or character == "G":
+        if event.key == "apostrophe":
+            event.prevent_default()
+            event.stop()
+            self.action_jump_to_entry()
+        elif event.key in ("G", "shift+g") or character == "G":
             event.prevent_default()
             event.stop()
             self.action_scroll_to_bottom()
@@ -394,27 +411,63 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
     def _apply_load_result(
         self, result: _LogPaneLoadResult, *, reset_scroll: bool
     ) -> None:
+        previous_source_ids = [source.id for source in self._sources]
+        next_source_ids = [source.id for source in result.sources]
+        if previous_source_ids != next_source_ids:
+            self._clear_log_jump_hints()
+            self._log_jump_back_stack = []
+        elif self._log_jump_mode_active and not self._log_jump_hints_are_valid(
+            len(result.sources)
+        ):
+            self._clear_log_jump_hints()
+
         self._sources = result.sources
+        self._source_options = result.options
         self._active_count = result.active_count
         self._selected_index = result.selected_index
         self._last_detail_text = result.detail
         self._update_static("#logs-pane-title", self._title_text())
         self._update_static("#log-detail", self._last_detail_text)
-        self._rebuild_options(result)
+        self._update_hints()
+        self._rebuild_options(selected_index=result.selected_index)
         if reset_scroll:
             self._scroll_detail_home()
 
-    def _rebuild_options(self, result: _LogPaneLoadResult) -> None:
+    def _log_jump_hints_are_valid(self, source_count: int) -> bool:
+        return all(
+            0 <= index < source_count for index in self._log_jump_hint_to_index.values()
+        )
+
+    def _render_source_option_label(self, source_index: int, label: Text) -> Text:
+        hint = self._log_jump_index_to_hint.get(source_index)
+        if not self._log_jump_mode_active or hint is None:
+            return label.copy()
+
+        text = Text()
+        text.append(f"[{hint}] ", style=f"bold {_GOLD}")
+        text.append_text(label.copy())
+        return text
+
+    def _render_source_options(self) -> list[Option]:
+        return [
+            Option(self._render_source_option_label(idx, label), id=option_id)
+            for idx, (option_id, label) in enumerate(self._source_options)
+        ]
+
+    def _rebuild_options(self, *, selected_index: int | None = None) -> None:
         option_list = self._option_list()
         if option_list is None:
             return
+        if selected_index is None:
+            selected_index = self._highlighted_index()
+        if self._source_options:
+            selected_index = max(0, min(selected_index, len(self._source_options) - 1))
         self._syncing_options = True
         try:
             option_list.clear_options()
-            for option_id, label in result.options:
-                option_list.add_option(Option(label, id=option_id))
-            if result.options:
-                option_list.highlighted = result.selected_index
+            option_list.add_options(self._render_source_options())
+            if self._source_options:
+                option_list.highlighted = selected_index
             if self._is_active_tab():
                 option_list.focus()
         finally:
@@ -477,6 +530,73 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         """Re-read the highlighted source and rebuild source rows."""
         self._start_load(selected_index=self._highlighted_index(), reset_scroll=True)
 
+    def action_jump_to_entry(self) -> None:
+        """Enter one-key jump mode for log source rows."""
+        indices = list(range(len(self._source_options)))
+        if not indices:
+            return
+        self._log_jump_hint_to_index, self._log_jump_index_to_hint = (
+            build_jump_hint_maps(indices)
+        )
+        if not self._log_jump_hint_to_index:
+            return
+
+        self._log_jump_mode_active = True
+        self._rebuild_options(selected_index=self._highlighted_index())
+        self._update_hints()
+
+    def _clear_log_jump_hints(self) -> None:
+        self._log_jump_mode_active = False
+        self._log_jump_hint_to_index = {}
+        self._log_jump_index_to_hint = {}
+
+    def _exit_log_jump_mode(self) -> None:
+        selected_index = self._highlighted_index()
+        self._clear_log_jump_hints()
+        self._rebuild_options(selected_index=selected_index)
+        self._update_hints()
+
+    def _handle_log_jump_key(self, key: str) -> bool:
+        if not self._log_jump_mode_active:
+            return False
+        if key == "escape":
+            self._exit_log_jump_mode()
+            return True
+
+        push_current = True
+        if key == "apostrophe":
+            while self._log_jump_back_stack:
+                target_index = self._log_jump_back_stack.pop()
+                if 0 <= target_index < len(self._source_options):
+                    return self._jump_to_source_index(
+                        target_index,
+                        push_current=False,
+                    )
+            key = "1"
+
+        hint_target_index = self._log_jump_hint_to_index.get(key)
+        if hint_target_index is None:
+            self._exit_log_jump_mode()
+            return True
+        return self._jump_to_source_index(hint_target_index, push_current=push_current)
+
+    def _jump_to_source_index(self, target_index: int, *, push_current: bool) -> bool:
+        if not 0 <= target_index < len(self._source_options):
+            self._exit_log_jump_mode()
+            return True
+
+        current_index = self._highlighted_index()
+        if push_current and current_index != target_index:
+            self._log_jump_back_stack.append(current_index)
+            del self._log_jump_back_stack[:-10]
+
+        self._clear_log_jump_hints()
+        self._rebuild_options(selected_index=target_index)
+        self._update_hints()
+        if current_index != target_index:
+            self._start_load(selected_index=target_index, reset_scroll=True)
+        return True
+
     def action_scroll_detail_down(self) -> None:
         scroll = self.query_one("#log-detail-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
@@ -513,15 +633,21 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
         except Exception:
             pass
 
+    def _update_hints(self) -> None:
+        self._update_static("#logs-hints", self._hints())
+
     def _title_text(self) -> str:
         if self._loading:
             return f"Logs  [{len(self._sources)} sources · loading]"
         return f"Logs  [{len(self._sources)} sources · {self._active_count} active]"
 
     def _hints(self) -> str:
+        if self._log_jump_mode_active:
+            action = "back" if self._log_jump_back_stack else "first"
+            return f"JUMP ' {action}  <esc> cancel"
         return (
             "j/k: move   ctrl+d/u: scroll   g/G: top/bottom   "
-            "r: refresh   [ / ]: tab   Esc: close"
+            "': jump   r: refresh   [ / ]: tab   Esc: close"
         )
 
 

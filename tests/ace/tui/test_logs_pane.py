@@ -17,6 +17,7 @@ from sase.ace.testing import AcePage
 from sase.logs import launch_log, run_log, toast_log
 from sase.ace.tui.logs import log_sources
 from sase.ace.tui.modals import config_pane as cp
+from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.logs_pane import (
@@ -138,6 +139,16 @@ async def _open_logs_pane(pilot: object) -> tuple[ConfigCenterModal, LogsPane]:
     pane = modal.query_one("#logs", LogsPane)
     await _wait_for_logs_loaded(pilot, pane)
     return modal, pane
+
+
+def _option_plain(option_list: OptionList, index: int) -> str:
+    option = option_list.get_option_at_index(index)
+    assert isinstance(option.prompt, Text)
+    return option.prompt.plain
+
+
+def _logs_hint_text(pane: LogsPane) -> str:
+    return pane._hints()
 
 
 # --------------------------------------------------------------------------
@@ -377,6 +388,140 @@ async def test_logs_tab_navigation_updates_detail(log_dir: Path) -> None:
         await pilot.press("k")
         await _wait_for_logs_loaded(pilot, pane)
         assert option_list.highlighted == 0
+
+
+async def test_logs_tab_apostrophe_enters_jump_mode_with_hints(
+    log_dir: Path,
+) -> None:
+    _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
+    _write(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+
+        assert pane._log_jump_mode_active is True
+        assert _option_plain(option_list, 0).startswith("[1] ● Launch")
+        assert _option_plain(option_list, 1).startswith("[2] ● TUI Diagnostics")
+        assert "JUMP ' first" in _logs_hint_text(pane)
+
+
+async def test_logs_tab_jump_hint_selects_source_and_loads_detail(
+    log_dir: Path,
+) -> None:
+    _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
+    _write(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.press("2")
+        await _wait_for_logs_loaded(pilot, pane)
+
+        assert pane._log_jump_mode_active is False
+        assert pane._log_jump_back_stack == [0]
+        assert option_list.highlighted == 1
+        assert "tui.log" in pane._last_detail_text.plain
+        assert not _option_plain(option_list, 1).startswith("[2]")
+
+
+async def test_logs_tab_apostrophe_in_jump_mode_returns_to_previous_source(
+    log_dir: Path,
+) -> None:
+    _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
+    _write(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.press("2")
+        await _wait_for_logs_loaded(pilot, pane)
+        assert option_list.highlighted == 1
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert "JUMP ' back" in _logs_hint_text(pane)
+
+        await pilot.press("apostrophe")
+        await _wait_for_logs_loaded(pilot, pane)
+
+        assert option_list.highlighted == 0
+        assert pane._log_jump_back_stack == []
+        assert "launch_failures.log" in pane._last_detail_text.plain
+
+
+async def test_logs_tab_apostrophe_without_history_jumps_to_first_source(
+    log_dir: Path,
+) -> None:
+    _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
+    _write(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+
+        await pilot.press("j")
+        await _wait_for_logs_loaded(pilot, pane)
+        assert option_list.highlighted == 1
+        assert pane._log_jump_back_stack == []
+
+        await pilot.press("apostrophe")
+        await pilot.press("apostrophe")
+        await _wait_for_logs_loaded(pilot, pane)
+
+        assert option_list.highlighted == 0
+        assert pane._log_jump_back_stack == [1]
+        assert "launch_failures.log" in pane._last_detail_text.plain
+
+
+async def test_logs_tab_escape_cancels_jump_mode_without_closing_modal(
+    log_dir: Path,
+) -> None:
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert pane._log_jump_mode_active is True
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ConfigCenterModal)
+        assert pane._log_jump_mode_active is False
+        assert option_list.highlighted == 0
+        assert not _option_plain(option_list, 0).startswith("[1]")
+        assert "': jump" in _logs_hint_text(pane)
+
+
+async def test_logs_tab_jump_mode_reuses_cached_source_labels(
+    log_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(log_dir / "launch_failures.log", _LAUNCH_LOG_BODY)
+
+    async with _ModalTestApp().run_test() as pilot:
+        _, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+        cached_plain = _option_plain(option_list, 0)
+
+        def fail_source_label(_source: object) -> Text:
+            raise AssertionError("_source_label should not run during jump rendering")
+
+        monkeypatch.setattr(lp, "_source_label", fail_source_label)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+
+        assert _option_plain(option_list, 0) == f"[1] {cached_plain}"
 
 
 async def test_brackets_switch_admin_center_tabs_not_log_sources(
