@@ -478,15 +478,34 @@ def commit_bare_git_sdd_init_paths(
     )
 
     if push:
-        _run_git(
-            ["push", "origin", "HEAD"],
-            cwd=git_root,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=_network_git_timeout(),
-            op="bare_git_sdd_init.push",
-        )
+        try:
+            _run_git(
+                ["push", "origin", "HEAD"],
+                cwd=git_root,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=_network_git_timeout(),
+                op="bare_git_sdd_init.push",
+            )
+        except (subprocess.CalledProcessError, SddGitCommandTimeout) as exc:
+            # Pushing the generated SDD init commit is a best-effort sync with
+            # the bare remote. A rejection (e.g. the remote moved ahead, so the
+            # push is non-fast-forward) or a network timeout must never abort
+            # the caller: the local commit is preserved and can be pushed later.
+            # This mirrors commit_sdd_store_files, where "push failure never
+            # changes the commit result." Without this, an ordinary agent launch
+            # (ws_get_workspace_directory -> ensure_bare_git_sdd_initialized with
+            # push=True, raise_on_error=True) would fail whenever the bare-git
+            # workspace is behind its remote.
+            detail = ""
+            if isinstance(exc, subprocess.CalledProcessError):
+                detail = (exc.stderr or exc.stdout or "").strip()
+            _logger.warning(
+                "Best-effort SDD init push failed in %s: %s",
+                git_root,
+                detail or exc,
+            )
 
 
 def relative_git_pathspecs(git_root: Path, paths: Iterable[Path]) -> list[str]:

@@ -10,7 +10,6 @@ from unittest.mock import patch
 import pytest
 
 from sase.sdd.files import (
-    SddGitCommandTimeout,
     ensure_bare_git_sdd_initialized,
     ensure_sdd_initialized,
     expected_sdd_generated_paths,
@@ -115,7 +114,7 @@ def test_ensure_bare_git_sdd_initialized_commits_only_generated_paths(
     assert "notes.txt" not in remote_tree
 
 
-def test_commit_bare_git_sdd_init_paths_times_out_push(
+def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -142,9 +141,11 @@ def test_commit_bare_git_sdd_init_paths_times_out_push(
             )
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
+    # A push timeout is best-effort: the local commit is preserved and the
+    # timeout must not propagate to the caller (which would abort an agent
+    # launch via ws_get_workspace_directory).
     with patch("sase.sdd._commit.subprocess.run", side_effect=fake_run):
-        with pytest.raises(SddGitCommandTimeout, match="timed out"):
-            commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
+        commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
 
     assert calls[0][1] == 3.0
     assert calls[-1][0][:2] == ["git", "push"]
@@ -158,6 +159,39 @@ def test_commit_bare_git_sdd_init_paths_times_out_push(
     ]
     assert push_timeout[-1]["status"] == "timeout"
     assert push_timeout[-1]["timeout_seconds"] == 7.0
+
+
+def test_commit_bare_git_sdd_init_paths_push_rejection_is_best_effort(
+    tmp_path: Path,
+) -> None:
+    """A non-fast-forward push rejection must not abort the caller.
+
+    Regression: bare-git agent launches call this with push=True and
+    raise_on_error=True; a remote-ahead rejection previously propagated and
+    failed the launch.
+    """
+    generated = tmp_path / "sdd" / "README.md"
+    generated.parent.mkdir()
+    generated.write_text("guide\n", encoding="utf-8")
+
+    def fake_run(
+        cmd: list[str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        if cmd[:2] == ["git", "diff"]:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+        if cmd[:2] == ["git", "push"]:
+            raise subprocess.CalledProcessError(
+                returncode=1,
+                cmd=cmd,
+                output="",
+                stderr="! [rejected] HEAD -> master (fetch first)",
+            )
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    # Must return normally (no exception) despite the rejected push.
+    with patch("sase.sdd._commit.subprocess.run", side_effect=fake_run):
+        commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
 
 
 def test_write_sdd_files() -> None:
