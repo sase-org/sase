@@ -62,7 +62,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase memory log`                            | Summarize audited memory reads; `--include proposals` also shows proposal and review events.                                                   | [Memory](memory.md#audited-reads)                                     |
 | `sase memory init`                           | Create or refresh project/home memory files and AGENTS memory references.                                                                      | [Initialization](init.md#memory-initialization)                       |
 | `sase init memory`                           | Alias for `sase memory init`.                                                                                                                  | [Initialization](init.md#memory-initialization)                       |
-| `sase sdd init`                              | Enable in-tree SDD through the legacy alias and refresh generated guide files.                                                                 | [SDD](sdd.md)                                                         |
+| `sase sdd init`                              | Write the legacy SDD init alias and refresh generated guide files.                                                                             | [SDD](sdd.md)                                                         |
 | `sase init sdd`                              | Alias for `sase sdd init`.                                                                                                                     | [SDD](sdd.md)                                                         |
 | `sase sdd links`                             | Inspect prompt/artifact frontmatter links.                                                                                                     | [SDD](sdd.md)                                                         |
 | `sase sdd list`                              | List SDD prompt, tale, epic, legend, or all Markdown artifacts.                                                                                | [SDD](sdd.md)                                                         |
@@ -90,7 +90,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan approve`                          | Approve one pending plan by ID or prefix; `--kind` chooses approve/commit/epic/legend/tale; `--with`/`--without` toggle custom family members. | [Agent Families](agent_families.md#choosing-members-at-the-plan-gate) |
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                                                                      | [XPrompt directives](xprompt.md#plan-directive)                       |
 | `sase plan reject`                           | Reject one pending plan by ID or prefix, then attempt planner cleanup when found.                                                              | [XPrompt directives](xprompt.md#plan-directive)                       |
-| `sase plan search`                           | Search repo-local SDD plans and the machine-local plan archive by literal text and metadata.                                                   | [SDD](sdd.md#how-sdd-works)                                           |
+| `sase plan search`                           | Search resolved-store SDD plans and the machine-local plan archive by literal text and metadata.                                               | [SDD](sdd.md#how-sdd-works)                                           |
 | `sase launch request`                        | Register an agent-requested launch for approval; no agent spawns until it is approved.                                                         | [Agent Families](agent_families.md#agent-initiated-launches)          |
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                                                             | [Agent Families](agent_families.md#agent-initiated-launches)          |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                                                                   | [XPrompt directives](xprompt.md#directives)                           |
@@ -135,11 +135,11 @@ the rejection response first, then uses the same durable cleanup path as the TUI
 matching planner row is still discoverable. If cleanup cannot find or kill the row, the CLI reports that separately
 after the plan has already been rejected.
 
-`sase plan search [QUERY]` searches repo-local `sdd/` plans and the machine-local `~/.sase/plans/` archive. Omit the
-query to browse with metadata filters. Compact and Markdown output group repo matches above local matches; JSON and full
-output keep ranked result order with repo matches prioritized over otherwise-similar local matches. Useful filters
-include `--kind`, `--status`, `--source`, `--since`, `--until`, `--sort`, and `--format json|markdown` for
-agent-friendly output.
+`sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source) and the machine-local
+`~/.sase/plans/` archive. Omit the query to browse with metadata filters. Compact and Markdown output group SDD-store
+matches above local matches; JSON and full output keep ranked result order with SDD-store matches prioritized over
+otherwise-similar local matches. Useful filters include `--kind`, `--status`, `--source`, `--since`, `--until`,
+`--sort`, and `--format json|markdown` for agent-friendly output.
 
 ## Automation
 

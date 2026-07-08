@@ -1043,12 +1043,17 @@ storage.
 sdd:
   storage: auto # default: auto
   version_controlled: false # deprecated alias
+  repo:
+    name: "" # provider-specific companion repo override
+  push_after_commit: async
 ```
 
-| Field                    | Type   | Default | Description                                                                                                   |
-| ------------------------ | ------ | ------- | ------------------------------------------------------------------------------------------------------------- |
-| `sdd.storage`            | string | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.      |
-| `sdd.version_controlled` | bool   | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto. |
+| Field                    | Type        | Default | Description                                                                                                         |
+| ------------------------ | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
+| `sdd.storage`            | string      | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.            |
+| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.       |
+| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`.        |
+| `sdd.push_after_commit`  | bool or str | `async` | Controls `git push` after SDD commits in `separate_repo`: `async`, `true`, or `false`. Local commits are preserved. |
 
 In-tree mode stores prompt snapshots, tales, epics, legends, myths, research notes, and bead state under `sdd/` in the
 project root. Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace.
@@ -1061,9 +1066,9 @@ initialization, existing bare-repo registration, `#git`/workspace materializatio
 Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
 needed.
 
-Running `sase sdd init` or its `sase init sdd` alias is an explicit in-tree opt-in through the legacy alias: it creates
-or updates the project-local `sase.yml` so `sdd.version_controlled` is true, then refreshes generated SDD guide files
-and the directory map.
+Running `sase sdd init` or its `sase init sdd` alias creates or updates the project-local `sase.yml` so
+`sdd.version_controlled` is true, then refreshes generated SDD guide files and the directory map. This is an in-tree
+opt-in only when `sdd.storage` is `auto` or unset; an explicit `sdd.storage` value still wins.
 
 Source: `src/sase/default_config.yml`
 
@@ -1598,10 +1603,11 @@ linked repo uses numbered workspace resolution.
 
 ### `sase init sdd`
 
-`sase init sdd` is an alias for `sase sdd init`. It enables in-tree SDD through the legacy `sdd.version_controlled`
-alias, then creates or refreshes generated SDD README files and the directory map asset. Bare-git projects run the
-generated-file refresh automatically during repository setup and first SDD writes, but the explicit command remains
-available for manual opt-in, refresh, and `--check` audits.
+`sase init sdd` is an alias for `sase sdd init`. It writes the legacy `sdd.version_controlled` alias, then creates or
+refreshes generated SDD README files and the directory map asset. The alias enables in-tree SDD only while `sdd.storage`
+is `auto` or unset; explicit `sdd.storage` values are not overwritten. Bare-git projects run the generated-file refresh
+automatically during repository setup and first SDD writes, but the explicit command remains available for manual
+opt-in, refresh, and `--check` audits.
 
 | Flag          | Values | Default                  | Description                                                       |
 | ------------- | ------ | ------------------------ | ----------------------------------------------------------------- |
@@ -1769,8 +1775,9 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 ### `sase sdd`
 
-`sase sdd` manages SDD prompt/artifact documentation and frontmatter links. Every subcommand accepts `-p/--path`, which
-may point at an SDD root or at a project root containing `sdd/`. With no subcommand, `sase sdd` defaults to
+`sase sdd` manages SDD prompt/artifact documentation and frontmatter links. File-oriented subcommands accept
+`-p/--path`, which may point at an SDD root or at a project root containing `sdd/`. `sase sdd path` resolves the current
+workspace instead and accepts an optional child kind such as `research`. With no subcommand, `sase sdd` defaults to
 `sase sdd list`. `sase init sdd` is an alias for `sase sdd init`.
 
 | Subcommand     | Flags                                                                    | Description                                                                                                           |
@@ -1778,6 +1785,7 @@ may point at an SDD root or at a project root containing `sdd/`. With no subcomm
 | `init`         | `-p/--path`, `-c/--check`                                                | Create or refresh `sdd/README.md`, tier READMEs, and the directory map asset; `--check` reports drift without writing |
 | `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`                                     |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                                       |
+| `path`         | `[kind]`                                                                 | Print the effective SDD root or one canonical child directory; does not materialize remote stores                     |
 | `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                               |
 | `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs and optionally write link fixes                                               |
 
@@ -1969,13 +1977,13 @@ without launching a coder. The `-m/--model` flag applies to the follow-up agent;
 instructions only for the `approve` and `tale` paths. `sase plan reject` writes the rejection response first, then
 attempts the same durable cleanup path as TUI no-feedback rejection when the matching planner row is still discoverable.
 
-`sase plan search [query]` scans repo-local `sdd/` plans and the machine-local `~/.sase/plans/` archive. The query is a
-literal case-insensitive substring; omit it to browse and filter. `--format` accepts `compact`, `full`, `json`, or
-`markdown`; `--kind` is repeatable and filters repo plans to `tale`, `epic`, `legend`, `myth`, or `research`; `--status`
-is repeatable and filters frontmatter status to `wip` or `done`; `--source` selects `all`, `repo`, or `local`; `--sort`
-selects `relevance`, `recent`, or `title` (defaulting to relevance with a query and recent without one);
-`--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such as `14d`; and `--limit 0`
-prints all matches.
+`sase plan search [query]` scans plans in the resolved SDD store (the `repo` source) and the machine-local
+`~/.sase/plans/` archive. The query is a literal case-insensitive substring; omit it to browse and filter. `--format`
+accepts `compact`, `full`, `json`, or `markdown`; `--kind` is repeatable and filters SDD-store plans to `tale`, `epic`,
+`legend`, `myth`, or `research`; `--status` is repeatable and filters frontmatter status to `wip` or `done`; `--source`
+selects `all`, `repo`, or `local`; `--sort` selects `relevance`, `recent`, or `title` (defaulting to relevance with a
+query and recent without one); `--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such
+as `14d`; and `--limit 0` prints all matches.
 
 ### `sase artifact`
 

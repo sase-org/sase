@@ -163,10 +163,11 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Search SDD and machine-local markdown plans",
         description=(
             "Find plan artifacts whose text contains a literal, "
-            "case-insensitive query string, across repo-local `sdd/` plans "
-            "(prioritized) and the machine-local `~/.sase/plans/` "
-            "archive. The query is optional: omit it to browse and filter. "
-            "Repo plans are surfaced above local plans on equal-relevance ties."
+            "case-insensitive query string, across plans in the resolved SDD "
+            "store (the `repo` source, prioritized) and the machine-local "
+            "`~/.sase/plans/` archive. The query is optional: omit it to "
+            "browse and filter. SDD-store plans are surfaced above local "
+            "plans on equal-relevance ties."
         ),
         epilog=(
             "examples:\n"
@@ -201,8 +202,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "--kind",
         choices=["tale", "epic", "legend", "myth", "research"],
         action="append",
-        help="Filter repo plans by kind: tale, epic, legend, myth, or research "
-        "(repeatable)",
+        help="Filter SDD-store plans by kind: tale, epic, legend, myth, or "
+        "research (repeatable)",
     )
     search_parser.add_argument(
         "-n",

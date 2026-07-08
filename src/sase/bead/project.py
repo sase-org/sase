@@ -37,10 +37,10 @@ class NotAPlanError(Exception):
 
 
 BEADS_DIRNAME = "sdd/beads"
-"""Default beads subdirectory name (used in version-controlled mode)."""
+"""Default beads subdirectory name (used in in-tree mode)."""
 
 BEADS_DIRNAME_NON_VC = "beads"
-"""Beads subdirectory name inside .sase/sdd/ (non-version-controlled mode)."""
+"""Beads subdirectory name inside .sase/sdd/ (local/separate-repo modes)."""
 
 
 class BeadProject:

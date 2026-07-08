@@ -327,9 +327,9 @@ For epic-tier plans, the command:
    `model`, and otherwise defaults to the `%model:@epic_lander` role alias. Both `@phase_worker` and `@epic_lander` are
    role aliases that fall through to `@default` unless explicitly configured under `llm_provider.model_aliases.builtin`.
    Each phase segment and the final land-epic segment carries `%auto:tale`, so submitted implementation and landing
-   plans are auto-approved through the tale path and committed under `sdd/tales/` before their follow-up work continues.
-   Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work` after a killed or failed
-   run wipes the stale name owners before the relaunch — the command is safe to retry.
+   plans are auto-approved through the tale path and committed under the resolved SDD tale directory before their
+   follow-up work continues. Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work`
+   after a killed or failed run wipes the stale name owners before the relaunch — the command is safe to retry.
 
 For legend-tier plans, the command:
 
@@ -360,9 +360,10 @@ Legend work does not create phase beads directly. The spawned epic-planning agen
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. For epic-tier work, every phase and land segment carries `%auto:tale`, so spawned
-agents can auto-approve and commit their submitted plans under `sdd/tales/` without a human-in-the-loop checkpoint
-between waves. For legend-tier work, only the trailing land-legend segment carries bare `%auto`; each epic-planning
-segment uses `%auto:epic` so its submitted plan is auto-approved through the epic path before child phases run.
+agents can auto-approve and commit their submitted plans under the resolved SDD tale directory without a
+human-in-the-loop checkpoint between waves. For legend-tier work, only the trailing land-legend segment carries bare
+`%auto`; each epic-planning segment uses `%auto:epic` so its submitted plan is auto-approved through the epic path
+before child phases run.
 
 When the epic plan bead is attached to ChangeSpec metadata (`--changespec` / `--bug-id`), `sase bead work` preserves the
 current project's VCS context in the generated prompt. The first phase segment targets the project reference and adds a
@@ -419,11 +420,11 @@ just bead-perf-smoke
 
 ## Current Checkout Source Of Truth
 
-In version-controlled mode, every `sase bead` read and mutation command uses the current checkout's
-`sdd/beads/events/**` event store and `sdd/beads/config.json`, with `issues.jsonl` used only as a fallback when events
-are absent. Running the command in `myproject/` reads that checkout's bead state; running it in `myproject_2/` reads
-`myproject_2/sdd/beads/`. The CLI does not merge sibling workspace stores, and duplicate IDs in another checkout do not
-override the active checkout's records.
+In in-tree mode, every `sase bead` read and mutation command uses the current checkout's `sdd/beads/events/**` event
+store and `sdd/beads/config.json`, with `issues.jsonl` used only as a fallback when events are absent. Running the
+command in `myproject/` reads that checkout's bead state; running it in `myproject_2/` reads `myproject_2/sdd/beads/`.
+The CLI does not merge sibling workspace stores, and duplicate IDs in another checkout do not override the active
+checkout's records.
 
 ID allocation also uses only the active store's `config.json` and canonical event state. If a sibling checkout has not
 pulled or merged the latest bead state, it may allocate IDs based on its local state; sync bead changes through the
@@ -439,13 +440,14 @@ but they still do not merge numbered sibling workspaces or legacy bead stores fo
 When creating a plan bead with `--type plan(PATH)`, the file path is stored in the `design` field. The ACE TUI can
 navigate from a bead to its linked SDD file.
 
-For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow:
-`sdd/epics/YYYYMM/*.md` in effective version-controlled mode, or `.sase/sdd/epics/YYYYMM/*.md` in local SDD mode. These
-relative references stay portable across checkouts while each checkout reads its own bead store.
+For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow: `sdd/epics/...`
+in in-tree mode, or `.sase/sdd/epics/...` in local and separate-repo modes. SASE resolves those references against the
+effective SDD root when launching bead work. For manual commands and prompts, `SASE_SDD_DIR` or `sase sdd path` is less
+ambiguous than guessing which relative prefix applies.
 
 ### Plan Approval Flow
 
 The plan approval popup in ACE includes normal approval, **E** (Epic), and **L** (Legend) actions. Normal approval saves
-to `sdd/tales/`, Epic saves to `sdd/epics/` and launches the epic follow-up that creates an `epic`-tier plan bead plus
-phase beads, and Legend saves to `sdd/legends/` and launches a legend follow-up that records a `legend`-tier plan bead
-with `epic_count` before starting the legend work chain.
+to the resolved SDD tale directory, Epic saves to the resolved epic directory and launches the epic follow-up that
+creates an `epic`-tier plan bead plus phase beads, and Legend saves to the resolved legend directory and launches a
+legend follow-up that records a `legend`-tier plan bead with `epic_count` before starting the legend work chain.

@@ -161,7 +161,7 @@ def test_sdd_plan_current_outputs_without_config_reports_config_action(
     action = plan.actions[0]
     assert action.path == tmp_path / "sase.yml"
     assert action.operation == "create"
-    assert "in-tree" in plan.summary
+    assert "legacy SDD init config" in plan.summary
 
 
 def test_sdd_plan_existing_enabled_config_reports_no_config_action(

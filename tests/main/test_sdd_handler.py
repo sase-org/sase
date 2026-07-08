@@ -259,7 +259,7 @@ def test_init_check_reports_missing_sdd_without_writing(
     assert "SASE initialization check" in out
     assert "Needs attention:" in out
     assert "init sdd" in out
-    assert "enable in-tree SDD" in out
+    assert "write legacy SDD init config" in out
     assert "create SDD README files and directory map" in out
 
 
@@ -298,7 +298,7 @@ def test_init_check_reports_missing_config_without_writing(
     assert excinfo.value.code == 1
     assert not (tmp_path / "sase.yml").exists()
     out = capsys.readouterr().out
-    assert "enable in-tree SDD config" in out
+    assert "write legacy SDD init config" in out
 
 
 def test_init_invalid_sase_yml_exits_without_writing_sdd(

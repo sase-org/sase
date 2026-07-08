@@ -71,7 +71,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase memory init --check`            | Report memory initialization drift without writing files.                                   |
 | `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                          |
 | `sase init memory`                    | Compatibility alias for `sase memory init`.                                                 |
-| `sase init sdd`                       | Alias for `sase sdd init`; enables in-tree SDD and refreshes generated guides.              |
+| `sase init sdd`                       | Alias for `sase sdd init`; writes the legacy SDD init alias and refreshes generated guides. |
 | `sase init sdd --check`               | Report SDD config and generated-file drift without writing files.                           |
 | `sase skill`                          | Alias for `sase skill list`.                                                                |
 | `sase skill list`                     | Inspect generated skill sources, provider targets, and deployed-file drift without writing. |
@@ -203,8 +203,9 @@ sase memory log --id <read-id>
 ## SDD Initialization
 
 `sase init sdd` is an alias for `sase sdd init`. It creates or updates the project-local `sase.yml` with the legacy
-`sdd.version_controlled: true` alias for in-tree SDD, then creates or refreshes generated SDD guide files and the
-directory-map asset for either a project root or an SDD root:
+`sdd.version_controlled: true` alias, then creates or refreshes generated SDD guide files and the directory-map asset
+for either a project root or an SDD root. The alias selects in-tree SDD only while `sdd.storage` is `auto` or unset; an
+explicit `sdd.storage` value still wins.
 
 ```bash
 sase init sdd

@@ -70,7 +70,7 @@ Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, Chan
 Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Antigravity (agy), Qwen, OpenCode. Draw them as replaceable
 execution engines rather than the center of the system.
 Bottom layer: "sase-core Rust" with state/indexing, mobile gateway, xprompt LSP core, deterministic file/query helpers.
-Persistent storage under everything: ~/.sase plus repo-local sdd/.
+Persistent storage under everything: ~/.sase plus the resolved SDD store.
 Make the visual point that SASE is not another model wrapper; it is the state/control plane around several CLIs.
 -->
 

@@ -34,7 +34,7 @@ Use `sase sdd path` to print the effective SDD root, or `sase sdd path research`
 Launched agents receive the same root in `SASE_SDD_DIR`, so prompts and hooks should use that instead of assuming `sdd/`
 is relative to the current checkout.
 
-See [SDD Storage](sdd_storage.md) for the full resolution order, companion-repo convention, migration guidance, and
+See [SDD Storage](sdd_storage.md) for the full resolution order, companion-repo convention, setup guidance, and
 offline/push behavior.
 
 For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files automatically. First-use
@@ -91,10 +91,10 @@ tier before launching the follow-up. `--kind approve` runs the coder without com
 same no-feedback rejection response as the TUI, then attempts to dismiss and user-kill the matching planner row when it
 can be found.
 
-To recall prior plans, `sase plan search [QUERY]` searches the committed `sdd/` plans (surfaced first) and the
-machine-local `~/.sase/plans/` archive by content. The query is optional — omit it to browse and filter with `--kind`,
-`--status`, `--source`, and `--since`/`--until` date bounds. Results are ranked (relevance with a query, recency
-without) and render as colored `compact`/`full` output or as agent-friendly `json`/`markdown` via `--format`.
+To recall prior plans, `sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source, surfaced
+first) and the machine-local `~/.sase/plans/` archive by content. The query is optional — omit it to browse and filter
+with `--kind`, `--status`, `--source`, and `--since`/`--until` date bounds. Results are ranked (relevance with a query,
+recency without) and render as colored `compact`/`full` output or as agent-friendly `json`/`markdown` via `--format`.
 
 ### Q&A Sections
 
@@ -153,7 +153,7 @@ when passing list flags such as `--kind` or `--json`.
 
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Enable in-tree SDD via the legacy alias, then refresh generated guide files                             |
+| `sase sdd init`         | Write the legacy SDD init alias, then refresh generated guide files                                     |
 | `sase init sdd`         | Alias for `sase sdd init`; accepts the same `-p/--path` option                                          |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
@@ -161,8 +161,9 @@ when passing list flags such as `--kind` or `--json`.
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
 
-Each subcommand accepts `-p/--path`, which may point at an SDD root or a project root. Validation treats unpaired or
-ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
+The file-oriented subcommands accept `-p/--path`, which may point at an SDD root or a project root. `sase sdd path`
+instead resolves the current workspace and accepts an optional child kind such as `research`. Validation treats unpaired
+or ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
 targets, wrong link kinds, and broken reverse links are errors unless explicitly allowlisted for legacy migration.
 
 `sase sdd validate` hides warning-severity issues from its text output by default — the summary line still reports the
@@ -172,9 +173,11 @@ filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
 The `sase sdd init` command currently writes the legacy `sdd.version_controlled: true` alias in the project-local
 `sase.yml`, then refreshes the top-level README, the directory map asset, and generated `README.md` files in `tales/`,
-`epics/`, `legends/`, `myths/`, and `research/`. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to
-opt into in-tree SDD and refresh generated project guides. The generated guides are safe to overwrite, so do not put
-hand-maintained conceptual prose in those README files.
+`epics/`, `legends/`, `myths/`, and `research/`. That alias selects in-tree storage only while `sdd.storage` is `auto`
+or unset; if the project already sets `sdd.storage: local` or `sdd.storage: separate_repo`, the explicit storage value
+still wins. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides and
+to opt into in-tree SDD on projects that still use automatic storage. The generated guides are safe to overwrite, so do
+not put hand-maintained conceptual prose in those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for
@@ -219,12 +222,17 @@ canonical and legacy flat/`YYYYMM` locations for backwards compatibility.
 sdd:
   storage: auto
   version_controlled: false # deprecated alias
+  repo:
+    name: "" # optional companion repo override for providers that support it
+  push_after_commit: async
 ```
 
-| Option                   | Type | Default | Description                                                                                                   |
-| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------------------- |
-| `sdd.storage`            | enum | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.      |
-| `sdd.version_controlled` | bool | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto. |
+| Option                   | Type        | Default | Description                                                                                                   |
+| ------------------------ | ----------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `sdd.storage`            | enum        | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.      |
+| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto. |
+| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`.  |
+| `sdd.push_after_commit`  | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                   |
 
 See [`configuration.md`](configuration.md) for the full configuration reference and [SDD Storage](sdd_storage.md) for
 mode behavior.

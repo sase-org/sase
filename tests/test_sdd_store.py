@@ -469,4 +469,4 @@ def test_explicit_separate_repo_without_materialization_errors(
 
     message = str(excinfo.value)
     assert "expected SDD companion repository" in message
-    assert "sase sdd migrate" in message
+    assert "provider setup or migration support" in message

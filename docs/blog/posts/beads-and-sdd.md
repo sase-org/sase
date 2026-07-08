@@ -35,11 +35,11 @@ both the **expanded prompt snapshot** (every `#xprompt` resolved, every `%direct
 as first-class artifacts on disk. The two files cross-reference each other via `prompt:` and `plan:` frontmatter fields,
 and `sase sdd validate` checks that the link graph is intact.
 
-Three plan tiers, three on-disk locations:
+Three plan tiers, three directories under the effective SDD root:
 
-- **Tales** — ordinary implementation plans, at `sdd/tales/{YYYYMM}/{name}.md`.
-- **Epics** — executable multi-phase plans, at `sdd/epics/{YYYYMM}/{name}.md`.
-- **Legends** — higher-level coordination plans that own linked epics, at `sdd/legends/{YYYYMM}/{name}.md`.
+- **Tales** — ordinary implementation plans, at `tales/{YYYYMM}/{name}.md`.
+- **Epics** — executable multi-phase plans, at `epics/{YYYYMM}/{name}.md`.
+- **Legends** — higher-level coordination plans that own linked epics, at `legends/{YYYYMM}/{name}.md`.
 
 Storage is resolved through `sdd.storage`. The default, `auto`, keeps provider defaults: built-in bare-git projects use
 in-tree `sdd/`, while other providers use a standalone git repo inside the primary workspace at `.sase/sdd/` unless
@@ -48,8 +48,8 @@ explicit config or a materialized companion-store record selects `separate_repo`
 Pick the mode that matches how you want the audit trail reviewed.
 
 `sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init` opts
-the project into in-tree SDD and refreshes the generated READMEs and directory-map asset. The reference is in
-[`sdd.md`](../../sdd.md).
+projects that still use automatic storage into in-tree SDD and refreshes the generated READMEs and directory-map asset.
+The reference is in [`sdd.md`](../../sdd.md).
 
 ## Beads Are the Work Unit
 

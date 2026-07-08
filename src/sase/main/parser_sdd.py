@@ -29,7 +29,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
 
     init_parser = sdd_sub.add_parser(
         "init",
-        help="Enable in-tree SDD and refresh generated guides",
+        help="Write legacy SDD init config and refresh generated guides",
     )
     init_parser.add_argument(
         "-c",

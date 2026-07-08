@@ -131,11 +131,11 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     generated_actions = [action for action in actions if action.path.name != "sase.yml"]
     if config_actions and generated_actions:
         return (
-            "enable in-tree SDD and "
+            "write legacy SDD init config and "
             f"{_summarize_generated_sdd_actions(generated_actions)}"
         )
     if config_actions:
-        return "enable in-tree SDD config"
+        return "write legacy SDD init config"
     return _summarize_generated_sdd_actions(generated_actions)
 
 
