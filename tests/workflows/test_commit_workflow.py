@@ -57,35 +57,44 @@ def test_changespec_exists_multiple_changespecs() -> None:
 
 def test_get_editor_uses_env_variable() -> None:
     """Test that get_editor uses EDITOR environment variable."""
-    with patch.dict("os.environ", {"EDITOR": "emacs"}):
+    with (
+        patch.dict("os.environ", {"EDITOR": "emacs"}, clear=True),
+        patch("sase.editor_resolver.shutil.which", return_value=None),
+    ):
         assert get_editor() == "emacs"
+
+
+def test_get_editor_prefers_visual_env_variable() -> None:
+    """Test that get_editor prefers VISUAL over EDITOR."""
+    with (
+        patch.dict("os.environ", {"VISUAL": "code --wait", "EDITOR": "emacs"}),
+        patch("sase.editor_resolver.shutil.which", return_value="/usr/bin/code"),
+    ):
+        assert get_editor() == "code --wait"
 
 
 def test_get_editor_falls_back_to_nvim() -> None:
     """Test that get_editor falls back to nvim if EDITOR not set."""
-    with patch.dict("os.environ", {}, clear=True):
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        with patch("subprocess.run", return_value=mock_result):
-            # Remove EDITOR from env
-            with patch.dict("os.environ", {"EDITOR": ""}, clear=False):
-                import os
-
-                if "EDITOR" in os.environ:
-                    del os.environ["EDITOR"]
-                result = get_editor()
-                # Should be nvim since which nvim succeeds
-                assert result == "nvim"
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        patch(
+            "sase.editor_resolver.shutil.which",
+            side_effect=lambda command: "/usr/bin/nvim" if command == "nvim" else None,
+        ),
+    ):
+        assert get_editor() == "nvim"
 
 
 def test_get_editor_falls_back_to_vim() -> None:
     """Test that get_editor falls back to vim if nvim not found."""
-    with patch.dict("os.environ", {}, clear=True):
-        mock_result = MagicMock()
-        mock_result.returncode = 1  # nvim not found
-        with patch("subprocess.run", return_value=mock_result):
-            result = get_editor()
-            assert result == "vim"
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        patch(
+            "sase.editor_resolver.shutil.which",
+            side_effect=lambda command: "/usr/bin/vim" if command == "vim" else None,
+        ),
+    ):
+        assert get_editor() == "vim"
 
 
 def test_find_changespec_end_line_multiple_changespecs() -> None:

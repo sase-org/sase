@@ -4,29 +4,12 @@ import os
 import subprocess
 import tempfile
 
+from sase.editor_resolver import resolve_editor
 
-def _get_editor() -> str:
-    """Get the editor to use for prompts.
 
-    Returns:
-        The editor command to use. Checks $EDITOR first, then falls back to
-        nvim if available, otherwise vim.
-    """
-    editor = os.environ.get("EDITOR")
-    if editor:
-        return editor
-
-    # Fall back to nvim if it exists
-    try:
-        result = subprocess.run(
-            ["which", "nvim"], capture_output=True, text=True, check=False
-        )
-        if result.returncode == 0:
-            return "nvim"
-    except Exception:
-        pass
-
-    return "vim"
+def _get_editor_argv() -> tuple[str, ...]:
+    """Return the editor command as argv."""
+    return resolve_editor().argv
 
 
 def open_editor_for_prompt() -> str | None:
@@ -43,10 +26,10 @@ def open_editor_for_prompt() -> str | None:
     )
     os.close(fd)
 
-    editor = _get_editor()
+    editor_argv = _get_editor_argv()
 
     try:
-        result = subprocess.run([editor, temp_path], check=False)
+        result = subprocess.run([*editor_argv, temp_path], check=False)
         if result.returncode != 0:
             print("Editor exited with non-zero status.")
             os.unlink(temp_path)
@@ -88,10 +71,10 @@ def _open_editor_with_content(initial_content: str) -> str | None:
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(initial_content)
 
-    editor = _get_editor()
+    editor_argv = _get_editor_argv()
 
     try:
-        result = subprocess.run([editor, temp_path], check=False)
+        result = subprocess.run([*editor_argv, temp_path], check=False)
         if result.returncode != 0:
             print("Editor exited with non-zero status.")
             os.unlink(temp_path)

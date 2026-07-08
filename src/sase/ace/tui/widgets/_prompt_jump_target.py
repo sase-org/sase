@@ -92,14 +92,15 @@ def build_jump_editor_argv(
 ) -> list[str]:
     """Build argv for opening *file_path* in *editor* at an optional cursor."""
 
+    editor_argv = _editor_argv(editor)
     if line is not None and _editor_command_name(editor) in _VIM_FAMILY:
         return [
-            editor,
+            *editor_argv,
             "-c",
             f"call cursor({max(1, line)}, {max(1, col or 1)})",
             file_path,
         ]
-    return [editor, file_path]
+    return [*editor_argv, file_path]
 
 
 def _jump_token_from_preview_token(text: str, token: PreviewToken) -> JumpToken:
@@ -323,6 +324,14 @@ def _editor_command_name(editor: str) -> str:
     except (ValueError, IndexError):
         command = editor
     return os.path.basename(command)
+
+
+def _editor_argv(editor: str) -> list[str]:
+    try:
+        argv = shlex.split(editor)
+    except ValueError:
+        return [editor]
+    return argv or [editor]
 
 
 __all__ = [

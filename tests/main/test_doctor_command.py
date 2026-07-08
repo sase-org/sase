@@ -167,6 +167,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "state.agent_index",
         "project.beads",
         "ops.telemetry_status",
+        "tools.editor",
     } <= ids
     assert {
         "state.agent_index_verify",

@@ -253,6 +253,18 @@ def test_build_jump_editor_argv_positions_vim_family_only() -> None:
         "code",
         "/tmp/a.md",
     ]
+    assert build_jump_editor_argv("code --wait", "/tmp/a.md", 5, 7) == [
+        "code",
+        "--wait",
+        "/tmp/a.md",
+    ]
+    assert build_jump_editor_argv("nvim --clean", "/tmp/a.md", 5, 7) == [
+        "nvim",
+        "--clean",
+        "-c",
+        "call cursor(5, 7)",
+        "/tmp/a.md",
+    ]
     assert build_jump_editor_argv("nvim", "/tmp/a.md", None, 7) == [
         "nvim",
         "/tmp/a.md",

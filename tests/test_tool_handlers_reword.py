@@ -80,7 +80,7 @@ def test_fetch_cl_description_cl_desc_fails(
 # === Tests for _open_editor_with_content ===
 
 
-@patch("sase.ace.handlers.reword.get_editor", return_value="false")
+@patch("sase.ace.handlers.reword.get_editor_argv", return_value=("false",))
 @patch("sase.ace.handlers.reword.subprocess.run")
 def test_open_editor_with_content_editor_fails(
     mock_run: MagicMock, _mock_editor: MagicMock
@@ -94,7 +94,7 @@ def test_open_editor_with_content_editor_fails(
     assert result is None
 
 
-@patch("sase.ace.handlers.reword.get_editor", return_value="cat")
+@patch("sase.ace.handlers.reword.get_editor_argv", return_value=("cat",))
 @patch("sase.ace.handlers.reword.subprocess.run")
 def test_open_editor_with_content_cleans_up_temp_file(
     mock_run: MagicMock, _mock_editor: MagicMock

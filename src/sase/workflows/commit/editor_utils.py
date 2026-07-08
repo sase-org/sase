@@ -1,30 +1,18 @@
 """Editor utilities for commit message editing."""
 
-import os
-import subprocess
+from sase.editor_resolver import resolve_editor
 
 
 def get_editor() -> str:
     """Get the editor to use for commit messages.
 
     Returns:
-        The editor command to use. Checks $EDITOR first, then falls back to
-        nvim if available, otherwise vim.
+        The editor command to use. Checks $VISUAL/$EDITOR first, then falls
+        back to nvim if available, otherwise vim.
     """
-    # Check EDITOR environment variable first
-    editor = os.environ.get("EDITOR")
-    if editor:
-        return editor
+    return resolve_editor().command_string
 
-    # Fall back to nvim if it exists
-    try:
-        result = subprocess.run(
-            ["which", "nvim"], capture_output=True, text=True, check=False
-        )
-        if result.returncode == 0:
-            return "nvim"
-    except Exception:
-        pass
 
-    # Default to vim
-    return "vim"
+def get_editor_argv() -> tuple[str, ...]:
+    """Return the editor command as argv."""
+    return resolve_editor().argv

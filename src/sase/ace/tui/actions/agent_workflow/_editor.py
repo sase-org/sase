@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from sase.editor_resolver import resolve_editor
+
 
 class EditorMixin:
     """Mixin providing editor integration for agent prompts and workflows."""
@@ -41,11 +43,10 @@ class EditorMixin:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(initial_content)
 
-            editor = os.environ.get("EDITOR") or "nvim"
-
-            cmd: list[str] = [editor]
+            editor = resolve_editor()
+            cmd: list[str] = list(editor.argv)
             # Position cursor in nvim to match the input bar cursor position
-            if os.path.basename(editor) == "nvim":
+            if editor.command_name == "nvim":
                 if cursor_row > 0 or cursor_col > 0:
                     # nvim's cursor() is 1-indexed
                     cmd.extend(
@@ -114,8 +115,8 @@ class EditorMixin:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(template)
 
-            editor = os.environ.get("EDITOR") or "nvim"
-            result = subprocess.run([editor, temp_path], check=False)
+            editor = resolve_editor()
+            result = subprocess.run([*editor.argv, temp_path], check=False)
             if result.returncode != 0:
                 try:
                     os.unlink(temp_path)

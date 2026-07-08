@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from rich.markup import escape as _esc
 
 from sase.workflows.commit_utils import run_sase_hg_clean
-from sase.workflows.commit.editor_utils import get_editor
+from sase.workflows.commit.editor_utils import get_editor_argv
 from sase.vcs_provider import get_vcs_provider
 
 from ..changespec import ChangeSpec
@@ -156,10 +156,10 @@ def _open_editor_with_content(content: str, console: "Console") -> str | None:
         os.close(fd)
         return None
 
-    editor = get_editor()
+    editor_argv = get_editor_argv()
 
     try:
-        result = subprocess.run([editor, temp_path], check=False)
+        result = subprocess.run([*editor_argv, temp_path], check=False)
         if result.returncode != 0:
             console.print("[red]Editor exited with non-zero status.[/red]")
             return None

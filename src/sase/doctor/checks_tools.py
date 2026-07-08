@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
+from sase.editor_resolver import EditorResolution, resolve_editor
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
@@ -44,9 +45,14 @@ _OPTIONAL_TOOLS: tuple[_ToolRequirement, ...] = (
 
 
 def tools_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
-    """Return deep optional-tool check specs."""
-    del context
+    """Return tool check specs."""
     return (
+        CheckSpec(
+            id="tools.editor",
+            group="tools",
+            title="Editor command",
+            runner=lambda: _check_editor(context),
+        ),
         CheckSpec(
             id="tools.optional",
             group="tools",
@@ -54,6 +60,71 @@ def tools_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=_check_optional_tools,
             deep=True,
         ),
+    )
+
+
+def _check_editor(context: DoctorContext) -> DiagnosticCheck:
+    """Check that SASE can resolve the configured editor command."""
+    resolution = resolve_editor(env=context.env, which=shutil.which)
+    status: CheckStatus = "OK" if resolution.status == "resolved" else "WARN"
+
+    return DiagnosticCheck(
+        id="tools.editor",
+        group="tools",
+        status=status,
+        title="Editor command",
+        summary=_editor_summary(resolution),
+        details=_editor_details(resolution),
+        next_steps=_editor_next_steps(resolution),
+        data={
+            "source": resolution.source,
+            "configured": resolution.configured,
+            "command": list(resolution.argv),
+            "command_head": resolution.head,
+            "resolved_path": resolution.resolved_path,
+            "resolution_status": resolution.status,
+        },
+    )
+
+
+def _editor_summary(resolution: EditorResolution) -> str:
+    source_label = (
+        f"${resolution.source}" if resolution.configured else "fallback editor"
+    )
+    if resolution.status == "resolved":
+        return f"{source_label} resolves to {resolution.head}"
+    if resolution.status == "missing":
+        return f"{source_label} command head was not found: {resolution.head}"
+    return f"{source_label} is a shell-style command that doctor cannot verify"
+
+
+def _editor_details(resolution: EditorResolution) -> tuple[str, ...]:
+    if resolution.status == "resolved":
+        return (f"Command: {resolution.command_string}",)
+    if resolution.status == "missing":
+        checked = (
+            "Checked $VISUAL, $EDITOR, nvim, and vim."
+            if not resolution.configured
+            else f"Configured value: {resolution.raw_value}"
+        )
+        return (checked,)
+    return (
+        f"Configured value: {resolution.raw_value}",
+        "SASE launches editors as argv, not through an interactive shell.",
+    )
+
+
+def _editor_next_steps(resolution: EditorResolution) -> tuple[str, ...]:
+    if resolution.status == "resolved":
+        return ()
+    if resolution.status == "missing":
+        if resolution.configured:
+            return (
+                f"Install `{resolution.head}` or update ${resolution.source} to an executable editor command.",
+            )
+        return ("Install `nvim` or `vim`, or set $VISUAL/$EDITOR.",)
+    return (
+        "Set $VISUAL or $EDITOR to an executable command such as `nvim`, `vim`, or `code --wait`.",
     )
 
 
