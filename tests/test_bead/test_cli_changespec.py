@@ -147,6 +147,31 @@ def test_show_displays_changespec_metadata(
     assert "Bug ID: 12345" in out
 
 
+def test_show_phase_omits_parent_plan_when_parent_has_no_design(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        epic = proj.create(
+            "Epic",
+            issue_type=bead_cli.IssueType.PLAN,
+            tier="epic",
+        )
+        phase = proj.create(
+            "Phase",
+            issue_type=bead_cli.IssueType.PHASE,
+            parent_id=epic.id,
+        )
+
+    bead_cli.handle_bead_show(argparse.Namespace(id=phase.id))
+
+    out = capsys.readouterr().out
+    assert "\nPARENT\n" in out
+    assert "\nEPIC PLAN\n" not in out
+    assert "\nPARENT PLAN\n" not in out
+    assert "From parent" not in out
+
+
 def test_create_phase_rejects_changespec_metadata(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

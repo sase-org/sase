@@ -1,0 +1,14 @@
+○ beads-1.1 · Build Alpha   [OPEN]
+Type: phase · Owner: owner@example.com
+Assignee: alice
+
+PARENT
+  ↑ beads-1 · Alpha Epic   [OPEN]
+
+BLOCKS
+  ← ○ beads-1.2: Review Alpha   [OPEN]
+  ← ○ beads-4.1: Cross Phase   [OPEN]
+
+EPIC PLAN
+  From parent epic bead beads-1 · Alpha Epic
+  plans/alpha.md

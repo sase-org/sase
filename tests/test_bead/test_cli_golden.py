@@ -253,6 +253,12 @@ def _run_cli(
             stdout=_read_expected("show.stdout"),
         ),
         CliCase(
+            "show_phase_parent_epic_plan",
+            ["bead", "show", "beads-1.1"],
+            "current",
+            stdout=_read_expected("show_phase_parent_epic_plan.stdout"),
+        ),
+        CliCase(
             "ready",
             ["bead", "ready"],
             "current",

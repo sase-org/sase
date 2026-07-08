@@ -223,6 +223,27 @@ def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:
     assert try_handle_bead_fast_path(["list", "--status", "closed"]) is None
 
 
+def test_fast_path_defers_show_to_argparse(monkeypatch) -> None:
+    def fail_context(argv: list[str]):
+        raise AssertionError(f"context should not resolve for show: {argv}")
+
+    monkeypatch.setattr(bead_fast_path, "_resolve_fast_path_context", fail_context)
+
+    assert try_handle_bead_fast_path(["show", "beads-1.1"]) is None
+
+
+def test_fast_path_defers_full_search_to_argparse(monkeypatch) -> None:
+    def fail_context(argv: list[str]):
+        raise AssertionError(f"context should not resolve for full search: {argv}")
+
+    monkeypatch.setattr(bead_fast_path, "_resolve_fast_path_context", fail_context)
+
+    assert try_handle_bead_fast_path(["search", "needle", "--format", "full"]) is None
+    assert try_handle_bead_fast_path(["search", "needle", "--format=full"]) is None
+    assert try_handle_bead_fast_path(["search", "needle", "-f", "full"]) is None
+    assert try_handle_bead_fast_path(["search", "needle", "-ffull"]) is None
+
+
 def test_fast_path_defers_search_help_to_argparse(monkeypatch) -> None:
     def fail_context(argv: list[str]):
         raise AssertionError(f"context should not resolve for help: {argv}")

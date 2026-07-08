@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-08 00:09:37
-status: wip
+status: done
 prompt: sdd/prompts/202607/phase_bead_epic_plan.md
 ---
 # Show Epic Plan Context for Phase Beads

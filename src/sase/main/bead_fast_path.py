@@ -22,7 +22,7 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     """
     if not argv or any(arg in {"-h", "--help"} for arg in argv):
         return None
-    if argv[0] == "list":
+    if argv[0] in {"list", "show"} or _search_uses_full_format(argv):
         return None
 
     context = _resolve_fast_path_context(argv)
@@ -89,6 +89,18 @@ def _resolve_fast_path_context(argv: list[str]) -> _FastPathContext | None:
         write_beads_dir=write_beads_dir,
         relativize_design_paths=beads_dirname == _BEADS_DIRNAME,
     )
+
+
+def _search_uses_full_format(argv: list[str]) -> bool:
+    if not argv or argv[0] != "search":
+        return False
+
+    for index, arg in enumerate(argv[1:], start=1):
+        if arg in {"--format", "-f"}:
+            return index + 1 < len(argv) and argv[index + 1] == "full"
+        if arg == "--format=full" or arg == "-ffull":
+            return True
+    return False
 
 
 def _resolve_lightweight_beads_context(

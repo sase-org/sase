@@ -81,12 +81,13 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"Model: {issue.model}")
         if issue.epic_count is not None:
             print(f"Epic Count: {issue.epic_count}")
+        resolved_parent: Issue | None = None
         if issue.parent_id:
             try:
-                parent = view.show(issue.parent_id)
+                resolved_parent = view.show(issue.parent_id)
                 print(
-                    f"\nPARENT\n  ↑ {parent.id} · {parent.title}"
-                    f"   [{parent.status.value.upper()}]"
+                    f"\nPARENT\n  ↑ {resolved_parent.id} · {resolved_parent.title}"
+                    f"   [{resolved_parent.status.value.upper()}]"
                 )
             except KeyError:
                 print(f"\nPARENT\n  ↑ {issue.parent_id}")
@@ -138,13 +139,30 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             if issue.changespec_bug_id:
                 print(f"  Bug ID: {issue.changespec_bug_id}")
         if issue.design:
-            from sase.sdd.store import resolve_sdd_store
+            print(f"\nPLAN\n  {_display_design_path(issue.design)}")
+        elif (
+            issue.issue_type == IssueType.PHASE
+            and resolved_parent is not None
+            and resolved_parent.issue_type == IssueType.PLAN
+            and resolved_parent.design
+        ):
+            is_epic_parent = resolved_parent.tier == BeadTier.EPIC
+            section = "EPIC PLAN" if is_epic_parent else "PARENT PLAN"
+            parent_kind = "epic" if is_epic_parent else "plan"
+            print(
+                f"\n{section}\n"
+                f"  From parent {parent_kind} bead "
+                f"{resolved_parent.id} · {resolved_parent.title}\n"
+                f"  {_display_design_path(resolved_parent.design)}"
+            )
 
-            if resolve_sdd_store(Path.cwd(), 1).is_in_tree:
-                display = os.path.relpath(issue.design)
-            else:
-                display = issue.design
-            print(f"\nPLAN\n  {display}")
+
+def _display_design_path(design: str) -> str:
+    from sase.sdd.store import resolve_sdd_store
+
+    if resolve_sdd_store(Path.cwd(), 1).is_in_tree:
+        return os.path.relpath(design)
+    return design
 
 
 def handle_bead_search(args: argparse.Namespace) -> None:
