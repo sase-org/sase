@@ -84,6 +84,7 @@ class BareGitWorkspacePlugin:
             pre_allocated_env_prefix="SASE_GIT",
             vcs_family="git",
             vcs_provider_name="bare_git",
+            sdd_storage_policy="in_tree",
         )
 
     @hookimpl

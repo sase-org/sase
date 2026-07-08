@@ -95,6 +95,14 @@ def get_display_name_by_vcs(vcs_name: str) -> str | None:
     return get_display_name_by_vcs_family(vcs_family)
 
 
+def get_sdd_storage_policy_by_vcs(vcs_name: str) -> str | None:
+    """Return the SDD storage policy declared for a VCS provider."""
+    for m in get_all_workflow_metadata():
+        if m.vcs_provider_name == vcs_name and m.sdd_storage_policy:
+            return m.sdd_storage_policy
+    return None
+
+
 def get_pre_allocated_env_prefix(workflow_type: str) -> str | None:
     """Return the env-var prefix for *workflow_type*, or ``None``."""
     for m in get_all_workflow_metadata():

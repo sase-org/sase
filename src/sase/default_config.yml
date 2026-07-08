@@ -370,6 +370,7 @@ telemetry:
     p95_latency_critical: 600.0
 
 sdd:
+  storage: auto
   version_controlled: false
 
 workspace:

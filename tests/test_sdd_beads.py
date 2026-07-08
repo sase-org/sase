@@ -13,8 +13,15 @@ from sase.sdd.beads import get_effective_sdd_config, init_beads
 def test_effective_sdd_config_treats_bare_git_as_version_controlled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
-    monkeypatch.setattr("sase.sdd.beads.detect_vcs", lambda cwd: "bare_git")
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": "auto", "version_controlled": False}},
+    )
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda cwd: "bare_git")
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_sdd_storage_policy_by_vcs",
+        lambda vcs_name: "in_tree" if vcs_name == "bare_git" else None,
+    )
 
     assert get_effective_sdd_config(tmp_path) is True
 
@@ -23,8 +30,15 @@ def test_effective_sdd_config_treats_bare_git_as_version_controlled(
 def test_effective_sdd_config_keeps_false_for_non_bare_providers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, detected: str | None
 ) -> None:
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
-    monkeypatch.setattr("sase.sdd.beads.detect_vcs", lambda cwd: detected)
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": "auto", "version_controlled": False}},
+    )
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda cwd: detected)
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_sdd_storage_policy_by_vcs",
+        lambda vcs_name: None,
+    )
 
     assert get_effective_sdd_config(tmp_path) is False
 
@@ -32,12 +46,15 @@ def test_effective_sdd_config_keeps_false_for_non_bare_providers(
 def test_effective_sdd_config_falls_back_to_config_on_detection_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": "auto", "version_controlled": False}},
+    )
 
     def fail(_cwd: str) -> str:
         raise RuntimeError("detection failed")
 
-    monkeypatch.setattr("sase.sdd.beads.detect_vcs", fail)
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", fail)
 
     assert get_effective_sdd_config(tmp_path) is False
 
@@ -50,12 +67,19 @@ def test_effective_sdd_config_uses_explicit_workspace_path(
     workspace.mkdir()
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": "auto", "version_controlled": False}},
+    )
 
     def detect(cwd: str) -> str | None:
         return "bare_git" if Path(cwd) == workspace else None
 
-    monkeypatch.setattr("sase.sdd.beads.detect_vcs", detect)
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", detect)
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_sdd_storage_policy_by_vcs",
+        lambda vcs_name: "in_tree" if vcs_name == "bare_git" else None,
+    )
 
     assert get_effective_sdd_config(workspace) is True
 

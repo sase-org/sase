@@ -40,6 +40,7 @@ from sase.sdd._init_files import (
 )
 from sase.sdd._paths import (
     find_sdd_file,
+    get_sdd_dir as _get_sdd_dir,
     get_primary_workspace_dir as _get_primary_workspace_dir,
     get_yyyymm as _get_yyyymm,
     looks_like_sdd_root as _looks_like_sdd_root,
@@ -77,11 +78,7 @@ def get_sdd_dir(
     workspace_dir: str, workspace_num: int, version_controlled: bool
 ) -> Path:
     """Return the target directory for SDD files."""
-    if version_controlled:
-        return Path(workspace_dir) / "sdd"
-    return (
-        Path(get_primary_workspace_dir(workspace_dir, workspace_num)) / ".sase" / "sdd"
-    )
+    return _get_sdd_dir(workspace_dir, workspace_num, version_controlled)
 
 
 def get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:

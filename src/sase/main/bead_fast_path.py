@@ -96,9 +96,9 @@ def _resolve_lightweight_beads_context(
 ) -> tuple[list[Path], Path, str] | None:
     primary = _resolve_primary_workspace_by_project_scan(cwd)
     if primary is not None:
-        from sase.sdd.beads import get_effective_sdd_config
+        from sase.sdd.store import resolve_sdd_store
 
-        if get_effective_sdd_config(cwd):
+        if resolve_sdd_store(cwd, 1).is_in_tree:
             local_current = _select_current_checkout_beads_dir(cwd)
             if local_current is not None:
                 return [local_current], local_current, _BEADS_DIRNAME

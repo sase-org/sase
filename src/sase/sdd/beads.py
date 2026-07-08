@@ -4,33 +4,23 @@ import subprocess
 from pathlib import Path
 
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
-from sase.config import load_merged_config
 from sase.sdd.files import get_primary_workspace_dir, commit_sdd_files
-from sase.vcs_provider import detect_vcs
+from sase.sdd.store import (
+    SDD_STORAGE_IN_TREE,
+    get_configured_sdd_storage,
+    resolve_sdd_store,
+)
 
 
 def get_sdd_config() -> bool:
-    """Check if sdd.version_controlled is enabled in merged config."""
-    config = load_merged_config()
-    return bool(config.get("sdd", {}).get("version_controlled", False))
+    """Return the legacy configured in-tree SDD flag."""
+    return get_configured_sdd_storage() == SDD_STORAGE_IN_TREE
 
 
 def get_effective_sdd_config(workspace_dir: str | Path | None = None) -> bool:
-    """Return the effective SDD version-controlled mode.
-
-    Bare-git workspaces always use version-controlled SDD, even when the
-    merged config leaves ``sdd.version_controlled`` false. VCS detection is
-    best-effort so config lookup remains non-fatal outside repositories.
-    """
-    configured = get_sdd_config()
-    if configured:
-        return True
-
+    """Return whether the effective SDD store is in the code repository."""
     cwd = Path.cwd() if workspace_dir is None else Path(workspace_dir).expanduser()
-    try:
-        return detect_vcs(str(cwd)) == "bare_git"
-    except Exception:
-        return configured
+    return resolve_sdd_store(cwd, 1).is_in_tree
 
 
 def init_beads(workspace_dir: str, workspace_num: int) -> Path:
@@ -85,11 +75,12 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
 def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
     """Ensure beads are initialized, calling ``init_beads`` if necessary.
 
-    For VC repos: initializes ``sdd/beads/`` in the primary workspace root.
-    For non-VC repos: delegates to ``init_beads()`` for ``.sase/sdd/beads/``.
+    For in-tree repos: initializes ``sdd/beads/`` in the primary workspace root.
+    For other repos: delegates to ``init_beads()`` for ``.sase/sdd/beads/``.
     """
     primary = get_primary_workspace_dir(workspace_dir, workspace_num)
-    if get_effective_sdd_config(workspace_dir):
+    store = resolve_sdd_store(workspace_dir, workspace_num)
+    if store.is_in_tree:
         beads_dir = Path(primary, BEADS_DIRNAME)
         if not beads_dir.is_dir():
             from sase.sdd.files import ensure_bare_git_sdd_initialized

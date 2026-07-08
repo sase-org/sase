@@ -364,7 +364,10 @@ def test_plan_approve_archives_sdd_path_and_refreshes_index(
         patch(
             "sase.running_field.get_workspace_directory", return_value=str(workspace)
         ),
-        patch("sase.sdd.beads.get_effective_sdd_config", return_value=True),
+        patch(
+            "sase.sdd.store.load_merged_config",
+            return_value={"sdd": {"storage": "in_tree", "version_controlled": False}},
+        ),
         patch("sase.sdd.files.get_yyyymm", return_value="202606"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
         patch(

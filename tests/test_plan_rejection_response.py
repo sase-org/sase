@@ -319,7 +319,10 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
             "sase.running_field.get_workspace_directory",
             return_value=str(workspace),
         ),
-        patch("sase.sdd.beads.get_sdd_config", return_value=True),
+        patch(
+            "sase.sdd.store.load_merged_config",
+            return_value={"sdd": {"storage": "in_tree", "version_controlled": False}},
+        ),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):
@@ -359,7 +362,10 @@ def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
             "sase.running_field.get_workspace_directory",
             return_value=str(workspace),
         ),
-        patch("sase.sdd.beads.get_sdd_config", return_value=False),
+        patch(
+            "sase.sdd.store.load_merged_config",
+            return_value={"sdd": {"storage": "local", "version_controlled": False}},
+        ),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):

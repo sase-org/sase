@@ -418,7 +418,10 @@ def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
         patch(
             "sase.running_field.get_workspace_directory", return_value=str(workspace)
         ),
-        patch("sase.sdd.beads.get_sdd_config", return_value=True),
+        patch(
+            "sase.sdd.store.load_merged_config",
+            return_value={"sdd": {"storage": "in_tree", "version_controlled": False}},
+        ),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):

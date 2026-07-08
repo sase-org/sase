@@ -44,7 +44,10 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
         patch("sase.history.chat.save_chat_history", return_value="/fake/chat"),
         patch("sase.history.chat_extras.format_extra_sections", return_value=""),
         patch("sase.history.chat_links.format_plan_as_response", return_value="plan"),
-        patch("sase.sdd.beads.get_sdd_config", return_value=True),
+        patch(
+            "sase.sdd.store.load_merged_config",
+            return_value={"sdd": {"storage": "in_tree", "version_controlled": False}},
+        ),
         patch("sase.sdd.beads.ensure_beads_initialized"),
         patch(
             "sase.sdd.files.write_sdd_files",

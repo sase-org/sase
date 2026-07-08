@@ -248,8 +248,10 @@ class TestEpicPlanRefs:
                 "sase.llm_provider._plan_utils.handle_plan_approval",
                 return_value=approval,
             ),
-            patch("sase.sdd.beads.get_sdd_config", return_value=False),
-            patch("sase.sdd.files.get_sdd_dir", return_value=sdd_dir),
+            patch(
+                "sase.sdd.store.load_merged_config",
+                return_value={"sdd": {"storage": "local", "version_controlled": False}},
+            ),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(

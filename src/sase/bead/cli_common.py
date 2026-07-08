@@ -30,16 +30,16 @@ def find_beads_location() -> tuple[Path, str]:
 
     primary = resolve_primary_workspace()
     if primary:
-        from sase.sdd.beads import get_effective_sdd_config
+        from sase.sdd.store import resolve_sdd_store
 
-        if get_effective_sdd_config(cwd):
-            # VC mode: sdd/beads/ — prefer the current checkout, then primary.
+        if resolve_sdd_store(cwd, 1).is_in_tree:
+            # In-tree mode: sdd/beads/ — prefer current checkout, then primary.
             for parent in [cwd, *cwd.parents]:
                 if (parent / BEADS_DIRNAME).is_dir():
                     return parent, BEADS_DIRNAME
             return primary, BEADS_DIRNAME
         else:
-            # Non-VC mode: always primary/.sase/sdd/beads/
+            # Other modes: always primary/.sase/sdd/beads/
             return primary / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
 
     # No primary workspace — legacy walk-up from cwd.

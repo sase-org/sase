@@ -85,7 +85,9 @@ PLAN_PATCHES = {
     "sase.history.chat.save_chat_history": lambda **kw: "/fake/chat",
     "sase.history.chat_extras.format_extra_sections": lambda *a: "",
     "sase.history.chat_links.format_plan_as_response": lambda *a: "plan",
-    "sase.sdd.beads.get_sdd_config": lambda: True,
+    "sase.sdd.store.load_merged_config": lambda: {
+        "sdd": {"storage": "in_tree", "version_controlled": False}
+    },
     "sase.sdd.beads.ensure_beads_initialized": None,
     "sase.sdd.files.get_sdd_dir": lambda *a: None,
     "sase.sdd.files.ensure_bare_git_sdd_initialized": None,

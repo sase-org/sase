@@ -101,6 +101,9 @@ class WorkflowMetadata:
             :func:`~sase.vcs_provider.detect_vcs` (e.g. ``"github"``,
             ``"bare_git"``, ``"hg"``).  Used by
             :func:`get_display_name_by_vcs`.
+        sdd_storage_policy: Optional SDD storage policy declaration. Empty
+            string means no opinion; providers may declare ``"in_tree"`` or
+            ``"separate_repo"``.
     """
 
     workflow_type: str
@@ -109,6 +112,7 @@ class WorkflowMetadata:
     pre_allocated_env_prefix: str
     vcs_family: str = ""
     vcs_provider_name: str = ""
+    sdd_storage_policy: str = ""
 
 
 class WorkspaceHookSpec:

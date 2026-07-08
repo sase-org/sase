@@ -54,7 +54,10 @@ def test_find_beads_location_non_vc_variant_workspace_maps_to_primary(
     variant.mkdir(parents=True)
     monkeypatch.chdir(variant)
 
-    with patch("sase.sdd.get_sdd_config", return_value=None):
+    with patch(
+        "sase.sdd.store.load_merged_config",
+        return_value={"sdd": {"storage": "local", "version_controlled": False}},
+    ):
         root, beads_dirname = _find_beads_location()
 
     assert root == primary / ".sase" / "sdd"

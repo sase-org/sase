@@ -113,11 +113,9 @@ def get_sdd_dir(
     If version_controlled: return Path(workspace_dir) / "sdd"
     If not: return primary_workspace / ".sase" / "sdd"
     """
-    if version_controlled:
-        return Path(workspace_dir) / "sdd"
-    return (
-        Path(get_primary_workspace_dir(workspace_dir, workspace_num)) / ".sase" / "sdd"
-    )
+    from sase.sdd.store import sdd_dir_for_in_tree_bool
+
+    return sdd_dir_for_in_tree_bool(workspace_dir, workspace_num, version_controlled)
 
 
 def get_primary_workspace_dir(

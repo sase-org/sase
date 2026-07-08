@@ -976,9 +976,20 @@
       "description": "Configuration for Structured Design Documents",
       "additionalProperties": false,
       "properties": {
+        "storage": {
+          "type": "string",
+          "description": "Where SDD files are stored: auto, in-tree project files, local .sase/sdd, or a provider-materialized separate companion repository",
+          "enum": [
+            "auto",
+            "in_tree",
+            "local",
+            "separate_repo"
+          ],
+          "default": "auto"
+        },
         "version_controlled": {
           "type": "boolean",
-          "description": "Whether SDD files are stored in version-controlled project root (true) or in .sase/sdd (false)",
+          "description": "Deprecated alias for sdd.storage: true maps to in_tree and false maps to auto when sdd.storage is auto",
           "default": false
         }
       }

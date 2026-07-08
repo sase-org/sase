@@ -172,9 +172,9 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     if not plan_path:
         return
 
-    from sase.sdd.beads import get_effective_sdd_config
+    from sase.sdd.store import resolve_sdd_store
 
-    version_controlled = get_effective_sdd_config(cwd)
+    sdd_in_tree = resolve_sdd_store(cwd, 1).is_in_tree
 
     # Determine repo root
     repo_root = _get_repo_root(cwd)
@@ -192,7 +192,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
             return  # truly missing
 
     # Only copy plan into repo for version-controlled SDD projects
-    if version_controlled and not in_repo:
+    if sdd_in_tree and not in_repo:
         from sase.sdd.files import get_yyyymm
 
         yyyymm = _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
@@ -210,8 +210,8 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
                 f.write(formatted)
         plan_path = dest
 
-    # Only add frontmatter for version-controlled plans
-    if version_controlled:
+    # Only add frontmatter for in-tree SDD plans.
+    if sdd_in_tree:
         plan_content = open(plan_path, encoding="utf-8").read()
         if not plan_content.startswith("---\n"):
             from sase.llm_provider._plan_utils import add_create_time_frontmatter
@@ -234,8 +234,8 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     if plan_ref is None:
         plan_ref = os.path.basename(plan_path)
 
-    # Append SASE_PLAN= to commit message (only for version-controlled projects)
-    if version_controlled:
+    # Append SASE_PLAN= to commit message for in-tree SDD projects.
+    if sdd_in_tree:
         from sase.workflows.commit.runtime_tags import update_trailing_commit_tags
 
         message = payload.get("message", "")
@@ -250,6 +250,6 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         capture_output=True,
     )
 
-    # Only stage plan file if version-controlled
-    if version_controlled:
+    # Only stage plan files that live in the code repository.
+    if sdd_in_tree:
         payload["_plan_path"] = plan_path

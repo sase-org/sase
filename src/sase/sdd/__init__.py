@@ -26,6 +26,14 @@ from sase.sdd.files import (
     write_sdd_readme,
     write_sdd_files,
 )
+from sase.sdd.store import (
+    SddStore,
+    SddStoreRecord,
+    get_configured_sdd_storage,
+    read_sdd_store_record,
+    resolve_sdd_dir,
+    resolve_sdd_store,
+)
 
 __all__ = [
     "dry_expand_embedded_workflows",
@@ -47,4 +55,10 @@ __all__ = [
     "update_spec_with_qa",
     "write_sdd_readme",
     "write_sdd_files",
+    "SddStore",
+    "SddStoreRecord",
+    "get_configured_sdd_storage",
+    "read_sdd_store_record",
+    "resolve_sdd_dir",
+    "resolve_sdd_store",
 ]

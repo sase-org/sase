@@ -274,24 +274,24 @@ def handle_accepted_plan(
     )
 
     # Write SDD files (spec + plan) to project
-    from sase.sdd.beads import get_effective_sdd_config
     from sase.sdd.files import (
         commit_sdd_files,
         ensure_bare_git_sdd_initialized,
         expand_prompt_for_spec,
-        get_sdd_dir,
         write_sdd_files,
     )
+    from sase.sdd.store import resolve_sdd_store
 
     sdd_plan_name: str | None = None
     sdd_plan_path: Path | None = None
     sdd_commit_paths: list[Path] = []
-    version_controlled = True  # safe default (VC path is the no-op path)
+    sdd_in_tree = True  # safe default (in-tree path is the no-op path)
     sdd_dir = Path(ctx.workspace_dir)
     try:
-        version_controlled = get_effective_sdd_config(ctx.workspace_dir)
-        sdd_dir = get_sdd_dir(ctx.workspace_dir, ctx.workspace_num, version_controlled)
-        if version_controlled:
+        sdd_store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num)
+        sdd_in_tree = sdd_store.is_in_tree
+        sdd_dir = sdd_store.sdd_dir
+        if sdd_in_tree:
             ensure_bare_git_sdd_initialized(
                 ctx.workspace_dir,
                 commit=True,
@@ -322,7 +322,7 @@ def handle_accepted_plan(
                 "sdd_plan_path": str(sdd_plan_path),
             },
         )
-        if not version_controlled:
+        if not sdd_in_tree:
             commit_sdd_files(
                 sdd_dir,
                 f"Add SDD files for {sdd_plan_name}",
@@ -340,7 +340,7 @@ def handle_accepted_plan(
     )
     required_sdd_commit_succeeded = True
     if should_commit and sdd_plan_name:
-        if version_controlled:
+        if sdd_in_tree:
             plan_kind = plan_kind_for_action(plan_result.action)
             required_sdd_commit_succeeded = _commit_sdd_files(
                 ctx.workspace_dir,
@@ -480,7 +480,7 @@ def handle_accepted_plan(
                 sdd_dir=sdd_dir,
                 workspace_dir=ctx.workspace_dir,
                 sdd_plan_name=sdd_plan_name if plan_committed else None,
-                version_controlled=version_controlled,
+                version_controlled=sdd_in_tree,
                 fallback_plan_file=plan_result.plan_file,
             )
             legend_bead_id = infer_epic_legend_bead_id(
@@ -497,7 +497,7 @@ def handle_accepted_plan(
                 sdd_dir=sdd_dir,
                 workspace_dir=ctx.workspace_dir,
                 sdd_plan_name=sdd_plan_name if plan_committed else None,
-                version_controlled=version_controlled,
+                version_controlled=sdd_in_tree,
                 fallback_plan_file=plan_result.plan_file,
                 plan_kind="legends",
             )
@@ -591,7 +591,7 @@ def handle_accepted_plan(
                 sdd_plan_path=sdd_plan_path,
                 sdd_dir=sdd_dir,
                 workspace_dir=ctx.workspace_dir,
-                version_controlled=version_controlled,
+                version_controlled=sdd_in_tree,
                 fallback_plan_file=plan_result.plan_file,
             )
         else:

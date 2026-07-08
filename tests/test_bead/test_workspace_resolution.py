@@ -19,6 +19,13 @@ from sase.bead.workspace import (
 )
 
 
+def _set_sdd_config(monkeypatch, *, storage: str = "auto") -> None:
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": storage, "version_controlled": False}},
+    )
+
+
 def _write_marker(
     checkout_dir: Path,
     *,
@@ -57,7 +64,7 @@ def test_canonical_project_beads_dir_non_vc_primary_only(
     workspace_2 = tmp_path / "project_2"
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (workspace_2 / ".sase" / "sdd" / "beads").mkdir(parents=True)
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    _set_sdd_config(monkeypatch, storage="local")
 
     result = _canonical_project_beads_dir(primary)
 
@@ -100,7 +107,7 @@ def test_canonical_project_beads_dir_non_vc_ignores_legacy_siblings(
     workspace_2 = tmp_path / "project_2"
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (workspace_2 / ".sase_beads").mkdir(parents=True)
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    _set_sdd_config(monkeypatch, storage="local")
 
     result = _canonical_project_beads_dir(primary)
 
@@ -113,8 +120,12 @@ def test_canonical_project_beads_dir_treats_bare_git_as_vc(
     primary = tmp_path / "project"
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (primary / "sdd/beads").mkdir(parents=True)
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
-    monkeypatch.setattr("sase.sdd.beads.detect_vcs", lambda cwd: "bare_git")
+    _set_sdd_config(monkeypatch, storage="auto")
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda cwd: "bare_git")
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_sdd_storage_policy_by_vcs",
+        lambda vcs_name: "in_tree" if vcs_name == "bare_git" else None,
+    )
 
     result = _canonical_project_beads_dir(primary)
 
@@ -143,7 +154,7 @@ def test_get_all_project_beads_dirs_dedupes_known_project_dirs(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("sase.sdd.beads.get_sdd_config", lambda: False)
+    _set_sdd_config(monkeypatch, storage="auto")
     shared_primary = tmp_path / "workspaces" / "shared"
     unique_primary = tmp_path / "workspaces" / "unique"
     (shared_primary / "sdd/beads").mkdir(parents=True)

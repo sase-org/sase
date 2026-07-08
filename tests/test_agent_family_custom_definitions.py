@@ -19,6 +19,7 @@ from sase.agent_family.custom_definitions import (
 from sase.axe.run_agent_exec import run_execution_loop
 from sase.axe.run_agent_exec_plan_accept import handle_accepted_plan
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.sdd.store import SddStore
 from sase.xprompt.load_issues import collect_xprompt_load_issues
 from sase.xprompt.workflow_loader import get_all_workflows
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
@@ -331,8 +332,10 @@ def test_handle_accepted_plan_spawns_after_plan_custom_role(
     )
 
     with (
-        patch("sase.sdd.beads.get_effective_sdd_config", return_value=True),
-        patch("sase.sdd.files.get_sdd_dir", return_value=tmp_path),
+        patch(
+            "sase.sdd.store.resolve_sdd_store",
+            return_value=SddStore("in_tree", tmp_path, tmp_path),
+        ),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
         patch(
             "sase.sdd.files.write_sdd_files",
