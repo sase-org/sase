@@ -172,6 +172,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "tools.editor",
         "tools.tmux",
         "tools.clipboard",
+        "tools.fzf",
     } <= ids
     assert {
         "state.agent_index_verify",

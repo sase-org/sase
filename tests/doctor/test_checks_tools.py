@@ -98,6 +98,30 @@ def test_clipboard_check_ok_when_helper_available(monkeypatch) -> None:
     assert check.next_steps == ()
 
 
+def test_fzf_check_warns_when_command_is_missing(monkeypatch) -> None:
+    monkeypatch.setattr(checks_tools.shutil, "which", lambda _command: None)
+
+    check = checks_tools._check_fzf()
+
+    assert check.status == "WARN"
+    assert check.summary == "fzf is not installed or not on PATH"
+    assert "Prompt pickers and editor prompt history require `fzf`." in check.details
+    assert check.next_steps == (
+        "Install `fzf` to enable prompt pickers and prompt-history editing.",
+    )
+    assert check.data["resolved_path"] is None
+
+
+def test_fzf_check_ok_when_command_resolves(monkeypatch) -> None:
+    monkeypatch.setattr(checks_tools.shutil, "which", lambda _command: "/usr/bin/fzf")
+
+    check = checks_tools._check_fzf()
+
+    assert check.status == "OK"
+    assert check.summary == "fzf is available for prompt pickers and prompt history"
+    assert check.data["resolved_path"] == "/usr/bin/fzf"
+
+
 def test_optional_tools_warns_with_affected_features(monkeypatch) -> None:
     monkeypatch.setattr(
         "sase.doctor.checks_tools.shutil.which",

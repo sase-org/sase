@@ -67,6 +67,12 @@ def tools_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_clipboard(context),
         ),
         CheckSpec(
+            id="tools.fzf",
+            group="tools",
+            title="fzf command",
+            runner=_check_fzf,
+        ),
+        CheckSpec(
             id="tools.optional",
             group="tools",
             title="Optional artifact tools",
@@ -260,6 +266,45 @@ def _clipboard_next_steps(
         )
     return (
         "Install a supported clipboard helper such as `wl-clipboard`, `xclip`, `xsel`, or `pbcopy` for your platform.",
+    )
+
+
+def _check_fzf() -> DiagnosticCheck:
+    """Check whether fzf is available for prompt picker workflows."""
+    resolved_path = shutil.which("fzf")
+    if resolved_path:
+        return DiagnosticCheck(
+            id="tools.fzf",
+            group="tools",
+            status="OK",
+            title="fzf command",
+            summary="fzf is available for prompt pickers and prompt history",
+            details=(f"Command: {resolved_path}",),
+            data={
+                "command": "fzf",
+                "resolved_path": resolved_path,
+                "required_for_agents": False,
+            },
+        )
+
+    return DiagnosticCheck(
+        id="tools.fzf",
+        group="tools",
+        status="WARN",
+        title="fzf command",
+        summary="fzf is not installed or not on PATH",
+        details=(
+            "Prompt pickers and editor prompt history require `fzf`.",
+            "`sase prompt doctor` also reports prompt-history fzf availability.",
+        ),
+        next_steps=(
+            "Install `fzf` to enable prompt pickers and prompt-history editing.",
+        ),
+        data={
+            "command": "fzf",
+            "resolved_path": None,
+            "required_for_agents": False,
+        },
     )
 
 
