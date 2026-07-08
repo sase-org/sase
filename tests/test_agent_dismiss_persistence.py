@@ -341,6 +341,66 @@ def test_delete_agent_artifacts_resolves_waiters_before_deleting_done_marker(  #
     assert not (parent_dir / "done.json").exists()
 
 
+def test_delete_agent_artifacts_keeps_waiter_with_other_unresolved_dependency(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Dismissing one completed dep must not unblock a multi-dep waiter early."""
+    from sase.ace.tui.actions.agents._killing_utils import delete_agent_artifacts
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    parent_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260706130831"
+    waiter_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260706131004"
+    parent_dir.mkdir(parents=True)
+    waiter_dir.mkdir(parents=True)
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "b"}),
+        encoding="utf-8",
+    )
+    (parent_dir / "done.json").write_text(
+        json.dumps({"outcome": "completed"}),
+        encoding="utf-8",
+    )
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "multi-waiter"}),
+        encoding="utf-8",
+    )
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": ["b", "c"],
+                "wait_for_artifacts": [
+                    {
+                        "project_name": "proj",
+                        "timestamp": parent_dir.name,
+                        "artifact_dir": str(parent_dir),
+                        "name": "b",
+                    }
+                ],
+                "cl_name": "waiter-cl",
+                "timestamp": waiter_dir.name,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils."
+            "delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.try_delete_agent_artifacts",
+            return_value=False,
+        ),
+    ):
+        delete_agent_artifacts(str(parent_dir))
+
+    assert not (waiter_dir / "ready.json").exists()
+    assert (waiter_dir / "waiting.json").exists()
+    assert not (parent_dir / "done.json").exists()
+
+
 def test_bulk_dismiss_fallback_batches_artifact_index_deletes(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """Per-agent fallback should issue a *single* artifact-index delete call."""
     from sase.ace.tui.actions.agents._dismiss_persistence import (

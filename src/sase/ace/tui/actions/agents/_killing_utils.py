@@ -12,7 +12,12 @@ from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
 )
 from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
-from sase.core.wait_dependency_resolution import read_json_dict
+from sase.core.wait_dependency_resolution import (
+    WaitDependencyIndex,
+    build_wait_dependency_index,
+    dependency_resolution_status,
+    read_json_dict,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -86,6 +91,16 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
     except Exception:
         return
 
+    dependency_index = None
+    if dependency_succeeded:
+        try:
+            dependency_index = build_wait_dependency_index(
+                project_name,
+                projects_root=projects_root,
+            )
+        except Exception:
+            dependency_index = None
+
     for waiter_dir in artifact_dirs:
         if _same_artifact_dir(waiter_dir, artifacts_path):
             continue
@@ -110,7 +125,14 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
         ):
             continue
         if dependency_succeeded:
-            ready_data: dict[str, object] = {"resolved_deps": waiting_for}
+            ready_data = _ready_data_for_completed_dependency(
+                dependency_index,
+                waiting_for=waiting_for,
+                wait_for_artifacts=wait_for_artifacts,
+                waiter_dir=waiter_dir,
+            )
+            if ready_data is None:
+                continue
         else:
             ready_data = {
                 "cancelled": True,
@@ -123,6 +145,34 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
                 json.dump(ready_data, f, indent=2)
         except OSError:
             continue
+
+
+def _ready_data_for_completed_dependency(
+    dependency_index: WaitDependencyIndex | None,
+    *,
+    waiting_for: list[str],
+    wait_for_artifacts: list[object],
+    waiter_dir: Path,
+) -> dict[str, object] | None:
+    """Return ready marker data only when all waiter dependencies are satisfied."""
+    if dependency_index is None:
+        return None
+    status = dependency_resolution_status(
+        dependency_index,
+        waiting_for,
+        wait_for_artifacts,
+        self_artifact_dir=waiter_dir,
+    )
+    if status.failed:
+        return {
+            "cancelled": True,
+            "reason": "dependency_failed",
+            "resolved_deps": waiting_for,
+            "failed_deps": list(status.failed_dependencies),
+        }
+    if not status.resolved:
+        return None
+    return {"resolved_deps": waiting_for}
 
 
 def _artifact_project_context(
