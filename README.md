@@ -51,8 +51,7 @@ sase agent list
 If `sase doctor` reports a missing provider executable or authentication gap, install and authenticate one of the
 supported CLIs, then run `sase doctor` again.
 
-For the guided beginner path, follow the
-[15-minute quickstart](https://sase.sh/blog/posts/hello-sase-your-first-15-minutes/).
+For the guided beginner path, follow the [Getting Started guide](https://sase.sh/getting_started/).
 
 ## Why sase
 

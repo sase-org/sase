@@ -10,10 +10,9 @@ categories:
   - XPrompts
 slug: xprompts-in-depth
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - XPrompts: xprompt.md
   - Workflow Specification: workflow_spec.md
-  - "[01] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents": blog/posts/hello-sase-your-first-15-minutes.md
+  - Getting Started: getting_started.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
@@ -24,10 +23,10 @@ when to stop there instead of reaching for a workflow.
 
 <!-- more -->
 
-[\[01\]](hello-sase-your-first-15-minutes.md) showed how to turn a one-off prompt into a reusable `#docstring`. That is
-the smallest XPrompt: one Markdown file in `xprompts/`, invoked by name. This post zooms in. We will walk from that
-one-file XPrompt up through typed inputs, directives, and multi-agent fan-out, and only at the end show why YAML
-workflows exist — because most of the time you do not need one.
+[Getting Started](../../getting_started.md) shows how to turn a one-off prompt into a reusable `#docstring`. That is the
+smallest XPrompt: one Markdown file in `xprompts/`, invoked by name. This post zooms in. We will walk from that one-file
+XPrompt up through typed inputs, directives, and multi-agent fan-out, and only at the end show why YAML workflows exist
+— because most of the time you do not need one.
 
 ## The Smallest XPrompt Is a Markdown File
 
@@ -179,13 +178,3 @@ source file, its arguments. When something resolves to the wrong copy, that is t
   feature.
 - [\[03\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md) — what runs your `%wait`
   dependencies and `done.json` completions in the background.
-
-## Series Navigation
-
-This is [02] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous:
-  [\[01\] Hello, SASE — Your First 15 Minutes Orchestrating Coding Agents](hello-sase-your-first-15-minutes.md).
-- Next: [\[03\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [XPrompts guide](../../xprompt.md).

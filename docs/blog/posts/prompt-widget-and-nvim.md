@@ -10,7 +10,6 @@ categories:
   - Plugins
 slug: prompt-widget-and-nvim
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - ACE TUI: ace.md
   - XPrompts: xprompt.md
   - Plugins: plugins.md
@@ -165,12 +164,3 @@ front doors.
   configuration, and the YAML schema registration.
 - [XPrompts reference](../../xprompt.md) — the language the widget and the plugin both speak.
 - [ACE TUI guide](../../ace.md) — the rest of the TUI the prompt widget sits inside.
-
-## Series Navigation
-
-This is [08] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
-- Next: [\[09\] What's Next — Shared Memory, Mobile, and the Web Surface](whats-next-memory-mobile-web.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or the
-  [XPrompts reference](../../xprompt.md).

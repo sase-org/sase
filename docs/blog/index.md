@@ -5,15 +5,14 @@ units, orchestration, provider-independent workflows, review state, and the coor
 
 ## Start Here
 
-Start with [Hello, SASE: Your First 15 Minutes](posts/hello-sase-your-first-15-minutes.md) if you want the practical
-path: install, provider readiness, a safe first run, and the first visible agent record.
+Start with [SASE: Structured Agentic Software Engineering](posts/structured-agentic-software-engineering.md), the launch
+post: why SASE wraps agent CLIs, how XPrompts work, what the ACE Agents tab changes, and how to install the tool.
 
-The [SASE Blog Series](../series/agentic-software-engineering.md) also begins with
-[\[00\] The Missing Operating Layer for Coding Agents](posts/why-coding-agents-need-orchestration.md), the launch essay
-on why coding-agent work needs durable prompts, plans, state, review, dependencies, retries, and handoff.
+If you want the practical path first, use [Getting Started: Your First 15 Minutes](../getting_started.md): install,
+provider readiness, a safe first run, and the first visible agent record.
 
-More posts in the series are in the repository as drafts and will be published over time. The generated archive below
-lists only the entries included in the public site.
+More posts are in the repository as drafts and will be published over time. The generated archive below lists only the
+entries included in the public site.
 
 ## From Reading To Practice
 

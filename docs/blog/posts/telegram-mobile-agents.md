@@ -10,7 +10,6 @@ categories:
   - Plugins
 slug: telegram-mobile-agents
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - Plugins: plugins.md
   - Notifications: notifications.md
   - Mobile Gateway: mobile_gateway.md
@@ -167,12 +166,3 @@ the launch path is independent.
   toast, modal, and Telegram delivery paths.
 - [Mobile gateway](../../mobile_gateway.md) — where the longer-term native mobile story is heading.
 - [Agent images](../../agent_images.md) — local-side review for runs that produce rendered images.
-
-## Series Navigation
-
-This is [07] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: [\[06\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
-- Next: [\[08\] Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [plugins overview](../../plugins.md).

@@ -1,2 +1,4 @@
 /blog /blog/ 301
-
+/blog/posts/hello-sase-your-first-15-minutes/ /getting_started/ 301
+/blog/posts/why-coding-agents-need-orchestration/ /blog/posts/structured-agentic-software-engineering/ 301
+/series/agentic-software-engineering/ /blog/posts/structured-agentic-software-engineering/ 301

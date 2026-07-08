@@ -10,7 +10,6 @@ categories:
   - Planning
 slug: beads-and-sdd
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - Spec-Driven Development: sdd.md
   - Beads: beads.md
   - "[03] AXE — The Background Daemon That Keeps Agent Work Moving": blog/posts/axe-background-daemon.md
@@ -137,12 +136,3 @@ and canonical event state. For local and separate-repo stores, agents share the 
 - [Beads](../../beads.md) — every `sase bead` subcommand, the data model, and the current-checkout source-of-truth rule.
 - [\[05\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md) — how the work that
   `sase bead work` schedules eventually lands as commits, proposals, or PRs.
-
-## Series Navigation
-
-This is [04] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: [\[03\] AXE — The Background Daemon That Keeps Agent Work Moving](axe-background-daemon.md).
-- Next: [\[05\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [SDD guide](../../sdd.md).

@@ -10,7 +10,6 @@ categories:
   - Roadmap
 slug: whats-next-memory-mobile-web
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - Mobile Gateway: mobile_gateway.md
   - "[08] Where You Type — The Prompt Input Widget and sase-nvim": blog/posts/prompt-widget-and-nvim.md
   - View on GitHub: https://github.com/sase-org/sase
@@ -107,13 +106,4 @@ memory, mobile, and web are how that durable object stays reachable.
   contract snapshot.
 - [Shared memory research](https://github.com/sase-org/sase/blob/master/sdd/research/202605/zettel_sase_shared_memory.md)
   — the full proposal, including external research notes, design decisions, and open questions.
-- [SASE Blog Series](../../series/agentic-software-engineering.md) — all ten posts in one place.
-
-## Series Navigation
-
-This is [09] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: [\[08\] Where You Type — The Prompt Input Widget and sase-nvim](prompt-widget-and-nvim.md).
-- Next: none (latest post).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [mobile gateway guide](../../mobile_gateway.md).
+- [SASE Blog](../index.md) — launch posts and longer essays as they publish.

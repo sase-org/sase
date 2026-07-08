@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% if page is defined and page %}
+    {% set meta_title = page.meta.title or page.title or config.site_name %}
+    {% set meta_description = page.meta.description or config.site_description %}
+    {% set meta_image = page.meta.image or "images/sase_overview.png" %}
+    {% set meta_url = page.canonical_url or config.site_url ~ page.url %}
+    {% set is_article = page.url and page.url[:11] == "blog/posts/" %}
+    {% set published_time = page.meta.date %}
+  {% else %}
+    {% set meta_title = config.site_name %}
+    {% set meta_description = config.site_description %}
+    {% set meta_image = "images/sase_overview.png" %}
+    {% set meta_url = config.site_url %}
+    {% set is_article = false %}
+    {% set published_time = none %}
+  {% endif %}
+  {% set meta_image_url = meta_image if meta_image[:4] == "http" else config.site_url ~ meta_image %}
+<meta property="og:site_name" content="{{ config.site_name | e }}" />
+<meta property="og:type" content="{{ 'article' if is_article else 'website' }}" />
+<meta property="og:title" content="{{ meta_title | e }}" />
+<meta property="og:description" content="{{ meta_description | e }}" />
+<meta property="og:url" content="{{ meta_url | e }}" />
+<meta property="og:image" content="{{ meta_image_url | e }}" />
+{% if published_time %}
+<meta property="article:published_time" content="{{ published_time | e }}" />
+{% endif %}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{{ meta_title | e }}" />
+<meta name="twitter:description" content="{{ meta_description | e }}" />
+<meta name="twitter:image" content="{{ meta_image_url | e }}" />
+{% endblock %}

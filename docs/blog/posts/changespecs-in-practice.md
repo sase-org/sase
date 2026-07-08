@@ -3,14 +3,13 @@ title: "[06] ChangeSpecs in Practice — Review State Outside the Chat"
 date: 2026-05-20
 draft: true
 description: >-
-  ChangeSpecs are the durable, reviewable shape of one PR of agent work. They survive the chat. [01] named them; this
-  post lives inside them.
+  ChangeSpecs are the durable, reviewable shape of one PR of agent work. They survive the chat. Getting Started names
+  them; this post lives inside them.
 categories:
   - Agentic Software Engineering
   - Review
 slug: changespecs-in-practice
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - ChangeSpecs: change_spec.md
   - Mentors: mentors.md
   - ACE TUI: ace.md
@@ -21,7 +20,7 @@ links:
 # [06] ChangeSpecs in Practice — Review State Outside the Chat
 
 ChangeSpecs are the durable, reviewable shape of one PR of agent work. They survive the chat.
-[\[01\]](hello-sase-your-first-15-minutes.md) named them; this post lives inside them.
+[Getting Started](../../getting_started.md) names them; this post lives inside them.
 
 <!-- more -->
 
@@ -187,12 +186,3 @@ by SASE and is not normally edited by hand.
 - [ACE TUI](../../ace.md) — the full keybinding reference for the PRs, Agents, and Axe tabs.
 - [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md) — turn an
   existing Telegram chat into a two-way control surface for plans, agents, and generated artifacts.
-
-## Series Navigation
-
-This is [06] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: [\[05\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md).
-- Next: [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [ChangeSpec guide](../../change_spec.md).

@@ -10,7 +10,6 @@ categories:
   - Workflows
 slug: commit-workflows-plugins
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - Commit Workflows: commit_workflows.md
   - Plugins: plugins.md
   - VCS Providers: vcs.md
@@ -161,12 +160,3 @@ those are about which configuration and prompt files contribute to the resolver,
 - [VCS providers](../../vcs.md) — provider selection tiers, per-command VCS usage, provider-specific details.
 - [\[06\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md) — what the commit/PR flow
   writes to, and how ACE reviews it.
-
-## Series Navigation
-
-This is [05] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: [\[04\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
-- Next: [\[06\] ChangeSpecs in Practice — Review State Outside the Chat](changespecs-in-practice.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [commit workflows guide](../../commit_workflows.md).

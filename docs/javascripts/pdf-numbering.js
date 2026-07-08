@@ -2,7 +2,7 @@
   const chapters = {
     "/": 1,
     "/blog/": 2,
-    "/series/agentic-software-engineering/": 3,
+    "/getting_started/": 3,
     "/ace/": 4,
     "/axe/": 5,
     "/sdd/": 6,

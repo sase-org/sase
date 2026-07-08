@@ -16,10 +16,10 @@ title: Structured Agentic Software Engineering
     </p>
 
     <div class="sase-actions">
-      <a class="md-button" href="blog/posts/hello-sase-your-first-15-minutes/">15-Minute Quickstart</a>
+      <a class="md-button" href="getting_started/">Getting Started</a>
       <a class="md-button" href="/downloads/sase-handbook.pdf">Download PDF</a>
       <a class="md-button" href="https://github.com/sase-org/sase">View on GitHub</a>
-      <a class="md-button" href="series/agentic-software-engineering/">SASE Blog Series</a>
+      <a class="md-button" href="blog/posts/structured-agentic-software-engineering/">Launch Post</a>
     </div>
 
   </div>
@@ -213,7 +213,7 @@ title: Structured Agentic Software Engineering
 
   <p>Why coding agents need orchestration above individual provider CLIs.</p>
 
-<a href="blog/posts/why-coding-agents-need-orchestration/">Read the essay</a>
+<a href="blog/posts/structured-agentic-software-engineering/">Read the essay</a>
 
   </article>
 
@@ -227,11 +227,11 @@ title: Structured Agentic Software Engineering
   </article>
 
   <article class="sase-card sase-card--compact">
-  <h3>Explore the series</h3>
+  <h3>Open the blog</h3>
 
-  <p>Read the full agentic software engineering series from one hub.</p>
+  <p>Read launch posts and longer essays as they publish.</p>
 
-<a href="series/agentic-software-engineering/">Explore the series</a>
+<a href="blog/">Open the blog</a>
 
   </article>
 

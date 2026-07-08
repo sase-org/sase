@@ -1,6 +1,7 @@
 ---
 title: "[00] The Missing Operating Layer for Coding Agents"
 date: 2026-05-08
+draft: true
 description: >-
   SASE's first principles: XPrompts, SDD, Beads, ACE, AXE, plugins, and the durable operating layer around coding-agent
   CLIs.
@@ -8,8 +9,7 @@ categories:
   - Agentic Software Engineering
 slug: why-coding-agents-need-orchestration
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
-  - Hello, SASE: blog/posts/hello-sase-your-first-15-minutes.md
+  - Getting Started: getting_started.md
   - XPrompts: xprompt.md
   - Spec-Driven Development: sdd.md
   - ACE TUI: ace.md
@@ -32,9 +32,8 @@ coding-agent CLIs instead of raw model APIs.
 
 <!-- more -->
 
-If you want to install first and read philosophy later, jump to
-[\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md). That post is the practical quickstart.
-This one explains what the pieces are and why they exist.
+If you want to install first and read philosophy later, jump to [Getting Started](../../getting_started.md). That page
+is the practical quickstart. This one explains what the pieces are and why they exist.
 
 One notation note before we start:
 
@@ -107,7 +106,7 @@ uv tool install sase --with sase-github --with sase-telegram
 ```
 
 If you are replacing an existing `uv tool` install, add `--force` to the same command. The quickstart has the fuller
-walkthrough: [Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
+walkthrough: [Getting Started](../../getting_started.md).
 
 > **Friction note:** Plugin installation is improving, but it is still a little too easy to install `sase` correctly and
 > forget that `sase-github` also needs an authenticated `gh` CLI, while `sase-telegram` needs Telegram bot secrets and
@@ -623,14 +622,4 @@ That is what SASE is trying to be.
 Not the model. Not the IDE. Not the VCS host. The layer that lets those pieces cooperate without making a human keep the
 entire system in short-term memory and twelve terminal tabs.
 
-The next post is the practical on-ramp:
-[\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
-
-## Series Navigation
-
-This is [00] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: none.
-- Next: [\[01\] Hello, SASE: Your First 15 Minutes](hello-sase-your-first-15-minutes.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [ACE guide](../../ace.md).
+The practical on-ramp is [Getting Started](../../getting_started.md).

@@ -1,13 +1,13 @@
 ---
 title: "SASE: Structured Agentic Software Engineering"
 date: 2026-07-08
-draft: true
 description: >-
   From a tmux full of coding agents to an operating layer around them: agent CLIs, XPrompts, the ACE Agents tab, and a
   practical install path for SASE.
 categories:
   - Agentic Software Engineering
 slug: structured-agentic-software-engineering
+image: images/blog/agents_observability_still.png
 links:
   - ACE TUI: ace.md
   - XPrompts: xprompt.md
@@ -325,8 +325,8 @@ sase ace
 ```
 
 That is enough to see the loop: a prompt becomes an agent record, the record appears in the CLI and ACE, and the
-transcript and artifacts survive the terminal window that launched it. For the guided path, use the Getting Started page
-once Phase 3 moves the 15-minute walkthrough out of the old blog series.
+transcript and artifacts survive the terminal window that launched it. For the guided path, use
+[Getting Started](../../getting_started.md).
 
 ## What's Next
 

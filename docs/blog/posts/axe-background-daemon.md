@@ -10,7 +10,6 @@ categories:
   - Automation
 slug: axe-background-daemon
 links:
-  - SASE Blog Series: series/agentic-software-engineering.md
   - AXE Automation: axe.md
   - Notifications: notifications.md
   - "[02] XPrompts in Depth — From One File to Full Workflows": blog/posts/xprompts-in-depth.md
@@ -25,7 +24,7 @@ while individual agents finish, fail, or wait.
 
 <!-- more -->
 
-[\[01\]](hello-sase-your-first-15-minutes.md) named AXE as the third tab in the ACE TUI; this post explains what is
+[Getting Started](../../getting_started.md) names AXE as the third tab in the ACE TUI; this post explains what is
 actually running behind that tab.
 
 ## The Architecture in One Paragraph
@@ -122,12 +121,3 @@ launch and supervise, not compute.
   the operator.
 - [\[04\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md) — what AXE is unblocking when
   multi-phase epic work executes.
-
-## Series Navigation
-
-This is [03] in the [SASE Blog Series](../../series/agentic-software-engineering.md).
-
-- Previous: [\[02\] XPrompts in Depth — From One File to Full Workflows](xprompts-in-depth.md).
-- Next: [\[04\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md).
-- Continue reading: [SASE Blog Series](../../series/agentic-software-engineering.md), [blog home](../index.md), or
-  [AXE guide](../../axe.md).
