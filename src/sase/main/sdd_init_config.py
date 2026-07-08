@@ -12,6 +12,7 @@ import yaml  # type: ignore[import-untyped]
 from .init_plan import InitAction
 
 _SDD_INIT_CONFIG = "sdd:\n  version_controlled: true\n"
+_STORAGE_VALUES = frozenset({"auto", "in_tree", "local", "separate_repo"})
 
 
 class SddInitConfigError(ValueError):
@@ -48,9 +49,13 @@ def resolve_sdd_init_config_path(
 
 
 def plan_sdd_init_config(
-    path: str | Path | None = None, *, cwd: Path | None = None
+    path: str | Path | None = None,
+    *,
+    cwd: Path | None = None,
+    storage: str | None = None,
 ) -> _SddInitConfigPlan:
     """Return the project-local config action needed for SDD init."""
+    _validate_storage(storage)
     config_path = _resolve_sdd_init_config_path(path, cwd=cwd)
     if not config_path.exists():
         return _SddInitConfigPlan(
@@ -58,7 +63,7 @@ def plan_sdd_init_config(
             action=InitAction(
                 path=config_path,
                 operation="create",
-                detail="enable sdd.version_controlled",
+                detail=_config_action_detail(storage),
             ),
         )
 
@@ -67,7 +72,21 @@ def plan_sdd_init_config(
         return _SddInitConfigPlan(path=config_path, blockers=(loaded.blocker,))
 
     sdd_config = loaded.data.get("sdd")
-    if isinstance(sdd_config, dict) and sdd_config.get("version_controlled") is True:
+    if (
+        storage is None
+        and isinstance(sdd_config, dict)
+        and (
+            sdd_config.get("version_controlled") is True
+            or sdd_config.get("storage") == "in_tree"
+        )
+    ):
+        return _SddInitConfigPlan(path=config_path)
+    if (
+        storage is not None
+        and isinstance(sdd_config, dict)
+        and sdd_config.get("storage") == storage
+        and "version_controlled" not in sdd_config
+    ):
         return _SddInitConfigPlan(path=config_path)
 
     return _SddInitConfigPlan(
@@ -75,16 +94,20 @@ def plan_sdd_init_config(
         action=InitAction(
             path=config_path,
             operation="update",
-            detail="enable sdd.version_controlled",
+            detail=_config_action_detail(storage),
         ),
     )
 
 
 def write_sdd_init_config(
-    path: str | Path | None = None, *, cwd: Path | None = None
+    path: str | Path | None = None,
+    *,
+    cwd: Path | None = None,
+    storage: str | None = None,
 ) -> Path:
     """Ensure project-local config opts into version-controlled SDD."""
-    plan = plan_sdd_init_config(path, cwd=cwd)
+    _validate_storage(storage)
+    plan = plan_sdd_init_config(path, cwd=cwd, storage=storage)
     if plan.blockers:
         raise SddInitConfigError("\n".join(plan.blockers))
     if plan.action is None:
@@ -92,14 +115,17 @@ def write_sdd_init_config(
 
     if not plan.path.exists():
         plan.path.parent.mkdir(parents=True, exist_ok=True)
-        plan.path.write_text(_SDD_INIT_CONFIG, encoding="utf-8")
+        plan.path.write_text(_initial_config_text(storage), encoding="utf-8")
         return plan.path
 
     text = plan.path.read_text(encoding="utf-8")
     loaded = _load_config_mapping(plan.path, text=text)
     if loaded.blocker is not None:
         raise SddInitConfigError(loaded.blocker)
-    plan.path.write_text(_updated_config_text(text, loaded.data), encoding="utf-8")
+    plan.path.write_text(
+        _updated_config_text(text, loaded.data, storage=storage),
+        encoding="utf-8",
+    )
     return plan.path
 
 
@@ -165,17 +191,60 @@ def _has_empty_sdd_section(text: str) -> bool:
     )
 
 
-def _updated_config_text(text: str, data: dict[Any, Any]) -> str:
+def _validate_storage(storage: str | None) -> None:
+    if storage is not None and storage not in _STORAGE_VALUES:
+        raise SddInitConfigError(
+            "sdd.storage must be one of: auto, in_tree, local, separate_repo"
+        )
+
+
+def _config_action_detail(storage: str | None) -> str:
+    if storage is None:
+        return "enable sdd.version_controlled"
+    return f"set sdd.storage to {storage}"
+
+
+def _initial_config_text(storage: str | None) -> str:
+    if storage is None:
+        return _SDD_INIT_CONFIG
+    return f"sdd:\n  storage: {storage}\n"
+
+
+def _updated_config_text(
+    text: str, data: dict[Any, Any], *, storage: str | None = None
+) -> str:
+    if storage is not None:
+        return _updated_config_text_for_storage(text, data, storage)
+
     sdd_config = data.get("sdd")
     if not isinstance(sdd_config, dict):
         return _insert_version_controlled_line(text)
-    if sdd_config.get("version_controlled") is True:
+    if (
+        sdd_config.get("version_controlled") is True
+        or sdd_config.get("storage") == "in_tree"
+    ):
         return text
     if "version_controlled" in sdd_config:
         replaced = _replace_version_controlled_value(text)
         if replaced is not None:
             return replaced
     return _insert_version_controlled_line(text, sdd_config=sdd_config)
+
+
+def _updated_config_text_for_storage(
+    text: str, data: dict[Any, Any], storage: str
+) -> str:
+    lines = text.splitlines(keepends=True)
+    sdd_range = _find_top_level_sdd_range(lines)
+    if sdd_range is None:
+        return _append_sdd_section(text, storage=storage)
+
+    sdd_config = data.get("sdd")
+    updated_sdd = dict(sdd_config) if isinstance(sdd_config, dict) else {}
+    updated_sdd["storage"] = storage
+    updated_sdd.pop("version_controlled", None)
+    start, end = sdd_range
+    return _replace_sdd_block(lines, start, end, updated_sdd)
 
 
 def _insert_version_controlled_line(
@@ -191,7 +260,9 @@ def _insert_version_controlled_line(
     if rest and not rest.startswith("#"):
         if sdd_config is None:
             sdd_config = {}
-        return _replace_sdd_block(lines, start, end, sdd_config)
+        updated_sdd = dict(sdd_config)
+        updated_sdd["version_controlled"] = True
+        return _replace_sdd_block(lines, start, end, updated_sdd)
 
     newline = _preferred_newline(lines)
     child_indent = _first_child_indent(lines, start, end) or 2
@@ -234,10 +305,8 @@ def _replace_version_controlled_value(text: str) -> str | None:
 
 
 def _replace_sdd_block(
-    lines: list[str], start: int, end: int, sdd_config: dict[Any, Any]
+    lines: list[str], start: int, end: int, updated_sdd: dict[Any, Any]
 ) -> str:
-    updated_sdd = dict(sdd_config)
-    updated_sdd["version_controlled"] = True
     replacement = yaml.safe_dump(
         {"sdd": updated_sdd},
         default_flow_style=False,
@@ -248,12 +317,13 @@ def _replace_sdd_block(
     return "".join((*lines[:start], replacement, *lines[end:]))
 
 
-def _append_sdd_section(text: str) -> str:
+def _append_sdd_section(text: str, *, storage: str | None = None) -> str:
+    config_text = _initial_config_text(storage)
     if not text:
-        return _SDD_INIT_CONFIG
+        return config_text
     prefix = text if text.endswith(("\n", "\r")) else f"{text}\n"
     separator = "" if not prefix.strip() else "\n"
-    return f"{prefix}{separator}{_SDD_INIT_CONFIG}"
+    return f"{prefix}{separator}{config_text}"
 
 
 def _find_top_level_sdd_range(lines: list[str]) -> tuple[int, int] | None:

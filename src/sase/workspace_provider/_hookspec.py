@@ -202,6 +202,21 @@ class WorkspaceHookSpec:
         ...
 
     @hookspec(firstresult=True)
+    def ws_create_sdd_remote(
+        self,
+        primary_workspace_dir: str,
+        workspace_dir: str,
+        options: dict[str, object],
+    ) -> dict[str, object] | None:
+        """Verify or create a companion SDD remote for explicit migration.
+
+        Providers should return a schema-versioned record mapping suitable for
+        ``.sase/sdd-store.json``. ``options["create"]`` indicates whether the
+        provider may create the remote if it is missing.
+        """
+        ...
+
+    @hookspec(firstresult=True)
     def ws_extract_change_identifier(self, pr_url: str) -> tuple[str, str] | None: ...
 
     @hookspec(firstresult=True)

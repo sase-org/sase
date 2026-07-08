@@ -454,6 +454,41 @@ def test_materialize_sdd_store_no_provider_opt_in_is_noop(
     assert read_sdd_store_record(workspace) is None
 
 
+def test_create_sdd_remote_dispatches_to_workspace_plugin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Plugin:
+        @hookimpl
+        def ws_create_sdd_remote(
+            self,
+            primary_workspace_dir: str,
+            workspace_dir: str,
+            options: dict[str, object],
+        ) -> dict[str, object] | None:
+            return {
+                "primary": primary_workspace_dir,
+                "workspace": workspace_dir,
+                "create": options.get("create"),
+            }
+
+    install_workspace_plugin(monkeypatch, Plugin())
+
+    from sase.workspace_provider import create_sdd_remote
+
+    result = create_sdd_remote(
+        str(tmp_path),
+        str(tmp_path / "checkout"),
+        {"create": True},
+    )
+
+    assert result == {
+        "primary": str(tmp_path),
+        "workspace": str(tmp_path / "checkout"),
+        "create": True,
+    }
+
+
 def test_explicit_separate_repo_without_materialization_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

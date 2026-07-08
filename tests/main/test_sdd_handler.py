@@ -67,6 +67,10 @@ def test_parser_registers_sdd_subcommands() -> None:
     assert args.sdd_subcommand == "init"
     assert args.check is True
 
+    args = parser.parse_args(["sdd", "init", "-s", "local"])
+    assert args.sdd_subcommand == "init"
+    assert args.storage == "local"
+
     args = parser.parse_args(
         ["sdd", "validate", "-p", "sdd", "-j", "-q", "--strict", "-W"]
     )
@@ -84,6 +88,12 @@ def test_parser_registers_sdd_subcommands() -> None:
 
     args = parser.parse_args(["sdd", "list", "-p", "sdd", "-k", "tales"])
     assert args.kind == "tales"
+
+    args = parser.parse_args(["sdd", "migrate", "-c", "-p", ".", "-r"])
+    assert args.sdd_subcommand == "migrate"
+    assert args.create is True
+    assert args.path == "."
+    assert args.remove_in_tree is True
 
     args = parser.parse_args(["sdd", "path", "research"])
     assert args.sdd_subcommand == "path"
@@ -243,6 +253,39 @@ def test_init_path_in_dot_sase_sdd_updates_project_root_config(
         "sdd:\n  version_controlled: true\n"
     )
     assert (sdd_root / "README.md").exists()
+
+
+def test_init_storage_local_writes_enum_and_initializes_local_store(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(
+            _args(sdd_subcommand="init", path=str(tmp_path), storage="local")
+        )
+
+    assert excinfo.value.code == 0
+    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == (
+        "sdd:\n  storage: local\n"
+    )
+    assert (tmp_path / ".sase" / "sdd" / "README.md").exists()
+    assert not (tmp_path / "sdd" / "README.md").exists()
+
+
+def test_init_storage_removes_deprecated_alias(tmp_path: Path) -> None:
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  version_controlled: true\n  repo:\n    name: custom-sdd\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(
+            _args(sdd_subcommand="init", path=str(tmp_path), storage="local")
+        )
+
+    assert excinfo.value.code == 0
+    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == (
+        "sdd:\n  repo:\n    name: custom-sdd\n  storage: local\n"
+    )
 
 
 def test_init_check_reports_missing_sdd_without_writing(

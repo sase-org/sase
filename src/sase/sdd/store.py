@@ -224,6 +224,36 @@ def read_sdd_store_record(primary_workspace_dir: str | Path) -> SddStoreRecord |
     return record
 
 
+def write_sdd_store_record(
+    primary_workspace_dir: str | Path,
+    record: SddStoreRecord | Mapping[str, Any],
+) -> SddStoreRecord:
+    """Validate and atomically write the materialized-store record."""
+
+    return _write_sdd_store_record(primary_workspace_dir, record)
+
+
+def normalize_sdd_store_record(
+    record: SddStoreRecord | Mapping[str, Any],
+) -> SddStoreRecord:
+    """Validate and normalize a materialized-store record without writing it."""
+
+    return _coerce_sdd_store_record(record)
+
+
+def delete_sdd_store_record(primary_workspace_dir: str | Path) -> bool:
+    """Delete the optional store record, returning true when it existed."""
+
+    record_path = _sdd_store_record_path(primary_workspace_dir)
+    try:
+        record_path.unlink()
+    except FileNotFoundError:
+        _record_cache.pop(record_path, None)
+        return False
+    _record_cache.pop(record_path, None)
+    return True
+
+
 def _write_sdd_store_record(
     primary_workspace_dir: str | Path,
     record: SddStoreRecord | Mapping[str, Any],

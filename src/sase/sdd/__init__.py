@@ -31,11 +31,14 @@ from sase.sdd.store import (
     SddStore,
     SddStoreRecord,
     SddMaterializationError,
+    delete_sdd_store_record,
     get_configured_sdd_storage,
     materialize_sdd_store,
+    normalize_sdd_store_record,
     read_sdd_store_record,
     resolve_sdd_dir,
     resolve_sdd_store,
+    write_sdd_store_record,
 )
 
 __all__ = [
@@ -62,9 +65,12 @@ __all__ = [
     "SddStore",
     "SddStoreRecord",
     "SddMaterializationError",
+    "delete_sdd_store_record",
     "get_configured_sdd_storage",
     "materialize_sdd_store",
+    "normalize_sdd_store_record",
     "read_sdd_store_record",
     "resolve_sdd_dir",
     "resolve_sdd_store",
+    "write_sdd_store_record",
 ]

@@ -36,6 +36,7 @@ from .registry import (
     save_registry,
 )
 from ._registry import (
+    create_sdd_remote,
     detect_workflow_type,
     extract_change_identifier,
     format_commit_description,
@@ -77,6 +78,7 @@ __all__ = [
     "WorkspaceHookSpec",
     "WorkspacePluginManager",
     "WorkspaceRegistry",
+    "create_sdd_remote",
     "detect_workflow_type",
     "extract_change_identifier",
     "find_marker_from_cwd",

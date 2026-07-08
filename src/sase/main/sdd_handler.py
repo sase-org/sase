@@ -20,6 +20,8 @@ def handle_sdd_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "sdd_subcommand", None)
     if subcommand == "init":
         _handle_init(args)
+    elif subcommand == "migrate":
+        _handle_migrate(args)
     elif subcommand == "validate":
         _handle_validate(args)
     elif subcommand == "links":
@@ -31,12 +33,51 @@ def handle_sdd_command(args: argparse.Namespace) -> None:
     elif subcommand == "repair-links":
         _handle_repair_links(args)
     else:
-        print("Usage: sase sdd {init,links,list,path,repair-links,validate}")
+        print("Usage: sase sdd {init,links,list,migrate,path,repair-links,validate}")
         sys.exit(1)
 
 
 def _handle_init(args: argparse.Namespace) -> None:
     sys.exit(run_sdd_init(args))
+
+
+def _handle_migrate(args: argparse.Namespace) -> None:
+    sys.exit(_run_sdd_migrate(args))
+
+
+def _run_sdd_migrate(args: argparse.Namespace) -> int:
+    """Migrate SDD files to a companion repository and return an exit code."""
+    from sase.sdd.migrate import SddMigrationError, migrate_sdd_to_separate_repo
+
+    path = getattr(args, "path", None)
+    project_root = _sdd_init_project_root(path)
+    if not is_project_directory(project_root):
+        print(
+            "sase sdd migrate: not a project directory (no VCS found)", file=sys.stderr
+        )
+        return 1
+
+    try:
+        result = migrate_sdd_to_separate_repo(
+            project_root,
+            workspace_num=1,
+            create=bool(getattr(args, "create", False)),
+            remove_in_tree=bool(getattr(args, "remove_in_tree", False)),
+        )
+    except SddMigrationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"SDD migrated to {result.record.repo or 'companion repository'}")
+    print(f"SDD root: {result.sdd_dir}")
+    print(f"Config: {result.config_path}")
+    if result.committed:
+        print("Committed SDD changes in companion repo")
+    if result.pushed:
+        print("Pushed companion repo")
+    if result.removed_in_tree:
+        print("Removed tracked in-tree sdd/ files in a separate commit")
+    return 0
 
 
 def run_sdd_init(args: argparse.Namespace) -> int:
@@ -61,6 +102,7 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     from .sdd_init_config import SddInitConfigError, write_sdd_init_config
 
     path = getattr(args, "path", None)
+    storage = getattr(args, "storage", None)
     if not is_project_directory(_sdd_init_project_root(path)):
         print(_NON_PROJECT_SDD_MESSAGE, file=sys.stderr)
         return 1
@@ -69,19 +111,26 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     try:
         from sase.sdd.store import SddMaterializationError, materialize_sdd_store
 
-        materialize_sdd_store(project_root, 1)
+        if storage in {"auto", "separate_repo"}:
+            write_sdd_init_config(path, storage=storage)
+            _delete_negative_sdd_record(project_root)
+            materialize_sdd_store(project_root, 1)
+        elif storage in {"in_tree", "local"}:
+            write_sdd_init_config(path, storage=storage)
+        else:
+            _delete_negative_sdd_record(project_root)
+            materialize_sdd_store(project_root, 1)
+            write_sdd_init_config(path)
     except SddMaterializationError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-
-    try:
-        write_sdd_init_config(path)
     except SddInitConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    ensure_sdd_initialized(path)
-    readme_path = expected_sdd_readme(path).path
+    generated_path = _sdd_init_generated_path(path, project_root, storage)
+    ensure_sdd_initialized(generated_path)
+    readme_path = expected_sdd_readme(generated_path).path
     print(readme_path)
     return 0
 
@@ -101,17 +150,22 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
             blockers=(_NON_PROJECT_SDD_MESSAGE,),
         )
 
-    config_plan = plan_sdd_init_config(path)
+    config_plan = plan_sdd_init_config(path, storage=getattr(args, "storage", None))
     actions = []
     if config_plan.action is not None:
         actions.append(config_plan.action)
+    generated_path = _sdd_init_generated_path(
+        path,
+        _sdd_init_project_root(path),
+        getattr(args, "storage", None),
+    )
     actions.extend(
         InitAction(
             path=action.path,
             operation=action.operation,
             detail=action.detail,
         )
-        for action in plan_sdd_init_actions(path)
+        for action in plan_sdd_init_actions(generated_path)
     )
 
     return InitPlan(
@@ -131,18 +185,42 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     generated_actions = [action for action in actions if action.path.name != "sase.yml"]
     if config_actions and generated_actions:
         return (
-            "write legacy SDD init config and "
+            f"{_summarize_sdd_config_action(config_actions[0])} and "
             f"{_summarize_generated_sdd_actions(generated_actions)}"
         )
     if config_actions:
-        return "write legacy SDD init config"
+        return _summarize_sdd_config_action(config_actions[0])
     return _summarize_generated_sdd_actions(generated_actions)
+
+
+def _summarize_sdd_config_action(action: InitAction) -> str:
+    if action.detail == "enable sdd.version_controlled":
+        return "write legacy SDD init config"
+    return action.detail
 
 
 def _sdd_init_project_root(path: str | Path | None) -> Path:
     from .sdd_init_config import resolve_sdd_init_config_path
 
     return resolve_sdd_init_config_path(path).parent
+
+
+def _sdd_init_generated_path(
+    path: str | Path | None, project_root: Path, storage: str | None
+) -> str | None:
+    if storage in {"auto", "local", "separate_repo"}:
+        return str(project_root / ".sase" / "sdd")
+    return str(path) if path is not None else None
+
+
+def _delete_negative_sdd_record(project_root: Path) -> None:
+    from sase.sdd._paths import get_primary_workspace_dir
+    from sase.sdd.store import delete_sdd_store_record, read_sdd_store_record
+
+    primary = Path(get_primary_workspace_dir(str(project_root), 1))
+    record = read_sdd_store_record(primary)
+    if record is not None and record.discovery == "not_found":
+        delete_sdd_store_record(primary)
 
 
 def _summarize_generated_sdd_actions(actions: list[InitAction]) -> str:

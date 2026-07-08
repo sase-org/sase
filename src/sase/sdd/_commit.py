@@ -98,6 +98,29 @@ def _run_git(
     return result
 
 
+def run_sdd_git(
+    args: list[str],
+    *,
+    cwd: Path,
+    op: str,
+    timeout: float | None = None,
+    check: bool,
+    capture_output: bool,
+    text: bool = False,
+) -> subprocess.CompletedProcess[Any]:
+    """Run a bounded git command with SDD telemetry."""
+
+    return _run_git(
+        args,
+        cwd=cwd,
+        op=op,
+        timeout=timeout,
+        check=check,
+        capture_output=capture_output,
+        text=text,
+    )
+
+
 def _should_log_git_operation(
     args: list[str],
     duration_ms: float,

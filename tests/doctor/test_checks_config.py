@@ -13,6 +13,7 @@ from sase.doctor.checks_config import (
     _check_config_layers,
     _check_config_model_aliases,
     _check_config_model_xprompts,
+    _check_config_sdd,
     _check_config_xprompt_definitions,
 )
 from sase.doctor.runner import DoctorContext
@@ -67,6 +68,64 @@ def test_config_layers_warns_on_deprecated_sibling_repos(tmp_path: Path) -> None
 
 def _doctor_context(tmp_path: Path) -> DoctorContext:
     return DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path)
+
+
+def test_config_sdd_warns_on_deprecated_version_controlled(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "sdd").mkdir()
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  version_controlled: true\n",
+        encoding="utf-8",
+    )
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        issue["code"] == "deprecated-version-controlled"
+        for issue in check.data["storage_issues"]
+    )
+
+
+def test_config_sdd_errors_when_separate_repo_has_no_record(tmp_path: Path) -> None:
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: separate_repo\n",
+        encoding="utf-8",
+    )
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert any(
+        issue["code"] == "separate-repo-not-materialized"
+        for issue in check.data["storage_issues"]
+    )
+
+
+def test_config_sdd_errors_on_orphaned_store_record(tmp_path: Path) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": "acme/widget-sdd",
+            "remote_url": "git@github.com:acme/widget-sdd.git",
+            "discovery": "found",
+        },
+    )
+
+    check = _check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert any(
+        issue["code"] == "orphaned-store-record"
+        for issue in check.data["storage_issues"]
+    )
 
 
 def _patch_model_xprompt_env(
