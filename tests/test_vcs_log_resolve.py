@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import sase.main.utils as main_utils
+import sase.vcs_log.resolve as resolve_module
 import sase.workspace_provider.utils as ws_utils
 from sase.vcs_log.resolve import resolve_log_repos
 
@@ -42,10 +43,15 @@ def project(monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
     monkeypatch.setattr(
         main_utils,
         "ensure_project_file_and_get_workspace_num",
-        lambda *, create_missing=False: ("/proj/sase.sase", 0, "sase"),
+        lambda *, create_missing=False: ("/proj/sase.sase", 0, "gh_sase-org__sase"),
     )
     monkeypatch.setattr(
         ws_utils, "parse_workspace_dir", lambda project_file: "/ws/sase"
+    )
+    monkeypatch.setattr(
+        resolve_module,
+        "project_display_name_for",
+        lambda key: "sase" if key == "gh_sase-org__sase" else key,
     )
 
 
@@ -85,6 +91,23 @@ def test_primary_only(monkeypatch: pytest.MonkeyPatch, project: None) -> None:
         ("sase", "/ws/sase", "primary")
     ]
     assert resolved.warnings == []
+
+
+def test_primary_name_falls_back_to_project_key(
+    monkeypatch: pytest.MonkeyPatch, project: None
+) -> None:
+    monkeypatch.setattr(resolve_module, "project_display_name_for", lambda key: key)
+    _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
+    _set_sdd(
+        monkeypatch,
+        _FakeSddStore(storage="in_tree", sdd_dir=Path("/ws/sase/.sase/sdd")),
+    )
+
+    resolved = resolve_log_repos(cwd="/ws/sase")
+
+    assert [(r.name, r.path, r.kind) for r in resolved.repos] == [
+        ("gh_sase-org__sase", "/ws/sase", "primary")
+    ]
 
 
 def test_primary_plus_linked_sorted_by_name(

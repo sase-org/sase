@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.project_display_names import project_display_name_for
 from sase.vcs_log.models import LogRepo
 
 _KIND_ORDER = {"primary": 0, "linked": 1, "sdd": 2}
@@ -78,7 +79,11 @@ def _resolve_project_repos(
 ) -> list[LogRepo]:
     primary_dir = _primary_workspace_dir(project_file, cwd, workspace_num)
     repos: list[LogRepo] = [
-        LogRepo(name=project_name, path=primary_dir, kind="primary")
+        LogRepo(
+            name=project_display_name_for(project_name),
+            path=primary_dir,
+            kind="primary",
+        )
     ]
 
     if current_only:
