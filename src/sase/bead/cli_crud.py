@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from sase.bead.cli_common import (
+    auto_commit_bead_store,
     find_beads_location,
     get_project,
     init_beads,
@@ -120,7 +121,8 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
+    auto_commit_bead_store(f"chore(beads): create {issue.id}")
+    print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
 
 
 def handle_bead_update(args: argparse.Namespace) -> None:
@@ -165,7 +167,8 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        print(f"✓ Updated issue: {issue.id} — {issue.title}")
+    auto_commit_bead_store(f"chore(beads): update {issue.id}")
+    print(f"✓ Updated issue: {issue.id} — {issue.title}")
 
 
 def handle_bead_open(args: argparse.Namespace) -> None:
@@ -175,7 +178,8 @@ def handle_bead_open(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
-        print(f"○ Opened: {issue.id} — {issue.title}")
+    auto_commit_bead_store(f"chore(beads): reopen {issue.id}")
+    print(f"○ Opened: {issue.id} — {issue.title}")
 
 
 def handle_bead_close(args: argparse.Namespace) -> None:
@@ -185,8 +189,9 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         except KeyError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-        for issue in closed:
-            print(f"✓ Closed: {issue.id} — {issue.title}")
+    auto_commit_bead_store(f"chore(beads): close {' '.join(args.ids)}")
+    for issue in closed:
+        print(f"✓ Closed: {issue.id} — {issue.title}")
 
 
 def handle_bead_rm(args: argparse.Namespace) -> None:
@@ -196,8 +201,9 @@ def handle_bead_rm(args: argparse.Namespace) -> None:
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
-        for issue in removed:
-            print(f"✗ Removed: {issue.id} — {issue.title}")
+    auto_commit_bead_store(f"chore(beads): remove {args.id}")
+    for issue in removed:
+        print(f"✗ Removed: {issue.id} — {issue.title}")
 
 
 _parse_type_arg = parse_type_arg

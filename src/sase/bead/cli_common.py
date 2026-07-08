@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from sase.bead.model import Status
@@ -10,6 +11,8 @@ from sase.bead.project import (
     BEADS_DIRNAME_NON_VC,
     BeadProject,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 def find_beads_location() -> tuple[Path, str]:
@@ -97,6 +100,28 @@ def get_project() -> BeadProject:
 def get_read_view() -> BeadProject:
     """Open the same single bead store used by write commands."""
     return get_project()
+
+
+def auto_commit_bead_store(message: str) -> None:
+    """Best-effort commit/push for non-in-tree SDD bead store mutations."""
+    try:
+        from sase.sdd.files import commit_sdd_store_files
+        from sase.sdd.store import resolve_sdd_store
+
+        store = resolve_sdd_store(Path.cwd(), 1)
+        if store.is_in_tree:
+            return
+        commit_sdd_store_files(
+            store,
+            message,
+            auto_commit_type="beads",
+            paths=[store.sdd_dir / "beads"],
+        )
+    except Exception:
+        _logger.warning(
+            "Failed to auto-commit SDD bead store changes",
+            exc_info=True,
+        )
 
 
 def normalize_workspace_path(resolved: Path) -> Path:

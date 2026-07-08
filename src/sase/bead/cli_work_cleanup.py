@@ -6,6 +6,8 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+from sase.bead.cli_common import auto_commit_bead_store
+
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
     from sase.bead.model import Status
@@ -79,6 +81,7 @@ def rollback_work_launch(
                 f"Warning: failed to roll back is_ready_to_work on {epic_id}: {exc}",
                 file=sys.stderr,
             )
+    auto_commit_bead_store(f"chore(beads): rollback work launch {epic_id}")
 
 
 class ForcedReuseCleanupError(RuntimeError):
@@ -195,3 +198,4 @@ def rollback_legend_work_launch(
             f"Warning: failed to roll back is_ready_to_work on {legend_id}: {exc}",
             file=sys.stderr,
         )
+    auto_commit_bead_store(f"chore(beads): rollback legend work launch {legend_id}")

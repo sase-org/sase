@@ -66,6 +66,18 @@ def _create_repo_with_plan(repo: Path) -> Path:
     return plan
 
 
+def _create_clean_repo_with_ignored_sdd_store(repo: Path) -> Path:
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text(".sase/\n", encoding="utf-8")
+    _commit_all(repo, "initial")
+
+    sdd_store = repo / ".sase" / "sdd"
+    _init_git_repo(sdd_store)
+    (sdd_store / "README.md").write_text("seed\n", encoding="utf-8")
+    _commit_all(sdd_store, "initial sdd")
+    return sdd_store
+
+
 def _set_agent_env(monkeypatch: pytest.MonkeyPatch, project_dir: Path) -> None:
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260528_120000")
     monkeypatch.setenv("CODEX_PROJECT_DIR", str(project_dir))
@@ -84,6 +96,17 @@ def _use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.commit_finalizer.build_commit_details",
         build,
+    )
+
+
+def _use_separate_sdd_store_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": "separate_repo"}},
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"sdd": {"push_after_commit": False}},
     )
 
 
@@ -210,3 +233,67 @@ def test_sibling_done_status_change_uses_provider_path(
 
     assert provider.invoke.call_count == 1
     assert _run_git(sibling, "log", "-1", "--pretty=%s") == "initial\n"
+
+
+def test_dirty_separate_sdd_store_is_auto_committed_when_main_repo_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    sdd_store = _create_clean_repo_with_ignored_sdd_store(repo)
+    beads = sdd_store / "beads" / "issues.jsonl"
+    beads.parent.mkdir()
+    beads.write_text('{"id":"beads-1"}\n', encoding="utf-8")
+    _set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    _use_separate_sdd_store_config(monkeypatch)
+    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    provider.invoke.assert_not_called()
+    assert result.content == "primary response"
+    assert _run_git(repo, "status", "--short") == ""
+    assert _run_git(sdd_store, "status", "--short") == ""
+    commit_message = _run_git(sdd_store, "log", "-1", "--pretty=%B")
+    assert "chore(sdd): sync uncommitted SDD store changes" in commit_message
+    assert "SASE_TYPE=sdd" in commit_message
+    result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
+        encoding="utf-8"
+    )
+    assert '"status": "finalized"' in result_json
+    assert '"reason": "auto_committed_sdd_store"' in result_json
+
+
+def test_separate_sdd_store_auto_commit_runs_after_provider_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    sdd_store = _create_clean_repo_with_ignored_sdd_store(repo)
+    dirty = repo / "feature.py"
+    dirty.write_text("VALUE = 1\n", encoding="utf-8")
+    _set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    _use_separate_sdd_store_config(monkeypatch)
+    provider = MagicMock()
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        _run_git(repo, "add", "feature.py")
+        _run_git(repo, "commit", "-q", "-m", "feat: commit main work")
+        notes = sdd_store / "research" / "note.md"
+        notes.parent.mkdir()
+        notes.write_text("forgotten sdd note\n", encoding="utf-8")
+        return InvokeResult(content="provider finalized")
+
+    provider.invoke.side_effect = invoke
+
+    result = _run_finalizer(provider, tmp_path / "artifacts")
+
+    assert provider.invoke.call_count == 1
+    assert result.content == "primary response\n\nprovider finalized"
+    assert _run_git(repo, "status", "--short") == ""
+    assert _run_git(sdd_store, "status", "--short") == ""
+    commit_message = _run_git(sdd_store, "log", "-1", "--pretty=%B")
+    assert "chore(sdd): sync uncommitted SDD store changes" in commit_message

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -81,6 +82,8 @@ _sibling_targets_from_env = finalizer_state._sibling_targets_from_env
 _sibling_workspace_strategy = finalizer_state._sibling_workspace_strategy
 _workspace_num_for_project_file = finalizer_state._workspace_num_for_project_file
 _workspace_num_from_env = finalizer_state._workspace_num_from_env
+
+_logger = logging.getLogger(__name__)
 
 __all__ = [
     "CommitFinalizerConfig",
@@ -184,6 +187,7 @@ def run_commit_finalizer(
 
     project_dir = _resolve_finalizer_project_dir()
     dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
+    sdd_store_auto_committed = _auto_commit_separate_sdd_store_if_possible(project_dir)
     dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
         project_dir,
         dirty_state,
@@ -193,11 +197,14 @@ def run_commit_finalizer(
         _write_result(
             artifact_root,
             _CommitFinalizerResult(
-                status="finalized" if auto_committed else "clean",
-                reason=(
-                    "auto_committed_done_plan_status"
-                    if auto_committed
-                    else "no_changes"
+                status=(
+                    "finalized"
+                    if auto_committed or sdd_store_auto_committed
+                    else "clean"
+                ),
+                reason=_clean_result_reason(
+                    done_plan_auto_committed=auto_committed,
+                    sdd_store_auto_committed=sdd_store_auto_committed,
                 ),
                 project_dir=project_dir,
                 passes=0,
@@ -244,6 +251,10 @@ def run_commit_finalizer(
         accumulated_usage = _merge_usage(accumulated_usage, follow_up.usage)
 
         dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
+        sdd_store_auto_committed = (
+            _auto_commit_separate_sdd_store_if_possible(project_dir)
+            or sdd_store_auto_committed
+        )
         dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
             project_dir,
             dirty_state,
@@ -257,6 +268,8 @@ def run_commit_finalizer(
                 reason = "advisory_clean_after_pass"
             elif auto_committed:
                 reason = "auto_committed_done_plan_status"
+            elif sdd_store_auto_committed:
+                reason = "auto_committed_sdd_store"
             else:
                 reason = "clean_after_pass"
             _write_result(
@@ -307,6 +320,105 @@ def _auto_commit_done_plan_status_if_possible(
         return dirty_state, False
     refreshed = _collect_dirty_state(project_dir, artifact_root=artifact_root)
     return refreshed, True
+
+
+def _auto_commit_separate_sdd_store_if_possible(project_dir: str) -> bool:
+    """Best-effort fallback sync for dirty separate-repo SDD stores."""
+    try:
+        if not _separate_sdd_store_repo_may_exist(project_dir):
+            return False
+
+        from sase.sdd.files import commit_sdd_store_files
+        from sase.sdd.store import SDD_STORAGE_SEPARATE_REPO, resolve_sdd_store
+
+        workspace_num = _finalizer_workspace_num(project_dir)
+        store = resolve_sdd_store(project_dir, workspace_num)
+        if store.storage != SDD_STORAGE_SEPARATE_REPO:
+            return False
+        if not (store.repo_root / ".git").exists():
+            return False
+        return commit_sdd_store_files(
+            store,
+            "chore(sdd): sync uncommitted SDD store changes",
+            auto_commit_type="sdd",
+        )
+    except Exception:
+        _logger.warning(
+            "Failed to auto-commit separate SDD store during finalization",
+            exc_info=True,
+        )
+        return False
+
+
+def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
+    project_path = Path(project_dir).expanduser()
+    if (project_path / ".sase" / "sdd" / ".git").exists():
+        return True
+
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        found = find_marker_from_cwd(str(project_path))
+    except Exception:
+        found = None
+    if found is not None:
+        marker_primary = found[1].primary_workspace_dir
+        if (
+            marker_primary
+            and (Path(marker_primary) / ".sase" / "sdd" / ".git").exists()
+        ):
+            return True
+
+    workspace_num = _workspace_num_from_env()
+    if workspace_num is not None and workspace_num > 1:
+        suffix_primary = _suffix_stripped_primary_workspace(project_path, workspace_num)
+        if (
+            suffix_primary is not None
+            and (suffix_primary / ".sase" / "sdd" / ".git").exists()
+        ):
+            return True
+
+    return False
+
+
+def _suffix_stripped_primary_workspace(
+    project_path: Path,
+    workspace_num: int,
+) -> Path | None:
+    suffix = f"_{workspace_num}"
+    parts = list(project_path.parts)
+    for index in range(len(parts) - 1, -1, -1):
+        if parts[index].endswith(suffix):
+            parts[index] = parts[index][: -len(suffix)]
+            return Path(*parts)
+    return None
+
+
+def _finalizer_workspace_num(project_dir: str) -> int:
+    project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+    if project_file:
+        workspace_num = _workspace_num_for_project_file(project_file, project_dir)
+        if workspace_num is not None:
+            return workspace_num
+
+    workspace_num = _workspace_num_from_env()
+    if workspace_num is not None:
+        return workspace_num
+    return 1
+
+
+def _clean_result_reason(
+    *,
+    done_plan_auto_committed: bool,
+    sdd_store_auto_committed: bool,
+) -> str:
+    if done_plan_auto_committed and sdd_store_auto_committed:
+        return "auto_committed_done_plan_status_and_sdd_store"
+    if done_plan_auto_committed:
+        return "auto_committed_done_plan_status"
+    if sdd_store_auto_committed:
+        return "auto_committed_sdd_store"
+    return "no_changes"
 
 
 def _result_advisory_changed_files(dirty_state: DirtyState) -> list[str]:
