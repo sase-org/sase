@@ -1122,8 +1122,11 @@ absent, ambiguous, dismissed, or the composed child name already exists, launch 
 child; collision errors suggest `%n(parent, @)`.
 
 The family-attach form works from every normal user launch surface because the constraint check runs in shared launch
-preparation. Multi-agent prompts keep `%n` segment-local: each `---` segment prepares and spawns through its own launch
-slot.
+preparation. In a multi-agent prompt, `%n(parent, suffix)` may reference a parent explicitly named in an earlier `---`
+segment of the same prompt, such as `%n:foo` followed by `%n(foo, reviewer)`. The in-batch parent is treated as a
+running parent: the member queues as a WAITING child and starts when that exact parent artifact completes successfully.
+This same-prompt lookup is limited to earlier static names; template-named and auto-named parents still require the
+parent artifact to exist before they can be used as `%n(parent, suffix)` targets.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
 For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.

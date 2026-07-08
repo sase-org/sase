@@ -50,6 +50,19 @@ Two bundled xprompts assemble the classic follow-up prompt bodies — `#with_fee
 %n(foo, reviewer) Review the diff produced by this family.
 ```
 
+In a multi-agent prompt, a later segment can attach to a parent explicitly named in an earlier segment of the same
+prompt:
+
+```text
+%n:foo Plan the change.
+---
+%n(foo, reviewer) Review foo's plan.
+```
+
+The in-batch parent is treated as still running, so the attached member is queued as a WAITING child and starts after
+the parent completes successfully. This only applies to earlier static names such as `%n:foo` or `%n(foo)`;
+template-named and auto-named parents are not available for same-prompt `%n(parent, suffix)` resolution.
+
 The full grammar, parent-resolution rules, queueing semantics, error messages, and the follow-up xprompt reference live
 in the [XPrompts doc](xprompt.md#supported-directives); the `#with_feedback` / `#with_q_and_a` reference is under
 [Bundled Follow-Up XPrompts](xprompt.md#bundled-follow-up-xprompts).

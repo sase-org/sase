@@ -248,6 +248,7 @@ def _spawn_segments_into(
     name_allocator = _PlannedNameAllocator()
     previous_agent_name: str | None = None
     upstreams: list[dict[str, Any]] = []
+    pending_family_parents: list[Any] = []
     multi_agent_prompt_file: str | None = None
     for i, segment in enumerate(segments):
         segment = canonicalize_project_aliases_in_prompt(segment)
@@ -500,6 +501,7 @@ def _spawn_segments_into(
                     timestamp_allocator=timestamp_allocator,
                     on_slot_executed=_on_slot_executed,
                     allow_reserved_family_separator_names=allow_reserved_family_separator_names,
+                    pending_family_parents=pending_family_parents,
                 )
         except Exception:
             name_allocator.release_uncommitted_template_reservations()

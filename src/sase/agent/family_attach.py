@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 import json
 import re
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+
+if TYPE_CHECKING:
+    from sase.agent.launch_executor_types import LaunchSpawnRequest
 
 FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
 
@@ -42,6 +45,21 @@ class _FamilyAttachLaunchPlan:
     parent_workspace_dir: str | None = None
     parent_workspace_num: int | None = None
     sase_plan: str | None = None
+
+
+@dataclass(frozen=True)
+class FamilyAttachSibling:
+    """Launch-batch sibling known before its async artifact metadata is written."""
+
+    name: str
+    family_base: str
+    timestamp: str
+    artifact_dir: str
+    project_name: str
+    cl_name: str | None = None
+    workspace_dir: str | None = None
+    workspace_num: int | None = None
+    can_attach_parent: bool = True
 
 
 class _FamilyAttachError(RuntimeError):
@@ -175,6 +193,8 @@ def prepare_family_attach_launch(
     prompt: str,
     context: Any,
     extra_env: dict[str, str] | None,
+    *,
+    pending_family_parents: list[FamilyAttachSibling] | None = None,
 ) -> tuple[Any, dict[str, str] | None]:
     """Resolve family attach metadata and return adjusted launch context/env."""
 
@@ -182,7 +202,11 @@ def prepare_family_attach_launch(
     if directive is None:
         return context, extra_env
 
-    plan = _resolve_family_attach_plan(directive, project_name=context.project_name)
+    plan = _resolve_family_attach_plan(
+        directive,
+        project_name=context.project_name,
+        pending_family_parents=pending_family_parents,
+    )
     env = dict(extra_env or {})
 
     from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
@@ -261,13 +285,23 @@ def _resolve_family_attach_plan(
     directive: _FamilyAttachDirective,
     *,
     project_name: str,
+    pending_family_parents: list[FamilyAttachSibling] | None = None,
 ) -> _FamilyAttachLaunchPlan:
     snapshot = _agent_family_snapshot(project_name)
+    pending_siblings = tuple(pending_family_parents or ())
+    sibling_candidates = [
+        _candidate_from_sibling(sibling)
+        for sibling in pending_siblings
+        if sibling.can_attach_parent
+    ]
     request = {
         "schema_version": 1,
         "parent_name": directive.parent,
         "project_name": project_name,
-        "candidates": [_candidate_from_record(record) for record in snapshot.records],
+        "candidates": [
+            *[_candidate_from_record(record) for record in snapshot.records],
+            *sibling_candidates,
+        ],
         "dismissed": _dismissed_identity_dicts(),
     }
 
@@ -285,22 +319,51 @@ def _resolve_family_attach_plan(
             f"Cannot attach family member to '{directive.parent}': "
             "resolved parent metadata is no longer available."
         )
+    sibling_by_artifact_dir = _sibling_by_artifact_dir(pending_siblings)
+    parent_sibling = sibling_by_artifact_dir.get(str(parent["artifact_dir"]))
     parent_record = _record_by_artifact_dir(snapshot.records).get(
         parent["artifact_dir"]
     )
     if parent_record is None or parent_record.agent_meta is None:
-        raise _FamilyAttachError(
-            f"Cannot attach family member to '{directive.parent}': "
-            "resolved parent metadata is no longer available."
-        )
+        if parent_sibling is None:
+            raise _FamilyAttachError(
+                f"Cannot attach family member to '{directive.parent}': "
+                "resolved parent metadata is no longer available."
+            )
 
     parent_name = parent["name"]
-    parent_base = _family_base(parent_record, parent_name)
-    role_suffix = _resolve_role_suffix(directive.suffix, parent_base, snapshot.records)
+    parent_base = (
+        parent_sibling.family_base
+        if parent_sibling is not None
+        else _family_base(parent_record, parent_name)
+    )
+    role_suffix = _resolve_role_suffix(
+        directive.suffix,
+        parent_base,
+        snapshot.records,
+        pending_family_parents=pending_family_parents,
+    )
     agent_name = f"{parent_base}{role_suffix}"
-    _ensure_family_name_available(agent_name, directive, snapshot.records)
+    _ensure_family_name_available(
+        agent_name,
+        directive,
+        snapshot.records,
+        pending_family_parents=pending_family_parents,
+    )
     role = _family_role(role_suffix, directive.suffix)
-    parent_meta = parent_record.agent_meta
+    if parent_sibling is not None:
+        parent_cl_name = parent_sibling.cl_name
+        parent_workspace_dir = parent_sibling.workspace_dir
+        parent_workspace_num = parent_sibling.workspace_num
+    else:
+        if parent_record is None or parent_record.agent_meta is None:
+            raise _FamilyAttachError(
+                f"Cannot attach family member to '{directive.parent}': "
+                "resolved parent metadata is no longer available."
+            )
+        parent_cl_name = _record_cl_name(parent_record)
+        parent_workspace_dir = parent_record.agent_meta.workspace_dir
+        parent_workspace_num = parent_record.agent_meta.workspace_num
 
     return _FamilyAttachLaunchPlan(
         parent_arg=directive.parent,
@@ -314,9 +377,9 @@ def _resolve_family_attach_plan(
         agent_family_role=role,
         parent_project_name=project_name,
         parent_is_running=kind == "running",
-        parent_cl_name=_record_cl_name(parent_record),
-        parent_workspace_dir=parent_meta.workspace_dir,
-        parent_workspace_num=parent_meta.workspace_num,
+        parent_cl_name=parent_cl_name,
+        parent_workspace_dir=parent_workspace_dir,
+        parent_workspace_num=parent_workspace_num,
         sase_plan=_family_sase_plan(snapshot.records, parent_base)
         if role == "code"
         else None,
@@ -343,14 +406,23 @@ def _resolve_role_suffix(
     suffix_arg: str,
     parent_base: str,
     records: list[Any],
+    *,
+    pending_family_parents: list[FamilyAttachSibling] | None = None,
 ) -> str:
     if suffix_arg == "@":
         from sase.plan_chain import allocate_agent_family_child_suffix
 
+        known_suffixes = [
+            *_known_family_suffixes(records, parent_base),
+            *_known_family_suffixes_from_siblings(
+                pending_family_parents or [],
+                parent_base,
+            ),
+        ]
         return allocate_agent_family_child_suffix(
             parent_base,
             f"{AGENT_FAMILY_SEPARATOR}@",
-            extra_reserved_suffixes=tuple(_known_family_suffixes(records, parent_base)),
+            extra_reserved_suffixes=tuple(known_suffixes),
         )
     return _normalize_family_suffix_arg(suffix_arg)
 
@@ -371,17 +443,56 @@ def _ensure_family_name_available(
     agent_name: str,
     directive: _FamilyAttachDirective,
     records: list[Any] | None = None,
+    *,
+    pending_family_parents: list[FamilyAttachSibling] | None = None,
 ) -> None:
     from sase.agent.names import get_reserved_agent_names
 
     known_names = set(get_reserved_agent_names())
     if records is not None:
         known_names.update(_known_agent_names(records))
+    known_names.update(_known_agent_names_from_siblings(pending_family_parents or []))
     if agent_name in known_names:
         raise _FamilyAttachError(
             f"Agent family member '{agent_name}' already exists. "
             f"Use %n({directive.parent}, @) to allocate the next free suffix."
         )
+
+
+def build_family_attach_sibling_from_spawn(
+    request: LaunchSpawnRequest,
+    name: str,
+    *,
+    family_base: str | None = None,
+    can_attach_parent: bool = True,
+) -> FamilyAttachSibling | None:
+    """Return the in-batch sibling descriptor for a successful spawn request."""
+
+    if not name or not request.project_name or not request.workspace_dir:
+        return None
+
+    from sase.core.agent_artifact_paths import canonical_agent_artifact_path
+    from sase.plan_chain import agent_family_base
+
+    artifact_timestamp = _artifacts_timestamp_from_launch_timestamp(request.timestamp)
+    base = family_base or agent_family_base(name) or name
+    return FamilyAttachSibling(
+        name=name,
+        family_base=base,
+        timestamp=artifact_timestamp,
+        artifact_dir=str(
+            canonical_agent_artifact_path(
+                request.project_name,
+                "ace-run",
+                artifact_timestamp,
+            )
+        ),
+        project_name=request.project_name,
+        cl_name=request.cl_name or None,
+        workspace_dir=request.workspace_dir,
+        workspace_num=request.workspace_num,
+        can_attach_parent=can_attach_parent,
+    )
 
 
 def _agent_family_snapshot(project_name: str) -> Any:
@@ -433,12 +544,26 @@ def _candidate_from_record(record: Any) -> dict[str, Any]:
         "name": name,
         "workflow_name": None if meta is None else meta.workflow_name,
         "project_name": record.project_name,
-        "artifact_dir": record.artifact_dir,
+        "artifact_dir": str(record.artifact_dir),
         "timestamp": record.timestamp,
         "cl_name": _record_cl_name(record) or record.project_name,
         "raw_suffix": record.timestamp,
         "parent_timestamp": None if meta is None else meta.parent_timestamp,
         "is_terminal": bool(record.has_done_marker),
+    }
+
+
+def _candidate_from_sibling(sibling: FamilyAttachSibling) -> dict[str, Any]:
+    return {
+        "name": sibling.name,
+        "workflow_name": sibling.family_base,
+        "project_name": sibling.project_name,
+        "artifact_dir": sibling.artifact_dir,
+        "timestamp": sibling.timestamp,
+        "cl_name": sibling.cl_name or sibling.project_name,
+        "raw_suffix": sibling.timestamp,
+        "parent_timestamp": None,
+        "is_terminal": False,
     }
 
 
@@ -471,7 +596,22 @@ def _dismissed_identity_dicts() -> list[dict[str, str | None]]:
 
 
 def _record_by_artifact_dir(records: list[Any]) -> dict[str, Any]:
-    return {record.artifact_dir: record for record in records}
+    return {str(record.artifact_dir): record for record in records}
+
+
+def _sibling_by_artifact_dir(
+    siblings: tuple[FamilyAttachSibling, ...],
+) -> dict[str, FamilyAttachSibling]:
+    return {sibling.artifact_dir: sibling for sibling in siblings}
+
+
+def _artifacts_timestamp_from_launch_timestamp(timestamp: str) -> str:
+    if re.fullmatch(r"\d{14}", timestamp):
+        return timestamp
+
+    from sase.artifacts import convert_timestamp_to_artifacts_format
+
+    return convert_timestamp_to_artifacts_format(timestamp)
 
 
 def _family_base(record: Any, parent_name: str) -> str:
@@ -500,6 +640,20 @@ def _known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
     return suffixes
 
 
+def _known_family_suffixes_from_siblings(
+    siblings: list[FamilyAttachSibling],
+    parent_base: str,
+) -> list[str]:
+    suffixes: list[str] = []
+    prefix = f"{parent_base}{AGENT_FAMILY_SEPARATOR}"
+    for sibling in siblings:
+        if sibling.family_base and sibling.family_base != parent_base:
+            continue
+        if sibling.name.startswith(prefix):
+            suffixes.append(sibling.name[len(parent_base) :])
+    return suffixes
+
+
 def _known_agent_names(records: list[Any]) -> list[str]:
     names: list[str] = []
     for record in records:
@@ -510,6 +664,12 @@ def _known_agent_names(records: list[Any]) -> list[str]:
             if value:
                 names.append(value)
     return names
+
+
+def _known_agent_names_from_siblings(
+    siblings: list[FamilyAttachSibling],
+) -> list[str]:
+    return [sibling.name for sibling in siblings if sibling.name]
 
 
 def _family_sase_plan(records: list[Any], parent_base: str) -> str | None:

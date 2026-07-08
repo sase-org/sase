@@ -11,6 +11,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.agent.family_attach import (
+    FamilyAttachSibling,
     _FamilyAttachDirective,
     _FamilyAttachError,
     _extract_family_attach_directive,
@@ -116,6 +117,31 @@ def _patch_attach_snapshot(
     monkeypatch.setattr(
         "sase.agent.names.get_reserved_agent_names",
         lambda: set(),
+    )
+
+
+def _in_batch_sibling(
+    *,
+    name: str = "foo",
+    family_base: str = "foo",
+    timestamp: str = "20260701010202",
+    artifact_dir: str = "/tmp/sase/artifacts/ace-run/20260701010202",
+    project_name: str = "sase",
+    cl_name: str | None = "feature",
+    workspace_dir: str | None = "/tmp/sase_8",
+    workspace_num: int | None = 8,
+    can_attach_parent: bool = True,
+) -> FamilyAttachSibling:
+    return FamilyAttachSibling(
+        name=name,
+        family_base=family_base,
+        timestamp=timestamp,
+        artifact_dir=artifact_dir,
+        project_name=project_name,
+        cl_name=cl_name,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+        can_attach_parent=can_attach_parent,
     )
 
 
@@ -380,6 +406,96 @@ def test_family_attach_running_parent_builds_queued_plan(monkeypatch) -> None:
     assert plan.parent_workspace_num == 7
 
 
+def test_family_attach_resolves_in_batch_parent_without_artifact_meta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(monkeypatch, [])
+    sibling = _in_batch_sibling()
+
+    plan = _resolve_family_attach_plan(
+        _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+        project_name="sase",
+        pending_family_parents=[sibling],
+    )
+
+    assert plan.parent_is_running is True
+    assert plan.parent_name == "foo"
+    assert plan.parent_base == "foo"
+    assert plan.parent_timestamp == sibling.timestamp
+    assert plan.parent_artifacts_dir == sibling.artifact_dir
+    assert plan.parent_cl_name == "feature"
+    assert plan.parent_workspace_dir == "/tmp/sase_8"
+    assert plan.parent_workspace_num == 8
+    assert plan.agent_name == "foo--reviewer"
+
+
+def test_family_attach_prefers_in_batch_parent_over_older_persisted_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(
+        monkeypatch,
+        [
+            _artifact_record(
+                name="foo",
+                timestamp="20260701010101",
+                artifact_dir="/tmp/sase/artifacts/ace-run/20260701010101",
+                workspace_dir="/tmp/sase_7",
+                workspace_num=7,
+            )
+        ],
+    )
+    sibling = _in_batch_sibling(
+        timestamp="20260701010202",
+        artifact_dir="/tmp/sase/artifacts/ace-run/20260701010202",
+        workspace_dir="/tmp/sase_8",
+        workspace_num=8,
+    )
+
+    plan = _resolve_family_attach_plan(
+        _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+        project_name="sase",
+        pending_family_parents=[sibling],
+    )
+
+    assert plan.parent_artifacts_dir == sibling.artifact_dir
+    assert plan.parent_workspace_num == 8
+
+
+def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(monkeypatch, [])
+    pending = [_in_batch_sibling()]
+
+    first = _resolve_family_attach_plan(
+        _FamilyAttachDirective(parent="foo", suffix="@"),
+        project_name="sase",
+        pending_family_parents=pending,
+    )
+    pending.append(
+        _in_batch_sibling(
+            name=first.agent_name,
+            timestamp="20260701010303",
+            artifact_dir="/tmp/sase/artifacts/ace-run/20260701010303",
+            can_attach_parent=False,
+        )
+    )
+    second = _resolve_family_attach_plan(
+        _FamilyAttachDirective(parent="foo", suffix="@"),
+        project_name="sase",
+        pending_family_parents=pending,
+    )
+
+    assert first.role_suffix == "--1"
+    assert second.role_suffix == "--2"
+    with pytest.raises(_FamilyAttachError, match=r"%n\(foo, @\)"):
+        _resolve_family_attach_plan(
+            _FamilyAttachDirective(parent="foo", suffix="1"),
+            project_name="sase",
+            pending_family_parents=pending,
+        )
+
+
 @pytest.mark.parametrize(
     ("suffix", "expected_role"),
     [
@@ -614,8 +730,14 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
 def test_family_attach_prep_failure_prevents_spawn(monkeypatch) -> None:
     spawned: list[object] = []
 
-    def fail_resolve(_directive: object, *, project_name: str) -> object:
+    def fail_resolve(
+        _directive: object,
+        *,
+        project_name: str,
+        pending_family_parents: object = None,
+    ) -> object:
         assert project_name == "sase"
+        assert pending_family_parents == []
         raise _FamilyAttachError("Cannot attach family member to 'missing'")
 
     monkeypatch.setattr(

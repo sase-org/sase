@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sase.agent.launch_executor_types import (
     LaunchExecutionContext,
     LaunchExecutionRecord,
@@ -20,6 +22,9 @@ from sase.agent.launch_executor_workspace import (
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
 from sase.core.agent_launch_wire import LaunchFanoutPlanWire
+
+if TYPE_CHECKING:
+    from sase.agent.family_attach import FamilyAttachSibling
 
 
 def _default_spawn(request: LaunchSpawnRequest) -> AgentLaunchResult:
@@ -59,6 +64,7 @@ def execute_launch_plan(
     base_timestamp: str | None = None,
     allow_reserved_family_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
+    pending_family_parents: list[FamilyAttachSibling] | None = None,
 ) -> LaunchExecutionResult:
     """Execute a normalized fan-out plan through a host-provided spawn hook."""
     if allow_hyphenated_names is not None:
@@ -89,6 +95,9 @@ def execute_launch_plan(
 
     spawn_fn = spawn or _default_spawn
     records: list[LaunchExecutionRecord] = []
+    pending_siblings: list[FamilyAttachSibling] = (
+        [] if pending_family_parents is None else pending_family_parents
+    )
     for slot in plan.slots:
         timestamp = slot.timestamp or next(allocated_iter)
         workflow_name = slot.workflow_name or f"ace(run)-{timestamp}"
@@ -96,14 +105,20 @@ def execute_launch_plan(
         env = dict(extra_env or {})
         if slot_extra_env is not None:
             env.update(slot_extra_env(slot))
-        from sase.agent.family_attach import prepare_family_attach_launch
+        from sase.agent.family_attach import (
+            build_family_attach_sibling_from_spawn,
+            load_family_attach_plan_from_env,
+            prepare_family_attach_launch,
+        )
 
         slot_ctx, prepared_env = prepare_family_attach_launch(
             slot.prompt,
             slot_ctx,
             env,
+            pending_family_parents=pending_siblings,
         )
         env = dict(prepared_env or {})
+        family_attach_plan = load_family_attach_plan_from_env(env)
         local_xprompts_file = (
             None if slot_local_xprompts_file is None else slot_local_xprompts_file(slot)
         )
@@ -119,10 +134,39 @@ def execute_launch_plan(
         )
         record = LaunchExecutionRecord(slot=slot, request=request, result=result)
         records.append(record)
+        if family_attach_plan is not None:
+            sibling = build_family_attach_sibling_from_spawn(
+                request,
+                family_attach_plan.agent_name,
+                family_base=family_attach_plan.parent_base,
+                can_attach_parent=False,
+            )
+            if sibling is not None:
+                pending_siblings.append(sibling)
+        else:
+            explicit_name = _explicit_static_name_for_pending_family_parent(slot.prompt)
+            if explicit_name is not None:
+                sibling = build_family_attach_sibling_from_spawn(
+                    request,
+                    explicit_name,
+                    can_attach_parent=True,
+                )
+                if sibling is not None:
+                    pending_siblings.append(sibling)
         if on_slot_executed is not None:
             on_slot_executed(record)
 
     return LaunchExecutionResult(records=records)
+
+
+def _explicit_static_name_for_pending_family_parent(prompt: str) -> str | None:
+    from sase.agent.multi_prompt_references import extract_static_name_directive
+    from sase.agent.names import is_agent_name_template
+
+    explicit_name = extract_static_name_directive(prompt)
+    if explicit_name is None or is_agent_name_template(explicit_name):
+        return None
+    return explicit_name
 
 
 __all__ = [
