@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
@@ -14,6 +14,11 @@ from sase.config.core import CONFIG_DIR, load_merged_config
 from sase.core.health import HEALTH_OK, check_backend_health
 from sase.core.paths import sase_projects_dir
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
+from sase.uv_tool.detect import (
+    NotUvToolInstall,
+    UvToolInstall,
+    probe_uv_tool_install,
+)
 from sase.version.inventory import VersionPackageRecord
 from sase.workspace_provider.store import WorkspaceStore
 
@@ -24,7 +29,7 @@ _GIT_TIMEOUT_SECONDS = 1.0
 
 
 def runtime_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
-    """Return Phase 2 runtime check specs."""
+    """Return runtime and install-management check specs."""
     return (
         CheckSpec(
             id="runtime.version",
@@ -45,6 +50,12 @@ def runtime_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_runtime_environment(context),
         ),
         CheckSpec(
+            id="install.management",
+            group="install",
+            title="Install management readiness",
+            runner=lambda: _check_install_management(context),
+        ),
+        CheckSpec(
             id="state.paths",
             group="state",
             title="State and config paths",
@@ -56,6 +67,46 @@ def runtime_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Git executable and identity",
             runner=lambda: _check_vcs_git(context),
         ),
+    )
+
+
+def _check_install_management(context: DoctorContext) -> DiagnosticCheck:
+    """Check whether update/plugin management can safely use ``uv tool``."""
+    result = probe_uv_tool_install(
+        which_fn=_which_from_env(context.env),
+        environ=context.env,
+    )
+
+    if isinstance(result, UvToolInstall):
+        data = _uv_tool_data(result)
+        return DiagnosticCheck(
+            id="install.management",
+            group="install",
+            status="OK",
+            title="Install management readiness",
+            summary="sase is managed by uv tool; install/update workflows are available",
+            details=_uv_tool_details(data),
+            data=data,
+        )
+
+    data = _uv_tool_data(result)
+    reason = result.reason.value
+    return DiagnosticCheck(
+        id="install.management",
+        group="install",
+        status="WARN",
+        title="Install management readiness",
+        summary=(f"sase is not running from a canonical uv-tool install ({reason})"),
+        details=(
+            *_uv_tool_details(data),
+            "affected flows: `sase update`, plugin management, Admin Center updates, "
+            "chat-driven install/update workers",
+        ),
+        next_steps=(
+            "Install or run SASE via `uv tool install sase` before using install/update management flows.",
+            "Rerun `sase doctor -C install.management -v` from the intended environment.",
+        ),
+        data=data,
     )
 
 
@@ -384,6 +435,45 @@ def _git_result(cwd: Path, *args: str) -> subprocess.CompletedProcess[str] | Non
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
         return None
+
+
+def _which_from_env(env: Mapping[str, str]) -> Callable[[str], str | None]:
+    path = env.get("PATH", "")
+    return lambda command: shutil.which(command, path=path)
+
+
+def _uv_tool_data(result: UvToolInstall | NotUvToolInstall) -> dict[str, Any]:
+    if isinstance(result, UvToolInstall):
+        return {
+            "managed": True,
+            "reason": None,
+            "uv_path": result.uv_path,
+            "tool_dir": str(result.tool_dir),
+            "sys_prefix": str(result.sase_dir),
+            "receipt_path": str(result.receipt_path),
+        }
+
+    return {
+        "managed": False,
+        "reason": result.reason.value,
+        "uv_path": result.uv_path,
+        "tool_dir": str(result.expected_sase_dir.parent),
+        "sys_prefix": str(result.sys_prefix),
+        "receipt_path": str(result.receipt_path),
+    }
+
+
+def _uv_tool_details(data: Mapping[str, Any]) -> tuple[str, ...]:
+    uv_path = data["uv_path"] if data["uv_path"] else "missing"
+    details = [
+        f"uv path: {uv_path}",
+        f"uv tool dir: {data['tool_dir']}",
+        f"sys.prefix: {data['sys_prefix']}",
+        f"receipt: {data['receipt_path']}",
+    ]
+    if data["reason"]:
+        details.insert(0, f"reason: {data['reason']}")
+    return tuple(details)
 
 
 def _directory_target(label: str, path: Path) -> dict[str, Any]:
