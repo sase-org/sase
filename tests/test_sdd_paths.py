@@ -1,12 +1,14 @@
 """Tests for SDD path and date lookup helpers."""
 
 from importlib import resources
+import json
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from sase.sdd._paths import _resolve_primary_from_marker
 from sase.sdd.files import (
     SDD_DIRECTORY_MAP_FILENAME,
     find_sdd_file,
@@ -16,6 +18,25 @@ from sase.sdd.files import (
     _resolve_sdd_asset_path,
     _resolve_sdd_readme_path,
 )
+
+
+def _write_checkout_marker(checkout_dir: Path, primary: Path) -> None:
+    """Write a managed-checkout marker under *checkout_dir*."""
+    marker_dir = checkout_dir / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(
+            {
+                "primary_workspace_dir": str(primary),
+                "project_key": "org/proj",
+                "project_name": "proj",
+                "registry_path": str(checkout_dir.parent / "registry.json"),
+                "schema_version": 1,
+                "workspace_num": 7,
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +94,41 @@ def test_primary_workspace_dir_prefers_project_workspace_dir() -> None:
     ):
         result = get_primary_workspace_dir("/home/user/myproject_2", 1)
     assert result == "/home/user/myproject"
+
+
+def test_resolve_primary_from_marker_reads_checkout_marker(tmp_path: Path) -> None:
+    checkout = tmp_path / "state" / "org" / "proj" / "proj_7"
+    primary = tmp_path / "home" / "projects" / "org" / "proj"
+    _write_checkout_marker(checkout, primary)
+    assert _resolve_primary_from_marker(str(checkout)) == str(primary)
+
+
+def test_resolve_primary_from_marker_missing_returns_none(tmp_path: Path) -> None:
+    assert _resolve_primary_from_marker(str(tmp_path / "no" / "marker")) is None
+
+
+def test_primary_workspace_dir_uses_marker_when_project_unresolved(
+    tmp_path: Path,
+) -> None:
+    """Managed checkouts far from their primary resolve via the checkout
+    marker, not sibling-suffix stripping.
+
+    Regression: separate_repo SDD storage read the store record from the
+    suffix-stripped path (``.../proj/proj``) instead of the real primary,
+    so agent launches failed to materialize the SDD companion repo.
+    """
+    checkout = tmp_path / "state" / "workspaces" / "org" / "proj" / "proj_7"
+    primary = tmp_path / "home" / "projects" / "org" / "proj"
+    _write_checkout_marker(checkout, primary)
+
+    # Simulate the project-spec lookup failing (workspace name does not match
+    # the registered project), which is what forced the broken fallback.
+    with patch("sase.sdd._paths.resolve_primary_from_project", return_value=None):
+        result = get_primary_workspace_dir(str(checkout), 7)
+
+    assert result == str(primary)
+    # The old suffix-stripping fallback would have returned this wrong path.
+    assert result != str(checkout.parent / "proj")
 
 
 # ---------------------------------------------------------------------------

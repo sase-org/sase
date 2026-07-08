@@ -140,6 +140,10 @@ def get_primary_workspace_dir(
     if configured_primary:
         return configured_primary
 
+    marker_primary = _resolve_primary_from_marker(workspace_dir)
+    if marker_primary:
+        return marker_primary
+
     if workspace_num <= 1:
         return workspace_dir
     suffix = f"_{workspace_num}"
@@ -175,6 +179,30 @@ def resolve_primary_from_project(
         project_dir = home / ".sase" / "projects" / project_name
         project_file = preferred_project_spec_path(str(project_dir), project_name)
         primary = parse_workspace_dir(project_file)
+        if not primary:
+            return None
+        return primary.rstrip("/")
+    except Exception:
+        return None
+
+
+def _resolve_primary_from_marker(workspace_dir: str) -> str | None:
+    """Resolve the primary workspace from a managed checkout marker.
+
+    Managed (non-adjacent) checkouts carry a ``.sase/checkout.json`` marker
+    recording the primary workspace they were cloned from. Reading it recovers
+    the primary directly, which suffix-stripping cannot do when the managed
+    checkout lives under a state root far from the primary (e.g. an ephemeral
+    clone under ``~/.local/state/sase/workspaces``). Returns ``None`` when no
+    readable marker is found.
+    """
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        found = find_marker_from_cwd(str(Path(workspace_dir).expanduser()))
+        if found is None:
+            return None
+        primary = found[1].primary_workspace_dir
         if not primary:
             return None
         return primary.rstrip("/")
