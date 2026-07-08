@@ -326,6 +326,16 @@ class AgyProvider(LLMProvider):
         return "agy"
 
     @hookimpl
+    def llm_auth_evidence(self) -> dict[str, list[str]]:
+        # Antigravity's standard login uses an OS keyring, which doctor cannot
+        # inspect offline without risking interactivity. Only env vars are
+        # declared as deterministic evidence.
+        return {
+            "credential_paths": [],
+            "api_key_env_vars": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+        }
+
+    @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import (
             _RETRY_CONTINUATION_NUDGE,

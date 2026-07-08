@@ -410,6 +410,7 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
     known_models = _call_optional(plugin, "llm_known_model_names") or []
     model_aliases = _call_optional(plugin, "llm_model_short_aliases") or {}
     retry_config = _call_optional(plugin, "llm_default_retry_config")
+    auth_evidence = _auth_evidence_metadata(_call_optional(plugin, "llm_auth_evidence"))
 
     model_resolutions: dict[str, str] = {}
     resolve_model = getattr(plugin, "llm_resolve_model_name", None)
@@ -435,6 +436,7 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         "cli_status_color": _call_optional(plugin, "llm_cli_status_color"),
         "autodetect_priority": _call_optional(plugin, "llm_autodetect_priority"),
         "autodetect_cli_name": _call_optional(plugin, "llm_autodetect_cli_name"),
+        "auth_evidence": auth_evidence,
         "default_retry_config": _dataclass_to_dict(retry_config),
         "model_resolutions": model_resolutions,
     }
@@ -458,6 +460,15 @@ def _dataclass_to_dict(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
         return dict(value)
     return None
+
+
+def _auth_evidence_metadata(value: Any) -> dict[str, list[str]]:
+    if not isinstance(value, dict):
+        return {"credential_paths": [], "api_key_env_vars": []}
+    return {
+        "credential_paths": _str_list(value.get("credential_paths")),
+        "api_key_env_vars": _str_list(value.get("api_key_env_vars")),
+    }
 
 
 def _str_dict(value: Any) -> dict[str, str]:

@@ -5,7 +5,12 @@ from __future__ import annotations
 import stat
 from pathlib import Path
 
-from sase.doctor.checks_providers import _check_llm_default, _check_llm_registry
+from sase.doctor.checks_providers import (
+    _check_llm_auth,
+    _check_llm_default,
+    _check_llm_registry,
+    provider_check_specs,
+)
 from sase.doctor.runner import DoctorContext
 
 
@@ -15,6 +20,33 @@ def _payload() -> dict[str, object]:
             "codex": {
                 "known_model_names": ["gpt-5.5"],
                 "autodetect_cli_name": "codex",
+                "model_resolutions": {"large": "gpt-5.5"},
+            }
+        },
+        "autodetect_candidates": [
+            {"priority": 10, "provider": "codex", "cli_name": "codex"}
+        ],
+    }
+
+
+def _auth_payload(
+    *,
+    credential_paths: list[str] | None = None,
+    env_vars: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "providers": {
+            "codex": {
+                "known_model_names": ["gpt-5.5"],
+                "autodetect_cli_name": "codex",
+                "auth_evidence": {
+                    "credential_paths": credential_paths
+                    if credential_paths is not None
+                    else ["~/.codex/auth.json"],
+                    "api_key_env_vars": env_vars
+                    if env_vars is not None
+                    else ["OPENAI_API_KEY"],
+                },
                 "model_resolutions": {"large": "gpt-5.5"},
             }
         },
@@ -73,6 +105,31 @@ def _context(tmp_path: Path, env: dict[str, str] | None = None) -> DoctorContext
         sase_home=tmp_path / ".sase",
         env=env or {},
     )
+
+
+def _patch_codex_selection(monkeypatch, payload: dict[str, object]) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_llm_metadata_payload",
+        lambda: payload,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_default_provider_name",
+        lambda: "codex",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_llm_provider_config",
+        lambda: {"provider": "codex"},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_active_temporary_override",
+        lambda: None,
+    )
+
+
+def test_provider_check_specs_registers_llm_auth(tmp_path) -> None:
+    ids = [spec.id for spec in provider_check_specs(_context(tmp_path))]
+
+    assert ids == ["llm.registry", "llm.default", "llm.auth"]
 
 
 def test_llm_registry_reports_metadata_load_failure(monkeypatch) -> None:
@@ -257,3 +314,79 @@ def test_llm_default_accepts_configured_agy_executable_path(
     # reported so `sase doctor -C llm.default -v` can show them.
     assert check.data["model_resolutions"]["large"] == "Gemini 3.5 Flash (High)"
     assert check.data["auth_status"] == "not_verified"
+
+
+def test_llm_auth_ok_when_api_key_env_var_present(monkeypatch, tmp_path) -> None:
+    _patch_codex_selection(monkeypatch, _auth_payload())
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.shutil.which",
+        lambda _: "/usr/bin/codex",
+    )
+
+    check = _check_llm_auth(
+        _context(tmp_path, {"HOME": str(tmp_path), "OPENAI_API_KEY": "sk-secret"})
+    )
+
+    assert check.status == "OK"
+    assert check.data["auth_status"] == "evidence_found"
+    assert check.data["auth_verified"] is False
+    assert check.data["evidence_found"] is True
+    assert check.data["evidence"][0]["type"] == "env_var"
+    assert check.data["evidence"][0]["name"] == "OPENAI_API_KEY"
+    assert "sk-secret" not in str(check.data)
+    assert "sk-secret" not in " ".join(check.details)
+
+
+def test_llm_auth_ok_when_credential_path_exists(monkeypatch, tmp_path) -> None:
+    home = tmp_path / "home"
+    auth_file = home / ".codex" / "auth.json"
+    auth_file.parent.mkdir(parents=True)
+    auth_file.write_text("{}\n", encoding="utf-8")
+    payload = _auth_payload(
+        credential_paths=["$CODEX_HOME/auth.json", "~/.codex/auth.json"]
+    )
+    _patch_codex_selection(monkeypatch, payload)
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.shutil.which",
+        lambda _: "/usr/bin/codex",
+    )
+
+    check = _check_llm_auth(_context(tmp_path, {"HOME": str(home)}))
+
+    assert check.status == "OK"
+    assert check.data["auth_status"] == "evidence_found"
+    assert check.data["evidence"][0]["type"] == "path"
+    assert check.data["evidence"][0]["path"] == str(auth_file)
+    assert "$CODEX_HOME/auth.json" in check.data["skipped_path_patterns"]
+    assert check.data["auth_verified"] is False
+
+
+def test_llm_auth_warns_when_cli_present_but_no_evidence(monkeypatch, tmp_path) -> None:
+    _patch_codex_selection(monkeypatch, _auth_payload())
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.shutil.which",
+        lambda _: "/usr/bin/codex",
+    )
+
+    check = _check_llm_auth(_context(tmp_path, {"HOME": str(tmp_path / "home")}))
+
+    assert check.status == "WARN"
+    assert "no offline auth evidence" in check.summary
+    assert check.data["auth_status"] == "missing_evidence"
+    assert check.data["evidence_found"] is False
+    assert check.data["checked_env_vars"] == ("OPENAI_API_KEY",)
+    assert "Codex CLI setup" in check.next_steps[0]
+    assert check.data["auth_verified"] is False
+
+
+def test_llm_auth_skips_when_selected_cli_missing(monkeypatch, tmp_path) -> None:
+    _patch_codex_selection(monkeypatch, _auth_payload())
+    monkeypatch.setattr("sase.doctor.checks_providers.shutil.which", lambda _: None)
+
+    check = _check_llm_auth(_context(tmp_path, {"HOME": str(tmp_path)}))
+
+    assert check.status == "SKIP"
+    assert "executable is missing" in check.summary
+    assert check.data["auth_status"] == "skipped_cli_missing"
+    assert check.data["auth_verified"] is False
+    assert check.next_steps[0] == "Fix `llm.default` first."

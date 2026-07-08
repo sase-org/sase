@@ -98,6 +98,17 @@ class ClaudeCodeProvider(LLMProvider):
         return "claude"
 
     @hookimpl
+    def llm_auth_evidence(self) -> dict[str, list[str]]:
+        return {
+            "credential_paths": ["~/.claude/.credentials.json"],
+            "api_key_env_vars": [
+                "ANTHROPIC_API_KEY",
+                "ANTHROPIC_AUTH_TOKEN",
+                "CLAUDE_CODE_OAUTH_TOKEN",
+            ],
+        }
+
+    @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import (
             _RETRY_CONTINUATION_NUDGE,

@@ -128,3 +128,24 @@ def test_cache_policy_invalidates_on_provider_path_env_change(
 
     assert before is None
     assert after == "/opt/agy/agy"
+
+
+def test_provider_metadata_includes_auth_evidence() -> None:
+    """Provider auth evidence metadata should be normalized into payloads."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_auth_evidence(self) -> dict[str, list[str]]:
+            return {
+                "credential_paths": ["~/.fake/auth.json"],
+                "api_key_env_vars": ["FAKE_API_KEY"],
+            }
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["auth_evidence"] == {
+        "credential_paths": ["~/.fake/auth.json"],
+        "api_key_env_vars": ["FAKE_API_KEY"],
+    }

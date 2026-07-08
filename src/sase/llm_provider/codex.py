@@ -264,6 +264,13 @@ class CodexProvider(LLMProvider):
         return "codex"
 
     @hookimpl
+    def llm_auth_evidence(self) -> dict[str, list[str]]:
+        return {
+            "credential_paths": ["$CODEX_HOME/auth.json", "~/.codex/auth.json"],
+            "api_key_env_vars": ["OPENAI_API_KEY"],
+        }
+
+    @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import (
             _RETRY_CONTINUATION_NUDGE,

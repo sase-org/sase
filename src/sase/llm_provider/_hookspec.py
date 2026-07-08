@@ -88,4 +88,15 @@ class LLMHookSpec:
     def llm_autodetect_cli_name(self) -> str | None: ...
 
     @hookspec(firstresult=True)
+    def llm_auth_evidence(self) -> dict[str, list[str]] | None:
+        """Offline auth evidence for doctor checks.
+
+        ``credential_paths`` are file or directory paths whose presence suggests
+        local provider auth has been configured. ``api_key_env_vars`` are env
+        var names that can carry provider credentials. Values must not contain
+        secrets; doctor only reports names and path existence.
+        """
+        ...
+
+    @hookspec(firstresult=True)
     def llm_default_retry_config(self) -> ProviderRetryConfig | None: ...

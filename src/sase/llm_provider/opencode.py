@@ -132,6 +132,22 @@ class OpenCodeProvider(LLMProvider):
     def llm_autodetect_cli_name(self) -> str:
         return "opencode"
 
+    @hookimpl
+    def llm_auth_evidence(self) -> dict[str, list[str]]:
+        return {
+            "credential_paths": ["~/.local/share/opencode/auth.json"],
+            "api_key_env_vars": [
+                "ANTHROPIC_API_KEY",
+                "DASHSCOPE_API_KEY",
+                "GEMINI_API_KEY",
+                "GOOGLE_API_KEY",
+                "OPENAI_API_KEY",
+                "OPENROUTER_API_KEY",
+                "QWEN_API_KEY",
+                "REQUESTY_API_KEY",
+            ],
+        }
+
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Translate a resolved reasoning effort into ``--variant`` args."""
         return effort_cli_args(
