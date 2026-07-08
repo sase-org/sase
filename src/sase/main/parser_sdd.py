@@ -7,15 +7,29 @@ import argparse
 
 def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'sdd' command parser."""
+    from sase.sdd._paths import SDD_CANONICAL_DIRS
+
     sdd_parser = subparsers.add_parser(
         "sdd",
-        help="Initialize, validate, list, and repair SDD prompt/plan metadata",
+        help="Initialize, inspect, validate, list, and repair SDD metadata",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Manage SDD prompt/artifact documentation and frontmatter links. "
+            "With no subcommand, defaults to `sase sdd list`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase sdd path\n"
+            "  sase sdd path research\n"
+            "  sase sdd list --kind epics\n"
+            "  sase sdd validate --show-warnings"
+        ),
     )
     sdd_sub = sdd_parser.add_subparsers(dest="sdd_subcommand", help="SDD subcommands")
 
     init_parser = sdd_sub.add_parser(
         "init",
-        help="Enable version-controlled SDD and refresh generated guides",
+        help="Enable in-tree SDD and refresh generated guides",
     )
     init_parser.add_argument(
         "-c",
@@ -24,29 +38,6 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Report SDD config and generated-file drift without writing files",
     )
     add_sdd_path_arg(init_parser)
-
-    validate_parser = sdd_sub.add_parser(
-        "validate",
-        help="Validate SDD frontmatter links",
-    )
-    add_sdd_path_arg(validate_parser)
-    validate_parser.add_argument(
-        "-j", "--json", action="store_true", help="Emit machine-readable JSON"
-    )
-    validate_parser.add_argument(
-        "-q", "--quiet", action="store_true", help="Only print validation failures"
-    )
-    validate_parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Treat unpaired historical files as validation errors",
-    )
-    validate_parser.add_argument(
-        "-W",
-        "--show-warnings",
-        action="store_true",
-        help="Show warning-severity issues (hidden by default)",
-    )
 
     links_parser = sdd_sub.add_parser(
         "links",
@@ -73,6 +64,23 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "-j", "--json", action="store_true", help="Emit machine-readable JSON"
     )
 
+    path_parser = sdd_sub.add_parser(
+        "path",
+        help="Print the effective SDD root or one canonical child directory",
+        description=(
+            "Print the effective SDD root for the current workspace. When kind "
+            "is provided, print that canonical child directory under the root. "
+            "This uses the fast directory-only SDD resolver and does not "
+            "materialize remote stores."
+        ),
+    )
+    path_parser.add_argument(
+        "kind",
+        nargs="?",
+        choices=SDD_CANONICAL_DIRS,
+        help="Canonical SDD child directory to append",
+    )
+
     repair_parser = sdd_sub.add_parser(
         "repair-links",
         help="Infer and repair bidirectional SDD links",
@@ -80,6 +88,29 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     add_sdd_path_arg(repair_parser)
     repair_parser.add_argument(
         "-w", "--write", action="store_true", help="Write inferred link fixes"
+    )
+
+    validate_parser = sdd_sub.add_parser(
+        "validate",
+        help="Validate SDD frontmatter links",
+    )
+    add_sdd_path_arg(validate_parser)
+    validate_parser.add_argument(
+        "-j", "--json", action="store_true", help="Emit machine-readable JSON"
+    )
+    validate_parser.add_argument(
+        "-q", "--quiet", action="store_true", help="Only print validation failures"
+    )
+    validate_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat unpaired historical files as validation errors",
+    )
+    validate_parser.add_argument(
+        "-W",
+        "--show-warnings",
+        action="store_true",
+        help="Show warning-severity issues (hidden by default)",
     )
 
 

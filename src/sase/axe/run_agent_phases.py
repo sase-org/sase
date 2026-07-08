@@ -127,6 +127,13 @@ def claim_deferred_workspace(
 
     os.chdir(workspace_dir)
     os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
+    from sase.sdd.env import set_sdd_dir_env
+
+    set_sdd_dir_env(
+        os.environ,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+    )
     from sase.linked_repos import (
         apply_linked_repo_env,
         resolve_linked_repos_for_project,

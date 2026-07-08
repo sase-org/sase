@@ -4,15 +4,16 @@ from datetime import datetime
 from pathlib import Path
 
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
-_SDD_CANONICAL_DIRS = {
-    "prompts",
-    "tales",
+SDD_CANONICAL_DIRS = (
+    "beads",
     "epics",
     "legends",
     "myths",
+    "prompts",
     "research",
-    "beads",
-}
+    "tales",
+)
+_SDD_CANONICAL_DIRS = set(SDD_CANONICAL_DIRS)
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:

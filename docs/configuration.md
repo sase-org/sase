@@ -1041,27 +1041,29 @@ storage.
 
 ```yaml
 sdd:
-  version_controlled: false # default: false
+  storage: auto # default: auto
+  version_controlled: false # deprecated alias
 ```
 
-| Field                    | Type | Default | Description                                                                                                                                 |
-| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.version_controlled` | bool | `false` | For non-bare-git projects, store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace. |
+| Field                    | Type   | Default | Description                                                                                                   |
+| ------------------------ | ------ | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `sdd.storage`            | string | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.      |
+| `sdd.version_controlled` | bool   | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto. |
 
-When enabled, prompt snapshots, tales, epics, legends, myths, research notes, and the bead database directory are placed
-in the project root so they can be committed with the code. When disabled, SDD writes to a standalone `.sase/sdd/` git
-repo in the primary workspace for providers that support local SDD mode. Projects resolved as the built-in `bare_git`
-VCS provider always use version-controlled SDD under `sdd/`, even if this option is false. See [`docs/sdd.md`](sdd.md)
-for storage behavior and [`docs/beads.md`](beads.md) for the bead system reference.
+In-tree mode stores prompt snapshots, tales, epics, legends, myths, research notes, and bead state under `sdd/` in the
+project root. Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace.
+Separate-repo mode uses that same `.sase/sdd/` layout after a provider materializes a companion repository. Projects
+resolved as the built-in `bare_git` VCS provider declare in-tree SDD under `sdd/` when storage is automatic. See
+[SDD Storage](sdd_storage.md) for storage behavior and [Beads](beads.md) for the bead system reference.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
-initialization, existing bare-repo registration, `#git`/workspace materialization, and the first version-controlled SDD
-write. Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit
-when needed.
+initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
+Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
+needed.
 
-Running `sase sdd init` or its `sase init sdd` alias is an explicit non-bare-git opt-in: it creates or updates the
-project-local `sase.yml` so `sdd.version_controlled` is true, then refreshes generated SDD guide files and the directory
-map.
+Running `sase sdd init` or its `sase init sdd` alias is an explicit in-tree opt-in through the legacy alias: it creates
+or updates the project-local `sase.yml` so `sdd.version_controlled` is true, then refreshes generated SDD guide files
+and the directory map.
 
 Source: `src/sase/default_config.yml`
 
@@ -1596,10 +1598,10 @@ linked repo uses numbered workspace resolution.
 
 ### `sase init sdd`
 
-`sase init sdd` is an alias for `sase sdd init`. It enables version-controlled SDD in the project-local `sase.yml`, then
-creates or refreshes generated SDD README files and the directory map asset. Bare-git projects run the generated-file
-refresh automatically during repository setup and first SDD writes, but the explicit command remains available for
-manual opt-in, refresh, and `--check` audits.
+`sase init sdd` is an alias for `sase sdd init`. It enables in-tree SDD through the legacy `sdd.version_controlled`
+alias, then creates or refreshes generated SDD README files and the directory map asset. Bare-git projects run the
+generated-file refresh automatically during repository setup and first SDD writes, but the explicit command remains
+available for manual opt-in, refresh, and `--check` audits.
 
 | Flag          | Values | Default                  | Description                                                       |
 | ------------- | ------ | ------------------------ | ----------------------------------------------------------------- |

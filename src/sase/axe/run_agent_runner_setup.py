@@ -232,10 +232,17 @@ def print_agent_start_banner(
     print()
 
 
-def enter_agent_workspace(workspace_dir: str) -> None:
+def enter_agent_workspace(workspace_dir: str, workspace_num: int = 1) -> None:
     """Chdir into the agent workspace and install per-clone ignore entries."""
     os.chdir(workspace_dir)
     os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
+    from sase.sdd.env import set_sdd_dir_env
+
+    set_sdd_dir_env(
+        os.environ,
+        workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
+    )
 
     # Keep ``.sase/`` untracked in this clone. Some workflows use it for
     # project-local runtime artifacts, and ``.git/info/exclude`` is git's

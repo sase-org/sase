@@ -27,11 +27,12 @@ roadmaps through their `tier` metadata.
 ## Quick Start
 
 ```bash
+SDD_ROOT=$(sase sdd path)
 sase bead init                                          # Initialize beads in current project
-sase bead create -t "New feature" --type "plan(sdd/tales/202605/feature.md)" --tier plan
-sase bead create -t "Epic" --type "plan(sdd/epics/202605/epic.md)" --tier epic
-sase bead create -t "Roadmap" --type "plan(sdd/legends/202605/roadmap.md)" --tier legend --epic-count 3
-sase bead create -t "Linked epic" --type "plan(sdd/epics/202605/epic.md,<legend-id>)" --tier epic
+sase bead create -t "New feature" --type "plan(${SDD_ROOT}/tales/202605/feature.md)" --tier plan
+sase bead create -t "Epic" --type "plan(${SDD_ROOT}/epics/202605/epic.md)" --tier epic
+sase bead create -t "Roadmap" --type "plan(${SDD_ROOT}/legends/202605/roadmap.md)" --tier legend --epic-count 3
+sase bead create -t "Linked epic" --type "plan(${SDD_ROOT}/epics/202605/epic.md,<legend-id>)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
 sase bead list                                          # List open and in-progress issues
 sase bead list --status=open                            # List open issues
@@ -62,19 +63,19 @@ sase bead work beads-001                                # Launch agents for an e
 Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
 plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 
-Plan beads carry a tier. The SDD paths below are the conventional version-controlled locations; in local SDD mode the
-same artifact classes live under `.sase/sdd/`.
+Plan beads carry a tier. The paths below are relative to the effective SDD root. Use `sase sdd path` or `SASE_SDD_DIR`
+to locate that root in local or separate-repo modes.
 
-| Tier     | SDD Path                    | Behavior                                                                      |
-| -------- | --------------------------- | ----------------------------------------------------------------------------- |
-| `plan`   | `sdd/tales/{YYYYMM}/*.md`   | Normal non-epic implementation plan                                           |
-| `epic`   | `sdd/epics/{YYYYMM}/*.md`   | Executable multi-phase plan accepted by `sase bead work`                      |
-| `legend` | `sdd/legends/{YYYYMM}/*.md` | Higher-level coordination plan; launches epic-planning agents by `epic_count` |
+| Tier     | SDD Path                | Behavior                                                                      |
+| -------- | ----------------------- | ----------------------------------------------------------------------------- |
+| `plan`   | `tales/{YYYYMM}/*.md`   | Normal non-epic implementation plan                                           |
+| `epic`   | `epics/{YYYYMM}/*.md`   | Executable multi-phase plan accepted by `sase bead work`                      |
+| `legend` | `legends/{YYYYMM}/*.md` | Higher-level coordination plan; launches epic-planning agents by `epic_count` |
 
 Linked epics use the existing parented plan syntax:
 
 ```bash
-sase bead create --title "Epic" --type "plan(sdd/epics/202605/epic.md,<legend_bead_id>)" --tier epic
+sase bead create --title "Epic" --type "plan(${SASE_SDD_DIR}/epics/202605/epic.md,<legend_bead_id>)" --tier epic
 ```
 
 ### Status Lifecycle
@@ -99,8 +100,8 @@ Dependencies are one-way relationships: issue A **depends on** issue B. An issue
 
 ### Directory Structure
 
-When version-controlled mode is effective (`sdd.version_controlled: true`, or any project resolved as the built-in
-`bare_git` VCS provider):
+When in-tree mode is effective (`sdd.storage: in_tree`, the legacy `sdd.version_controlled: true` alias, or any project
+resolved as the built-in `bare_git` VCS provider under automatic storage):
 
 ```
 sdd/beads/
@@ -113,12 +114,12 @@ sdd/beads/
   beads.db              # SQLite compatibility cache (gitignored)
 ```
 
-In non-version-controlled mode for other providers, the directory is `.sase/sdd/beads/` with the same structure.
+In local and separate-repo modes, the directory is `.sase/sdd/beads/` with the same structure.
 
-Normal bead commands read and write one store for the active checkout. In version-controlled mode, canonical bead state
-lives in the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. If the event store is
-absent, reads fall back to legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into
-normal `sase bead` reads.
+Normal bead commands read and write one store for the active checkout. In in-tree mode, canonical bead state lives in
+the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. If the event store is absent,
+reads fall back to legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into normal
+`sase bead` reads.
 
 ### Event Log + Compatibility Projections
 
@@ -149,8 +150,8 @@ form when passing list filters.
 
 ### `sase bead init`
 
-Initialize the bead store for the current project. In effective version-controlled SDD mode this is `sdd/beads/`; in
-local SDD mode this is `.sase/sdd/beads/`.
+Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; in local and
+separate-repo modes this is `.sase/sdd/beads/`.
 
 ### `sase bead create`
 

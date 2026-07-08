@@ -18,7 +18,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase memory read generated_skills.md --reason "
             '"Need generated skill context"\n'
             '  sase memory write --title "Generated skills" --slug '
-            "generated_skills --evidence sdd/research/skills.md --body "
+            'generated_skills --evidence "$(sase sdd path research)/skills.md" --body '
             '"Durable memory body"\n'
             "  sase memory review --list\n"
             "  sase memory review mem-20260523-142233-a1b2c3d4 --edit\n"
@@ -144,7 +144,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             '  sase memory write --title "Generated skills" --slug '
-            "generated_skills --evidence sdd/research/skills.md --body "
+            'generated_skills --evidence "$(sase sdd path research)/skills.md" --body '
             '"Durable memory body"\n'
             '  sase memory write --title "Generated skills" --slug '
             "generated_skills --evidence chat:abc123 --body "

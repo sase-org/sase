@@ -267,7 +267,7 @@ def main() -> None:
         try:
             deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
 
-            enter_agent_workspace(workspace_dir)
+            enter_agent_workspace(workspace_dir, workspace_num)
 
             # Extract directives and write agent metadata
             info = extract_directives_and_write_meta(

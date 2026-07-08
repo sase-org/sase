@@ -73,7 +73,7 @@ sase memory write \
   --title "Generated skills" \
   --slug generated_skills \
   --keyword "commit skill" \
-  --evidence sdd/research/skills.md \
+  --evidence "$(sase sdd path research)/skills.md" \
   --body "Durable memory body" \
   --notify
 

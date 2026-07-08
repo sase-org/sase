@@ -67,7 +67,13 @@ class TestDeferredWorkspacePreparation:
         from sase.axe.run_agent_phases import claim_deferred_workspace
 
         workspace_dir = tmp_path / "ws7"
+        resolved_sdd = workspace_dir / ".custom-sdd"
         monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", "/stale/parent")
+        monkeypatch.setenv("SASE_SDD_DIR", "/stale/sdd")
+        monkeypatch.setattr(
+            "sase.sdd.store.resolve_sdd_dir",
+            lambda workspace, workspace_num: resolved_sdd,
+        )
 
         with (
             patch("sase.running_field.release_workspace"),
@@ -94,6 +100,7 @@ class TestDeferredWorkspacePreparation:
             )
 
         assert os.environ["SASE_ACTIVE_PROJECT_DIR"] == str(workspace_dir)
+        assert os.environ["SASE_SDD_DIR"] == str(resolved_sdd)
 
     def test_claim_deferred_workspace_recomputes_linked_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

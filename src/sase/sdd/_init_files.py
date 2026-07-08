@@ -16,8 +16,10 @@ SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
 
 SDD_README_CONTENT = """# Structured Development Docs
 
-The `sdd/` directory keeps durable planning context close to the code it describes. It stores prompts, approved plans,
-roadmap material, and bead state in predictable paths so humans and agents can reference the same artifacts over time.
+This SDD root keeps durable planning context close to the code it describes. It stores prompts, approved plans, roadmap
+material, and bead state in predictable paths so humans and agents can reference the same artifacts over time. The root
+may be the checkout's `sdd/` directory or a separate `.sase/sdd/` store; run `sase sdd path` or read `SASE_SDD_DIR` from
+agent environments to locate it.
 
 ![SDD directory map](assets/sdd-directory-map.png)
 
@@ -31,14 +33,15 @@ roadmap material, and bead state in predictable paths so humans and agents can r
 - `research/` stores exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - `beads/` stores bead issue data for SDD-backed work tracking.
 
-Prompt, tale, epic, legend, and research files are normally organized under a `YYYYMM/` month directory, for example
-`sdd/prompts/202605/example.md`, `sdd/tales/202605/example.md`, and `sdd/research/202605/example.md`. Prompt files
-should link to their generated plan-like artifact with frontmatter such as `plan: sdd/tales/202605/example.md`; the
-plan-like artifact should link back with `prompt: sdd/prompts/202605/example.md`.
+Prompt, tale, epic, legend, and research files are normally organized under a `YYYYMM/` month directory relative to this
+root, for example `prompts/202605/example.md`, `tales/202605/example.md`, and `research/202605/example.md`. Prompt files
+should link to their generated plan-like artifact with frontmatter such as `plan: tales/202605/example.md`; the
+plan-like artifact should link back with `prompt: prompts/202605/example.md`.
 
 ## Commands
 
 - `sase sdd list` lists SDD markdown artifacts.
+- `sase sdd path` prints the effective SDD root; pass a kind such as `research` to print that child directory.
 - `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
 - `sase sdd repair-links` infers and repairs missing bidirectional links.
 - `sase plan search` searches these `sdd/` plans and the machine-local `~/.sase/plans/` archive by content.

@@ -167,9 +167,9 @@ project at an existing bare repository, use `#git:<bare-repo-path>`; the path ba
 `#git:/path/to/home.git` registers the `home` project. Add `#cd:~` to a prompt for a one-off direct home-directory run
 without VCS.
 
-Bare-git projects use version-controlled SDD under `sdd/`. SASE creates or refreshes generated SDD guide files during
-new project initialization, existing bare-repo registration, and first `#git` or `sase workspace open` materialization.
-When materialization owns the checkout setup, SASE commits and pushes only those generated guide paths with an
+Bare-git projects use in-tree SDD under `sdd/`. SASE creates or refreshes generated SDD guide files during new project
+initialization, existing bare-repo registration, and first `#git` or `sase workspace open` materialization. When
+materialization owns the checkout setup, SASE commits and pushes only those generated guide paths with an
 `Initialize SDD` init commit.
 
 ## Known-Project VCS Fallback

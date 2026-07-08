@@ -119,7 +119,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
 
     sdd_parser = init_subparsers.add_parser(
         "sdd",
-        help="Enable version-controlled SDD and refresh generated guides",
+        help="Enable in-tree SDD and refresh generated guides",
     )
     sdd_parser.add_argument(
         "-c",

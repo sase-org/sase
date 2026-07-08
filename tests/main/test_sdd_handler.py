@@ -85,8 +85,42 @@ def test_parser_registers_sdd_subcommands() -> None:
     args = parser.parse_args(["sdd", "list", "-p", "sdd", "-k", "tales"])
     assert args.kind == "tales"
 
+    args = parser.parse_args(["sdd", "path", "research"])
+    assert args.sdd_subcommand == "path"
+    assert args.kind == "research"
+
     args = parser.parse_args(["sdd", "repair-links", "-p", "sdd", "-w"])
     assert args.write is True
+
+
+@pytest.mark.parametrize(
+    ("storage", "kind", "expected_relpath"),
+    [
+        ("in_tree", None, "sdd"),
+        ("local", "research", ".sase/sdd/research"),
+        ("separate_repo", "beads", ".sase/sdd/beads"),
+    ],
+)
+def test_path_prints_effective_sdd_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    storage: str,
+    kind: str | None,
+    expected_relpath: str,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": storage}},
+    )
+    args = _args(sdd_subcommand="path", kind=kind)
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(args)
+
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out.strip() == str(tmp_path / expected_relpath)
 
 
 def test_init_creates_readme_for_project_root(
@@ -112,6 +146,9 @@ def test_init_creates_readme_for_project_root(
     assert "`tales/`" in text
     assert "`myths/`" in text
     assert "`research/`" in text
+    assert "`sase sdd path`" in text
+    assert "`SASE_SDD_DIR`" in text
+    assert "`research/202605/example.md`" in text
     assert "`sase sdd validate`" in text
     assert "# Tales" in directory_readmes["tales"].read_text(encoding="utf-8")
     assert "task-level implementation plans" in directory_readmes["tales"].read_text(
@@ -222,7 +259,7 @@ def test_init_check_reports_missing_sdd_without_writing(
     assert "SASE initialization check" in out
     assert "Needs attention:" in out
     assert "init sdd" in out
-    assert "enable version-controlled SDD" in out
+    assert "enable in-tree SDD" in out
     assert "create SDD README files and directory map" in out
 
 
@@ -261,7 +298,7 @@ def test_init_check_reports_missing_config_without_writing(
     assert excinfo.value.code == 1
     assert not (tmp_path / "sase.yml").exists()
     out = capsys.readouterr().out
-    assert "enable version-controlled SDD config" in out
+    assert "enable in-tree SDD config" in out
 
 
 def test_init_invalid_sase_yml_exits_without_writing_sdd(

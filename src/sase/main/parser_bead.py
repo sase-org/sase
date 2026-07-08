@@ -82,7 +82,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_subparsers.add_parser("doctor", help="Run health checks")
 
     # sase bead init
-    bead_subparsers.add_parser("init", help="Create sdd/beads/ in current directory")
+    bead_subparsers.add_parser("init", help="Create the effective SDD bead store")
 
     # sase bead list
     bead_list_parser = bead_subparsers.add_parser("list", help="List issues")

@@ -187,6 +187,13 @@ def handle_workflow_error(
             )
         os.chdir(ctx.workspace_dir)
         os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
+        from sase.sdd.env import set_sdd_dir_env
+
+        set_sdd_dir_env(
+            os.environ,
+            workspace_dir=ctx.workspace_dir,
+            workspace_num=ctx.workspace_num,
+        )
         tracker.attempt_start_epoch = time.time()
         return "continue"
 
@@ -223,6 +230,13 @@ def handle_workflow_error(
             )
         os.chdir(ctx.workspace_dir)
         os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
+        from sase.sdd.env import set_sdd_dir_env
+
+        set_sdd_dir_env(
+            os.environ,
+            workspace_dir=ctx.workspace_dir,
+            workspace_num=ctx.workspace_num,
+        )
         tracker.attempt_start_epoch = time.time()
         return "continue"
 

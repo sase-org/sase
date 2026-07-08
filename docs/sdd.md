@@ -24,98 +24,28 @@ context those plans depend on.
 
 ## Storage Modes
 
-SDD supports two storage modes. For non-bare-git projects the mode is controlled by the `sdd.version_controlled` config
-option. Projects resolved as the built-in `bare_git` VCS provider always use version-controlled SDD under `sdd/`, even
-when the merged config leaves `sdd.version_controlled` false.
+SDD supports three storage modes:
 
-### Local Mode (default for non-bare-git projects: `sdd.version_controlled: false`)
+- `in_tree` stores artifacts under the checkout's `sdd/` directory and commits them with code changes.
+- `local` stores artifacts in a standalone git repo at the primary workspace's `.sase/sdd/`.
+- `separate_repo` stores artifacts in the same `.sase/sdd/` layout, backed by a provider-materialized companion repo.
 
-Files are stored in a standalone git repo inside the primary workspace:
+Use `sase sdd path` to print the effective SDD root, or `sase sdd path research` to print a canonical child directory.
+Launched agents receive the same root in `SASE_SDD_DIR`, so prompts and hooks should use that instead of assuming `sdd/`
+is relative to the current checkout.
 
-```
-{primary_workspace}/.sase/sdd/
-  .git/                     # Standalone git repo for SDD tracking
-  .gitignore                # Ignores beads.db
-  prompts/
-    {YYYYMM}/
-      {plan_name}.md        # Expanded prompt (xprompts resolved, directives stripped)
-  tales/
-    {YYYYMM}/
-      {plan_name}.md        # Normal non-epic implementation plans
-  epics/
-    {YYYYMM}/
-      {plan_name}.md        # Executable multi-phase epic plans
-  legends/
-    {YYYYMM}/
-      {plan_name}.md        # Higher-level coordination plans
-  myths/
-    README.md               # Generated directory guide
-  research/
-    README.md
-    {YYYYMM}/
-      {note_name}.md        # Research notes and critiques
-  beads/                    # Bead store (canonical events + compatibility mirrors)
-    config.json
-    events/
-      manifest.json
-      streams/
-        <root-id>.jsonl
-    issues.jsonl
-    beads.db
-```
+See [SDD Storage](sdd_storage.md) for the full resolution order, companion-repo convention, migration guidance, and
+offline/push behavior.
 
-SDD auto-commits prompt and planning-artifact files to this local repo after each planning phase. The standalone repo
-keeps SDD history separate from the project's own git history.
-
-### Version-Controlled Mode (`sdd.version_controlled: true`, or any bare-git project)
-
-Files are stored at the project root and tracked in the project's own git repo:
-
-```
-{project_root}/
-  sdd/
-    prompts/
-      {YYYYMM}/
-        {plan_name}.md
-    tales/
-      {YYYYMM}/
-        {plan_name}.md
-    epics/
-      {YYYYMM}/
-        {plan_name}.md
-    legends/
-      {YYYYMM}/
-        {plan_name}.md
-    myths/
-      README.md
-    research/
-      README.md
-      {YYYYMM}/
-        {note_name}.md
-  sdd/beads/              # Bead store (canonical events + compatibility mirrors)
-    config.json
-    events/
-      manifest.json
-      streams/
-        <root-id>.jsonl
-    issues.jsonl
-    beads.db
-```
-
-In this mode, SDD artifacts are committed alongside code changes via `sase commit`.
-
-For built-in bare-git projects, SASE also creates or refreshes the generated SDD guide files automatically. First-use
+For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files automatically. First-use
 `#git:<project>` initialization includes them in the initial commit; existing bare-repo registration, `#git`
 materialization, and `sase workspace open` commit and push an `Initialize SDD` init commit when the generated files are
 missing or stale. First SDD writes, plan archiving, and `sase bead init` also refresh the generated files before writing
 project-local SDD content.
 
-Research notes live under `sdd/research/{YYYYMM}/` alongside the rest of the repository-local SDD corpus. A `#research`
-xprompt (defined in user or project config — the packaged default was removed) conventionally tells the agent to create
-a new markdown file in the current month directory; `sase sdd` does not write research files automatically.
-
-The directory examples above show the storage roots. Most frontmatter links include the root prefix when the root is
-well-known: `sdd/...` in version-controlled mode and `.sase/sdd/...` in local mode.
+Research notes live under `research/{YYYYMM}/` inside the effective SDD root. A `#research` xprompt (defined in user or
+project config -- the packaged default was removed) conventionally tells the agent to create a new markdown file in the
+current month directory; `sase sdd` does not write research files automatically.
 
 ## How SDD Works
 
@@ -134,11 +64,11 @@ The result is a clean, self-contained document showing exactly what the agent wa
 The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
-2. Written to the action-specific SDD directory, where `{YYYYMM}` is derived from the current date. Version-controlled
-   paths look like:
-   - normal approval: `sdd/tales/{YYYYMM}/{plan_name}.md`
-   - epic approval: `sdd/epics/{YYYYMM}/{plan_name}.md`
-   - legend approval: `sdd/legends/{YYYYMM}/{plan_name}.md`
+2. Written to the action-specific SDD directory, where `{YYYYMM}` is derived from the current date. Paths inside the
+   effective SDD root look like:
+   - normal approval: `tales/{YYYYMM}/{plan_name}.md`
+   - epic approval: `epics/{YYYYMM}/{plan_name}.md`
+   - legend approval: `legends/{YYYYMM}/{plan_name}.md`
 
 Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
 the creation date. This keeps the directories manageable as the number of prompts, plans, and research artifacts grows
@@ -183,11 +113,11 @@ empty later note preserves the earlier value.
 Prompt snapshots and plan-like artifacts link to each other through YAML frontmatter:
 
 ```yaml
-# sdd/prompts/202605/example.md
-plan: sdd/tales/202605/example.md
+# prompts/202605/example.md
+plan: tales/202605/example.md
 
-# sdd/tales/202605/example.md
-prompt: sdd/prompts/202605/example.md
+# tales/202605/example.md
+prompt: prompts/202605/example.md
 ```
 
 `sase sdd validate` checks these bidirectional links for prompts, tales, epics, and legends. It treats unpaired
@@ -201,8 +131,8 @@ under. The value uses the same syntax `%model` accepts: a bare known model name 
 (e.g. `codex/gpt-5.5`), or a configured local alias (e.g. `#pro`).
 
 ```yaml
-# sdd/tales/202605/example.md
-prompt: sdd/prompts/202605/example.md
+# tales/202605/example.md
+prompt: prompts/202605/example.md
 model: opus
 ```
 
@@ -223,12 +153,13 @@ when passing list flags such as `--kind` or `--json`.
 
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Enable `sdd.version_controlled`, then refresh `sdd/README.md`, tier READMEs, and the directory map      |
+| `sase sdd init`         | Enable in-tree SDD via the legacy alias, then refresh generated guide files                             |
 | `sase init sdd`         | Alias for `sase sdd init`; accepts the same `-p/--path` option                                          |
-| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
-| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
+| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
+| `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                         |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
+| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
 
 Each subcommand accepts `-p/--path`, which may point at an SDD root or a project root. Validation treats unpaired or
 ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
@@ -239,23 +170,23 @@ warning count and appends `(use --show-warnings to display)` so they remain disc
 on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to errors before
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
-The `sase sdd init` command enables version-controlled SDD in the project-local `sase.yml`, then refreshes
-`sdd/README.md`, the directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`,
-and `research/`. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to opt into project-local SDD and
-refresh generated project guides. The generated guides are safe to overwrite, so do not put hand-maintained conceptual
-prose in those README files.
+The `sase sdd init` command currently writes the legacy `sdd.version_controlled: true` alias in the project-local
+`sase.yml`, then refreshes the top-level README, the directory map asset, and generated `README.md` files in `tales/`,
+`epics/`, `legends/`, `myths/`, and `research/`. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to
+opt into in-tree SDD and refresh generated project guides. The generated guides are safe to overwrite, so do not put
+hand-maintained conceptual prose in those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
-repository setup, workspace materialization, and the first version-controlled SDD write. The explicit command remains
-useful for manual refreshes and `--check` drift audits.
+repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for
+manual refreshes and `--check` drift audits.
 
 ## Bead Integration
 
 SDD initializes the [bead issue tracker](beads.md) automatically when an epic agent spawns:
 
-- **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo and bead storage is
-  initialized through SASE's built-in bead project bootstrap
-- **VC mode**: Beads are stored in `sdd/beads/` at the project root
+- **In-tree mode**: Beads are stored in `sdd/beads/` at the project root.
+- **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo.
+- **Separate-repo mode**: Beads are stored in `.sase/sdd/beads/` inside the companion checkout.
 
 Plan-like beads carry a `tier` value:
 
@@ -271,32 +202,35 @@ commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file.
 Linked epics are created as ordinary plan beads with a legend parent:
 
 ```bash
-sase bead create --title "<title>" --type plan(sdd/epics/202605/example.md,<legend_bead_id>) --tier epic
+sase bead create --title "<title>" --type "plan(${SASE_SDD_DIR}/epics/202605/example.md,<legend_bead_id>)" --tier epic
 ```
 
 Legend beads are executable kickoff points for their proposed epics. `sase bead work <legend_bead_id>` launches one
 epic-planning agent per stored `epic_count`; it does not create phase beads directly.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
-workspaces can resolve. In version-controlled mode this is the project-relative `sdd/epics/{YYYYMM}/{name}.md` path. In
-local mode it is the primary-workspace-relative `.sase/sdd/epics/{YYYYMM}/{name}.md` path. If an older flat plan layout
-is encountered, the resolver still checks both canonical and legacy flat/`YYYYMM` locations for backwards compatibility.
+workspaces can resolve. Agents can also build paths from `SASE_SDD_DIR`, for example
+`$SASE_SDD_DIR/epics/{YYYYMM}/{name}.md`. If an older flat plan layout is encountered, the resolver still checks both
+canonical and legacy flat/`YYYYMM` locations for backwards compatibility.
 
 ## Configuration
 
 ```yaml
 sdd:
-  version_controlled: false # default
+  storage: auto
+  version_controlled: false # deprecated alias
 ```
 
-| Option                   | Type | Default | Description                                                                                                                                |
-| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sdd.version_controlled` | bool | `false` | For non-bare-git projects, store SDD artifacts and beads under `sdd/` in the project repo instead of `.sase/sdd/` in the primary workspace |
+| Option                   | Type | Default | Description                                                                                                   |
+| ------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `sdd.storage`            | enum | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.      |
+| `sdd.version_controlled` | bool | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto. |
 
-See [`configuration.md`](configuration.md) for the full configuration reference.
+See [`configuration.md`](configuration.md) for the full configuration reference and [SDD Storage](sdd_storage.md) for
+mode behavior.
 
 ## Multi-Workspace Behavior
 
-SDD artifact placement follows the configured SDD mode and project workflow. In version-controlled mode, bead commands
-read and write the current checkout's `sdd/beads/` store; they do not merge bead records from numbered sibling
-workspaces. Coordinate bead state between checkouts through the normal VCS sync path.
+SDD artifact placement follows the configured storage mode and project workflow. In in-tree mode, bead commands read and
+write the current checkout's `sdd/beads/` store; they do not merge bead records from numbered sibling workspaces.
+Coordinate bead state between checkouts through the normal VCS sync path.

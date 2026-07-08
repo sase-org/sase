@@ -245,6 +245,13 @@ def spawn_agent_subprocess(
 
         apply_linked_repo_env(subprocess_env, linked_resolution)
         _overwrite_project_dir_env(subprocess_env, workspace_dir)
+        from sase.sdd.env import set_sdd_dir_env
+
+        set_sdd_dir_env(
+            subprocess_env,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+        )
 
     resolved_project_name = project_name or (
         "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))

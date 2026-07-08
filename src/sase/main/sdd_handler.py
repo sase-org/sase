@@ -26,10 +26,12 @@ def handle_sdd_command(args: argparse.Namespace) -> None:
         _handle_links(args)
     elif subcommand == "list":
         _handle_list(args)
+    elif subcommand == "path":
+        _handle_path(args)
     elif subcommand == "repair-links":
         _handle_repair_links(args)
     else:
-        print("Usage: sase sdd {init,validate,links,list,repair-links}")
+        print("Usage: sase sdd {init,links,list,path,repair-links,validate}")
         sys.exit(1)
 
 
@@ -129,11 +131,11 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     generated_actions = [action for action in actions if action.path.name != "sase.yml"]
     if config_actions and generated_actions:
         return (
-            "enable version-controlled SDD and "
+            "enable in-tree SDD and "
             f"{_summarize_generated_sdd_actions(generated_actions)}"
         )
     if config_actions:
-        return "enable version-controlled SDD config"
+        return "enable in-tree SDD config"
     return _summarize_generated_sdd_actions(generated_actions)
 
 
@@ -195,6 +197,29 @@ def _handle_list(args: argparse.Namespace) -> None:
         for file in files:
             print(f"{file.kind}\t{file.relpath}")
     sys.exit(0)
+
+
+def _handle_path(args: argparse.Namespace) -> None:
+    from sase.sdd.store import resolve_sdd_dir
+
+    workspace_dir = Path.cwd()
+    workspace_num = _current_workspace_num()
+    root = resolve_sdd_dir(workspace_dir, workspace_num)
+    kind = getattr(args, "kind", None)
+    print(root if kind is None else root / kind)
+    sys.exit(0)
+
+
+def _current_workspace_num() -> int:
+    try:
+        from .utils import ensure_project_file_and_get_workspace_num
+
+        _, workspace_num, _ = ensure_project_file_and_get_workspace_num(
+            create_missing=False
+        )
+    except Exception:
+        workspace_num = None
+    return workspace_num or 1
 
 
 def _handle_repair_links(args: argparse.Namespace) -> None:

@@ -299,6 +299,23 @@ def test_spawn_agent_subprocess_readds_launch_multi_agent_prompt_env(
     assert captured_env[MULTI_AGENT_PROMPT_FILE_ENV] == "~/.sase/multi_prompts/new.md"
 
 
+def test_spawn_agent_subprocess_exports_resolved_sdd_dir(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "child-workspace"
+    workspace.mkdir()
+    resolved_sdd = workspace / ".custom-sdd"
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_dir",
+        lambda workspace_dir, workspace_num: resolved_sdd,
+    )
+
+    captured_env = _spawn_with_captured_env(monkeypatch, tmp_path, workspace)
+
+    assert captured_env["SASE_SDD_DIR"] == str(resolved_sdd)
+
+
 def test_spawn_agent_subprocess_exports_linked_repo_env_without_prompt_note(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -18,6 +18,7 @@ nav:
       - ACE TUI: ace.md
       - AXE Automation: axe.md
       - Spec-Driven Development: sdd.md
+      - SDD Storage: sdd_storage.md
       - XPrompts: xprompt.md
       - Prompt History: prompt.md
   - Beyond the Basics:
