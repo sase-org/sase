@@ -9,7 +9,8 @@ their sections below.
 
 `sase doctor` — specifically `sase doctor -C llm.auth -v` — is the authoritative readiness check. It prints the same
 per-provider install and auth hints documented here, so if this page and `sase doctor` ever disagree, trust the doctor
-output and open an issue.
+output and open an issue. Vendor docs may list additional installer and account options; the snippets below
+intentionally match SASE's doctor hints.
 
 ## Claude Code
 
@@ -23,16 +24,12 @@ npm install -g @anthropic-ai/claude-code
 
 ### Authenticate
 
-```bash
-claude
-```
-
-Run this and complete the interactive login flow.
+SASE doctor hint: run `claude` and complete the login flow.
 
 Alternatively, Claude Code honors API-key / token variables such as `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, and
 `CLAUDE_CODE_OAUTH_TOKEN` — see the canonical docs for the full, current list.
 
-Canonical docs: <https://docs.claude.com/en/docs/claude-code>
+Canonical docs: <https://code.claude.com/docs>
 
 ## Codex CLI
 
@@ -46,9 +43,7 @@ npm install -g @openai/codex
 
 ### Authenticate
 
-```bash
-codex login
-```
+SASE doctor hint: run `codex login`.
 
 Alternatively, Codex honors `OPENAI_API_KEY` — see the canonical docs for details.
 
@@ -60,13 +55,13 @@ The open-source OpenCode CLI (`opencode`).
 
 ### Install
 
-Install OpenCode with any method on its docs page — npm, Homebrew, or its install script.
+```bash
+install from https://opencode.ai/docs
+```
 
 ### Authenticate
 
-```bash
-opencode auth login
-```
+SASE doctor hint: run `opencode auth login`.
 
 OpenCode can also read provider API keys from the environment (for example `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 `OPENROUTER_API_KEY`, and other `*_API_KEY` variables) — its canonical docs list the current set.
@@ -85,22 +80,17 @@ npm install -g @qwen-code/qwen-code
 
 ### Authenticate
 
-```bash
-qwen
-```
+SASE doctor hint: run `qwen` and complete the login flow.
 
-Run this and complete the interactive login flow.
-
-The Qwen OAuth free tier ended on 2026-04-15, so configure API-key access (for example `DASHSCOPE_API_KEY`,
-`QWEN_API_KEY`, `OPENROUTER_API_KEY`, or another Qwen-supported provider) through Qwen Code's own auth flow — see the
-canonical docs for the current list.
+Qwen Code can also use API-key access through variables such as `DASHSCOPE_API_KEY`, `QWEN_API_KEY`, or
+`OPENROUTER_API_KEY` — see the canonical docs for the current list.
 
 Canonical docs: <https://github.com/QwenLM/qwen-code>
 
 ## Antigravity CLI
 
-Google's Antigravity CLI (`agy`), the replacement for the retired consumer Gemini CLI. There is no separate "Gemini CLI"
-provider in SASE; `GEMINI.md` exists only because Antigravity reads it for workspace context.
+Google's Antigravity CLI (`agy`). There is no separate "Gemini CLI" provider in SASE; `GEMINI.md` exists only because
+Antigravity reads it for workspace context.
 
 ### Install
 
@@ -110,11 +100,7 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 
 ### Authenticate
 
-```bash
-agy
-```
-
-Run this and complete the interactive login/trust onboarding.
+SASE doctor hint: run `agy` and complete the login/trust onboarding.
 
 Alternatively, Antigravity honors `GEMINI_API_KEY` and `GOOGLE_API_KEY` — see the canonical docs for details.
 

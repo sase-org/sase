@@ -83,6 +83,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifacts and indexes are removed together with the project state."
         ),
     ),
+    "src/sase/sdd/store.py:_move_aside_stale_store_clone": DirOpReview(
+        exemption=(
+            "Moves only a regenerable .sase/sdd store clone to a sibling "
+            "stale-backup path before replacing it with a symlink, not an agent "
+            "artifact directory."
+        ),
+    ),
     (
         "src/sase/telemetry/cli_export_config.py:handle_telemetry_export_config"
     ): DirOpReview(
