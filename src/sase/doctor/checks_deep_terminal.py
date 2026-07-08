@@ -141,10 +141,11 @@ def check_tmux_version(context: DoctorContext) -> DiagnosticCheck:
 
     version_ok = parsed >= _TMUX_PASSTHROUGH_MIN_VERSION
     status: CheckStatus = "OK" if version_ok else "WARN"
+    display_version = _tmux_display_version(raw_version)
     summary = (
-        f"tmux {raw_version} supports kitty graphics passthrough"
+        f"tmux {display_version} supports kitty graphics passthrough"
         if version_ok
-        else f"tmux {raw_version} is older than the passthrough floor"
+        else f"tmux {display_version} is older than the passthrough floor"
     )
     details = (
         (
@@ -328,3 +329,13 @@ def _parse_tmux_version(output: str) -> tuple[int, int] | None:
 
 def _format_tmux_version(version: tuple[int, int]) -> str:
     return f"{version[0]}.{version[1]}"
+
+
+def _tmux_display_version(raw_version: str) -> str:
+    """Return the tmux version without the leading ``tmux`` program token.
+
+    ``tmux -V`` prints ``tmux 3.5a``; summaries already prepend ``tmux``, so the
+    raw output must be stripped to avoid a doubled ``tmux tmux 3.5a``.
+    """
+    stripped = re.sub(r"(?i)^tmux\s+", "", raw_version.strip())
+    return stripped or raw_version.strip()

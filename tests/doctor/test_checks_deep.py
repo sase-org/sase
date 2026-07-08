@@ -245,6 +245,8 @@ def test_tmux_version_warns_below_passthrough_floor(
 
     assert check.status == "WARN"
     assert "older than the passthrough floor" in check.summary
+    assert "tmux 3.2a is older" in check.summary
+    assert "tmux tmux" not in check.summary
     assert check.data["parsed_version"] == (3, 2)
 
 
@@ -273,6 +275,8 @@ def test_tmux_version_ok_at_passthrough_floor(monkeypatch, tmp_path: Path) -> No
     )
 
     assert check.status == "OK"
+    assert "tmux 3.3a supports kitty graphics passthrough" in check.summary
+    assert "tmux tmux" not in check.summary
     assert check.data["inside_tmux"] is True
     assert check.data["parsed_version"] == (3, 3)
 
