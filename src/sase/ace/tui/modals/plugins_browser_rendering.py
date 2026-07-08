@@ -77,6 +77,12 @@ class PluginsBrowserRenderingMixin:
 
         def _summary_text(self) -> Text: ...
 
+        def _can_update_sase(self) -> bool: ...
+
+        def _can_switch_mode(self) -> bool: ...
+
+        def _sync_current_banner(self) -> None: ...
+
         def _sync_state_visibility(self) -> None: ...
 
         def _update_static(self, selector: str, content: RenderableType) -> None: ...
@@ -87,6 +93,7 @@ class PluginsBrowserRenderingMixin:
         self._update_static("#sase-core-versions", self._core_versions_panel())
         self._update_static("#plugins-summary", self._summary_text())
         self._update_static("#plugins-hints", self._hints())
+        self._sync_current_banner()
         self._rebuild_options()
         self._sync_state_visibility()
         # A fresh load may have changed the highlighted plugin's data (e.g. a
@@ -300,13 +307,17 @@ class PluginsBrowserRenderingMixin:
             body.append(warning)
         else:
             cta = Text()
-            cta.append("u", style="bold #AF87FF")
-            cta.append("  run `sase update`", style="cyan")
-            cta.append("  ·  upgrades sase core + all plugins", style="dim")
-            cta.append("  ·  ", style="dim")
-            cta.append("m", style="bold #AF87FF")
-            cta.append(" switch", style="cyan")
-            body.append(cta)
+            if self._can_update_sase():
+                cta.append("u", style="bold #AF87FF")
+                cta.append("  run `sase update`", style="cyan")
+                cta.append("  ·  upgrades sase core + all plugins", style="dim")
+            if self._can_switch_mode():
+                if cta.plain:
+                    cta.append("  ·  ", style="dim")
+                cta.append("m", style="bold #AF87FF")
+                cta.append(" switch", style="cyan")
+            if cta.plain:
+                body.append(cta)
         return Panel(Group(*body), title="SASE Core", border_style="#AF87FF")
 
     def _mode_line(self) -> Text | None:

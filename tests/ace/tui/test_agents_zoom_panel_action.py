@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.testing import AcePage
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
+from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelTarget
 from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
 
@@ -13,6 +15,11 @@ from tests.ace.tui._agents_zoom_panel_helpers import (
     _FakeDetail,
     _FakeZoomApp,
     _make_agent,
+)
+from tests.ace.tui._plugins_browser_pane_helpers import (
+    _catalog,
+    _patch_catalog,
+    _patch_other_panes,
 )
 
 
@@ -107,3 +114,16 @@ def test_zoom_and_fold_actions_are_tab_gated() -> None:
     assert agents_app.check_action("zoom_panel", ()) is not False
     assert changespecs_app.check_action("zoom_panel", ()) is False
     assert changespecs_app.check_action("start_fold_mode", ()) is not False
+
+
+async def test_clear_marks_action_is_disabled_while_modal_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+
+    async with AcePage() as page:
+        page.app.push_screen(ConfigCenterModal(initial_tab="updates"))
+        await page.expect_modal("ConfigCenterModal")
+
+        assert page.app.check_action("clear_marks", ()) is False

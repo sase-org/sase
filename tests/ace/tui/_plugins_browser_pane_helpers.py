@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,7 @@ from sase.plugins.operations import (
     UpdateReady,
 )
 from sase.updates.incoming_commits import IncomingCommits
-from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason
+from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason, UvToolInstall
 from sase.uv_tool.receipt import Requirement
 from sase.uv_tool.versions import CorePackageVersion, CoreVersions
 
@@ -97,6 +98,27 @@ def _catalog() -> PluginCatalog:
     )
 
 
+def _all_current_catalog() -> PluginCatalog:
+    """A deterministic catalog with installed plugins already current."""
+    catalog = _catalog()
+    entries = []
+    for entry in catalog.entries:
+        if entry.name == "github":
+            entries.append(
+                replace(
+                    entry,
+                    latest=LatestInfo(
+                        checked=True,
+                        version=entry.installed.version,
+                        source="index",
+                    ),
+                )
+            )
+        else:
+            entries.append(entry)
+    return replace(catalog, entries=tuple(entries))
+
+
 def _core_versions(
     *,
     sase_installed: str | None = "0.5.0",
@@ -104,6 +126,7 @@ def _core_versions(
     core_installed: str | None = "1.4.2",
     core_latest: str | None = "1.4.2",
     checked: bool = True,
+    latest_error: str | None = None,
 ) -> CoreVersions:
     return CoreVersions(
         packages=(
@@ -119,6 +142,7 @@ def _core_versions(
                     and sase_latest
                     and sase_latest != sase_installed
                 ),
+                latest_error=latest_error,
             ),
             CorePackageVersion(
                 name="sase-core",
@@ -132,6 +156,7 @@ def _core_versions(
                     and core_latest
                     and core_latest != core_installed
                 ),
+                latest_error=latest_error,
             ),
         )
     )
@@ -142,6 +167,7 @@ def _patch_catalog(
     *,
     catalog: PluginCatalog | None = None,
     error: str | None = None,
+    uv_tool: object | None = None,
     core_versions: CoreVersions | None = None,
     core_incoming_commits: dict[str, IncomingCommits] | None = None,
 ) -> None:
@@ -149,6 +175,7 @@ def _patch_catalog(
         catalog=catalog,
         error=error,
         now=_NOW,
+        uv_tool=uv_tool,
         core_versions=core_versions or _core_versions(),
         core_incoming_commits=core_incoming_commits or {},
     )
@@ -296,6 +323,16 @@ def _not_uv_tool() -> NotUvToolInstall:
         expected_sase_dir=Path("/home/dev/.local/share/uv/tools/sase"),
         receipt_path=Path("/home/dev/.local/share/uv/tools/sase/uv-receipt.toml"),
         uv_path="/usr/bin/uv",
+    )
+
+
+def _uv_tool() -> UvToolInstall:
+    """A positive uv-tool probe result for mutation-capable tests."""
+    return UvToolInstall(
+        uv_path="/usr/bin/uv",
+        tool_dir=Path("/home/dev/.local/share/uv/tools"),
+        sase_dir=Path("/home/dev/.local/share/uv/tools/sase"),
+        receipt_path=Path("/home/dev/.local/share/uv/tools/sase/uv-receipt.toml"),
     )
 
 

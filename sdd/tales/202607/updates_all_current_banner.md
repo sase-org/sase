@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 20:40:05
-status: wip
+status: done
 prompt: sdd/prompts/202607/updates_all_current_banner.md
 ---
 # Plan: "All up to date" banner + gate the `u` key on the Updates tab

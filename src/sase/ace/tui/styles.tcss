@@ -3778,6 +3778,11 @@ _OverlayNameModal #overlay-name-hints {
 }
 
 /* Updates tab: SASE core + plugin catalog browser */
+PluginsBrowserPane #updates-current-banner {
+    width: 100%;
+    height: auto;
+}
+
 PluginsBrowserPane #sase-core-versions {
     width: 100%;
     height: auto;

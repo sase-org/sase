@@ -237,6 +237,9 @@ class PluginsBrowserPane(
         self._dev_root: str | None = None
 
     def compose(self) -> ComposeResult:
+        banner = Static(self._all_current_banner(), id="updates-current-banner")
+        banner.display = False
+        yield banner
         yield Static(self._core_versions_panel(), id="sase-core-versions")
         yield Static(self._summary_text(), id="plugins-summary", markup=False)
         yield _PluginsFilterInput(
@@ -254,8 +257,14 @@ class PluginsBrowserPane(
     def on_mount(self) -> None:
         self._detail_debouncer = DetailPanelDebouncer(self.app)
         self._sync_state_visibility()
+        self._sync_current_banner()
         if self._auto_load:
             self._start_load(force=False)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "update_sase":
+            return self._can_update_sase()
+        return super().check_action(action, parameters)
 
     def _start_load(self, *, force: bool) -> None:
         self._loading = True
@@ -265,6 +274,7 @@ class PluginsBrowserPane(
         self._restore_name = self._highlighted_name()
         self._core_incoming_commits = {}
         self._sync_state_visibility()
+        self._sync_current_banner()
         self._update_static("#plugins-summary", self._summary_text())
         self._update_static("#plugins-hints", self._hints())
         self._update_static("#sase-core-versions", self._core_versions_panel())
@@ -370,7 +380,13 @@ class PluginsBrowserPane(
             self._render_all()
             if self._auto_update_on_load:
                 self._auto_update_on_load = False
-                self.app.call_later(self.action_update_sase)
+                if self._all_up_to_date():
+                    self._notify(
+                        "Everything is already up to date.",
+                        severity="information",
+                    )
+                else:
+                    self.app.call_later(self.action_update_sase)
         elif event.state == WorkerState.ERROR:
             self._auto_update_on_load = False
             self._loading = False

@@ -271,11 +271,12 @@ class AceApp(
         first. It also lets the prompt text area handle Tab for snippet
         expansion.
         """
-        if action in ("next_tab", "prev_tab"):
+        if action in ("next_tab", "prev_tab", "clear_marks"):
             from textual.screen import ModalScreen
 
             if isinstance(self.screen, ModalScreen):
                 return False
+        if action in ("next_tab", "prev_tab"):
             from .widgets.vim_text_area import VimTextArea
 
             if isinstance(self.focused, VimTextArea):

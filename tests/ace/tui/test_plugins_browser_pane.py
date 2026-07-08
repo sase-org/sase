@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
+    _all_current_catalog,
     _catalog,
     _core_versions,
     _entry,
@@ -20,4 +21,5 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _spy_notify,
     _uninstall_ready,
     _update_ready,
+    _uv_tool,
 )

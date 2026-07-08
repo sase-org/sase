@@ -9,8 +9,10 @@ from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.plugins.catalog import PluginCatalog
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
+from tests.ace.tui.test_plugins_browser_pane import _all_current_catalog
 from tests.ace.tui.test_plugins_browser_pane import _entry
 from tests.ace.tui.test_plugins_browser_pane import _core_versions
+from tests.ace.tui.test_plugins_browser_pane import _uv_tool
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _PLUGINS_NOW,
     _build_view,
@@ -79,6 +81,33 @@ async def test_config_center_updates_core_update_available_png_snapshot(
             page,
             "config_center_plugins_core_update_available_120x40",
             title="ACE SASE Admin Center — Updates tab (core update available)",
+        )
+
+
+async def test_config_center_updates_all_current_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All-current banner renders above the SASE Core panel."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+    _patch_plugins_catalog(
+        monkeypatch,
+        catalog=_all_current_catalog(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_plugins_modal(page)
+        await page.wait_for(lambda _s: pane._detail_name == "github")
+        await _wait_for_plugins_detail(page, pane)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_updates_all_current_120x40",
+            title="ACE SASE Admin Center — Updates tab (all current)",
         )
 
 

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from rich.console import Group
+from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
 from textual.widgets import OptionList, Static
 
@@ -11,12 +14,17 @@ from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.render_common import humanize_age
 from sase.uv_tool.detect import NotUvToolInstall
 
+_CURRENT_ACCENT = "#00D700"
+
 
 class PluginsBrowserStatusMixin:
     """Summary, empty-state, and action-affordance text."""
 
     if TYPE_CHECKING:
         _catalog: PluginCatalog | None
+        from sase.uv_tool.versions import CoreVersions
+
+        _core_versions: CoreVersions
         _error: str | None
         _filter_text: str
         _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
@@ -31,6 +39,78 @@ class PluginsBrowserStatusMixin:
         def _current_entry(self) -> PluginCatalogEntry | None: ...
 
         def _can_install_entry(self, entry: PluginCatalogEntry | None) -> bool: ...
+
+    def _all_up_to_date(self) -> bool:
+        """Whether every update source has been checked and is current."""
+        if self._loading or self._error is not None:
+            return False
+        catalog = self._catalog
+        if catalog is None:
+            return False
+        if self._uv_tool is None or isinstance(self._uv_tool, NotUvToolInstall):
+            return False
+        if self._offline:
+            return False
+        if catalog.updates_available != 0:
+            return False
+        return all(
+            package.installed_version is not None
+            and package.latest_checked
+            and package.latest_error is None
+            and not package.update_available
+            for package in self._core_versions.packages
+        )
+
+    def _all_current_banner(self) -> Panel:
+        """Hero confirmation shown when SASE core and plugins are current."""
+        catalog = self._catalog
+        installed_count = catalog.installed_count if catalog is not None else 0
+        package_versions = {
+            package.name: package.installed_version
+            for package in self._core_versions.packages
+        }
+        version_line = (
+            f"sase v{package_versions.get('sase') or '?'} · "
+            f"sase-core v{package_versions.get('sase-core') or '?'} · "
+            f"{installed_count} {self._plural(installed_count, 'plugin')} current"
+        )
+        age = humanize_age(catalog.age_seconds(self._now)) if catalog else "unknown"
+
+        copy = Table.grid(expand=True)
+        copy.add_column()
+        headline = Text("You're all up to date", style=f"bold {_CURRENT_ACCENT}")
+        detail = Text(version_line, style="dim")
+        freshness = Text(f"Last checked {age} · press r to re-check", style="dim")
+        copy.add_row(headline)
+        copy.add_row(detail)
+        copy.add_row(freshness)
+
+        layout = Table.grid(padding=(0, 1), expand=True)
+        layout.add_column(
+            no_wrap=True, justify="center", style=f"bold {_CURRENT_ACCENT}"
+        )
+        layout.add_column(ratio=1)
+        layout.add_row("✓", copy)
+
+        return Panel(
+            Group(layout),
+            border_style=_CURRENT_ACCENT,
+            padding=(1, 2),
+        )
+
+    def _sync_current_banner(self) -> None:
+        """Refresh and show/hide the all-current banner."""
+        try:
+            banner = cast(
+                Static,
+                self.query_one("#updates-current-banner", Static),  # type: ignore[attr-defined]
+            )
+        except Exception:
+            return
+        show_banner = self._all_up_to_date()
+        if show_banner:
+            banner.update(self._all_current_banner())
+        banner.display = show_banner
 
     def _sync_state_visibility(self) -> None:
         """Show the list when populated, else the status placeholder.
@@ -175,7 +255,10 @@ class PluginsBrowserStatusMixin:
 
     def _can_update_sase(self) -> bool:
         """Whether the top-level ``sase update`` action can be offered."""
-        return not isinstance(self._uv_tool, NotUvToolInstall)
+        return (
+            not isinstance(self._uv_tool, NotUvToolInstall)
+            and not self._all_up_to_date()
+        )
 
     def _can_switch_mode(self) -> bool:
         """Whether install-mode switching can be offered."""
@@ -187,3 +270,11 @@ class PluginsBrowserStatusMixin:
             return False
         entry = self._current_entry()
         return entry is not None and entry.installed.installed
+
+    @staticmethod
+    def _plural(count: int, singular: str) -> str:
+        if count == 1:
+            return singular
+        if singular.endswith("y"):
+            return f"{singular[:-1]}ies"
+        return f"{singular}s"
