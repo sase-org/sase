@@ -141,6 +141,14 @@ class QwenProvider(LLMProvider):
             ],
         }
 
+    @hookimpl
+    def llm_install_metadata(self) -> dict[str, str]:
+        return {
+            "manager": "npm",
+            "package": "@qwen-code/qwen-code",
+            "scope": "global",
+        }
+
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Reject explicit effort; skip a config default (Qwen has none).
 

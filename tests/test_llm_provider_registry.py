@@ -149,3 +149,26 @@ def test_provider_metadata_includes_auth_evidence() -> None:
         "credential_paths": ["~/.fake/auth.json"],
         "api_key_env_vars": ["FAKE_API_KEY"],
     }
+
+
+def test_provider_metadata_includes_install_metadata() -> None:
+    """Provider install metadata should be normalized into payloads."""
+
+    class FakeProvider:
+        def llm_provider_name(self) -> str:
+            return "fake"
+
+        def llm_install_metadata(self) -> dict[str, str]:
+            return {
+                "manager": "npm",
+                "package": "@example/fake",
+                "scope": "global",
+            }
+
+    metadata = registry._provider_metadata("fake", FakeProvider())
+
+    assert metadata["install"] == {
+        "manager": "npm",
+        "package": "@example/fake",
+        "scope": "global",
+    }

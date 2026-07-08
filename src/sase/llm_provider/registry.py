@@ -411,6 +411,7 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
     model_aliases = _call_optional(plugin, "llm_model_short_aliases") or {}
     retry_config = _call_optional(plugin, "llm_default_retry_config")
     auth_evidence = _auth_evidence_metadata(_call_optional(plugin, "llm_auth_evidence"))
+    install_metadata = _install_metadata(_call_optional(plugin, "llm_install_metadata"))
 
     model_resolutions: dict[str, str] = {}
     resolve_model = getattr(plugin, "llm_resolve_model_name", None)
@@ -437,6 +438,7 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         "autodetect_priority": _call_optional(plugin, "llm_autodetect_priority"),
         "autodetect_cli_name": _call_optional(plugin, "llm_autodetect_cli_name"),
         "auth_evidence": auth_evidence,
+        "install": install_metadata,
         "default_retry_config": _dataclass_to_dict(retry_config),
         "model_resolutions": model_resolutions,
     }
@@ -471,10 +473,27 @@ def _auth_evidence_metadata(value: Any) -> dict[str, list[str]]:
     }
 
 
+def _install_metadata(value: Any) -> dict[str, str | None]:
+    if not isinstance(value, dict):
+        return {"manager": None, "package": None, "scope": None}
+    return {
+        "manager": _optional_str(value.get("manager")),
+        "package": _optional_str(value.get("package")),
+        "scope": _optional_str(value.get("scope")),
+    }
+
+
 def _str_dict(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
     return {str(key): str(item) for key, item in value.items()}
+
+
+def _optional_str(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _str_list(value: Any) -> list[str]:

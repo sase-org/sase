@@ -99,4 +99,14 @@ class LLMHookSpec:
         ...
 
     @hookspec(firstresult=True)
+    def llm_install_metadata(self) -> dict[str, str] | None:
+        """Provider install metadata for read-only doctor checks.
+
+        ``manager`` names the external package manager needed to install this
+        provider CLI, such as ``npm``. ``package`` and ``scope`` are optional
+        descriptive fields used in diagnostic output.
+        """
+        ...
+
+    @hookspec(firstresult=True)
     def llm_default_retry_config(self) -> ProviderRetryConfig | None: ...

@@ -10,6 +10,8 @@ import pytest
 from sase.doctor.checks_runtime import (
     _check_install_management,
     _check_runtime_environment,
+    _check_runtime_node,
+    runtime_check_specs,
 )
 from sase.doctor.runner import DoctorContext
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason, UvToolInstall
@@ -57,6 +59,58 @@ def _plain_context(cwd: Path) -> DoctorContext:
     )
 
 
+def _path_context(cwd: Path, path: Path | None = None) -> DoctorContext:
+    return DoctorContext(
+        cwd=cwd,
+        project=None,
+        sase_home=cwd / ".sase",
+        env={"PATH": str(path) if path is not None else ""},
+    )
+
+
+def _make_executable(directory: Path, name: str) -> Path:
+    executable = directory / name
+    executable.write_text("#!/bin/sh\n", encoding="utf-8")
+    executable.chmod(0o755)
+    return executable
+
+
+def _npm_provider_payload(*, provider: str = "codex") -> dict[str, object]:
+    return {
+        "providers": {
+            provider: {
+                "autodetect_cli_name": provider,
+                "install": {
+                    "manager": "npm",
+                    "package": f"@example/{provider}",
+                    "scope": "global",
+                },
+            }
+        }
+    }
+
+
+def _non_npm_provider_payload() -> dict[str, object]:
+    return {
+        "providers": {
+            "agy": {
+                "autodetect_cli_name": "agy",
+                "install": {
+                    "manager": "curl",
+                    "package": None,
+                    "scope": None,
+                },
+            }
+        }
+    }
+
+
+def test_runtime_check_specs_registers_node_check(tmp_path: Path) -> None:
+    ids = [spec.id for spec in runtime_check_specs(_plain_context(tmp_path))]
+
+    assert "runtime.node" in ids
+
+
 def test_runtime_environment_warns_on_editable_source_root_drift(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -90,6 +144,76 @@ def test_runtime_environment_ok_when_editable_source_matches(
     check = _check_runtime_environment(_context(checkout, str(checkout)))
 
     assert check.status == "OK"
+
+
+def test_runtime_node_skips_without_npm_installed_providers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_runtime.llm_registry.get_llm_metadata_payload",
+        _non_npm_provider_payload,
+    )
+
+    check = _check_runtime_node(_path_context(tmp_path))
+
+    assert check.status == "SKIP"
+    assert "no npm-installed" in check.summary
+    assert check.data["providers"] == ()
+
+
+def test_runtime_node_warns_when_tooling_and_npm_provider_cli_are_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_runtime.llm_registry.get_llm_metadata_payload",
+        _npm_provider_payload,
+    )
+
+    check = _check_runtime_node(_path_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.data["missing_tools"] == ("node", "npm")
+    assert check.data["missing_provider_clis"] == ("codex",)
+    assert any("codex" in detail and "missing" in detail for detail in check.details)
+    assert any("Node.js/npm" in step for step in check.next_steps)
+
+
+def test_runtime_node_ok_when_node_and_npm_exist_even_if_provider_cli_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _make_executable(bin_dir, "node")
+    _make_executable(bin_dir, "npm")
+    monkeypatch.setattr(
+        "sase.doctor.checks_runtime.llm_registry.get_llm_metadata_payload",
+        _npm_provider_payload,
+    )
+
+    check = _check_runtime_node(_path_context(tmp_path, bin_dir))
+
+    assert check.status == "OK"
+    assert check.data["missing_tools"] == ()
+    assert check.data["missing_provider_clis"] == ("codex",)
+
+
+def test_runtime_node_ok_when_provider_cli_exists_without_node_or_npm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    codex = _make_executable(bin_dir, "codex")
+    monkeypatch.setattr(
+        "sase.doctor.checks_runtime.llm_registry.get_llm_metadata_payload",
+        _npm_provider_payload,
+    )
+
+    check = _check_runtime_node(_path_context(tmp_path, bin_dir))
+
+    assert check.status == "OK"
+    assert check.data["missing_tools"] == ("node", "npm")
+    assert check.data["missing_provider_clis"] == ()
+    assert check.data["providers"][0]["executable"] == str(codex)
 
 
 def test_install_management_ok_for_confirmed_uv_tool_install(

@@ -271,6 +271,14 @@ class CodexProvider(LLMProvider):
         }
 
     @hookimpl
+    def llm_install_metadata(self) -> dict[str, str]:
+        return {
+            "manager": "npm",
+            "package": "@openai/codex",
+            "scope": "global",
+        }
+
+    @hookimpl
     def llm_default_retry_config(self) -> ProviderRetryConfig:
         from .retry_config import (
             _RETRY_CONTINUATION_NUDGE,
