@@ -6,6 +6,7 @@ import pluggy
 
 if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
+    from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
 hookspec = pluggy.HookspecMarker("sase_vcs")
 hookimpl = pluggy.HookimplMarker("sase_vcs")
@@ -135,6 +136,9 @@ class VCSHookSpec:
         until: int | None = None,
         authors: tuple[str, ...] = (),
     ) -> list["VcsCommitWire"]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_repo_stats(self, cwd: str) -> "VcsRepoStatsWire": ...
 
     @hookspec(firstresult=True)
     def vcs_file_at_revision(

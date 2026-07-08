@@ -18,6 +18,8 @@ from sase.core.git_query_facade import (
 )
 from sase.core.vcs_log_facade import VCS_LOG_GIT_FORMAT, parse_git_log
 from sase.core.vcs_log_wire import VcsCommitWire
+from sase.core.vcs_repo_stats_facade import build_vcs_repo_stats
+from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 
@@ -385,6 +387,56 @@ class GitQueryOpsMixin(CommandRunner):
         if not out.success:
             raise VCSOperationError("log", out.stderr.strip() or "git log failed")
         return parse_git_log(out.stdout)
+
+    @hookimpl
+    def vcs_repo_stats(self, cwd: str) -> VcsRepoStatsWire:
+        from sase.vcs_provider._errors import VCSOperationError
+
+        branch_out = self._run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd)
+        status_out = self._run(["git", "status", "--porcelain"], cwd)
+        if not status_out.success:
+            raise VCSOperationError(
+                "repo_stats", status_out.stderr.strip() or "git status failed"
+            )
+
+        head_out = self._run(["git", "rev-parse", "--verify", "--quiet", "HEAD"], cwd)
+        if not head_out.success:
+            return build_vcs_repo_stats(
+                total_commits_stdout="0\n",
+                contributors_stdout="",
+                last_commit_stdout="",
+                branch_stdout=branch_out.stdout if branch_out.success else "",
+                status_stdout=status_out.stdout,
+            )
+
+        count_out = self._run(["git", "rev-list", "--count", "HEAD"], cwd)
+        if not count_out.success:
+            raise VCSOperationError(
+                "repo_stats", count_out.stderr.strip() or "git rev-list failed"
+            )
+
+        contributors_out = self._run(["git", "shortlog", "-sne", "HEAD"], cwd)
+        if not contributors_out.success:
+            raise VCSOperationError(
+                "repo_stats",
+                contributors_out.stderr.strip() or "git shortlog failed",
+            )
+
+        last_commit_out = self._run(
+            ["git", "log", "-1", f"--format={VCS_LOG_GIT_FORMAT}"], cwd
+        )
+        if not last_commit_out.success:
+            raise VCSOperationError(
+                "repo_stats", last_commit_out.stderr.strip() or "git log failed"
+            )
+
+        return build_vcs_repo_stats(
+            total_commits_stdout=count_out.stdout,
+            contributors_stdout=contributors_out.stdout,
+            last_commit_stdout=last_commit_out.stdout,
+            branch_stdout=branch_out.stdout if branch_out.success else "",
+            status_stdout=status_out.stdout,
+        )
 
     @hookimpl
     def vcs_file_at_revision(

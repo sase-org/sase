@@ -10,20 +10,53 @@ from sase.main.parser import create_parser
 
 
 class TestVcsParser:
-    def test_bare_vcs_defaults_to_log(self) -> None:
+    def test_bare_vcs_defaults_to_list(self) -> None:
         ns = create_parser().parse_args(["vcs"])
 
         assert ns.command == "vcs"
-        assert ns.vcs_subcommand == "log"
-        assert ns.limit == 20
-        assert ns.authors == []
+        assert ns.vcs_subcommand == "list"
         assert ns.repos == []
         assert ns.current_only is False
         assert ns.format == "pretty"
         assert ns.color == "auto"
-        assert ns.reverse is False
-        assert ns.since is None
-        assert ns.until is None
+        assert ns.no_fetch is False
+        assert ns.sort == "default"
+
+    def test_list_defaults(self) -> None:
+        ns = create_parser().parse_args(["vcs", "list"])
+
+        assert ns.vcs_subcommand == "list"
+        assert ns.repos == []
+        assert ns.current_only is False
+        assert ns.format == "pretty"
+        assert ns.color == "auto"
+        assert ns.no_fetch is False
+        assert ns.sort == "default"
+
+    def test_list_options(self) -> None:
+        ns = create_parser().parse_args(
+            [
+                "vcs",
+                "list",
+                "-c",
+                "never",
+                "-f",
+                "json",
+                "-N",
+                "-o",
+                "-r",
+                "sase-core",
+                "-s",
+                "recent",
+            ]
+        )
+
+        assert ns.color == "never"
+        assert ns.format == "json"
+        assert ns.no_fetch is True
+        assert ns.current_only is True
+        assert ns.repos == ["sase-core"]
+        assert ns.sort == "recent"
 
     def test_log_defaults(self) -> None:
         ns = create_parser().parse_args(["vcs", "log"])

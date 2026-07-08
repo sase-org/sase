@@ -2,7 +2,7 @@
 
 Mirrors the dual-output + ``--color`` contract used by ``sase plan
 search``: the JSON branch returns a plain string (no Rich), and the
-colored output routes through a ``_make_console`` factory that honors
+colored output routes through a ``make_console`` factory that honors
 ``auto``/``always``/``never`` plus ``NO_COLOR`` and TTY detection. All
 wall-clock formatting goes through :mod:`sase.core.time` so it respects
 the configured timezone; sorting stays epoch-based upstream and is
@@ -21,41 +21,9 @@ from rich.text import Text
 
 from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.vcs_log.models import CommitFilters, VcsLogResult
-
-#: House gold accent used for short SHAs (matches the CLI convention).
-_GOLD = "#D7AF5F"
-
-#: Deterministic per-repo accent palette, cycled in resolved-repo order
-#: (primary first, then linked sorted by name, then SDD).
-_REPO_PALETTE = (
-    "#87D7FF",
-    "#5FD75F",
-    "#D7AF5F",
-    "#AF87FF",
-    "#5FD7D7",
-    "#D787AF",
-)
+from sase.vcs_log._style import GOLD, make_console, repo_colors
 
 _HEADER_WIDTH = 56
-
-
-def _make_console(
-    color: str, *, file: TextIO | None = None, width: int | None = None
-) -> Console:
-    """Build a ``rich`` console honoring the ``--color`` mode.
-
-    ``auto`` defers to ``rich`` (color only on a TTY, and never when
-    ``NO_COLOR`` is set); ``always`` forces color even under ``NO_COLOR``;
-    ``never`` strips it.
-    """
-    kwargs: dict[str, object] = {"file": file or sys.stdout}
-    if width is not None:
-        kwargs["width"] = width
-    if color == "always":
-        kwargs.update(force_terminal=True, no_color=False, color_system="standard")
-    elif color == "never":
-        kwargs.update(no_color=True)
-    return Console(**kwargs)  # type: ignore[arg-type]
 
 
 def render(
@@ -156,7 +124,7 @@ def _render_pretty(
     out: TextIO,
     filters: CommitFilters,
 ) -> None:
-    console = _make_console(color, file=out)
+    console = make_console(color, file=out)
     colors = _repo_colors(result)
 
     if not commits:
@@ -193,7 +161,7 @@ def _render_full(
     out: TextIO,
     filters: CommitFilters,
 ) -> None:
-    console = _make_console(color, file=out)
+    console = make_console(color, file=out)
     colors = _repo_colors(result)
 
     if not commits:
@@ -266,7 +234,7 @@ def _commit_line(
     line = Text("   ")
     line.append("● ", style=repo_color or None)
     line.append(f"{dt_local:%H:%M}  ", style="dim")
-    line.append(f"{commit.short_id.ljust(sha_width)}  ", style=_GOLD)
+    line.append(f"{commit.short_id.ljust(sha_width)}  ", style=GOLD)
     line.append(
         entry.repo.ljust(repo_width),
         style=f"bold {repo_color}".strip() or None,
@@ -325,10 +293,7 @@ def _print_warnings(console: Console, result: VcsLogResult) -> None:
 
 def _repo_colors(result: VcsLogResult) -> dict[str, str]:
     """Assign a stable accent color to each repo in resolved order."""
-    colors: dict[str, str] = {}
-    for i, repo in enumerate(result.repos):
-        colors.setdefault(repo.name, _REPO_PALETTE[i % len(_REPO_PALETTE)])
-    return colors
+    return repo_colors(result.repos)
 
 
 def _ordered_commits(

@@ -42,7 +42,7 @@ The hooks are organized into several groups:
   `vcs_prune`, `vcs_stash_and_clean`
 - **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_changespec_head_ref`, `vcs_show_revision`,
   `vcs_diff_with_untracked`, `vcs_committed_diff`, `vcs_get_default_parent_revision`, `vcs_diff_name_status`,
-  `vcs_diff_line_stats`, `vcs_log`, `vcs_file_at_revision`
+  `vcs_diff_line_stats`, `vcs_log`, `vcs_repo_stats`, `vcs_file_at_revision`
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`, `vcs_get_conflicted_files`,
   `vcs_continue_sync`, `vcs_abort_sync`
 - **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`, `vcs_create_pull_request` (the three commit workflow
@@ -131,10 +131,40 @@ Additional plugins may return their own provider names. `detect_vcs_family()` co
 
 ## Per-Command VCS Usage
 
+### `sase vcs list`
+
+Lists exactly the repository constellation used by `sase vcs log`: the primary repository, configured linked
+repositories, and the separate SDD store when present. A bare `sase vcs` delegates to `sase vcs list`.
+
+Common forms:
+
+```bash
+sase vcs
+sase vcs list
+sase vcs list --sort recent
+sase vcs list --repo sase-core --format json
+```
+
+Options:
+
+| Option                                     | Purpose                                                                |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| `-c`, `--color auto/always/never`          | Control colorized pretty output.                                       |
+| `-f`, `--format pretty/oneline/json`       | Choose rich pretty output, pipe-friendly rows, or JSON.                |
+| `-N`, `--no-fetch`                         | Skip provider-backed description lookups.                              |
+| `-o`, `--current-only`                     | Read only the current/primary repo.                                    |
+| `-r`, `--repo NAME`                        | Restrict to a resolved repo name. Repeatable.                          |
+| `-s`, `--sort default/name/commits/recent` | Keep resolved order or sort by name, commit count, or recent activity. |
+
+The pretty output shows a summary line, then one block per repo with its kind, branch, dirty state, configured
+description when available, commit count, contributor count, last activity, and latest commit. A failed stats read for
+one repo is shown as a warning and does not hide the other repos.
+
 ### `sase vcs log`
 
 Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
-store when present. A bare `sase vcs` delegates to `sase vcs log` with default options.
+store when present. `sase vcs log` uses the same repo resolver as `sase vcs list`, so both commands operate on the same
+constellation.
 
 Common forms:
 

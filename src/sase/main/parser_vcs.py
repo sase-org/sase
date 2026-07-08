@@ -11,6 +11,52 @@ from sase.vcs_log.dates import DATE_HELP
 _DEFAULT_LIMIT = 20
 
 
+def _add_list_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    parser.add_argument(
+        "-o",
+        "--current-only",
+        action="store_true",
+        help="Only the current/primary repo (skip linked repos and the SDD store)",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=["pretty", "oneline", "json"],
+        default="pretty",
+        help="Output format: pretty, oneline, or json (default: pretty)",
+    )
+    parser.add_argument(
+        "-N",
+        "--no-fetch",
+        action="store_true",
+        help="Skip provider-backed description lookups",
+    )
+    parser.add_argument(
+        "-r",
+        "--repo",
+        action="append",
+        default=[],
+        dest="repos",
+        metavar="NAME",
+        help="Restrict to a named repo (repeatable); "
+        "names are the project, each linked repo, and 'sdd'",
+    )
+    parser.add_argument(
+        "-s",
+        "--sort",
+        choices=["default", "name", "commits", "recent"],
+        default="default",
+        help="Sort repos by default order, name, commit count, or recent activity",
+    )
+
+
 def _add_log_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-a",
@@ -86,19 +132,36 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
 def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase vcs`` subcommand parser.
 
-    ``sase vcs`` shows a chronological, cross-repository commit timeline
-    aggregating the primary repo, every linked repo, and the SDD store.
-    A bare ``sase vcs`` defaults to the ``log`` subcommand.
+    ``sase vcs`` lists the resolved repository constellation by default.
+    ``sase vcs log`` shows the chronological commit timeline for the same
+    resolved repo set.
     """
     vcs_parser = subparsers.add_parser(
         "vcs",
-        help="Cross-repository commit timeline (primary + linked + SDD)",
+        help="Inspect the primary + linked + SDD repository constellation",
+        description=(
+            "Inspect the repository constellation made up of the primary repo, "
+            "configured linked repos, and the separate SDD store when present.\n\n"
+            "With no subcommand, `sase vcs` defaults to `sase vcs list`."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     vcs_sub = vcs_parser.add_subparsers(
         dest="vcs_subcommand",
         help="VCS subcommands",
-        metavar="{log}",
+        metavar="{list,log}",
     )
+    vcs_parser.set_defaults(vcs_subcommand="list")
+
+    list_parser = vcs_sub.add_parser(
+        "list",
+        help="List resolved repositories and aggregate stats",
+        description=(
+            "List exactly the repositories included by `sase vcs log`, with "
+            "per-repo stats, descriptions, branch state, and last activity."
+        ),
+    )
+    _add_list_options(list_parser)
 
     log_parser = vcs_sub.add_parser(
         "log",
@@ -111,17 +174,3 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     _add_log_options(log_parser)
-
-    # A bare ``sase vcs`` runs ``log`` with default options.
-    vcs_parser.set_defaults(
-        vcs_subcommand="log",
-        limit=_DEFAULT_LIMIT,
-        authors=[],
-        repos=[],
-        current_only=False,
-        format="pretty",
-        color="auto",
-        reverse=False,
-        since=None,
-        until=None,
-    )

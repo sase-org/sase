@@ -16,6 +16,7 @@ import pluggy
 import pytest
 
 from sase.core.vcs_log_wire import VcsCommitWire
+from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
@@ -222,6 +223,53 @@ def test_vcs_log_empty_repo_returns_empty(repo: str) -> None:
         BareGitPlugin().vcs_log(repo, 10)
 
 
+def test_vcs_repo_stats_empty_repo_returns_zero(repo: str) -> None:
+    stats = BareGitPlugin().vcs_repo_stats(repo)
+
+    assert stats == VcsRepoStatsWire(
+        total_commits=0,
+        contributors=(),
+        last_commit=None,
+        branch=None,
+        dirty=False,
+    )
+
+
+def test_vcs_repo_stats_collects_counts_branch_dirty_and_last_commit(
+    repo: str,
+) -> None:
+    _commit(
+        repo,
+        "a.txt",
+        "first",
+        timestamp=1_700_000_000,
+        author_name="Bryan",
+        author_email="bryan@example.com",
+    )
+    _commit(
+        repo,
+        "b.txt",
+        "second",
+        timestamp=1_700_001_000,
+        author_name="Amy",
+        author_email="amy@example.com",
+    )
+    (Path(repo) / "dirty.txt").write_text("dirty\n")
+
+    stats = BareGitPlugin().vcs_repo_stats(repo)
+
+    assert stats.total_commits == 2
+    assert stats.contributors == (
+        "Amy <amy@example.com>",
+        "Bryan <bryan@example.com>",
+    )
+    assert stats.branch == "main"
+    assert stats.dirty is True
+    assert stats.last_commit is not None
+    assert stats.last_commit.subject == "second"
+    assert stats.last_commit.author_name == "Amy"
+
+
 def test_provider_log_delegates_to_hook(repo: str) -> None:
     _commit(repo, "a.txt", "only commit")
 
@@ -229,3 +277,14 @@ def test_provider_log_delegates_to_hook(repo: str) -> None:
     commits = provider.log(cwd=repo, limit=10, authors=("bryan",))
 
     assert [c.subject for c in commits] == ["only commit"]
+
+
+def test_provider_repo_stats_delegates_to_hook(repo: str) -> None:
+    _commit(repo, "a.txt", "only commit")
+
+    provider = _make_git_provider()
+    stats = provider.repo_stats(cwd=repo)
+
+    assert stats.total_commits == 1
+    assert stats.last_commit is not None
+    assert stats.last_commit.subject == "only commit"

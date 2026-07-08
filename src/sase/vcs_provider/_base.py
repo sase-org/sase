@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
+    from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
 
 class VCSProvider(ABC):
@@ -256,6 +257,14 @@ class VCSProvider(ABC):
             VCSOperationError: When the underlying VCS query fails.
         """
         raise NotImplementedError("log is not supported by this VCS provider")
+
+    def repo_stats(self, cwd: str) -> "VcsRepoStatsWire":
+        """Return aggregate repository stats for ``sase vcs list``.
+
+        Raises:
+            VCSOperationError: When the underlying VCS query fails.
+        """
+        raise NotImplementedError("repo_stats is not supported by this VCS provider")
 
     def file_at_revision(
         self, revision: str, file_path: str, cwd: str

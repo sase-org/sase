@@ -107,7 +107,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     ),
     _CompactRootCommand(
         "vcs",
-        "Show a chronological commit timeline across primary, linked, and SDD repos.",
+        "Inspect primary, linked, and SDD repos, or show their commit timeline.",
     ),
     _CompactRootCommand(
         "workspace",

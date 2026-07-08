@@ -51,6 +51,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase sdd",
         "sase skill",
         "sase telemetry",
+        "sase vcs",
         "sase workspace",
         "sase xprompt",
     }
