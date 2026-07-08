@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.tools._entry import is_subagent_tool_call
 
 from ._tools_panel_time import format_timestamp
 from ._tools_panel_types import ToolDetailLevel
@@ -177,7 +179,9 @@ def _preview_style(key: str) -> str:
     return "dim"
 
 
-def _preview_label(key: str) -> str:
+def _preview_label(key: str, entry: ToolCallEntry) -> str:
+    if key == "content_preview" and _is_subagent_entry(entry):
+        return "final message"
     return key.removesuffix("_preview").replace("_", " ")
 
 
@@ -208,6 +212,44 @@ def _metadata_line(entry: ToolCallEntry) -> str:
     return " · ".join(parts)
 
 
+def _subagent_metadata_line(entry: ToolCallEntry) -> str:
+    if not _is_subagent_entry(entry):
+        return ""
+    summary = entry.tool_response_summary
+    parts: list[str] = []
+
+    agent_type = _summary_string(summary, "agent_type")
+    if agent_type is None:
+        agent_type = _input_string(entry, "subagent_type")
+    if agent_type:
+        parts.append(agent_type)
+
+    model = _summary_string(summary, "resolved_model")
+    if model:
+        parts.append(model)
+
+    status = _summary_string(summary, "agent_status")
+    if status:
+        parts.append(status)
+
+    duration_ms = _summary_int(summary, "total_duration_ms")
+    if duration_ms is not None:
+        parts.append(_format_duration_ms(duration_ms))
+
+    tokens = _summary_int(summary, "total_tokens")
+    if tokens is not None:
+        parts.append(f"{tokens:,} tokens")
+
+    tool_uses = _summary_int(summary, "total_tool_use_count")
+    if tool_uses is not None:
+        parts.append(f"{tool_uses:,} {_plural(tool_uses, 'tool use', 'tool uses')}")
+
+    tool_stats = _subagent_tool_stats_text(summary.get("tool_stats"))
+    if tool_stats:
+        parts.append(tool_stats)
+    return " · ".join(parts)
+
+
 def append_expanded_block(
     output: Text,
     entry: ToolCallEntry,
@@ -228,6 +270,10 @@ def append_expanded_block(
 
     _append_input_fields(output, _input_field_items(entry, primary_key))
 
+    subagent_metadata = _subagent_metadata_line(entry)
+    if subagent_metadata:
+        _append_detail_line(output, "subagent", subagent_metadata, style="dim")
+
     response_parts = _response_scalar_parts(entry)
     if response_parts:
         _append_detail_line(output, "response", " · ".join(response_parts), style="dim")
@@ -236,7 +282,7 @@ def append_expanded_block(
         if isinstance(value, str) and value:
             _append_multiline_detail(
                 output,
-                _preview_label(key),
+                _preview_label(key, entry),
                 value,
                 style=_preview_style(key),
             )
@@ -271,6 +317,10 @@ def expanded_markdown_lines(
     for key, value in _input_field_items(entry, primary_key):
         lines.append(f"  {key}: {value}")
 
+    subagent_metadata = _subagent_metadata_line(entry)
+    if subagent_metadata:
+        lines.append(f"  subagent: {subagent_metadata}")
+
     response_parts = _response_scalar_parts(entry)
     if response_parts:
         lines.append(f"  response: {' · '.join(response_parts)}")
@@ -280,7 +330,7 @@ def expanded_markdown_lines(
             preview_lines = (
                 preview_value.replace("\r\n", "\n").replace("\r", "\n").splitlines()
             )
-            lines.append(f"  {_preview_label(key)}:")
+            lines.append(f"  {_preview_label(key, entry)}:")
             for preview_line in preview_lines[:6]:
                 lines.append(f"    {preview_line}")
             remaining = len(preview_lines) - 6
@@ -303,3 +353,82 @@ def expanded_markdown_lines(
         if metadata:
             lines.append(f"  meta: {metadata}")
     return lines
+
+
+def _is_subagent_entry(entry: ToolCallEntry) -> bool:
+    return is_subagent_tool_call(entry.tool_name, entry.tool_response_summary)
+
+
+def _summary_string(summary: Mapping[str, Any], key: str) -> str | None:
+    value = summary.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _input_string(entry: ToolCallEntry, key: str) -> str | None:
+    value = entry.tool_input_summary.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _summary_int(summary: Mapping[str, Any], key: str) -> int | None:
+    value = summary.get(key)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
+def _subagent_tool_stats_text(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return ""
+    pieces: list[str] = []
+    for key, singular, plural in (
+        ("read_count", "read", "reads"),
+        ("search_count", "search", "searches"),
+        ("bash_count", "bash", "bash"),
+        ("edit_count", "edit", "edits"),
+    ):
+        count = _stat_int(value, key)
+        if count is not None:
+            pieces.append(f"{count:,} {_plural(count, singular, plural)}")
+
+    lines_added = _stat_int(value, "lines_added")
+    lines_removed = _stat_int(value, "lines_removed")
+    if lines_added is not None or lines_removed is not None:
+        pieces.append(f"+{lines_added or 0:,} / -{lines_removed or 0:,} lines")
+    return " · ".join(pieces)
+
+
+def _stat_int(summary: Mapping[str, Any], key: str) -> int | None:
+    value = summary.get(key)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
+def _plural(count: int, singular: str, plural: str) -> str:
+    return singular if count == 1 else plural
+
+
+def _format_duration_ms(duration_ms: int) -> str:
+    duration_ms = max(0, int(duration_ms))
+    if duration_ms < 1000:
+        return f"{duration_ms}ms"
+    total_seconds = duration_ms // 1000
+    if total_seconds < 60:
+        return f"{total_seconds}s"
+    total_minutes, seconds = divmod(total_seconds, 60)
+    if total_minutes < 60:
+        if seconds:
+            return f"{total_minutes}m {seconds}s"
+        return f"{total_minutes}m"
+    hours, minutes = divmod(total_minutes, 60)
+    if minutes:
+        return f"{hours}h {minutes}m"
+    return f"{hours}h"

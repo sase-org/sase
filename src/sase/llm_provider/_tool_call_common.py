@@ -12,7 +12,24 @@ from typing import Any
 _SCHEMA_VERSION = 2
 _HOOK_SCHEMA_VERSION = 3
 _PREVIEW_LIMIT = 512
+_SUBAGENT_OUTPUT_LIMIT = 64 * 1024
 _MAX_KEYS = 20
+_SUBAGENT_TOOL_STATS_FIELDS = (
+    ("readCount", "read_count"),
+    ("read_count", "read_count"),
+    ("searchCount", "search_count"),
+    ("search_count", "search_count"),
+    ("bashCount", "bash_count"),
+    ("bash_count", "bash_count"),
+    ("editFileCount", "edit_count"),
+    ("edit_file_count", "edit_count"),
+    ("editCount", "edit_count"),
+    ("edit_count", "edit_count"),
+    ("linesAdded", "lines_added"),
+    ("lines_added", "lines_added"),
+    ("linesRemoved", "lines_removed"),
+    ("lines_removed", "lines_removed"),
+)
 _TOOL_CALL_RECORD_REQUIRED_FIELDS = (
     "schema_version",
     "recorded_at",
@@ -165,6 +182,10 @@ def _summarize_structured_response(
             tool_response,
             ("filePath", "file_path", "success", "structuredPatch"),
         )
+    subagent_summary = _summarize_subagent_response(tool_response)
+    if subagent_summary:
+        return subagent_summary
+
     # Default, including user-event records where the ToolResult row does not
     # carry a tool name: surface common shape fields plus text previews.
     summary = {"response_keys": _sorted_limited_keys(tool_response)}
@@ -173,24 +194,128 @@ def _summarize_structured_response(
             summary[key] = _bounded_value(tool_response[key])
     for key in ("stdout", "stderr", "output", "content", "result"):
         value = tool_response.get(key)
-        if isinstance(value, str) and value:
-            summary[f"{key}_preview"] = _preview_text(value)
+        text = _text_content(value) if key in {"content", "result"} else value
+        if isinstance(text, str) and text:
+            summary[f"{key}_preview"] = _preview_text(text)
+            if key == "content" and isinstance(value, list):
+                summary["content_full"] = _preview_text(
+                    text,
+                    _SUBAGENT_OUTPUT_LIMIT,
+                )
     return summary
 
 
 def _summarize_tool_result_content(content: Any) -> dict[str, Any]:
     if isinstance(content, str):
         return {"content_preview": _preview_text(content)}
-    if isinstance(content, list):
-        previews: list[str] = []
-        for block in content:
-            if isinstance(block, Mapping):
-                text = block.get("text")
-                if isinstance(text, str) and text:
-                    previews.append(text)
-        if previews:
-            return {"content_preview": _preview_text("\n".join(previews))}
+    text = _text_content(content)
+    if isinstance(text, str) and text:
+        return {
+            "content_preview": _preview_text(text),
+            "content_full": _preview_text(text, _SUBAGENT_OUTPUT_LIMIT),
+        }
     return {}
+
+
+def _summarize_subagent_response(tool_response: Mapping[str, Any]) -> dict[str, Any]:
+    content = _text_content(tool_response.get("content"))
+    identity = _first_string_field(
+        tool_response,
+        ("agentType", "agent_type", "agentId", "agent_id"),
+    )
+    if not identity or not content:
+        return {}
+
+    summary: dict[str, Any] = {
+        "response_keys": _sorted_limited_keys(tool_response),
+        "content_preview": _preview_text(content),
+        "content_full": _preview_text(content, _SUBAGENT_OUTPUT_LIMIT),
+    }
+
+    for output_key, input_keys in (
+        ("agent_type", ("agentType", "agent_type")),
+        ("agent_status", ("status", "agentStatus", "agent_status")),
+        ("resolved_model", ("resolvedModel", "resolved_model")),
+    ):
+        value = _first_string_field(tool_response, input_keys)
+        if value:
+            summary[output_key] = _preview_text(value)
+
+    for output_key, input_keys in (
+        ("total_duration_ms", ("totalDurationMs", "total_duration_ms")),
+        ("total_tokens", ("totalTokens", "total_tokens")),
+        ("total_tool_use_count", ("totalToolUseCount", "total_tool_use_count")),
+    ):
+        int_value = _first_int_field(tool_response, input_keys)
+        if int_value is not None:
+            summary[output_key] = int_value
+
+    tool_stats = _summarize_subagent_tool_stats(
+        tool_response.get("toolStats", tool_response.get("tool_stats"))
+    )
+    if tool_stats:
+        summary["tool_stats"] = tool_stats
+    return summary
+
+
+def _summarize_subagent_tool_stats(value: Any) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    stats: dict[str, int] = {}
+    for source_key, output_key in _SUBAGENT_TOOL_STATS_FIELDS:
+        if output_key in stats:
+            continue
+        stat_value = _int_value(value.get(source_key))
+        if stat_value is not None:
+            stats[output_key] = stat_value
+    return stats
+
+
+def _text_content(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value if value else None
+    if not isinstance(value, list):
+        return None
+
+    parts: list[str] = []
+    for block in value:
+        if isinstance(block, str) and block:
+            parts.append(block)
+        elif isinstance(block, Mapping):
+            text = block.get("text")
+            if isinstance(text, str) and text:
+                parts.append(text)
+    if not parts:
+        return None
+    return "\n".join(parts)
+
+
+def _first_string_field(
+    mapping: Mapping[str, Any], keys: tuple[str, ...]
+) -> str | None:
+    for key in keys:
+        value = mapping.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _first_int_field(mapping: Mapping[str, Any], keys: tuple[str, ...]) -> int | None:
+    for key in keys:
+        value = _int_value(mapping.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _int_value(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return None
 
 
 def _derive_user_result_status(*, is_error: bool, interrupted: bool) -> str:

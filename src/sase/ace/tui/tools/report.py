@@ -7,7 +7,7 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +16,7 @@ from typing import Any
 from sase.core.paths import ensure_sase_directory, sase_subdir
 from sase.core.time import get_timezone
 
-from ._entry import ToolCallEntry
+from ._entry import ToolCallEntry, is_subagent_tool_call
 from .slow import format_long_duration
 
 _REPORT_SUBDIR = "tool_call_reports"
@@ -99,6 +99,16 @@ def _build_tool_call_report(
         *_tool_input_lines(entry),
         "",
     ]
+    subagent_lines = _subagent_lines(entry)
+    if subagent_lines:
+        lines.extend(
+            (
+                "## Subagent",
+                "",
+                *subagent_lines,
+                "",
+            )
+        )
     if _include_error_section(entry):
         lines.extend(
             (
@@ -108,15 +118,20 @@ def _build_tool_call_report(
                 "",
             )
         )
+    if not _is_subagent_entry(entry):
+        lines.extend(
+            [
+                "## Recorded Output",
+                "",
+                *_recorded_output_lines(entry),
+                "",
+            ]
+        )
     lines.extend(
         [
-            "## Recorded Output",
+            _full_output_heading(entry),
             "",
-            *_recorded_output_lines(entry),
-            "",
-            "## Full Output (transcript)",
-            "",
-            *_transcript_lines(transcript_recovery),
+            *_full_output_lines(entry, transcript_recovery),
             "",
             "## Provenance",
             "",
@@ -133,7 +148,11 @@ def write_tool_call_report(spec: SlowToolCallReportSpec) -> str | None:
         report_dir = Path(ensure_sase_directory(_REPORT_SUBDIR))
         report_path = Path(spec.report_path)
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        transcript_recovery = _recover_tool_call_output(spec.entry)
+        transcript_recovery = (
+            None
+            if _has_captured_subagent_output(spec.entry)
+            else _recover_tool_call_output(spec.entry)
+        )
         content = _build_tool_call_report(
             spec,
             transcript_recovery=transcript_recovery,
@@ -242,6 +261,49 @@ def _tool_input_lines(entry: ToolCallEntry) -> list[str]:
     return [_fenced(_json_dumps(entry.tool_input_summary), "json")]
 
 
+def _subagent_lines(entry: ToolCallEntry) -> list[str]:
+    if not _is_subagent_entry(entry):
+        return []
+    summary = entry.tool_response_summary
+    if not _has_subagent_metadata(summary):
+        return []
+
+    identity_parts: list[str] = []
+    agent_type = _summary_string(summary, "agent_type")
+    if agent_type is None:
+        agent_type = _input_string(entry, "subagent_type")
+    if agent_type:
+        identity_parts.append(f"**Type**: {agent_type}")
+    model = _summary_string(summary, "resolved_model")
+    if model:
+        identity_parts.append(f"**Model**: {model}")
+    status = _summary_string(summary, "agent_status")
+    if status:
+        identity_parts.append(f"**Status**: {status}")
+
+    effort_parts: list[str] = []
+    duration_ms = _summary_int(summary, "total_duration_ms")
+    if duration_ms is not None:
+        effort_parts.append(f"**Duration**: {format_long_duration(duration_ms)}")
+    tokens = _summary_int(summary, "total_tokens")
+    if tokens is not None:
+        effort_parts.append(f"**Tokens**: {tokens:,}")
+    tool_uses = _summary_int(summary, "total_tool_use_count")
+    if tool_uses is not None:
+        effort_parts.append(f"**Tool uses**: {tool_uses:,}")
+
+    lines: list[str] = []
+    if identity_parts:
+        lines.append("- " + " | ".join(identity_parts))
+    if effort_parts:
+        lines.append("- " + " | ".join(effort_parts))
+
+    tool_stats = _subagent_tool_stats_text(summary.get("tool_stats"))
+    if tool_stats:
+        lines.append(f"- **Tool stats**: {tool_stats}")
+    return lines
+
+
 def _title_status(entry: ToolCallEntry) -> tuple[str, str]:
     status = (entry.status or "").lower()
     if status == "success":
@@ -298,6 +360,26 @@ def _recorded_output_lines(entry: ToolCallEntry) -> list[str]:
             "the tool-call recorder."
         )
     return lines
+
+
+def _full_output_heading(entry: ToolCallEntry) -> str:
+    if _is_subagent_entry(entry):
+        return "## Full Output"
+    return "## Full Output (transcript)"
+
+
+def _full_output_lines(
+    entry: ToolCallEntry,
+    recovery: _TranscriptRecovery | None,
+) -> list[str]:
+    if _is_subagent_entry(entry):
+        content = _subagent_content_full(entry)
+        if content:
+            note = "Subagent final message captured from the tool result."
+            if _looks_truncated(content):
+                note = f"{note} It includes the recorder's truncation marker."
+            return [note, "", _fenced(content, "text")]
+    return _transcript_lines(recovery)
 
 
 def _transcript_lines(recovery: _TranscriptRecovery | None) -> list[str]:
@@ -409,6 +491,91 @@ def _fenced(value: str, language: str) -> str:
 def _looks_truncated(value: str) -> bool:
     lowered = value.lower()
     return "...[" in value or "truncated" in lowered
+
+
+def _is_subagent_entry(entry: ToolCallEntry) -> bool:
+    return is_subagent_tool_call(entry.tool_name, entry.tool_response_summary)
+
+
+def _has_captured_subagent_output(entry: ToolCallEntry) -> bool:
+    return _is_subagent_entry(entry) and _subagent_content_full(entry) is not None
+
+
+def _subagent_content_full(entry: ToolCallEntry) -> str | None:
+    value = entry.tool_response_summary.get("content_full")
+    return value if isinstance(value, str) and value else None
+
+
+def _has_subagent_metadata(summary: Mapping[str, Any]) -> bool:
+    return any(
+        key in summary
+        for key in (
+            "agent_type",
+            "agent_status",
+            "resolved_model",
+            "total_duration_ms",
+            "total_tokens",
+            "total_tool_use_count",
+            "tool_stats",
+        )
+    )
+
+
+def _summary_string(summary: Mapping[str, Any], key: str) -> str | None:
+    value = summary.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _input_string(entry: ToolCallEntry, key: str) -> str | None:
+    value = entry.tool_input_summary.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _summary_int(summary: Mapping[str, Any], key: str) -> int | None:
+    value = summary.get(key)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
+def _subagent_tool_stats_text(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return ""
+    pieces: list[str] = []
+    for key, singular, plural in (
+        ("read_count", "read", "reads"),
+        ("search_count", "search", "searches"),
+        ("bash_count", "bash", "bash"),
+        ("edit_count", "edit", "edits"),
+    ):
+        count = _stat_int(value, key)
+        if count is not None:
+            pieces.append(f"{count:,} {_plural(count, singular, plural)}")
+
+    lines_added = _stat_int(value, "lines_added")
+    lines_removed = _stat_int(value, "lines_removed")
+    if lines_added is not None or lines_removed is not None:
+        pieces.append(f"(+{lines_added or 0:,} / -{lines_removed or 0:,} lines)")
+    return " | ".join(pieces)
+
+
+def _stat_int(summary: Mapping[str, Any], key: str) -> int | None:
+    value = summary.get(key)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return None
+
+
+def _plural(count: int, singular: str, plural: str) -> str:
+    return singular if count == 1 else plural
 
 
 def _walk_mappings(value: Any) -> Iterator[dict[str, Any]]:

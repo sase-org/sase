@@ -138,6 +138,59 @@ def test_report_builder_surfaces_truncation_note() -> None:
     assert "truncation markers" in report
 
 
+def test_report_builder_renders_subagent_metadata_and_captured_output() -> None:
+    entry = _entry(
+        status="success",
+        tool_name="Agent",
+        tool_input_summary={
+            "subagent_type": "Explore",
+            "description": "Investigate slow tools",
+            "prompt_length": 120,
+        },
+        tool_response_summary={
+            "agent_type": "Explore",
+            "agent_status": "completed",
+            "resolved_model": "claude-opus-4-8",
+            "total_duration_ms": 114_000,
+            "total_tokens": 72_178,
+            "total_tool_use_count": 22,
+            "tool_stats": {
+                "read_count": 18,
+                "search_count": 3,
+                "bash_count": 1,
+                "edit_count": 0,
+                "lines_added": 0,
+                "lines_removed": 0,
+            },
+            "content_preview": "Final answer from subagent",
+            "content_full": "Final answer from subagent\n\nDetails.",
+        },
+        transcript_path=None,
+        error=None,
+    )
+
+    report = report_mod._build_tool_call_report(
+        _spec(entry),
+        transcript_recovery=report_mod._TranscriptRecovery(
+            None,
+            "Not recovered: transcript unavailable.",
+        ),
+    )
+
+    assert "## Subagent" in report
+    assert (
+        "**Type**: Explore | **Model**: claude-opus-4-8 | **Status**: completed"
+        in report
+    )
+    assert "**Duration**: 1m 54s | **Tokens**: 72,178 | **Tool uses**: 22" in report
+    assert "18 reads | 3 searches | 1 bash | 0 edits | (+0 / -0 lines)" in report
+    assert "## Recorded Output" not in report
+    assert "## Full Output\n" in report
+    assert "Subagent final message captured from the tool result." in report
+    assert "Final answer from subagent" in report
+    assert "transcript unavailable" not in report
+
+
 def test_report_path_is_stable_and_handles_missing_tool_use_id(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

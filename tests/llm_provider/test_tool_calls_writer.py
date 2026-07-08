@@ -277,6 +277,77 @@ def test_user_event_list_content_blocks_concatenated(artifacts_dir: Path) -> Non
     assert record["tool_response_summary"]["content_preview"] == "alpha\nbeta"
 
 
+def test_user_event_subagent_result_captures_output_and_metadata(
+    artifacts_dir: Path,
+) -> None:
+    output_limit = 64 * 1024
+    final_message = "Subagent found the issue.\n" + ("x" * output_limit)
+    event = _user_result_event(
+        "toolu_agent",
+        content=[{"type": "text", "text": final_message}],
+        tool_use_result={
+            "agentType": "Explore",
+            "resolvedModel": "claude-opus-4-8",
+            "status": "completed",
+            "totalDurationMs": 114_000,
+            "totalTokens": 72_178,
+            "totalToolUseCount": 22,
+            "usage": {"input_tokens": 10},
+            "prompt": "full prompt should not be copied into the summary",
+            "content": [{"type": "text", "text": final_message}],
+            "toolStats": {
+                "readCount": 18,
+                "searchCount": 3,
+                "bashCount": 1,
+                "editFileCount": 0,
+                "linesAdded": 0,
+                "linesRemoved": 0,
+                "ignoredCount": 99,
+            },
+        },
+    )
+    append_claude_tool_call_event(event)
+
+    record = _read_records(artifacts_dir / "tool_calls.jsonl")[0]
+    summary = record["tool_response_summary"]
+    assert summary["agent_type"] == "Explore"
+    assert summary["agent_status"] == "completed"
+    assert summary["resolved_model"] == "claude-opus-4-8"
+    assert summary["total_duration_ms"] == 114_000
+    assert summary["total_tokens"] == 72_178
+    assert summary["total_tool_use_count"] == 22
+    assert summary["tool_stats"] == {
+        "read_count": 18,
+        "search_count": 3,
+        "bash_count": 1,
+        "edit_count": 0,
+        "lines_added": 0,
+        "lines_removed": 0,
+    }
+    assert summary["content_preview"].startswith("Subagent found the issue.")
+    assert summary["content_full"].startswith("Subagent found the issue.")
+    remaining = len(final_message) - output_limit
+    assert summary["content_full"].endswith(f"...[truncated {remaining} chars]")
+    assert "prompt" not in summary
+
+
+def test_user_event_non_subagent_structured_response_is_unchanged(
+    artifacts_dir: Path,
+) -> None:
+    event = _user_result_event(
+        "toolu_plain",
+        content="ignored because structured response is available",
+        tool_use_result={"content": "plain text", "totalTokens": 72_178},
+    )
+    append_claude_tool_call_event(event)
+
+    record = _read_records(artifacts_dir / "tool_calls.jsonl")[0]
+    assert record["tool_response_summary"] == {
+        "response_keys": ["content", "totalTokens"],
+        "content_preview": "plain text",
+    }
+
+
 # ---------------------------------------------------------------------------
 # system hook events are ignored for new stream-backed writes
 # ---------------------------------------------------------------------------

@@ -179,6 +179,65 @@ def test_tools_timeline_renders_rich_response_detail() -> None:
     assert "12ms" in rendered
 
 
+def test_tools_timeline_renders_subagent_summary_and_expanded_details() -> None:
+    fetch_time = datetime(2026, 5, 14, 10, 30, 0)
+    subagent_summary = {
+        "agent_type": "Explore",
+        "agent_status": "completed",
+        "resolved_model": "claude-opus-4-8",
+        "total_duration_ms": 114_000,
+        "total_tokens": 72_178,
+        "total_tool_use_count": 22,
+        "tool_stats": {
+            "read_count": 18,
+            "search_count": 3,
+            "bash_count": 1,
+            "edit_count": 0,
+            "lines_added": 0,
+            "lines_removed": 0,
+        },
+        "content_preview": "Found the failing branch.\nNo code changes needed.",
+        "content_full": "Found the failing branch.\nNo code changes needed.",
+    }
+    entry = _entry(
+        tool_name="Agent",
+        tool_input_summary={
+            "subagent_type": "Explore",
+            "description": "Investigate branch",
+            "prompt_length": 400,
+        },
+        tool_response_summary=subagent_summary,
+        duration_ms=114_000,
+    )
+
+    rendered = _build_tools_timeline_text(
+        [entry],
+        fetch_time,
+        detail_level=ToolDetailLevel.EXPANDED,
+    ).plain
+
+    assert "Agent" in rendered
+    assert "Investigate branch" in rendered
+    assert (
+        "Explore | 22 tools | 72k tok | 1m 54s - Found the failing branch." in rendered
+    )
+    assert "subagent Explore · claude-opus-4-8 · completed · 1m 54s" in rendered
+    assert "72,178 tokens · 22 tool uses" in rendered
+    assert "18 reads · 3 searches · 1 bash · 0 edits · +0 / -0 lines" in rendered
+    assert "final message" in rendered
+    assert "No code changes needed." in rendered
+
+    markdown = _build_tools_timeline_markdown(
+        [entry],
+        fetch_time,
+        detail_level=ToolDetailLevel.EXPANDED,
+    )
+
+    assert markdown is not None
+    assert "subagent: Explore · claude-opus-4-8 · completed · 1m 54s" in markdown
+    assert "final message:" in markdown
+
+
 def test_tools_timeline_renders_source_chips_for_root_aggregate() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 

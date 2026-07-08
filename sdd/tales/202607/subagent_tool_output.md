@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-07 21:09:18
-status: wip
+status: done
 prompt: sdd/prompts/202607/subagent_tool_output.md
 ---
 # Plan: Capture & Surface Subagent (`Agent`/`Task`) Tool Output
