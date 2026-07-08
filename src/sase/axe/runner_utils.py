@@ -4,9 +4,11 @@ import json
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.ace.changespec import ChangeSpec, parse_project_file
@@ -69,6 +71,79 @@ def reset_killed() -> None:
     _killed_state["killed_at"] = None
 
 
+# Minimum age before a leftover ``.git/index.lock`` is treated as abandoned.
+# Comfortably longer than any normal index operation, so we never race a lock
+# a live git process just created.
+_STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS = 15.0
+
+
+def _git_index_lock_path(workspace_dir: str) -> Path | None:
+    """Resolve the ``index.lock`` path for *workspace_dir*'s git dir, if any."""
+    git_path = Path(workspace_dir) / ".git"
+    if git_path.is_dir():
+        return git_path / "index.lock"
+    # Worktrees/submodules store ``.git`` as a file pointing at the real git
+    # dir; ask git where the index lives instead of guessing.
+    if not git_path.exists():
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    git_dir = result.stdout.strip()
+    if result.returncode != 0 or not git_dir:
+        return None
+    git_dir_path = Path(git_dir)
+    if not git_dir_path.is_absolute():
+        git_dir_path = Path(workspace_dir) / git_dir_path
+    return git_dir_path / "index.lock"
+
+
+def _clear_stale_git_index_lock(
+    workspace_dir: str,
+    *,
+    min_age_seconds: float = _STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
+) -> bool:
+    """Remove an abandoned ``.git/index.lock`` from *workspace_dir*.
+
+    Returns True only when a stale lock was removed. A missing lock, a lock
+    younger than *min_age_seconds* (which could belong to a live git process),
+    or any filesystem error is treated as a safe no-op.
+    """
+    lock_path = _git_index_lock_path(workspace_dir)
+    if lock_path is None:
+        return False
+    try:
+        age_seconds = time.time() - lock_path.stat().st_mtime
+    except FileNotFoundError:
+        return False
+    except OSError:
+        logger.debug("Could not stat git index lock %s", lock_path, exc_info=True)
+        return False
+    if age_seconds < min_age_seconds:
+        return False
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        logger.warning(
+            "Failed to remove stale git index lock %s", lock_path, exc_info=True
+        )
+        return False
+    message = f"Removed stale git index lock ({age_seconds:.0f}s old): {lock_path}"
+    print(message, file=sys.stderr)
+    logger.warning(message)
+    return True
+
+
 def prepare_workspace(
     workspace_dir: str,
     cl_name: str,
@@ -91,6 +166,13 @@ def prepare_workspace(
         True if successful, False otherwise.
     """
     from sase.workflows.commit_utils import run_sase_hg_clean
+
+    # An index.lock left behind by a crashed or SIGTERM-killed git process
+    # blocks every subsequent operation in this clone ("Another git process
+    # seems to be running..."), which would fail the clean/checkout below. This
+    # runs against a workspace we have exclusively claimed, so a lock old enough
+    # to predate the claim is abandoned; clear it as git itself instructs.
+    _clear_stale_git_index_lock(workspace_dir)
 
     # Clean workspace (saves any existing changes to a diff file)
     print("Cleaning workspace...")

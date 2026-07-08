@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -12,6 +13,7 @@ from sase.axe.runner_utils import (
     _killed_state,
     all_steps_hidden,
     clear_agent_meta_tag,
+    _clear_stale_git_index_lock,
     detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
     install_sigterm_handler,
@@ -427,6 +429,63 @@ def test_prepare_workspace_default_parent_sync_failure_fails() -> None:
     assert result is False
     mock_provider.checkout.assert_called_once_with("origin/master", "/workspace")
     mock_provider.sync_workspace.assert_called_once_with("/workspace")
+
+
+# Tests for _clear_stale_git_index_lock
+
+
+def _make_index_lock(workspace: Path, *, age_seconds: float) -> Path:
+    """Create a ``.git/index.lock`` aged *age_seconds* into the past."""
+    git_dir = workspace / ".git"
+    git_dir.mkdir(parents=True, exist_ok=True)
+    lock = git_dir / "index.lock"
+    lock.write_bytes(b"")
+    old = time.time() - age_seconds
+    os.utime(lock, (old, old))
+    return lock
+
+
+def test_clear_stale_git_index_lock_removes_abandoned_lock(tmp_path: Path) -> None:
+    lock = _make_index_lock(tmp_path, age_seconds=3600)
+
+    assert _clear_stale_git_index_lock(str(tmp_path)) is True
+    assert not lock.exists()
+
+
+def test_clear_stale_git_index_lock_keeps_fresh_lock(tmp_path: Path) -> None:
+    lock = _make_index_lock(tmp_path, age_seconds=0)
+
+    # A lock younger than the age threshold may belong to a live git process.
+    assert _clear_stale_git_index_lock(str(tmp_path)) is False
+    assert lock.exists()
+
+
+def test_clear_stale_git_index_lock_no_lock_is_noop(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+
+    assert _clear_stale_git_index_lock(str(tmp_path)) is False
+
+
+def test_prepare_workspace_clears_stale_lock_before_clean(tmp_path: Path) -> None:
+    """prepare_workspace self-heals an abandoned index.lock before cleaning."""
+    lock = _make_index_lock(tmp_path, age_seconds=3600)
+    mock_provider = MagicMock()
+    mock_provider.get_default_parent_revision.return_value = "origin/master"
+    mock_provider.checkout.return_value = (True, None)
+    mock_provider.sync_workspace.return_value = (True, None)
+
+    with (
+        patch(
+            "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
+        ),
+        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+    ):
+        result = prepare_workspace(
+            str(tmp_path), "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
+        )
+
+    assert result is True
+    assert not lock.exists()
 
 
 def test_prepare_workspace_default_parent_sync_not_implemented_passes() -> None:
