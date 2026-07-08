@@ -430,6 +430,25 @@ async def test_logs_tab_jump_hint_selects_source_and_loads_detail(
         assert not _option_plain(option_list, 1).startswith("[2]")
 
 
+async def test_logs_tab_digit_hint_does_not_switch_admin_center_tabs(
+    log_dir: Path,
+) -> None:
+    async with _ModalTestApp().run_test() as pilot:
+        modal, pane = await _open_logs_pane(pilot)
+        option_list = pane.query_one("#log-source-list", OptionList)
+        switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
+        assert len(pane._source_options) >= 3
+
+        await pilot.press("apostrophe")
+        await pilot.press("3")
+        await _wait_for_logs_loaded(pilot, pane)
+
+        assert pane._log_jump_mode_active is False
+        assert modal._active_tab == "logs"
+        assert switcher.current == "logs"
+        assert option_list.highlighted == 2
+
+
 async def test_logs_tab_apostrophe_in_jump_mode_returns_to_previous_source(
     log_dir: Path,
 ) -> None:

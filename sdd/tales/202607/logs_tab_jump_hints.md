@@ -1,6 +1,6 @@
 ---
 create_time: 2026-07-08 03:01:21
-status: wip
+status: done
 prompt: sdd/prompts/202607/logs_tab_jump_hints.md
 ---
 # Plan: Logs Tab Apostrophe Jump Hints
