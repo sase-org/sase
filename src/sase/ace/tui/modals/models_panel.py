@@ -438,6 +438,8 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
 
     def _submit_commit_task(self, offer: AliasCommitOffer) -> None:
         from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
+            GitCommitPushResult,
+            git_index_lock_retry_message,
             run_git_commit_push_sync,
         )
         from sase.ace.tui.actions.task_actions import (
@@ -445,23 +447,29 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
             TrackedTaskResult,
         )
 
-        def _task() -> TrackedTaskResult[None]:
-            success, message = run_git_commit_push_sync(
+        def _task() -> TrackedTaskResult[bool]:
+            result: GitCommitPushResult = run_git_commit_push_sync(
                 git_root=offer.git_root,
                 file_path=offer.file_path,
                 commit_message=offer.message,
             )
             return TrackedTaskResult(
-                success=success,
-                message=message,
-                error=None if success else message,
+                success=result.success,
+                message=result.message,
+                payload=result.index_lock_removed,
+                error=None if result.success else result.message,
             )
 
-        def _on_complete(completion: TrackedTaskCompletion[None]) -> None:
+        def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
             self.notify(
                 completion.message,
                 severity="information" if completion.success else "error",
             )
+            if completion.payload:
+                self.notify(
+                    git_index_lock_retry_message(offer.git_root),
+                    severity="warning",
+                )
 
         submit = getattr(self.app, "_submit_tracked_task", None)
         if submit is None:

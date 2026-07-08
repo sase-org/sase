@@ -77,7 +77,7 @@ def reset_killed() -> None:
 _STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS = 15.0
 
 
-def _git_index_lock_path(workspace_dir: str) -> Path | None:
+def git_index_lock_path(workspace_dir: str) -> Path | None:
     """Resolve the ``index.lock`` path for *workspace_dir*'s git dir, if any."""
     git_path = Path(workspace_dir) / ".git"
     if git_path.is_dir():
@@ -117,7 +117,7 @@ def _clear_stale_git_index_lock(
     younger than *min_age_seconds* (which could belong to a live git process),
     or any filesystem error is treated as a safe no-op.
     """
-    lock_path = _git_index_lock_path(workspace_dir)
+    lock_path = git_index_lock_path(workspace_dir)
     if lock_path is None:
         return False
     try:

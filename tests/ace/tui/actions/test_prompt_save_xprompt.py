@@ -11,6 +11,9 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt import (
     PromptBarSaveXpromptMixin,
     _run_git_commit_push_sync,
 )
+from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
+    _is_index_lock_error,
+)
 from sase.ace.tui.modals import (
     ConfirmActionModal,
     SnippetConfigLocation,
@@ -219,14 +222,15 @@ def test_git_commit_push_worker_runs_git_sequence(tmp_path: Path) -> None:
         ),
         patch("sase.config.get_use_chezmoi", return_value=False),
     ):
-        success, message = _run_git_commit_push_sync(
+        result = _run_git_commit_push_sync(
             git_root=str(tmp_path),
             file_path=str(path),
             commit_message="chore: Add xprompt review",
         )
 
-    assert success is True
-    assert message == "Committed and pushed to remote"
+    assert result.success is True
+    assert result.message == "Committed and pushed to remote"
+    assert result.index_lock_removed is False
     assert calls == [
         ["git", "-C", str(tmp_path), "add", "--", str(path)],
         ["git", "-C", str(tmp_path), "commit", "-m", "chore: Add xprompt review"],
@@ -247,15 +251,168 @@ def test_git_commit_push_worker_stops_on_add_failure(tmp_path: Path) -> None:
         "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt.subprocess.run",
         side_effect=_run,
     ):
-        success, message = _run_git_commit_push_sync(
+        result = _run_git_commit_push_sync(
             git_root=str(tmp_path),
             file_path=str(path),
             commit_message="chore: Add xprompt review",
         )
 
-    assert success is False
-    assert message == "Git add failed: pathspec"
+    assert result.success is False
+    assert result.message == "Git add failed: pathspec"
+    assert result.index_lock_removed is False
     assert calls == [["git", "-C", str(tmp_path), "add", "--", str(path)]]
+
+
+def test_git_commit_push_worker_retries_after_removing_index_lock(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    lock = tmp_path / ".git" / "index.lock"
+    lock.write_text("stale", encoding="utf-8")
+    calls: list[list[str]] = []
+    commit_attempts = 0
+
+    def _run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal commit_attempts
+        calls.append(argv)
+        if argv[3] == "commit":
+            commit_attempts += 1
+            if commit_attempts == 1:
+                return subprocess.CompletedProcess(
+                    argv,
+                    128,
+                    stdout="",
+                    stderr=(
+                        f"fatal: Unable to create '{lock}': File exists.\n"
+                        "Another git process seems to be running."
+                    ),
+                )
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    path = tmp_path / "review.md"
+    with (
+        patch(
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt.subprocess.run",
+            side_effect=_run,
+        ),
+        patch("sase.config.get_use_chezmoi", return_value=False),
+    ):
+        result = _run_git_commit_push_sync(
+            git_root=str(tmp_path),
+            file_path=str(path),
+            commit_message="chore: Add xprompt review",
+        )
+
+    assert result.success is True
+    assert result.index_lock_removed is True
+    assert result.message == "Committed and pushed to remote"
+    assert not lock.exists()
+    assert (
+        calls.count(
+            ["git", "-C", str(tmp_path), "commit", "-m", "chore: Add xprompt review"]
+        )
+        == 2
+    )
+
+
+def test_git_commit_push_worker_reports_lock_removed_when_retry_fails(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    lock = tmp_path / ".git" / "index.lock"
+    lock.write_text("stale", encoding="utf-8")
+    calls: list[list[str]] = []
+    commit_attempts = 0
+
+    def _run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal commit_attempts
+        calls.append(argv)
+        if argv[3] == "commit":
+            commit_attempts += 1
+            if commit_attempts == 1:
+                return subprocess.CompletedProcess(
+                    argv,
+                    128,
+                    stdout="",
+                    stderr=f"fatal: Unable to create '{lock}': File exists.",
+                )
+            return subprocess.CompletedProcess(
+                argv,
+                1,
+                stdout="",
+                stderr="commit still failed",
+            )
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    path = tmp_path / "review.md"
+    with patch(
+        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt.subprocess.run",
+        side_effect=_run,
+    ):
+        result = _run_git_commit_push_sync(
+            git_root=str(tmp_path),
+            file_path=str(path),
+            commit_message="chore: Add xprompt review",
+        )
+
+    assert result.success is False
+    assert result.index_lock_removed is True
+    assert result.message == "Commit failed: commit still failed"
+    assert not lock.exists()
+    assert (
+        calls.count(
+            ["git", "-C", str(tmp_path), "commit", "-m", "chore: Add xprompt review"]
+        )
+        == 2
+    )
+
+
+def test_git_commit_push_worker_does_not_retry_lock_text_without_lock_file(
+    tmp_path: Path,
+) -> None:
+    calls: list[list[str]] = []
+
+    def _run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        if argv[3] == "commit":
+            return subprocess.CompletedProcess(
+                argv,
+                1,
+                stdout="",
+                stderr="fatal: failed while reading .git/index.lock metadata",
+            )
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    path = tmp_path / "review.md"
+    with patch(
+        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt.subprocess.run",
+        side_effect=_run,
+    ):
+        result = _run_git_commit_push_sync(
+            git_root=str(tmp_path),
+            file_path=str(path),
+            commit_message="chore: Add xprompt review",
+        )
+
+    assert result.success is False
+    assert result.index_lock_removed is False
+    assert result.message == (
+        "Commit failed: fatal: failed while reading .git/index.lock metadata"
+    )
+    assert calls == [
+        ["git", "-C", str(tmp_path), "add", "--", str(path)],
+        ["git", "-C", str(tmp_path), "commit", "-m", "chore: Add xprompt review"],
+    ]
+
+
+def test_is_index_lock_error_detects_git_lock_path() -> None:
+    assert (
+        _is_index_lock_error(
+            "fatal: Unable to create '/repo/.git/index.lock': File exists."
+        )
+        is True
+    )
+    assert _is_index_lock_error("fatal: unable to auto-detect email address") is False
 
 
 # --- save as snippet (Create a new snippet...) -----------------------------
