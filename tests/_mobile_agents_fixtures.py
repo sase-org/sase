@@ -51,7 +51,7 @@ def _agent(
         name=name,
         project=project,
         pid=1234,
-        model="gpt-5.6",
+        model="gpt-5.6-sol",
         provider="codex",
         workspace_num=100,
         duration="1m",

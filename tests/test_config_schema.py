@@ -169,7 +169,7 @@ def test_config_schema_rejects_worker_models_mapping() -> None:
     config = {
         "llm_provider": {
             "worker_models": {
-                "claude": "codex/gpt-5.6",
+                "claude": "codex/gpt-5.6-sol",
                 "codex/o3": "claude/opus",
             }
         }
@@ -343,7 +343,7 @@ def test_config_schema_rejects_top_level_custom_model_aliases() -> None:
 
 def test_config_schema_rejects_legacy_worker_model_field() -> None:
     schema = _schema()
-    config = {"llm_provider": {"worker_model": "codex/gpt-5.6"}}
+    config = {"llm_provider": {"worker_model": "codex/gpt-5.6-sol"}}
 
     errors = sorted(
         Draft7Validator(schema).iter_errors(config),

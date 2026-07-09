@@ -295,7 +295,7 @@ def test_launch_multi_prompt_text_alt_model_alt_uses_distinct_generated_template
     """Text and model fan-out axes do not render duplicate template names."""
     del mock_ws_dir, mock_first_ws, mock_timestamp
     mock_spawn.side_effect = spawn_result_with_planned_name
-    local_xprompts = {"codex": XPrompt(name="codex", content="gpt-5.6")}
+    local_xprompts = {"codex": XPrompt(name="codex", content="gpt-5.6-sol")}
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(

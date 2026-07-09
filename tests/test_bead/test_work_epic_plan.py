@@ -359,13 +359,13 @@ class TestModelPropagationFromPayload:
         seed(
             conn,
             [
-                epic("e1", model="codex/gpt-5.6"),
+                epic("e1", model="codex/gpt-5.6-sol"),
                 phase("p1"),
             ],
         )
         plan = _build_epic_work_plan(conn, "e1")
 
-        assert plan.land_model == "codex/gpt-5.6"
+        assert plan.land_model == "codex/gpt-5.6-sol"
         assignments = [a for wave in plan.waves for a in wave]
         assert all(a.model == "" for a in assignments)
 

@@ -120,7 +120,7 @@ def test_unconfigured_provider_coder_follows_configured_coder(
             "provider": "claude",
             "model_aliases": {
                 "builtin": {
-                    "default": "codex/gpt-5.6",
+                    "default": "codex/gpt-5.6-sol",
                     "coder": "claude/sonnet",
                 }
             },

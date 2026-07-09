@@ -56,7 +56,7 @@ xprompts:
 ---
 
 %name:reads.@.cdx
-%model:codex/gpt-5.6
+%model:codex/gpt-5.6-sol
 %g:read
 #_article_search_agent
 

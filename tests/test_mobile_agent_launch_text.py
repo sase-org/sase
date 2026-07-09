@@ -63,11 +63,11 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
             "request_id": "req-text-1",
             "name": "mobile.demo",
             "provider": "codex",
-            "model": "gpt-5.6",
+            "model": "gpt-5.6-sol",
         }
     )
 
-    assert captured == ["%name:mobile.demo\n%model:codex/gpt-5.6\n#gh:sase Fix it"]
+    assert captured == ["%name:mobile.demo\n%model:codex/gpt-5.6-sol\n#gh:sase Fix it"]
     assert payload["primary"] == payload["slots"][0]
     assert payload["primary"]["name"] == "mobile.demo"
     assert [slot["status"] for slot in payload["slots"]] == ["launched", "launched"]

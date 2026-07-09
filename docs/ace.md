@@ -1298,10 +1298,10 @@ When the same base name is shared by multiple co-launched agents (e.g. multi-mod
 the rendered display name carries a short `.<provider>` or `.<provider>(<model>)` suffix so each row is distinguishable.
 Provider suffixes are supplied by the LLM provider plugins via the `llm_provider_short_name` hook (built-in defaults:
 `cld` for Claude, `cdx` for Codex, `agy` for Antigravity). Additional provider plugins can contribute their own short
-names. Model-name shorthands come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`, `gpt56`
-for `gpt-5.6`; see [Model Short Aliases](llms.md#model-short-aliases)) and are resolved against the configured model so
-the suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns omit the
-suffix.
+names. Model-name shorthands come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`, `gpt56sol`
+for `gpt-5.6-sol`; see [Model Short Aliases](llms.md#model-short-aliases)) and are resolved against the configured model
+so the suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns omit
+the suffix.
 
 An explicit `%name:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
 cancelled history entry and the error suggests the lowest free numeric suffix, such as `<name>1`. To deliberately reuse

@@ -243,7 +243,7 @@ full reference is in [XPrompts: Directives](../../xprompt.md#directives); this i
 
 | Directive | Alias | What it does                                                                                                                         | Example                                                            |
 | --------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | -------------------------- |
-| `%model`  | `%m`  | Select a provider/model. Use `%{...}` branches to fan out into one agent per model.                                                  | `%m:claude/opus audit this API` or `%{%m:codex/gpt-5.6             | %m:claude/sonnet} compare` |
+| `%model`  | `%m`  | Select a provider/model. Use `%{...}` branches to fan out into one agent per model.                                                  | `%m:claude/opus audit this API` or `%{%m:codex/gpt-5.6-sol         | %m:claude/sonnet} compare` |
 | `%name`   | `%n`  | Give an agent a stable name. Bare `%name` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches. | `%n:reviewer`, `%n:build-@`, `%n:!reviewer`                        |
 | `%wait`   | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.              | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
 | `#t`      |       | Delay launch by a duration or until wall-clock time. Use `%wait(time=...)` when combining with agent dependencies.                   | `#t:5m`, `%wait(time=1h30m)`, `%wait(planner, time=1430)`          |
@@ -257,7 +257,7 @@ Directives compose. This launches two named model variants, groups them under `r
 toggle hidden agents:
 
 ```bash
-sase run '%n:api-review %g:review %h %{%m:codex/gpt-5.6 | %m:claude/sonnet} review the API boundary'
+sase run '%n:api-review %g:review %h %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} review the API boundary'
 ```
 
 And this chains a planner, coder, and reviewer without inventing a YAML workflow:
@@ -499,7 +499,7 @@ llm_provider:
   model_aliases:
     builtin:
       codex_coder: claude/opus
-      claude_coder: codex/gpt-5.6
+      claude_coder: codex/gpt-5.6-sol
 ```
 
 That means delegated coder follow-ups can use a different provider/model than the planner that handed them off. If the
@@ -510,7 +510,7 @@ somewhere sensible."
 The same idea appears in prompts:
 
 ```bash
-sase run '%n:api-audit %{%m:codex/gpt-5.6 | %m:claude/sonnet} audit the API boundary and compare findings'
+sase run '%n:api-audit %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} audit the API boundary and compare findings'
 ```
 
 That launches a model fan-out. Sometimes the right answer is not trusting one model harder. Sometimes it is asking two

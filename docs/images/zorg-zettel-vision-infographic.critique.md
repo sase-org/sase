@@ -170,7 +170,7 @@ brief should be referenced explicitly in the regen prompt.
 
 ## Concrete suggestions for the regenerated diagram
 
-The regen phase (`sase-2s.20`, `codex/gpt-5.6`) should:
+The regen phase (`sase-2s.20`, `codex/gpt-5.6-sol`) should:
 
 1. **Decide first whether this is a SASE doc image or a personal-zorg image.** If it stays in `docs/`, add the SASE
    bridge: a projection arrow from the slip-box into a `memory/*.md` block (or into `.sase/memory/zettel/`), an

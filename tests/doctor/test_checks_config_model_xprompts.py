@@ -155,11 +155,11 @@ def test_model_xprompts_skips_multi_segment_agent_prompts(
 ) -> None:
     """Xprompt swarms are not model presets, even with per-agent models."""
     xprompts = {
-        "m_codex": XPrompt(name="m_codex", content="%model:codex/gpt-5.6"),
+        "m_codex": XPrompt(name="m_codex", content="%model:codex/gpt-5.6-sol"),
         "research_swarm": XPrompt(
             name="research_swarm",
             content=(
-                "%name:research.cdx %model:codex/gpt-5.6\n"
+                "%name:research.cdx %model:codex/gpt-5.6-sol\n"
                 "---\n"
                 "%name:research.cld %model:claude/opus"
             ),

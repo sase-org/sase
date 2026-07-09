@@ -236,7 +236,7 @@ def test_work_dry_run_renders_model_directives(
             "P1",
             IssueType.PHASE,
             parent_id=epic.id,
-            model="codex/gpt-5.6",
+            model="codex/gpt-5.6-sol",
         )
         p2 = proj.create("P2", IssueType.PHASE, parent_id=epic.id)
     epic_id, p1_id, p2_id = epic.id, p1.id, p2.id
@@ -249,7 +249,9 @@ def test_work_dry_run_renders_model_directives(
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
     out = capsys.readouterr().out
-    assert f"%name:!{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.6\n%auto:tale" in out
+    assert (
+        f"%name:!{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.6-sol\n%auto:tale" in out
+    )
     # Phase without an explicit model defaults to the phase-worker role alias.
     assert f"%name:!{p2_id}\n%group:{epic_id}\n%model:@phase_worker\n%auto:tale" in out
     # The epic's explicit land model still wins over the epic-lander alias.

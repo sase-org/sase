@@ -42,12 +42,12 @@ def test_directive_arg_extraction_returns_partial_span() -> None:
 
 def test_directive_arg_extraction_accepts_model_alias_and_special_chars() -> None:
     assert extract_directive_arg_token_around_cursor(
-        "%m:gpt-5.6", len("%m:gpt-5.6")
+        "%m:gpt-5.6-sol", len("%m:gpt-5.6-sol")
     ) == (
         3,
-        len("%m:gpt-5.6"),
+        len("%m:gpt-5.6-sol"),
         "model",
-        "gpt-5.6",
+        "gpt-5.6-sol",
     )
     line = "%model:anthropic/claude-sonnet-4-5"
     assert extract_directive_arg_token_around_cursor(line, len(line)) == (

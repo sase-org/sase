@@ -98,7 +98,7 @@ def test_directive_arg_completion_builds_model_candidates_from_catalog() -> None
 
     assert [candidate.insertion for candidate in candidates] == [
         "claude-fable-5",
-        "gpt-5.6",
+        "gpt-5.6-sol",
     ]
     assert shared == ""
     assert directive_arg_metadata(candidates[0]).description == "Claude (fable)"

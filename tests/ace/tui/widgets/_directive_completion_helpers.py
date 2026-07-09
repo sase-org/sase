@@ -46,11 +46,11 @@ def model_entries() -> list[_ModelCompletionEntry]:
             aliases=("fable",),
         ),
         _ModelCompletionEntry(
-            value="gpt-5.6",
-            display="gpt-5.6",
-            description="Codex (gpt56)",
+            value="gpt-5.6-sol",
+            display="gpt-5.6-sol",
+            description="Codex (gpt56sol)",
             provider="codex",
-            aliases=("gpt56",),
+            aliases=("gpt56sol",),
         ),
     ]
 

@@ -20,8 +20,8 @@ def test_codex_provider_is_llm_provider() -> None:
 def test_codex_provider_resolve_model_name() -> None:
     """Test that CodexProvider.resolve_model_name() returns correct names."""
     provider = CodexProvider()
-    assert provider.resolve_model_name() == "gpt-5.6"
-    assert provider.resolve_model_name("large") == "gpt-5.6"
+    assert provider.resolve_model_name() == "gpt-5.6-sol"
+    assert provider.resolve_model_name("large") == "gpt-5.6-sol"
     assert provider.resolve_model_name("small") == "codex-mini-latest"
 
 
@@ -90,7 +90,7 @@ def test_codex_provider_model_override(
     call_args = mock_popen.call_args
     cmd = call_args[0][0]
     assert "custom-model" in cmd
-    assert "gpt-5.6" not in cmd
+    assert "gpt-5.6-sol" not in cmd
 
 
 @patch.dict(os.environ, {"SASE_CODEX_PATH": "/opt/openai/bin/codex"})
@@ -190,7 +190,7 @@ def test_codex_provider_normal_mode_command_construction(
     assert cmd[0] == "codex"
     assert cmd[1] == "exec"
     assert "--model" in cmd
-    assert "gpt-5.6" in cmd
+    assert "gpt-5.6-sol" in cmd
     assert "--dangerously-bypass-approvals-and-sandbox" in cmd
     assert "--json" in cmd
     assert "--color" in cmd

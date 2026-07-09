@@ -304,7 +304,7 @@ class TestModelDirective:
             conn,
             [
                 epic("e1"),
-                phase("p1", model="codex/gpt-5.6"),
+                phase("p1", model="codex/gpt-5.6-sol"),
                 phase("p2"),
                 phase("p3", model="#pro"),
             ],
@@ -322,7 +322,7 @@ class TestModelDirective:
         p2_seg = next(s for s in segments if "%name:!p2\n" in s)
         p3_seg = next(s for s in segments if "%name:!p3\n" in s)
         land_seg = segments[-1]
-        assert "%model:codex/gpt-5.6" in p1_seg
+        assert "%model:codex/gpt-5.6-sol" in p1_seg
         assert "%model:@phase_worker" in p2_seg
         assert "%model:#pro" in p3_seg
         assert "%model:@epic_lander" in land_seg

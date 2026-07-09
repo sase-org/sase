@@ -154,7 +154,7 @@ def test_resolve_model_provider_implicit_mapping() -> None:
         "claude",
         "claude-fable-5",
     )
-    assert resolve_model_provider("gpt-5.6") == ("codex", "gpt-5.6")
+    assert resolve_model_provider("gpt-5.6-sol") == ("codex", "gpt-5.6-sol")
     assert resolve_model_provider("gpt-5.5") == ("codex", "gpt-5.5")
     assert resolve_model_provider("gpt-5.3-codex") == ("codex", "gpt-5.3-codex")
     assert resolve_model_provider("Gemini 3.5 Flash (High)") == (
@@ -191,7 +191,7 @@ def test_model_short_alias_map_contains_codex_entries() -> None:
     """The aggregated alias map carries the codex plugin's entries."""
     aliases = model_short_alias_map()
     assert aliases.get("codex-mini-latest") == "mini"
-    assert aliases.get("gpt-5.6") == "gpt56"
+    assert aliases.get("gpt-5.6-sol") == "gpt56sol"
     assert aliases.get("gpt-5.5") == "gpt55"
 
 

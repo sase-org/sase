@@ -187,7 +187,7 @@ def test_append_model_field_suffix_is_uniform_across_providers() -> None:
     """Every provider renders the same trailing ``@ <effort>`` suffix."""
     for model, provider in (
         ("opus", "claude"),
-        ("gpt-5.6", "codex"),
+        ("gpt-5.6-sol", "codex"),
         ("some-model", "agy"),
     ):
         text = Text()

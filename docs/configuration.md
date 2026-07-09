@@ -382,7 +382,7 @@ llm_provider:
   model_aliases:
     builtin:
       default: opus # model used when a prompt has no %model directive
-      claude_coder: codex/gpt-5.6 # coder follow-ups from Claude-authored plans
+      claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
     custom:
       blogger:
