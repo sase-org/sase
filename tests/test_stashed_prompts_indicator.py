@@ -10,10 +10,10 @@ def test_zero_count_renders_empty_hidden_badge() -> None:
     assert text.plain == ""
 
 
-def test_positive_count_renders_violet_snowflake_badge() -> None:
+def test_positive_count_renders_green_teal_snowflake_badge() -> None:
     text = StashedPromptsIndicator._build_content(3)
     assert text.plain == " ❄ 3 "
-    assert "#AF87FF" in str(text.style)
+    assert "#00D7AF" in str(text.style)
 
 
 def test_negative_count_is_treated_as_empty() -> None:

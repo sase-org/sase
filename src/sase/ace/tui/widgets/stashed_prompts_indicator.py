@@ -5,14 +5,16 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
+_STASH_ACCENT = "#00D7AF"
+
 
 class StashedPromptsIndicator(Static):
     """Top-bar badge showing how many prompt drafts are stashed.
 
     Mirrors :class:`TaskIndicator`: visible only when at least one prompt is
     stashed, hidden (empty) otherwise so it never adds clutter when the stash
-    is empty.  The snowflake glyph + violet accent reads as "set aside, frozen
-    for later" (git-stash for prompts) and is visually distinct from the
+    is empty.  The snowflake glyph + green-teal accent reads as "set aside,
+    frozen for later" (git-stash for prompts) and is visually distinct from the
     task (cyan) and notification (orange/gold) badges.  Hovering shows the
     exact count via tooltip.
     """
@@ -56,7 +58,7 @@ class StashedPromptsIndicator(Static):
     def _build_content(count: int) -> Text:
         """Build the badge text; empty (hidden) when nothing is stashed."""
         if count > 0:
-            return Text(f" ❄ {count} ", style="bold #1a1a1a on #AF87FF")
+            return Text(f" ❄ {count} ", style=f"bold #1a1a1a on {_STASH_ACCENT}")
         return Text("")
 
     @staticmethod
