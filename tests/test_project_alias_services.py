@@ -13,6 +13,7 @@ from sase.core.project_lifecycle_wire import (
     effective_project_name,
 )
 from sase.project_aliases import (
+    _set_project_name_locked,
     allocate_project_name,
     canonicalize_project_aliases_in_prompt,
     ensure_project_name_locked,
@@ -20,7 +21,6 @@ from sase.project_aliases import (
     humanize_project_refs_in_prompt,
     load_project_alias_map,
     resolve_project_alias_ref,
-    set_project_name_locked,
 )
 from tests.main.project_handler_helpers import (
     _write_project,
@@ -304,17 +304,17 @@ def test_set_project_name_locked_writes_replaces_and_removes_name(
         "WORKSPACE_DIR: /tmp/alpha\nNAME: a\n",
     )
 
-    record = set_project_name_locked("alpha", "widgets", projects_root=projects_root)
+    record = _set_project_name_locked("alpha", "widgets", projects_root=projects_root)
     assert record.display_name == "widgets"
     assert "PROJECT_NAME: widgets\n" in project_file.read_text(encoding="utf-8")
 
-    record = set_project_name_locked("alpha", "tools", projects_root=projects_root)
+    record = _set_project_name_locked("alpha", "tools", projects_root=projects_root)
     content = project_file.read_text(encoding="utf-8")
     assert record.display_name == "tools"
     assert "PROJECT_NAME: tools\n" in content
     assert "widgets" not in content
 
-    record = set_project_name_locked("alpha", None, projects_root=projects_root)
+    record = _set_project_name_locked("alpha", None, projects_root=projects_root)
     assert record.display_name is None
     assert "PROJECT_NAME:" not in project_file.read_text(encoding="utf-8")
 
@@ -353,7 +353,7 @@ def test_set_project_name_locked_rejects_alias_collision(
     )
 
     with pytest.raises(ValueError, match="assigned to both"):
-        set_project_name_locked("alpha", "widgets", projects_root=projects_root)
+        _set_project_name_locked("alpha", "widgets", projects_root=projects_root)
 
     assert "PROJECT_NAME:" not in project_file.read_text(encoding="utf-8")
 

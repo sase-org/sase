@@ -9,9 +9,9 @@ import pytest
 from sase.plugins import installed as installed_module
 from sase.plugins.installed import (
     InstalledInfo,
+    _installed_plugin_distributions,
     any_plugins_installed,
     build_installed_index,
-    installed_plugin_distributions,
     lookup_installed,
 )
 from sase.plugins.inventory import (
@@ -157,7 +157,7 @@ def test_any_plugins_installed_true_for_plugin_candidate(tmp_path: Path) -> None
     )
 
     assert any_plugins_installed(candidates_fn=lambda: (candidate,)) is True
-    assert installed_plugin_distributions(candidates_fn=lambda: (candidate,)) == (
+    assert _installed_plugin_distributions(candidates_fn=lambda: (candidate,)) == (
         "sase-github",
     )
 
@@ -193,5 +193,5 @@ def test_installed_plugin_distributions_excludes_runtime_distributions(
         lambda: [host_dist, core_dist, plugin_dist],
     )
 
-    assert installed_plugin_distributions() == ("sase-foo",)
+    assert _installed_plugin_distributions() == ("sase-foo",)
     assert any_plugins_installed() is True

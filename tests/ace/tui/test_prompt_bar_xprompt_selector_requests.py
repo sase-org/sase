@@ -19,8 +19,8 @@ from sase.ace.tui.modals import XPromptSelectModal
 from sase.ace.tui.modals.xprompt_select_modal import XPromptSelection
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.xprompt_inline_expansion import (
-    InlineExpansionReason,
-    InlineExpansionResult,
+    _InlineExpansionReason,
+    _InlineExpansionResult,
 )
 from sase.xprompt.models import InputArg, InputType
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -246,8 +246,8 @@ def test_ctrl_i_expand_applies_rendered_body_to_origin_pane() -> None:
         _event(origin_bar, origin_ta, trigger_range=((0, 7), (0, 8)))
     )
 
-    success = InlineExpansionResult(
-        expanded_text="BODY", error=None, reason=InlineExpansionReason.EXPANDED
+    success = _InlineExpansionResult(
+        expanded_text="BODY", error=None, reason=_InlineExpansionReason.EXPANDED
     )
     with patch(
         "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
@@ -274,10 +274,10 @@ def test_ctrl_i_expand_stages_returned_inputs_after_body_splice() -> None:
         _event(origin_bar, origin_ta, trigger_range=((0, 7), (0, 8)))
     )
 
-    success = InlineExpansionResult(
+    success = _InlineExpansionResult(
         expanded_text="Read about {{ topic }}.",
         error=None,
-        reason=InlineExpansionReason.EXPANDED,
+        reason=_InlineExpansionReason.EXPANDED,
         inputs=[topic],
     )
     with patch(
@@ -305,10 +305,10 @@ def test_ctrl_i_expand_error_does_not_touch_origin_pane() -> None:
 
     harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
 
-    failure = InlineExpansionResult(
+    failure = _InlineExpansionResult(
         expanded_text=None,
         error="Cannot inline-expand #!sync because it is a workflow.",
-        reason=InlineExpansionReason.STANDALONE_WORKFLOW,
+        reason=_InlineExpansionReason.STANDALONE_WORKFLOW,
     )
     with patch(
         "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
@@ -329,8 +329,8 @@ def test_ctrl_i_expand_stale_target_reports_recoverable_error() -> None:
 
     harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
 
-    success = InlineExpansionResult(
-        expanded_text="BODY", error=None, reason=InlineExpansionReason.EXPANDED
+    success = _InlineExpansionResult(
+        expanded_text="BODY", error=None, reason=_InlineExpansionReason.EXPANDED
     )
     with patch(
         "sase.ace.tui.widgets.xprompt_inline_expansion.expand_inline_xprompt",
@@ -417,8 +417,8 @@ def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
     harness.on_prompt_input_bar_snippet_requested(_event(origin_bar, origin_ta))
 
     captured: dict[str, object] = {}
-    success = InlineExpansionResult(
-        expanded_text="BODY", error=None, reason=InlineExpansionReason.EXPANDED
+    success = _InlineExpansionResult(
+        expanded_text="BODY", error=None, reason=_InlineExpansionReason.EXPANDED
     )
 
     def _fake_expand(
@@ -427,7 +427,7 @@ def test_ctrl_i_passes_frontmatter_locals_as_real_xprompts() -> None:
         *,
         local_xprompts: object = None,
         project: object = None,
-    ) -> InlineExpansionResult:
+    ) -> _InlineExpansionResult:
         captured["local_xprompts"] = local_xprompts
         return success
 

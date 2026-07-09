@@ -11,7 +11,7 @@ from sase.xprompt import vcs_repo_completion as vrc
 from sase.xprompt.vcs_repo_completion import (
     VCS_REPO_GOLDEN_CURSOR,
     VCS_REPO_GOLDEN_VECTORS,
-    VcsRepoCompletionConfig,
+    _VcsRepoCompletionConfig,
     apply_vcs_repo_selection,
     fetch_repo_candidates,
     filter_vcs_repo_entries,
@@ -128,7 +128,7 @@ def test_trigger_negatives(prompt: str) -> None:
 
 
 def test_config_reader_uses_defaults_and_overrides() -> None:
-    assert load_vcs_repo_completion_config({}) == VcsRepoCompletionConfig()
+    assert load_vcs_repo_completion_config({}) == _VcsRepoCompletionConfig()
 
     config = load_vcs_repo_completion_config(
         {
@@ -140,7 +140,7 @@ def test_config_reader_uses_defaults_and_overrides() -> None:
         }
     )
 
-    assert config == VcsRepoCompletionConfig(
+    assert config == _VcsRepoCompletionConfig(
         enabled=False,
         cache_ttl_seconds=30,
         max_repos=25,
@@ -163,7 +163,7 @@ def test_fetch_repo_candidates_uses_memo_and_disk_cache(
         )
 
     monkeypatch.setattr(vrc.workspace_provider, "list_repo_candidates", fake_list)
-    config = VcsRepoCompletionConfig(cache_ttl_seconds=600)
+    config = _VcsRepoCompletionConfig(cache_ttl_seconds=600)
 
     first = fetch_repo_candidates("gh", "bbugyi200", config=config)
     second = fetch_repo_candidates("gh", "bbugyi200", config=config)
@@ -196,12 +196,12 @@ def test_fetch_repo_candidates_applies_max_repos_to_cached_results(
     first = fetch_repo_candidates(
         "gh",
         "bbugyi200",
-        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=3),
+        config=_VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=3),
     )
     second = fetch_repo_candidates(
         "gh",
         "bbugyi200",
-        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=1),
+        config=_VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=1),
     )
 
     assert [entry.name for entry in first.entries] == ["repo-0", "repo-1", "repo-2"]
@@ -227,14 +227,14 @@ def test_peek_cached_repo_candidates_applies_max_repos_to_disk_cache(
     fetch_repo_candidates(
         "gh",
         "bbugyi200",
-        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=3),
+        config=_VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=3),
     )
     vrc._MEMO_CACHE.clear()
 
     cached = peek_cached_repo_candidates(
         "gh",
         "bbugyi200",
-        config=VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=1),
+        config=_VcsRepoCompletionConfig(cache_ttl_seconds=600, max_repos=1),
     )
 
     assert cached is not None
@@ -266,7 +266,7 @@ def test_fetch_repo_candidates_serves_stale_entries_on_error(
         return responses.pop(0)
 
     monkeypatch.setattr(vrc.workspace_provider, "list_repo_candidates", fake_list)
-    config = VcsRepoCompletionConfig(cache_ttl_seconds=10)
+    config = _VcsRepoCompletionConfig(cache_ttl_seconds=10)
 
     assert fetch_repo_candidates("gh", "bbugyi200", config=config).status == "ok"
     now = 1020.0
@@ -290,7 +290,7 @@ def test_fetch_repo_candidates_disabled_skips_provider(
     result = fetch_repo_candidates(
         "gh",
         "bbugyi200",
-        config=VcsRepoCompletionConfig(enabled=False),
+        config=_VcsRepoCompletionConfig(enabled=False),
     )
 
     assert result.status == "ok"

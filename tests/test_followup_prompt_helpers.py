@@ -14,9 +14,9 @@ from sase.main.feedback_prompt import (
 )
 from sase.main.qa_markdown import QARound
 from sase.main.qa_prompt import (
+    _qa_rounds_from_payload,
     assemble_question_followup_prompt,
     merge_qa_for_prompt,
-    qa_rounds_from_payload,
 )
 from sase.main.query_handler import expand_embedded_workflows_in_query
 from sase.xprompt.directives import extract_prompt_directives
@@ -141,9 +141,9 @@ def test_qa_rounds_from_payload_accepts_supported_shapes() -> None:
         }
     ]
 
-    multi = qa_rounds_from_payload(multi_round)
-    single = qa_rounds_from_payload(single_round)
-    listed = qa_rounds_from_payload(top_level_list)
+    multi = _qa_rounds_from_payload(multi_round)
+    single = _qa_rounds_from_payload(single_round)
+    listed = _qa_rounds_from_payload(top_level_list)
 
     assert len(multi) == 2
     assert single[0].answers[0]["selected"] == ["C"]
@@ -153,7 +153,7 @@ def test_qa_rounds_from_payload_accepts_supported_shapes() -> None:
 
 def test_qa_rounds_from_payload_rejects_missing_questions() -> None:
     with pytest.raises(ValueError, match="questions"):
-        qa_rounds_from_payload({"answers": []})
+        _qa_rounds_from_payload({"answers": []})
 
 
 def test_assemble_feedback_replan_prompt_matches_runner_shape() -> None:
@@ -277,7 +277,7 @@ def test_with_q_and_a_xprompt_expands_to_shared_helper(
     qa_file.write_text(json.dumps(payload), encoding="utf-8")
     expected = assemble_question_followup_prompt(
         "Base prompt",
-        qa_rounds_from_payload(payload),
+        _qa_rounds_from_payload(payload),
     )
 
     expanded, workflows = expand_embedded_workflows_in_query(
@@ -433,7 +433,7 @@ def test_with_q_and_a_xprompt_composes_with_family_attach_directive(
     expected, _ = extract_prompt_directives(
         assemble_question_followup_prompt(
             "Base prompt",
-            qa_rounds_from_payload(payload),
+            _qa_rounds_from_payload(payload),
         )
     )
 

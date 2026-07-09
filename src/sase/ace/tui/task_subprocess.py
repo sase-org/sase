@@ -27,8 +27,7 @@ def command_display(argv: Sequence[object]) -> str:
     return shlex.join(str(part) for part in argv)
 
 
-# pyvision: sdd/tales/202606/tasks_tab_live_output.md
-def stream_subprocess(
+def _stream_subprocess(
     argv: Sequence[object],
     *,
     on_line: LineCallback,
@@ -136,7 +135,7 @@ class TaskReporter:
     ) -> subprocess.CompletedProcess[str]:
         """Run a subprocess with live line streaming into this task."""
         self.set_command(argv)
-        result = stream_subprocess(
+        result = _stream_subprocess(
             argv,
             on_line=lambda line: self.log(line, stream=stream),
             cancel_event=self.task_info.cancel_event,

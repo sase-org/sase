@@ -14,8 +14,8 @@ steps:
       from pathlib import Path
 
       from sase.main.qa_prompt import (
+          _qa_rounds_from_payload,
           assemble_question_followup_prompt,
-          qa_rounds_from_payload,
       )
 
       qa_path = Path({{ qa_file | tojson }}).expanduser()
@@ -26,7 +26,7 @@ steps:
       except json.JSONDecodeError as exc:
           raise SystemExit(f"qa_file is not valid JSON: {qa_path}: {exc}") from exc
 
-      rounds = qa_rounds_from_payload(payload)
+      rounds = _qa_rounds_from_payload(payload)
       combined = assemble_question_followup_prompt({{ prompt | tojson }}, rounds)
       print(json.dumps({"combined": combined}))
     output: { combined: text }

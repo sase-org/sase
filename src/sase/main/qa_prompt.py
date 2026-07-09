@@ -45,8 +45,7 @@ def assemble_question_followup_prompt(
     return base_prompt + "\n\n" + merge_qa_for_prompt(rounds)
 
 
-# pyvision: sdd/research/202606/with_q_and_a_xprompt_consolidated.md
-def qa_rounds_from_payload(payload: object) -> list[QARound]:
+def _qa_rounds_from_payload(payload: object) -> list[QARound]:
     """Normalize public ``#with_q_and_a`` JSON payloads into Q&A rounds."""
     raw_rounds = _raw_rounds_from_payload(payload)
     rounds = [
@@ -99,3 +98,7 @@ def _qa_round_from_mapping(raw: dict[str, Any], index: int) -> QARound:
         raise ValueError(f"qa_file round {index} response must be an object")
 
     return build_qa_round(list(questions), response)
+
+
+# Keep a same-file reference so pyvision accepts this YAML-only entry point.
+_QA_XPROMPT_ENTRYPOINTS = (_qa_rounds_from_payload,)

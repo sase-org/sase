@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import subprocess
 import sys
 import threading
@@ -19,12 +18,11 @@ from sase.ace.tui.actions.task_actions import (
 )
 from sase.ace.tui.task_queue import (
     TaskInfo,
-    TaskLog,
     TaskQueue,
-    capture_output,
+    _TaskLog,
     redirect_print_to,
 )
-from sase.ace.tui.task_subprocess import TaskReporter, stream_subprocess
+from sase.ace.tui.task_subprocess import TaskReporter, _stream_subprocess
 
 
 # ---------------------------------------------------------------------------
@@ -197,13 +195,13 @@ class TestTaskQueueThreadSafety:
 
 
 # ---------------------------------------------------------------------------
-# TaskLog
+# _TaskLog
 # ---------------------------------------------------------------------------
 
 
 class TestTaskLog:
     def test_append_snapshot_and_text(self) -> None:
-        log = TaskLog()
+        log = _TaskLog()
 
         log.append("line 1\nline 2", stream="stdout")
         snapshot = log.snapshot()
@@ -213,7 +211,7 @@ class TestTaskLog:
         assert log.text() == "line 1\nline 2\n"
 
     def test_bounds_by_lines_and_reports_trimmed_count(self) -> None:
-        log = TaskLog(max_lines=2, max_chars=1_000)
+        log = _TaskLog(max_lines=2, max_chars=1_000)
 
         log.append("one")
         log.append("two")
@@ -225,51 +223,13 @@ class TestTaskLog:
         assert log.text().startswith("... 1 earlier lines trimmed\n")
 
     def test_redirect_print_to_captures_stdout_and_stderr(self) -> None:
-        log = TaskLog()
+        log = _TaskLog()
 
         with redirect_print_to(log):
             print("hello")
             print("err", file=sys.stderr)
 
         assert log.text() == "hello\nerr\n"
-
-
-# ---------------------------------------------------------------------------
-# capture_output
-# ---------------------------------------------------------------------------
-
-
-class TestCaptureOutput:
-    def test_captures_stdout(self) -> None:
-        with capture_output() as buf:
-            print("hello")
-        assert buf.getvalue() == "hello\n"
-
-    def test_captures_stderr(self) -> None:
-        with capture_output() as buf:
-            print("err", file=sys.stderr)
-        assert buf.getvalue() == "err\n"
-
-    def test_restores_streams_on_success(self) -> None:
-        orig_out, orig_err = sys.stdout, sys.stderr
-        with capture_output():
-            pass
-        assert sys.stdout is orig_out
-        assert sys.stderr is orig_err
-
-    def test_restores_streams_on_exception(self) -> None:
-        orig_out, orig_err = sys.stdout, sys.stderr
-        try:
-            with capture_output():
-                raise ValueError("boom")
-        except ValueError:
-            pass
-        assert sys.stdout is orig_out
-        assert sys.stderr is orig_err
-
-    def test_buffer_is_stringio(self) -> None:
-        with capture_output() as buf:
-            assert isinstance(buf, io.StringIO)
 
 
 class _TaskActionsHarness(TaskActionsMixin):
@@ -357,7 +317,7 @@ def test_submit_tracked_task_passes_reporter_when_callable_accepts_it() -> None:
 def test_stream_subprocess_streams_lines_and_returns_completed_process() -> None:
     seen: list[str] = []
 
-    result = stream_subprocess(
+    result = _stream_subprocess(
         [
             sys.executable,
             "-c",
@@ -375,7 +335,7 @@ def test_stream_subprocess_streams_lines_and_returns_completed_process() -> None
 
 def test_stream_subprocess_timeout_raises_with_captured_output() -> None:
     with pytest.raises(subprocess.TimeoutExpired) as exc_info:
-        stream_subprocess(
+        _stream_subprocess(
             [
                 sys.executable,
                 "-c",
@@ -400,7 +360,7 @@ def test_stream_subprocess_cancel_escalates_sigterm_resistant_process() -> None:
         cancel_event.set()
 
     started = time.monotonic()
-    result = stream_subprocess(
+    result = _stream_subprocess(
         [
             sys.executable,
             "-c",

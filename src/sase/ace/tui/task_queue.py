@@ -10,7 +10,6 @@ import io
 import os
 import signal
 import subprocess
-import sys
 import threading
 import time
 import uuid
@@ -46,9 +45,8 @@ class _TaskLogSnapshot:
     trimmed_count: int
 
 
-# pyvision: sdd/tales/202606/tasks_tab_live_output.md
 @dataclass
-class TaskLog:
+class _TaskLog:
     """Thread-safe, bounded log for one background task."""
 
     max_lines: int = _MAX_TASK_LOG_LINES
@@ -112,9 +110,9 @@ class TaskLog:
 
 
 class _TaskLogWriter(io.TextIOBase):
-    """Text writer that forwards print-style chunks into a TaskLog."""
+    """Text writer that forwards print-style chunks into a task log."""
 
-    def __init__(self, log: TaskLog, *, stream: TaskLogStream) -> None:
+    def __init__(self, log: _TaskLog, *, stream: TaskLogStream) -> None:
         self._log = log
         self._stream = stream
         self._pending = ""
@@ -153,7 +151,7 @@ class TaskInfo:
     finished_at: datetime | None = None
     output: str = ""
     error: str | None = None
-    log: TaskLog = field(default_factory=TaskLog)
+    log: _TaskLog = field(default_factory=_TaskLog)
     command: list[str] | None = None
     phase: str | None = None
     exit_code: int | None = None
@@ -355,28 +353,8 @@ class TaskQueue:
             }
 
 
-# pyvision: sdd/tales/202606/tasks_tab_live_output.md
 @contextmanager
-def capture_output(
-    buffer: io.StringIO | None = None,
-) -> Generator[io.StringIO, None, None]:
-    """Redirect stdout/stderr to a StringIO buffer.
-
-    If *buffer* is provided it is reused; otherwise a new one is created.
-    """
-    buf = buffer if buffer is not None else io.StringIO()
-    old_stdout, old_stderr = sys.stdout, sys.stderr
-    sys.stdout = buf
-    sys.stderr = buf
-    try:
-        yield buf
-    finally:
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
-
-
-@contextmanager
-def redirect_print_to(log: TaskLog) -> Generator[None, None, None]:
+def redirect_print_to(log: _TaskLog) -> Generator[None, None, None]:
     """Best-effort legacy print capture into a task-local log."""
     out = _TaskLogWriter(log, stream="stdout")
     err = _TaskLogWriter(log, stream="stderr")

@@ -16,9 +16,8 @@ from sase.status_state_machine.constants import (
 from sase.workspace_provider import detect_workflow_type
 
 
-# pyvision: docs/integrations.md
 @dataclass(frozen=True)
-class ChangeSpecTagEntry:
+class _ChangeSpecTagEntry:
     """A ChangeSpec with its corresponding VCS xprompt workflow tag."""
 
     project: str
@@ -28,16 +27,15 @@ class ChangeSpecTagEntry:
     tag: str
 
 
-# pyvision: docs/integrations.md
 @dataclass(frozen=True)
-class ChangeSpecTagListing:
+class _ChangeSpecTagListing:
     """Result of listing active ChangeSpec xprompt tags."""
 
-    entries: list[ChangeSpecTagEntry]
+    entries: list[_ChangeSpecTagEntry]
     skipped: list[str]
 
 
-def list_changespec_xprompt_tags(project: str | None = None) -> ChangeSpecTagListing:
+def list_changespec_xprompt_tags(project: str | None = None) -> _ChangeSpecTagListing:
     """List active ChangeSpecs and their copyable VCS xprompt tags.
 
     Terminal ChangeSpecs are excluded after normalizing STATUS suffixes. The
@@ -45,7 +43,7 @@ def list_changespec_xprompt_tags(project: str | None = None) -> ChangeSpecTagLis
     Entries with workflow detection failures are omitted and reported in
     ``skipped`` so callers can still show the rest of the list.
     """
-    entries: list[ChangeSpecTagEntry] = []
+    entries: list[_ChangeSpecTagEntry] = []
     skipped: list[str] = []
 
     changespecs = sorted(
@@ -76,7 +74,7 @@ def list_changespec_xprompt_tags(project: str | None = None) -> ChangeSpecTagLis
             continue
 
         entries.append(
-            ChangeSpecTagEntry(
+            _ChangeSpecTagEntry(
                 project=project_name,
                 name=cs.name,
                 status=status,
@@ -85,7 +83,7 @@ def list_changespec_xprompt_tags(project: str | None = None) -> ChangeSpecTagLis
             )
         )
 
-    return ChangeSpecTagListing(entries=entries, skipped=skipped)
+    return _ChangeSpecTagListing(entries=entries, skipped=skipped)
 
 
 def _project_file_for_workflow(file_path: str) -> str:

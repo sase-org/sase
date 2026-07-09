@@ -95,9 +95,8 @@ VCS_REPO_GOLDEN_VECTORS: tuple[
 )
 
 
-# pyvision: sdd/epics/202607/vcs_repo_slash_completion.md
 @dataclass(frozen=True)
-class VcsRepoCompletionConfig:
+class _VcsRepoCompletionConfig:
     """Configuration for VCS repository completion."""
 
     enabled: bool = True
@@ -155,7 +154,7 @@ _MEMO_CACHE: dict[tuple[str, str], _CachedRepoPayload] = {}
 
 def load_vcs_repo_completion_config(
     config: dict[str, Any] | None = None,
-) -> VcsRepoCompletionConfig:
+) -> _VcsRepoCompletionConfig:
     """Return normalized VCS repository completion settings."""
     data = load_merged_config() if config is None else config
     section = data.get("vcs_repo_completion", {}) if isinstance(data, dict) else {}
@@ -173,7 +172,7 @@ def load_vcs_repo_completion_config(
         default=DEFAULT_VCS_REPO_MAX_REPOS,
         minimum=1,
     )
-    return VcsRepoCompletionConfig(
+    return _VcsRepoCompletionConfig(
         enabled=enabled if isinstance(enabled, bool) else True,
         cache_ttl_seconds=cache_ttl_seconds,
         max_repos=max_repos,
@@ -307,7 +306,7 @@ def fetch_repo_candidates(
     workflow_type: str,
     namespace: str,
     *,
-    config: VcsRepoCompletionConfig | None = None,
+    config: _VcsRepoCompletionConfig | None = None,
 ) -> VcsRepoFetchResult:
     """Fetch repository candidates using the shared memo/disk TTL cache."""
     settings = config or load_vcs_repo_completion_config()
@@ -371,7 +370,7 @@ def peek_cached_repo_candidates(
     workflow_type: str,
     namespace: str,
     *,
-    config: VcsRepoCompletionConfig | None = None,
+    config: _VcsRepoCompletionConfig | None = None,
 ) -> VcsRepoFetchResult | None:
     """Return fresh cached repo candidates without invoking a provider.
 
@@ -592,7 +591,6 @@ __all__ = [
     "VCS_REPO_CATALOG_SCHEMA_VERSION",
     "VCS_REPO_GOLDEN_CURSOR",
     "VCS_REPO_GOLDEN_VECTORS",
-    "VcsRepoCompletionConfig",
     "VcsRepoFetchResult",
     "VcsRepoTrigger",
     "apply_vcs_repo_selection",

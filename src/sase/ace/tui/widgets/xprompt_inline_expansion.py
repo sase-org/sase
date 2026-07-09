@@ -33,8 +33,7 @@ from sase.xprompt.workflow_models import (
 )
 
 
-# pyvision: sdd/epics/202606/xprompt_expand_keymap.md
-class InlineExpansionReason(Enum):
+class _InlineExpansionReason(Enum):
     """Classification of an inline-expansion outcome (handy for tests)."""
 
     EXPANDED = "expanded"
@@ -43,9 +42,8 @@ class InlineExpansionReason(Enum):
     EXPANSION_ERROR = "expansion_error"
 
 
-# pyvision: sdd/epics/202606/xprompt_expand_keymap.md
 @dataclass(frozen=True, slots=True)
-class InlineExpansionResult:
+class _InlineExpansionResult:
     """Outcome of attempting to inline-expand a selected xprompt entry.
 
     Exactly one of ``expanded_text`` / ``error`` is set: on success
@@ -56,13 +54,13 @@ class InlineExpansionResult:
 
     expanded_text: str | None
     error: str | None
-    reason: InlineExpansionReason
+    reason: _InlineExpansionReason
     inputs: list[InputArg] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
         """Return True when the entry expanded successfully."""
-        return self.reason is InlineExpansionReason.EXPANDED
+        return self.reason is _InlineExpansionReason.EXPANDED
 
 
 def expand_inline_xprompt(
@@ -71,7 +69,7 @@ def expand_inline_xprompt(
     *,
     local_xprompts: dict[str, XPrompt] | None = None,
     project: str | None = None,
-) -> InlineExpansionResult:
+) -> _InlineExpansionResult:
     """Decide whether *workflow* can be inline-expanded and render it if so.
 
     Args:
@@ -85,7 +83,7 @@ def expand_inline_xprompt(
             catalog so nested references resolve with project parity.
 
     Returns:
-        An :class:`InlineExpansionResult` carrying either the expanded body or
+        An inline expansion result carrying either the expanded body or
         a user-facing error message and a reason code.
     """
     local_xprompts = local_xprompts or {}
@@ -95,13 +93,13 @@ def expand_inline_xprompt(
     kind = workflow.prompt_kind()
     if kind is WorkflowKind.STANDALONE_WORKFLOW:
         return _error(
-            InlineExpansionReason.STANDALONE_WORKFLOW,
+            _InlineExpansionReason.STANDALONE_WORKFLOW,
             f"Cannot inline-expand #!{name} because it is a workflow. "
             "Press Enter to insert the reference.",
         )
     if kind is WorkflowKind.EMBEDDABLE_WORKFLOW:
         return _error(
-            InlineExpansionReason.WORKFLOW_STEPS,
+            _InlineExpansionReason.WORKFLOW_STEPS,
             f"Cannot inline-expand #{name} because it has workflow steps.",
         )
 
@@ -110,7 +108,7 @@ def expand_inline_xprompt(
     # environment variables, which cannot be applied during a text expansion.
     if workflow.environment:
         return _error(
-            InlineExpansionReason.WORKFLOW_STEPS,
+            _InlineExpansionReason.WORKFLOW_STEPS,
             f"Cannot inline-expand #{name} because it has workflow steps.",
         )
 
@@ -136,7 +134,7 @@ def expand_inline_xprompt(
         )
     except (XPromptError, XPromptValidationError, WorkflowValidationError) as exc:
         return _error(
-            InlineExpansionReason.EXPANSION_ERROR,
+            _InlineExpansionReason.EXPANSION_ERROR,
             f"Cannot inline-expand #{name}: {exc}",
         )
     except SystemExit:
@@ -145,22 +143,22 @@ def expand_inline_xprompt(
         # instead of raising. Convert that into a clean, recoverable error so a
         # bad reference never tears down the TUI.
         return _error(
-            InlineExpansionReason.EXPANSION_ERROR,
+            _InlineExpansionReason.EXPANSION_ERROR,
             f"Cannot inline-expand #{name} because its expansion failed "
             "(possible circular or invalid reference).",
         )
 
-    return InlineExpansionResult(
+    return _InlineExpansionResult(
         expanded_text=rendered,
         error=None,
-        reason=InlineExpansionReason.EXPANDED,
+        reason=_InlineExpansionReason.EXPANDED,
         inputs=inputs,
     )
 
 
-def _error(reason: InlineExpansionReason, message: str) -> InlineExpansionResult:
-    """Build a failed :class:`InlineExpansionResult`."""
-    return InlineExpansionResult(expanded_text=None, error=message, reason=reason)
+def _error(reason: _InlineExpansionReason, message: str) -> _InlineExpansionResult:
+    """Build a failed inline expansion result."""
+    return _InlineExpansionResult(expanded_text=None, error=message, reason=reason)
 
 
 def _workflow_to_xprompt(name: str, workflow: Workflow) -> XPrompt:
@@ -224,7 +222,5 @@ def _expand_nested_references(
 
 
 __all__ = [
-    "InlineExpansionReason",
-    "InlineExpansionResult",
     "expand_inline_xprompt",
 ]

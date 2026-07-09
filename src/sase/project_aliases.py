@@ -282,7 +282,7 @@ def _occupied_project_refs(
     return occupied
 
 
-# pyvision: sdd/tales/202606/project_name_field.md
+# pyvision: https://github.com/sase-org/sase-github.git
 def allocate_project_name(
     desired_base_name: str,
     records: Sequence[ProjectRecordWire],
@@ -485,23 +485,27 @@ def clear_project_aliases_locked(
     return set_project_aliases_locked(project, [], projects_root=projects_root)
 
 
-# pyvision: sdd/tales/202606/project_name_field.md
-def set_project_name_locked(
+def _set_project_name_locked(
     project: str,
     name: str | None,
     *,
     projects_root: Path | None = None,
+    commit_msg: str = "Set project name",
+    preserve_existing: bool = False,
 ) -> ProjectRecordWire:
     """Replace ``PROJECT_NAME`` for *project* while holding the ProjectSpec lock."""
+    normalized = _normalize_project_name(name)
     return _mutate_project_name_locked(
         project,
-        lambda _current: name,
-        "Set project name",
+        lambda current: (
+            current if preserve_existing and current == normalized else name
+        ),
+        commit_msg,
         projects_root=projects_root,
     )
 
 
-# pyvision: sdd/tales/202606/project_name_field.md
+# pyvision: https://github.com/sase-org/sase-github.git
 def ensure_project_name_locked(
     project: str,
     name: str,
@@ -509,10 +513,11 @@ def ensure_project_name_locked(
     projects_root: Path | None = None,
 ) -> ProjectRecordWire:
     """Ensure ``PROJECT_NAME`` is set to *name* while holding the ProjectSpec lock."""
-    return _mutate_project_name_locked(
+    return _set_project_name_locked(
         project,
-        lambda current: current if current == _normalize_project_name(name) else name,
-        f"Ensure project name {name}",
+        name,
+        commit_msg=f"Ensure project name {name}",
+        preserve_existing=True,
         projects_root=projects_root,
     )
 
@@ -665,5 +670,4 @@ __all__ = [
     "remove_project_alias_locked",
     "resolve_project_alias_ref",
     "set_project_aliases_locked",
-    "set_project_name_locked",
 ]

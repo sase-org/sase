@@ -21,7 +21,6 @@ __all__ = [
 ]
 
 
-# pyvision: docs/integrations.md
 @dataclass(frozen=True)
 class AgentStatusGroup:
     """A non-empty status bucket and its agents in original order."""

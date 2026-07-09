@@ -35,7 +35,7 @@ The helper uses the same active-project default as normal ChangeSpec discovery. 
 broad list. The mobile helper bridge wraps explicit inactive-project tag requests with a partial-success warning telling
 the caller to reactivate the project before launching new work.
 
-Each returned `ChangeSpecTagEntry` has:
+Each entry in `listing.entries` has:
 
 | Field           | Description                                                    |
 | --------------- | -------------------------------------------------------------- |
@@ -46,7 +46,7 @@ Each returned `ChangeSpecTagEntry` has:
 | `tag`           | Copyable xprompt target in `#{workflow_type}:{name}` form      |
 
 If workspace workflow detection fails for an entry, that ChangeSpec is omitted and a human-readable message is appended
-to `ChangeSpecTagListing.skipped`. This lets callers still show the rest of the list while surfacing degraded entries.
+to `listing.skipped`. This lets callers still show the rest of the list while surfacing degraded entries.
 
 Source: `src/sase/integrations/changespec_tags.py`
 

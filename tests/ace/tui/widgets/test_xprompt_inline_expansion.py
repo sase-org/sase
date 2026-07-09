@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from sase.ace.tui.widgets.xprompt_inline_expansion import (
-    InlineExpansionReason,
+    _InlineExpansionReason,
     expand_inline_xprompt,
 )
 from sase.agent.prompt_inputs import render_prompt_with_inputs
@@ -39,7 +39,7 @@ class TestSupportedExpansion:
         wf = _simple_workflow("note", "Just a plain note.")
         result = expand_inline_xprompt("note", wf)
         assert result.ok
-        assert result.reason is InlineExpansionReason.EXPANDED
+        assert result.reason is _InlineExpansionReason.EXPANDED
         assert result.expanded_text == "Just a plain note."
         assert result.error is None
         assert result.inputs == []
@@ -199,7 +199,7 @@ class TestRejectedExpansion:
         )
         result = expand_inline_xprompt("deploy", wf)
         assert not result.ok
-        assert result.reason is InlineExpansionReason.STANDALONE_WORKFLOW
+        assert result.reason is _InlineExpansionReason.STANDALONE_WORKFLOW
         assert result.error is not None
         assert "#!deploy" in result.error
 
@@ -213,7 +213,7 @@ class TestRejectedExpansion:
         )
         result = expand_inline_xprompt("build", wf)
         assert not result.ok
-        assert result.reason is InlineExpansionReason.WORKFLOW_STEPS
+        assert result.reason is _InlineExpansionReason.WORKFLOW_STEPS
         assert result.error is not None
         assert "workflow steps" in result.error
 
@@ -221,7 +221,7 @@ class TestRejectedExpansion:
         wf = _simple_workflow("envy", "body", environment={"FOO": "bar"})
         result = expand_inline_xprompt("envy", wf)
         assert not result.ok
-        assert result.reason is InlineExpansionReason.WORKFLOW_STEPS
+        assert result.reason is _InlineExpansionReason.WORKFLOW_STEPS
 
     def test_circular_reference_returns_error_without_exiting(self) -> None:
         a = XPrompt(name="a", content="#b")
@@ -230,7 +230,7 @@ class TestRejectedExpansion:
         with patch(f"{_MODULE}.get_all_xprompts", return_value={}):
             result = expand_inline_xprompt("start", wf, local_xprompts={"a": a, "b": b})
         assert not result.ok
-        assert result.reason is InlineExpansionReason.EXPANSION_ERROR
+        assert result.reason is _InlineExpansionReason.EXPANSION_ERROR
         assert result.expanded_text is None
 
     def test_invalid_template_returns_error(self) -> None:
@@ -240,4 +240,4 @@ class TestRejectedExpansion:
         wf = _simple_workflow("bad", "Hello {{ definitely_undefined_xyz }}")
         result = expand_inline_xprompt("bad", wf)
         assert not result.ok
-        assert result.reason is InlineExpansionReason.EXPANSION_ERROR
+        assert result.reason is _InlineExpansionReason.EXPANSION_ERROR
