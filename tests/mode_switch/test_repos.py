@@ -24,7 +24,7 @@ def _entry(
         description="",
         url=url if url is not None else f"https://github.com/{owner}/{repo}",
         homepage="",
-        topics=("sase-plugin",),
+        topics=("sase--plugin",),
         stars=0,
         archived=False,
         license="MIT",

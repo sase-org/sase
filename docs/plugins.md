@@ -54,7 +54,7 @@ switch variants before confirming. The equivalent CLI for one plugin is `sase pl
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 
 `sase plugin` is a discovery surface for the whole SASE plugin ecosystem — not just what is installed locally. It treats
-the GitHub `sase-plugin` repository topic as the canonical registry, so the catalog always reflects reality: a repo
+the GitHub `sase--plugin` repository topic as the canonical registry, so the catalog always reflects reality: a repo
 gains or loses a listing purely by gaining or losing the topic, with no code change.
 
 > The same browse / install / update / uninstall operations are available interactively in the
@@ -111,7 +111,7 @@ sase plugin show github -r
 
 The catalog and latest-version probes are cached separately, so repeat runs are instant and bounded:
 
-- The data comes from `gh api --paginate -X GET "search/repositories?q=topic:sase-plugin&per_page=100"`, which returns
+- The data comes from `gh api --paginate -X GET "search/repositories?q=topic:sase--plugin&per_page=100"`, which returns
   topics, owner, description, stars, license, and timestamps inline — no per-repo follow-up lookups.
 - The cache lives at `~/.sase/plugins/catalog_cache.json` and is written atomically. The first run fetches and writes
   it; later runs read it and only touch the network when `-r|--refresh` is passed. A cache older than the soft staleness
@@ -121,11 +121,12 @@ The catalog and latest-version probes are cached separately, so repeat runs are 
   "latest unknown" and the command still exits successfully. Editable checkout probes are not written to this PyPI
   cache.
 - `-o|--offline` makes `list` and `show` use caches only and make zero GitHub or PyPI calls. If the catalog cache is
-  missing, offline mode fails with an actionable message; missing latest-version cache entries render as unknown.
-  Editable checkouts do not fetch in offline mode; they use already-known git metadata when available or render
-  `dev · offline`.
-- If `gh` runs but the call fails (network error, non-zero exit, or an unauthenticated/auth error), SASE falls back to
-  the existing cache with a loud "stale cached data" warning, or — when there is no cache — re-raises the error.
+  missing or was populated from a different GitHub topic query, offline mode fails with an actionable message; missing
+  latest-version cache entries render as unknown. Editable checkouts do not fetch in offline mode; they use
+  already-known git metadata when available or render `dev · offline`.
+- If `gh` runs but the call fails (network error, non-zero exit, or an unauthenticated/auth error), SASE falls back to a
+  compatible existing cache with a loud "stale cached data" warning, or — when there is no compatible cache — re-raises
+  the error.
 - A missing `gh` (not on `PATH`) is always a hard error, even when a cache exists: SASE never silently serves stale data
   while the CLI it needs is absent, and instead prints the same actionable `gh` install / `gh auth login` hint that
   `sase doctor` uses. This mirrors `src/sase/doctor/checks_plugins.py`.

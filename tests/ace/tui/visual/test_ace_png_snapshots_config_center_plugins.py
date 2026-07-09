@@ -206,7 +206,7 @@ async def test_config_center_plugins_long_description_png_snapshot(
         description=long_description,
         installed=InstalledInfo(installed=True, version="1.0.0"),
         latest=LatestInfo(checked=True, version="1.0.0", source="index"),
-        topics=("sase-plugin", "sync", "integration"),
+        topics=("sase--plugin", "sync", "integration"),
     )
     catalog = PluginCatalog(
         fetched_at=_PLUGINS_NOW,

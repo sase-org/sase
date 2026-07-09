@@ -139,36 +139,34 @@ def load_plugin_catalog(
 ) -> PluginCatalog:
     """Load the plugin catalog, merged with installed status.
 
-    Cache-first by default: a present cache is used and the network is never
-    touched unless ``refresh`` is set or no cache exists. When a refresh/first
-    fetch fails because ``gh`` ran but errored, a present cache is used as a
-    stale fallback with a loud warning; a missing ``gh`` (or no cache at all)
-    raises :class:`PluginCatalogError`.
+    Cache-first by default: a query-compatible cache is used and the network is
+    never touched unless ``refresh`` is set or no compatible cache exists. When
+    a refresh/first fetch fails because ``gh`` ran but errored, a compatible
+    cache is used as a stale fallback with a loud warning; a missing ``gh`` (or
+    no compatible cache at all) raises :class:`PluginCatalogError`.
     """
     now = time.time() if now is None else now
     cached = read_cache_fn()
+    compatible_cached = _compatible_cache(cached)
     warnings: list[str] = []
 
     if offline:
-        if cached is None:
-            raise PluginCatalogError(
-                "plugin catalog cache is unavailable in offline mode; "
-                "run `sase plugin list --refresh` when online"
-            )
-        payload = list(cached.entries)
-        fetched_at = cached.fetched_at
+        if compatible_cached is None:
+            raise PluginCatalogError(_offline_cache_error(cached))
+        payload = list(compatible_cached.entries)
+        fetched_at = compatible_cached.fetched_at
         from_cache = True
-    elif refresh or cached is None:
+    elif refresh or compatible_cached is None:
         payload, fetched_at, from_cache = _fetch_or_fall_back(
             fetch_fn=fetch_fn,
             write_cache_fn=write_cache_fn,
-            cached=cached,
+            cached=compatible_cached,
             now=now,
             warnings=warnings,
         )
     else:
-        payload = list(cached.entries)
-        fetched_at = cached.fetched_at
+        payload = list(compatible_cached.entries)
+        fetched_at = compatible_cached.fetched_at
         from_cache = True
 
     index = installed_index_fn()
@@ -180,6 +178,23 @@ def load_plugin_catalog(
         from_cache=from_cache,
         stale=is_cache_stale(fetched_at, now),
         warnings=tuple(warnings),
+    )
+
+
+def _compatible_cache(cached: CachedCatalog | None) -> CachedCatalog | None:
+    if cached is None or cached.query != GH_SEARCH_QUERY:
+        return None
+    return cached
+
+
+def _offline_cache_error(cached: CachedCatalog | None) -> str:
+    suffix = "run `sase plugin list --refresh` when online"
+    if cached is None:
+        return f"plugin catalog cache is unavailable in offline mode; {suffix}"
+    actual = cached.query or "missing query"
+    return (
+        "plugin catalog cache is incompatible with the current GitHub repository "
+        f"topic query ({actual}; expected {GH_SEARCH_QUERY}); {suffix}"
     )
 
 

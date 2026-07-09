@@ -16,9 +16,11 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
     suggest_plugins,
 )
-from sase.plugins.github_source import _GhCommandError, GhNotFoundError
+from sase.plugins.github_source import GH_SEARCH_QUERY, _GhCommandError, GhNotFoundError
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
+
+OLD_GH_SEARCH_QUERY = "topic:sase-plugin"
 
 
 def _payload(
@@ -38,7 +40,7 @@ def _payload(
         "description": "",
         "url": "",
         "homepage": "",
-        "topics": ["sase-plugin"],
+        "topics": ["sase--plugin"],
         "stars": 0,
         "archived": False,
         "license": "",
@@ -97,7 +99,7 @@ def test_classification_is_case_insensitive_on_owner() -> None:
 def test_cache_hit_does_not_touch_the_network() -> None:
     cached = CachedCatalog(
         fetched_at=500.0,
-        query="topic:sase-plugin",
+        query=GH_SEARCH_QUERY,
         entries=(_payload("github", "sase-org"),),
     )
 
@@ -114,7 +116,7 @@ def test_cache_hit_does_not_touch_the_network() -> None:
 def test_offline_uses_cache_without_fetching() -> None:
     cached = CachedCatalog(
         fetched_at=500.0,
-        query="topic:sase-plugin",
+        query=GH_SEARCH_QUERY,
         entries=(_payload("github", "sase-org"),),
     )
 
@@ -162,12 +164,36 @@ def test_first_run_without_cache_fetches_and_writes() -> None:
     assert catalog.from_cache is False
     assert catalog.fetched_at == 1000.0
     assert writes and writes[0][1] == 1000.0
+    assert writes[0][2] == GH_SEARCH_QUERY
+
+
+def test_old_query_cache_fetches_on_online_load() -> None:
+    cached = CachedCatalog(
+        fetched_at=500.0,
+        query=OLD_GH_SEARCH_QUERY,
+        entries=(_payload("stale", "sase-org"),),
+    )
+    writes: list[tuple[Any, ...]] = []
+
+    def _write(payload: Any, *, fetched_at: float, query: str) -> None:
+        writes.append((payload, fetched_at, query))
+
+    catalog = _load(
+        [_payload("github", "sase-org")],
+        refresh=False,
+        cached=cached,
+        write_fn=_write,
+    )
+
+    assert catalog.from_cache is False
+    assert [entry.name for entry in catalog.entries] == ["github"]
+    assert writes and writes[0][2] == GH_SEARCH_QUERY
 
 
 def test_refresh_fetches_even_with_cache_present() -> None:
     cached = CachedCatalog(
         fetched_at=500.0,
-        query="topic:sase-plugin",
+        query=GH_SEARCH_QUERY,
         entries=(_payload("stale", "sase-org"),),
     )
 
@@ -271,7 +297,7 @@ def test_updates_available_counts_installed_editable_dev_updates() -> None:
 def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
     cached = CachedCatalog(
         fetched_at=500.0,
-        query="topic:sase-plugin",
+        query=GH_SEARCH_QUERY,
         entries=(_payload("github", "sase-org"),),
     )
 
@@ -285,6 +311,20 @@ def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
     assert any("stale" in warning.lower() for warning in catalog.warnings)
 
 
+def test_old_query_cache_is_not_refresh_failure_fallback() -> None:
+    cached = CachedCatalog(
+        fetched_at=500.0,
+        query=OLD_GH_SEARCH_QUERY,
+        entries=(_payload("stale", "sase-org"),),
+    )
+
+    def _fail() -> list[dict[str, Any]]:
+        raise _GhCommandError("HTTP 401: Bad credentials")
+
+    with pytest.raises(_GhCommandError):
+        _load([], refresh=True, cached=cached, fetch_fn=_fail)
+
+
 def test_gh_command_error_without_cache_raises() -> None:
     def _fail() -> list[dict[str, Any]]:
         raise _GhCommandError("boom")
@@ -296,7 +336,7 @@ def test_gh_command_error_without_cache_raises() -> None:
 def test_gh_not_found_is_hard_error_even_with_cache() -> None:
     cached = CachedCatalog(
         fetched_at=500.0,
-        query="topic:sase-plugin",
+        query=GH_SEARCH_QUERY,
         entries=(_payload("github", "sase-org"),),
     )
 
@@ -310,7 +350,7 @@ def test_gh_not_found_is_hard_error_even_with_cache() -> None:
 def test_stale_flag_set_when_cache_old() -> None:
     cached = CachedCatalog(
         fetched_at=0.0,
-        query="topic:sase-plugin",
+        query=GH_SEARCH_QUERY,
         entries=(_payload("github", "sase-org"),),
     )
     catalog = _load(
@@ -321,6 +361,28 @@ def test_stale_flag_set_when_cache_old() -> None:
     )
     assert catalog.stale is True
     assert catalog.age_seconds(now=60 * 60 * 24 * 30) == 60 * 60 * 24 * 30
+
+
+def test_offline_old_query_cache_raises_refresh_online_message() -> None:
+    cached = CachedCatalog(
+        fetched_at=500.0,
+        query=OLD_GH_SEARCH_QUERY,
+        entries=(_payload("github", "sase-org"),),
+    )
+
+    with pytest.raises(PluginCatalogError) as excinfo:
+        load_plugin_catalog(
+            offline=True,
+            fetch_fn=lambda: [_payload("github", "sase-org")],
+            read_cache_fn=lambda: cached,
+            write_cache_fn=_noop_write,
+            installed_index_fn=lambda: {},
+        )
+
+    message = str(excinfo.value)
+    assert "incompatible" in message
+    assert "sase plugin list --refresh" in message
+    assert "online" in message
 
 
 def test_find_plugin_matches_name_repo_and_full_name() -> None:

@@ -14,6 +14,7 @@ from sase.plugins.cache import (
     read_cache,
     write_cache,
 )
+from sase.plugins.github_source import GH_SEARCH_QUERY
 
 
 def _entries() -> list[dict[str, Any]]:
@@ -23,25 +24,25 @@ def _entries() -> list[dict[str, Any]]:
             "repo": "sase-github",
             "full_name": "sase-org/sase-github",
             "owner": "sase-org",
-            "topics": ["sase-plugin", "github"],
+            "topics": ["sase--plugin", "github"],
             "stars": 12,
         }
     ]
 
 
 def test_write_then_read_round_trip() -> None:
-    write_cache(_entries(), fetched_at=1000.0, query="topic:sase-plugin")
+    write_cache(_entries(), fetched_at=1000.0, query=GH_SEARCH_QUERY)
 
     cached = read_cache()
     assert cached is not None
     assert cached.fetched_at == 1000.0
-    assert cached.query == "topic:sase-plugin"
+    assert cached.query == GH_SEARCH_QUERY
     assert list(cached.entries) == _entries()
     assert _cache_path().exists()
 
 
 def test_write_is_atomic_no_temp_files_left_behind() -> None:
-    write_cache(_entries(), fetched_at=1000.0, query="topic:sase-plugin")
+    write_cache(_entries(), fetched_at=1000.0, query=GH_SEARCH_QUERY)
     leftovers = list(_cache_path().parent.glob("*.tmp"))
     assert leftovers == []
 
@@ -58,7 +59,7 @@ def test_read_cache_rejects_unknown_schema_version() -> None:
             {
                 "schema_version": SCHEMA_VERSION + 1,
                 "fetched_at": 1000.0,
-                "query": "topic:sase-plugin",
+                "query": GH_SEARCH_QUERY,
                 "entries": _entries(),
             }
         ),

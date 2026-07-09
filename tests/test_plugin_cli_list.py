@@ -16,6 +16,7 @@ from sase.plugins.cli_list import (
     _build_list_json,
     handle_plugin_list_command,
 )
+from sase.plugins.github_source import GH_SEARCH_QUERY
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
 
@@ -35,7 +36,7 @@ def _entry(
     groups: tuple[str, ...] = (),
     stars: int = 0,
     archived: bool = False,
-    topics: tuple[str, ...] = ("sase-plugin",),
+    topics: tuple[str, ...] = ("sase--plugin",),
     updated_at: str = "",
     license: str = "",
     homepage: str = "",
@@ -191,7 +192,7 @@ def test_json_payload_shape_is_stable() -> None:
     payload = _build_list_json(_sample_catalog(), now=1000.0 + 7200)
 
     assert payload["schema_version"] == LIST_JSON_SCHEMA_VERSION
-    assert payload["query"] == "topic:sase-plugin"
+    assert payload["query"] == GH_SEARCH_QUERY
     assert payload["from_cache"] is True
     assert payload["stale"] is False
     assert payload["cache_age_seconds"] == 7200.0
@@ -355,7 +356,7 @@ def test_render_verbose_adds_stars_and_topics() -> None:
                 "sase-org",
                 repo="sase-github",
                 stars=12,
-                topics=("sase-plugin", "vcs"),
+                topics=("sase--plugin", "vcs"),
             ),
         )
     )

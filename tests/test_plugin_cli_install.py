@@ -45,7 +45,7 @@ def _entry(
         description="desc",
         url=f"https://github.com/{owner}/{repo}",
         homepage="",
-        topics=("sase-plugin",),
+        topics=("sase--plugin",),
         stars=0,
         archived=False,
         license="MIT",

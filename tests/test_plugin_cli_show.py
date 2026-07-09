@@ -34,7 +34,7 @@ def _entry(
     groups: tuple[str, ...] = (),
     stars: int = 0,
     archived: bool = False,
-    topics: tuple[str, ...] = ("sase-plugin",),
+    topics: tuple[str, ...] = ("sase--plugin",),
     updated_at: str = "",
     license: str = "",
     homepage: str = "",
@@ -94,7 +94,7 @@ def _sample_catalog() -> PluginCatalog:
                 updated_at="2026-06-20",
                 license="MIT",
                 homepage="https://sase.dev/plugins/github",
-                topics=("sase-plugin", "github", "vcs"),
+                topics=("sase--plugin", "github", "vcs"),
             ),
             _entry(
                 "telegram",

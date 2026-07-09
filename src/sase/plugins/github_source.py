@@ -1,7 +1,7 @@
 """Fetch the SASE plugin catalog from GitHub via the ``gh`` CLI.
 
 The canonical registry of SASE plugins is "every GitHub repository carrying the
-``sase-plugin`` topic". A single authenticated ``gh api`` search returns those
+``sase--plugin`` topic". A single authenticated ``gh api`` search returns those
 repositories with their topics inline, so the whole catalog comes from one call
 with no per-repo N+1 lookups.
 
@@ -21,7 +21,8 @@ from typing import Any
 
 #: Topic search that defines the canonical registry. No org filter, so both
 #: ``sase-org`` (built-in) and community repositories are returned.
-GH_SEARCH_QUERY = "topic:sase-plugin"
+SASE_PLUGIN_TOPIC = "sase--plugin"
+GH_SEARCH_QUERY = f"topic:{SASE_PLUGIN_TOPIC}"
 
 #: REST search endpoint path passed to ``gh api`` (topics are returned inline).
 _GH_SEARCH_ENDPOINT = f"search/repositories?q={GH_SEARCH_QUERY}&per_page=100"
@@ -220,5 +221,6 @@ __all__ = [
     "GH_TIMEOUT_SECONDS",
     "GhNotFoundError",
     "PluginCatalogError",
+    "SASE_PLUGIN_TOPIC",
     "fetch_catalog_payload",
 ]

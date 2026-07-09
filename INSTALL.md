@@ -57,7 +57,7 @@ points are picked up immediately. The same tab uninstalls plugins with `x`.
 The CLI equivalents are `sase plugin list`, `sase plugin show <plugin>`, `sase plugin install <plugin>`, and
 `sase plugin uninstall <plugin>` — see [docs/plugins.md](docs/plugins.md). Note that browsing the plugin catalog (in the
 Updates tab or via `sase plugin list`) requires an authenticated GitHub CLI (`gh`), since the catalog is fetched from
-the GitHub `sase-plugin` repository topic.
+the GitHub `sase--plugin` repository topic.
 
 ### Alternative: install SASE and plugins in one command
 

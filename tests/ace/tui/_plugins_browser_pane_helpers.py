@@ -69,7 +69,7 @@ def _catalog() -> PluginCatalog:
         description="GitHub VCS and workspace provider.",
         installed=InstalledInfo(installed=True, version="1.2.0"),
         latest=LatestInfo(checked=True, version="1.3.0", source="index"),
-        topics=("sase-plugin", "github"),
+        topics=("sase--plugin", "github"),
     )
     telegram = _entry(
         "telegram",

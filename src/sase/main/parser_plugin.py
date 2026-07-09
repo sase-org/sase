@@ -35,7 +35,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Discover every SASE plugin that exists by treating the GitHub "
-            "`sase-plugin` topic as the canonical registry. The catalog "
+            "`sase--plugin` repository topic as the canonical registry. The catalog "
             "distinguishes built-in plugins (published under the official "
             "`sase-org` org) from community plugins, and marks which are "
             "installed in the current environment. List/show also compare "

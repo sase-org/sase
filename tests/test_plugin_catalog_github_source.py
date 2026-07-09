@@ -9,6 +9,8 @@ from typing import Any
 import pytest
 
 from sase.plugins.github_source import (
+    GH_SEARCH_QUERY,
+    SASE_PLUGIN_TOPIC,
     _CatalogParseError,
     _GhCommandError,
     GhNotFoundError,
@@ -46,7 +48,7 @@ def _search_item(**overrides: Any) -> dict[str, Any]:
         "description": "GitHub VCS & PR workflows",
         "html_url": "https://github.com/sase-org/sase-github",
         "homepage": "https://sase.dev/plugins/github",
-        "topics": ["sase-plugin", "github", "vcs"],
+        "topics": ["sase--plugin", "github", "vcs"],
         "stargazers_count": 12,
         "archived": False,
         "license": {"spdx_id": "MIT"},
@@ -55,6 +57,35 @@ def _search_item(**overrides: Any) -> dict[str, Any]:
     }
     item.update(overrides)
     return item
+
+
+def test_fetch_uses_double_dash_topic_query() -> None:
+    calls: list[list[str]] = []
+
+    def _run(args: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=json.dumps({"total_count": 0, "items": []}),
+            stderr="",
+        )
+
+    payload = fetch_catalog_payload(which_fn=_gh_present, run_fn=_run)
+
+    assert payload == []
+    assert SASE_PLUGIN_TOPIC == "sase--plugin"
+    assert GH_SEARCH_QUERY == "topic:sase--plugin"
+    assert calls == [
+        [
+            "gh",
+            "api",
+            "--paginate",
+            "-X",
+            "GET",
+            "search/repositories?q=topic:sase--plugin&per_page=100",
+        ]
+    ]
 
 
 def test_fetch_parses_search_envelope_into_canonical_entry() -> None:
@@ -71,7 +102,7 @@ def test_fetch_parses_search_envelope_into_canonical_entry() -> None:
     assert entry["description"] == "GitHub VCS & PR workflows"
     assert entry["url"] == "https://github.com/sase-org/sase-github"
     assert entry["homepage"] == "https://sase.dev/plugins/github"
-    assert entry["topics"] == ["sase-plugin", "github", "vcs"]
+    assert entry["topics"] == ["sase--plugin", "github", "vcs"]
     assert entry["stars"] == 12
     assert entry["archived"] is False
     assert entry["license"] == "MIT"
@@ -87,7 +118,7 @@ def test_fetch_concatenates_paginated_objects() -> None:
                 _search_item(
                     name="sase-telegram",
                     full_name="sase-org/sase-telegram",
-                    topics=["sase-plugin"],
+                    topics=["sase--plugin"],
                 )
             ]
         }
@@ -115,7 +146,7 @@ def test_fetch_handles_missing_optional_fields() -> None:
         "description": None,
         "html_url": "https://github.com/acme-corp/acme-jira",
         "homepage": None,
-        "topics": ["sase-plugin"],
+        "topics": ["sase--plugin"],
         "stargazers_count": 0,
         "archived": True,
         "license": None,
