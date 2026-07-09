@@ -17,7 +17,9 @@ from sase.agent.status_buckets import agent_is_asking
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...tools.report import SlowToolCallReportSpec
     from ...widgets import AgentDetail, KeybindingFooter
+    from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 
 from ...models.agent_groups import GroupingMode, status_bucket_for
 from ...util.trace import tui_trace
@@ -57,6 +59,10 @@ class DetailMixin:
     _agents_onboarding_plugins_refresh_scheduled: bool
     _agents_onboarding_plugins_refresh_running: bool
     _agents_onboarding_plugins_refresh_pending: bool
+    _hint_mode_active: bool
+    _hint_mappings: dict[int, str]
+    _hint_commit_views: dict[int, CommitViewSpec]
+    _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
 
     def _apply_agent_detail_immediate(self) -> None:
         """Update the agent detail prompt header without spawning workers."""
@@ -75,6 +81,9 @@ class DetailMixin:
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None:
             agent_detail.show_empty()
+            return
+        if self._should_render_agent_detail_with_hints():
+            self._render_agent_detail_with_hints(agent_detail, current_agent)
             return
         agent_detail.update_display_immediate(
             current_agent, attempt_number=self.current_attempt_number
@@ -118,15 +127,35 @@ class DetailMixin:
             changed = hydrate_agent_attempt_history(current_agent)
             if changed:
                 self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
-            agent_detail.update_display(
-                current_agent,
-                stale_threshold_seconds=self.refresh_interval,
-                attempt_number=self.current_attempt_number,
-            )
+            if self._should_render_agent_detail_with_hints():
+                self._render_agent_detail_with_hints(agent_detail, current_agent)
+            else:
+                agent_detail.update_display(
+                    current_agent,
+                    stale_threshold_seconds=self.refresh_interval,
+                    attempt_number=self.current_attempt_number,
+                )
         else:
             agent_detail.show_empty()
 
         self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
+
+    def _should_render_agent_detail_with_hints(self) -> bool:
+        """Return whether Agents-tab detail repaints must preserve view hints."""
+        return self.current_tab == "agents" and bool(
+            getattr(self, "_hint_mode_active", False)
+        )
+
+    def _render_agent_detail_with_hints(
+        self,
+        agent_detail: AgentDetail,
+        current_agent: Agent,
+    ) -> None:
+        """Render the Agents detail prompt with hints and refresh hint state."""
+        hint_render = agent_detail.update_display_with_hints(current_agent)
+        self._hint_mappings = hint_render.file_hints
+        self._hint_commit_views = hint_render.commit_views
+        self._hint_tool_call_reports = hint_render.tool_call_reports
 
     def _should_show_agents_onboarding(self) -> bool:
         """Return True when the Agents tab has no visible rows to select."""

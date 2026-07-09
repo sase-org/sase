@@ -1,0 +1,184 @@
+"""Regression tests for Agents-tab view hints surviving detail refreshes."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, cast
+
+import pytest
+
+from sase.ace.tui.actions.agents import _loading_helpers
+from sase.ace.tui.actions.agents._display_detail import DetailMixin
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
+    AgentHintRender,
+    CommitViewSpec,
+)
+
+
+def _agent() -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feat-hints",
+        project_file="/tmp/project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 9, 12, 0, 0),
+        raw_suffix="20260709120000",
+    )
+
+
+def _unchanged_attempt_history(_agent: Agent) -> bool:
+    return False
+
+
+class _RecordingAgentDetail:
+    def __init__(self) -> None:
+        self.update_display_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+        self.update_display_immediate_calls: list[
+            tuple[tuple[Any, ...], dict[str, Any]]
+        ] = []
+        self.update_display_with_hints_calls: list[Agent] = []
+        self.show_empty_calls = 0
+        self.commit_view = CommitViewSpec(
+            short_sha="abc1234",
+            sha="abc1234567890",
+            repo_name="repo",
+            cwd=None,
+            subject="commit subject",
+            message="commit body",
+            diff_path=None,
+            is_primary=True,
+        )
+        self.tool_reports = cast(
+            dict[str, SlowToolCallReportSpec],
+            {"tool-call-1": object()},
+        )
+        self.hint_render = AgentHintRender(
+            file_hints={2: "/tmp/project/file.py"},
+            tool_call_reports=self.tool_reports,
+            commit_views={3: self.commit_view},
+        )
+
+    def update_display(self, *args: Any, **kwargs: Any) -> None:
+        self.update_display_calls.append((args, kwargs))
+
+    def update_display_immediate(self, *args: Any, **kwargs: Any) -> None:
+        self.update_display_immediate_calls.append((args, kwargs))
+
+    def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
+        self.update_display_with_hints_calls.append(agent)
+        return self.hint_render
+
+    def show_empty(self) -> None:
+        self.show_empty_calls += 1
+
+
+class _RecordingFooter:
+    pass
+
+
+class _FakeApp(DetailMixin):
+    def __init__(
+        self,
+        *,
+        hint_mode_active: bool = True,
+        current_tab: str = "agents",
+    ) -> None:
+        self.agent = _agent()
+        self.detail = _RecordingAgentDetail()
+        self.footer = _RecordingFooter()
+        self.current_idx = 0
+        self.current_attempt_number = None
+        self.current_tab = current_tab
+        self.refresh_interval = 10
+        self._agents = [self.agent]
+        self._agents_first_load_done = True
+        self._agent_search_query = ""
+        self._hint_mode_active = hint_mode_active
+        self._hint_mappings = {1: "/tmp/project/old.py"}
+        self._hint_commit_views = {}
+        self._hint_tool_call_reports = cast(
+            dict[str, SlowToolCallReportSpec],
+            {"old-tool-call": object()},
+        )
+        self.footer_updates: list[Agent | None] = []
+        self._widgets: dict[str, Any] = {
+            "#agent-detail-panel": self.detail,
+            "#keybinding-footer": self.footer,
+        }
+
+    def query_one(self, selector: str, _type: Any = None) -> Any:
+        del _type
+        return self._widgets[selector]
+
+    def _get_selected_agent(self) -> Agent | None:
+        return self.agent
+
+    def _apply_agent_footer_update(
+        self,
+        agent_detail: Any,
+        footer_widget: Any,
+        current_agent: Agent | None,
+    ) -> None:
+        del agent_detail, footer_widget
+        self.footer_updates.append(current_agent)
+
+
+@pytest.fixture(autouse=True)
+def _no_attempt_history_hydration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        _loading_helpers,
+        "hydrate_agent_attempt_history",
+        _unchanged_attempt_history,
+    )
+
+
+def test_agent_detail_refresh_preserves_active_view_hints() -> None:
+    app = _FakeApp(hint_mode_active=True)
+
+    app._apply_agent_detail_update(app.detail, app.footer)  # type: ignore[arg-type]
+
+    assert app.detail.update_display_calls == []
+    assert app.detail.update_display_with_hints_calls == [app.agent]
+    assert app._hint_mappings == app.detail.hint_render.file_hints
+    assert app._hint_commit_views == app.detail.hint_render.commit_views
+    assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app.footer_updates == [app.agent]
+
+
+def test_agent_detail_immediate_preserves_active_view_hints() -> None:
+    app = _FakeApp(hint_mode_active=True)
+
+    app._apply_agent_detail_immediate()
+
+    assert app.detail.update_display_immediate_calls == []
+    assert app.detail.update_display_with_hints_calls == [app.agent]
+    assert app._hint_mappings == app.detail.hint_render.file_hints
+    assert app._hint_commit_views == app.detail.hint_render.commit_views
+    assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app.footer_updates == []
+
+
+def test_debounced_agent_detail_refresh_preserves_active_view_hints() -> None:
+    app = _FakeApp(hint_mode_active=True)
+
+    app._fire_debounced_detail_update()
+
+    assert app.detail.update_display_calls == []
+    assert app.detail.update_display_with_hints_calls == [app.agent]
+    assert app._hint_mappings == app.detail.hint_render.file_hints
+    assert app._hint_commit_views == app.detail.hint_render.commit_views
+    assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app.footer_updates == [app.agent]
+
+
+def test_agent_detail_refresh_uses_plain_render_when_hint_mode_inactive() -> None:
+    app = _FakeApp(hint_mode_active=False)
+
+    app._apply_agent_detail_update(app.detail, app.footer)  # type: ignore[arg-type]
+
+    assert app.detail.update_display_with_hints_calls == []
+    assert len(app.detail.update_display_calls) == 1
+    assert app._hint_mappings == {1: "/tmp/project/old.py"}
+    assert app.footer_updates == [app.agent]
