@@ -7,6 +7,7 @@ import subprocess
 
 import pytest
 
+from sase.main.init_memory.formatting import format_generated_memory_markdown
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -109,4 +110,18 @@ def test_init_memory_generated_markdown_passes_prettier_check(
     )
     assert result.returncode == 0, (
         f"prettier --check failed:\nstdout={result.stdout}\nstderr={result.stderr}"
+    )
+
+
+def test_format_adds_hard_break_for_bold_label_description() -> None:
+    assert (
+        format_generated_memory_markdown("**`memory/foo.md`**\nRead this note.\n")
+        == "**`memory/foo.md`**  \nRead this note.\n"
+    )
+
+
+def test_format_preserves_bold_label_followed_by_blank_line() -> None:
+    assert (
+        format_generated_memory_markdown("**Xprompt swarm**\n\nAn xprompt body.\n")
+        == "**Xprompt swarm**\n\nAn xprompt body.\n"
     )

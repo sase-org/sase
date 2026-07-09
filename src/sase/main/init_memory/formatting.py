@@ -53,6 +53,16 @@ def _starts_block(line: str) -> bool:
     )
 
 
+def _standalone_strong_label_needs_hard_break(
+    source_lines: list[str], index: int
+) -> bool:
+    next_index = index + 1
+    if next_index >= len(source_lines):
+        return False
+    next_line = source_lines[next_index].rstrip()
+    return bool(next_line.strip()) and not _starts_block(next_line)
+
+
 def format_generated_memory_markdown(content: str) -> str:
     """Format generated memory Markdown without invoking external tools."""
     source_lines = content.splitlines()
@@ -87,7 +97,10 @@ def format_generated_memory_markdown(content: str) -> str:
             continue
 
         if _is_standalone_strong_label(raw_line):
-            formatted.append(f"{line}  ")
+            if _standalone_strong_label_needs_hard_break(source_lines, index):
+                formatted.append(f"{line}  ")
+            else:
+                formatted.append(line)
             index += 1
             continue
 
