@@ -14,22 +14,20 @@ _AgentFamilySnapshot = Callable[[str], Any]
 _DismissedIdentityDicts = Callable[[], list[dict[str, str | None]]]
 
 
-def _resolve_family_attach_plan(
-    directive: _types._FamilyAttachDirective,
+def resolve_family_attach_plan(
+    directive: _types.FamilyAttachDirective,
     *,
     project_name: str,
     pending_family_parents: list[_types.FamilyAttachSibling] | None = None,
     agent_family_snapshot: _AgentFamilySnapshot | None = None,
     dismissed_identity_dicts: _DismissedIdentityDicts | None = None,
-) -> _types._FamilyAttachLaunchPlan:
-    snapshot_factory = agent_family_snapshot or _candidates._agent_family_snapshot
-    dismissed_factory = (
-        dismissed_identity_dicts or _candidates._dismissed_identity_dicts
-    )
+) -> _types.FamilyAttachLaunchPlan:
+    snapshot_factory = agent_family_snapshot or _candidates.agent_family_snapshot
+    dismissed_factory = dismissed_identity_dicts or _candidates.dismissed_identity_dicts
     snapshot = snapshot_factory(project_name)
     pending_siblings = tuple(pending_family_parents or ())
     sibling_candidates = [
-        _candidates._candidate_from_sibling(sibling)
+        _candidates.candidate_from_sibling(sibling)
         for sibling in pending_siblings
         if sibling.can_attach_parent
     ]
@@ -38,37 +36,34 @@ def _resolve_family_attach_plan(
         "parent_name": directive.parent,
         "project_name": project_name,
         "candidates": [
-            *[
-                _candidates._candidate_from_record(record)
-                for record in snapshot.records
-            ],
+            *[_candidates.candidate_from_record(record) for record in snapshot.records],
             *sibling_candidates,
         ],
         "dismissed": dismissed_factory(),
     }
 
-    binding = _candidates._resolve_binding()
+    binding = _candidates.resolve_binding()
     result = dict(binding(request))
     kind = result.get("kind")
     if kind not in {"resolved", "running"}:
-        raise _types._FamilyAttachError(
-            _candidates._resolution_error_message(directive, result, project_name)
+        raise _types.FamilyAttachError(
+            _candidates.resolution_error_message(directive, result, project_name)
         )
 
     parent = dict(result.get("parent") or {})
     if not parent:
-        raise _types._FamilyAttachError(
+        raise _types.FamilyAttachError(
             f"Cannot attach family member to '{directive.parent}': "
             "resolved parent metadata is no longer available."
         )
-    sibling_by_artifact_dir = _candidates._sibling_by_artifact_dir(pending_siblings)
+    sibling_by_artifact_dir = _candidates.sibling_by_artifact_dir(pending_siblings)
     parent_sibling = sibling_by_artifact_dir.get(str(parent["artifact_dir"]))
-    parent_record = _candidates._record_by_artifact_dir(snapshot.records).get(
+    parent_record = _candidates.record_by_artifact_dir(snapshot.records).get(
         parent["artifact_dir"]
     )
     if parent_record is None or parent_record.agent_meta is None:
         if parent_sibling is None:
-            raise _types._FamilyAttachError(
+            raise _types.FamilyAttachError(
                 f"Cannot attach family member to '{directive.parent}': "
                 "resolved parent metadata is no longer available."
             )
@@ -77,7 +72,7 @@ def _resolve_family_attach_plan(
     parent_base = (
         parent_sibling.family_base
         if parent_sibling is not None
-        else _candidates._family_base(parent_record, parent_name)
+        else _candidates.family_base(parent_record, parent_name)
     )
     role_suffix = _resolve_role_suffix(
         directive.suffix,
@@ -99,15 +94,15 @@ def _resolve_family_attach_plan(
         parent_workspace_num = parent_sibling.workspace_num
     else:
         if parent_record is None or parent_record.agent_meta is None:
-            raise _types._FamilyAttachError(
+            raise _types.FamilyAttachError(
                 f"Cannot attach family member to '{directive.parent}': "
                 "resolved parent metadata is no longer available."
             )
-        parent_cl_name = _candidates._record_cl_name(parent_record)
+        parent_cl_name = _candidates.record_cl_name(parent_record)
         parent_workspace_dir = parent_record.agent_meta.workspace_dir
         parent_workspace_num = parent_record.agent_meta.workspace_num
 
-    return _types._FamilyAttachLaunchPlan(
+    return _types.FamilyAttachLaunchPlan(
         parent_arg=directive.parent,
         suffix_arg=directive.suffix,
         parent_name=parent_name,
@@ -122,7 +117,7 @@ def _resolve_family_attach_plan(
         parent_cl_name=parent_cl_name,
         parent_workspace_dir=parent_workspace_dir,
         parent_workspace_num=parent_workspace_num,
-        sase_plan=_candidates._family_sase_plan(snapshot.records, parent_base)
+        sase_plan=_candidates.family_sase_plan(snapshot.records, parent_base)
         if role == "code"
         else None,
     )
@@ -139,8 +134,8 @@ def _resolve_role_suffix(
         from sase.plan_chain import allocate_agent_family_child_suffix
 
         known_suffixes = [
-            *_candidates._known_family_suffixes(records, parent_base),
-            *_candidates._known_family_suffixes_from_siblings(
+            *_candidates.known_family_suffixes(records, parent_base),
+            *_candidates.known_family_suffixes_from_siblings(
                 pending_family_parents or [],
                 parent_base,
             ),
@@ -150,7 +145,7 @@ def _resolve_role_suffix(
             f"{AGENT_FAMILY_SEPARATOR}@",
             extra_reserved_suffixes=tuple(known_suffixes),
         )
-    return _directives._normalize_family_suffix_arg(suffix_arg)
+    return _directives.normalize_family_suffix_arg(suffix_arg)
 
 
 def _family_role(role_suffix: str, suffix_arg: str) -> str:
@@ -167,7 +162,7 @@ def _family_role(role_suffix: str, suffix_arg: str) -> str:
 
 def _ensure_family_name_available(
     agent_name: str,
-    directive: _types._FamilyAttachDirective,
+    directive: _types.FamilyAttachDirective,
     records: list[Any] | None = None,
     *,
     pending_family_parents: list[_types.FamilyAttachSibling] | None = None,
@@ -176,20 +171,17 @@ def _ensure_family_name_available(
 
     known_names = set(get_reserved_agent_names())
     if records is not None:
-        known_names.update(_candidates._known_agent_names(records))
+        known_names.update(_candidates.known_agent_names(records))
     known_names.update(
-        _candidates._known_agent_names_from_siblings(pending_family_parents or [])
+        _candidates.known_agent_names_from_siblings(pending_family_parents or [])
     )
     if agent_name in known_names:
-        raise _types._FamilyAttachError(
+        raise _types.FamilyAttachError(
             f"Agent family member '{agent_name}' already exists. "
             f"Use %n({directive.parent}, @) to allocate the next free suffix."
         )
 
 
 __all__ = [
-    "_ensure_family_name_available",
-    "_family_role",
-    "_resolve_family_attach_plan",
-    "_resolve_role_suffix",
+    "resolve_family_attach_plan",
 ]

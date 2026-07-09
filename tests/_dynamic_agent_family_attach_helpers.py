@@ -73,11 +73,11 @@ def _patch_attach_snapshot(
     dismissed: list[dict[str, str | None]] | None = None,
 ) -> None:
     monkeypatch.setattr(
-        "sase.agent.family_attach._agent_family_snapshot",
+        "sase.agent.family_attach.agent_family_snapshot",
         lambda _project_name: SimpleNamespace(records=records),
     )
     monkeypatch.setattr(
-        "sase.agent.family_attach._dismissed_identity_dicts",
+        "sase.agent.family_attach.dismissed_identity_dicts",
         lambda: list(dismissed or []),
     )
     monkeypatch.setattr(

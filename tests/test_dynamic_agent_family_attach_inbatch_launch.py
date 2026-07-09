@@ -20,10 +20,10 @@ from sase.core.agent_launch_facade import plan_fake_fanout
 
 def _patch_empty_attach_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.agent.family_attach._agent_family_snapshot",
+        "sase.agent.family_attach.agent_family_snapshot",
         lambda _project_name: SimpleNamespace(records=[]),
     )
-    monkeypatch.setattr("sase.agent.family_attach._dismissed_identity_dicts", list)
+    monkeypatch.setattr("sase.agent.family_attach.dismissed_identity_dicts", list)
     monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", set)
 
 

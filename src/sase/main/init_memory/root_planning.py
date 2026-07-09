@@ -27,7 +27,7 @@ from .root_rendering import (
 
 
 @dataclass(frozen=True)
-class MemoryRootContext:
+class _MemoryRootContext:
     amd_sync: AmdMemorySyncPlan | None
     expected_files: tuple[MemoryExpectedFile, ...]
     shim_plan: ProviderShimPlan
@@ -230,7 +230,7 @@ def memory_root_context(
     enable_amd: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
-) -> MemoryRootContext:
+) -> _MemoryRootContext:
     generated_sase_body = generated_sase_memory_body(
         linked_entries, project_name=project_name
     )
@@ -254,7 +254,7 @@ def memory_root_context(
     additional_shim_plans = (
         _additional_agent_doc_shim_plans(root) if include_project_agent_docs else ()
     )
-    return MemoryRootContext(
+    return _MemoryRootContext(
         amd_sync=amd_sync,
         expected_files=expected_files,
         shim_plan=shim_plan,

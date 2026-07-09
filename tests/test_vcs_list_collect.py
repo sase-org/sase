@@ -7,7 +7,7 @@ import pytest
 from sase.core.vcs_log_wire import VcsCommitWire
 from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 from sase.vcs_list import collect as collect_module
-from sase.vcs_list.collect import collect_vcs_list, run_vcs_list
+from sase.vcs_list.collect import _collect_vcs_list, run_vcs_list
 from sase.vcs_log.models import LogRepo
 from sase.vcs_log.resolve import ResolvedRepos
 
@@ -75,7 +75,7 @@ def test_collect_keeps_failing_repo_listed_and_totals_successful_stats(
         "/p/bad": _FailProvider(),
     }
 
-    result = collect_vcs_list(
+    result = _collect_vcs_list(
         repos,
         provider_factory=lambda path: providers[path],
     )
@@ -110,13 +110,13 @@ def test_collect_sort_modes(monkeypatch: pytest.MonkeyPatch) -> None:
         "/m": _FakeProvider(_stats(3, 900)),
     }
 
-    by_name = collect_vcs_list(
+    by_name = _collect_vcs_list(
         repos, sort="name", provider_factory=lambda path: providers[path]
     )
-    by_commits = collect_vcs_list(
+    by_commits = _collect_vcs_list(
         repos, sort="commits", provider_factory=lambda path: providers[path]
     )
-    by_recent = collect_vcs_list(
+    by_recent = _collect_vcs_list(
         repos, sort="recent", provider_factory=lambda path: providers[path]
     )
 

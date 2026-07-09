@@ -3,10 +3,10 @@ from __future__ import annotations
 import pytest
 
 from sase.agent.family_attach import (
-    _FamilyAttachDirective,
-    _FamilyAttachError,
-    _resolve_family_attach_plan,
+    FamilyAttachDirective,
+    FamilyAttachError,
     prepare_family_attach_launch,
+    resolve_family_attach_plan,
 )
 from sase.agent.launch_executor import LaunchExecutionContext
 from tests._dynamic_agent_family_attach_helpers import (
@@ -21,9 +21,9 @@ def test_family_attach_absent_parent_error_uses_rust_resolution(
 ) -> None:
     _patch_attach_snapshot(monkeypatch, [])
 
-    with pytest.raises(_FamilyAttachError) as exc_info:
-        _resolve_family_attach_plan(
-            _FamilyAttachDirective(parent="missing", suffix="reviewer"),
+    with pytest.raises(FamilyAttachError) as exc_info:
+        resolve_family_attach_plan(
+            FamilyAttachDirective(parent="missing", suffix="reviewer"),
             project_name="sase",
         )
 
@@ -48,9 +48,9 @@ def test_family_attach_dismissed_parent_error_names_revive_path(
         ],
     )
 
-    with pytest.raises(_FamilyAttachError) as exc_info:
-        _resolve_family_attach_plan(
-            _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    with pytest.raises(FamilyAttachError) as exc_info:
+        resolve_family_attach_plan(
+            FamilyAttachDirective(parent="foo", suffix="reviewer"),
             project_name="sase",
         )
 
@@ -81,9 +81,9 @@ def test_family_attach_ambiguous_parent_error_lists_candidates(
         ],
     )
 
-    with pytest.raises(_FamilyAttachError) as exc_info:
-        _resolve_family_attach_plan(
-            _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    with pytest.raises(FamilyAttachError) as exc_info:
+        resolve_family_attach_plan(
+            FamilyAttachDirective(parent="foo", suffix="reviewer"),
             project_name="sase",
         )
 
@@ -110,8 +110,8 @@ def test_family_attach_resolution_uses_newest_match_with_project_scope(
         ],
     )
 
-    plan = _resolve_family_attach_plan(
-        _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
     )
 
@@ -130,8 +130,8 @@ def test_family_attach_running_parent_builds_queued_plan(
     )
     _patch_attach_snapshot(monkeypatch, [record])
 
-    plan = _resolve_family_attach_plan(
-        _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
     )
 
@@ -148,8 +148,8 @@ def test_family_attach_resolves_in_batch_parent_without_artifact_meta(
     _patch_attach_snapshot(monkeypatch, [])
     sibling = _in_batch_sibling()
 
-    plan = _resolve_family_attach_plan(
-        _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
         pending_family_parents=[sibling],
     )
@@ -187,8 +187,8 @@ def test_family_attach_prefers_in_batch_parent_over_older_persisted_parent(
         workspace_num=8,
     )
 
-    plan = _resolve_family_attach_plan(
-        _FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
         pending_family_parents=[sibling],
     )
@@ -203,8 +203,8 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
     _patch_attach_snapshot(monkeypatch, [])
     pending = [_in_batch_sibling()]
 
-    first = _resolve_family_attach_plan(
-        _FamilyAttachDirective(parent="foo", suffix="@"),
+    first = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="@"),
         project_name="sase",
         pending_family_parents=pending,
     )
@@ -216,17 +216,17 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
             can_attach_parent=False,
         )
     )
-    second = _resolve_family_attach_plan(
-        _FamilyAttachDirective(parent="foo", suffix="@"),
+    second = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="@"),
         project_name="sase",
         pending_family_parents=pending,
     )
 
     assert first.role_suffix == "--1"
     assert second.role_suffix == "--2"
-    with pytest.raises(_FamilyAttachError, match=r"%n\(foo, @\)"):
-        _resolve_family_attach_plan(
-            _FamilyAttachDirective(parent="foo", suffix="1"),
+    with pytest.raises(FamilyAttachError, match=r"%n\(foo, @\)"):
+        resolve_family_attach_plan(
+            FamilyAttachDirective(parent="foo", suffix="1"),
             project_name="sase",
             pending_family_parents=pending,
         )
@@ -252,8 +252,8 @@ def test_family_attach_role_mapping_through_attach_path(
 ) -> None:
     _patch_attach_snapshot(monkeypatch, [_artifact_record(name="foo")])
 
-    plan = _resolve_family_attach_plan(
-        _FamilyAttachDirective(parent="foo", suffix=suffix),
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix=suffix),
         project_name="sase",
     )
 

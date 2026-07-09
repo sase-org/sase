@@ -66,7 +66,7 @@ def test_disk_free_ok_includes_workspace_root_and_sase_home(
     sase_home = tmp_path / ".sase"
     sase_home.mkdir()
     monkeypatch.setattr(
-        "sase.doctor.checks_resources._workspace_root_path",
+        "sase.doctor.checks_resources.workspace_root_path",
         lambda _context: (workspace_root, None),
     )
 
@@ -99,7 +99,7 @@ def test_disk_free_warns_below_three_gib(
     sase_home = tmp_path / ".sase"
     sase_home.mkdir()
     monkeypatch.setattr(
-        "sase.doctor.checks_resources._workspace_root_path",
+        "sase.doctor.checks_resources.workspace_root_path",
         lambda _context: (workspace_root, None),
     )
 
@@ -128,7 +128,7 @@ def test_disk_free_errors_below_one_gib(
     sase_home = tmp_path / ".sase"
     sase_home.mkdir()
     monkeypatch.setattr(
-        "sase.doctor.checks_resources._workspace_root_path",
+        "sase.doctor.checks_resources.workspace_root_path",
         lambda _context: (workspace_root, None),
     )
 
@@ -152,7 +152,7 @@ def test_disk_free_reports_workspace_root_resolution_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_resources._workspace_root_path",
+        "sase.doctor.checks_resources.workspace_root_path",
         lambda _context: (None, "RuntimeError: bad workspace config"),
     )
 
@@ -276,7 +276,7 @@ def test_ulimits_skips_when_resource_module_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_resources._import_resource_module",
+        "sase.doctor.checks_resources.import_resource_module",
         lambda: None,
     )
 

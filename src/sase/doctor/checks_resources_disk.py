@@ -44,7 +44,7 @@ def check_disk_free(
     if disk_usage_fn is None:
         disk_usage_fn = _disk_usage
     if workspace_root_fn is None:
-        workspace_root_fn = _workspace_root_path
+        workspace_root_fn = workspace_root_path
 
     workspace_root, workspace_error = workspace_root_fn(context)
     if workspace_error is not None or workspace_root is None:
@@ -92,7 +92,7 @@ def check_disk_free(
 _check_disk_free = check_disk_free
 
 
-def _workspace_root_path(context: DoctorContext) -> tuple[Path | None, str | None]:
+def workspace_root_path(context: DoctorContext) -> tuple[Path | None, str | None]:
     try:
         config = load_merged_config()
         store = WorkspaceStore(

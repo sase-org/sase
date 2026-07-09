@@ -9,7 +9,7 @@ from sase.agent import _family_attach_types as _types
 from sase.plan_chain import AGENT_FAMILY_SEPARATOR
 
 
-def _agent_family_snapshot(project_name: str) -> Any:
+def agent_family_snapshot(project_name: str) -> Any:
     from sase.core.agent_scan_facade import (
         default_agent_artifact_index_path,
         query_agent_artifact_index,
@@ -49,7 +49,7 @@ def _agent_family_snapshot(project_name: str) -> Any:
     return scan_agent_artifacts(projects_root, options)
 
 
-def _candidate_from_record(record: Any) -> dict[str, Any]:
+def candidate_from_record(record: Any) -> dict[str, Any]:
     meta = record.agent_meta
     name = ""
     if meta is not None:
@@ -60,14 +60,14 @@ def _candidate_from_record(record: Any) -> dict[str, Any]:
         "project_name": record.project_name,
         "artifact_dir": str(record.artifact_dir),
         "timestamp": record.timestamp,
-        "cl_name": _record_cl_name(record) or record.project_name,
+        "cl_name": record_cl_name(record) or record.project_name,
         "raw_suffix": record.timestamp,
         "parent_timestamp": None if meta is None else meta.parent_timestamp,
         "is_terminal": bool(record.has_done_marker),
     }
 
 
-def _candidate_from_sibling(sibling: _types.FamilyAttachSibling) -> dict[str, Any]:
+def candidate_from_sibling(sibling: _types.FamilyAttachSibling) -> dict[str, Any]:
     return {
         "name": sibling.name,
         "workflow_name": sibling.family_base,
@@ -81,7 +81,7 @@ def _candidate_from_sibling(sibling: _types.FamilyAttachSibling) -> dict[str, An
     }
 
 
-def _record_cl_name(record: Any) -> str | None:
+def record_cl_name(record: Any) -> str | None:
     meta = record.agent_meta
     if meta is not None:
         for value in (meta.cl_name, meta.changespec_name):
@@ -96,7 +96,7 @@ def _record_cl_name(record: Any) -> str | None:
     return None
 
 
-def _dismissed_identity_dicts() -> list[dict[str, str | None]]:
+def dismissed_identity_dicts() -> list[dict[str, str | None]]:
     from sase.ace.dismissed_agents import load_dismissed_agents
 
     return [
@@ -109,17 +109,17 @@ def _dismissed_identity_dicts() -> list[dict[str, str | None]]:
     ]
 
 
-def _record_by_artifact_dir(records: list[Any]) -> dict[str, Any]:
+def record_by_artifact_dir(records: list[Any]) -> dict[str, Any]:
     return {str(record.artifact_dir): record for record in records}
 
 
-def _sibling_by_artifact_dir(
+def sibling_by_artifact_dir(
     siblings: tuple[_types.FamilyAttachSibling, ...],
 ) -> dict[str, _types.FamilyAttachSibling]:
     return {sibling.artifact_dir: sibling for sibling in siblings}
 
 
-def _artifacts_timestamp_from_launch_timestamp(timestamp: str) -> str:
+def artifacts_timestamp_from_launch_timestamp(timestamp: str) -> str:
     if re.fullmatch(r"\d{14}", timestamp):
         return timestamp
 
@@ -128,7 +128,7 @@ def _artifacts_timestamp_from_launch_timestamp(timestamp: str) -> str:
     return convert_timestamp_to_artifacts_format(timestamp)
 
 
-def _family_base(record: Any, parent_name: str) -> str:
+def family_base(record: Any, parent_name: str) -> str:
     meta = record.agent_meta
     if meta is not None and meta.agent_family:
         return meta.agent_family
@@ -137,7 +137,7 @@ def _family_base(record: Any, parent_name: str) -> str:
     return agent_family_base(parent_name) or parent_name
 
 
-def _known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
+def known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
     suffixes: list[str] = []
     prefix = f"{parent_base}{AGENT_FAMILY_SEPARATOR}"
     for record in records:
@@ -154,7 +154,7 @@ def _known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
     return suffixes
 
 
-def _known_family_suffixes_from_siblings(
+def known_family_suffixes_from_siblings(
     siblings: list[_types.FamilyAttachSibling],
     parent_base: str,
 ) -> list[str]:
@@ -168,7 +168,7 @@ def _known_family_suffixes_from_siblings(
     return suffixes
 
 
-def _known_agent_names(records: list[Any]) -> list[str]:
+def known_agent_names(records: list[Any]) -> list[str]:
     names: list[str] = []
     for record in records:
         meta = record.agent_meta
@@ -180,13 +180,13 @@ def _known_agent_names(records: list[Any]) -> list[str]:
     return names
 
 
-def _known_agent_names_from_siblings(
+def known_agent_names_from_siblings(
     siblings: list[_types.FamilyAttachSibling],
 ) -> list[str]:
     return [sibling.name for sibling in siblings if sibling.name]
 
 
-def _family_sase_plan(records: list[Any], parent_base: str) -> str | None:
+def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
     family_records = [
         record
         for record in records
@@ -212,8 +212,8 @@ def _family_sase_plan(records: list[Any], parent_base: str) -> str | None:
     return None
 
 
-def _resolution_error_message(
-    directive: _types._FamilyAttachDirective,
+def resolution_error_message(
+    directive: _types.FamilyAttachDirective,
     result: dict[str, Any],
     project_name: str,
 ) -> str:
@@ -246,7 +246,7 @@ def _candidate_label(candidate: dict[str, Any]) -> str:
     return f"{name}@{timestamp}"
 
 
-def _resolve_binding() -> Any:
+def resolve_binding() -> Any:
     from sase.core.rust import require_rust_binding
 
     try:
@@ -329,24 +329,20 @@ def _candidate_is_dismissed(
 
 
 __all__ = [
-    "_agent_family_snapshot",
-    "_artifacts_timestamp_from_launch_timestamp",
-    "_candidate_from_record",
-    "_candidate_from_sibling",
-    "_candidate_is_dismissed",
-    "_candidate_label",
-    "_candidate_matches_parent",
-    "_dismissed_identity_dicts",
-    "_family_base",
-    "_family_sase_plan",
-    "_known_agent_names",
-    "_known_agent_names_from_siblings",
-    "_known_family_suffixes",
-    "_known_family_suffixes_from_siblings",
-    "_record_by_artifact_dir",
-    "_record_cl_name",
-    "_resolution_error_message",
-    "_resolve_agent_family_parent_fallback",
-    "_resolve_binding",
-    "_sibling_by_artifact_dir",
+    "agent_family_snapshot",
+    "artifacts_timestamp_from_launch_timestamp",
+    "candidate_from_record",
+    "candidate_from_sibling",
+    "dismissed_identity_dicts",
+    "family_base",
+    "family_sase_plan",
+    "known_agent_names",
+    "known_agent_names_from_siblings",
+    "known_family_suffixes",
+    "known_family_suffixes_from_siblings",
+    "record_by_artifact_dir",
+    "record_cl_name",
+    "resolution_error_message",
+    "resolve_binding",
+    "sibling_by_artifact_dir",
 ]

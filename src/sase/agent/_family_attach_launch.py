@@ -16,7 +16,7 @@ from sase.agent import _family_attach_types as _types
 if TYPE_CHECKING:
     from sase.agent.launch_executor_types import LaunchSpawnRequest
 
-_FamilyAttachPlanResolver = Callable[..., _types._FamilyAttachLaunchPlan]
+_FamilyAttachPlanResolver = Callable[..., _types.FamilyAttachLaunchPlan]
 
 
 def prepare_family_attach_launch(
@@ -29,11 +29,11 @@ def prepare_family_attach_launch(
 ) -> tuple[Any, dict[str, str] | None]:
     """Resolve family attach metadata and return adjusted launch context/env."""
 
-    directive = _directives._extract_family_attach_directive(prompt)
+    directive = _directives.extract_family_attach_directive(prompt)
     if directive is None:
         return context, extra_env
 
-    resolver = resolve_family_attach_plan or _resolution._resolve_family_attach_plan
+    resolver = resolve_family_attach_plan or _resolution.resolve_family_attach_plan
     plan = resolver(
         directive,
         project_name=context.project_name,
@@ -82,19 +82,19 @@ def prepare_family_attach_launch(
 
 def load_family_attach_plan_from_env(
     env: dict[str, str] | None = None,
-) -> _types._FamilyAttachLaunchPlan | None:
+) -> _types.FamilyAttachLaunchPlan | None:
     raw = (env or os.environ).get(_types.FAMILY_ATTACH_ENV)
     if not raw:
         return None
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise _types._FamilyAttachError(
+        raise _types.FamilyAttachError(
             "Invalid SASE_AGENT_FAMILY_ATTACH payload"
         ) from exc
     if not isinstance(data, dict):
-        raise _types._FamilyAttachError("Invalid SASE_AGENT_FAMILY_ATTACH payload")
-    return _types._FamilyAttachLaunchPlan(
+        raise _types.FamilyAttachError("Invalid SASE_AGENT_FAMILY_ATTACH payload")
+    return _types.FamilyAttachLaunchPlan(
         parent_arg=str(data["parent_arg"]),
         suffix_arg=str(data["suffix_arg"]),
         parent_name=str(data["parent_name"]),
@@ -128,7 +128,7 @@ def build_family_attach_sibling_from_spawn(
     from sase.core.agent_artifact_paths import canonical_agent_artifact_path
     from sase.plan_chain import agent_family_base
 
-    artifact_timestamp = _candidates._artifacts_timestamp_from_launch_timestamp(
+    artifact_timestamp = _candidates.artifacts_timestamp_from_launch_timestamp(
         request.timestamp
     )
     base = family_base or agent_family_base(name) or name

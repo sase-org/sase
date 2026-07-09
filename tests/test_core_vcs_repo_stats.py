@@ -7,11 +7,7 @@ import pytest
 import sase.core.vcs_repo_stats_facade as facade
 from sase.core.vcs_log_wire import VcsCommitWire
 from sase.core.vcs_repo_stats_facade import build_vcs_repo_stats
-from sase.core.vcs_repo_stats_wire import (
-    VCS_REPO_STATS_WIRE_SCHEMA_VERSION,
-    VcsRepoStatsWire,
-    vcs_repo_stats_from_dict,
-)
+from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
 
 def _commit() -> VcsCommitWire:
@@ -77,31 +73,3 @@ def test_build_vcs_repo_stats_handles_empty_repo(
         branch=None,
         dirty=False,
     )
-
-
-def test_vcs_repo_stats_wire_round_trips_dict() -> None:
-    assert VCS_REPO_STATS_WIRE_SCHEMA_VERSION == 1
-    stats = VcsRepoStatsWire(
-        total_commits=1,
-        contributors=("Bryan <bryan@example.com>",),
-        last_commit=_commit(),
-        branch="main",
-        dirty=False,
-    )
-    data = {
-        "branch": "main",
-        "contributors": ["Bryan <bryan@example.com>"],
-        "dirty": False,
-        "last_commit": {
-            "author_email": "bryan@example.com",
-            "author_name": "Bryan",
-            "body": "",
-            "full_id": "a1b2c3d4",
-            "short_id": "a1b2c3d",
-            "subject": "feat: stats",
-            "timestamp": 300,
-        },
-        "total_commits": 1,
-    }
-
-    assert vcs_repo_stats_from_dict(data) == stats

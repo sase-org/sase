@@ -8,20 +8,20 @@ FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
 
 
 @dataclass(frozen=True)
-class _ParsedNameDirective:
+class ParsedNameDirective:
     plain_name: str | None = None
     family_parent: str | None = None
     family_suffix: str | None = None
 
 
 @dataclass(frozen=True)
-class _FamilyAttachDirective:
+class FamilyAttachDirective:
     parent: str
     suffix: str
 
 
 @dataclass(frozen=True)
-class _FamilyAttachLaunchPlan:
+class FamilyAttachLaunchPlan:
     parent_arg: str
     suffix_arg: str
     parent_name: str
@@ -54,15 +54,15 @@ class FamilyAttachSibling:
     can_attach_parent: bool = True
 
 
-class _FamilyAttachError(RuntimeError):
+class FamilyAttachError(RuntimeError):
     """Raised when a ``%n(parent, suffix)`` launch cannot be prepared."""
 
 
 __all__ = [
     "FAMILY_ATTACH_ENV",
+    "FamilyAttachDirective",
+    "FamilyAttachError",
+    "FamilyAttachLaunchPlan",
     "FamilyAttachSibling",
-    "_FamilyAttachDirective",
-    "_FamilyAttachError",
-    "_FamilyAttachLaunchPlan",
-    "_ParsedNameDirective",
+    "ParsedNameDirective",
 ]

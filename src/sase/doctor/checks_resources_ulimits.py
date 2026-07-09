@@ -26,7 +26,7 @@ def check_ulimits(
 ) -> DiagnosticCheck:
     """Check soft process/file limits against configured runner concurrency."""
     if resource_module is None:
-        import_resource_module_fn = import_resource_module_fn or _import_resource_module
+        import_resource_module_fn = import_resource_module_fn or import_resource_module
         resource_module = import_resource_module_fn()
     if resource_module is None:
         return DiagnosticCheck(
@@ -126,7 +126,7 @@ def check_ulimits(
 _check_ulimits = check_ulimits
 
 
-def _import_resource_module() -> Any | None:
+def import_resource_module() -> Any | None:
     try:
         import resource
     except ImportError:

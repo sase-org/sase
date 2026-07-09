@@ -5,10 +5,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.family_attach import (
-    _FamilyAttachDirective,
-    _FamilyAttachError,
-    _extract_family_attach_directive,
+    FamilyAttachDirective,
+    FamilyAttachError,
     default_with_feedback_parent_from_family_attach,
+    extract_family_attach_directive,
 )
 from sase.agent.launch_validation import validate_launch_name_requests
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
@@ -65,9 +65,9 @@ def test_prelaunch_name_helpers_ignore_family_attach_form() -> None:
 
 
 def test_extract_family_attach_directive() -> None:
-    directive = _extract_family_attach_directive("%model:codex/gpt-5\n%n(foo, @)")
+    directive = extract_family_attach_directive("%model:codex/gpt-5\n%n(foo, @)")
 
-    assert directive == _FamilyAttachDirective(parent="foo", suffix="@")
+    assert directive == FamilyAttachDirective(parent="foo", suffix="@")
 
 
 def test_with_feedback_parent_default_uses_family_attach_directive() -> None:
@@ -127,11 +127,11 @@ def test_custom_family_role_is_standard_chain_evaluator_compatible() -> None:
 
 
 def test_family_attach_collision_message_suggests_auto_suffix() -> None:
-    from sase.agent.family_attach import _ensure_family_name_available
+    from sase.agent._family_attach_resolution import _ensure_family_name_available
 
     with patch("sase.agent.names.get_reserved_agent_names", return_value={"foo--bar"}):
-        with pytest.raises(_FamilyAttachError, match=r"%n\(foo, @\)"):
+        with pytest.raises(FamilyAttachError, match=r"%n\(foo, @\)"):
             _ensure_family_name_available(
                 "foo--bar",
-                _FamilyAttachDirective(parent="foo", suffix="bar"),
+                FamilyAttachDirective(parent="foo", suffix="bar"),
             )

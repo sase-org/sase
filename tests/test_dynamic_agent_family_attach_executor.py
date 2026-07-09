@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.agent.family_attach import _FamilyAttachError
+from sase.agent.family_attach import FamilyAttachError
 from sase.agent.launch_executor import LaunchExecutionContext, execute_launch_plan
 from sase.core.agent_launch_facade import plan_fake_fanout
 
@@ -20,14 +20,14 @@ def test_family_attach_prep_failure_prevents_spawn(
     ) -> object:
         assert project_name == "sase"
         assert pending_family_parents == []
-        raise _FamilyAttachError("Cannot attach family member to 'missing'")
+        raise FamilyAttachError("Cannot attach family member to 'missing'")
 
     monkeypatch.setattr(
-        "sase.agent.family_attach._resolve_family_attach_plan",
+        "sase.agent.family_attach.resolve_family_attach_plan",
         fail_resolve,
     )
 
-    with pytest.raises(_FamilyAttachError, match="Cannot attach family member"):
+    with pytest.raises(FamilyAttachError, match="Cannot attach family member"):
         execute_launch_plan(
             plan_fake_fanout("single", ["%n(missing, reviewer)\nDo work"]),
             LaunchExecutionContext(

@@ -22,7 +22,7 @@ from sase.vcs_log.resolve import resolve_log_repos
 ProviderFactory = Callable[[str], object]
 
 
-def collect_vcs_list(
+def _collect_vcs_list(
     repos: Sequence[LogRepo],
     *,
     no_fetch: bool = False,
@@ -84,7 +84,7 @@ def run_vcs_list(
         repo_filters=repo_filters,
         current_only=current_only,
     )
-    collected = collect_vcs_list(
+    collected = _collect_vcs_list(
         resolved.repos,
         no_fetch=no_fetch,
         sort=sort,
@@ -234,4 +234,4 @@ def _failure_reason(exc: Exception) -> str:
     return message or type(exc).__name__
 
 
-__all__ = ["ProviderFactory", "collect_vcs_list", "run_vcs_list"]
+__all__ = ["ProviderFactory", "run_vcs_list"]

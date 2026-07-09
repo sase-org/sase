@@ -16,7 +16,7 @@ def parse_name_directive_args(
     named_args: dict[str, str],
     *,
     source: str,
-) -> _types._ParsedNameDirective:
+) -> _types.ParsedNameDirective:
     """Classify ``%name`` / ``%n`` arguments as plain naming or family attach."""
 
     if named_args:
@@ -35,19 +35,19 @@ def parse_name_directive_args(
         parent, suffix = (arg.strip() for arg in positional_args)
         if not parent or not suffix:
             raise ValueError("%n(parent, suffix) requires both parent and suffix.")
-        _normalize_family_suffix_arg(suffix)
-        return _types._ParsedNameDirective(
+        normalize_family_suffix_arg(suffix)
+        return _types.ParsedNameDirective(
             family_parent=parent,
             family_suffix=suffix,
         )
-    return _types._ParsedNameDirective(
+    return _types.ParsedNameDirective(
         plain_name=positional_args[0] if positional_args else ""
     )
 
 
-def _extract_family_attach_directive(
+def extract_family_attach_directive(
     prompt: str,
-) -> _types._FamilyAttachDirective | None:
+) -> _types.FamilyAttachDirective | None:
     """Return the first top-level family attach directive in *prompt*."""
 
     if "%" not in prompt:
@@ -80,7 +80,7 @@ def _extract_family_attach_directive(
             source=f"%{raw_name}",
         )
         if parsed.family_parent is not None and parsed.family_suffix is not None:
-            return _types._FamilyAttachDirective(
+            return _types.FamilyAttachDirective(
                 parsed.family_parent,
                 parsed.family_suffix,
             )
@@ -89,7 +89,7 @@ def _extract_family_attach_directive(
 
 def _family_attach_parent_from_prompt(prompt: str) -> str | None:
     """Return the parent named by a top-level ``%n(parent, suffix)`` directive."""
-    directive = _extract_family_attach_directive(prompt)
+    directive = extract_family_attach_directive(prompt)
     return None if directive is None else directive.parent
 
 
@@ -139,7 +139,7 @@ def _prompt_segment_at_offset(
     return prompt[start:end]
 
 
-def _normalize_family_suffix_arg(suffix: str) -> str:
+def normalize_family_suffix_arg(suffix: str) -> str:
     if suffix == "@":
         return f"{AGENT_FAMILY_SEPARATOR}@"
     if suffix.startswith((".", "-")) or AGENT_FAMILY_SEPARATOR in suffix:
@@ -157,9 +157,7 @@ def _normalize_family_suffix_arg(suffix: str) -> str:
 
 __all__ = [
     "default_with_feedback_parent_from_family_attach",
+    "extract_family_attach_directive",
+    "normalize_family_suffix_arg",
     "parse_name_directive_args",
-    "_extract_family_attach_directive",
-    "_family_attach_parent_from_prompt",
-    "_normalize_family_suffix_arg",
-    "_prompt_segment_at_offset",
 ]

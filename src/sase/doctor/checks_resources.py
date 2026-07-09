@@ -24,10 +24,10 @@ _DISK_WARN_FREE_BYTES = _disk._DISK_WARN_FREE_BYTES
 _INOTIFY_MIN_USER_INSTANCES = INOTIFY_MIN_USER_INSTANCES
 _check_chezmoi = check_chezmoi
 _check_inotify = check_inotify
-_workspace_root_path: Callable[[DoctorContext], tuple[Path | None, str | None]] = (
-    _disk._workspace_root_path
+workspace_root_path: Callable[[DoctorContext], tuple[Path | None, str | None]] = (
+    _disk.workspace_root_path
 )
-_import_resource_module: Callable[[], Any | None] = _ulimits._import_resource_module
+import_resource_module: Callable[[], Any | None] = _ulimits.import_resource_module
 
 
 def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -72,7 +72,7 @@ def _check_disk_free(
     return _disk.check_disk_free(
         context,
         disk_usage_fn=disk_usage_fn,
-        workspace_root_fn=_workspace_root_path,
+        workspace_root_fn=workspace_root_path,
     )
 
 
@@ -87,5 +87,5 @@ def _check_ulimits(
         axe_config=axe_config,
         getrlimit_fn=getrlimit_fn,
         resource_module=resource_module,
-        import_resource_module_fn=_import_resource_module,
+        import_resource_module_fn=import_resource_module,
     )
