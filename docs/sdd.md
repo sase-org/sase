@@ -228,12 +228,12 @@ sdd:
   push_after_commit: async
 ```
 
-| Option                   | Type        | Default | Description                                                                                                                                                                      |
-| ------------------------ | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.storage`            | enum        | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.                                                                         |
-| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.                                                                    |
-| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks `<owner>/<repo>--sdd`, then `<owner>/sdd`. |
-| `sdd.push_after_commit`  | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                      |
+| Option                   | Type        | Default | Description                                                                                                                                                                                                                             |
+| ------------------------ | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.storage`            | enum        | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.                                                                                                                                |
+| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.                                                                                                                           |
+| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
+| `sdd.push_after_commit`  | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                             |
 
 See [`configuration.md`](configuration.md) for the full configuration reference and [SDD Storage](sdd_storage.md) for
 mode behavior.

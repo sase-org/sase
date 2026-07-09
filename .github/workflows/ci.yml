@@ -25,7 +25,7 @@ jobs:
       - name: Check out SDD companion
         uses: actions/checkout@v4
         with:
-          repository: sase-org/sdd
+          repository: sase-org/sase--sdd
           path: .sase/sdd
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           persist-credentials: false
@@ -37,8 +37,8 @@ jobs:
             "storage": "separate_repo",
             "provider": "github",
             "host": "github.com",
-            "repo": "sase-org/sdd",
-            "remote_url": "git@github.com:sase-org/sdd.git",
+            "repo": "sase-org/sase--sdd",
+            "remote_url": "git@github.com:sase-org/sase--sdd.git",
             "discovery": "found"
           }
           JSON

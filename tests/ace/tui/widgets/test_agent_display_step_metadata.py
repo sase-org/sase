@@ -315,7 +315,7 @@ class TestWorkflowVariablesHeader:
                         "message": "Archive approved plan demo",
                         "sha": "abcdef123456",
                         "cwd": str(workspace / ".sase" / "sdd"),
-                        "repo_name": "sase-org/sdd",
+                        "repo_name": "sase-org/sase--sdd",
                         "diff_path": str(tmp_path / "sdd.diff"),
                     }
                 ],
@@ -326,11 +326,11 @@ class TestWorkflowVariablesHeader:
         commit_diffs = agent_commit_diffs(agent)
 
         assert "COMMITS:\n" in header.plain
-        assert "  ▣ sase-org/sdd\n" in header.plain
+        assert "  ▣ sase-org/sase--sdd\n" in header.plain
         assert "  ▣ test\n" not in header.plain
         assert "    abcdef123456 Archive approved plan demo\n" in header.plain
         assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
-            ("sase-org/sdd", False)
+            ("sase-org/sase--sdd", False)
         ]
 
     def test_meta_commits_sdd_cwd_without_repo_name_falls_back_to_sdd(

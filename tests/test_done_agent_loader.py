@@ -434,7 +434,7 @@ def test_done_agent_loader_hydrates_sdd_commits_without_primary_meta(
                     "message": "Archive approved plan demo",
                     "result": "abc123",
                     "cwd": str(sdd_cwd),
-                    "repo_name": "sase-org/sdd",
+                    "repo_name": "sase-org/sase--sdd",
                 }
             ]
         ),
@@ -450,7 +450,7 @@ def test_done_agent_loader_hydrates_sdd_commits_without_primary_meta(
             "message": "Archive approved plan demo",
             "sha": "abc123",
             "cwd": str(sdd_cwd),
-            "repo_name": "sase-org/sdd",
+            "repo_name": "sase-org/sase--sdd",
         }
     ]
 
@@ -477,7 +477,7 @@ def test_done_agent_loader_hydrates_sdd_commits_without_step_output(
                     "message": "Archive approved plan demo",
                     "result": "abc123",
                     "cwd": "/workspace/sase/.sase/sdd",
-                    "repo_name": "sase-org/sdd",
+                    "repo_name": "sase-org/sase--sdd",
                 }
             ]
         ),
@@ -493,7 +493,7 @@ def test_done_agent_loader_hydrates_sdd_commits_without_step_output(
                 "message": "Archive approved plan demo",
                 "sha": "abc123",
                 "cwd": "/workspace/sase/.sase/sdd",
-                "repo_name": "sase-org/sdd",
+                "repo_name": "sase-org/sase--sdd",
             }
         ]
     }

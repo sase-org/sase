@@ -253,14 +253,14 @@ class TestWriteResultMarker:
                     cwd="/workspace/sase/.sase/sdd",
                     result="abc123",
                     message="Archive approved plan demo\n\nSASE_TYPE=sdd",
-                    repo_name="sase-org/sdd",
+                    repo_name="sase-org/sase--sdd",
                 )
                 record_sdd_commit_result_marker(
                     artifacts_dir=tmpdir,
                     cwd="/workspace/sase/.sase/sdd",
                     result="abc123",
                     message="Archive approved plan demo updated\n\nSASE_TYPE=sdd",
-                    repo_name="sase-org/sdd",
+                    repo_name="sase-org/sase--sdd",
                 )
 
             assert not (Path(tmpdir) / "commit_result.json").exists()
@@ -273,7 +273,7 @@ class TestWriteResultMarker:
                     "result": "abc123",
                     "commit_result": "abc123",
                     "message": "Archive approved plan demo updated\n\nSASE_TYPE=sdd",
-                    "repo_name": "sase-org/sdd",
+                    "repo_name": "sase-org/sase--sdd",
                     "diff_path": None,
                     "commit_diff_path": None,
                 }

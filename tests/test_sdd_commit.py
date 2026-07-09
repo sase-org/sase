@@ -140,7 +140,7 @@ def test_commit_sdd_files_records_agent_marker_when_artifacts_dir_is_set(
         commit_sdd_files(
             sdd_dir,
             "Record SDD commit",
-            repo_name="sase-org/sdd",
+            repo_name="sase-org/sase--sdd",
         )
         is True
     )
@@ -158,7 +158,7 @@ def test_commit_sdd_files_records_agent_marker_when_artifacts_dir_is_set(
     assert results[0]["cwd"] == str(sdd_dir)
     assert results[0]["result"] == head
     assert results[0]["message"].startswith("Record SDD commit")
-    assert results[0]["repo_name"] == "sase-org/sdd"
+    assert results[0]["repo_name"] == "sase-org/sase--sdd"
 
 
 def test_commit_sdd_files_skips_agent_marker_when_artifacts_dir_is_unset(
