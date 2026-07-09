@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,8 +11,10 @@ import pytest
 from sase.ace.tui.actions.hints._files import FileViewingMixin
 from sase.ace.tui.actions.hints._processing import InputProcessingMixin
 from sase.ace.tui.graphics import ArtifactViewerResult, ArtifactViewSpec
+from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 
 
 class _SuspendRecorder:
@@ -31,8 +34,10 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
     def __init__(self, hint_mappings: dict[int, str]) -> None:
         self._hint_mappings = hint_mappings
         self._hint_tool_call_reports = {}
+        self._hint_commit_views = {}
         self._hint_changespec_name = "cs"
         self.notify = MagicMock()
+        self.app = SimpleNamespace(push_screen=MagicMock())
         self.suspend_recorder = _SuspendRecorder()
 
     def suspend(self):
@@ -41,6 +46,23 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
 
 def _make_app(*paths: str) -> _ViewApp:
     return _ViewApp({i + 1: path for i, path in enumerate(paths)})
+
+
+def _commit_spec(
+    *,
+    sha: str = "abcdef1234567890",
+    diff_path: str | None = None,
+) -> CommitViewSpec:
+    return CommitViewSpec(
+        short_sha=sha[:12],
+        sha=sha,
+        repo_name="sase",
+        cwd="/workspace/sase",
+        subject="feat: add commit viewer",
+        message="feat: add commit viewer\n\nBody line",
+        diff_path=diff_path,
+        is_primary=True,
+    )
 
 
 def _report_spec(
@@ -162,6 +184,49 @@ def test_tool_call_report_materialization_failure_drops_path(
         f"Failed to build tool-call report: {report_path}",
         severity="error",
     )
+
+
+def test_commit_hint_opens_commit_view_modal() -> None:
+    app = _make_app()
+    app._hint_commit_views = {1: _commit_spec()}
+
+    app._process_view_input("1")
+
+    app.app.push_screen.assert_called_once()
+    modal = app.app.push_screen.call_args.args[0]
+    assert isinstance(modal, CommitViewModal)
+
+
+def test_commit_hint_copy_suffix_copies_short_sha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.copy_to_system_clipboard",
+        lambda content: copied.append(content) is None or True,
+    )
+    app = _make_app()
+    app._hint_commit_views = {1: _commit_spec(sha="abcdef1234567890")}
+
+    app._process_view_input("1%")
+
+    assert copied == ["abcdef123456"]
+    app.notify.assert_called_once_with("Copied 1 commit SHA(s) to clipboard")
+    app.app.push_screen.assert_not_called()
+
+
+def test_commit_hint_editor_suffix_opens_raw_diff_path(tmp_path: Path) -> None:
+    diff_path = tmp_path / "commit.diff"
+    app = _make_app()
+    app._hint_commit_views = {1: _commit_spec(diff_path=str(diff_path))}
+    app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
+
+    app._process_view_input("1@")
+
+    result = app._open_files_in_editor.call_args.args[0]
+    assert result.files == [str(diff_path)]
+    assert result.open_in_editor is True
+    app.app.push_screen.assert_not_called()
 
 
 def test_image_only_selection_uses_artifact_viewer(tmp_path: Path, monkeypatch) -> None:

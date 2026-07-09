@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sase.ace.changespec.models import DeltaEntry
@@ -17,6 +17,20 @@ from ._agent_artifacts import AgentArtifactPath
 
 
 @dataclass
+class CommitViewSpec:
+    """Commit metadata needed by the in-TUI commit viewer."""
+
+    short_sha: str
+    sha: str
+    repo_name: str
+    cwd: str | None
+    subject: str
+    message: str
+    diff_path: str | None
+    is_primary: bool
+
+
+@dataclass
 class HeaderHintState:
     """Mutable file-hint state shared with hint-mode header rendering."""
 
@@ -24,6 +38,7 @@ class HeaderHintState:
     hint_mappings: dict[int, str]
     workspace_dir: str | None
     tool_call_reports: dict[str, SlowToolCallReportSpec]
+    commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -32,6 +47,7 @@ class AgentHintRender:
 
     file_hints: dict[int, str]
     tool_call_reports: dict[str, SlowToolCallReportSpec]
+    commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

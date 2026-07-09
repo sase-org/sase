@@ -315,4 +315,5 @@ class AgentHintsDisplayMixin:
         return AgentHintRender(
             file_hints=hint_mappings,
             tool_call_reports=tool_call_reports,
+            commit_views=header_hint_state.commit_views,
         )

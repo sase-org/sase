@@ -7,8 +7,12 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models.agent import LinkedRepoMetadata
-from sase.ace.tui.widgets.prompt_panel._agent_commits import agent_commit_diffs
+from sase.ace.tui.widgets.prompt_panel._agent_commits import (
+    agent_commit_diffs,
+    load_commit_diff_text,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     MAJOR_SECTION_RULE,
@@ -199,6 +203,48 @@ class TestWorkflowVariablesHeader:
         assert "    aaaaaaaaaaa1 feat: first primary\n" in header.plain
         assert "    bbbbbbbbbbb2 fix: second primary\n" in header.plain
 
+    def test_meta_commits_register_view_hints(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_8"
+        diff_path = tmp_path / "001.diff"
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "feat: first primary\n\nbody line",
+                        "sha": "aaaaaaaaaaa111ffff",
+                        "cwd": str(workspace),
+                        "diff_path": str(diff_path),
+                    },
+                    {
+                        "message": "fix: second primary",
+                        "sha": "bbbbbbbbbbb222eeee",
+                        "cwd": str(workspace / "src"),
+                    },
+                ],
+            },
+        )
+        hint_state = HeaderHintState(
+            hint_counter=3,
+            hint_mappings={},
+            workspace_dir=str(workspace),
+            tool_call_reports={},
+        )
+
+        header, _ = build_header_text(agent, cheap=True, hint_state=hint_state)
+
+        assert "    [3] aaaaaaaaaaa1 feat: first primary\n" in header.plain
+        assert "    [4] bbbbbbbbbbb2 fix: second primary\n" in header.plain
+        assert hint_state.hint_counter == 5
+        assert hint_state.hint_mappings == {}
+        assert hint_state.commit_views[3].sha == "aaaaaaaaaaa111ffff"
+        assert hint_state.commit_views[3].message == "feat: first primary\n\nbody line"
+        assert hint_state.commit_views[3].diff_path == str(diff_path)
+        assert hint_state.commit_views[4].diff_path is None
+
     def test_agent_commit_diffs_order_primary_first_and_dedups_legacy_paths(
         self,
         tmp_path: Path,
@@ -257,6 +303,62 @@ class TestWorkflowVariablesHeader:
             ("test", "333333333333", str(shared_legacy_diff), True),
             ("sase-core", "222222222222", str(linked_diff), False),
         ]
+
+    def test_load_commit_diff_text_reads_persisted_file(self, tmp_path: Path) -> None:
+        diff_path = tmp_path / "commit.diff"
+        diff_path.write_text("diff --git a/a.txt b/a.txt\n", encoding="utf-8")
+        agent = make_agent(
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "feat: file diff",
+                        "sha": "abc123",
+                        "cwd": str(tmp_path),
+                        "diff_path": str(diff_path),
+                    }
+                ]
+            },
+        )
+        hint_state = HeaderHintState(1, {}, str(tmp_path), {})
+        build_header_text(agent, cheap=True, hint_state=hint_state)
+
+        assert (
+            load_commit_diff_text(hint_state.commit_views[1])
+            == "diff --git a/a.txt b/a.txt\n"
+        )
+
+    def test_load_commit_diff_text_falls_back_to_vcs(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class Provider:
+            def show_revision(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+                assert revision == "abc123"
+                assert cwd == str(tmp_path)
+                return True, "diff --git a/f b/f\n"
+
+        monkeypatch.setattr(
+            "sase.vcs_provider.get_vcs_provider",
+            lambda _cwd: Provider(),
+        )
+        agent = make_agent(
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "feat: fallback",
+                        "sha": "abc123",
+                        "cwd": str(tmp_path),
+                    }
+                ]
+            },
+        )
+        hint_state = HeaderHintState(1, {}, str(tmp_path), {})
+        build_header_text(agent, cheap=True, hint_state=hint_state)
+
+        assert load_commit_diff_text(hint_state.commit_views[1]) == (
+            "diff --git a/f b/f\n"
+        )
 
     def test_commit_cwd_unmatched_renders_basename_group(
         self,

@@ -329,7 +329,7 @@ def build_header_text(
 
     from ._agent_commits import append_agent_commits_section
 
-    append_agent_commits_section(header_text, agent)
+    append_agent_commits_section(header_text, agent, hint_state=hint_state)
 
     if not cheap and summary is not None:
         from ._agent_artifacts import append_agent_artifacts_section

@@ -20,6 +20,7 @@ class FileViewingMixin(HintMixinBase):
             return
 
         self._hint_tool_call_reports = {}
+        self._hint_commit_views = {}
         if self.current_tab == "agents":
             self._view_agent_files()
             return
@@ -74,9 +75,12 @@ class FileViewingMixin(HintMixinBase):
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         hint_render = agent_detail.update_display_with_hints(agent)
         hint_mappings = hint_render.file_hints
+        commit_views = hint_render.commit_views
 
-        if not hint_mappings:
-            self.notify("No files found in agent details", severity="warning")  # type: ignore[attr-defined]
+        if not hint_mappings and not commit_views:
+            self.notify(  # type: ignore[attr-defined]
+                "No files or commits found in agent details", severity="warning"
+            )
             self._refresh_agents_display()  # type: ignore[attr-defined]
             return
 
@@ -85,6 +89,7 @@ class FileViewingMixin(HintMixinBase):
         self._hint_mode_hints_for = None  # "all" hints
         self._hint_mappings = hint_mappings
         self._hint_tool_call_reports = hint_render.tool_call_reports
+        self._hint_commit_views = commit_views
         self._hint_changespec_name = agent.cl_name
 
         # Mount the hint input bar in the agent detail container

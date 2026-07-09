@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Iterable
+from pathlib import Path
+
 from ....hint_types import EditHooksResult, ViewFilesResult
 from ....hints import (
     is_rerun_input,
@@ -11,7 +15,56 @@ from ....hints import (
 )
 from ...tools.report import SlowToolCallReportSpec, write_tool_call_report
 from ...widgets import HintInputBar
+from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
+from ..clipboard import copy_to_system_clipboard
 from ._types import HintMixinBase
+
+
+def _expand_view_hint_part(part: str) -> list[int]:
+    if "-" in part and not part.startswith("-"):
+        start_text, end_text = part.split("-", 1)
+        try:
+            start = int(start_text)
+            end = int(end_text)
+        except ValueError:
+            return []
+        if start <= end:
+            return list(range(start, end + 1))
+        return []
+    try:
+        return [int(part)]
+    except ValueError:
+        return []
+
+
+def _parse_view_hint_selection(
+    user_input: str,
+    valid_hints: set[int],
+) -> tuple[list[int], bool, bool, list[int]]:
+    open_in_editor = False
+    copy_to_clipboard = False
+    selected_hints: list[int] = []
+    invalid_hints: list[int] = []
+
+    for raw_part in user_input.split():
+        part = raw_part
+        if part.endswith("@"):
+            open_in_editor = True
+            part = part[:-1]
+        elif part.endswith("%"):
+            copy_to_clipboard = True
+            part = part[:-1]
+        if not part:
+            continue
+
+        for hint_num in _expand_view_hint_part(part):
+            if hint_num not in valid_hints:
+                invalid_hints.append(hint_num)
+                continue
+            if hint_num not in selected_hints:
+                selected_hints.append(hint_num)
+
+    return selected_hints, open_in_editor, copy_to_clipboard, invalid_hints
 
 
 class InputProcessingMixin(HintMixinBase):
@@ -68,8 +121,10 @@ class InputProcessingMixin(HintMixinBase):
         if not user_input:
             return
 
-        files, open_in_editor, copy_to_clipboard, invalid_hints = parse_view_input(
-            user_input, self._hint_mappings
+        commit_views = getattr(self, "_hint_commit_views", {})
+        valid_hints = set(self._hint_mappings) | set(commit_views)
+        selected_hints, open_in_editor, copy_to_clipboard, invalid_hints = (
+            _parse_view_hint_selection(user_input, valid_hints)
         )
 
         if invalid_hints:
@@ -79,13 +134,32 @@ class InputProcessingMixin(HintMixinBase):
             )
             return
 
-        if not files:
+        commit_hint_nums = [hint for hint in selected_hints if hint in commit_views]
+        files = self._files_for_view_hints(
+            hint for hint in selected_hints if hint in self._hint_mappings
+        )
+
+        if not files and not commit_hint_nums:
             self.notify("No valid files selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        if open_in_editor and commit_hint_nums:
+            files = self._prepend_commit_diff_paths(commit_hint_nums, files)
+            if not files:
+                self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
+                return
+
+        if copy_to_clipboard and commit_hint_nums:
+            self._copy_commit_selection_to_clipboard(commit_hint_nums, files)
+            return
+
+        if commit_hint_nums and not open_in_editor:
+            self._open_commit_hint(commit_hint_nums)
+
         files = self._materialize_tool_call_reports(files)
         if not files:
-            self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
+            if not commit_hint_nums:
+                self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
             return
 
         if copy_to_clipboard:
@@ -108,6 +182,82 @@ class InputProcessingMixin(HintMixinBase):
                 self._view_files_with_artifact_viewer(files)  # type: ignore[attr-defined]
             else:
                 self._view_files_with_pager(files)  # type: ignore[attr-defined]
+
+    def _files_for_view_hints(self, hint_nums: Iterable[int]) -> list[str]:
+        hint_input = " ".join(str(hint_num) for hint_num in hint_nums)
+        files, _, _, _ = parse_view_input(hint_input, self._hint_mappings)
+        return files
+
+    def _prepend_commit_diff_paths(
+        self,
+        commit_hint_nums: list[int],
+        files: list[str],
+    ) -> list[str]:
+        commit_views = getattr(self, "_hint_commit_views", {})
+        selected_files: list[str] = []
+        missing: list[str] = []
+        for hint_num in commit_hint_nums:
+            spec = commit_views[hint_num]
+            if spec.diff_path:
+                path = os.path.expanduser(spec.diff_path)
+                if path not in selected_files:
+                    selected_files.append(path)
+            else:
+                missing.append(spec.short_sha or spec.sha or str(hint_num))
+        if missing:
+            self.notify(  # type: ignore[attr-defined]
+                f"No raw diff path for commit(s): {', '.join(missing)}",
+                severity="warning",
+            )
+        for file_path in files:
+            if file_path not in selected_files:
+                selected_files.append(file_path)
+        return selected_files
+
+    def _open_commit_hint(self, commit_hint_nums: list[int]) -> None:
+        commit_views = getattr(self, "_hint_commit_views", {})
+        first_hint = commit_hint_nums[0]
+        self._open_commit_view(commit_views[first_hint])
+        if len(commit_hint_nums) > 1:
+            ignored = len(commit_hint_nums) - 1
+            self.notify(  # type: ignore[attr-defined]
+                f"Opened first commit; ignored {ignored} extra commit selection(s)",
+                severity="warning",
+            )
+
+    def _open_commit_view(self, spec: CommitViewSpec) -> None:
+        from ...modals.commit_view_modal import CommitViewModal
+
+        self.app.push_screen(CommitViewModal(spec))  # type: ignore[attr-defined]
+
+    def _copy_commit_selection_to_clipboard(
+        self,
+        commit_hint_nums: list[int],
+        files: list[str],
+    ) -> None:
+        commit_views = getattr(self, "_hint_commit_views", {})
+        shas = [
+            commit_views[hint_num].short_sha or commit_views[hint_num].sha
+            for hint_num in commit_hint_nums
+        ]
+        shas = [sha for sha in shas if sha]
+        if not files:
+            content = " ".join(shas)
+            if copy_to_system_clipboard(content):
+                self.notify(f"Copied {len(shas)} commit SHA(s) to clipboard")  # type: ignore[attr-defined]
+            else:
+                self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
+            return
+
+        home = str(Path.home())
+        shortened_files = [
+            f.replace(home, "~", 1) if f.startswith(home) else f for f in files
+        ]
+        content = " ".join([*shas, *shortened_files])
+        if copy_to_system_clipboard(content):
+            self.notify("Copied commit SHA(s) and path(s) to clipboard")  # type: ignore[attr-defined]
+        else:
+            self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
 
     def _materialize_tool_call_reports(self, files: list[str]) -> list[str]:
         reports: dict[str, SlowToolCallReportSpec] = getattr(

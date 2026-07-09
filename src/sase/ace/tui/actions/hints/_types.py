@@ -13,6 +13,7 @@ from ....changespec import ChangeSpec
 from ...tools.report import SlowToolCallReportSpec
 from ...models.agent import Agent
 from ...widgets import HintInputBar
+from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 
 
 class HintMixinBase:
@@ -35,6 +36,7 @@ class HintMixinBase:
     _hint_mode_hints_for: str | None
     _hint_mappings: dict[int, str]
     _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
+    _hint_commit_views: dict[int, CommitViewSpec]
     _hook_hint_to_idx: dict[int, int]
     _hint_to_entry_id: dict[int, str]
     _mentor_hint_to_info: dict[int, tuple[str, str]]

@@ -25,6 +25,7 @@ from .agent_cleanup_modal import (
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
 from .command_palette_modal import CommandPaletteModal
+from .commit_view_modal import CommitViewModal
 from .confirm_action_modal import ConfirmActionModal
 from .confirm_delete_modal import ConfirmDeleteModal
 from .confirm_dialog import ConfirmDialog, ConfirmKind
@@ -181,6 +182,7 @@ __all__ = [
     "ConfirmActionModal",
     "CommandInputModal",
     "CommandPaletteModal",
+    "CommitViewModal",
     "CustomModelInputModal",
     "ConfirmDeleteModal",
     "ConfirmDialog",

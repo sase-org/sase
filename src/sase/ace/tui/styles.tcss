@@ -2587,6 +2587,48 @@ PreviewPanelModal #preview-footer {
     padding-top: 1;
 }
 
+/* ===== Commit View Modal Styling ===== */
+
+CommitViewModal {
+    align: center middle;
+}
+
+CommitViewModal > Container {
+    width: 85%;
+    height: 85%;
+    max-width: 150;
+    max-height: 42;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+CommitViewModal #commit-view-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+CommitViewModal #commit-view-scroll {
+    height: 1fr;
+    scrollbar-gutter: stable;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+CommitViewModal #commit-view-content {
+    width: 100%;
+    height: auto;
+}
+
+CommitViewModal #commit-view-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* ===== Workspace Input Modal Styling ===== */
 
 WorkspaceInputModal {

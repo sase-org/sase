@@ -126,7 +126,7 @@ class HintInputBar(Static):
             if self.mode == "view":
                 yield Label("View: ", id="hint-label")
                 yield _HintInput(
-                    placeholder="1-5 or 3@ (@ to edit) or 3% (% to copy path)",
+                    placeholder="1-5 or 3@ (@ to edit/diff) or 3% (% to copy path/SHA)",
                     id="hint-input",
                 )
             elif self.mode == "hooks":

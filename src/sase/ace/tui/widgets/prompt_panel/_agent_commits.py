@@ -6,7 +6,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 
@@ -20,6 +20,9 @@ from ._agent_context_common import (
 )
 from ._helpers import append_major_section_divider
 
+if TYPE_CHECKING:
+    from ._agent_display_state import CommitViewSpec, HeaderHintState
+
 _COLOR_HEADER = "bold #87D7FF"
 _COLOR_COMMIT_SHA = "dim #D7D7AF"
 _COLOR_COMMIT_SUBJECT = "#D7D7FF"
@@ -31,6 +34,15 @@ class _CommitInfo:
 
     short_sha: str
     subject: str
+
+
+@dataclass(frozen=True)
+class _CommitLine:
+    """Rendered commit row plus optional view-target metadata."""
+
+    short_sha: str
+    subject: str
+    view_spec: CommitViewSpec
 
 
 @dataclass(frozen=True)
@@ -60,6 +72,11 @@ def _short_sha(value: str) -> str:
     return value.split()[0][:12] if value.split() else ""
 
 
+def _full_sha(value: object) -> str:
+    text = _display_text(value)
+    return text.split()[0] if text.split() else ""
+
+
 def _primary_repo_name(agent: Agent, step_output: dict[str, Any] | None) -> str:
     meta_project = step_output.get("meta_project") if step_output is not None else None
     if meta_project:
@@ -73,32 +90,108 @@ def _primary_repo_name(agent: Agent, step_output: dict[str, Any] | None) -> str:
     return "primary"
 
 
-def _persisted_commit_infos(
+def _legacy_commit_diff_path(
+    agent: Agent,
     step_output: dict[str, Any] | None,
-) -> tuple[_CommitInfo, ...]:
+) -> str | None:
+    raw_path: object = None
+    if step_output is not None:
+        raw_path = step_output.get("diff_path") or step_output.get("commit_diff_path")
+    if not raw_path:
+        raw_path = agent.diff_path
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+    return os.path.expanduser(raw_path.strip())
+
+
+def _persisted_commit_lines(
+    agent: Agent,
+    step_output: dict[str, Any] | None,
+) -> tuple[_CommitLine, ...]:
     if step_output is None:
         return ()
 
     message = _display_text(step_output.get("meta_commit_message", ""))
-    sha = _short_sha(_display_text(step_output.get("meta_new_commit", "")))
+    sha = _full_sha(step_output.get("meta_new_commit", ""))
+    short_sha = _short_sha(sha)
     subject = _first_subject_line(message)
-    if not subject and not sha:
+    if not subject and not short_sha:
         return ()
     if not subject:
         subject = "(message unavailable)"
-    return (_CommitInfo(short_sha=sha, subject=subject),)
+    repo_name = _persisted_commit_repo_name(agent, step_output)
+    cwd_raw = step_output.get("meta_commit_cwd")
+    cwd = _display_text(cwd_raw) if cwd_raw is not None else None
+    if cwd == "":
+        cwd = None
+    from ._agent_display_state import CommitViewSpec
+
+    return (
+        _CommitLine(
+            short_sha=short_sha,
+            subject=subject,
+            view_spec=CommitViewSpec(
+                short_sha=short_sha,
+                sha=sha,
+                repo_name=repo_name,
+                cwd=cwd,
+                subject=subject,
+                message=message or subject,
+                diff_path=_legacy_commit_diff_path(agent, step_output),
+                is_primary=_commit_cwd_is_primary(agent, cwd_raw),
+            ),
+        ),
+    )
 
 
 def _commit_info_from_record(record: dict[str, Any]) -> _CommitInfo | None:
     message = _display_text(record.get("message", ""))
-    sha_value = record.get("sha", record.get("result", ""))
-    sha = _short_sha(_display_text(sha_value))
+    sha = _short_sha(_full_sha(record.get("sha", record.get("result", ""))))
     subject = _first_subject_line(message)
     if not subject and not sha:
         return None
     if not subject:
         subject = "(message unavailable)"
     return _CommitInfo(short_sha=sha, subject=subject)
+
+
+def _commit_line_from_record(
+    agent: Agent,
+    step_output: dict[str, Any] | None,
+    record: dict[str, Any],
+) -> _CommitLine | None:
+    message = _display_text(record.get("message", ""))
+    sha = _full_sha(record.get("sha", record.get("result", "")))
+    short_sha = _short_sha(sha)
+    subject = _first_subject_line(message)
+    if not subject and not short_sha:
+        return None
+    if not subject:
+        subject = "(message unavailable)"
+    repo_name = _repo_name_for_commit_record(agent, step_output, record)
+    cwd_raw = record.get("cwd")
+    cwd = _display_text(cwd_raw) if cwd_raw is not None else None
+    if cwd == "":
+        cwd = None
+    explicit_repo_name = _explicit_repo_name_from_record(record)
+    primary_name = _primary_repo_name(agent, step_output)
+    from ._agent_display_state import CommitViewSpec
+
+    return _CommitLine(
+        short_sha=short_sha,
+        subject=subject,
+        view_spec=CommitViewSpec(
+            short_sha=short_sha,
+            sha=sha,
+            repo_name=repo_name,
+            cwd=cwd,
+            subject=subject,
+            message=message or subject,
+            diff_path=_commit_diff_path_from_record(record),
+            is_primary=repo_name == primary_name
+            or (explicit_repo_name is None and _commit_cwd_is_primary(agent, cwd_raw)),
+        ),
+    )
 
 
 def _commit_diff_path_from_record(record: dict[str, Any]) -> str | None:
@@ -186,21 +279,21 @@ def _persisted_commit_repo_name(
 def _persisted_commit_groups(
     agent: Agent,
     step_output: dict[str, Any] | None,
-) -> tuple[tuple[str, tuple[_CommitInfo, ...]], ...]:
+) -> tuple[tuple[str, tuple[_CommitLine, ...]], ...]:
     if step_output is None:
         return ()
 
     raw_commits = step_output.get("meta_commits")
     if isinstance(raw_commits, list) and raw_commits:
-        grouped: dict[str, list[_CommitInfo]] = {}
+        grouped: dict[str, list[_CommitLine]] = {}
         group_order: list[str] = []
         for raw_record in raw_commits:
             if not isinstance(raw_record, dict):
                 continue
-            commit = _commit_info_from_record(raw_record)
+            commit = _commit_line_from_record(agent, step_output, raw_record)
             if commit is None:
                 continue
-            repo_name = _repo_name_for_commit_record(agent, step_output, raw_record)
+            repo_name = commit.view_spec.repo_name
             if repo_name not in grouped:
                 grouped[repo_name] = []
                 group_order.append(repo_name)
@@ -208,7 +301,7 @@ def _persisted_commit_groups(
 
         if grouped:
             primary_name = _primary_repo_name(agent, step_output)
-            ordered_groups: list[tuple[str, tuple[_CommitInfo, ...]]] = []
+            ordered_groups: list[tuple[str, tuple[_CommitLine, ...]]] = []
             if primary_name in grouped:
                 ordered_groups.append((primary_name, tuple(grouped[primary_name])))
             for repo_name in group_order:
@@ -217,7 +310,7 @@ def _persisted_commit_groups(
                 ordered_groups.append((repo_name, tuple(grouped[repo_name])))
             return tuple(ordered_groups)
 
-    persisted_commits = _persisted_commit_infos(step_output)
+    persisted_commits = _persisted_commit_lines(agent, step_output)
     if not persisted_commits:
         return ()
     return ((_persisted_commit_repo_name(agent, step_output), persisted_commits),)
@@ -287,7 +380,8 @@ def agent_commit_diffs(agent: Agent) -> list[CommitDiffInfo]:
 def _append_commit_group(
     text: Text,
     repo_name: str,
-    commits: tuple[_CommitInfo, ...],
+    commits: tuple[_CommitLine, ...],
+    hint_state: HeaderHintState | None = None,
 ) -> None:
     if not commits:
         return
@@ -299,6 +393,11 @@ def _append_commit_group(
     text.append("\n")
     for commit in commits:
         text.append("    ")
+        if hint_state is not None:
+            hint_number = hint_state.hint_counter
+            text.append(f"[{hint_number}] ", style="bold #FFFF00")
+            hint_state.commit_views[hint_number] = commit.view_spec
+            hint_state.hint_counter += 1
         if commit.short_sha:
             text.append(commit.short_sha, style=_COLOR_COMMIT_SHA)
             text.append(" ")
@@ -306,7 +405,11 @@ def _append_commit_group(
         text.append("\n")
 
 
-def append_agent_commits_section(text: Text, agent: Agent) -> None:
+def append_agent_commits_section(
+    text: Text,
+    agent: Agent,
+    hint_state: HeaderHintState | None = None,
+) -> None:
     """Append the persisted commit message, attributed to its source repo."""
     step_output = agent.step_output if isinstance(agent.step_output, dict) else None
     commit_groups = _persisted_commit_groups(agent, step_output)
@@ -316,4 +419,35 @@ def append_agent_commits_section(text: Text, agent: Agent) -> None:
     append_major_section_divider(text)
     text.append("COMMITS:\n", style=_COLOR_HEADER)
     for repo_name, commits in commit_groups:
-        _append_commit_group(text, repo_name, commits)
+        _append_commit_group(text, repo_name, commits, hint_state=hint_state)
+
+
+def _read_commit_diff_text(diff_path: str) -> str | None:
+    try:
+        with open(os.path.expanduser(diff_path), encoding="utf-8") as f:
+            diff_text = f.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return diff_text if diff_text.strip() else None
+
+
+def load_commit_diff_text(spec: CommitViewSpec) -> str | None:
+    """Load a commit diff from the persisted file or VCS fallback."""
+    if spec.diff_path:
+        diff_text = _read_commit_diff_text(spec.diff_path)
+        if diff_text:
+            return diff_text
+
+    if not spec.sha or not spec.cwd:
+        return None
+
+    try:
+        from sase.vcs_provider import get_vcs_provider
+
+        provider = get_vcs_provider(spec.cwd)
+        ok, diff_text = provider.show_revision(spec.sha, spec.cwd)
+    except Exception:
+        return None
+    if not ok or not diff_text or not diff_text.strip():
+        return None
+    return diff_text
