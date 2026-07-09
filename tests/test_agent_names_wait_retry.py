@@ -35,44 +35,54 @@ class TestWaitDerivedAgentNames:
 
     def test_allocates_first_wait_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_wait_name("foo") == "foo.w1"
+            assert allocate_wait_name("foo") == "foo.w-0"
 
     def test_allocates_wait_slot_gap(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.w1", done=True)
-        _make_agent(tmp_path, "proj", "run3", "foo.w3", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.w-0", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.w-2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_wait_name("foo") == "foo.w2"
+            assert allocate_wait_name("foo") == "foo.w-1"
 
     def test_suffixed_descendants_reserve_wait_slot(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.w1.codex", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.w-0.codex", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_wait_name("foo") == "foo.w2"
+            assert allocate_wait_name("foo") == "foo.w-1"
 
     def test_resume_descendants_do_not_reserve_wait_slot(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.f1.codex", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.f-0.codex", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_wait_name("foo") == "foo.w1"
+            assert allocate_wait_name("foo") == "foo.w-0"
+
+    def test_legacy_wait_names_do_not_reserve_new_wait_slots(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.w1.codex", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_wait_name("foo") == "foo.w-0"
 
     def test_allocates_multiple_wait_names_from_one_snapshot(
         self, tmp_path: Path
     ) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.w1", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_wait_names("foo", 3) == ["foo.w2", "foo.w3", "foo.w4"]
+            assert allocate_wait_names("foo", 3) == [
+                "foo.w-0",
+                "foo.w-1",
+                "foo.w-2",
+            ]
 
 
 class TestRetryAgentNames:
     def test_allocates_first_retry_slot(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_retry_name("foo") == "foo.r1"
+            assert allocate_retry_name("foo") == "foo.r-0"
 
     def test_skips_retry_slots_reserved_by_descendants(self, tmp_path: Path) -> None:
         _make_agent(tmp_path, "proj", "run1", "foo", done=True)
-        _make_agent(tmp_path, "proj", "run2", "foo.r1", done=True)
-        _make_agent(tmp_path, "proj", "run3", "foo.r2.plan", done=True)
+        _make_agent(tmp_path, "proj", "run2", "foo.r-0", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.r-1.plan", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_retry_name("foo") == "foo.r3"
+            assert allocate_retry_name("foo") == "foo.r-2"
 
     def test_legacy_numeric_names_do_not_reserve_retry_slots(
         self, tmp_path: Path
@@ -80,10 +90,18 @@ class TestRetryAgentNames:
         _make_agent(tmp_path, "proj", "run1", "foo.1", done=True)
         _make_agent(tmp_path, "proj", "run2", "foo.2.plan", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_retry_name("foo") == "foo.r1"
+            assert allocate_retry_name("foo") == "foo.r-0"
+
+    def test_legacy_retry_names_do_not_reserve_new_retry_slots(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run1", "foo.r1", done=True)
+        _make_agent(tmp_path, "proj", "run2", "foo.r2.plan", done=True)
+        with patch.object(Path, "home", return_value=tmp_path):
+            assert allocate_retry_name("foo") == "foo.r-0"
 
     def test_chains_allocations_through_reserved_set(self) -> None:
-        reserved = {"foo", "foo.r1.plan"}
-        assert allocate_retry_name("foo", reserved=reserved) == "foo.r2"
-        assert allocate_retry_name("foo", reserved=reserved) == "foo.r3"
-        assert reserved == {"foo", "foo.r1.plan", "foo.r2", "foo.r3"}
+        reserved = {"foo", "foo.r-0.plan"}
+        assert allocate_retry_name("foo", reserved=reserved) == "foo.r-1"
+        assert allocate_retry_name("foo", reserved=reserved) == "foo.r-2"
+        assert reserved == {"foo", "foo.r-0.plan", "foo.r-1", "foo.r-2"}

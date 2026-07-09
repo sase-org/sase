@@ -263,7 +263,7 @@ def test_launch_multi_prompt_bare_wait_and_resume_plan_fork_name(
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """A segment with bare %w and #fork follows the predecessor with an .f name."""
+    """A segment with bare %w and #fork follows the predecessor with an .f- name."""
     mock_spawn.return_value = MagicMock(pid=1)
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -288,8 +288,8 @@ def test_launch_multi_prompt_bare_wait_and_resume_plan_fork_name(
     )
     assert (
         mock_spawn.call_args_list[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
-        == "builder.f1"
+        == "builder.f-0"
     )
     assert mock_spawn.call_args_list[2].kwargs["prompt"] == (
-        "#fork:builder.f1\nFollow up"
+        "#fork:builder.f-0\nFollow up"
     )

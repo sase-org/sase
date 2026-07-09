@@ -372,5 +372,32 @@ def _linked_repos_from_env() -> list[dict[str, object]]:
 
 
 def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> bool:
-    pattern = rf"^{re.escape(resume_name)}\.f\d+(?:\.|$)"
-    return re.match(pattern, planned_name) is not None
+    from sase.agent.names import (
+        AgentNameTemplateError,
+        match_agent_name_template,
+        resume_agent_name_template,
+    )
+
+    template = resume_agent_name_template(resume_name)
+    try:
+        if match_agent_name_template(template, planned_name) is not None:
+            return True
+    except AgentNameTemplateError:
+        pass
+
+    prefix = f"{resume_name}.f-"
+    if not planned_name.startswith(prefix):
+        legacy_pattern = rf"^{re.escape(resume_name)}\.f\d+(?:\.|$)"
+        return re.match(legacy_pattern, planned_name) is not None
+
+    token = planned_name.removeprefix(prefix).split(".", 1)[0]
+    if not token:
+        return False
+    try:
+        if match_agent_name_template(template, f"{prefix}{token}") is not None:
+            return True
+    except AgentNameTemplateError:
+        return False
+
+    legacy_pattern = rf"^{re.escape(resume_name)}\.f\d+(?:\.|$)"
+    return re.match(legacy_pattern, planned_name) is not None

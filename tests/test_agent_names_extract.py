@@ -119,8 +119,8 @@ class TestExtractDirectivesAutoDismiss:
                 prompt="expanded prompt",
                 raw_resolved_prompt="#fork:foo do stuff",
             )
-        assert result["info"].name == "foo.f1"
-        assert result["meta"].get("name") == "foo.f1"
+        assert result["info"].name == "foo.f-0"
+        assert result["meta"].get("name") == "foo.f-0"
 
     def test_planned_name_wins_for_non_explicit_auto_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -152,8 +152,20 @@ class TestExtractDirectivesAutoDismiss:
                 prompt="%name expanded prompt",
                 raw_resolved_prompt="%name #fork:foo do stuff",
             )
-        assert result["info"].name == "foo.f1"
-        assert result["meta"].get("name") == "foo.f1"
+        assert result["info"].name == "foo.f-0"
+        assert result["meta"].get("name") == "foo.f-0"
+
+    def test_matching_planned_resume_descendant_name_wins(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                planned_name="foo.f-0.cld",
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:foo do stuff",
+            )
+        assert result["info"].name == "foo.f-0.cld"
+        assert result["meta"].get("name") == "foo.f-0.cld"
 
     def test_auto_dismiss_suppresses_resume_derived_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -172,8 +184,8 @@ class TestExtractDirectivesAutoDismiss:
                 env_auto_dismiss=False,
                 prompt="%wait:foo do stuff",
             )
-        assert result["info"].name == "foo.w1"
-        assert result["meta"].get("name") == "foo.w1"
+        assert result["info"].name == "foo.w-0"
+        assert result["meta"].get("name") == "foo.w-0"
 
     def test_explicit_name_wins_over_wait_derived_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -193,20 +205,20 @@ class TestExtractDirectivesAutoDismiss:
                 prompt="%wait:foo expanded prompt",
                 raw_resolved_prompt="#fork:bar\n%wait:foo do stuff",
             )
-        assert result["info"].name == "bar.f1"
-        assert result["meta"].get("name") == "bar.f1"
+        assert result["info"].name == "bar.f-0"
+        assert result["meta"].get("name") == "bar.f-0"
 
     def test_resume_name_wins_over_wait_planned_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(
                 tmp_path,
                 env_auto_dismiss=False,
-                planned_name="foo.w1",
+                planned_name="foo.w-0",
                 prompt="%wait:foo expanded prompt",
                 raw_resolved_prompt="%wait:foo\n#fork:foo do stuff",
             )
-        assert result["info"].name == "foo.f1"
-        assert result["meta"].get("name") == "foo.f1"
+        assert result["info"].name == "foo.f-0"
+        assert result["meta"].get("name") == "foo.f-0"
 
     def test_multiple_waits_fall_back_to_auto_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -344,7 +356,7 @@ class TestExtractDirectivesAutoDismiss:
 
         assert result["info"].wait_names == ["build-3"]
         assert result["meta"]["wait_for"] == ["build-3"]
-        assert result["meta"]["name"] == "build-3.w1"
+        assert result["meta"]["name"] == "build-3.w-0"
 
     def test_wait_template_suffix_shape_persists_concrete_latest_name(
         self, tmp_path: Path
@@ -357,7 +369,7 @@ class TestExtractDirectivesAutoDismiss:
 
         assert result["info"].wait_names == ["1.cld"]
         assert result["meta"]["wait_for"] == ["1.cld"]
-        assert result["meta"]["name"] == "1.cld.w1"
+        assert result["meta"]["name"] == "1.cld.w-0"
 
     def test_indexed_wait_resolves_before_same_segment_indexed_name(
         self, tmp_path: Path
@@ -438,8 +450,8 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["meta"].get("wait_for") == ["foo"]
         assert result["info"].wait_names == ["foo"]
         # Fork-derived naming still wins over the implicit wait.
-        assert result["info"].name == "foo.f1"
-        assert result["meta"].get("name") == "foo.f1"
+        assert result["info"].name == "foo.f-0"
+        assert result["meta"].get("name") == "foo.f-0"
 
     def test_fork_appends_after_explicit_waits(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -451,8 +463,8 @@ class TestExtractDirectivesImplicitForkWait:
             )
         assert result["meta"].get("wait_for") == ["bar", "foo"]
         assert result["info"].wait_names == ["bar", "foo"]
-        assert result["info"].name == "foo.f1"
-        assert result["meta"].get("name") == "foo.f1"
+        assert result["info"].name == "foo.f-0"
+        assert result["meta"].get("name") == "foo.f-0"
 
     def test_explicit_duplicate_wait_is_not_repeated(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -464,7 +476,7 @@ class TestExtractDirectivesImplicitForkWait:
             )
         assert result["meta"].get("wait_for") == ["foo"]
         assert result["info"].wait_names == ["foo"]
-        assert result["info"].name == "foo.f1"
+        assert result["info"].name == "foo.f-0"
 
     def test_bare_fork_without_name_adds_no_implicit_wait(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

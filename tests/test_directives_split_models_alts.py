@@ -126,22 +126,22 @@ def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:
         result = split_prompt_for_models("#fork:foo\n%alt(x,y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.f1.1\n#fork:foo\nx\nDo work"
-    assert result[1] == "%name:foo.f1.2\n#fork:foo\ny\nDo work"
+    assert result[0] == "%name:foo.f-0.1\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.f-0.2\n#fork:foo\ny\nDo work"
 
 
-def test_split_prompt_for_models_pure_alt_resume_base_skips_existing_slot(
+def test_split_prompt_for_models_pure_alt_resume_base_ignores_legacy_slot(
     tmp_path: Path,
 ) -> None:
-    """Pure %alt resume allocation skips existing descendant resume slots."""
+    """Pure %alt resume allocation ignores legacy descendant retry slots."""
     _make_agent(tmp_path, "proj", "run-old", "foo.r1.sec", done=True)
 
     with patch.object(Path, "home", return_value=tmp_path):
         result = split_prompt_for_models("#fork:foo\n%alt(sec=x,perf=y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.f2.sec\n#fork:foo\nx\nDo work"
-    assert result[1] == "%name:foo.f2.perf\n#fork:foo\ny\nDo work"
+    assert result[0] == "%name:foo.f-0.sec\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.f-0.perf\n#fork:foo\ny\nDo work"
 
 
 def test_split_prompt_for_models_named_model_alt_overrides_model_suffix() -> None:

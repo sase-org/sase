@@ -35,8 +35,6 @@ class PlannedNameAllocator:
     """Allocate parent-side names and resolve template references."""
 
     def __init__(self) -> None:
-        self._resume_reserved: dict[str, set[str]] = {}
-        self._wait_reserved: dict[str, set[str]] = {}
         self._template_reserved: set[str] | None = None
         self._template_index: AgentNameNamespaceReservationIndex | None = None
         self._template_latest: dict[str, str] = {}
@@ -77,29 +75,22 @@ class PlannedNameAllocator:
             return explicit_name, None
 
         from sase.agent.names import (
-            active_resume_reserved_names,
-            active_wait_reserved_names,
-            allocate_resume_name,
-            allocate_wait_name,
             first_resume_agent_name,
+            resume_agent_name_template,
             single_wait_agent_name,
+            wait_agent_name_template,
         )
 
         resume_target = first_resume_agent_name(prompt)
         if resume_target is not None:
             if has_non_resume_xprompt_reference(prompt):
                 return None, None
-            from sase.agent.names import agent_name_allocation_lock
-
-            with agent_name_allocation_lock():
-                reserved = self._resume_reserved.get(resume_target)
-                if reserved is None:
-                    reserved = active_resume_reserved_names(resume_target)
-                    self._resume_reserved[resume_target] = reserved
-                while True:
-                    name = allocate_resume_name(resume_target, reserved=reserved)
-                    if self._reserve_planned_name(name, artifacts_dir):
-                        break
+            template = resume_agent_name_template(resume_target)
+            name = self._allocate_template_name(
+                template,
+                artifacts_dir=artifacts_dir,
+                template_group=template,
+            )
             return name, name
 
         if "#" in prompt:
@@ -107,17 +98,12 @@ class PlannedNameAllocator:
 
         wait_target = single_wait_agent_name(prompt)
         if wait_target is not None:
-            from sase.agent.names import agent_name_allocation_lock
-
-            with agent_name_allocation_lock():
-                reserved = self._wait_reserved.get(wait_target)
-                if reserved is None:
-                    reserved = active_wait_reserved_names(wait_target)
-                    self._wait_reserved[wait_target] = reserved
-                while True:
-                    name = allocate_wait_name(wait_target, reserved=reserved)
-                    if self._reserve_planned_name(name, artifacts_dir):
-                        break
+            template = wait_agent_name_template(wait_target)
+            name = self._allocate_template_name(
+                template,
+                artifacts_dir=artifacts_dir,
+                template_group=template,
+            )
             return name, name
 
         name = self._allocate_template_name("@", artifacts_dir=artifacts_dir)

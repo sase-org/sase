@@ -78,7 +78,7 @@ from sase.agent.names._registry import (
     reserve_registered_template_name,
     reserve_registered_template_names,
 )
-from sase.agent.names._retry import allocate_retry_name
+from sase.agent.names._retry import allocate_retry_name, retry_agent_name_template
 from sase.agent.names._resume import (
     active_resume_reserved_names,
     active_wait_reserved_names,
@@ -90,7 +90,9 @@ from sase.agent.names._resume import (
     first_fork_agent_name,
     first_resume_agent_name,
     has_fork_reference,
+    resume_agent_name_template,
     single_wait_agent_name,
+    wait_agent_name_template,
 )
 from sase.agent.names._templates import (
     AGENT_NAME_TEMPLATE_MARKER,
@@ -274,6 +276,7 @@ __all__ = [
     "render_agent_name_template_namespace",
     "render_agent_name_template",
     "reserve_repeat_name_base",
+    "resume_agent_name_template",
     "resolve_agent_name_template_reference",
     "resolve_indexed_agent_name_reference",
     "require_latest_agent_name_template",
@@ -286,9 +289,11 @@ __all__ = [
     "resolve_agent_changespec",
     "resolve_resume_agent_name",
     "resolve_wait_dependency",
+    "retry_agent_name_template",
     "run_historical_auto_name_migration",
     "single_wait_agent_name",
     "strip_dismissed_prefix",
     "validate_indexed_agent_name_template",
+    "wait_agent_name_template",
     "wipe_agent_name_for_reuse",
 ]

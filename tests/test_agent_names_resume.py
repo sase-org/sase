@@ -129,30 +129,36 @@ class TestResumeAgentNames:
 
     def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f1"
+            assert allocate_resume_name("foo") == "foo.f-0"
 
     def test_allocates_resume_slot_gap(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.f1", done=True)
-        _make_agent(tmp_path, "proj", "run3", "foo.f3", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.f-0", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.f-2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f2"
+            assert allocate_resume_name("foo") == "foo.f-1"
 
     def test_suffixed_descendants_reserve_resume_slot(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.f1.cld", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.f-0.cld", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f2"
+            assert allocate_resume_name("foo") == "foo.f-1"
 
-    def test_legacy_r_descendants_reserve_fork_slot(self, tmp_path: Path) -> None:
+    def test_legacy_descendants_do_not_reserve_new_fork_slots(
+        self, tmp_path: Path
+    ) -> None:
+        _make_agent(tmp_path, "proj", "run0", "foo.f1.cld", done=True)
         _make_agent(tmp_path, "proj", "run1", "foo.r1.cld", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f2"
+            assert allocate_resume_name("foo") == "foo.f-0"
 
     def test_allocates_multiple_resume_names_from_one_snapshot(
         self, tmp_path: Path
     ) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.f1", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_names("foo", 3) == ["foo.f2", "foo.f3", "foo.f4"]
+            assert allocate_resume_names("foo", 3) == [
+                "foo.f-0",
+                "foo.f-1",
+                "foo.f-2",
+            ]
 
     def test_resolve_resume_root_uses_latest_completed_family_member(
         self, tmp_path: Path

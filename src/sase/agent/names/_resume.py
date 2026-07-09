@@ -109,33 +109,45 @@ def allocate_resume_name(
     *,
     reserved: set[str] | None = None,
 ) -> str:
-    """Return the first available ``<resume_name>.f<N>`` name.
+    """Return the first available rendering of ``<resume_name>.f-@``."""
+    from sase.agent.names._templates import allocate_agent_name_template
 
-    Existing fork names and legacy ``.r<N>`` descendants both reserve the
-    numeric slot, so ``foo.r1.claude`` causes the next allocation for ``foo``
-    to skip ``foo.f1``.
-    """
-    pool = _active_resume_reserved_names(resume_name) if reserved is None else reserved
-    n = 1
-    while True:
-        candidate = f"{resume_name}.f{n}"
-        if candidate not in pool:
-            pool.add(candidate)
-            return candidate
-        n += 1
+    return allocate_agent_name_template(
+        resume_agent_name_template(resume_name),
+        reserved=reserved,
+    )
 
 
 def allocate_resume_names(resume_name: str, count: int) -> list[str]:
-    """Allocate *count* resume-derived names from one active-name snapshot."""
+    """Allocate *count* resume-derived names from one registry snapshot."""
     if count <= 0:
         raise ValueError(f"count must be positive, got {count}")
-    reserved = _active_resume_reserved_names(resume_name)
-    return [allocate_resume_name(resume_name, reserved=reserved) for _ in range(count)]
+    from sase.agent.names._registry import get_reserved_agent_names
+    from sase.agent.names._templates import (
+        AgentNameNamespaceReservationIndex,
+        allocate_agent_name_template,
+    )
+
+    reserved = get_reserved_agent_names()
+    index = AgentNameNamespaceReservationIndex.from_names(reserved)
+    template = resume_agent_name_template(resume_name)
+    return [
+        allocate_agent_name_template(template, reserved=reserved, index=index)
+        for _ in range(count)
+    ]
 
 
 def active_resume_reserved_names(resume_name: str) -> set[str]:
-    """Return active names that reserve ``<resume_name>.f<N>`` slots."""
-    return _active_resume_reserved_names(resume_name)
+    """Return the registry snapshot used for resume-derived allocation."""
+    del resume_name
+    from sase.agent.names._registry import get_reserved_agent_names
+
+    return get_reserved_agent_names()
+
+
+def resume_agent_name_template(base: str) -> str:
+    """Return the template used for fork/resume-derived agent names."""
+    return f"{base}.f-@"
 
 
 def single_wait_agent_name(prompt: str | None) -> str | None:
@@ -189,38 +201,45 @@ def allocate_wait_name(
     *,
     reserved: set[str] | None = None,
 ) -> str:
-    """Return the first available ``<wait_name>.w<N>`` name."""
-    pool = active_wait_reserved_names(wait_name) if reserved is None else reserved
-    n = 1
-    while True:
-        candidate = f"{wait_name}.w{n}"
-        if candidate not in pool:
-            pool.add(candidate)
-            return candidate
-        n += 1
+    """Return the first available rendering of ``<wait_name>.w-@``."""
+    from sase.agent.names._templates import allocate_agent_name_template
+
+    return allocate_agent_name_template(
+        wait_agent_name_template(wait_name),
+        reserved=reserved,
+    )
 
 
 def allocate_wait_names(wait_name: str, count: int) -> list[str]:
-    """Allocate *count* wait-derived names from one active-name snapshot."""
+    """Allocate *count* wait-derived names from one registry snapshot."""
     if count <= 0:
         raise ValueError(f"count must be positive, got {count}")
-    reserved = active_wait_reserved_names(wait_name)
-    return [allocate_wait_name(wait_name, reserved=reserved) for _ in range(count)]
+    from sase.agent.names._registry import get_reserved_agent_names
+    from sase.agent.names._templates import (
+        AgentNameNamespaceReservationIndex,
+        allocate_agent_name_template,
+    )
+
+    reserved = get_reserved_agent_names()
+    index = AgentNameNamespaceReservationIndex.from_names(reserved)
+    template = wait_agent_name_template(wait_name)
+    return [
+        allocate_agent_name_template(template, reserved=reserved, index=index)
+        for _ in range(count)
+    ]
 
 
 def active_wait_reserved_names(wait_name: str) -> set[str]:
-    """Return active names that reserve ``<wait_name>.w<N>`` slots."""
-    from sase.agent.names._auto import get_active_agent_names
+    """Return the registry snapshot used for wait-derived allocation."""
+    del wait_name
+    from sase.agent.names._registry import get_reserved_agent_names
 
-    active = get_active_agent_names()
-    pattern = re.compile(rf"^{re.escape(wait_name)}\.w(\d+)(?:\.|$)")
-    reserved: set[str] = set()
-    for name in active:
-        match = pattern.match(name)
-        if match is None:
-            continue
-        reserved.add(f"{wait_name}.w{match.group(1)}")
-    return reserved
+    return get_reserved_agent_names()
+
+
+def wait_agent_name_template(base: str) -> str:
+    """Return the template used for wait-derived agent names."""
+    return f"{base}.w-@"
 
 
 def _iter_reference_args(
@@ -260,17 +279,3 @@ def _resume_reference_argument(text: str, match: re.Match[str]) -> str | None:
         positional, _ = parse_args(inner)
         return positional[0] if positional else None
     return None
-
-
-def _active_resume_reserved_names(resume_name: str) -> set[str]:
-    from sase.agent.names._auto import get_active_agent_names
-
-    active = get_active_agent_names()
-    pattern = re.compile(rf"^{re.escape(resume_name)}\.[fr](\d+)(?:\.|$)")
-    reserved: set[str] = set()
-    for name in active:
-        match = pattern.match(name)
-        if match is None:
-            continue
-        reserved.add(f"{resume_name}.f{match.group(1)}")
-    return reserved

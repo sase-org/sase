@@ -22,7 +22,11 @@ def test_mobile_agent_bridge_smoke_launch_list_kill_retry_and_image(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
-    monkeypatch.setattr(mobile_agents, "allocate_retry_name", lambda name: f"{name}.r1")
+    monkeypatch.setattr(
+        mobile_agents,
+        "allocate_retry_name",
+        lambda name: f"{name}.r-0",
+    )
     launched_prompts: list[str] = []
     running_names: list[str] = []
 
@@ -86,7 +90,7 @@ def test_mobile_agent_bridge_smoke_launch_list_kill_retry_and_image(
     assert launch["primary"]["name"] == "smoke.text"
     assert [agent["name"] for agent in listed["agents"]] == ["smoke.text"]
     assert killed["changed"] is True
-    assert retry["launch"]["primary"]["name"] == "smoke.text.r1"
+    assert retry["launch"]["primary"]["name"] == "smoke.text.r-0"
     assert image["primary"]["name"] == "smoke.image"
     assert "The image has been saved to:" in launched_prompts[-1]
     assert list(
