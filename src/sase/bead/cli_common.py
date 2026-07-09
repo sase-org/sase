@@ -22,7 +22,7 @@ _logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class BeadsLocation:
+class _BeadsLocation:
     """Resolved bead store location for the current workspace context."""
 
     root: Path
@@ -71,7 +71,7 @@ def resolve_beads_location(
     cwd: Path | None = None,
     *,
     require_existing: bool = False,
-) -> BeadsLocation | None:
+) -> _BeadsLocation | None:
     """Resolve the bead store location for reads, writes, and commits."""
     current = (Path.cwd() if cwd is None else cwd).expanduser().resolve()
     context = _resolve_workspace_context(current)
@@ -93,7 +93,7 @@ def resolve_beads_location(
             )
             if root is None:
                 return None
-            return BeadsLocation(
+            return _BeadsLocation(
                 root=root,
                 beads_dirname=BEADS_DIRNAME,
                 storage=store.storage,
@@ -117,7 +117,7 @@ def resolve_beads_location(
 
         if require_existing and not (root / BEADS_DIRNAME_NON_VC).is_dir():
             return None
-        return BeadsLocation(
+        return _BeadsLocation(
             root=root,
             beads_dirname=BEADS_DIRNAME_NON_VC,
             storage=store.storage,
@@ -224,13 +224,13 @@ def _resolve_legacy_beads_location(
     cwd: Path,
     *,
     require_existing: bool,
-) -> BeadsLocation | None:
+) -> _BeadsLocation | None:
     for parent in [cwd, *cwd.parents]:
         if (parent / BEADS_DIRNAME).is_dir():
-            return BeadsLocation(parent, BEADS_DIRNAME, storage="in_tree")
+            return _BeadsLocation(parent, BEADS_DIRNAME, storage="in_tree")
         non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
         if non_vc.is_dir():
-            return BeadsLocation(
+            return _BeadsLocation(
                 parent / ".sase" / "sdd",
                 BEADS_DIRNAME_NON_VC,
                 storage="local",
@@ -238,7 +238,7 @@ def _resolve_legacy_beads_location(
 
     if require_existing:
         return None
-    return BeadsLocation(cwd, BEADS_DIRNAME, storage="in_tree")
+    return _BeadsLocation(cwd, BEADS_DIRNAME, storage="in_tree")
 
 
 def _existing_workspace_root(cwd: Path) -> Path | None:
