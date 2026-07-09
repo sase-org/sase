@@ -20,7 +20,7 @@ def test_dispatch_bare_defaults_to_list() -> None:
     """A bare `sase agent` (no subcommand) invokes the list handler."""
     args = argparse.Namespace(agent_subcommand=None, all=False, json=True, project=None)
     with (
-        patch("sase.agents.cli_list.list_running_agents", return_value=[]),
+        patch("sase.agents.cli_list.agent_list_entries", return_value=[]),
         pytest.raises(SystemExit) as excinfo,
     ):
         handle_agent_command(args)
@@ -33,7 +33,7 @@ def test_dispatch_list_subcommand() -> None:
         agent_subcommand="list", all=False, json=True, project=None
     )
     with (
-        patch("sase.agents.cli_list.list_running_agents", return_value=[]),
+        patch("sase.agents.cli_list.agent_list_entries", return_value=[]),
         pytest.raises(SystemExit) as excinfo,
     ):
         handle_agent_command(args)

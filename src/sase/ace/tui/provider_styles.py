@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sase.integrations.provider_badges import (
+    provider_emoji_badge as _shared_provider_emoji_badge,
+)
 from rich.markup import escape
 from rich.text import Text
 
@@ -79,14 +82,6 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
     ),
 }
 
-_PROVIDER_EMOJI_BADGES: dict[str, str] = {
-    "claude": "🎭",
-    "codex": "🤖",
-    "qwen": "🐼",
-    "opencode": "🐙",
-    "agy": "🪐",
-}
-
 
 def _normalize_provider(provider: str | None) -> str | None:
     if provider is None:
@@ -126,10 +121,7 @@ def _provider_style_for(provider: str | None) -> _ProviderStyle:
 
 def provider_emoji_badge(provider: str | None) -> str | None:
     """Return the compact row emoji for known LLM providers."""
-    normalized = _normalize_provider(provider)
-    if normalized is None:
-        return None
-    return _PROVIDER_EMOJI_BADGES.get(normalized)
+    return _shared_provider_emoji_badge(provider)
 
 
 def _resolve_provider_and_model(

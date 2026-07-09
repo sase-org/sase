@@ -11,11 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from sase.agent.running import (
-    RunningAgentInfo,
-    list_all_agents,
-    list_running_agents,
-)
+from sase.integrations.agent_list_entries import AgentListEntry, agent_list_entries
 from sase.project_display_names import (
     project_display_name_for,
     humanize_vcs_refs_in_text,
@@ -47,10 +43,7 @@ def handle_agents_list(args: argparse.Namespace) -> None:
     project_filter: str | None = getattr(args, "project", None)
     as_json = bool(getattr(args, "json", False))
 
-    agents = list_all_agents() if include_all else list_running_agents()
-
-    if project_filter:
-        agents = [a for a in agents if a.project == project_filter]
+    agents = agent_list_entries(include_recent=include_all, project=project_filter)
 
     if as_json:
         _print_json(agents)
@@ -59,14 +52,14 @@ def handle_agents_list(args: argparse.Namespace) -> None:
     _print_pretty(agents, include_all=include_all)
 
 
-def _print_json(agents: list[RunningAgentInfo]) -> None:
+def _print_json(agents: list[AgentListEntry]) -> None:
     """Write a stable-shape JSON array to stdout."""
     payload = [_agent_to_json(a) for a in agents]
     json.dump(payload, sys.stdout, indent=2)
     sys.stdout.write("\n")
 
 
-def _agent_to_json(agent: RunningAgentInfo) -> dict[str, object]:
+def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
     prompt = agent.prompt
     if prompt is not None and len(prompt) > _PROMPT_JSON_MAX_CHARS:
         prompt = prompt[:_PROMPT_JSON_MAX_CHARS]
@@ -89,7 +82,7 @@ def _agent_to_json(agent: RunningAgentInfo) -> dict[str, object]:
     }
 
 
-def _print_pretty(agents: list[RunningAgentInfo], *, include_all: bool) -> None:
+def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
     console = Console()
 
     title_label = "Agents" if include_all else "Running Agents"
