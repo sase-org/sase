@@ -28,7 +28,8 @@ SDD supports three storage modes:
 
 - `in_tree` stores artifacts under the checkout's `sdd/` directory and commits them with code changes.
 - `local` stores artifacts in a standalone git repo at the primary workspace's `.sase/sdd/`.
-- `separate_repo` stores artifacts in the same `.sase/sdd/` layout, backed by a provider-materialized companion repo.
+- `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized companion
+  repo.
 
 Use `sase sdd path` to print the effective SDD root, or `sase sdd path research` to print a canonical child directory.
 Launched agents receive the same root in `SASE_SDD_DIR`, so prompts and hooks should use that instead of assuming `sdd/`
@@ -157,6 +158,7 @@ when passing list flags such as `--kind` or `--json`.
 | `sase init sdd`         | Alias for `sase sdd init`; accepts the same `-p/--path` option                                          |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
+| `sase sdd migrate`      | Migrate existing in-tree or local SDD files into the provider companion repository                      |
 | `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                         |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
@@ -175,10 +177,12 @@ The `sase sdd init` command creates or connects the effective SDD store, then re
 directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. On
 GitHub projects whose provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository as
 public when missing, ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`.
-Existing private companion repositories are not made public automatically. Bare-git projects keep the legacy in-tree
-`sdd.version_controlled: true` default. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh
-generated project guides or to opt into the appropriate SDD storage for the project. The generated guides are safe to
-overwrite, so do not put hand-maintained conceptual prose in those README files.
+When an in-tree `sdd/` store already exists during separate-repo init, SASE migrates those artifacts into the companion
+checkout instead of starting from an empty store. Existing private companion repositories are not made public
+automatically. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default. Keep conceptual details
+here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides or to opt into the appropriate SDD
+storage for the project. The generated guides are safe to overwrite, so do not put hand-maintained conceptual prose in
+those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for
@@ -242,5 +246,6 @@ mode behavior.
 
 SDD artifact placement follows the configured storage mode and project workflow. In in-tree mode, bead commands read and
 write the current checkout's `sdd/beads/` store; they do not merge bead records from numbered sibling workspaces. In
-local and separate-repo mode, commands route to the primary workspace's `.sase/sdd/beads/` store. Coordinate in-tree
-bead state between checkouts through the normal VCS sync path.
+local mode, commands route to the primary workspace's `.sase/sdd/beads/` store. In separate-repo mode, commands route to
+the active workspace's companion clone under `.sase/sdd/`. Coordinate in-tree and separate-repo bead state between
+checkouts through the normal VCS sync path.

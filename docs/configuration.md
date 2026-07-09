@@ -1057,9 +1057,10 @@ sdd:
 
 In-tree mode stores prompt snapshots, tales, epics, legends, myths, research notes, and bead state under `sdd/` in the
 project root. Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace.
-Separate-repo mode uses that same `.sase/sdd/` layout after a provider materializes a companion repository. Projects
-resolved as the built-in `bare_git` VCS provider declare in-tree SDD under `sdd/` when storage is automatic. See
-[SDD Storage](sdd_storage.md) for storage behavior and [Beads](beads.md) for the bead system reference.
+Separate-repo mode uses the same `.sase/sdd/` layout as a provider-backed clone in the active workspace, with
+materialization metadata recorded in the primary workspace's `.sase/sdd-store.json`. Projects resolved as the built-in
+`bare_git` VCS provider declare in-tree SDD under `sdd/` when storage is automatic. See [SDD Storage](sdd_storage.md)
+for storage behavior and [Beads](beads.md) for the bead system reference.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -1070,7 +1071,8 @@ Running `sase sdd init` or its `sase init sdd` alias creates or updates the proj
 generated SDD guide files and the directory map. On GitHub projects whose provider policy is `separate_repo`, init
 creates or connects the selected companion repository, creates new GitHub companions as public, ensures the selected
 companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`. Existing private companion repositories are
-not made public automatically. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default, and an
+not made public automatically. If an in-tree `sdd/` store already exists, separate-repo init migrates those artifacts
+into the companion checkout. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default, and an
 explicit `sdd.storage` value still wins.
 
 Source: `src/sase/default_config.yml`
@@ -1402,6 +1404,19 @@ full flow, payload, checkpoint, and resume semantics.
 | `-s, --status`          | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | ChangeSpec status override for PRs.                                                              |
 | `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.          |
 
+### `sase vcs`
+
+`sase vcs` defaults to `sase vcs list`. The command group inspects the repository constellation made up of the primary
+repo, configured linked repos, and the separate SDD store when present.
+
+| Subcommand | Flags                                                                                                                                                                                                                     | Description                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `list`     | `-c/--color`, `-f/--format pretty\|oneline\|json`, `-N/--no-fetch`, `-o/--current-only`, `-r/--repo`, `-s/--sort`                                                                                                         | List resolved repositories, descriptions, branch state, dirty state, stats, and latest activity. |
+| `log`      | `-a/--author`, `-b/--branch/--ref`, `-c/--color`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-N/--no-fetch`, `-o/--current-only`, `-r/--repo`, `-R/--reverse`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers.                                |
+
+`sase vcs log` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or
+`YYYY-MM-DDTHH:MM`. See [VCS Providers](vcs.md#per-command-vcs-usage) for output examples and provider notes.
+
 ### `sase changespec search`
 
 | Flag           | Values                      | Default    | Description                                           |
@@ -1607,11 +1622,12 @@ linked repo uses numbered workspace resolution.
 ### `sase init sdd`
 
 `sase init sdd` is an alias for `sase sdd init`. It creates or connects GitHub companion repositories when
-`separate_repo` is the effective storage policy, creates new GitHub companions as public, and ensures the selected
-companion has a `sase--sdd` label. Existing private companion repositories are not made public automatically. Otherwise
-it writes the legacy `sdd.version_controlled` alias as needed, then creates or refreshes generated SDD README files and
-the directory map asset. Bare-git projects run the generated-file refresh automatically during repository setup and
-first SDD writes, but the explicit command remains available for manual opt-in, refresh, and `--check` audits.
+`separate_repo` is the effective storage policy, creates new GitHub companions as public, ensures the selected companion
+has a `sase--sdd` label, and migrates existing in-tree SDD artifacts into the companion checkout when needed. Existing
+private companion repositories are not made public automatically. Otherwise it writes the legacy
+`sdd.version_controlled` alias as needed, then creates or refreshes generated SDD README files and the directory map
+asset. Bare-git projects run the generated-file refresh automatically during repository setup and first SDD writes, but
+the explicit command remains available for manual opt-in, refresh, and `--check` audits.
 
 | Flag          | Values | Default                  | Description                                                       |
 | ------------- | ------ | ------------------------ | ----------------------------------------------------------------- |
@@ -1786,9 +1802,10 @@ workspace instead and accepts an optional child kind such as `research`. With no
 
 | Subcommand     | Flags                                                                    | Description                                                                                               |
 | -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `init`         | `-p/--path`, `-c/--check`                                                | Create/connect companion storage when effective, refresh SDD guide files, and report drift with `--check` |
+| `init`         | `-p/--path`, `-c/--check`, `-s/--storage`                                | Create/connect companion storage when effective, refresh SDD guide files, and report drift with `--check` |
 | `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`                         |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                           |
+| `migrate`      | `-p/--path`, `-c/--create`, `-r/--remove-in-tree`                        | Migrate in-tree or local SDD files into the provider companion repository                                 |
 | `path`         | `[kind]`                                                                 | Print the effective SDD root or one canonical child directory; does not materialize remote stores         |
 | `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                   |
 | `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs and optionally write link fixes                                   |

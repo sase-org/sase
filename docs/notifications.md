@@ -25,64 +25,59 @@ Press `i` on any tab in ACE to open the notifications modal. Notifications displ
 | `V`                 | Open the current image attachment in the image viewer                          |
 | `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                                   |
 | `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                                  |
-| `[` / `]`           | Switch notification tag tabs                                                   |
+| `[` / `]`           | Switch notification tabs                                                       |
 | `R`                 | Mark all notifications as read                                                 |
 | `Esc` / `q`         | Close modal                                                                    |
 
-Plan and question notifications require confirmation (`y` / `n`) before dismissal to prevent accidental loss of pending
-approvals. The same `y` / `n` confirmation is used for bulk dismissal when at least one marked plan or question
-notification is included in the batch.
+Plan, launch, and question notifications require confirmation (`y` / `n`) before dismissal to prevent accidental loss of
+pending approvals. The same `y` / `n` confirmation is used for bulk dismissal when at least one marked plan, launch, or
+question notification is included in the batch.
 
-### Sectioned Layout
+### Tabs and Ordering
 
-The modal renders notifications in four fixed-order sections, each with a colored header row and per-section count:
+The modal renders a compact tab strip above the list when more than one top-level filter is present. Each notification
+belongs to exactly one top-level tab:
 
-| Section      | Color  | Contents                                                                                                                                |
-| ------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **PRIORITY** | Red    | Plan approvals, user questions, mentor reviews, non-error axe notifications, and CRS workflow results                                   |
-| **ERRORS**   | Orange | Axe error digests and agent error reports (sender `axe` or `user-agent` paired with the `ViewErrorReport` action)                       |
-| **INBOX**    | Gold   | Everything else                                                                                                                         |
-| **MUTED**    | Cyan   | Notifications the user has muted (or that are still snoozed). Mute dominates priority — a muted plan appears under MUTED, not PRIORITY. |
+| Tab       | Contents                                                                                                                         |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `HITL`    | Plan approvals, user questions, workflow HITL prompts, and launch approvals.                                                     |
+| `Errors`  | Axe error digests and agent error reports (sender `axe` or `user-agent` paired with the `ViewErrorReport` action).               |
+| `General` | Untagged non-HITL, non-error, unmuted notifications.                                                                             |
+| `Done`    | Successful agent-completion notifications carrying the `done` tag.                                                               |
+| Custom    | Any other normalized notification tag, sorted alphabetically after `Done`.                                                       |
+| `Muted`   | Notifications the user has muted or snoozed. Mute dominates every other classification; a muted plan appears under `Muted` only. |
 
-Empty sections are not rendered. Section header rows are non-selectable; `j` / `k` skip over them automatically.
-
-When unread notifications include tags, a compact tab strip appears above the list. `All` is always present, `done` is
-pinned immediately after `All` when successful agent-completion rows exist, and any other tags are sorted
-alphabetically. A tagged notification appears in `All` and in each matching tag tab; untagged notifications appear only
-in `All`. The fixed section order and newest-first sorting are recomputed within the active tab. Switching tabs with `[`
-/ `]` or a mouse click clears modal-local marks so a hidden row is never bulk-dismissed by accident.
-
-Within each section, rows are ordered newest-first by their `timestamp` field. The fixed section order (PRIORITY →
-ERRORS → INBOX → MUTED) is never reshuffled — only the rows inside each section are sorted. Rows with equal timestamps
-keep their original arrival order, and rows whose timestamp can't be parsed fall to the bottom of their section rather
-than breaking the modal. The sort runs on every modal rebuild, so live actions like mark-read, dismiss, mute, and snooze
-update the visible order immediately.
+Within the active tab, rows are ordered newest-first by their `timestamp` field. Rows with equal timestamps keep their
+original arrival order, and rows whose timestamp can't be parsed fall to the bottom rather than breaking the modal. The
+sort runs on every modal rebuild, so live actions like mark-read, dismiss, mute, and snooze update the visible order
+immediately. Switching tabs with `[` / `]` or a mouse click clears modal-local marks so a hidden row is never
+bulk-dismissed by accident.
 
 ### Marks and Bulk Dismiss
 
 Press `m` on a notification to toggle a per-row mark. Marks are scoped to the open modal — closing the modal clears
 them. While at least one row is marked, `x` switches from "dismiss the highlighted row" to "dismiss every marked row";
-plan and question rows in the batch use the same `y` / `n` confirmation prompt as a single dismissal.
+plan, launch, and question rows in the batch use the same `y` / `n` confirmation prompt as a single dismissal.
 
 ### Mute and Snooze
 
 Press `M` on a notification to toggle its muted state. Muted notifications are dimmed in the list, prefixed with `~`,
-and moved to the **MUTED** section. They are still delivered to the JSONL store and remain visible in the modal — only
-the bell indicator and toast pipeline ignore them.
+and moved to the `Muted` tab. They are still delivered to the JSONL store and remain visible in the modal — only the
+bell indicator and toast pipeline ignore them.
 
 Press `s` to snooze a notification for `15m`, `1h`, `4h`, or until tomorrow morning. Snoozed notifications are
-implicitly muted (so they fall into the MUTED section) and display a `⏰ <remaining>` badge counting down to the snooze
+implicitly muted (so they fall into the `Muted` tab) and display a `⏰ <remaining>` badge counting down to the snooze
 expiry. Toggling mute off cancels any pending snooze. The snooze expiry is persisted, so the notification re-emerges
-from MUTED on its own once the timer runs out.
+from `Muted` on its own once the timer runs out.
 
 ### Top-Bar Indicator
 
 The notification indicator in the TUI top bar takes its color from the highest-priority unread bucket present:
 
-- **Orange** — at least one unread PRIORITY or ERRORS notification (plan approval, user question, mentor review, axe
-  error digest, agent error report, …)
-- **Gold** — only regular INBOX notifications are unread
-- **Cyan** — only MUTED (or snoozed) notifications are unread
+- **Orange** — at least one unread priority or error notification (plan approval, launch approval, user question, mentor
+  review, axe error digest, agent error report, ...)
+- **Gold** — only regular unmuted notifications are unread
+- **Cyan** — only muted or snoozed notifications are unread
 - **Dim zero** — no unread notifications at all
 
 Silent notifications never contribute to the indicator (see [Silent Notifications](#silent-notifications) below).
@@ -94,6 +89,7 @@ The following events generate notifications:
 | Sender                         | Event                                                          |
 | ------------------------------ | -------------------------------------------------------------- |
 | `plan`                         | A plan file is ready for user review and approval              |
+| `launch`                       | A running agent requested a new agent launch for approval      |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`) |
 | `hitl`                         | A workflow HITL step is waiting for user input                 |
 | `memory.proposed`              | A long-term memory proposal is ready for human review          |
@@ -181,21 +177,21 @@ id when delivery succeeds.
 
 Each notification contains:
 
-| Field          | Type         | Description                                                                                            |
-| -------------- | ------------ | ------------------------------------------------------------------------------------------------------ |
-| `id`           | string       | UUID4 unique identifier                                                                                |
-| `timestamp`    | string       | ISO-8601 creation timestamp                                                                            |
-| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                        |
-| `notes`        | list[string] | Human-readable message lines                                                                           |
-| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                   |
-| `tags`         | list[string] | Optional normalized labels for filtering and modal tag tabs                                            |
-| `action`       | string       | Action type: `HITL`, `JumpToChangeSpec`, `PlanApproval`, etc.                                          |
-| `action_data`  | dict         | Action-specific data (e.g., response directory, PR name)                                               |
-| `read`         | bool         | Whether the notification has been read                                                                 |
-| `dismissed`    | bool         | Whether the notification has been dismissed                                                            |
-| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                                |
-| `muted`        | bool         | Muted notifications appear under the MUTED section and are excluded from the bell indicator and toasts |
-| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                              |
+| Field          | Type         | Description                                                                                          |
+| -------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `id`           | string       | UUID4 unique identifier                                                                              |
+| `timestamp`    | string       | ISO-8601 creation timestamp                                                                          |
+| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                      |
+| `notes`        | list[string] | Human-readable message lines                                                                         |
+| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                 |
+| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                              |
+| `action`       | string       | Action type: `HITL`, `JumpToChangeSpec`, `PlanApproval`, etc.                                        |
+| `action_data`  | dict         | Action-specific data (e.g., response directory, PR name)                                             |
+| `read`         | bool         | Whether the notification has been read                                                               |
+| `dismissed`    | bool         | Whether the notification has been dismissed                                                          |
+| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                              |
+| `muted`        | bool         | Muted notifications appear under the `Muted` tab and are excluded from the bell indicator and toasts |
+| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                            |
 
 ## Silent Notifications
 

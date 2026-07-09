@@ -1084,12 +1084,12 @@ See [docs/llms.md](llms.md#temporary-model-overrides) for the resolution order a
 ## Notifications Modal
 
 Press `i` (or the `,n` leader chord to jump straight to an agent's notification) to open the notifications modal. See
-[`docs/notifications.md`](notifications.md) for the full keybinding reference, tag tabs, the priority/inbox/muted
-section taxonomy, and the per-notification snooze and mute affordances.
+[`docs/notifications.md`](notifications.md) for the full keybinding reference, modal tabs, priority/error/muted
+classification, and the per-notification snooze and mute affordances.
 
-The top-bar notification indicator color reflects the highest-priority unread bucket: orange for **PRIORITY**
-notifications (plan approvals, user questions, mentor reviews, axe errors, CRS results, agent error reports), gold for
-regular **INBOX** notifications, and cyan when only **MUTED** notifications remain.
+The top-bar notification indicator color reflects the highest-priority unread bucket: orange for priority or error
+notifications (plan approvals, launch approvals, user questions, mentor reviews, axe errors, CRS results, agent error
+reports), gold for regular unmuted notifications, and cyan when only muted or snoozed notifications remain.
 
 ## Notification Actions
 
@@ -1482,9 +1482,14 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
   known agents or agent-family roots, and marks unknown names with `?` so typos and stale references are obvious. Timed
   waits add compact duration, target time, and countdown text when available.
-- **OUTPUT VARIABLES**: Small string values written by the agent with `sase var set KEY=VALUE`. Keys are sorted for
-  stable display, multi-line values are indented, and the section is omitted when the agent has not published variables.
-  These values are stored in `agent_meta.json`, so they are visible metadata rather than secret storage.
+- **COMMITS**: Commits persisted by the selected agent's post-run steps, grouped by repository. Primary workspace,
+  linked-repo, and SDD companion commits are attributed separately when the run metadata records enough path or repo
+  information.
+- **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
+  contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
+  root, planner, coder, tester, and follow-up values stay attributable. Multi-line values are indented, and the section
+  is omitted when the family has not published variables. These values are stored in `agent_meta.json`, so they are
+  visible metadata rather than secret storage.
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from `live_reply.md` during execution and read
   from the artifacts directory after completion. When per-turn reply timestamps are available (recorded in
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between each agent turn. For agents

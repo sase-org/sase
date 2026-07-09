@@ -105,8 +105,11 @@ sase version             # inspect the exact SASE packages loaded by this enviro
 sase ace                  # open the interactive control surface; press # for the Admin Center (Config / Logs / Projects / Tasks / Updates / XPrompts)
 sase run "<prompt>"       # launch an agent or workflow
 sase agent list          # inspect running agents
+sase vcs list            # inspect the primary + linked + SDD repository constellation
+sase vcs log             # inspect recent commits across that constellation
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
+sase sdd path            # print the effective SDD root for this workspace
 sase plugin list         # browse built-in/community plugins and update indicators
 sase update -n           # preview a SASE core + installed-plugin update
 sase workspace list       # inspect numbered workspaces for the current project
@@ -225,6 +228,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [Memory](https://sase.sh/memory/) ([local](docs/memory.md))
 - [AXE Automation](https://sase.sh/axe/) ([local](docs/axe.md))
 - [Spec-Driven Development](https://sase.sh/sdd/) ([local](docs/sdd.md))
+- [SDD Storage](https://sase.sh/sdd_storage/) ([local](docs/sdd_storage.md))
 - [XPrompts](https://sase.sh/xprompt/) ([local](docs/xprompt.md))
 - [Prompt History](https://sase.sh/prompt/) ([local](docs/prompt.md))
 - [ChangeSpecs](https://sase.sh/change_spec/) ([local](docs/change_spec.md))

@@ -14,14 +14,16 @@ checkout.
 
 ## Modes
 
-| Mode            | Root                  | Repository                                                                                                   |
-| --------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `in_tree`       | `{workspace}/sdd`     | The code repository. SDD files are committed with code changes.                                              |
-| `local`         | `{primary}/.sase/sdd` | A standalone local git repo beside the primary checkout.                                                     |
-| `separate_repo` | `{primary}/.sase/sdd` | A provider-materialized companion repository, such as `owner/repo--sdd` or an explicit `owner/sdd` override. |
+| Mode            | Root                    | Repository                                                                                                   |
+| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `in_tree`       | `{workspace}/sdd`       | The code repository. SDD files are committed with code changes.                                              |
+| `local`         | `{primary}/.sase/sdd`   | A standalone local git repo beside the primary checkout.                                                     |
+| `separate_repo` | `{workspace}/.sase/sdd` | A provider-materialized companion repository, such as `owner/repo--sdd` or an explicit `owner/sdd` override. |
 
-The local and separate-repo modes intentionally share the same filesystem layout. Code that only needs a directory can
-use the fast resolver without knowing whether the store is a local-only repo or a companion checkout.
+Local and separate-repo modes use the same `.sase/sdd/` shape, but not the same workspace rule. `local` is a single
+primary-workspace store. `separate_repo` is a real companion-repository checkout under the active workspace, with the
+primary workspace holding the materialized-store record at `{primary}/.sase/sdd-store.json`. Code that only needs a
+directory should still use `sase sdd path` or `SASE_SDD_DIR` instead of deriving paths by hand.
 
 ## Resolution
 
@@ -39,8 +41,9 @@ render or keystroke paths.
 ## Companion Repositories
 
 For GitHub-style providers, default discovery checks only `<owner>/<repo>--sdd`. The clone lives at
-`{primary}/.sase/sdd`, and the store record lives next to it at `{primary}/.sase/sdd-store.json` so it is not committed
-into the companion repository.
+`{workspace}/.sase/sdd`; numbered workspaces get their own best-effort clone or fast-forwarded copy from the primary
+checkout. The store record lives at `{primary}/.sase/sdd-store.json` so it is not committed into the companion
+repository.
 
 New GitHub companion repositories created by SASE are public by default. Existing private companion repositories are not
 made public automatically. During explicit create or verify flows such as `sase sdd init` and `sase init`, SASE also
@@ -59,8 +62,19 @@ matches. Existing local SDD content should not be clobbered by automatic discove
 
 ## Migration And Offline Behavior
 
-Treat migration from an existing in-tree or local store into a companion repository as a provider-specific operation
-today. Do not replace `.sase/sdd` by hand while an agent or bead command may be writing it.
+Use `sase sdd migrate` to move an existing in-tree or local store into the provider companion repository:
+
+```bash
+sase sdd migrate
+sase sdd migrate --create
+sase sdd migrate --remove-in-tree
+```
+
+The command connects or creates the companion, copies in-tree `sdd/` content into `.sase/sdd/` when needed, initializes
+the generated guides and bead store, commits and pushes the companion repo, and writes `sdd.storage: separate_repo` in
+the project config. `--create` lets the provider create a missing companion repository. `--remove-in-tree` removes
+tracked in-tree `sdd/` files in a separate code-repo commit after the companion migration succeeds. Do not replace
+`.sase/sdd` by hand while an agent or bead command may be writing it.
 
 Once a separate-repo store is materialized, directory-only reads and `sase sdd path` work offline against the local
 clone. Network fetch and push work belongs to setup, provider-specific migration, and commit/push paths. Local commits

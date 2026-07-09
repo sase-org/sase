@@ -122,12 +122,13 @@ stays as a `CHAT:` drawer on the eventual commit.
 SDD plan artifacts are shared through the normal project workflow. In in-tree mode, bead state is deliberately
 checkout-local: `sase bead` reads and mutates the `sdd/beads/` event store in the checkout where the command runs. An
 agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`, `myproject_2/`, and
-`myproject_3/`. In local and separate-repo mode, numbered checkouts resolve back to the primary workspace's
-`.sase/sdd/beads/` store.
+`myproject_3/`. In local mode, numbered checkouts resolve back to the primary workspace's `.sase/sdd/beads/` store. In
+separate-repo mode, each numbered checkout uses its own `.sase/sdd/` companion clone.
 
 That keeps the source of truth inspectable and unsurprising. For in-tree work, bead state moves between checkouts
 through the same VCS sync path as code and SDD files, and ID allocation uses the active checkout's local `config.json`
-and canonical event state. For local and separate-repo stores, agents share the primary workspace's `.sase/sdd/` store.
+and canonical event state. For local stores, agents share the primary workspace's `.sase/sdd/` store; for separate-repo
+stores, agents synchronize through the companion repository clone in their active workspace.
 
 ## What To Read Next
 

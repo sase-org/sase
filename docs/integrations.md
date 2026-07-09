@@ -79,6 +79,30 @@ Each returned `AgentStatusGroup` contains the bucket label and the running-agent
 
 Source: `src/sase/integrations/agent_status_groups.py`, `src/sase/agent/status_buckets.py`
 
+## Agent List Entries
+
+`sase.integrations.agent_list_entries.agent_list_entries()` returns a richer presentation-neutral projection for
+surfaces that need more than the compact `sase agent list -j` schema. It is intended for plugins, chat clients, and
+future UI surfaces that want one row model for running and recent agents without importing ACE internals.
+
+```python
+from sase.integrations.agent_list_entries import agent_list_entries
+
+for entry in agent_list_entries(include_recent=True, project="sase"):
+    print(entry.status_glyph, entry.name, entry.status_bucket, entry.provider_badge)
+    if entry.wait.has_wait:
+        print("waiting for", entry.wait.wait_for, entry.wait.remaining_seconds)
+```
+
+By default the helper returns active agents. `include_recent=True` includes recently completed `DONE` and `FAILED` rows
+using the same cap as `sase agent list -a`; `project` filters by exact project key after projection. Each
+`AgentListEntry` includes the basic CLI fields plus status bucket/glyph, provider and VCS display labels, retry and wait
+metadata, family role, parent, tag, bead and ChangeSpec names, direct-child counts, output variables, artifact and
+commit counts, and error text when available. The nested wait/retry/children objects are frozen dataclasses, not raw
+JSON; bridge commands should convert them into their own wire shape.
+
+Source: `src/sase/integrations/agent_list_entries.py`, `src/sase/integrations/provider_badges.py`
+
 ## Mobile Notification Bridge
 
 `sase.integrations.mobile_notifications` is the stable host-side facade used by the Rust mobile gateway to expose the
