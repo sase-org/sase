@@ -8,87 +8,76 @@ keywords: pyvision, unused symbol, pragma, epic-symbol, external repo, lint
 
 # Fixing pyvision Errors
 
-`pyvision` (`tools/pyvision-260708`) is the unused/misused-symbol linter. It runs as the `pyvision` stage of `just lint`
-and `just check`, and can be run alone with `just _lint-pyvision` or `just pyvision`. It scans `src/` and fails when:
+`pyvision` (`tools/pyvision-260708`) is the unused/misused-symbol linter. It scans `src/` and runs as the `pyvision`
+stage of `just lint` / `just check`, or alone via `just _lint-pyvision` / `just pyvision`.
 
-- A **public** symbol (top-level function/class whose name does not start with `_`) has no non-test consumer.
-- A **private** symbol (`_`-prefixed) is imported/used from another file.
-- A **private** symbol is never used inside the file that defines it.
-- A **pragma** (`# pyvision: ...`) or `--epic-symbol` entry is invalid or stale.
+**Test references never count.** A path with a `test` / `tests` / `testing` component (or a `test_*.py` file) only
+satisfies the private-symbol "imported from a non-test file" guard -- it can NOT keep a public symbol alive. Defs under
+`testing/` are ignored entirely.
 
-**Test references never count.** Any path with a `test` / `tests` / `testing` component, or a `test_*.py` file, only
-satisfies the private-symbol "imported from non-test" guard — it can NOT keep a public symbol alive. Symbols defined
-under `testing/` directories are ignored entirely.
+**Never edit the vendored tool.** `tools/pyvision-260708` (any `tools/*-YYmmdd` file) is vendored from dotfiles. Fix
+your _code_, not the linter. If the tool is genuinely wrong, change the dotfiles source, commit it there with the commit
+skill, and re-vendor with `pyvendor` (see `tools/CLAUDE.md`).
 
-## Rules
+## Error -> fix
 
-1. **Never edit the vendored tool.** `tools/pyvision-260708` (and any `tools/*-YYmmdd` file) is vendored from the
-   dotfiles repo. Fix your _code_, not the linter. If the tool itself is genuinely wrong, change the source in dotfiles,
-   commit it there with the commit skill, and re-vendor with `pyvendor` (see `tools/CLAUDE.md`). Never silence a finding
-   by editing the script.
+- `Unused public functions/classes...` -- a public symbol has no non-test consumer; fix by the hierarchy below.
+- `Private functions/classes should not be imported...` -- a `_name` is used across files. Stop importing it across
+  files, or (only if a real non-test file needs it) make it public -- which then needs a real consumer.
+- `Private functions/classes must be used in the file where they are defined:` -- a dead private symbol. Delete it, or
+  wire up its intended in-file caller.
+- `Error: pyvision pragma in <file>:<line>: ...` -- a pragma problem (see Pragmas).
+- `Error: --epic-symbol '<...>': ...` -- a stale/invalid epic whitelist (see Epic symbols).
 
-2. **Diagnose the exact error category before touching anything.** The message tells you the fix:
-   - `Unused public functions/classes...` → a public symbol has no non-test consumer (Rule 3).
-   - `Private functions/classes should not be imported...` → a `_name` is used across files (Rule 4).
-   - `Private functions/classes must be used in the file where they are defined:` → a dead private symbol (Rule 4).
-   - `Error: pyvision pragma in <file>:<line>: ...` → a pragma problem (Rule 5).
-   - `Error: --epic-symbol '<...>': ...` → a stale/invalid epic whitelist (Rule 6).
+## Unused public symbol -- decision hierarchy
 
-3. **Fix an unused public symbol by the decision hierarchy — prefer deletion.** In order:
-   1. **Delete it** if it is genuinely dead (no consumer anywhere, including linked repos). Delete its tests too.
-   2. **Make it private** (`_`-prefix) if it is only used within its own file; update in-file callers.
-   3. **Add a legitimate non-test pragma** only if a real consumer exists that pyvision cannot see — a non-Python file,
-      config, or another repo (Rule 5).
-   4. **Add `--epic-symbol`** only when the symbol is intentionally unused now but a _later phase of an in-progress
-      epic_ will consume it: add `--epic-symbol <bead_id>(<symbol>)` to the pyvision invocation in the `Justfile`.
-      Whitelisting is always the last resort. A public symbol exercised _only_ by tests is not "used" — delete it, make
-      it private and call it from a non-test path, or give it a real non-test consumer.
+Whitelisting is the last resort, and a symbol exercised _only_ by tests is not "used". In order:
 
-4. **Fix private-symbol errors at the root, not by flipping visibility.**
-   - `should not be imported`: stop importing the `_name` across files, OR — only if a real **non-test** file
-     legitimately needs it — make it public (which then requires a real consumer per Rule 3). Tests importing it is not
-     a reason to make it public.
-   - `must be used in the file`: the private symbol is dead within its file — delete it, or wire up the intended in-file
-     caller.
+1. **Delete it** if genuinely dead (no consumer anywhere, including linked repos) -- and delete its tests.
+2. **Make it private** (`_`-prefix) if only used within its own file; update in-file callers.
+3. **Add a non-test pragma** only if a real consumer exists that pyvision can't see (non-Python file, config, another
+   repo).
+4. **Add `--epic-symbol`** only when a later phase of an in-progress epic will consume it.
 
-5. **Pragma rules.** A `# pyvision: <ref>` comment on the line directly above a public def marks a consumer pyvision
-   can't discover.
-   - Pragmas apply to **public** symbols only (`pragma cannot be applied to private symbol`).
-   - `<ref>` must be a repo-root-relative path to the referencing file, or an external repo URI. It must **not** be a
-     test/testing path (`referenced test-support path ... is forbidden`) or a markdown path
-     (`referenced markdown path ... is forbidden` — docs are not valid consumers). A local path ref must exist and
-     actually reference the symbol.
-   - If pyvision says `symbol '<name>' is already imported by other Python files. Remove this unnecessary pragma`, the
-     pragma is stale — delete it (a real Python consumer now exists).
-   - For a cross-repo consumer use a URI pragma, e.g. `# pyvision: https://github.com/sase-org/sase-telegram.git`. Only
-     for **real** external consumers — not as a broad whitelist.
-   - `--exclude-decorator <name>` excludes every def carrying that decorator (matched by simple name) — use it when an
-     entire decorator-marked family (e.g. `@hook`) should be out of scope, rather than per-symbol pragmas.
+When deleting, remove only what actually died: drop the symbol plus its now-dead private helpers and its tests, but keep
+sibling symbols that still have live consumers and re-check each independently.
 
-6. **External URI pragmas: reproduce like CI, and verify against the _current_ linked repo.** This is the trap behind
-   the last CI break. Local `just _lint-pyvision` can PASS while CI FAILS, because pyvision resolves a URI pragma
-   against a stale local checkout/cache, while CI does a fresh clone of the linked repo's current `main`. The error is
-   `external repository '<url>' does not reference symbol '<name>'`.
-   - Reproduce CI locally: `PYVISION_EXTERNAL_REPO_PATHS=<current-linked-checkout> just _lint-pyvision`.
-   - Open the linked repo the sanctioned way and use the printed path — never guess it:
-     `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
-   - Then decide from what the _current_ linked repo actually references:
-     - Still imports/references the symbol → keep the symbol and its pragma; the local failure was a stale cache and
-       there may be nothing to change here.
-     - No longer references it → the pragma is genuinely stale: remove the symbol **and** its now-dead private helpers
-       **and** its tests **and** the pragma; or retarget the pragma if a _different_ symbol is the real consumer.
+## Pragmas
 
-7. **Don't over-delete — remove only what actually died.** When deleting a stale-pragma symbol, keep sibling
-   symbols/helpers in the same module that still have live consumers, and re-check each one independently. (In the
-   `agent_status_groups` fix, `group_agent_statuses` was removed but `status_bucket_header` / glyph helpers were kept
-   because the linked Telegram repo still imported them.)
+A `# pyvision: <ref>` comment directly above a public def marks a consumer pyvision can't discover.
 
-8. **`--epic-symbol` entries are self-cleaning — remove them when they go stale.** pyvision emits a targeted error and
-   tells you to drop the entry when: the bead is not found, the bead is closed, the symbol is now properly used, or the
-   symbol no longer exists as a public def. When an epic phase lands and its symbol gains a real consumer (or the bead
-   closes), delete the matching `--epic-symbol <bead_id>(<symbol>)` from the `Justfile`.
+- Public symbols only (`pragma cannot be applied to private symbol`).
+- `<ref>` is a repo-root-relative path to the referencing file, or an external repo URI. It must NOT be a test/testing
+  path (`referenced test-support path ... is forbidden`) or a markdown path
+  (`referenced markdown path ... is forbidden`). A local path must exist and actually reference the symbol.
+- `symbol '<name>' is already imported by other Python files. Remove this unnecessary pragma` -> the pragma is stale;
+  delete it.
+- Cross-repo consumer -> URI pragma, e.g. `# pyvision: https://github.com/sase-org/sase-telegram.git`. Only for real
+  external consumers, never as a broad whitelist.
+- `--exclude-decorator <name>` excludes every def carrying that decorator (matched by simple name) -- use it for a whole
+  decorator-marked family (e.g. `@hook`) instead of per-symbol pragmas.
 
-9. **Verify with the real failing command, in an installed workspace.** Ephemeral `sase_<N>` workspaces may have drifted
-   deps, so run `just install` first (otherwise pytest/uv can fail on the lockfile before your fix is even reached).
-   Re-run the exact failing path — `just _lint-pyvision`, plus the `PYVISION_EXTERNAL_REPO_PATHS=...` form for URI
-   pragmas — and then run `just check` as the repo requires after any code change.
+### URI pragmas fail differently in CI
+
+Local `just _lint-pyvision` can PASS while CI FAILS (`external repository '<url>' does not reference symbol '<name>'`),
+because pyvision resolves a URI pragma against a stale local checkout while CI clones the linked repo's current `main`.
+
+- Reproduce CI: `PYVISION_EXTERNAL_REPO_PATHS=<current-linked-checkout> just _lint-pyvision`.
+- Open the linked repo the sanctioned way and use the printed path -- never guess it:
+  `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
+- Decide from what the _current_ linked repo references: still references it -> keep the symbol and its pragma; no
+  longer references it -> the pragma is stale, so remove the symbol, its dead helpers, its tests, and the pragma (or
+  retarget the pragma to the real consumer).
+
+## Epic symbols
+
+`--epic-symbol <bead_id>(<symbol>)` lives in the pyvision invocation in the `Justfile`. Entries are self-cleaning:
+pyvision tells you to drop one when the bead is missing/closed, the symbol is now properly used, or the symbol no longer
+exists as a public def. Remove the matching entry once its epic phase lands and the symbol gains a real consumer (or the
+bead closes).
+
+## Verify
+
+Ephemeral `sase_<N>` workspaces may have drifted deps, so run `just install` first. Re-run the exact failing path
+(`just _lint-pyvision`, plus the `PYVISION_EXTERNAL_REPO_PATHS=...` form for URI pragmas), then `just check` as the repo
+requires after any code change.
