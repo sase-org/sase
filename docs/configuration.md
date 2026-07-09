@@ -1048,12 +1048,12 @@ sdd:
   push_after_commit: async
 ```
 
-| Field                    | Type        | Default | Description                                                                                                                                                                     |
-| ------------------------ | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.storage`            | string      | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.                                                                        |
-| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.                                                                   |
-| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks `<owner>/sdd`, then `<owner>/<repo>-sdd`. |
-| `sdd.push_after_commit`  | bool or str | `async` | Controls `git push` after SDD commits in `separate_repo`: `async`, `true`, or `false`. Local commits are preserved.                                                             |
+| Field                    | Type        | Default | Description                                                                                                                                                                      |
+| ------------------------ | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.storage`            | string      | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.                                                                         |
+| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.                                                                    |
+| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks `<owner>/<repo>--sdd`, then `<owner>/sdd`. |
+| `sdd.push_after_commit`  | bool or str | `async` | Controls `git push` after SDD commits in `separate_repo`: `async`, `true`, or `false`. Local commits are preserved.                                                              |
 
 In-tree mode stores prompt snapshots, tales, epics, legends, myths, research notes, and bead state under `sdd/` in the
 project root. Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace.
@@ -1066,9 +1066,10 @@ initialization, existing bare-repo registration, `#git`/workspace materializatio
 Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
 needed.
 
-Running `sase sdd init` or its `sase init sdd` alias creates or updates the project-local `sase.yml` so
-`sdd.version_controlled` is true, then refreshes generated SDD guide files and the directory map. This is an in-tree
-opt-in only when `sdd.storage` is `auto` or unset; an explicit `sdd.storage` value still wins.
+Running `sase sdd init` or its `sase init sdd` alias creates or updates the project-local SDD config, then refreshes
+generated SDD guide files and the directory map. On GitHub projects whose provider policy is `separate_repo`, init
+creates or connects the `<owner>/<repo>--sdd` companion repository and writes `sdd.storage: separate_repo`. Bare-git
+projects keep the legacy in-tree `sdd.version_controlled: true` default, and an explicit `sdd.storage` value still wins.
 
 Source: `src/sase/default_config.yml`
 
@@ -1603,11 +1604,11 @@ linked repo uses numbered workspace resolution.
 
 ### `sase init sdd`
 
-`sase init sdd` is an alias for `sase sdd init`. It writes the legacy `sdd.version_controlled` alias, then creates or
-refreshes generated SDD README files and the directory map asset. The alias enables in-tree SDD only while `sdd.storage`
-is `auto` or unset; explicit `sdd.storage` values are not overwritten. Bare-git projects run the generated-file refresh
-automatically during repository setup and first SDD writes, but the explicit command remains available for manual
-opt-in, refresh, and `--check` audits.
+`sase init sdd` is an alias for `sase sdd init`. It creates or connects GitHub companion repositories when
+`separate_repo` is the effective storage policy, otherwise it writes the legacy `sdd.version_controlled` alias as
+needed, then creates or refreshes generated SDD README files and the directory map asset. Bare-git projects run the
+generated-file refresh automatically during repository setup and first SDD writes, but the explicit command remains
+available for manual opt-in, refresh, and `--check` audits.
 
 | Flag          | Values | Default                  | Description                                                       |
 | ------------- | ------ | ------------------------ | ----------------------------------------------------------------- |
@@ -1780,14 +1781,14 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 workspace instead and accepts an optional child kind such as `research`. With no subcommand, `sase sdd` defaults to
 `sase sdd list`. `sase init sdd` is an alias for `sase sdd init`.
 
-| Subcommand     | Flags                                                                    | Description                                                                                                           |
-| -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `init`         | `-p/--path`, `-c/--check`                                                | Create or refresh `sdd/README.md`, tier READMEs, and the directory map asset; `--check` reports drift without writing |
-| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`                                     |
-| `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                                       |
-| `path`         | `[kind]`                                                                 | Print the effective SDD root or one canonical child directory; does not materialize remote stores                     |
-| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                               |
-| `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs and optionally write link fixes                                               |
+| Subcommand     | Flags                                                                    | Description                                                                                               |
+| -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `init`         | `-p/--path`, `-c/--check`                                                | Create/connect companion storage when effective, refresh SDD guide files, and report drift with `--check` |
+| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`                         |
+| `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                           |
+| `path`         | `[kind]`                                                                 | Print the effective SDD root or one canonical child directory; does not materialize remote stores         |
+| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                   |
+| `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs and optionally write link fixes                                   |
 
 ### `sase validate`
 

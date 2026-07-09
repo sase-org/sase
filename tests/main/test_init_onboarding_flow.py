@@ -264,6 +264,43 @@ def test_full_drift_prompt_order_all_three_plans() -> None:
     ]
 
 
+def test_sdd_prompt_mentions_companion_repo_creation() -> None:
+    calls: list[str] = []
+    prompts: list[str] = []
+    specs = (
+        _spec(
+            "sdd",
+            _plan(
+                "sdd",
+                actions=(
+                    InitAction(
+                        Path(".sase/sdd"),
+                        "create",
+                        "create or connect GitHub companion repository acme/widget--sdd",
+                    ),
+                ),
+                summary="create companion repo",
+            ),
+            calls,
+        ),
+    )
+
+    def _answer(prompt: str) -> str:
+        prompts.append(prompt)
+        return "yes"
+
+    exit_code = run_init_onboarding(
+        _args(),
+        specs=specs,
+        stdin=_TtyStringIO(),
+        input_func=_answer,
+    )
+
+    assert exit_code == 0
+    assert calls == ["sdd"]
+    assert "This may create and push to a GitHub companion repository." in prompts[0]
+
+
 def test_non_tty_drift_without_yes_prints_summary_and_exits_1(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

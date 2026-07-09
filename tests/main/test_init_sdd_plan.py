@@ -15,6 +15,8 @@ from sase.sdd.files import (
     expected_sdd_readme,
     write_sdd_readme,
 )
+from sase.sdd.store import SddInitOutcome, SddMaterializationError, SddStore
+from sase.sdd.store import _write_sdd_store_record
 
 
 def _args(path: Path, **overrides: object) -> argparse.Namespace:
@@ -39,6 +41,22 @@ def _write_storage_config(path: Path, storage: str) -> None:
 
 def _mark_project(path: Path) -> None:
     (path / ".git").mkdir()
+
+
+def _separate_repo_outcome(path: Path, *, created: bool = False) -> SddInitOutcome:
+    sdd_dir = path / ".sase" / "sdd"
+    return SddInitOutcome(
+        store=SddStore(
+            storage="separate_repo",
+            sdd_dir=sdd_dir,
+            repo_root=sdd_dir,
+            provider="github",
+            remote_url="git@github.com:acme/widget--sdd.git",
+        ),
+        repo="acme/widget--sdd",
+        remote_url="git@github.com:acme/widget--sdd.git",
+        created=created,
+    )
 
 
 def _rel_actions(path: Path) -> set[tuple[str, Path]]:
@@ -105,14 +123,94 @@ def test_sdd_run_explicit_separate_repo_invokes_materialization(
     _mark_project(tmp_path)
     calls: list[tuple[Path, int]] = []
 
-    def fake_materialize(path: Path, workspace_num: int) -> None:
+    def fake_create(path: Path, workspace_num: int) -> SddInitOutcome:
         calls.append((path, workspace_num))
+        return _separate_repo_outcome(path)
 
-    monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", fake_materialize)
+    monkeypatch.setattr(
+        "sase.sdd.store.create_and_materialize_sdd_store",
+        fake_create,
+    )
 
     assert run_sdd_init(_args(tmp_path, storage="separate_repo")) == 0
     assert calls == [(tmp_path, 1)]
-    assert (tmp_path / "sase.yml").exists()
+    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == (
+        "sdd:\n  storage: separate_repo\n"
+    )
+    assert (tmp_path / ".sase" / "sdd" / "README.md").exists()
+    assert not (tmp_path / "sdd" / "README.md").exists()
+
+
+def test_sdd_run_github_policy_default_creates_separate_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    calls: list[tuple[Path, int]] = []
+    monkeypatch.setattr(
+        "sase.main.sdd_handler._project_provider_sdd_policy",
+        lambda project_root: "separate_repo",
+    )
+
+    def fake_create(path: Path, workspace_num: int) -> SddInitOutcome:
+        calls.append((path, workspace_num))
+        return _separate_repo_outcome(path, created=True)
+
+    monkeypatch.setattr(
+        "sase.sdd.store.create_and_materialize_sdd_store",
+        fake_create,
+    )
+
+    assert run_sdd_init(_args(tmp_path)) == 0
+
+    assert calls == [(tmp_path, 1)]
+    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == (
+        "sdd:\n  storage: separate_repo\n"
+    )
+    assert (tmp_path / ".sase" / "sdd" / "README.md").exists()
+    assert not (tmp_path / "sdd" / "README.md").exists()
+
+
+def test_sdd_run_bare_git_policy_keeps_legacy_in_tree_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    monkeypatch.setattr(
+        "sase.main.sdd_handler._project_provider_sdd_policy",
+        lambda project_root: "in_tree",
+    )
+
+    assert run_sdd_init(_args(tmp_path)) == 0
+
+    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == (
+        "sdd:\n  version_controlled: true\n"
+    )
+    assert (tmp_path / "sdd" / "README.md").exists()
+    assert not (tmp_path / ".sase" / "sdd" / "README.md").exists()
+
+
+def test_sdd_run_separate_repo_failure_does_not_write_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _mark_project(tmp_path)
+
+    def fail_create(path: Path, workspace_num: int) -> SddInitOutcome:
+        del path, workspace_num
+        raise SddMaterializationError("GitHub CLI is not authenticated")
+
+    monkeypatch.setattr(
+        "sase.sdd.store.create_and_materialize_sdd_store",
+        fail_create,
+    )
+
+    assert run_sdd_init(_args(tmp_path, storage="separate_repo")) == 1
+
+    assert not (tmp_path / "sase.yml").exists()
+    assert not (tmp_path / ".sase" / "sdd" / "README.md").exists()
+    assert "GitHub CLI is not authenticated" in capsys.readouterr().err
 
 
 def test_sdd_plan_stale_readmes_report_update_actions(tmp_path: Path) -> None:
@@ -189,6 +287,16 @@ def test_sdd_plan_existing_separate_repo_config_checks_dot_sase_sdd(
 ) -> None:
     _mark_project(tmp_path)
     _write_storage_config(tmp_path, "separate_repo")
+    _write_sdd_store_record(
+        tmp_path,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "acme/widget--sdd",
+            "remote_url": "git@github.com:acme/widget--sdd.git",
+            "discovery": "found",
+        },
+    )
     sdd_root = tmp_path / ".sase" / "sdd"
     write_sdd_readme(str(sdd_root))
 
@@ -198,6 +306,29 @@ def test_sdd_plan_existing_separate_repo_config_checks_dot_sase_sdd(
     assert plan.has_changes is False
     assert "current" in plan.summary
     assert not (tmp_path / "sdd").exists()
+
+
+def test_sdd_plan_github_policy_reports_companion_repo_action(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    monkeypatch.setattr(
+        "sase.main.sdd_handler._project_provider_sdd_policy",
+        lambda project_root: "separate_repo",
+    )
+
+    plan = plan_sdd_init(_args(tmp_path))
+
+    assert any("companion" in action.detail for action in plan.actions)
+    assert any(
+        action.detail == "set sdd.storage to separate_repo" for action in plan.actions
+    )
+    assert any(
+        action.path.is_relative_to(tmp_path / ".sase" / "sdd")
+        for action in plan.actions
+    )
+    assert "companion SDD repository" in plan.summary
 
 
 def test_sdd_init_registry_includes_sdd_planner() -> None:

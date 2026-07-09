@@ -216,11 +216,22 @@ def test_init_check_current_separate_repo_sdd_exits_zero(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     from sase.sdd.files import write_sdd_readme
+    from sase.sdd.store import _write_sdd_store_record
 
     write_sdd_readme(str(tmp_path / ".sase" / "sdd"))
     (tmp_path / "sase.yml").write_text(
         "sdd:\n  storage: separate_repo\n",
         encoding="utf-8",
+    )
+    _write_sdd_store_record(
+        tmp_path,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "acme/widget--sdd",
+            "remote_url": "git@github.com:acme/widget--sdd.git",
+            "discovery": "found",
+        },
     )
 
     with pytest.raises(SystemExit) as excinfo:

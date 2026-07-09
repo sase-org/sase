@@ -5,8 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
+import subprocess
 import sys
 from typing import Any
+from urllib.parse import urlparse
+
+from rich.console import Console
 
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
@@ -108,17 +113,19 @@ def run_sdd_init(args: argparse.Namespace) -> int:
         return 1
 
     project_root = _sdd_init_project_root(path)
-    configured_storage = _configured_project_sdd_storage(project_root)
+    effective_storage = _effective_init_storage(project_root, storage)
     try:
         from sase.sdd.store import SddMaterializationError, materialize_sdd_store
 
-        if storage in {"auto", "separate_repo"}:
+        if effective_storage == "separate_repo":
+            return _run_separate_repo_sdd_init(path, project_root)
+        if storage == "auto":
             write_sdd_init_config(path, storage=storage)
             _delete_negative_sdd_record(project_root)
             materialize_sdd_store(project_root, 1)
         elif storage in {"in_tree", "local"}:
             write_sdd_init_config(path, storage=storage)
-        elif configured_storage in {"auto", "local", "separate_repo"}:
+        elif effective_storage in {"auto", "local"}:
             _delete_negative_sdd_record(project_root)
             materialize_sdd_store(project_root, 1)
             write_sdd_init_config(path)
@@ -138,13 +145,61 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_separate_repo_sdd_init(path: str | Path | None, project_root: Path) -> int:
+    from sase.sdd.files import ensure_sdd_initialized, expected_sdd_readme
+    from sase.sdd._paths import get_primary_workspace_dir
+    from sase.sdd.store import (
+        SddMaterializationError,
+        create_and_materialize_sdd_store,
+        read_sdd_store_record,
+    )
+    from .sdd_init_config import SddInitConfigError, plan_sdd_init_config
+    from .sdd_init_config import write_sdd_init_config
+
+    config_plan = plan_sdd_init_config(path, storage="separate_repo")
+    if config_plan.blockers:
+        raise SddInitConfigError("\n".join(config_plan.blockers))
+
+    console = _sdd_init_console()
+    project_label, host = _sdd_init_remote_context(project_root)
+    console.print(f"Setting up separate-repo SDD storage for {project_label}")
+    console.print(f"  -> ensuring companion repository on {host} ...")
+
+    try:
+        _delete_negative_sdd_record(project_root)
+        outcome = create_and_materialize_sdd_store(project_root, 1)
+    except SddMaterializationError as exc:
+        console.print(f"error: {exc}", style="red")
+        return 1
+
+    primary = Path(get_primary_workspace_dir(str(project_root), 1))
+    record = read_sdd_store_record(primary)
+    repo = (record.repo if record else outcome.repo) or "companion repository"
+    action = "created" if outcome.created else "using existing"
+    console.print(f"  ok {action} {repo}")
+    console.print(
+        f"  ok materialized SDD store at "
+        f"{_display_sdd_init_path(outcome.store.sdd_dir, project_root)}"
+    )
+
+    write_sdd_init_config(path, storage="separate_repo")
+    generated_path = _sdd_init_generated_path(path, project_root, "separate_repo")
+    ensure_sdd_initialized(generated_path)
+    readme_path = expected_sdd_readme(generated_path).path
+    console.print("  ok initialized guides + beads")
+    console.print(f"SDD ready: separate repository {repo}")
+    print(readme_path)
+    return 0
+
+
 def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for SDD config and generated files."""
     from sase.sdd.files import plan_sdd_init_actions
     from .sdd_init_config import plan_sdd_init_config
 
     path = getattr(args, "path", None)
-    if not is_project_directory(_sdd_init_project_root(path)):
+    project_root = _sdd_init_project_root(path)
+    if not is_project_directory(project_root):
         return InitPlan(
             command="sdd",
             label="SDD",
@@ -153,14 +208,23 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
             blockers=(_NON_PROJECT_SDD_MESSAGE,),
         )
 
-    config_plan = plan_sdd_init_config(path, storage=getattr(args, "storage", None))
+    storage_arg = getattr(args, "storage", None)
+    effective_storage = _effective_init_storage(project_root, storage_arg)
+    config_storage = (
+        "separate_repo" if effective_storage == "separate_repo" else storage_arg
+    )
+    config_plan = plan_sdd_init_config(path, storage=config_storage)
     actions = []
     if config_plan.action is not None:
         actions.append(config_plan.action)
+    if effective_storage == "separate_repo":
+        companion_action = _plan_sdd_companion_repo_action(project_root)
+        if companion_action is not None:
+            actions.append(companion_action)
     generated_path = _sdd_init_generated_path(
         path,
-        _sdd_init_project_root(path),
-        getattr(args, "storage", None),
+        project_root,
+        storage_arg,
     )
     actions.extend(
         InitAction(
@@ -185,15 +249,26 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
         return "SDD config, README files, and directory map are current"
 
     config_actions = [action for action in actions if action.path.name == "sase.yml"]
-    generated_actions = [action for action in actions if action.path.name != "sase.yml"]
-    if config_actions and generated_actions:
-        return (
-            f"{_summarize_sdd_config_action(config_actions[0])} and "
-            f"{_summarize_generated_sdd_actions(generated_actions)}"
-        )
+    companion_actions = [
+        action for action in actions if _is_companion_repo_action(action)
+    ]
+    generated_actions = [
+        action
+        for action in actions
+        if action.path.name != "sase.yml" and not _is_companion_repo_action(action)
+    ]
+    summaries: list[str] = []
     if config_actions:
-        return _summarize_sdd_config_action(config_actions[0])
-    return _summarize_generated_sdd_actions(generated_actions)
+        summaries.append(_summarize_sdd_config_action(config_actions[0]))
+    if companion_actions:
+        summaries.append("create or connect GitHub companion SDD repository")
+    if generated_actions:
+        summaries.append(_summarize_generated_sdd_actions(generated_actions))
+    if not summaries:
+        return "SDD config, README files, and directory map are current"
+    if len(summaries) == 1:
+        return summaries[0]
+    return f"{', '.join(summaries[:-1])} and {summaries[-1]}"
 
 
 def _summarize_sdd_config_action(action: InitAction) -> str:
@@ -211,12 +286,26 @@ def _sdd_init_project_root(path: str | Path | None) -> Path:
 def _sdd_init_generated_path(
     path: str | Path | None, project_root: Path, storage: str | None
 ) -> str | None:
-    effective_storage = storage
-    if effective_storage is None:
-        effective_storage = _configured_project_sdd_storage(project_root)
+    effective_storage = _effective_init_storage(project_root, storage)
     if effective_storage in {"auto", "local", "separate_repo"}:
         return str(project_root / ".sase" / "sdd")
     return str(path) if path is not None else None
+
+
+def _effective_init_storage(project_root: Path, storage_arg: str | None) -> str | None:
+    if storage_arg is not None and storage_arg != "auto":
+        return storage_arg
+
+    configured_storage = _configured_project_sdd_storage(project_root)
+    if configured_storage is not None and configured_storage != "auto":
+        return configured_storage
+
+    provider_policy = _project_provider_sdd_policy(project_root)
+    if provider_policy is not None:
+        return provider_policy
+    if storage_arg == "auto" or configured_storage == "auto":
+        return "auto"
+    return None
 
 
 def _configured_project_sdd_storage(project_root: Path) -> str | None:
@@ -244,6 +333,46 @@ def _configured_project_sdd_storage(project_root: Path) -> str | None:
     return None
 
 
+def _project_provider_sdd_policy(project_root: Path) -> str | None:
+    try:
+        from sase.vcs_provider import detect_vcs
+        from sase.workspace_provider import get_sdd_storage_policy_by_vcs
+
+        vcs_name = detect_vcs(str(project_root))
+        if vcs_name is None:
+            return None
+        policy = get_sdd_storage_policy_by_vcs(vcs_name)
+    except Exception:
+        return None
+    return policy if policy in {"in_tree", "local", "separate_repo"} else None
+
+
+def _plan_sdd_companion_repo_action(project_root: Path) -> InitAction | None:
+    from sase.sdd._paths import get_primary_workspace_dir
+    from sase.sdd.store import read_sdd_store_record
+
+    primary = Path(get_primary_workspace_dir(str(project_root), 1))
+    record = read_sdd_store_record(primary)
+    if record is not None and record.discovery != "not_found":
+        return None
+    target = record.repo if record is not None and record.repo else None
+    detail = (
+        f"create or connect GitHub companion repository {target}"
+        if target
+        else "create or connect the GitHub companion SDD repository"
+    )
+    return InitAction(
+        path=project_root / ".sase" / "sdd",
+        operation="create",
+        detail=detail,
+    )
+
+
+def _is_companion_repo_action(action: InitAction) -> bool:
+    detail = action.detail.casefold()
+    return "companion" in detail and "repository" in detail
+
+
 def _delete_negative_sdd_record(project_root: Path) -> None:
     from sase.sdd._paths import get_primary_workspace_dir
     from sase.sdd.store import delete_sdd_store_record, read_sdd_store_record
@@ -252,6 +381,75 @@ def _delete_negative_sdd_record(project_root: Path) -> None:
     record = read_sdd_store_record(primary)
     if record is not None and record.discovery == "not_found":
         delete_sdd_store_record(primary)
+
+
+def _sdd_init_console() -> Console:
+    is_tty = sys.stderr.isatty()
+    return Console(
+        file=sys.stderr,
+        force_terminal=is_tty,
+        color_system="auto" if is_tty else None,
+        no_color=not is_tty,
+        soft_wrap=True,
+    )
+
+
+def _sdd_init_remote_context(project_root: Path) -> tuple[str, str]:
+    origin = _read_project_origin(project_root)
+    parsed = _parse_remote_origin(origin)
+    if parsed is None:
+        return project_root.name, "the provider"
+    host, owner, repo = parsed
+    return f"{owner}/{repo}", host
+
+
+def _read_project_origin(project_root: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _parse_remote_origin(value: str | None) -> tuple[str, str, str] | None:
+    if not value:
+        return None
+    raw = value.strip()
+    if "://" not in raw:
+        match = re.match(r"^(?:[^@/]+@)?(?P<host>[^:/]+):(?P<path>.+)$", raw)
+        if not match:
+            return None
+        host = match.group("host").strip().lower().rstrip("/")
+        path = match.group("path")
+    else:
+        parsed = urlparse(raw)
+        host = parsed.netloc.rsplit("@", 1)[-1].strip().lower().rstrip("/")
+        path = parsed.path.lstrip("/")
+
+    parts = [part for part in path.strip("/").split("/") if part]
+    if len(parts) != 2:
+        return None
+    owner = parts[0].strip()
+    repo = parts[1].removesuffix(".git").strip()
+    if not host or not owner or not repo:
+        return None
+    return host, owner, repo
+
+
+def _display_sdd_init_path(path: Path, project_root: Path) -> str:
+    try:
+        return str(path.resolve(strict=False).relative_to(project_root.resolve()))
+    except ValueError:
+        return str(path)
 
 
 def _summarize_generated_sdd_actions(actions: list[InitAction]) -> str:

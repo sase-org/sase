@@ -153,7 +153,7 @@ when passing list flags such as `--kind` or `--json`.
 
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Write the legacy SDD init alias, then refresh generated guide files                                     |
+| `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                |
 | `sase init sdd`         | Alias for `sase sdd init`; accepts the same `-p/--path` option                                          |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
@@ -171,13 +171,13 @@ warning count and appends `(use --show-warnings to display)` so they remain disc
 on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to errors before
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
-The `sase sdd init` command currently writes the legacy `sdd.version_controlled: true` alias in the project-local
-`sase.yml`, then refreshes the top-level README, the directory map asset, and generated `README.md` files in `tales/`,
-`epics/`, `legends/`, `myths/`, and `research/`. That alias selects in-tree storage only while `sdd.storage` is `auto`
-or unset; if the project already sets `sdd.storage: local` or `sdd.storage: separate_repo`, the explicit storage value
-still wins. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides and
-to opt into in-tree SDD on projects that still use automatic storage. The generated guides are safe to overwrite, so do
-not put hand-maintained conceptual prose in those README files.
+The `sase sdd init` command creates or connects the effective SDD store, then refreshes the top-level README, the
+directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. On
+GitHub projects whose provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository when
+missing and writes `sdd.storage: separate_repo`; bare-git projects keep the legacy in-tree
+`sdd.version_controlled: true` default. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh
+generated project guides or to opt into the appropriate SDD storage for the project. The generated guides are safe to
+overwrite, so do not put hand-maintained conceptual prose in those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for
@@ -227,12 +227,12 @@ sdd:
   push_after_commit: async
 ```
 
-| Option                   | Type        | Default | Description                                                                                                                                                                     |
-| ------------------------ | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.storage`            | enum        | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.                                                                        |
-| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.                                                                   |
-| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks `<owner>/sdd`, then `<owner>/<repo>-sdd`. |
-| `sdd.push_after_commit`  | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                     |
+| Option                   | Type        | Default | Description                                                                                                                                                                      |
+| ------------------------ | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.storage`            | enum        | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.                                                                         |
+| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.                                                                    |
+| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks `<owner>/<repo>--sdd`, then `<owner>/sdd`. |
+| `sdd.push_after_commit`  | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                      |
 
 See [`configuration.md`](configuration.md) for the full configuration reference and [SDD Storage](sdd_storage.md) for
 mode behavior.

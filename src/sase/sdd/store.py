@@ -7,6 +7,7 @@ continues to receive fully resolved paths.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 from pathlib import Path
 import subprocess
@@ -64,6 +65,7 @@ __all__ = [
     "SDD_STORAGE_SEPARATE_REPO",
     "SDD_STORE_RECORD_FILENAME",
     "SddConfiguredStorage",
+    "SddInitOutcome",
     "SddMaterializationError",
     "SddPushAfterCommit",
     "SddStorage",
@@ -79,6 +81,7 @@ __all__ = [
     "_sdd_store_record_path",
     "_store_not_materialized_message",
     "_write_sdd_store_record",
+    "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
     "ensure_workspace_sdd_clone",
     "get_configured_sdd_storage",
@@ -90,6 +93,16 @@ __all__ = [
     "sdd_dir_for_in_tree_bool",
     "write_sdd_store_record",
 ]
+
+
+@dataclass(frozen=True)
+class SddInitOutcome:
+    """Result of create-aware SDD initialization."""
+
+    store: SddStore
+    repo: str | None
+    remote_url: str | None
+    created: bool
 
 
 def get_configured_sdd_storage(
@@ -184,20 +197,83 @@ def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddS
             raise SddMaterializationError(_store_not_materialized_message(None))
         return resolve_sdd_store(workspace, workspace_num)
 
-    written_record = _write_sdd_store_record(primary, result)
+    written_record = normalize_sdd_store_record(result)
     if not _is_materialized_record(written_record):
+        _write_sdd_store_record(primary, written_record)
         if configured == SDD_STORAGE_SEPARATE_REPO:
             raise SddMaterializationError(
                 _store_not_materialized_message(written_record)
             )
         return resolve_sdd_store(workspace, workspace_num)
 
-    ensure_workspace_sdd_clone(workspace, workspace_num)
-    store = resolve_sdd_store(workspace, workspace_num)
-    if store.sdd_dir.exists():
-        _refresh_materialized_store(store.sdd_dir)
-        _ensure_materialized_store_initialized(store)
-    return resolve_sdd_store(workspace, workspace_num)
+    return _finalize_materialized_store(primary, workspace, workspace_num, result)
+
+
+def create_and_materialize_sdd_store(
+    workspace_dir: str | Path,
+    workspace_num: int,
+) -> SddInitOutcome:
+    """Create or connect a companion SDD repository, then materialize it."""
+
+    workspace = Path(workspace_dir).expanduser()
+    primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
+    existing = read_sdd_store_record(primary)
+    if _is_materialized_record(existing):
+        existing_record = cast(SddStoreRecord, existing)
+        store = _finalize_materialized_store(
+            primary,
+            workspace,
+            workspace_num,
+            existing_record,
+        )
+        record = read_sdd_store_record(primary) or existing_record
+        return SddInitOutcome(
+            store=store,
+            repo=record.repo,
+            remote_url=record.remote_url,
+            created=False,
+        )
+
+    result = _dispatch_create_sdd_remote(primary, workspace, workspace_num)
+    if result is None:
+        raise SddMaterializationError(
+            "This project has no provider that can create a companion SDD "
+            "repository (only GitHub is currently supported). Use `sase sdd "
+            "init --storage local` for local storage."
+        )
+    if not isinstance(result, dict):
+        raise SddMaterializationError("provider returned an invalid SDD store record")
+
+    record = normalize_sdd_store_record(result)
+    if record.discovery == "not_found":
+        raise SddMaterializationError(
+            "The companion SDD repository does not exist and the provider did "
+            "not create it. Use `sase sdd init --storage local` for local "
+            "storage, or re-run after fixing provider access."
+        )
+
+    created = bool(result.get("created"))
+    try:
+        store = _finalize_materialized_store(primary, workspace, workspace_num, result)
+    except Exception as exc:
+        if created:
+            detail = str(exc) or type(exc).__name__
+            repo = f" {record.repo}" if record.repo else ""
+            raise SddMaterializationError(
+                f"companion repository{repo} was created but clone/bootstrap "
+                f"failed: {detail}. Re-run `sase sdd init` to finish."
+            ) from exc
+        if isinstance(exc, SddMaterializationError):
+            raise
+        raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
+
+    written = read_sdd_store_record(primary) or record
+    return SddInitOutcome(
+        store=store,
+        repo=written.repo,
+        remote_url=written.remote_url,
+        created=created,
+    )
 
 
 def ensure_workspace_sdd_clone(workspace_dir: str | Path, workspace_num: int) -> None:
@@ -305,6 +381,45 @@ def _dispatch_materialize_sdd_store(
         _logger.warning("SDD store materialization hook failed", exc_info=True)
         return None
     return result
+
+
+def _dispatch_create_sdd_remote(
+    primary: Path,
+    workspace: Path,
+    workspace_num: int,
+) -> dict[str, Any] | None:
+    try:
+        from sase.workspace_provider import create_sdd_remote
+
+        return create_sdd_remote(
+            str(primary),
+            str(workspace),
+            {
+                "workspace_num": workspace_num,
+                "create": True,
+                "vcs_name": _detect_vcs_name(workspace) or "",
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
+        raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
+
+
+def _finalize_materialized_store(
+    primary: Path,
+    workspace: Path,
+    workspace_num: int,
+    result_mapping: SddStoreRecord | dict[str, Any],
+) -> SddStore:
+    written_record = _write_sdd_store_record(primary, result_mapping)
+    if not _is_materialized_record(written_record):
+        raise SddMaterializationError(_store_not_materialized_message(written_record))
+
+    ensure_workspace_sdd_clone(workspace, workspace_num)
+    store = resolve_sdd_store(workspace, workspace_num)
+    if store.sdd_dir.exists():
+        _refresh_materialized_store(store.sdd_dir)
+        _ensure_materialized_store_initialized(store)
+    return resolve_sdd_store(workspace, workspace_num)
 
 
 def _refresh_materialized_store(sdd_dir: Path) -> None:

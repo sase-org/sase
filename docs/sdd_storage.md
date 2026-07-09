@@ -14,11 +14,11 @@ checkout.
 
 ## Modes
 
-| Mode            | Root                  | Repository                                                                             |
-| --------------- | --------------------- | -------------------------------------------------------------------------------------- |
-| `in_tree`       | `{workspace}/sdd`     | The code repository. SDD files are committed with code changes.                        |
-| `local`         | `{primary}/.sase/sdd` | A standalone local git repo beside the primary checkout.                               |
-| `separate_repo` | `{primary}/.sase/sdd` | A provider-materialized companion repository, such as `owner/sdd` or `owner/repo-sdd`. |
+| Mode            | Root                  | Repository                                                                              |
+| --------------- | --------------------- | --------------------------------------------------------------------------------------- |
+| `in_tree`       | `{workspace}/sdd`     | The code repository. SDD files are committed with code changes.                         |
+| `local`         | `{primary}/.sase/sdd` | A standalone local git repo beside the primary checkout.                                |
+| `separate_repo` | `{primary}/.sase/sdd` | A provider-materialized companion repository, such as `owner/repo--sdd` or `owner/sdd`. |
 
 The local and separate-repo modes intentionally share the same filesystem layout. Code that only needs a directory can
 use the fast resolver without knowing whether the store is a local-only repo or a companion checkout.
@@ -38,18 +38,19 @@ render or keystroke paths.
 
 ## Companion Repositories
 
-For GitHub-style providers, discovery checks `<owner>/sdd` first and falls back to the historical `<owner>/<repo>-sdd`
-convention. The clone lives at `{primary}/.sase/sdd`, and the store record lives next to it at
-`{primary}/.sase/sdd-store.json` so it is not committed into the companion repository.
+For GitHub-style providers, discovery checks `<owner>/<repo>--sdd` first and falls back to `<owner>/sdd`. The clone
+lives at `{primary}/.sase/sdd`, and the store record lives next to it at `{primary}/.sase/sdd-store.json` so it is not
+committed into the companion repository.
 
 Providers that support companion storage may also honor `sdd.repo.name` as an override. It accepts either `name` or
 `owner/name`; an empty value uses the provider default order. Separate-repo commits are local first.
 `sdd.push_after_commit` controls the follow-up push: `async` starts a detached background push, `true` pushes
 synchronously, and `false` skips the push.
 
-Discovery is cached. A missing companion repository should keep the project in local mode; a found companion repository
-can be cloned or adopted when the existing `.sase/sdd` remote already matches. Existing local SDD content should not be
-clobbered by automatic discovery.
+Discovery is cached. A missing companion repository keeps setup-time discovery in local mode, but `sase sdd init` and
+`sase init` create the project-specific GitHub companion repository automatically when the provider policy is
+`separate_repo`. A found companion repository can be cloned or adopted when the existing `.sase/sdd` remote already
+matches. Existing local SDD content should not be clobbered by automatic discovery.
 
 ## Migration And Offline Behavior
 

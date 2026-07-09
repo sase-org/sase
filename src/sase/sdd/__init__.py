@@ -28,9 +28,11 @@ from sase.sdd.files import (
     write_sdd_files,
 )
 from sase.sdd.store import (
+    SddInitOutcome,
     SddStore,
     SddStoreRecord,
     SddMaterializationError,
+    create_and_materialize_sdd_store,
     delete_sdd_store_record,
     ensure_workspace_sdd_clone,
     get_configured_sdd_storage,
@@ -63,9 +65,11 @@ __all__ = [
     "update_spec_with_qa",
     "write_sdd_readme",
     "write_sdd_files",
+    "SddInitOutcome",
     "SddStore",
     "SddStoreRecord",
     "SddMaterializationError",
+    "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
     "ensure_workspace_sdd_clone",
     "get_configured_sdd_storage",
