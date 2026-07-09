@@ -465,6 +465,50 @@ def test_handle_plan_approval_forwards_agent_runtime(
     assert captured_kwargs["agent_runtime"] == "4m32s"
 
 
+def test_handle_plan_approval_forwards_agent_vcs_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Plan notifications include the planner's VCS workflow tag when provided."""
+    import json
+
+    plan_file = str(tmp_path / "plan.md")
+    Path(plan_file).write_text("# Plan")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    captured_kwargs: dict[str, object] = {}
+
+    def _fake_notify(**kwargs: object) -> None:
+        captured_kwargs.update(kwargs)
+        response_dir = Path(str(kwargs["response_dir"]))
+        (response_dir / "plan_response.json").write_text(
+            json.dumps({"action": "approve"})
+        )
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value=None,
+        ),
+        patch(
+            "sase.notifications.senders.notify_plan_approval",
+            side_effect=_fake_notify,
+        ),
+        patch("sase.main.plan_approve_handler.send_desktop_notification"),
+        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
+        patch(
+            "sase.main.plan_approve_handler.get_tmux_prefix",
+            return_value="",
+        ),
+    ):
+        result = handle_plan_approval(
+            plan_file,
+            "session",
+            agent_vcs_tag="#gh:sase ",
+        )
+
+    assert result == PlanApprovalResult(action="approve", plan_file=plan_file)
+    assert captured_kwargs["agent_vcs_tag"] == "#gh:sase "
+
+
 def test_handle_plan_approval_none_plan_file() -> None:
     """Test that handle_plan_approval returns None when plan_file is None."""
     with patch(

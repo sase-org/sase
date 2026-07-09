@@ -190,6 +190,7 @@ def handle_plan_approval(
     agent_model: str | None = None,
     agent_llm_provider: str | None = None,
     agent_runtime: str | None = None,
+    agent_vcs_tag: str | None = None,
 ) -> PlanApprovalResult | None:
     """Handle plan approval flow.
 
@@ -276,6 +277,7 @@ def handle_plan_approval(
         agent_model=agent_model,
         agent_llm_provider=agent_llm_provider,
         agent_runtime=agent_runtime,
+        agent_vcs_tag=agent_vcs_tag,
         default_member_ids=default_member_ids,
     )
 

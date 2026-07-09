@@ -241,6 +241,7 @@ def notify_plan_approval(
     agent_model: str | None = None,
     agent_llm_provider: str | None = None,
     agent_runtime: str | None = None,
+    agent_vcs_tag: str | None = None,
     default_member_ids: Sequence[str] = (),
 ) -> None:
     """Send a notification when a Claude Code plan is ready for approval."""
@@ -267,6 +268,8 @@ def notify_plan_approval(
         action_data["llm_provider"] = agent_llm_provider
     if agent_runtime:
         action_data["runtime"] = agent_runtime
+    if agent_vcs_tag:
+        action_data["agent_vcs_tag"] = agent_vcs_tag
     notes = [f"Plan ready for review: {plan_name}"]
     default_members = [
         member_id

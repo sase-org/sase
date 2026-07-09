@@ -61,6 +61,7 @@ class TestPlanFollowupMetadata:
             completion_time=submitted_at,
         )
         assert approval_mock.call_args.kwargs["agent_runtime"] == "4m32s"
+        assert approval_mock.call_args.kwargs["agent_vcs_tag"] == "#gh:sase "
 
     def test_coder_meta_updated_when_coder_model_differs(self, tmp_path) -> None:
         """agent_meta.json reflects coder_model when it differs from planner model."""

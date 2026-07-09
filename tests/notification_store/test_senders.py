@@ -130,6 +130,22 @@ class TestNotifyPlanApproval:
         assert len(loaded) == 1
         assert loaded[0].action_data["runtime"] == "4m32s"
 
+    def test_includes_agent_vcs_tag_when_provided(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_plan_approval
+
+        notify_plan_approval(
+            plan_file="/tmp/plan.md",
+            response_dir="/tmp/response",
+            session_id="session",
+            agent_vcs_tag="#gh:sase ",
+        )
+
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        assert loaded[0].action_data["agent_vcs_tag"] == "#gh:sase "
+
 
 class TestNotifyUserQuestion:
     def test_includes_root_timestamp_when_provided(

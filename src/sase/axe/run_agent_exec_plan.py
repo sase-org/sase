@@ -176,6 +176,7 @@ def handle_plan_marker(
         agent_model=ctx.agent_model,
         agent_llm_provider=ctx.agent_llm_provider,
         agent_runtime=agent_runtime,
+        agent_vcs_tag=ctx.vcs_tag,
     )
     if plan_result is None and was_killed():
         return "killed"
