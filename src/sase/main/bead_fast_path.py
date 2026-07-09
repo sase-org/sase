@@ -6,12 +6,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from sase.core.paths import sase_projects_dir
-
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
-_FAST_WRITE_COMMANDS = {"open", "update", "close", "dep"}
+_FAST_WRITE_COMMANDS = {"create", "open", "update", "close", "dep"}
 
 
 def try_handle_bead_fast_path(argv: list[str]) -> int | None:
@@ -106,96 +104,11 @@ def _search_uses_full_format(argv: list[str]) -> bool:
 def _resolve_lightweight_beads_context(
     cwd: Path,
 ) -> tuple[list[Path], Path, str] | None:
-    primary = _resolve_primary_workspace_by_project_scan(cwd)
-    if primary is not None:
-        from sase.sdd.store import resolve_sdd_store
+    from sase.bead.cli_common import resolve_beads_location
 
-        if resolve_sdd_store(cwd, 1).is_in_tree:
-            local_current = _select_current_checkout_beads_dir(cwd)
-            if local_current is not None:
-                return [local_current], local_current, _BEADS_DIRNAME
-
-            primary_current = primary / _BEADS_DIRNAME
-            if primary_current.is_dir():
-                return [primary_current], primary_current, _BEADS_DIRNAME
-            return None
-
-        non_vc = primary / ".sase" / "sdd" / _BEADS_DIRNAME_NON_VC
-        if non_vc.is_dir():
-            return [non_vc], non_vc, _BEADS_DIRNAME_NON_VC
-        return None
-
-    for parent in [cwd, *cwd.parents]:
-        vc = parent / _BEADS_DIRNAME
-        if vc.is_dir():
-            return [vc], vc, _BEADS_DIRNAME
-        non_vc = parent / ".sase" / "sdd" / _BEADS_DIRNAME_NON_VC
-        if non_vc.is_dir():
-            return [non_vc], non_vc, _BEADS_DIRNAME_NON_VC
-    return None
-
-
-def _resolve_primary_workspace_by_project_scan(cwd: Path) -> Path | None:
-    projects_dir = sase_projects_dir()
-    if not projects_dir.is_dir():
-        return None
-
-    for project_dir in sorted(projects_dir.iterdir()):
-        if not project_dir.is_dir():
-            continue
-        project_name = project_dir.name
-        from sase.ace.changespec.project_spec_path import preferred_project_spec_path
-
-        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
-        primary = _parse_workspace_dir(project_file)
-        if primary is None:
-            continue
-        if _cwd_matches_project_workspace(cwd, primary, project_name):
-            return primary
-    return None
-
-
-def _parse_workspace_dir(project_file: Path) -> Path | None:
-    try:
-        for line in project_file.read_text(encoding="utf-8").splitlines():
-            if line.startswith("WORKSPACE_DIR:"):
-                value = line.split(":", 1)[1].strip().rstrip("/")
-                if value:
-                    path = Path(value)
-                    if path.is_dir():
-                        return path.resolve()
-    except OSError:
-        return None
-    return None
-
-
-def _cwd_matches_project_workspace(cwd: Path, primary: Path, project_name: str) -> bool:
-    primary_parts = primary.parts
-    cwd_parts = cwd.parts
-    if len(cwd_parts) < len(primary_parts):
-        return False
-
-    for idx, primary_component in enumerate(primary_parts):
-        cwd_component = cwd_parts[idx]
-        if primary_component == cwd_component:
-            continue
-        if _is_workspace_variant(
-            primary_component, project_name
-        ) and _is_workspace_variant(cwd_component, project_name):
-            return cwd_parts[idx + 1 : len(primary_parts)] == primary_parts[idx + 1 :]
-        return False
-    return True
-
-
-def _is_workspace_variant(component: str, project_name: str) -> bool:
-    return component == project_name or component.startswith(f"{project_name}_")
-
-
-def _select_current_checkout_beads_dir(cwd: Path) -> Path | None:
-    for parent in [cwd, *cwd.parents]:
-        local_current = parent / _BEADS_DIRNAME
-        if local_current.is_dir():
-            return local_current
+    location = resolve_beads_location(cwd, require_existing=True)
+    if location is not None:
+        return [location.beads_dir], location.beads_dir, location.beads_dirname
     return None
 
 

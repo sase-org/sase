@@ -105,6 +105,28 @@ def test_lightweight_context_uses_primary_non_vc_store_over_current_vc_in_non_vc
     assert beads_dirname == _BEADS_DIRNAME_NON_VC
 
 
+def test_lightweight_context_uses_workspace_local_store_in_separate_repo_mode(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "workspaces" / "sase"
+    sibling = tmp_path / "workspaces" / "sase_106"
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    (sibling / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    nested = sibling / "src" / "pkg"
+    nested.mkdir(parents=True)
+    _write_project_file(tmp_path, "sase", primary)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    _set_sdd_config(monkeypatch, storage="separate_repo")
+
+    result = _resolve_lightweight_beads_context(nested.resolve())
+
+    assert result is not None
+    read_dirs, write_dir, beads_dirname = result
+    assert read_dirs == [sibling / ".sase" / "sdd" / "beads"]
+    assert write_dir == sibling / ".sase" / "sdd" / "beads"
+    assert beads_dirname == _BEADS_DIRNAME_NON_VC
+
+
 def test_lightweight_context_treats_bare_git_as_vc_when_config_false(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -156,6 +178,7 @@ def test_fast_path_keeps_write_commands_disabled_for_non_vc_store(
     context = _resolve_fast_path_context(["update", "sase-1", "--status", "closed"])
 
     assert context is None
+    assert _resolve_fast_path_context(["create", "--title", "Created"]) is None
 
 
 def test_fast_path_routes_search_through_rust_executor(

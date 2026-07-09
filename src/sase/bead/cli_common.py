@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 from pathlib import Path
+import re
+from typing import TYPE_CHECKING
 
 from sase.bead.model import Status
 from sase.bead.project import (
@@ -12,14 +15,44 @@ from sase.bead.project import (
     BeadProject,
 )
 
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
+
 _logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class BeadsLocation:
+    """Resolved bead store location for the current workspace context."""
+
+    root: Path
+    beads_dirname: str
+    storage: str | None = None
+    store: SddStore | None = None
+
+    @property
+    def beads_dir(self) -> Path:
+        return self.root / self.beads_dirname
+
+    @property
+    def is_in_tree(self) -> bool:
+        return self.beads_dirname == BEADS_DIRNAME
+
+
+@dataclass(frozen=True)
+class _WorkspaceContext:
+    root: Path
+    primary: Path
+    workspace_num: int
+    project_name: str | None = None
 
 
 def find_beads_location() -> tuple[Path, str]:
     """Determine the beads root directory and subdirectory name.
 
     Uses the primary workspace and effective SDD mode to choose:
-      - Non-VC (default): ``primary/.sase/sdd/beads/``
+      - Local SDD: ``primary/.sase/sdd/beads/``
+      - Separate-repo SDD: ``workspace/.sase/sdd/beads/``
       - VC: nearest ancestor containing ``sdd/beads/`` (or primary workspace)
 
     Falls back to legacy walk-up-from-cwd when no primary workspace is found.
@@ -27,33 +60,243 @@ def find_beads_location() -> tuple[Path, str]:
     Returns (root_dir, beads_dirname) where root_dir / beads_dirname is the
     beads directory.
     """
-    from sase.bead.workspace import resolve_primary_workspace
+    location = resolve_beads_location()
+    if location is None:
+        cwd = Path.cwd()
+        return cwd, BEADS_DIRNAME
+    return location.root, location.beads_dirname
 
-    cwd = Path.cwd()
 
-    primary = resolve_primary_workspace()
-    if primary:
-        from sase.sdd.store import resolve_sdd_store
+def resolve_beads_location(
+    cwd: Path | None = None,
+    *,
+    require_existing: bool = False,
+) -> BeadsLocation | None:
+    """Resolve the bead store location for reads, writes, and commits."""
+    current = (Path.cwd() if cwd is None else cwd).expanduser().resolve()
+    context = _resolve_workspace_context(current)
+    if context is not None:
+        from sase.sdd.store import (
+            SDD_STORAGE_IN_TREE,
+            SDD_STORAGE_LOCAL,
+            SDD_STORAGE_SEPARATE_REPO,
+            SddStore,
+            resolve_sdd_store,
+        )
 
-        if resolve_sdd_store(cwd, 1).is_in_tree:
-            # In-tree mode: sdd/beads/ — prefer current checkout, then primary.
-            for parent in [cwd, *cwd.parents]:
-                if (parent / BEADS_DIRNAME).is_dir():
-                    return parent, BEADS_DIRNAME
-            return primary, BEADS_DIRNAME
+        store = resolve_sdd_store(context.root, context.workspace_num)
+        if store.storage == SDD_STORAGE_IN_TREE:
+            root = _select_in_tree_beads_root(
+                current,
+                context.primary,
+                require_existing=require_existing,
+            )
+            if root is None:
+                return None
+            return BeadsLocation(
+                root=root,
+                beads_dirname=BEADS_DIRNAME,
+                storage=store.storage,
+                store=store,
+            )
+
+        if store.storage == SDD_STORAGE_SEPARATE_REPO:
+            root = store.sdd_dir
+        elif store.storage == SDD_STORAGE_LOCAL:
+            root = context.primary / ".sase" / "sdd"
+            if store.sdd_dir != root:
+                store = SddStore(
+                    storage=store.storage,
+                    sdd_dir=root,
+                    repo_root=root,
+                    provider=store.provider,
+                    remote_url=store.remote_url,
+                )
         else:
-            # Other modes: always primary/.sase/sdd/beads/
-            return primary / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
+            root = context.primary / ".sase" / "sdd"
 
-    # No primary workspace — legacy walk-up from cwd.
+        if require_existing and not (root / BEADS_DIRNAME_NON_VC).is_dir():
+            return None
+        return BeadsLocation(
+            root=root,
+            beads_dirname=BEADS_DIRNAME_NON_VC,
+            storage=store.storage,
+            store=store,
+        )
+
+    return _resolve_legacy_beads_location(
+        current,
+        require_existing=require_existing,
+    )
+
+
+def _resolve_workspace_context(cwd: Path) -> _WorkspaceContext | None:
+    marker_context = _resolve_workspace_context_from_marker(cwd)
+    if marker_context is not None:
+        return marker_context
+
+    scan_context = _resolve_workspace_context_from_project_scan(cwd)
+    if scan_context is not None:
+        return scan_context
+
+    try:
+        from sase.bead.workspace import resolve_primary_workspace
+
+        primary = resolve_primary_workspace()
+    except Exception:
+        primary = None
+    if primary is None:
+        return None
+
+    primary = primary.expanduser().resolve()
+    root = _existing_workspace_root(cwd) or _workspace_root_under_primary(cwd, primary)
+    if root is None:
+        root = cwd
+    return _WorkspaceContext(root=root, primary=primary, workspace_num=1)
+
+
+def _resolve_workspace_context_from_marker(cwd: Path) -> _WorkspaceContext | None:
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        found = find_marker_from_cwd(str(cwd))
+    except Exception:
+        found = None
+    if found is None:
+        return None
+
+    checkout_dir, marker = found
+    primary = marker.primary_workspace_dir.strip()
+    if not primary:
+        return None
+    workspace_num = marker.workspace_num if marker.workspace_num > 0 else 1
+    return _WorkspaceContext(
+        root=Path(checkout_dir).expanduser().resolve(),
+        primary=Path(primary.rstrip("/")).expanduser().resolve(),
+        workspace_num=workspace_num,
+        project_name=marker.project_name or None,
+    )
+
+
+def _resolve_workspace_context_from_project_scan(cwd: Path) -> _WorkspaceContext | None:
+    try:
+        from sase.bead.project_name import scan_projects_for_cwd
+
+        scanned = scan_projects_for_cwd(str(cwd))
+    except Exception:
+        scanned = None
+    if scanned is None:
+        return None
+
+    project_name, primary = scanned
+    primary = primary.expanduser().resolve()
+    root = (
+        _workspace_root_from_primary_variant(cwd, primary, project_name)
+        or _existing_workspace_root(cwd)
+        or _workspace_root_under_primary(cwd, primary)
+    )
+    if root is None:
+        return None
+    return _WorkspaceContext(
+        root=root,
+        primary=primary,
+        workspace_num=_workspace_num_from_root(root, project_name),
+        project_name=project_name,
+    )
+
+
+def _select_in_tree_beads_root(
+    cwd: Path,
+    primary: Path,
+    *,
+    require_existing: bool,
+) -> Path | None:
     for parent in [cwd, *cwd.parents]:
         if (parent / BEADS_DIRNAME).is_dir():
-            return parent, BEADS_DIRNAME
+            return parent
+    primary_beads = primary / BEADS_DIRNAME
+    if primary_beads.is_dir() or not require_existing:
+        return primary
+    return None
+
+
+def _resolve_legacy_beads_location(
+    cwd: Path,
+    *,
+    require_existing: bool,
+) -> BeadsLocation | None:
+    for parent in [cwd, *cwd.parents]:
+        if (parent / BEADS_DIRNAME).is_dir():
+            return BeadsLocation(parent, BEADS_DIRNAME, storage="in_tree")
         non_vc = parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
         if non_vc.is_dir():
-            return parent / ".sase" / "sdd", BEADS_DIRNAME_NON_VC
+            return BeadsLocation(
+                parent / ".sase" / "sdd",
+                BEADS_DIRNAME_NON_VC,
+                storage="local",
+            )
 
-    return cwd, BEADS_DIRNAME
+    if require_existing:
+        return None
+    return BeadsLocation(cwd, BEADS_DIRNAME, storage="in_tree")
+
+
+def _existing_workspace_root(cwd: Path) -> Path | None:
+    for parent in [cwd, *cwd.parents]:
+        if (parent / BEADS_DIRNAME).is_dir():
+            return parent
+        if (parent / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC).is_dir():
+            return parent
+    return None
+
+
+def _workspace_root_under_primary(cwd: Path, primary: Path) -> Path | None:
+    try:
+        cwd.relative_to(primary)
+    except ValueError:
+        return None
+    return primary
+
+
+def _workspace_root_from_primary_variant(
+    cwd: Path,
+    primary: Path,
+    project_name: str,
+) -> Path | None:
+    primary_parts = primary.parts
+    cwd_parts = cwd.parts
+    if len(cwd_parts) < len(primary_parts):
+        return None
+
+    for index, primary_component in enumerate(primary_parts):
+        cwd_component = cwd_parts[index]
+        if primary_component == cwd_component:
+            continue
+        if _is_workspace_variant(
+            primary_component, project_name
+        ) and _is_workspace_variant(cwd_component, project_name):
+            if tuple(cwd_parts[index + 1 : len(primary_parts)]) == tuple(
+                primary_parts[index + 1 :]
+            ):
+                return Path(*cwd_parts[: len(primary_parts)])
+        return None
+
+    return primary
+
+
+def _is_workspace_variant(component: str, project_name: str) -> bool:
+    return component == project_name or component.startswith(f"{project_name}_")
+
+
+def _workspace_num_from_root(root: Path, project_name: str | None) -> int:
+    if not project_name:
+        return 1
+    pattern = re.compile(rf"^{re.escape(project_name)}_(\d+)$")
+    for component in reversed(root.parts):
+        match = pattern.match(component)
+        if match:
+            return int(match.group(1))
+    return 1
 
 
 def init_beads(root: Path, beads_dirname: str) -> None:
@@ -106,16 +349,21 @@ def auto_commit_bead_store(message: str) -> None:
     """Best-effort commit/push for non-in-tree SDD bead store mutations."""
     try:
         from sase.sdd.files import commit_sdd_store_files
-        from sase.sdd.store import resolve_sdd_store
+        from sase.sdd.store import SddStore
 
-        store = resolve_sdd_store(Path.cwd(), 1)
-        if store.is_in_tree:
+        location = resolve_beads_location(require_existing=True)
+        if location is None or location.is_in_tree:
             return
+        store = location.store or SddStore(
+            storage="local",
+            sdd_dir=location.root,
+            repo_root=location.root,
+        )
         commit_sdd_store_files(
             store,
             message,
             auto_commit_type="beads",
-            paths=[store.sdd_dir / "beads"],
+            paths=[location.beads_dir],
         )
     except Exception:
         _logger.warning(

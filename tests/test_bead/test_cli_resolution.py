@@ -1,25 +1,65 @@
 """Tests for bead CLI workspace resolution behavior."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
 from sase.bead.cli import _find_beads_location
 
 
-def test_find_beads_location_non_vc_prefers_primary_workspace(
+def test_find_beads_location_separate_repo_prefers_workspace_local_clone(
     tmp_path: Path, monkeypatch
 ) -> None:
     primary = tmp_path / "project"
     workspace_2 = tmp_path / "project_2"
     (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
     (workspace_2 / ".sase" / "sdd" / "beads").mkdir(parents=True)
-    monkeypatch.chdir(workspace_2)
+    _write_checkout_marker(workspace_2, primary, workspace_num=2)
+    subdir = workspace_2 / "src" / "pkg"
+    subdir.mkdir(parents=True)
+    monkeypatch.chdir(subdir)
+    _set_sdd_config(monkeypatch, storage="separate_repo")
 
-    with patch("sase.bead.workspace.resolve_primary_workspace", return_value=primary):
-        root, beads_dirname = _find_beads_location()
+    root, beads_dirname = _find_beads_location()
+
+    assert root == workspace_2 / ".sase" / "sdd"
+    assert beads_dirname == "beads"
+
+
+def test_find_beads_location_local_mode_still_uses_primary_workspace(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "project"
+    workspace_2 = tmp_path / "project_2"
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    (workspace_2 / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    _write_checkout_marker(workspace_2, primary, workspace_num=2)
+    monkeypatch.chdir(workspace_2)
+    _set_sdd_config(monkeypatch, storage="local")
+
+    root, beads_dirname = _find_beads_location()
 
     assert root == primary / ".sase" / "sdd"
     assert beads_dirname == "beads"
+
+
+def test_find_beads_location_in_tree_prefers_current_checkout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "project"
+    workspace_2 = tmp_path / "project_2"
+    (primary / "sdd" / "beads").mkdir(parents=True)
+    (workspace_2 / "sdd" / "beads").mkdir(parents=True)
+    _write_checkout_marker(workspace_2, primary, workspace_num=2)
+    subdir = workspace_2 / "src" / "pkg"
+    subdir.mkdir(parents=True)
+    monkeypatch.chdir(subdir)
+    _set_sdd_config(monkeypatch, storage="in_tree")
+
+    root, beads_dirname = _find_beads_location()
+
+    assert root == workspace_2
+    assert beads_dirname == "sdd/beads"
 
 
 def test_find_beads_location_non_vc_walkup_fallback_when_primary_unknown(
@@ -62,3 +102,33 @@ def test_find_beads_location_non_vc_variant_workspace_maps_to_primary(
 
     assert root == primary / ".sase" / "sdd"
     assert beads_dirname == "beads"
+
+
+def _set_sdd_config(monkeypatch, *, storage: str) -> None:
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"storage": storage, "version_controlled": False}},
+    )
+
+
+def _write_checkout_marker(
+    checkout: Path,
+    primary: Path,
+    *,
+    workspace_num: int,
+    project_name: str = "project",
+) -> None:
+    marker = {
+        "project_name": project_name,
+        "project_key": project_name,
+        "workspace_num": workspace_num,
+        "primary_workspace_dir": str(primary),
+        "registry_path": str(primary / ".sase" / "registry.json"),
+        "schema_version": 1,
+    }
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(marker),
+        encoding="utf-8",
+    )

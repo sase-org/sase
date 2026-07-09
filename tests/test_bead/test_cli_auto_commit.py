@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 from pathlib import Path
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,7 +22,13 @@ def test_auto_commit_bead_store_commits_non_in_tree_beads_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    store = SddStore(storage="separate_repo", sdd_dir=tmp_path, repo_root=tmp_path)
+    primary = tmp_path / "project"
+    workspace = tmp_path / "project_2"
+    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    sdd_dir = workspace / ".sase" / "sdd"
+    (sdd_dir / "beads").mkdir(parents=True)
+    _write_checkout_marker(workspace, primary, workspace_num=2)
+    _set_sdd_config(monkeypatch, storage="separate_repo")
     commit_calls: list[dict[str, object]] = []
 
     def fake_commit(
@@ -40,18 +48,22 @@ def test_auto_commit_bead_store_commits_non_in_tree_beads_path(
         )
         return True
 
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_: store)
+    monkeypatch.chdir(workspace)
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", fake_commit)
 
     auto_commit_bead_store("chore(beads): close beads-1")
 
+    assert len(commit_calls) == 1
+    store = commit_calls[0]["store"]
+    assert isinstance(store, SddStore)
+    assert store.storage == "separate_repo"
+    assert store.sdd_dir == sdd_dir
     assert commit_calls == [
         {
             "store": store,
             "message": "chore(beads): close beads-1",
             "auto_commit_type": "beads",
-            "paths": [tmp_path / "beads"],
+            "paths": [sdd_dir / "beads"],
         }
     ]
 
@@ -60,11 +72,15 @@ def test_auto_commit_bead_store_skips_in_tree_store(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    store = SddStore(storage="in_tree", sdd_dir=tmp_path / "sdd", repo_root=tmp_path)
+    primary = tmp_path / "project"
+    workspace = tmp_path / "project_2"
+    (primary / "sdd" / "beads").mkdir(parents=True)
+    (workspace / "sdd" / "beads").mkdir(parents=True)
+    _write_checkout_marker(workspace, primary, workspace_num=2)
+    _set_sdd_config(monkeypatch, storage="in_tree")
     commit = MagicMock()
 
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_: store)
+    monkeypatch.chdir(workspace)
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
 
     auto_commit_bead_store("chore(beads): update beads-1")
@@ -77,19 +93,71 @@ def test_auto_commit_bead_store_swallows_commit_errors(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    store = SddStore(storage="local", sdd_dir=tmp_path, repo_root=tmp_path)
+    primary = tmp_path / "project"
+    workspace = tmp_path / "project_2"
+    sdd_dir = primary / ".sase" / "sdd"
+    (sdd_dir / "beads").mkdir(parents=True)
+    (workspace / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    _write_checkout_marker(workspace, primary, workspace_num=2)
+    _set_sdd_config(monkeypatch, storage="local")
 
     def fail_commit(*_: object, **__: object) -> bool:
         raise RuntimeError("git is unavailable")
 
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_: store)
+    monkeypatch.chdir(workspace)
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", fail_commit)
 
     with caplog.at_level(logging.WARNING, logger="sase.bead.cli_common"):
         auto_commit_bead_store("chore(beads): update beads-1")
 
     assert "Failed to auto-commit SDD bead store changes" in caplog.text
+
+
+def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    primary = tmp_path / "project"
+    workspace = tmp_path / "project_2"
+    primary_sdd = primary / ".sase" / "sdd"
+    workspace_sdd = workspace / ".sase" / "sdd"
+    primary_sdd.mkdir(parents=True)
+    workspace_sdd.mkdir(parents=True)
+    _init_git_repo(workspace_sdd)
+    _write_checkout_marker(workspace, primary, workspace_num=2)
+    _set_sdd_config(monkeypatch, storage="separate_repo")
+    monkeypatch.chdir(workspace)
+
+    with BeadProject.init(workspace_sdd, beads_dirname="beads"):
+        pass
+    plan = workspace_sdd / "tales" / "202607" / "round_trip.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Round trip\n", encoding="utf-8")
+    _git(workspace_sdd, "add", ".")
+    _git(workspace_sdd, "commit", "-m", "Initialize workspace SDD")
+    assert _git_status(workspace_sdd) == ""
+
+    args = argparse.Namespace(
+        type=f"plan({plan})",
+        changespec=None,
+        bug_id=None,
+        tier=None,
+        epic_count=None,
+        title="Created",
+        description=None,
+        assignee=None,
+        model=None,
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    assert "Created plan:" in capsys.readouterr().out
+    assert _git_status(workspace_sdd) == ""
+    log = _git(workspace_sdd, "log", "--oneline", "-1").stdout
+    assert "chore(beads): create" in log
+    assert (workspace_sdd / "beads" / "issues.jsonl").exists()
+    assert not (primary_sdd / "beads" / "issues.jsonl").exists()
 
 
 def test_handle_bead_create_auto_commit_message(
@@ -210,3 +278,65 @@ def test_rollback_work_launch_auto_commits_cleanup() -> None:
 def _create_issue(project_dir: Path, title: str) -> Issue:
     with BeadProject(project_dir) as proj:
         return proj.create(title, IssueType.PLAN)
+
+
+def _set_sdd_config(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    storage: str,
+) -> None:
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {
+            "sdd": {
+                "storage": storage,
+                "version_controlled": False,
+                "push_after_commit": False,
+            }
+        },
+    )
+
+
+def _write_checkout_marker(
+    checkout: Path,
+    primary: Path,
+    *,
+    workspace_num: int,
+    project_name: str = "project",
+) -> None:
+    marker = {
+        "project_name": project_name,
+        "project_key": project_name,
+        "workspace_num": workspace_num,
+        "primary_workspace_dir": str(primary),
+        "registry_path": str(primary / ".sase" / "registry.json"),
+        "schema_version": 1,
+    }
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(marker),
+        encoding="utf-8",
+    )
+
+
+def _init_git_repo(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    _git(path, "init")
+    _git(path, "config", "user.name", "SASE Test")
+    _git(path, "config", "user.email", "sase-test@example.invalid")
+
+
+def _git(path: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
+
+
+def _git_status(path: Path) -> str:
+    return _git(path, "status", "--porcelain").stdout
