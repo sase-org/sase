@@ -83,6 +83,14 @@ _vcs_provider_cache: dict[str, VCSProvider] = {}
 _vcs_provider_cache_lock = Lock()
 
 
+class _DiffProbeUnknown:
+    """Sentinel for a live diff probe that failed without proving cleanliness."""
+
+
+_DIFF_PROBE_UNKNOWN = _DiffProbeUnknown()
+type _DiffProbeResult = str | None | _DiffProbeUnknown
+
+
 def _resolve_vcs_provider_cached(workspace_dir: str) -> VCSProvider:
     """Return a cached :class:`VCSProvider` for *workspace_dir*.
 
@@ -292,12 +300,15 @@ def live_agent_file_change_hint(agent: Agent) -> bool | None:
     if not _status_allows_live_hint(diff_source.status):
         return None
 
-    diff_text = get_agent_diff(agent)
+    diff_result = _get_agent_diff(agent, unknown_on_probe_failure=True)
+    if isinstance(diff_result, _DiffProbeUnknown):
+        return None
+    diff_text = diff_result
     primary_hint = False
     if not diff_text:
-        # No resolvable workspace, a provider error, or a genuinely clean
-        # working tree all collapse to "no live edits": fail closed so the row
-        # badge stays stable rather than guessing a pencil.
+        # No resolvable workspace or a genuinely clean working tree both
+        # collapse to "no live edits": fail closed so the row badge stays
+        # stable rather than guessing a pencil.
         primary_hint = False
     else:
         from ...models._diff_badge import diff_text_has_real_edits
@@ -327,6 +338,18 @@ def get_agent_diff(agent: Agent) -> str | None:
     Returns:
         Diff output string, or None if unavailable.
     """
+    result = _get_agent_diff(agent, unknown_on_probe_failure=False)
+    if isinstance(result, _DiffProbeUnknown):
+        return None
+    return result
+
+
+def _get_agent_diff(
+    agent: Agent,
+    *,
+    unknown_on_probe_failure: bool,
+) -> _DiffProbeResult:
+    """Internal diff fetcher with an optional live-probe failure sentinel."""
     diff_source = _resolve_agent_diff_source(agent)
 
     # Prefer the pre-computed diff file (e.g. from the gh workflow's diff
@@ -364,8 +387,14 @@ def get_agent_diff(agent: Agent) -> str | None:
         return None
 
     try:
-        _, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
+        ok, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
     except Exception:
+        if unknown_on_probe_failure:
+            return _DIFF_PROBE_UNKNOWN
+        return None
+    if not ok:
+        if unknown_on_probe_failure:
+            return _DIFF_PROBE_UNKNOWN
         return None
     result = diff_text if diff_text else None
 

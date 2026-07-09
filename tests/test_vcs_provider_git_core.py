@@ -114,6 +114,21 @@ def test_git_diff_both_fail(mock_run: MagicMock) -> None:
     assert "git diff failed" in error
 
 
+@patch("sase.vcs_provider._command_runner.subprocess.run")
+def test_git_diff_with_untracked_reports_command_failure(
+    mock_run: MagicMock,
+) -> None:
+    """A live diff timeout must not be reported as a clean workspace."""
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
+
+    plugin = BareGitPlugin()
+    success, diff_text = plugin.vcs_diff_with_untracked("/workspace", timeout=10)
+
+    assert success is False
+    assert diff_text is None
+    assert mock_run.call_count == 1
+
+
 # === Tests for diff_revision ===
 
 

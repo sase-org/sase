@@ -541,6 +541,18 @@ class _DiffTextProvider:
         return (True, self.diff_text)
 
 
+class _FailedDiffProvider:
+    def __init__(self, *, raises: bool) -> None:
+        self.raises = raises
+        self.calls = 0
+
+    def diff_with_untracked(self, cwd: str, *, timeout: int = 10):  # type: ignore[no-untyped-def]
+        self.calls += 1
+        if self.raises:
+            raise TimeoutError("diff timed out")
+        return (False, None)
+
+
 def test_live_hint_true_for_real_workspace_edits(tmp_path: Path) -> None:
     diff_mod._diff_cache.clear()
     workspace = _setup_workspace(tmp_path)
@@ -578,6 +590,26 @@ def test_live_hint_false_for_clean_workspace(tmp_path: Path) -> None:
             hint = diff_mod.live_agent_file_change_hint(agent)
 
     assert hint is False
+
+
+def test_live_hint_none_and_does_not_cache_failed_diff_probe(
+    tmp_path: Path,
+) -> None:
+    for idx, provider in enumerate(
+        [_FailedDiffProvider(raises=True), _FailedDiffProvider(raises=False)]
+    ):
+        diff_mod._diff_cache.clear()
+        diff_mod._vcs_provider_cache.clear()
+        workspace = _setup_workspace(tmp_path, f"failing_{idx}")
+        agent = _make_running_agent(workspace_dir=str(workspace))
+
+        with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+            with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+                hint = diff_mod.live_agent_file_change_hint(agent)
+
+        assert hint is None
+        assert provider.calls == 1
+        assert diff_mod._diff_cache == {}
 
 
 def test_live_hint_none_for_persisted_diff_path(tmp_path: Path) -> None:

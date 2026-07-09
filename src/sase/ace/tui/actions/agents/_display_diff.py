@@ -242,7 +242,6 @@ def diff_touches_workflow_tree(
     touched: set[AgentIdentity] = set(diff.removed_identities)
     touched.update(diff.moved_identities)
     touched.update(next_agents[idx].identity for idx in diff.added_indices)
-    touched.update(next_agents[idx].identity for idx in diff.changed_same_position)
 
     def is_workflow_shaped(agent: Agent | None) -> bool:
         if agent is None:
@@ -253,6 +252,24 @@ def diff_touches_workflow_tree(
             or agent.parent_timestamp is not None
             or agent.parent_workflow is not None
         )
+
+    def structural_signature(agent: Agent) -> tuple[object, ...]:
+        return (
+            agent.status,
+            agent.hidden,
+            agent.is_workflow_child,
+            agent.raw_suffix,
+            agent.parent_timestamp,
+            agent.parent_workflow,
+        )
+
+    for idx in diff.changed_same_position:
+        previous = previous_agents[idx]
+        next_agent = next_agents[idx]
+        if structural_signature(previous) == structural_signature(next_agent):
+            continue
+        if is_workflow_shaped(previous) or is_workflow_shaped(next_agent):
+            touched.add(next_agent.identity)
 
     for identity in touched:
         if is_workflow_shaped(previous_by_id.get(identity)) or is_workflow_shaped(

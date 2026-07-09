@@ -276,6 +276,8 @@ class GitQueryOpsMixin(CommandRunner):
         self, cwd: str, timeout: int
     ) -> tuple[bool, str | None]:
         tracked = self._run(["git", "diff", "HEAD"], cwd, timeout=timeout)
+        if not tracked.success:
+            return (False, None)
         tracked_diff = tracked.stdout if tracked.success else ""
 
         ls_out = self._run(
@@ -283,6 +285,8 @@ class GitQueryOpsMixin(CommandRunner):
             cwd,
             timeout=timeout,
         )
+        if not ls_out.success:
+            return (False, None)
         untracked_diff = ""
         if ls_out.success and ls_out.stdout:
             files = [f for f in ls_out.stdout.split("\0") if f]
@@ -295,6 +299,8 @@ class GitQueryOpsMixin(CommandRunner):
                 )
                 if result.stdout:
                     untracked_diff += result.stdout
+                elif not result.success:
+                    return (False, None)
 
         combined = tracked_diff + untracked_diff
         return (True, combined if combined.strip() else None)
