@@ -200,6 +200,21 @@ def test_vcs_log_preserves_multiline_body(repo: str) -> None:
     assert "body two" in commit.body
 
 
+def test_vcs_log_preserves_sase_footer_in_body(repo: str) -> None:
+    (Path(repo) / "a.txt").write_text("x\n")
+    _git(["add", "a.txt"], repo)
+    _git(
+        ["commit", "-q", "-m", "subject line", "-m", "body\n\nSASE_TYPE=sdd"],
+        repo,
+    )
+
+    commit = BareGitPlugin().vcs_log(repo, 10)[0]
+
+    assert commit.subject == "subject line"
+    assert "body" in commit.body
+    assert "SASE_TYPE=sdd" in commit.body
+
+
 def test_vcs_log_excludes_merge_commits(repo: str) -> None:
     _commit(repo, "base.txt", "base")
     _git(["checkout", "-q", "-b", "feature"], repo)

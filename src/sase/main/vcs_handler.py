@@ -72,6 +72,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         limit=args.limit,
         filters=filters,
         reverse=args.reverse,
+        show_tags=getattr(args, "tags", False),
     )
     return 0 if result.repos else 1
 

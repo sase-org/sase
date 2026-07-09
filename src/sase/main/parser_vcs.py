@@ -134,6 +134,12 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         help="Only commits at/after DATE",
     )
     parser.add_argument(
+        "-t",
+        "--tags",
+        action="store_true",
+        help="Show trailing SASE_* commit tags without the SASE_ prefix",
+    )
+    parser.add_argument(
         "-u",
         "--until",
         "--before",

@@ -74,6 +74,23 @@ def _result() -> VcsLogResult:
     )
 
 
+def _tagged_result() -> VcsLogResult:
+    return VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "a1b2c3d4",
+                300,
+                "tagged subject",
+                body="body text\n\nSASE_TYPE=sdd\nSASE_PLAN=sdd/foo.md",
+            ),
+            _entry("sase", "b2c3d4e5", 200, "plain subject"),
+        ),
+        warnings=(),
+    )
+
+
 def _render(
     result: VcsLogResult,
     fmt: str,
@@ -82,6 +99,7 @@ def _render(
     limit: int = 20,
     filters: CommitFilters | None = None,
     reverse: bool = False,
+    show_tags: bool = False,
 ) -> str:
     out = io.StringIO()
     render(
@@ -92,6 +110,7 @@ def _render(
         limit=limit,
         filters=filters,
         reverse=reverse,
+        show_tags=show_tags,
     )
     return out.getvalue()
 
@@ -107,6 +126,13 @@ def test_oneline_golden() -> None:
 def test_oneline_empty_is_blank() -> None:
     empty = VcsLogResult(repos=(), commits=(), warnings=())
     assert _render(empty, "oneline") == ""
+
+
+def test_oneline_tags_suffix() -> None:
+    assert _render(_tagged_result(), "oneline", show_tags=True) == (
+        "● a1b2c3d sase tagged subject [TYPE=sdd PLAN=sdd/foo.md]\n"
+        "● b2c3d4e sase plain subject\n"
+    )
 
 
 def test_json_shape_and_ordering() -> None:
@@ -146,6 +172,16 @@ def test_json_shape_and_ordering() -> None:
         "fetched": True,
     }
     assert payload["warnings"] == ["sase-telegram: no such checkout"]
+
+
+def test_json_tags_shape() -> None:
+    payload = json.loads(_render(_tagged_result(), "json", show_tags=True))
+
+    assert payload["commits"][0]["sase_tags"] == {
+        "PLAN": "sdd/foo.md",
+        "TYPE": "sdd",
+    }
+    assert payload["commits"][1]["sase_tags"] == {}
 
 
 def test_json_empty_result() -> None:
@@ -246,6 +282,23 @@ def test_pretty_reverse_uses_ascending_day_groups(
     assert text.index("feat(core): parser") < text.index("fix(sdd): link store")
 
 
+def test_pretty_tags_suffix_before_author(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 7, 8, 15, 0)
+    local = {
+        300: datetime(2026, 7, 8, 14, 22),
+        200: datetime(2026, 7, 8, 13, 5),
+    }
+    monkeypatch.setattr(render_mod, "_local_now", lambda: now)
+    monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
+
+    text = _render(_tagged_result(), "pretty", show_tags=True)
+
+    assert "tagged subject  · TYPE=sdd · PLAN=sdd/foo.md  · bryan" in text
+    assert "plain subject  · bryan" in text
+
+
 def test_pretty_filter_summary_and_empty_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -297,6 +350,23 @@ def test_full_format_shows_body_and_metadata(
     assert "body one" in text
     assert "body two" in text
     assert "a1b2c3d · bryan <b@x> · 14:22 · 38m ago · synced" in text
+
+
+def test_full_tags_line_and_footer_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
+    monkeypatch.setattr(
+        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    )
+    monkeypatch.setattr(render_mod, "_relative_age", lambda dt: "38m ago")
+
+    text = _render(_tagged_result(), "full", show_tags=True)
+
+    assert "body text" in text
+    assert "tags: TYPE=sdd · PLAN=sdd/foo.md" in text
+    assert "SASE_TYPE=sdd" not in text
+    assert "SASE_PLAN=sdd/foo.md" not in text
 
 
 def test_pretty_empty_shows_no_commits() -> None:

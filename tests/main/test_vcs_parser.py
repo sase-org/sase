@@ -70,6 +70,7 @@ class TestVcsParser:
         assert ns.remote_ref is None
         assert ns.reverse is False
         assert ns.since is None
+        assert ns.tags is False
         assert ns.until is None
 
     def test_log_limit_and_format_and_color(self) -> None:
@@ -151,6 +152,13 @@ class TestVcsParser:
         assert ns.since == "1d"
         assert ns.until == "today"
 
+    def test_log_tags_aliases(self) -> None:
+        short = create_parser().parse_args(["vcs", "log", "-t"])
+        long = create_parser().parse_args(["vcs", "log", "--tags"])
+
+        assert short.tags is True
+        assert long.tags is True
+
 
 class TestVcsHandlerDispatch:
     def test_unknown_subcommand_exits_2(self) -> None:
@@ -184,6 +192,7 @@ class TestVcsHandlerDispatch:
             remote_ref=None,
             reverse=False,
             since="last week",
+            tags=False,
             until=None,
             authors=[],
         )
@@ -206,6 +215,7 @@ class TestVcsHandlerDispatch:
             remote_ref=None,
             reverse=False,
             since="2026-07-09",
+            tags=False,
             until="2026-07-08",
             authors=[],
         )

@@ -22,6 +22,7 @@ from rich.text import Text
 from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log._style import GOLD, INCOMING, UNPUSHED, make_console, repo_colors
+from sase.vcs_log.tags import commit_tag_view
 
 _HEADER_WIDTH = 56
 
@@ -35,21 +36,36 @@ def render(
     limit: int = 20,
     filters: CommitFilters | None = None,
     reverse: bool = False,
+    show_tags: bool = False,
 ) -> None:
     """Render *result* in the requested format to *out* (default stdout)."""
     stream = out if out is not None else sys.stdout
     filters = filters or CommitFilters()
     commits = _ordered_commits(result, reverse=reverse)
     if fmt == "json":
-        stream.write(_render_json(result, commits, limit, filters, reverse))
+        stream.write(_render_json(result, commits, limit, filters, reverse, show_tags))
         return
     if fmt == "oneline":
-        stream.write(_render_oneline(commits))
+        stream.write(_render_oneline(commits, show_tags=show_tags))
         return
     if fmt == "full":
-        _render_full(result, commits, color=color, out=stream, filters=filters)
+        _render_full(
+            result,
+            commits,
+            color=color,
+            out=stream,
+            filters=filters,
+            show_tags=show_tags,
+        )
         return
-    _render_pretty(result, commits, color=color, out=stream, filters=filters)
+    _render_pretty(
+        result,
+        commits,
+        color=color,
+        out=stream,
+        filters=filters,
+        show_tags=show_tags,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -63,23 +79,12 @@ def _render_json(
     limit: int,
     filters: CommitFilters,
     reverse: bool,
+    show_tags: bool,
 ) -> str:
     states = {state.name: state for state in result.remote_states}
     payload = {
         "repos": [_repo_json(repo, states) for repo in result.repos],
-        "commits": [
-            {
-                "repo": entry.repo,
-                "full_id": entry.commit.full_id,
-                "short_id": entry.commit.short_id,
-                "author_name": entry.commit.author_name,
-                "author_email": entry.commit.author_email,
-                "timestamp": entry.commit.timestamp,
-                "subject": entry.commit.subject,
-                "presence": entry.commit.presence,
-            }
-            for entry in commits
-        ],
+        "commits": [_commit_json(entry, show_tags=show_tags) for entry in commits],
         "query": {
             "limit": limit,
             "since": filters.since,
@@ -90,6 +95,22 @@ def _render_json(
         "warnings": list(result.warnings),
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def _commit_json(entry: AggregatedCommitWire, *, show_tags: bool) -> dict[str, object]:
+    item: dict[str, object] = {
+        "repo": entry.repo,
+        "full_id": entry.commit.full_id,
+        "short_id": entry.commit.short_id,
+        "author_name": entry.commit.author_name,
+        "author_email": entry.commit.author_email,
+        "timestamp": entry.commit.timestamp,
+        "subject": entry.commit.subject,
+        "presence": entry.commit.presence,
+    }
+    if show_tags:
+        item["sase_tags"] = dict(commit_tag_view(entry.commit).tags)
+    return item
 
 
 def _repo_json(repo: LogRepo, states: dict[str, RepoRemoteState]) -> dict[str, object]:
@@ -110,7 +131,9 @@ def _repo_json(repo: LogRepo, states: dict[str, RepoRemoteState]) -> dict[str, o
 # ---------------------------------------------------------------------------
 
 
-def _render_oneline(commits: tuple[AggregatedCommitWire, ...]) -> str:
+def _render_oneline(
+    commits: tuple[AggregatedCommitWire, ...], *, show_tags: bool
+) -> str:
     if not commits:
         return ""
     repo_width = max(len(entry.repo) for entry in commits)
@@ -119,6 +142,7 @@ def _render_oneline(commits: tuple[AggregatedCommitWire, ...]) -> str:
         f"{_presence_glyph(entry.commit.presence)} "
         f"{entry.commit.short_id.ljust(sha_width)} "
         f"{entry.repo.ljust(repo_width)} {entry.commit.subject}"
+        f"{_oneline_tag_suffix(entry) if show_tags else ''}"
         for entry in commits
     ]
     return "\n".join(lines) + "\n"
@@ -136,6 +160,7 @@ def _render_pretty(
     color: str,
     out: TextIO,
     filters: CommitFilters,
+    show_tags: bool,
 ) -> None:
     console = make_console(color, file=out)
     colors = _repo_colors(result)
@@ -159,7 +184,14 @@ def _render_pretty(
             console.print(_day_header(day), soft_wrap=True)
             current_day = day
         console.print(
-            _commit_line(entry, colors, repo_width, sha_width, dt_local),
+            _commit_line(
+                entry,
+                colors,
+                repo_width,
+                sha_width,
+                dt_local,
+                show_tags=show_tags,
+            ),
             soft_wrap=True,
         )
 
@@ -173,6 +205,7 @@ def _render_full(
     color: str,
     out: TextIO,
     filters: CommitFilters,
+    show_tags: bool,
 ) -> None:
     console = make_console(color, file=out)
     colors = _repo_colors(result)
@@ -193,7 +226,7 @@ def _render_full(
         if day != current_day:
             console.print(_day_header(day), soft_wrap=True)
             current_day = day
-        _print_full_commit(console, entry, colors, dt_local)
+        _print_full_commit(console, entry, colors, dt_local, show_tags=show_tags)
         if i != len(commits) - 1:
             console.print()
 
@@ -253,6 +286,7 @@ def _commit_line(
     repo_width: int,
     sha_width: int,
     dt_local: datetime,
+    show_tags: bool,
 ) -> Text:
     commit = entry.commit
     repo_color = colors.get(entry.repo, "")
@@ -270,6 +304,11 @@ def _commit_line(
     )
     line.append("  ")
     line.append(commit.subject)
+    if show_tags:
+        tags = commit_tag_view(commit).tags
+        if tags:
+            line.append("  · ", style="dim")
+            line.append(_format_tags(tags, separator=" · "), style="dim")
     if commit.author_name:
         line.append(f"  · {commit.author_name}", style="dim")
     return line
@@ -280,6 +319,7 @@ def _print_full_commit(
     entry: AggregatedCommitWire,
     colors: dict[str, str],
     dt_local: datetime,
+    show_tags: bool,
 ) -> None:
     commit = entry.commit
     repo_color = colors.get(entry.repo, "")
@@ -291,10 +331,19 @@ def _print_full_commit(
     header.append(commit.subject, style="bold")
     console.print(header, soft_wrap=True)
 
-    body = commit.body.strip("\n")
+    tag_view = commit_tag_view(commit) if show_tags else None
+    body = (tag_view.body if tag_view is not None else commit.body).strip("\n")
     if body:
         for line in body.splitlines():
             console.print(Text(f"     {line}", style="dim"), soft_wrap=True)
+    if tag_view is not None and tag_view.tags:
+        console.print(
+            Text(
+                f"     tags: {_format_tags(tag_view.tags, separator=' · ')}",
+                style="dim",
+            ),
+            soft_wrap=True,
+        )
 
     author = commit.author_name
     if commit.author_email:
@@ -314,6 +363,17 @@ def _print_warnings(console: Console, result: VcsLogResult) -> None:
     console.print()
     for warning in result.warnings:
         console.print(Text(f"  ⚠ {warning}", style="dim"))
+
+
+def _oneline_tag_suffix(entry: AggregatedCommitWire) -> str:
+    tags = commit_tag_view(entry.commit).tags
+    if not tags:
+        return ""
+    return f" [{_format_tags(tags, separator=' ')}]"
+
+
+def _format_tags(tags: tuple[tuple[str, str], ...], *, separator: str) -> str:
+    return separator.join(f"{key}={value}" for key, value in tags)
 
 
 # ---------------------------------------------------------------------------
