@@ -106,13 +106,21 @@ reference notes that agents read only when relevant.
 - Lines: 58
 - Approx. tokens: 1029
 
+### `memory/xprompts.md`
+
+- Type: `long`
+- Description: Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow blocks.
+- Parent: `AGENTS.md`
+- Lines: 76
+- Approx. tokens: 1234
+
 ## Statistics
 
-- Total notes: 9
+- Total notes: 10
 - Short notes: 5
-- Long notes: 4
-- Total lines: 389
-- Total approx. tokens: 5178
+- Long notes: 5
+- Total lines: 465
+- Total approx. tokens: 6412
 
 ## Commands
 

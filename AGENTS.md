@@ -171,3 +171,6 @@ Read before fixing pyvision lint failures, including unused symbols, private mis
 
 **`memory/tui_perf.md`**  
 Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering, startup).
+
+**`memory/xprompts.md`**  
+Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow blocks.
