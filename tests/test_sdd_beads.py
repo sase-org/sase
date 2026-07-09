@@ -99,7 +99,10 @@ def testinit_beads_creates_sdd_git_repo() -> None:
         sdd_dir = Path(tmpdir) / ".sase" / "sdd"
         gitignore = sdd_dir / ".gitignore"
         assert gitignore.exists()
-        assert "beads/beads.db" in gitignore.read_text(encoding="utf-8")
+        gitignore_text = gitignore.read_text(encoding="utf-8")
+        assert "beads/beads.db\n" in gitignore_text
+        assert "beads/beads.db-shm\n" in gitignore_text
+        assert "beads/beads.db-wal\n" in gitignore_text
         mock_bead_init.assert_called_once_with(sdd_dir, beads_dirname="beads")
         args, kwargs = mock_commit.call_args
         assert args[0].sdd_dir == sdd_dir
@@ -119,10 +122,17 @@ def testinit_beads_idempotent() -> None:
         (sdd_dir / "beads").mkdir()
         (sdd_dir / ".gitignore").write_text("beads/beads.db\n", encoding="utf-8")
 
-        with patch("sase.sdd.beads.subprocess.run") as mock_run:
+        with (
+            patch("sase.sdd.beads.subprocess.run") as mock_run,
+            patch("sase.sdd.beads.commit_sdd_store_files") as mock_commit,
+        ):
             mock_run.return_value = subprocess.CompletedProcess([], 0)
             result = init_beads(tmpdir, 1)
         assert result == sdd_dir
+        gitignore_text = (sdd_dir / ".gitignore").read_text(encoding="utf-8")
+        assert "beads/beads.db-shm\n" in gitignore_text
+        assert "beads/beads.db-wal\n" in gitignore_text
+        mock_commit.assert_called_once()
 
 
 def test_cli_init_beads_vc_ensures_generated_sdd_first(tmp_path: Path) -> None:

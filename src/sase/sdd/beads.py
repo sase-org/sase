@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
+from sase.sdd._bead_ignore import ensure_bead_store_gitignore
 from sase.sdd.files import get_primary_workspace_dir, commit_sdd_store_files
 from sase.sdd.store import (
     SDD_STORAGE_LOCAL,
@@ -60,9 +61,8 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
         )
 
     gitignore = sdd_dir / ".gitignore"
-    if not gitignore.exists():
+    if ensure_bead_store_gitignore(sdd_dir) is not None:
         print("  Writing .gitignore ...", flush=True)
-        gitignore.write_text("beads/beads.db\n", encoding="utf-8")
 
     beads_dir = sdd_dir / BEADS_DIRNAME_NON_VC
     if beads_dir.is_dir():

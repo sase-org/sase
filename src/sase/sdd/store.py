@@ -506,6 +506,7 @@ def _ensure_materialized_store_initialized(store: SddStore) -> None:
     """Create generated guides and bead files inside a materialized store."""
 
     from sase.bead.project import BEADS_DIRNAME_NON_VC, BeadProject
+    from sase.sdd._bead_ignore import ensure_bead_store_gitignore
     from sase.sdd._commit import commit_sdd_store_files
     from sase.sdd.files import ensure_sdd_initialized
 
@@ -513,9 +514,8 @@ def _ensure_materialized_store_initialized(store: SddStore) -> None:
     sdd_dir.mkdir(parents=True, exist_ok=True)
     changed_paths: list[Path] = list(ensure_sdd_initialized(sdd_dir))
 
-    gitignore = sdd_dir / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text("beads/beads.db\n", encoding="utf-8")
+    gitignore = ensure_bead_store_gitignore(sdd_dir)
+    if gitignore is not None:
         changed_paths.append(gitignore)
 
     beads_dir = sdd_dir / BEADS_DIRNAME_NON_VC

@@ -207,11 +207,11 @@ def _origin_remote(repo: Path) -> str | None:
 
 def _ensure_bead_store_initialized(sdd_dir: Path) -> list[Path]:
     from sase.bead.project import BEADS_DIRNAME_NON_VC, BeadProject
+    from sase.sdd._bead_ignore import ensure_bead_store_gitignore
 
     changed: list[Path] = []
-    gitignore = sdd_dir / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text("beads/beads.db\n", encoding="utf-8")
+    gitignore = ensure_bead_store_gitignore(sdd_dir)
+    if gitignore is not None:
         changed.append(gitignore)
 
     beads_dir = sdd_dir / BEADS_DIRNAME_NON_VC

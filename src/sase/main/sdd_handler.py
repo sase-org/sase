@@ -165,6 +165,32 @@ def _run_separate_repo_sdd_init(path: str | Path | None, project_root: Path) -> 
     console.print(f"Setting up separate-repo SDD storage for {project_label}")
     console.print(f"  -> ensuring companion repository on {host} ...")
 
+    if _should_migrate_in_tree_sdd_on_init(project_root):
+        from sase.sdd.migrate import SddMigrationError, migrate_sdd_to_separate_repo
+
+        console.print("  -> migrating existing in-tree SDD artifacts ...")
+        try:
+            result = migrate_sdd_to_separate_repo(
+                project_root,
+                workspace_num=1,
+                create=True,
+                remove_in_tree=False,
+            )
+        except SddMigrationError as exc:
+            console.print(f"error: {exc}", style="red")
+            return 1
+
+        repo = result.record.repo or "companion repository"
+        console.print(f"  ok migrated SDD artifacts to {repo}")
+        console.print(
+            f"  ok materialized SDD store at "
+            f"{_display_sdd_init_path(result.sdd_dir, project_root)}"
+        )
+        console.print("  ok initialized guides + beads")
+        console.print(f"SDD ready: separate repository {repo}")
+        print(expected_sdd_readme(str(result.sdd_dir)).path)
+        return 0
+
     try:
         _delete_negative_sdd_record(project_root)
         outcome = create_and_materialize_sdd_store(project_root, 1)
@@ -221,6 +247,9 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
         companion_action = _plan_sdd_companion_repo_action(project_root)
         if companion_action is not None:
             actions.append(companion_action)
+        migration_action = _plan_in_tree_sdd_migration_action(project_root)
+        if migration_action is not None:
+            actions.append(migration_action)
     generated_path = _sdd_init_generated_path(
         path,
         project_root,
@@ -252,16 +281,23 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     companion_actions = [
         action for action in actions if _is_companion_repo_action(action)
     ]
+    migration_actions = [
+        action for action in actions if _is_in_tree_sdd_migration_action(action)
+    ]
     generated_actions = [
         action
         for action in actions
-        if action.path.name != "sase.yml" and not _is_companion_repo_action(action)
+        if action.path.name != "sase.yml"
+        and not _is_companion_repo_action(action)
+        and not _is_in_tree_sdd_migration_action(action)
     ]
     summaries: list[str] = []
     if config_actions:
         summaries.append(_summarize_sdd_config_action(config_actions[0]))
     if companion_actions:
         summaries.append("create or connect GitHub companion SDD repository")
+    if migration_actions:
+        summaries.append("migrate existing in-tree SDD artifacts")
     if generated_actions:
         summaries.append(_summarize_generated_sdd_actions(generated_actions))
     if not summaries:
@@ -355,22 +391,46 @@ def _plan_sdd_companion_repo_action(project_root: Path) -> InitAction | None:
     record = read_sdd_store_record(primary)
     if record is not None and record.discovery != "not_found":
         return None
-    target = record.repo if record is not None and record.repo else None
-    detail = (
-        f"create or connect GitHub companion repository {target}"
-        if target
-        else "create or connect the GitHub companion SDD repository"
-    )
     return InitAction(
         path=project_root / ".sase" / "sdd",
         operation="create",
-        detail=detail,
+        detail="create or connect the GitHub companion SDD repository",
+    )
+
+
+def _plan_in_tree_sdd_migration_action(project_root: Path) -> InitAction | None:
+    if not _should_migrate_in_tree_sdd_on_init(project_root):
+        return None
+    return InitAction(
+        path=project_root / ".sase" / "sdd",
+        operation="update",
+        detail="migrate existing in-tree SDD artifacts into companion repository",
     )
 
 
 def _is_companion_repo_action(action: InitAction) -> bool:
     detail = action.detail.casefold()
-    return "companion" in detail and "repository" in detail
+    return detail.startswith("create or connect") and "companion" in detail
+
+
+def _is_in_tree_sdd_migration_action(action: InitAction) -> bool:
+    return "migrate existing in-tree sdd artifacts" in action.detail.casefold()
+
+
+def _has_existing_in_tree_sdd_artifacts(project_root: Path) -> bool:
+    source = project_root / "sdd"
+    if not source.is_dir():
+        return False
+    try:
+        return any(item.name != ".git" for item in source.iterdir())
+    except OSError:
+        return False
+
+
+def _should_migrate_in_tree_sdd_on_init(project_root: Path) -> bool:
+    if _configured_project_sdd_storage(project_root) == "separate_repo":
+        return False
+    return _has_existing_in_tree_sdd_artifacts(project_root)
 
 
 def _delete_negative_sdd_record(project_root: Path) -> None:

@@ -86,6 +86,10 @@ def test_materialize_sdd_store_fake_provider_writes_record_and_bootstraps(
     assert record.repo == "owner/repo-sdd"
     assert (store.sdd_dir / "README.md").exists()
     assert (store.sdd_dir / "beads").is_dir()
+    gitignore = (store.sdd_dir / ".gitignore").read_text(encoding="utf-8")
+    assert "beads/beads.db\n" in gitignore
+    assert "beads/beads.db-shm\n" in gitignore
+    assert "beads/beads.db-wal\n" in gitignore
     assert committed and committed[0][0] == "Initialize SDD store"
 
 

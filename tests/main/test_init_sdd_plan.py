@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -171,6 +172,70 @@ def test_sdd_run_github_policy_default_creates_separate_repo(
     assert not (tmp_path / "sdd" / "README.md").exists()
 
 
+def test_sdd_run_separate_repo_migrates_existing_in_tree_sdd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    _write_enabled_config(tmp_path)
+    source = tmp_path / "sdd" / "research"
+    source.mkdir(parents=True)
+    (source / "note.md").write_text("notes\n", encoding="utf-8")
+    local = tmp_path / ".sase" / "sdd" / "research"
+    local.mkdir(parents=True)
+    (local / "local-only.md").write_text("local\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.main.sdd_handler._project_provider_sdd_policy",
+        lambda project_root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.load_merged_config",
+        lambda: {"sdd": {"version_controlled": True}},
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.create_sdd_remote",
+        lambda *_args, **_kwargs: {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": "acme/widget--sdd",
+            "remote_url": "git@github.com:acme/widget--sdd.git",
+            "discovery": "found",
+        },
+    )
+
+    def fake_run_git(
+        args: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args,
+            1 if args == ["config", "--get", "remote.origin.url"] else 0,
+            "",
+            "",
+        )
+
+    monkeypatch.setattr("sase.sdd.migrate.run_sdd_git", fake_run_git)
+    monkeypatch.setattr("sase.sdd.migrate._push_with_upstream", lambda _repo: True)
+    monkeypatch.setattr(
+        "sase.sdd.migrate._ensure_bead_store_initialized", lambda _sdd_dir: []
+    )
+    monkeypatch.setattr(
+        "sase.sdd._commit.commit_sdd_store_files",
+        lambda *_args, **_kwargs: True,
+    )
+
+    assert run_sdd_init(_args(tmp_path)) == 0
+
+    migrated = tmp_path / ".sase" / "sdd" / "research"
+    assert (migrated / "note.md").read_text(encoding="utf-8") == "notes\n"
+    assert (migrated / "local-only.md").read_text(encoding="utf-8") == "local\n"
+    assert (tmp_path / "sdd" / "research" / "note.md").exists()
+    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == (
+        "sdd:\n  storage: separate_repo\n"
+    )
+
+
 def test_sdd_run_bare_git_policy_keeps_legacy_in_tree_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -299,13 +364,15 @@ def test_sdd_plan_existing_separate_repo_config_checks_dot_sase_sdd(
     )
     sdd_root = tmp_path / ".sase" / "sdd"
     write_sdd_readme(str(sdd_root))
+    leftover = tmp_path / "sdd" / "research"
+    leftover.mkdir(parents=True)
+    (leftover / "note.md").write_text("leftover\n", encoding="utf-8")
 
     plan = plan_sdd_init(_args(tmp_path))
 
     assert plan.actions == ()
     assert plan.has_changes is False
     assert "current" in plan.summary
-    assert not (tmp_path / "sdd").exists()
 
 
 def test_sdd_plan_github_policy_reports_companion_repo_action(
@@ -329,6 +396,33 @@ def test_sdd_plan_github_policy_reports_companion_repo_action(
         for action in plan.actions
     )
     assert "companion SDD repository" in plan.summary
+
+
+def test_sdd_plan_stale_negative_store_record_uses_generic_companion_action(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    monkeypatch.setattr(
+        "sase.main.sdd_handler._project_provider_sdd_policy",
+        lambda project_root: "separate_repo",
+    )
+    _write_sdd_store_record(
+        tmp_path,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "acme/sdd",
+            "remote_url": "git@github.com:acme/sdd.git",
+            "discovery": "not_found",
+        },
+    )
+
+    plan = plan_sdd_init(_args(tmp_path))
+
+    details = [action.detail for action in plan.actions]
+    assert any("companion SDD repository" in detail for detail in details)
+    assert all("acme/sdd" not in detail for detail in details)
 
 
 def test_sdd_init_registry_includes_sdd_planner() -> None:

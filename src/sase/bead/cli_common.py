@@ -320,9 +320,9 @@ def init_beads(root: Path, beads_dirname: str) -> None:
                 capture_output=True,
                 stdin=subprocess.DEVNULL,
             )
-        gitignore = root / ".gitignore"
-        if not gitignore.exists():
-            gitignore.write_text("beads/beads.db\n", encoding="utf-8")
+        from sase.sdd._bead_ignore import ensure_bead_store_gitignore
+
+        ensure_bead_store_gitignore(root)
     with BeadProject.init(root, beads_dirname=beads_dirname):
         pass
     if beads_dirname == BEADS_DIRNAME_NON_VC:

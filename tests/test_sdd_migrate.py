@@ -9,7 +9,11 @@ from typing import Any
 
 import pytest
 
-from sase.sdd.migrate import SddMigrationError, migrate_sdd_to_separate_repo
+from sase.sdd.migrate import (
+    SddMigrationError,
+    _ensure_bead_store_initialized,
+    migrate_sdd_to_separate_repo,
+)
 from sase.sdd.store import _record_cache
 
 
@@ -315,3 +319,35 @@ def test_migrate_without_existing_remote_points_at_create(
 
     with pytest.raises(SddMigrationError, match="--create"):
         migrate_sdd_to_separate_repo(tmp_path)
+
+
+def test_migrate_bead_gitignore_amends_sqlite_sidecars(tmp_path: Path) -> None:
+    sdd_dir = tmp_path / ".sase" / "sdd"
+    beads_dir = sdd_dir / "beads"
+    beads_dir.mkdir(parents=True)
+    _git(sdd_dir, "init", "-q")
+    (sdd_dir / ".gitignore").write_text("beads/beads.db\n", encoding="utf-8")
+
+    changed = _ensure_bead_store_initialized(sdd_dir)
+
+    text = (sdd_dir / ".gitignore").read_text(encoding="utf-8")
+    assert "beads/beads.db\n" in text
+    assert "beads/beads.db-shm\n" in text
+    assert "beads/beads.db-wal\n" in text
+    assert changed == [sdd_dir / ".gitignore"]
+    for name in ("beads.db", "beads.db-shm", "beads.db-wal"):
+        (beads_dir / name).write_text("", encoding="utf-8")
+    result = subprocess.run(
+        [
+            "git",
+            "check-ignore",
+            "beads/beads.db",
+            "beads/beads.db-shm",
+            "beads/beads.db-wal",
+        ],
+        cwd=sdd_dir,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
