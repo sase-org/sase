@@ -41,6 +41,14 @@ def _is_auto_xprompt_menu_character(character: str | None) -> bool:
     )
 
 
+def _resolve_g_prefix_second_key(event: Key) -> str:
+    """Return the canonical key used to dispatch a prompt ``g`` continuation."""
+    character = event.character
+    if character and len(character) == 1 and character.isprintable():
+        return character
+    return event.key
+
+
 class PromptTextAreaKeyHandlingMixin(_MixinBase):
     """PromptTextArea key handling kept separate from widget construction."""
 
@@ -412,7 +420,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._clear_insert_g_prefix()
             return True
 
-        key = event.key if event.key == "enter" else event.character or event.key
+        key = _resolve_g_prefix_second_key(event)
         if key == "g" or event.key == "ctrl+g":
             self._clear_insert_g_prefix()
             self.action_open_editor()
@@ -453,7 +461,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._clear_normal_g_prefix()
             return True
 
-        key = event.key if event.key == "enter" else event.character or event.key
+        key = _resolve_g_prefix_second_key(event)
         if key == "g" or event.key == "ctrl+g":
             self._clear_normal_g_prefix()
             self.action_open_editor()

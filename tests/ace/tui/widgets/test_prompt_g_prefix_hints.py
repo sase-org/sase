@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.events import Key
 from textual.widgets import Static
 
+from sase.ace.tui.widgets._prompt_text_area_key_handling import (
+    _resolve_g_prefix_second_key,
+)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
@@ -27,6 +31,7 @@ class _GPrefixHintApp(App[None]):
         self._mode = mode
         self._stash_exists = stash_exists
         self._pinned_exists = pinned_exists
+        self.cancelled: list[PromptInputBar.Cancelled] = []
         self.stashed: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
         self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
@@ -63,6 +68,9 @@ class _GPrefixHintApp(App[None]):
     ) -> None:
         self.save_xprompt_requests.append(event)
 
+    def on_prompt_input_bar_cancelled(self, event: PromptInputBar.Cancelled) -> None:
+        self.cancelled.append(event)
+
 
 def _entry_pairs(
     bar: PromptInputBar, *, via_ctrl_g: bool = False
@@ -75,6 +83,14 @@ def _entry_pairs(
 
 def _hint_panel(bar: PromptInputBar) -> Static:
     return bar.query_one("#prompt-g-prefix-hints", Static)
+
+
+def test_resolve_g_prefix_second_key_uses_printable_characters_only() -> None:
+    assert _resolve_g_prefix_second_key(Key("ctrl+c", "\x03")) == "ctrl+c"
+    assert _resolve_g_prefix_second_key(Key("enter", "\r")) == "enter"
+    assert _resolve_g_prefix_second_key(Key("minus", "-")) == "-"
+    assert _resolve_g_prefix_second_key(Key("equals_sign", "=")) == "="
+    assert _resolve_g_prefix_second_key(Key("j", "j")) == "j"
 
 
 # --- context-aware hint entries --------------------------------------------
@@ -325,6 +341,64 @@ async def test_normal_ctrl_g_continuation_dispatches_in_normal_mode(
         assert bar._g_prefix_hints_visible is False
         assert bar.active_text_area()._normal_g_prefix_pending is False
         assert bar.active_text_area()._vim_mode == "normal"
+
+
+async def test_real_terminal_ctrl_g_ctrl_c_cancels_all_from_insert() -> None:
+    app = _GPrefixHintApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        text_area = bar.active_text_area()
+
+        assert text_area._insert_g_prefix_pending is True
+        assert not panel.has_class("hidden")
+
+        assert text_area._handle_insert_g_prefix_key(Key("ctrl+c", "\x03")) is True
+        await pilot.pause()
+
+        assert len(app.cancelled) == 1
+        event = app.cancelled[0]
+        assert event.cancelled_text == "first\n---\nsecond"
+        assert event.keep_bar is False
+        assert event.record_segments is False
+        assert panel.has_class("hidden")
+        assert bar._g_prefix_hints_visible is False
+        assert text_area._insert_g_prefix_pending is False
+
+
+async def test_real_terminal_ctrl_g_ctrl_c_cancels_all_from_normal() -> None:
+    app = _GPrefixHintApp("first\n---\nsecond")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = _hint_panel(bar)
+
+        await pilot.press("escape", "ctrl+g")
+        await pilot.pause()
+        text_area = bar.active_text_area()
+
+        assert text_area._vim_mode == "normal"
+        assert text_area._normal_g_prefix_pending is True
+        assert not panel.has_class("hidden")
+
+        assert text_area._handle_normal_g_prefix_key(Key("ctrl+c", "\x03")) is True
+        await pilot.pause()
+
+        assert len(app.cancelled) == 1
+        event = app.cancelled[0]
+        assert event.cancelled_text == "first\n---\nsecond"
+        assert event.keep_bar is False
+        assert event.record_segments is False
+        assert panel.has_class("hidden")
+        assert bar._g_prefix_hints_visible is False
+        assert text_area._normal_g_prefix_pending is False
+        assert text_area._vim_mode == "normal"
 
 
 async def test_normal_ctrl_g_escape_cancels_prefix_and_stays_normal_mode() -> None:
