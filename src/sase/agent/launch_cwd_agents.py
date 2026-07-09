@@ -87,7 +87,7 @@ def launch_agents_from_cwd_impl(
     assert project_name is not None
 
     # --- Multi-prompt detection ---
-    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts_with_metadata
+    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
     from sase.agent.multi_prompt import parse_multi_prompt
     from sase.xprompt._parsing import (
         normalize_default_vcs_workflow,
@@ -112,11 +112,11 @@ def launch_agents_from_cwd_impl(
         expanded_segments: list[str] = []
         expanded_segment_extra_env = []
         # Share one invocation counter across the per-segment calls so two
-        # invocations of the same multi-agent xprompt get distinct template
+        # invocations of the same xprompt swarm get distinct template
         # groups, exactly as the single-call branch below allocates them.
         xprompt_group_counter = count()
         for segment, env in zip(multi.segments, segment_extra_env, strict=True):
-            segment_expansions = expand_multi_agent_xprompts_with_metadata(
+            segment_expansions = expand_xprompt_swarms_with_metadata(
                 [segment],
                 multi.local_xprompts,
                 group_counter=xprompt_group_counter,
@@ -127,7 +127,7 @@ def launch_agents_from_cwd_impl(
                 record.template_group for record in segment_expansions
             )
     else:
-        expanded_records = expand_multi_agent_xprompts_with_metadata(
+        expanded_records = expand_xprompt_swarms_with_metadata(
             multi.segments, multi.local_xprompts
         )
         expanded_segments = [record.prompt for record in expanded_records]

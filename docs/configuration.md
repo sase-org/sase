@@ -1511,8 +1511,8 @@ With no subcommand, `sase xprompt` defaults to `sase xprompt list`.
 
 No flags. Outputs a JSON array of all available xprompts with name, type, source, inputs, tags, `is_skill`, and preview.
 Clients that insert references should prefer `kind`/`insertion` metadata when present so standalone workflows are
-inserted as `#!name` and inline-capable entries, including markdown multi-agent xprompts, are inserted as `#name`. Slash
-skill completion clients should filter to entries where `is_skill` is `true`.
+inserted as `#!name` and inline-capable entries, including markdown xprompt swarms, are inserted as `#name`. Slash skill
+completion clients should filter to entries where `is_skill` is `true`.
 
 ### `sase xprompt graph`
 

@@ -12,9 +12,7 @@ def xp(name: str, content: str, *, inputs: list[InputArg] | None = None) -> XPro
 
 def patch_catalog(catalog: dict[str, XPrompt]):
     """Patch ``get_all_xprompts`` in both the helper and the inline expander."""
-    return patch(
-        "sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog
-    )
+    return patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog)
 
 
 def patch_vcs_patterns():

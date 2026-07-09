@@ -190,20 +190,20 @@ def test_is_multi_prompt_false_separator_in_code_block() -> None:
     assert is_multi_prompt(text) is False
 
 
-# --- multi-agent xprompt smoke check ---
+# --- xprompt swarm smoke check ---
 
 
-def test_non_multi_agent_xprompt_segment_passes_through() -> None:
+def test_non_xprompt_swarm_segment_passes_through() -> None:
     """A segment that references a single-segment xprompt is left unchanged
-    by ``expand_multi_agent_xprompts``."""
+    by ``expand_xprompt_swarms``."""
     from unittest.mock import patch
 
-    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts_with_metadata
+    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
     from sase.xprompt.models import XPrompt
 
     catalog = {"plain": XPrompt(name="plain", content="just one body")}
-    with patch("sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog):
-        out = expand_multi_agent_xprompts_with_metadata(["#plain"])
+    with patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog):
+        out = expand_xprompt_swarms_with_metadata(["#plain"])
         assert [segment.prompt for segment in out] == ["#plain"]
 
 

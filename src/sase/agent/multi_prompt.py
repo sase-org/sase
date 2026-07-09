@@ -32,7 +32,7 @@ def split_segments_protecting_fences(body: str) -> list[str]:
 
     Empty/whitespace-only segments are dropped.  Used both by
     :func:`parse_multi_prompt` (to split user-submitted prompts) and by
-    :mod:`sase.agent.multi_agent_xprompt` (to split a multi-agent xprompt body
+    :mod:`sase.agent.xprompt_swarm` (to split an xprompt swarm body
     after argument substitution).
     """
     from sase.core.agent_launch_facade import plan_agent_launch_fanout

@@ -14,7 +14,7 @@ There are two related paths to keep separate:
 
 ```text
 launch setup:
-  multi-agent xprompt fan-out check
+  xprompt swarm fan-out check
   -> default workspace ref insertion when needed (#git:home)
   -> project name/alias canonicalization (#gh:bob -> #gh_bbugyi200__bob)
   -> workspace ref resolution (#cd/#git/#gh/#hg and known-project fallbacks)
@@ -56,7 +56,7 @@ version of this model; the text model above is the authoritative current referen
 - [XPrompt Aliases](#xprompt-aliases)
 - [Recursive Expansion](#recursive-expansion)
 - [Multi-Agent Prompts](#multi-agent-prompts)
-  - [Multi-Agent XPrompts (Library-Defined Fan-Out)](#multi-agent-xprompts-library-defined-fan-out)
+  - [Xprompt Swarms (Library-Defined Fan-Out)](#xprompt-swarms-library-defined-fan-out)
 - [Relationship to Workflows](#relationship-to-workflows)
 
 ## CLI Subcommands
@@ -96,7 +96,7 @@ sase xprompt explain my_workflow --arg key=value    # With named args
 Lists all available xprompts and workflows as a JSON array. Each entry includes the name, type (`"xprompt"` or
 `"workflow"`), kind, reference prefix, insertion text, `is_skill`, source file path, user-facing input definitions,
 tags, and a content preview. Clients should treat `insertion` as the authoritative reference text. Most `xprompt` and
-`embeddable_workflow` entries insert as `#name`, including markdown multi-agent xprompts; standalone workflows insert as
+`embeddable_workflow` entries insert as `#name`, including markdown xprompt swarms; standalone workflows insert as
 `#!name`. `is_skill` is `true` only for xprompt catalog entries marked as skills; workflows report `false`. Step inputs
 are omitted from the JSON `inputs` array because they are supplied by workflow execution rather than typed by a user.
 
@@ -251,10 +251,10 @@ workflow-local xprompts follow the workflow rules described in [workflow_spec.md
 
 ## Reference Syntax
 
-Reference inline-capable xprompts inside any prompt with the `#` prefix, including markdown-defined multi-agent xprompts
-whose body contains top-level `---` segment separators. Use `#!` only for standalone YAML workflows that do not have a
+Reference inline-capable xprompts inside any prompt with the `#` prefix, including markdown-defined xprompt swarms whose
+body contains top-level `---` segment separators. Use `#!` only for standalone YAML workflows that do not have a
 `prompt_part` step. The marker must appear at the start of the string, after whitespace, or after one of `([{"'`. For
-compatibility, `#!name` is still accepted for multi-agent xprompts, but new prompts should use `#name`.
+compatibility, `#!name` is still accepted for xprompt swarms, but new prompts should use `#name`.
 
 | Syntax                        | Description                                                    |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -1626,8 +1626,8 @@ iterations (to guard against circular references).
 
 A single prompt can launch multiple agents by using YAML frontmatter and `---` segment separators. SASE plans the
 segments in document order, but agents do not wait for earlier segments unless you add a dependency such as
-`%wait:<name>` or bare `%wait`. The same `---`-separator convention also applies inside an xprompt body — see
-[Multi-Agent XPrompts (Library-Defined Fan-Out)](#multi-agent-xprompts-library-defined-fan-out) below.
+`%wait:<name>` or bare `%wait`. The same `---`-separator convention also applies inside an xprompt body -- see
+[Xprompt Swarms (Library-Defined Fan-Out)](#xprompt-swarms-library-defined-fan-out) below.
 
 ### Frontmatter Panel (ACE TUI)
 
@@ -1778,13 +1778,13 @@ Implement the plan at {{ agents["planner--plan"].plan_file }}.
 sets are preserved alongside it.
 
 ACE renders loaded literal `---` multi-agent prompts as a prompt stack: each top-level segment becomes an editable pane,
-while prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#name`
-multi-agent xprompt invocation remains a single pane until launch. During live editing, typed `---` lines are ordinary
-prompt text; add panes explicitly from the prompt-stack controls. Stash restore and marked-agent kill-and-edit can also
-seed multiple panes, but those paths preserve each selected draft or agent prompt as one pane. Use `Enter` to choose how
-to submit stacked panes, `g<enter>` to launch the selected pane directly, or `Ctrl+S` to stash the active pane. Inside
-the `Enter` submit chooser, `a` or `Ctrl+S` submits all panes top-to-bottom. See the
-[ACE prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and the default active-pane behavior.
+while prompt-level frontmatter and fenced-code separators keep the same parsing rules described below. A `#name` xprompt
+swarm invocation remains a single pane until launch. During live editing, typed `---` lines are ordinary prompt text;
+add panes explicitly from the prompt-stack controls. Stash restore and marked-agent kill-and-edit can also seed multiple
+panes, but those paths preserve each selected draft or agent prompt as one pane. Use `Enter` to choose how to submit
+stacked panes, `g<enter>` to launch the selected pane directly, or `Ctrl+S` to stash the active pane. Inside the `Enter`
+submit chooser, `a` or `Ctrl+S` submits all panes top-to-bottom. See the [ACE prompt-stack guide](ace.md#prompt-stacks)
+for the editing keybindings and the default active-pane behavior.
 
 ### Rules
 
@@ -1796,13 +1796,13 @@ the `Enter` submit chooser, `a` or `Ctrl+S` submits all panes top-to-bottom. See
 - When a multi-agent prompt is saved to prompt history, each individual segment is also saved as a separate entry. This
   allows segments to appear independently in the prompt history picker for reuse.
 
-### Multi-Agent XPrompts (Library-Defined Fan-Out)
+### Xprompt Swarms (Library-Defined Fan-Out)
 
-An xprompt itself can be a "multi-agent xprompt": its body contains `---` separators (outside fenced blocks), and
-referencing it as the sole content of a user-prompt segment fans the call out into one agent per body segment. The
-spawned agents share the same input arguments — each segment is rendered with the same `(args)` substituted in. The
-catalog, TUI picker, and completion UI display markdown-defined fan-out xprompts with the inline marker (`#name`). The
-older `#!name` form is still recognized for multi-agent xprompts for compatibility, but new prompts should use `#name`.
+An xprompt itself can be an xprompt swarm: its body contains `---` separators (outside fenced blocks), and referencing
+it as the sole content of a user-prompt segment fans the call out into one agent per body segment. The spawned agents
+share the same input arguments -- each segment is rendered with the same `(args)` substituted in. The catalog, TUI
+picker, and completion UI display markdown-defined xprompt swarms with the inline marker (`#name`). The older `#!name`
+form is still recognized for xprompt swarms for compatibility, but new prompts should use `#name`.
 
 ```
 # xprompts/three_phase.md
@@ -1828,14 +1828,14 @@ Invoking it:
 sase run '#three_phase(login)'
 ```
 
-…dispatches three agents (`plan`, `code`, `review`), each receiving `target=login`. The `%wait` directives chain them
+...dispatches three agents (`plan`, `code`, `review`), each receiving `target=login`. The `%wait` directives chain them
 sequentially; without `%wait` they would run in parallel.
 
-Detection happens at dispatch time (after standard `parse_multi_prompt`), in `src/sase/agent/multi_agent_xprompt.py`,
-and applies at every dispatch site (`sase run`, the TUI agent launcher, the query handler).
+Detection happens at dispatch time (after standard `parse_multi_prompt`), in `src/sase/agent/xprompt_swarm.py`, and
+applies at every dispatch site (`sase run`, the TUI agent launcher, the query handler).
 
-Multi-agent xprompts can also be embedded inside a larger prompt. In that case, the first rendered body segment is
-embedded at the reference location and the remaining rendered body segments become follow-up agent prompts:
+Xprompt swarms can also be embedded inside a larger prompt. In that case, the first rendered body segment is embedded at
+the reference location and the remaining rendered body segments become follow-up agent prompts:
 
 ```bash
 sase run '#gh:sase Review this first: #three_phase(login)'
@@ -1849,17 +1849,17 @@ the first generated segment and prefixes `#gh:sase` onto follow-ups.
 
 #### Rules and Limitations
 
-- A sole multi-agent reference replaces the whole segment with its generated segments. An embedded multi-agent reference
-  replaces only that reference with the first generated segment, then appends the remaining generated segments as
-  follow-ups.
-- A user-prompt segment can contain multiple multi-agent xprompt references. They expand fully in document order. Text
-  before the first reference attaches to the first generated segment only; text between references and after the last
-  reference is discarded.
-- Ordinary inline xprompt references inside a multi-agent xprompt body remain inline xprompt references; the agent
-  runner expands them later as normal prompt text.
+- A sole xprompt swarm reference replaces the whole segment with its generated segments. An embedded xprompt swarm
+  reference replaces only that reference with the first generated segment, then appends the remaining generated segments
+  as follow-ups.
+- A user-prompt segment can contain multiple xprompt swarm references. They expand fully in document order. Text before
+  the first reference attaches to the first generated segment only; text between references and after the last reference
+  is discarded.
+- Ordinary inline xprompt references inside an xprompt swarm body remain inline xprompt references; the agent runner
+  expands them later as normal prompt text.
 - `---` inside fenced code blocks in the xprompt body is not treated as a separator.
-- Recursive fan-out (a multi-agent xprompt body whose own segments reference more multi-agent xprompts) is bounded by a
-  depth cap and will raise if exceeded.
+- Recursive fan-out (an xprompt swarm body whose own segments reference more xprompt swarms) is bounded by a depth cap
+  and will raise if exceeded.
 
 ## Relationship to Workflows
 
@@ -1867,7 +1867,7 @@ XPrompts and [workflows](workflow_spec.md) share the same argument grammar, but 
 reference is allowed to participate in a prompt:
 
 - `#name(args)` expands inline-capable xprompts and workflows with a `prompt_part` step, including markdown-defined
-  multi-agent xprompts that fan out into multiple prompt segments.
+  xprompt swarms that fan out into multiple prompt segments.
 - `#!name(args)` launches standalone YAML workflows that have no `prompt_part` step.
 
 Simple markdown xprompts are converted internally to single-step workflows with a `prompt_part` step, so they remain

@@ -345,8 +345,8 @@ async def test_load_stack_from_text_plain_prompt_hides_frontmatter_panel() -> No
         assert panel.has_class("hidden")
 
 
-async def test_load_multi_agent_xprompt_invocation_stays_single_pane() -> None:
-    """A multi-agent xprompt invocation has no literal ``---`` separators.
+async def test_load_xprompt_swarm_invocation_stays_single_pane() -> None:
+    """An xprompt swarm invocation has no literal ``---`` separators.
 
     Loading it from history must keep it as the authored single-pane invocation
     (the runner expands it into agents later), not split it into stacked panes.

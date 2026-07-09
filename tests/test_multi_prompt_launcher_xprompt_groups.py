@@ -29,7 +29,7 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
     mock_spawn: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """The cwd launch path resolves template refs after multi-agent xprompt expansion."""
+    """The cwd launch path resolves template refs after xprompt swarm expansion."""
     from sase.agent.launcher import launch_agents_from_cwd
 
     mock_spawn.side_effect = spawn_result_with_planned_name
@@ -42,7 +42,7 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -86,7 +86,7 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Template names from one multi-agent xprompt invocation share a namespace."""
+    """Template names from one xprompt swarm invocation share a namespace."""
     from sase.agent.launcher import launch_agents_from_cwd
     from sase.agent.names import _registry
 
@@ -120,7 +120,7 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,
@@ -174,7 +174,7 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
 
     with (
         patch.object(Path, "home", return_value=tmp_path),
-        patch("sase.agent.multi_agent_xprompt.get_all_xprompts", return_value=catalog),
+        patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog),
         patch(
             "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
             return_value=None,

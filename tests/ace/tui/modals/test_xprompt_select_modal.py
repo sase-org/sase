@@ -51,7 +51,7 @@ def _simple_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
 
 
-def _multi_agent_xprompt_workflow(name: str) -> Workflow:
+def _xprompt_swarm_workflow(name: str) -> Workflow:
     return Workflow(
         name=name,
         steps=[WorkflowStep(name="prompt", prompt_part="one\n---\ntwo")],
@@ -73,7 +73,7 @@ def _source_workflow(name: str, source_path: str | None) -> Workflow:
 def test_xprompt_select_returns_suffix_for_existing_hash_trigger() -> None:
     prompts = {
         "commit": _simple_workflow("commit"),
-        "multi": _multi_agent_xprompt_workflow("multi"),
+        "multi": _xprompt_swarm_workflow("multi"),
         "sync": _standalone_workflow("sync"),
     }
     with patch(

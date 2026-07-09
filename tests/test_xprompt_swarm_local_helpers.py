@@ -4,18 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts_with_metadata
+from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
 from sase.xprompt.loader import load_xprompt_from_file
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.processor import process_xprompt_references_with_catalog
 
-from tests._multi_agent_xprompt_helpers import patch_catalog, xp
+from tests._xprompt_swarm_helpers import patch_catalog, xp
 
 
-def expand_multi_agent_xprompts(segments: list[str], **kwargs) -> list[str]:
+def expand_xprompt_swarms(segments: list[str], **kwargs) -> list[str]:
     return [
         segment.prompt
-        for segment in expand_multi_agent_xprompts_with_metadata(segments, **kwargs)
+        for segment in expand_xprompt_swarms_with_metadata(segments, **kwargs)
     ]
 
 
@@ -44,7 +44,7 @@ def test_expand_local_xprompts_resolve() -> None:
         "_local_three": xp("_local_three", "alpha\n---\nbeta\n---\ngamma"),
     }
     with patch_catalog({}):  # No global xprompts
-        out = expand_multi_agent_xprompts(["#!_local_three"], local_xprompts=local)
+        out = expand_xprompt_swarms(["#!_local_three"], local_xprompts=local)
     assert out == ["alpha", "beta", "gamma"]
 
 
@@ -53,7 +53,7 @@ def test_expand_local_xprompts_bare_reference() -> None:
         "_local_three": xp("_local_three", "alpha\n---\nbeta\n---\ngamma"),
     }
     with patch_catalog({}):
-        out = expand_multi_agent_xprompts(["#_local_three"], local_xprompts=local)
+        out = expand_xprompt_swarms(["#_local_three"], local_xprompts=local)
     assert out == ["alpha", "beta", "gamma"]
 
 
@@ -78,7 +78,7 @@ def test_markdown_xprompt_local_helper_expands_without_global_leak() -> None:
     assert "_helper" not in catalog
 
 
-def test_multi_agent_xprompt_expands_local_helpers_before_splitting() -> None:
+def test_xprompt_swarm_expands_local_helpers_before_splitting() -> None:
     catalog = {
         "reads": XPrompt(
             name="reads",
@@ -93,7 +93,7 @@ def test_multi_agent_xprompt_expands_local_helpers_before_splitting() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#reads(episodic memory)"])
+        out = expand_xprompt_swarms(["#reads(episodic memory)"])
 
     assert out == [
         "%name:a\nFind long articles about episodic memory.",
@@ -119,7 +119,7 @@ def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
     assert reference_query.default.rstrip() == DEFAULT_READS_REFERENCE_QUERY
 
     with patch_catalog({"reads": reads}):
-        out = expand_multi_agent_xprompts(["#reads(episodic agent memory)"])
+        out = expand_xprompt_swarms(["#reads(episodic agent memory)"])
 
     assert len(out) == 4
     assert all("#_article_search_agent" not in segment for segment in out)
@@ -159,7 +159,7 @@ def test_multi_agent_local_helper_separators_split_with_owner() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#outer(episodic memory)"])
+        out = expand_xprompt_swarms(["#outer(episodic memory)"])
 
     assert out == [
         "first episodic memory",

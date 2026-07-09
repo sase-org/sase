@@ -191,12 +191,12 @@ The hierarchy runs from tiny to large:
 | Structured config xprompt         | `sase.yml` with `content`, `description`, `input`                                     | Small templates with typed inputs.                                                                                                                  |
 | Markdown xprompt                  | `.xprompts/`, `xprompts/`, `~/.xprompts/`, project config dirs, plugins, or built-ins | Normal reusable prompt bodies. This is the sweet spot.                                                                                              |
 | Markdown xprompt with frontmatter | Same as above                                                                         | Inputs, snippets, skill metadata, and local helper xprompts.                                                                                        |
-| Multi-agent markdown xprompt      | Markdown file with top-level `---` segment separators                                 | Fan-out or sequenced multi-agent work without needing a YAML workflow. Prefer this for most multi-agent work.                                       |
+| Xprompt swarm                     | Markdown file with top-level `---` segment separators                                 | Fan-out or sequenced multi-agent work without needing a YAML workflow. Prefer this for most multi-agent work.                                       |
 | YAML xprompt workflow             | `.yml` workflow file launched with `#!name` or embedded through a `prompt_part`       | Real control flow: `agent`, `bash`, `python`, `parallel`, approvals, step outputs, artifact passing. Use it only when the structure earns its keep. |
 
-My recommendation is simple: prefer markdown xprompts, including multi-agent markdown xprompts, until you genuinely need
-a YAML workflow. YAML workflows are powerful, but power is how a three-line prompt becomes a small enterprise
-resource-planning system wearing a fake mustache.
+My recommendation is simple: prefer markdown xprompts, including xprompt swarms, until you genuinely need a YAML
+workflow. YAML workflows are powerful, but power is how a three-line prompt becomes a small enterprise resource-planning
+system wearing a fake mustache.
 
 Cases where YAML workflows really are necessary:
 
@@ -206,8 +206,8 @@ Cases where YAML workflows really are necessary:
 - Research swarms, because they need fan-out, aggregation, and artifacts.
 - Bead epic/legend creation workflows, because they write SDD plans, initialize beads, and launch follow-up work.
 
-The key distinction: a multi-agent markdown xprompt is excellent when the structure is "run these prompt segments, maybe
-with `%wait` ordering." A YAML workflow is for "run code, branch, gather outputs, call agents, validate, and continue."
+The key distinction: an xprompt swarm is excellent when the structure is "run these prompt segments, maybe with `%wait`
+ordering." A YAML workflow is for "run code, branch, gather outputs, call agents, validate, and continue."
 
 ```text
 ---
@@ -229,7 +229,7 @@ Implement the approved safe change for {{ target }}.
 Review the diff and call out risks.
 ```
 
-That is a multi-agent markdown xprompt. It is readable. It does not need a workflow engine. It can sit happily in
+That is an xprompt swarm. It is readable. It does not need a workflow engine. It can sit happily in
 `xprompts/three_phase.md` until the day it needs Bash, Python, or step outputs.
 
 > **Friction note:** XPrompt discovery is intentionally flexible: repo-local, user-local, config-defined,

@@ -42,7 +42,7 @@ def launch_planned_bead_work_agents(
     (``#bd/work_phase_bead`` / ``#bd/land_epic`` / ``#bd/land_legend``) and never
     fans out.
 
-    This adapter skips the generic discovery -- multi-agent xprompt expansion,
+    This adapter skips the generic discovery -- xprompt swarm expansion,
     per-segment fan-out probing, and the CWD project re-parse -- by feeding
     :func:`launch_multi_prompt_agents` preplanned one-slot fan-out plans. Name
     collision safety is unchanged: the launcher still validates every explicit

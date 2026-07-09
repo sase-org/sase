@@ -86,7 +86,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         multi-agent surfaces — so it is a no-op elsewhere.  The non-empty panes
         are joined with ``\\n---\\n`` and handed to the app, which unmounts the
         bar and routes the joined text through the existing multi-prompt /
-        multi-agent xprompt launch rules.
+        xprompt swarm launch rules.
         """
         if self._mode != "prompt":
             return

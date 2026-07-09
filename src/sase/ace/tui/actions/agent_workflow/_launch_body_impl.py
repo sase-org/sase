@@ -128,11 +128,11 @@ def run_agent_launch_body(
     from sase.workspace_provider import get_ref_patterns
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 
-    # Detect multi-agent xprompts before injecting the default workspace
-    # ref; a multi-agent xprompt must still look like the sole top-level
+    # Detect xprompt swarms before injecting the default workspace
+    # ref; an xprompt swarm must still look like the sole top-level
     # reference in its segment.
-    from sase.agent.multi_agent_xprompt import (
-        expand_multi_agent_xprompts_with_metadata,
+    from sase.agent.xprompt_swarm import (
+        expand_xprompt_swarms_with_metadata,
     )
     from sase.agent.multi_prompt import parse_multi_prompt
 
@@ -145,8 +145,8 @@ def run_agent_launch_body(
         activate_known_project_vcs_refs_for_launch_prompt(
             "\n---\n".join(multi.segments)
         )
-    with timer.stage("multi_agent_xprompt_expand", segment_count=len(multi.segments)):
-        expanded_records = expand_multi_agent_xprompts_with_metadata(
+    with timer.stage("xprompt_swarm_expand", segment_count=len(multi.segments)):
+        expanded_records = expand_xprompt_swarms_with_metadata(
             multi.segments, multi.local_xprompts
         )
         multi.segments = [record.prompt for record in expanded_records]

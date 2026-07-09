@@ -151,12 +151,12 @@ Grounding against `src/sase/xprompt/processor.py` (`process_xprompt_references` 
    dispatch (`#cd`/`#git`/`#gh`/`#hg`)" would close the gap. Bonus accuracy: the implicit `#git:home` normalization for
    bare prompts is a real behavior worth mentioning, and it is exactly the kind of defaulting a new reader misses.
 9. **Multi-agent fan-out is "one-level split into agents", but recursive multi-agent fan-out is bounded, not
-   prohibited.** The doc says "Recursive fan-out (a multi-agent xprompt body whose own segments reference more
-   multi-agent xprompts) is bounded by a depth cap and will raise if exceeded." "One-level" is a small accuracy slip —
-   it is not strictly one level, just depth-capped.
+   prohibited.** The doc says "Recursive fan-out (an xprompt swarm body whose own segments reference more xprompt
+   swarms) is bounded by a depth cap and will raise if exceeded." "One-level" is a small accuracy slip — it is not
+   strictly one level, just depth-capped.
 10. **`#` / `#!` semantics need to stay current.** The `#!workflow` input card should stay limited to standalone YAML
-    workflows. Markdown-defined multi-agent xprompts use the normal `#name` marker and fan out at launch when their body
-    has top-level `---` separators.
+    workflows. Markdown-defined xprompt swarms use the normal `#name` marker and fan out at launch when their body has
+    top-level `---` separators.
 
 ## Concrete suggested changes for regeneration
 
@@ -185,7 +185,7 @@ For the next phase (`sase-2s.18 — Regenerate diagram: xprompt-resolution`):
    `docs/xprompt.md` reader-facing terminology, and reserve `prompt_part` for internal docs.
 10. **Visually demote the `Workflow graph` output card** (or annotate it `(via sase xprompt graph)`) so it does not read
     as a runtime peer of inline/standalone/fan-out outcomes.
-11. **Clarify the marker rows** to show `#name — inline xprompt / embeddable workflow / multi-agent xprompt` and
+11. **Clarify the marker rows** to show `#name — inline xprompt / embeddable workflow / xprompt swarm` and
     `#!name — standalone workflow` so the multi-agent fan-out output is tied to `#name`, not `#!name`.
 12. **Soften the `Multi-agent fan-out` output caption** from "one-level split into agents" to "fan-out into agent
     segments (depth-capped)" so it doesn't read as a hard one-level rule.

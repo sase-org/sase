@@ -153,7 +153,7 @@ def test_model_xprompts_ignores_explicit_provider_model_token(
 def test_model_xprompts_skips_multi_segment_agent_prompts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Multi-agent xprompts are not model presets, even with per-agent models."""
+    """Xprompt swarms are not model presets, even with per-agent models."""
     xprompts = {
         "m_codex": XPrompt(name="m_codex", content="%model:codex/gpt-5.5"),
         "research_swarm": XPrompt(

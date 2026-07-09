@@ -1765,9 +1765,9 @@ markdown syntax highlighting for prompt content (headings, bold, italic, code bl
 
 When loaded prompt text contains literal top-level `---` multi-agent separators, ACE renders the text as a prompt stack:
 one pane per agent segment. YAML frontmatter at the start stays prompt-level metadata, and `---` lines inside fenced
-code blocks are left alone. A `#name` multi-agent xprompt invocation stays a single pane and expands only when it is
-launched. During live editing, typed `---` lines stay literal text; add prompt panes with `g-` in prompt NORMAL mode.
-The detailed multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
+code blocks are left alone. A `#name` xprompt swarm invocation stays a single pane and expands only when it is launched.
+During live editing, typed `---` lines stay literal text; add prompt panes with `g-` in prompt NORMAL mode. The detailed
+multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent-prompts).
 
 ### INSERT Mode (Default)
 
@@ -2300,8 +2300,8 @@ Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker
 xprompts (including project-local xprompts from `sase.yml` files) and inserts the selected reference at the cursor
 position. Inline-capable xprompts and workflows insert as `#name`; standalone workflows insert as `#!name`. The picker
 uses the same argument-aware skeletons as xprompt completion, so typed inputs can be filled immediately after selection.
-Markdown multi-agent xprompts are inline-capable and insert as `#name`. This is separate from the `ace.snippets`
-mechanism — it provides quick access to xprompt references rather than expanding static templates.
+Markdown xprompt swarms are inline-capable and insert as `#name`. This is separate from the `ace.snippets` mechanism —
+it provides quick access to xprompt references rather than expanding static templates.
 
 ## Auto-Refresh
 

@@ -135,7 +135,7 @@ def test_launch_agents_from_cwd_unexpanded_xprompt_stays_single_agent(
     assert spawn.call_args.kwargs["prompt"] == "#stub_m Do work"
 
 
-def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_prompt(
+def test_launch_agents_from_cwd_xprompt_swarm_history_uses_submitted_prompt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -156,7 +156,7 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_promp
             return_value=(None, None, None),
         ),
         patch(
-            "sase.agent.multi_agent_xprompt.get_all_xprompts",
+            "sase.agent.xprompt_swarm.get_all_xprompts",
             return_value=catalog,
         ),
         patch(
@@ -174,7 +174,7 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_history_uses_submitted_promp
     assert all("Plan phase" not in entry.text for entry in entries)
 
 
-def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submitted_prompt(
+def test_launch_agents_from_cwd_xprompt_swarm_cancelled_history_uses_submitted_prompt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -200,7 +200,7 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submi
             return_value=(None, None, None),
         ),
         patch(
-            "sase.agent.multi_agent_xprompt.get_all_xprompts",
+            "sase.agent.xprompt_swarm.get_all_xprompts",
             return_value=catalog,
         ),
         patch("sase.agent.multi_prompt_launcher.launch_multi_prompt_agents") as launch,
@@ -215,7 +215,7 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_cancelled_history_uses_submi
     assert "Plan phase" not in entries[0].text
 
 
-def test_launch_agents_from_cwd_multi_agent_xprompt_failure_forces_cancelled_history(
+def test_launch_agents_from_cwd_xprompt_swarm_failure_forces_cancelled_history(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -235,7 +235,7 @@ def test_launch_agents_from_cwd_multi_agent_xprompt_failure_forces_cancelled_his
             return_value=(None, None, None),
         ),
         patch(
-            "sase.agent.multi_agent_xprompt.get_all_xprompts",
+            "sase.agent.xprompt_swarm.get_all_xprompts",
             return_value=catalog,
         ),
         patch(

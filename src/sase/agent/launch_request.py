@@ -244,7 +244,7 @@ def _normalize_request_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _build_preview_plan(prompt: str) -> tuple[str, Any]:
-    from sase.agent.multi_agent_xprompt import expand_multi_agent_xprompts_with_metadata
+    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
     from sase.agent.multi_prompt import parse_multi_prompt
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.xprompt._parsing import (
@@ -254,7 +254,7 @@ def _build_preview_plan(prompt: str) -> tuple[str, Any]:
 
     submitted = canonicalize_project_aliases_in_prompt(prompt)
     multi = parse_multi_prompt(submitted)
-    expanded_records = expand_multi_agent_xprompts_with_metadata(
+    expanded_records = expand_xprompt_swarms_with_metadata(
         multi.segments, multi.local_xprompts
     )
     expanded_segments = [record.prompt for record in expanded_records]

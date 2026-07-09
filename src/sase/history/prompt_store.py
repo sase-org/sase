@@ -494,7 +494,7 @@ def add_or_update_prompt(
             non-cancelled prompt will not be downgraded to cancelled.
         allow_short: If True, record the prompt even when it is shorter than
             the normal history threshold. This is used for replayable generated
-            fanout invocations such as a bare multi-agent xprompt trigger.
+            fanout invocations such as a bare xprompt swarm trigger.
         record_segments: If True, multi-prompts also record their individual
             long-enough segments. If False, only the exact prompt text passed by
             the caller is written.

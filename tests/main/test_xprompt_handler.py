@@ -17,7 +17,7 @@ def _simple_workflow(name: str) -> Workflow:
     return Workflow(name=name, steps=[WorkflowStep(name="prompt", prompt_part="body")])
 
 
-def _multi_agent_xprompt_workflow(name: str) -> Workflow:
+def _xprompt_swarm_workflow(name: str) -> Workflow:
     return Workflow(
         name=name,
         steps=[WorkflowStep(name="prompt", prompt_part="one\n---\ntwo")],
@@ -43,7 +43,7 @@ def test_xprompt_list_includes_kind_and_insertion(
 ) -> None:
     prompts = {
         "commit": _simple_workflow("commit"),
-        "multi": _multi_agent_xprompt_workflow("multi"),
+        "multi": _xprompt_swarm_workflow("multi"),
         "gh": _embeddable_workflow("gh"),
         "sync": _standalone_workflow("sync"),
     }

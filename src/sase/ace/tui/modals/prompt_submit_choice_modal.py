@@ -72,7 +72,7 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
 
     def _all_subtitle(self) -> str:
         noun = "prompt" if self._prompt_count == 1 else "prompts"
-        return f"Launch all {self._prompt_count} {noun} as one multi-agent xprompt."
+        return f"Launch all {self._prompt_count} {noun} as one xprompt swarm."
 
     @staticmethod
     def _render_choice(key: str, title: str, subtitle: str) -> str:

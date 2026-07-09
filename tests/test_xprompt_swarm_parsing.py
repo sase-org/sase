@@ -1,13 +1,13 @@
-"""Tests for multi-agent xprompt parsing helpers."""
+"""Tests for xprompt swarm parsing helpers."""
 
 from __future__ import annotations
 
-from sase.agent.multi_agent_xprompt import (
+from sase.agent.xprompt_swarm import (
     _extract_top_level_xprompt_reference,
     xprompt_has_segment_separators,
 )
 
-from tests._multi_agent_xprompt_helpers import patch_vcs_patterns, xp
+from tests._xprompt_swarm_helpers import patch_vcs_patterns, xp
 
 # --- xprompt_has_segment_separators ---
 

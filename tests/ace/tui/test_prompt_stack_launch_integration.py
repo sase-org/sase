@@ -8,7 +8,7 @@ single-pane text the widget hands to ``_finish_agent_launch`` flows through
 - A whole-stack (joined ``\\n---\\n``) submit routes to ``_launch_multi_prompt_agents``
   and saves the *combined* prompt to history (the per-segment reusable entries
   are added by ``add_or_update_prompt`` itself).
-- A multi-agent xprompt joined into the stack preserves the submitted
+- An xprompt swarm joined into the stack preserves the submitted
   invocation in history, never the generated child prompts.
 - A single-pane (``keep_bar``) submit launches only that pane's text, leaving
   the mounted bar's base prompt context intact, and a launch failure records
@@ -48,7 +48,7 @@ def test_whole_stack_submit_routes_manual_multi_prompt_to_multi_prompt_launch() 
         patch("sase.workspace_provider.get_ref_patterns", return_value={}),
         patch("sase.workspace_provider.get_workflow_names", return_value=set()),
         patch(
-            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts_with_metadata",
+            "sase.agent.xprompt_swarm.expand_xprompt_swarms_with_metadata",
             side_effect=_identity_expand,
         ),
         patch("sase.history.prompt.add_or_update_prompt") as save_history,
@@ -77,9 +77,9 @@ def test_whole_stack_submit_routes_manual_multi_prompt_to_multi_prompt_launch() 
     assert args[3] == joined
 
 
-def test_whole_stack_submit_with_multi_agent_xprompt_preserves_invocation() -> None:
+def test_whole_stack_submit_with_xprompt_swarm_preserves_invocation() -> None:
     app = _LaunchBodyApp()
-    # A stack whose first pane is a multi-agent xprompt invocation joined with a
+    # A stack whose first pane is an xprompt swarm invocation joined with a
     # plain second pane. The invocation expands into child segments, but history
     # must keep the authored invocation, not the generated children.
     joined = "#research_swarm\n---\nplain follow-up pane"
@@ -108,7 +108,7 @@ def test_whole_stack_submit_with_multi_agent_xprompt_preserves_invocation() -> N
         patch("sase.workspace_provider.get_ref_patterns", return_value={}),
         patch("sase.workspace_provider.get_workflow_names", return_value=set()),
         patch(
-            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts_with_metadata",
+            "sase.agent.xprompt_swarm.expand_xprompt_swarms_with_metadata",
             side_effect=_expand,
         ),
         patch("sase.history.prompt.add_or_update_prompt") as save_history,

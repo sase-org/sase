@@ -31,10 +31,11 @@ Workflow entries can have python/bash children as well as agent children. Agents
 more) agent child entries. Child entries are not visible by default; the `h` and `l` keymaps are used to hide and reveal
 them, respectively.
 
-**Multi-agent xprompt**  
-An xprompt whose body contains `---` segment separators (outside fenced blocks). Normal user prompts can also use `---`
-to create multi-agent prompts (i.e. prompts that result in the prompt being split in order to launch one agent for each
-part of the prompt).
+**Xprompt swarm**
+
+An xprompt whose body contains top-level `---` segment separators outside fenced blocks and fans out into one agent per
+segment at launch. Literal user prompts can also use `---`, but those are generic multi-agent prompts rather than
+xprompt swarms.
 
 **Root Agent/Workflow Entry**  
 Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.

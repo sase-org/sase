@@ -150,7 +150,7 @@ def test_run_agent_launch_body_forwards_local_xprompts_to_fanout_worker() -> Non
     assert local_xprompts["_flash"].content == "gemini-3-flash-preview"
 
 
-def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
+def test_run_agent_launch_body_xprompt_swarm_history_uses_input() -> None:
     app = _LaunchBodyApp()
     expanded_segments = ["Generated plan step", "Generated verify step"]
 
@@ -162,7 +162,7 @@ def test_run_agent_launch_body_multi_agent_xprompt_history_uses_input() -> None:
         patch("sase.workspace_provider.get_ref_patterns", return_value={}),
         patch("sase.workspace_provider.get_workflow_names", return_value=set()),
         patch(
-            "sase.agent.multi_agent_xprompt.expand_multi_agent_xprompts_with_metadata",
+            "sase.agent.xprompt_swarm.expand_xprompt_swarms_with_metadata",
             return_value=[
                 SimpleNamespace(prompt=segment, template_group=None)
                 for segment in expanded_segments

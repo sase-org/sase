@@ -1,4 +1,4 @@
-"""Tests for multi-agent xprompt expansion."""
+"""Tests for xprompt swarm expansion."""
 
 from __future__ import annotations
 
@@ -8,27 +8,27 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.multi_agent_xprompt import (
-    _MultiAgentXPromptUsageError,
-    expand_multi_agent_xprompts_with_metadata,
+from sase.agent.xprompt_swarm import (
+    _XpromptSwarmUsageError,
+    expand_xprompt_swarms_with_metadata,
 )
 from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
 from sase.xprompt.models import InputArg, InputType
 
-from tests._multi_agent_xprompt_helpers import (
+from tests._xprompt_swarm_helpers import (
     patch_catalog,
     patch_vcs_patterns,
     patch_vcs_patterns_with_cd,
     xp,
 )
 
-# --- expand_multi_agent_xprompts ---
+# --- expand_xprompt_swarms ---
 
 
-def expand_multi_agent_xprompts(segments: list[str], **kwargs) -> list[str]:
+def expand_xprompt_swarms(segments: list[str], **kwargs) -> list[str]:
     return [
         segment.prompt
-        for segment in expand_multi_agent_xprompts_with_metadata(segments, **kwargs)
+        for segment in expand_xprompt_swarms_with_metadata(segments, **kwargs)
     ]
 
 
@@ -36,7 +36,7 @@ def test_expand_single_segment_xprompt_unchanged() -> None:
     """Xprompt with no separators in body → segments untouched."""
     catalog = {"single": xp("single", "just one body")}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#single"])
+        out = expand_xprompt_swarms(["#single"])
     assert out == ["#single"]
 
 
@@ -44,22 +44,22 @@ def test_bang_single_segment_xprompt_invalid() -> None:
     """Ordinary xprompts remain embeddable and cannot use the standalone marker."""
     catalog = {"single": xp("single", "just one body")}
     with patch_catalog(catalog):
-        with pytest.raises(_MultiAgentXPromptUsageError, match=r"Use `#single`"):
-            expand_multi_agent_xprompts(["#!single"])
+        with pytest.raises(_XpromptSwarmUsageError, match=r"Use `#single`"):
+            expand_xprompt_swarms(["#!single"])
 
 
 def test_expand_three_segment_xprompt() -> None:
     """Xprompt body with 3 segments → 3 sub-segments after expansion."""
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!three"])
+        out = expand_xprompt_swarms(["#!three"])
     assert out == ["phase A", "phase B", "phase C"]
 
 
 def test_expand_three_segment_xprompt_metadata_groups_one_invocation() -> None:
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts_with_metadata(["#!three"])
+        out = expand_xprompt_swarms_with_metadata(["#!three"])
 
     assert [record.prompt for record in out] == ["phase A", "phase B", "phase C"]
     assert [record.template_group for record in out] == [
@@ -72,7 +72,7 @@ def test_expand_three_segment_xprompt_metadata_groups_one_invocation() -> None:
 def test_expand_two_xprompt_invocations_get_distinct_metadata_groups() -> None:
     catalog = {"two": xp("two", "phase A\n---\nphase B")}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts_with_metadata(["#!two", "#!two"])
+        out = expand_xprompt_swarms_with_metadata(["#!two", "#!two"])
 
     assert [record.prompt for record in out] == [
         "phase A",
@@ -88,18 +88,18 @@ def test_expand_two_xprompt_invocations_get_distinct_metadata_groups() -> None:
     ]
 
 
-def test_bare_multi_agent_xprompt_expands_as_sole_segment() -> None:
+def test_bare_xprompt_swarm_expands_as_sole_segment() -> None:
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#three"])
+        out = expand_xprompt_swarms(["#three"])
     assert out == ["phase A", "phase B", "phase C"]
 
 
-def test_bang_multi_agent_xprompt_remains_accepted_for_compatibility() -> None:
+def test_bang_xprompt_swarm_remains_accepted_for_compatibility() -> None:
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
-        bare = expand_multi_agent_xprompts(["#three"])
-        bang = expand_multi_agent_xprompts(["#!three"])
+        bare = expand_xprompt_swarms(["#three"])
+        bang = expand_xprompt_swarms(["#!three"])
     assert bang == bare
 
 
@@ -113,7 +113,7 @@ def test_expand_with_positional_args() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!three(login bug fix)"])
+        out = expand_xprompt_swarms(["#!three(login bug fix)"])
     assert out == [
         "Plan for login bug fix.",
         "Implement login bug fix.",
@@ -130,7 +130,7 @@ def test_expand_with_colon_arg_decodes_plus_space_substitution() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(
+        out = expand_xprompt_swarms(
             ["#!two:/Users/me/Library/Application+Support/sase"]
         )
     assert out == [
@@ -151,12 +151,12 @@ def test_expand_with_named_args() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!two(x=A, y=B)"])
+        out = expand_xprompt_swarms(["#!two(x=A, y=B)"])
     assert out == ["Run with A and B", "A/B done"]
 
 
 def test_expand_jinja_in_body() -> None:
-    """Jinja2 expressions in a multi-agent body resolve once across segments."""
+    """Jinja2 expressions in an xprompt swarm body resolve once across segments."""
     body = (
         "{% if include_plan %}Plan first.{% endif %}\n"
         "---\n"
@@ -175,7 +175,7 @@ def test_expand_jinja_in_body() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!loop(login, include_plan=true)"])
+        out = expand_xprompt_swarms(["#!loop(login, include_plan=true)"])
     assert len(out) == 3
     assert out[0] == "Plan first."
     assert out[1] == "Implement login."
@@ -183,10 +183,10 @@ def test_expand_jinja_in_body() -> None:
 
 
 def test_expand_mixed_with_prose_embeds_first_segment() -> None:
-    """Multi-agent xprompt referenced mid-prose embeds its first sub-prompt."""
+    """Xprompt swarm referenced mid-prose embeds its first sub-prompt."""
     catalog = {"three": xp("three", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["Hello #three world"])
+        out = expand_xprompt_swarms(["Hello #three world"])
     assert out == ["Hello a world", "b", "c"]
 
 
@@ -199,7 +199,7 @@ def test_expand_inline_with_shorthand_args() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#three:: login flow"])
+        out = expand_xprompt_swarms(["#three:: login flow"])
     assert out == ["Plan login flow", "Build login flow", "Test login flow"]
 
 
@@ -212,7 +212,7 @@ def test_expand_inline_with_shorthand_args_preserves_parentheses() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#three:: login flow (oauth)"])
+        out = expand_xprompt_swarms(["#three:: login flow (oauth)"])
     assert out == [
         "Plan login flow (oauth)",
         "Build login flow (oauth)",
@@ -231,7 +231,7 @@ def test_expand_research_swarm_style_shorthand_preserves_parentheses() -> None:
         )
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#research_swarm:: find foo (bar)"])
+        out = expand_xprompt_swarms(["#research_swarm:: find foo (bar)"])
     assert out == [
         "find foo (bar) #research",
         "%w #fork #research/more %m:opus",
@@ -248,7 +248,7 @@ def test_expand_inline_with_vcs_prefix_inherits_followups() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase #three:: login flow"])
+        out = expand_xprompt_swarms(["#gh:sase #three:: login flow"])
     assert out == [
         "#gh:sase Plan login flow",
         "#gh:sase Build login flow",
@@ -269,9 +269,7 @@ def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns_with_cd():
-        out = expand_multi_agent_xprompts(
-            ["%n:abq #gh:sase #swarm:: review the changes"]
-        )
+        out = expand_xprompt_swarms(["%n:abq #gh:sase #swarm:: review the changes"])
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
         ]
@@ -292,7 +290,7 @@ def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns_with_cd():
-        out = expand_multi_agent_xprompts(
+        out = expand_xprompt_swarms(
             ["%n:abq %model:opus #gh:sase #swarm:: review the changes"]
         )
         normalized = [
@@ -326,9 +324,7 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
             return_value={"sase": Path("/work/sase")},
         ),
     ):
-        out = expand_multi_agent_xprompts(
-            ["%n:abq #gh_sase #swarm:: review the changes"]
-        )
+        out = expand_xprompt_swarms(["%n:abq #gh_sase #swarm:: review the changes"])
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
         ]
@@ -342,21 +338,21 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
 def test_expand_inline_vcs_prefix_does_not_override_generated_vcs_ref() -> None:
     catalog = {"three": xp("three", "Plan\n---\n#git:other Build\n---\nTest")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase #three"])
+        out = expand_xprompt_swarms(["#gh:sase #three"])
     assert out == ["#gh:sase Plan", "#git:other Build", "#gh:sase Test"]
 
 
-def test_multiple_multi_agent_references_expand_in_document_order() -> None:
+def test_multiple_xprompt_swarm_references_expand_in_document_order() -> None:
     catalog = {
         "a": xp("a", "a1\n---\na2"),
         "b": xp("b", "b1\n---\nb2"),
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["Use #a then #b after"])
+        out = expand_xprompt_swarms(["Use #a then #b after"])
     assert out == ["Use a1", "a2", "b1", "b2"]
 
 
-def test_multiple_multi_agent_references_keep_distinct_args_and_groups() -> None:
+def test_multiple_xprompt_swarm_references_keep_distinct_args_and_groups() -> None:
     catalog = {
         "a": xp(
             "a",
@@ -370,7 +366,7 @@ def test_multiple_multi_agent_references_keep_distinct_args_and_groups() -> None
         ),
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts_with_metadata(
+        out = expand_xprompt_swarms_with_metadata(
             ["Start #a(foo) then #b(mode=bar) done"]
         )
 
@@ -388,24 +384,24 @@ def test_multiple_multi_agent_references_keep_distinct_args_and_groups() -> None
     ]
 
 
-def test_three_multi_agent_references_expand_sequentially() -> None:
+def test_three_xprompt_swarm_references_expand_sequentially() -> None:
     catalog = {
         "a": xp("a", "a1\n---\n"),
         "b": xp("b", "b1\n---\n"),
         "c": xp("c", "c1\n---\n"),
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["Lead #a between #b and #c tail"])
+        out = expand_xprompt_swarms(["Lead #a between #b and #c tail"])
     assert out == ["Lead a1", "b1", "c1"]
 
 
-def test_multiple_multi_agent_references_inherit_leading_vcs_ref() -> None:
+def test_multiple_xprompt_swarm_references_inherit_leading_vcs_ref() -> None:
     catalog = {
         "a": xp("a", "a1\n---\na2"),
         "b": xp("b", "b1\n---\n#git:other b2"),
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase Review #a then #b after"])
+        out = expand_xprompt_swarms(["#gh:sase Review #a then #b after"])
     assert out == [
         "#gh:sase Review a1",
         "#gh:sase a2",
@@ -414,14 +410,14 @@ def test_multiple_multi_agent_references_inherit_leading_vcs_ref() -> None:
     ]
 
 
-def test_multiple_multi_agent_references_obey_depth_cap() -> None:
+def test_multiple_xprompt_swarm_references_obey_depth_cap() -> None:
     catalog = {
         "a": xp("a", "#a\n---\na2"),
         "b": xp("b", "b1\n---\nb2"),
     }
     with patch_catalog(catalog):
         with pytest.raises(ValueError, match="exceeded max depth"):
-            expand_multi_agent_xprompts(["#a then #b"], max_depth=1)
+            expand_xprompt_swarms(["#a then #b"], max_depth=1)
 
 
 def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -> None:
@@ -435,7 +431,7 @@ def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -
         "inner": xp("inner", "x"),
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!outer"])
+        out = expand_xprompt_swarms(["#!outer"])
     assert len(out) == 3
     assert out[0] == "first"
     assert "#inner" in out[1]
@@ -443,24 +439,24 @@ def test_expand_inline_ordinary_xprompt_inside_other_xprompt_body_no_resplit() -
 
 
 def test_expand_inline_multi_agent_inside_other_xprompt_body_embeds() -> None:
-    """A real inline reference to a multi-agent xprompt is expanded recursively."""
+    """A real inline reference to an xprompt swarm is expanded recursively."""
     catalog = {
         "outer": xp("outer", "first\n---\nprose with #inner here\n---\nthird"),
         "inner": xp("inner", "x\n---\ny"),
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!outer"])
+        out = expand_xprompt_swarms(["#!outer"])
     assert out == ["first", "prose with x here", "y", "third"]
 
 
 def test_expand_recursive_standalone_reference() -> None:
-    """Multi-agent xprompt that references another multi-agent xprompt as a sole segment."""
+    """Xprompt swarm that references another xprompt swarm as a sole segment."""
     catalog = {
         "outer": xp("outer", "before\n---\n#!inner\n---\nafter"),
         "inner": xp("inner", "x1\n---\nx2"),
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!outer"])
+        out = expand_xprompt_swarms(["#!outer"])
     assert out == ["before", "x1", "x2", "after"]
 
 
@@ -470,7 +466,7 @@ def test_expand_recursive_bare_reference() -> None:
         "inner": xp("inner", "x1\n---\nx2"),
     }
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!outer"])
+        out = expand_xprompt_swarms(["#!outer"])
     assert out == ["before", "x1", "x2", "after"]
 
 
@@ -479,7 +475,7 @@ def test_expand_separator_inside_fenced_block_in_body() -> None:
     body = "intro\n```\ncode\n---\ndata\n```\n---\nreal split"
     catalog = {"x": xp("x", body)}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["#!x"])
+        out = expand_xprompt_swarms(["#!x"])
     assert len(out) == 2
     assert "```" in out[0]
     assert out[1] == "real split"
@@ -488,16 +484,16 @@ def test_expand_separator_inside_fenced_block_in_body() -> None:
 def test_expand_leading_directives_attach_to_first_subsegment() -> None:
     catalog = {"x": xp("x", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog):
-        out = expand_multi_agent_xprompts(["%name:custom\n#!x"])
+        out = expand_xprompt_swarms(["%name:custom\n#!x"])
     assert out[0] == "%name:custom\na"
     assert out[1] == "b"
     assert out[2] == "c"
 
 
-def test_expand_vcs_prefixed_multi_agent_xprompt_prefixes_every_subsegment() -> None:
+def test_expand_vcs_prefixed_xprompt_swarm_prefixes_every_subsegment() -> None:
     catalog = {"three": xp("three", "Plan\n---\nImplement\n---\nVerify")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+        out = expand_xprompt_swarms(["#gh:sase #!three"])
     assert out == ["#gh:sase Plan", "#gh:sase Implement", "#gh:sase Verify"]
 
 
@@ -511,14 +507,14 @@ def test_expand_known_project_vcs_prefix_without_registered_provider() -> None:
             return_value={"sase": Path("/work/sase")},
         ),
     ):
-        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+        out = expand_xprompt_swarms(["#gh:sase #!three"])
     assert out == ["#gh:sase Plan", "#gh:sase Implement"]
 
 
 def test_expand_vcs_prefix_with_directives_keeps_directives_on_first_segment() -> None:
     catalog = {"three": xp("three", "Plan\n---\nImplement\n---\nVerify")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["%name:custom\n#gh:sase #!three"])
+        out = expand_xprompt_swarms(["%name:custom\n#gh:sase #!three"])
     assert out == [
         "%name:custom\n#gh:sase Plan",
         "#gh:sase Implement",
@@ -529,28 +525,28 @@ def test_expand_vcs_prefix_with_directives_keeps_directives_on_first_segment() -
 def test_expand_vcs_prefix_preserves_generated_directives() -> None:
     catalog = {"three": xp("three", "%name:plan\nPlan\n---\nImplement")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+        out = expand_xprompt_swarms(["#gh:sase #!three"])
     assert out == ["%name:plan\n#gh:sase Plan", "#gh:sase Implement"]
 
 
 def test_expand_vcs_prefix_does_not_override_segment_local_vcs_ref() -> None:
     catalog = {"three": xp("three", "Plan\n---\n#git:other Implement\n---\nVerify")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase #!three"])
+        out = expand_xprompt_swarms(["#gh:sase #!three"])
     assert out == ["#gh:sase Plan", "#git:other Implement", "#gh:sase Verify"]
 
 
-def test_bare_vcs_prefixed_multi_agent_xprompt_expands() -> None:
+def test_bare_vcs_prefixed_xprompt_swarm_expands() -> None:
     catalog = {"three": xp("three", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase #three"])
+        out = expand_xprompt_swarms(["#gh:sase #three"])
     assert out == ["#gh:sase a", "#gh:sase b", "#gh:sase c"]
 
 
-def test_vcs_prefixed_multi_agent_xprompt_with_prose_inherits_vcs() -> None:
+def test_vcs_prefixed_xprompt_swarm_with_prose_inherits_vcs() -> None:
     catalog = {"three": xp("three", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_multi_agent_xprompts(["#gh:sase please #!three"])
+        out = expand_xprompt_swarms(["#gh:sase please #!three"])
     assert out == ["#gh:sase please a", "#gh:sase b", "#gh:sase c"]
 
 
@@ -567,10 +563,10 @@ def test_shared_group_counter_keeps_invocations_distinct_across_calls() -> None:
     catalog = {"two": xp("two", "phase A\n---\nphase B")}
     shared_counter = count()
     with patch_catalog(catalog):
-        first = expand_multi_agent_xprompts_with_metadata(
+        first = expand_xprompt_swarms_with_metadata(
             ["#!two"], group_counter=shared_counter
         )
-        second = expand_multi_agent_xprompts_with_metadata(
+        second = expand_xprompt_swarms_with_metadata(
             ["#!two"], group_counter=shared_counter
         )
 
