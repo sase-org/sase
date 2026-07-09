@@ -145,16 +145,16 @@ The `sase sdd` command group manages generated SDD documentation and frontmatter
 With no subcommand, `sase sdd` defaults to `sase sdd list` with default options. Use the explicit `sase sdd list` form
 when passing list flags such as `--kind` or `--json`.
 
-| Command                 | Purpose                                                                                                 |
-| ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                |
-| `sase init sdd`         | Compatibility alias for the default init flow; use `sase sdd init --storage ...` for explicit storage   |
-| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
-| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, or `all`                   |
-| `sase sdd migrate`      | Migrate existing in-tree or local SDD files into the provider companion repository                      |
-| `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                         |
-| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
-| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
+| Command                 | Purpose                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                  |
+| `sase init sdd`         | Compatibility alias for the default init flow; use `sase sdd init --storage ...` for explicit storage     |
+| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                        |
+| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, `myths`, or `all` |
+| `sase sdd migrate`      | Migrate existing in-tree or local SDD files into the provider companion repository                        |
+| `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                           |
+| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                                 |
+| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output   |
 
 The file-oriented subcommands accept `-p/--path`, which may point at an SDD root or a project root. `sase sdd path`
 instead resolves the current workspace and accepts an optional child kind such as `research`. Validation treats unpaired

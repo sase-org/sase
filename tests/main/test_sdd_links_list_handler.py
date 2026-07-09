@@ -84,6 +84,21 @@ def test_list_default_uses_configured_separate_repo_store(
     assert capsys.readouterr().out == "tales\ttales/202605/linked.md\n"
 
 
+def test_list_legends_kind(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    root = tmp_path / "sdd"
+    legend = root / "legends" / "202605" / "roadmap.md"
+    legend.parent.mkdir(parents=True)
+    legend.write_text("# Legend\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(
+            make_args(sdd_subcommand="list", path=str(root), kind="legends", json=False)
+        )
+
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out == "legends\tlegends/202605/roadmap.md\n"
+
+
 def test_list_invalid_path_exits_nonzero(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

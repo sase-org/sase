@@ -1035,7 +1035,8 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 
 ### sdd
 
-Configuration for spec-driven development features, including prompt, tale, epic, research, and bead storage.
+Configuration for spec-driven development features, including prompt, tale, epic, legend, myth, research, and bead
+storage.
 
 ```yaml
 sdd:
@@ -1053,12 +1054,12 @@ sdd:
 | `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
 | `sdd.push_after_commit`  | bool or str | `async` | Controls `git push` after SDD commits in `separate_repo`: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                     |
 
-In-tree mode stores prompt snapshots, tales, epics, research notes, and bead state under `sdd/` in the project root.
-Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace. Separate-repo mode
-uses the same `.sase/sdd/` layout as a provider-backed clone in the active workspace, with materialization metadata
-recorded in the primary workspace's `.sase/sdd-store.json`. Projects resolved as the built-in `bare_git` VCS provider
-declare in-tree SDD under `sdd/` when storage is automatic. See [SDD Storage](sdd_storage.md) for storage behavior and
-[Beads](beads.md) for the bead system reference.
+In-tree mode stores prompt snapshots, tales, epics, legends, myths, research notes, and bead state under `sdd/` in the
+project root. Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace.
+Separate-repo mode uses the same `.sase/sdd/` layout as a provider-backed clone in the active workspace, with
+materialization metadata recorded in the primary workspace's `.sase/sdd-store.json`. Projects resolved as the built-in
+`bare_git` VCS provider declare in-tree SDD under `sdd/` when storage is automatic. See [SDD Storage](sdd_storage.md)
+for storage behavior and [Beads](beads.md) for the bead system reference.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -1803,7 +1804,7 @@ directly for `--storage`.
 | Subcommand     | Flags                                                                    | Description                                                                                               |
 | -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `init`         | `-p/--path`, `-c/--check`, `-s/--storage`                                | Create/connect companion storage when effective, refresh SDD guide files, and report drift with `--check` |
-| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, or `all`                                    |
+| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, `myths`, or `all`                |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                           |
 | `migrate`      | `-p/--path`, `-c/--create`, `-r/--remove-in-tree`                        | Migrate in-tree or local SDD files into the provider companion repository                                 |
 | `path`         | `[kind]`                                                                 | Print the effective SDD root or one canonical child directory; does not materialize remote stores         |

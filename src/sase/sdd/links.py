@@ -21,10 +21,10 @@ from sase.sdd._link_models import (
 )
 from sase.sdd.frontmatter import set_frontmatter_fields
 
-PLAN_KINDS = ("tales", "epics")
+PLAN_KINDS = ("tales", "epics", "legends", "myths")
 LEGACY_PLAN_KINDS = ("plans",)
 PROMPT_KINDS = ("prompts", "specs")
-LIST_KINDS = ("prompts", "tales", "epics")
+LIST_KINDS = ("prompts", *PLAN_KINDS)
 
 # Closed quarantine for historical invalid SDD files only; do not add new files.
 LEGACY_INVALID_SDD_ERROR_ALLOWLIST: frozenset[str] = frozenset()
