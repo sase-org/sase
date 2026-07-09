@@ -88,6 +88,15 @@ reference notes that agents read only when relevant.
 - Lines: 53
 - Approx. tokens: 540
 
+### `memory/pyvision.md`
+
+- Type: `long`
+- Description: Read before fixing pyvision lint failures, including unused symbols, private misuse, pragmas, and epic
+  whitelists.
+- Parent: `AGENTS.md`
+- Lines: 94
+- Approx. tokens: 1779
+
 ### `memory/tui_perf.md`
 
 - Type: `long`
@@ -99,11 +108,11 @@ reference notes that agents read only when relevant.
 
 ## Statistics
 
-- Total notes: 8
+- Total notes: 9
 - Short notes: 5
-- Long notes: 3
-- Total lines: 306
-- Total approx. tokens: 3938
+- Long notes: 4
+- Total lines: 400
+- Total approx. tokens: 5717
 
 ## Commands
 
