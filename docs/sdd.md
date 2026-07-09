@@ -155,7 +155,7 @@ when passing list flags such as `--kind` or `--json`.
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                |
-| `sase init sdd`         | Alias for `sase sdd init`; accepts the same `-p/--path` option                                          |
+| `sase init sdd`         | Compatibility alias for the default init flow; use `sase sdd init --storage ...` for explicit storage   |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
 | `sase sdd migrate`      | Migrate existing in-tree or local SDD files into the provider companion repository                      |
@@ -179,10 +179,11 @@ GitHub projects whose provider policy is `separate_repo`, it creates the `<owner
 public when missing, ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`.
 When an in-tree `sdd/` store already exists during separate-repo init, SASE migrates those artifacts into the companion
 checkout instead of starting from an empty store. Existing private companion repositories are not made public
-automatically. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default. Keep conceptual details
-here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides or to opt into the appropriate SDD
-storage for the project. The generated guides are safe to overwrite, so do not put hand-maintained conceptual prose in
-those README files.
+automatically. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default. `sase init sdd` covers
+the same default flow and check/path flags; use `sase sdd init --storage ...` when explicitly choosing `in_tree`,
+`local`, or `separate_repo`. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated
+project guides or to opt into the appropriate SDD storage for the project. The generated guides are safe to overwrite,
+so do not put hand-maintained conceptual prose in those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for

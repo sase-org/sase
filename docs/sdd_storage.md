@@ -62,7 +62,9 @@ matches. Existing local SDD content should not be clobbered by automatic discove
 
 ## Migration And Offline Behavior
 
-Use `sase sdd migrate` to move an existing in-tree or local store into the provider companion repository:
+For a new project, start with `sase sdd init` and let the provider policy choose or create the companion store. Use
+`sase sdd migrate` when a project already has in-tree `sdd/` content or a local `.sase/sdd/` store that should become
+the provider-backed companion repository:
 
 ```bash
 sase sdd migrate
@@ -70,11 +72,11 @@ sase sdd migrate --create
 sase sdd migrate --remove-in-tree
 ```
 
-The command connects or creates the companion, copies in-tree `sdd/` content into `.sase/sdd/` when needed, initializes
-the generated guides and bead store, commits and pushes the companion repo, and writes `sdd.storage: separate_repo` in
-the project config. `--create` lets the provider create a missing companion repository. `--remove-in-tree` removes
-tracked in-tree `sdd/` files in a separate code-repo commit after the companion migration succeeds. Do not replace
-`.sase/sdd` by hand while an agent or bead command may be writing it.
+The command verifies the companion repository, or creates it when `--create` is present; copies in-tree `sdd/` content
+into `.sase/sdd/` when needed; initializes the generated guides and bead store; commits and pushes the companion repo;
+and writes `sdd.storage: separate_repo` in the project config. `--remove-in-tree` removes tracked in-tree `sdd/` files
+in a separate code-repo commit after the companion migration succeeds. Run that cleanup only after the companion
+migration has pushed successfully. Do not replace `.sase/sdd` by hand while an agent or bead command may be writing it.
 
 Once a separate-repo store is materialized, directory-only reads and `sase sdd path` work offline against the local
 clone. Network fetch and push work belongs to setup, provider-specific migration, and commit/push paths. Local commits

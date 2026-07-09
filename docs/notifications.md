@@ -35,16 +35,17 @@ question notification is included in the batch.
 
 ### Tabs and Ordering
 
-The modal renders a compact tab strip above the list when more than one top-level filter is present. Each notification
-belongs to exactly one top-level tab:
+The modal renders a compact tab strip above the list when more than one top-level filter is present. Muted notifications
+always move to `Muted`; otherwise HITL actions and errors take precedence over ordinary tags. Non-muted, non-HITL,
+non-error notifications with multiple tags appear in each matching tag tab:
 
 | Tab       | Contents                                                                                                                         |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `HITL`    | Plan approvals, user questions, workflow HITL prompts, and launch approvals.                                                     |
 | `Errors`  | Axe error digests and agent error reports (sender `axe` or `user-agent` paired with the `ViewErrorReport` action).               |
 | `General` | Untagged non-HITL, non-error, unmuted notifications.                                                                             |
-| `Done`    | Successful agent-completion notifications carrying the `done` tag.                                                               |
-| Custom    | Any other normalized notification tag, sorted alphabetically after `Done`.                                                       |
+| `Done`    | Non-HITL, non-error notifications carrying the `done` tag, pinned before other custom tags.                                      |
+| Custom    | Other normalized notification tags, sorted alphabetically after `Done`; a multi-tagged row appears in each matching tab.         |
 | `Muted`   | Notifications the user has muted or snoozed. Mute dominates every other classification; a muted plan appears under `Muted` only. |
 
 Within the active tab, rows are ordered newest-first by their `timestamp` field. Rows with equal timestamps keep their
@@ -74,11 +75,14 @@ from `Muted` on its own once the timer runs out.
 
 The notification indicator in the TUI top bar takes its color from the highest-priority unread bucket present:
 
-- **Orange** — at least one unread priority or error notification (plan approval, launch approval, user question, mentor
-  review, axe error digest, agent error report, ...)
+- **Orange** — at least one unread unmuted priority or error notification (plan approval, launch approval, user
+  question, mentor review, axe error digest, agent error report, ...)
 - **Gold** — only regular unmuted notifications are unread
 - **Cyan** — only muted or snoozed notifications are unread
 - **Dim zero** — no unread notifications at all
+
+When muted unread notifications coexist with orange or gold actionable rows, the badge keeps the actionable count and
+adds a trailing dot; the tooltip shows the exact priority/other/muted breakdown.
 
 Silent notifications never contribute to the indicator (see [Silent Notifications](#silent-notifications) below).
 
@@ -215,10 +219,10 @@ Failed user-agent notifications do not carry `done`; failures remain error repor
 Memory proposal notifications created by `sase memory write --notify` carry the `memory` tag. Use the `memory` tab in
 ACE or `sase notify list --tag memory` to find proposal review notification rows.
 
-In ACE, tags create modal tabs above the notification list. The `done` tab is intended as the quick path for successful
-agent completions; reading or jumping to a done Agents-tab row dismisses its matching completion notification, so it
-disappears from both `All` and `done` after the next refresh. Failed agent notifications stay untagged by `done` and
-continue to render under **ERRORS**.
+In ACE, tags create modal tabs above the notification list after the synthetic `HITL`, `Errors`, and `General` tabs. The
+`done` tab is intended as the quick path for successful agent completions; reading or jumping to a done Agents-tab row
+dismisses its matching completion notification, so it disappears from the `Done` tab after the next refresh. Failed
+agent notifications stay untagged by `done` and continue to render under the `Errors` tab.
 
 ## CLI
 

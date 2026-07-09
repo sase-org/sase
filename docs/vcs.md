@@ -133,8 +133,8 @@ Additional plugins may return their own provider names. `detect_vcs_family()` co
 
 ### `sase vcs list`
 
-Lists exactly the repository constellation used by `sase vcs log`: the primary repository, configured linked
-repositories, and the separate SDD store when present. A bare `sase vcs` delegates to `sase vcs list`.
+Lists exactly the repository set used by `sase vcs log`: the primary repository, configured linked repositories, and the
+separate SDD store when present. A bare `sase vcs` delegates to `sase vcs list`.
 
 Common forms:
 
@@ -164,7 +164,7 @@ one repo is shown as a warning and does not hide the other repos.
 
 Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
 store when present. `sase vcs log` uses the same repo resolver as `sase vcs list`, so both commands operate on the same
-constellation. By default it refreshes the compared `origin` ref with a narrow `git fetch` and marks each commit as
+repository set. By default it refreshes the compared `origin` ref with a narrow `git fetch` and marks each commit as
 synced, unpushed, GitHub-only, or unknown when no remote comparison is available.
 
 Common forms:

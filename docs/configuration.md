@@ -1067,13 +1067,15 @@ initialization, existing bare-repo registration, `#git`/workspace materializatio
 Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
 needed.
 
-Running `sase sdd init` or its `sase init sdd` alias creates or updates the project-local SDD config, then refreshes
-generated SDD guide files and the directory map. On GitHub projects whose provider policy is `separate_repo`, init
-creates or connects the selected companion repository, creates new GitHub companions as public, ensures the selected
-companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`. Existing private companion repositories are
-not made public automatically. If an in-tree `sdd/` store already exists, separate-repo init migrates those artifacts
-into the companion checkout. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default, and an
-explicit `sdd.storage` value still wins.
+Running `sase sdd init` or the default `sase init sdd` compatibility alias creates or updates the project-local SDD
+config, then refreshes generated SDD guide files and the directory map. On GitHub projects whose provider policy is
+`separate_repo`, init creates or connects the selected companion repository, creates new GitHub companions as public,
+ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`. Existing private
+companion repositories are not made public automatically. If an in-tree `sdd/` store already exists, separate-repo init
+migrates those artifacts into the companion checkout. Bare-git projects keep the legacy in-tree
+`sdd.version_controlled: true` default, and an explicit `sdd.storage` value still wins. Use
+`sase sdd init --storage ...` when you need to set storage from the CLI; `sase init sdd` exposes only the compatibility
+`--check` and `--path` flags.
 
 Source: `src/sase/default_config.yml`
 
@@ -1406,8 +1408,8 @@ full flow, payload, checkpoint, and resume semantics.
 
 ### `sase vcs`
 
-`sase vcs` defaults to `sase vcs list`. The command group inspects the repository constellation made up of the primary
-repo, configured linked repos, and the separate SDD store when present.
+`sase vcs` defaults to `sase vcs list`. The command group inspects the repository set made up of the primary repo,
+configured linked repos, and the separate SDD store when present.
 
 | Subcommand | Flags                                                                                                                                                                                                                     | Description                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -1621,13 +1623,14 @@ linked repo uses numbered workspace resolution.
 
 ### `sase init sdd`
 
-`sase init sdd` is an alias for `sase sdd init`. It creates or connects GitHub companion repositories when
-`separate_repo` is the effective storage policy, creates new GitHub companions as public, ensures the selected companion
-has a `sase--sdd` label, and migrates existing in-tree SDD artifacts into the companion checkout when needed. Existing
-private companion repositories are not made public automatically. Otherwise it writes the legacy
+`sase init sdd` is the compatibility alias for the default `sase sdd init` flow. It creates or connects GitHub companion
+repositories when `separate_repo` is the effective storage policy, creates new GitHub companions as public, ensures the
+selected companion has a `sase--sdd` label, and migrates existing in-tree SDD artifacts into the companion checkout when
+needed. Existing private companion repositories are not made public automatically. Otherwise it writes the legacy
 `sdd.version_controlled` alias as needed, then creates or refreshes generated SDD README files and the directory map
 asset. Bare-git projects run the generated-file refresh automatically during repository setup and first SDD writes, but
-the explicit command remains available for manual opt-in, refresh, and `--check` audits.
+the explicit command remains available for manual refreshes and `--check` audits. Use `sase sdd init --storage ...` for
+explicit storage selection.
 
 | Flag          | Values | Default                  | Description                                                       |
 | ------------- | ------ | ------------------------ | ----------------------------------------------------------------- |
@@ -1798,7 +1801,8 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 `sase sdd` manages SDD prompt/artifact documentation and frontmatter links. File-oriented subcommands accept
 `-p/--path`, which may point at an SDD root or at a project root containing `sdd/`. `sase sdd path` resolves the current
 workspace instead and accepts an optional child kind such as `research`. With no subcommand, `sase sdd` defaults to
-`sase sdd list`. `sase init sdd` is an alias for `sase sdd init`.
+`sase sdd list`. `sase init sdd` is the compatibility alias for the default `sase sdd init` flow; use `sase sdd init`
+directly for `--storage`.
 
 | Subcommand     | Flags                                                                    | Description                                                                                               |
 | -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
