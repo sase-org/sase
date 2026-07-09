@@ -244,6 +244,68 @@ def _custom_role_label_agents() -> list[Agent]:
     return rows
 
 
+def _output_variable_family_agents() -> list[Agent]:
+    parent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-output-vars",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 8, 9, 0, 0),
+        stop_time=datetime(2026, 7, 8, 9, 9, 0),
+        raw_suffix="20260708090000",
+        role_suffix="--plan",
+        agent_name="visual-output-vars",
+        agent_family="visual-output-vars",
+        agent_family_role="root",
+        plan_chain_root=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-output-vars--code",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 8, 9, 1, 0),
+        stop_time=datetime(2026, 7, 8, 9, 7, 0),
+        raw_suffix="20260708090100",
+        parent_timestamp=parent.raw_suffix,
+        role_suffix="--code",
+        agent_name="visual-output-vars--code",
+        agent_family="visual-output-vars",
+        agent_family_role="code",
+        output_variables={
+            "build_report": "/workspace/sase/out/build-report.md",
+            "summary": "tests passed\ncoverage updated",
+        },
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    question = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-output-vars--q",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 8, 9, 3, 0),
+        stop_time=datetime(2026, 7, 8, 9, 5, 0),
+        raw_suffix="20260708090300",
+        parent_timestamp=parent.raw_suffix,
+        role_suffix="--q",
+        agent_name="visual-output-vars--q",
+        agent_family="visual-output-vars",
+        agent_family_role="q",
+        output_variables={
+            "answer_path": "/workspace/sase/out/user-answer.md",
+            "summary": "approval captured",
+        },
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    rows = [parent, coder, question]
+    _apply_status_overrides(rows)
+    return rows
+
+
 async def test_agent_plan_handoff_status_colors_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -319,6 +381,31 @@ async def test_custom_role_labels_png_snapshot(
             page,
             "agents_custom_role_labels_120x40",
             title="ACE agents custom role labels",
+        )
+
+
+async def test_agent_output_variables_multi_agent_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 8, 9, 9, 0))
+    patch_startup_loaders(monkeypatch, agents=_output_variable_family_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "OUTPUT VARIABLES")
+        assert_page_svg_contains(page, "2 agents")
+        assert_page_svg_contains(page, "build_report")
+        assert_page_svg_contains(page, "answer_path")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_output_variables_multi_agent_120x40",
+            title="ACE agents output variables multi agent",
         )
 
 

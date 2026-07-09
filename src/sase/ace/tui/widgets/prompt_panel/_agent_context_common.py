@@ -104,7 +104,7 @@ def append_context_lane_header(
     text.append(f" · {details}\n", style=details_style)
 
 
-def _format_role_column(role_label: str | None) -> str:
+def format_role_column(role_label: str | None) -> str:
     label = role_label or ""
     if len(label) > ROLE_LABEL_LIMIT:
         label = label[: ROLE_LABEL_LIMIT - 1] + "…"
@@ -128,7 +128,7 @@ def append_lane_row(
     )
     extra_indent = 0
     if show_role_column:
-        column = _format_role_column(role_label)
+        column = format_role_column(role_label)
         text.append(column, style=COLOR_ROLE)
         extra_indent = len(column)
     text.append(f"{glyph}{_ROW_GLYPH_SEPARATOR}", style=glyph_style)

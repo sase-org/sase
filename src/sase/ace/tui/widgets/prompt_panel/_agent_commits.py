@@ -18,11 +18,11 @@ from ._agent_context_common import (
     COLOR_WORKSPACE_NAME,
     WORKSPACE_GLYPH,
 )
+from ._helpers import append_major_section_divider
 
 _COLOR_HEADER = "bold #87D7FF"
 _COLOR_COMMIT_SHA = "dim #D7D7AF"
 _COLOR_COMMIT_SUBJECT = "#D7D7FF"
-_MAJOR_SECTION_RULE = "\u2500" * 50
 
 
 @dataclass(frozen=True)
@@ -42,12 +42,6 @@ class CommitDiffInfo:
     subject: str
     diff_path: str
     is_primary: bool
-
-
-def _append_major_section_divider(text: Text) -> None:
-    text.append("\n")
-    text.append(f"{_MAJOR_SECTION_RULE}\n", style="dim")
-    text.append("\n")
 
 
 def _display_text(value: object) -> str:
@@ -319,7 +313,7 @@ def append_agent_commits_section(text: Text, agent: Agent) -> None:
     if not commit_groups:
         return
 
-    _append_major_section_divider(text)
+    append_major_section_divider(text)
     text.append("COMMITS:\n", style=_COLOR_HEADER)
     for repo_name, commits in commit_groups:
         _append_commit_group(text, repo_name, commits)

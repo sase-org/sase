@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from rich.text import Text
+
 from sase.llm_provider.model_label import append_model_field as append_model_field
 
 from ...models.agent import Agent
@@ -79,6 +81,14 @@ COMMIT_META_KEYS = frozenset(
     {"meta_commit_message", "meta_new_commit", "meta_commit_cwd", "meta_commits"}
 )
 WORKFLOW_VARIABLES_SECTION_LABEL = "WORKFLOW VARIABLES"
+_MAJOR_SECTION_RULE = "\u2500" * 50
+
+
+def append_major_section_divider(text: Text) -> None:
+    """Append the standard prompt-panel major-section divider."""
+    text.append("\n")
+    text.append(_MAJOR_SECTION_RULE + "\n", style="dim")
+    text.append("\n")
 
 
 def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:

@@ -33,6 +33,7 @@ from ._agent_context_common import (
     truncate_display,
 )
 from ._agent_display_state import HeaderHintState
+from ._helpers import append_major_section_divider
 
 _COLOR_HEADER = "bold #D7AF5F underline"
 _COLOR_TOOL_NAME = "bold"
@@ -49,8 +50,6 @@ _CHIP_COLORS = (
     "#5FD7D7",
     "#D787AF",
 )
-_MAJOR_SECTION_RULE = "\u2500" * 50
-
 _TOOL_NAME_WIDTH = 12
 _TARGET_WIDTH = 44
 _LABELED_TARGET_WIDTH = 35
@@ -97,7 +96,7 @@ def append_slow_tool_calls_section(
         source_count = len({item.source.palette_index for item in slow_calls})
         summary_parts.append(count_phrase(source_count, "agent"))
 
-    _append_major_section_divider(text)
+    append_major_section_divider(text)
     text.append("SLOW TOOL CALLS", style=_COLOR_HEADER)
     text.append(f" \u00b7 {' · '.join(summary_parts)}\n", style=COLOR_SUMMARY)
     text.append("\n")
@@ -125,12 +124,6 @@ def append_slow_tool_calls_section(
             f"  + {overflow} more \u00b7 press ] for the full tools timeline\n",
             style=COLOR_TRUNCATION,
         )
-
-
-def _append_major_section_divider(text: Text) -> None:
-    text.append("\n")
-    text.append(_MAJOR_SECTION_RULE + "\n", style="dim")
-    text.append("\n")
 
 
 def _select_sourced_slow_tool_calls(

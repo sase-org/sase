@@ -80,7 +80,7 @@ def _compact_suffix_label(suffix: str) -> str:
     return suffix
 
 
-def _compact_role_label(agent: Agent) -> str:
+def compact_role_label(agent: Agent) -> str:
     """Return a compact role label for *agent* within its family.
 
     Recognized plan-chain suffixes map to ``plan``/``q``/``coder``/``epic``/
@@ -158,7 +158,7 @@ def build_context_members(agent: Agent) -> list[_ContextMember]:
             seen_dirs.add(artifacts_dir)
         members.append(
             _ContextMember(
-                label=_compact_role_label(member_agent),
+                label=compact_role_label(member_agent),
                 cache_key=cache_key,
                 artifacts_dir=artifacts_dir,
                 agent_name=member_agent.agent_name,

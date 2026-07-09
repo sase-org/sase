@@ -11,15 +11,9 @@ from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from ._agent_memory_reads import append_agent_memory_reads_section
 from ._agent_opened_workspaces import append_agent_opened_workspaces_section
 from ._agent_skill_uses import append_agent_skills_section
+from ._helpers import append_major_section_divider
 
 _COLOR_HEADER = "bold #D7AF5F underline"
-_MAJOR_SECTION_RULE = "\u2500" * 50
-
-
-def _append_major_section_divider(text: Text) -> None:
-    text.append("\n")
-    text.append(_MAJOR_SECTION_RULE + "\n", style="dim")
-    text.append("\n")
 
 
 def append_agent_context_section(
@@ -33,7 +27,7 @@ def append_agent_context_section(
     if not memory_reads and not skill_uses and not opened_workspaces:
         return
 
-    _append_major_section_divider(text)
+    append_major_section_divider(text)
     text.append("SASE CONTEXT\n", style=_COLOR_HEADER)
     text.append("\n")
     rendered_lane = False

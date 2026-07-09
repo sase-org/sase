@@ -20,11 +20,13 @@ from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._file_path_hints import append_text_with_file_hints
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
+    append_major_section_divider,
     append_model_field,
     extract_meta_fields,
     project_display_label,
     should_render_agent_detail_model,
 )
+from ._agent_output_variables import append_agent_output_variables_section
 
 
 _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
@@ -48,13 +50,6 @@ _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
 }
 
 
-def _append_major_section_divider(text: Text) -> None:
-    """Append the standard prompt-panel major-section divider."""
-    text.append("\n")
-    text.append("\u2500" * 50 + "\n", style="dim")
-    text.append("\n")
-
-
 def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     """Append the ``Auto:`` auto-approve kind field for autonomous agents."""
     if not agent.approve:
@@ -65,29 +60,6 @@ def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     )
     text.append("Auto: ", style="bold #87D7FF")
     text.append(f"{token}\n", style=style)
-
-
-def _append_output_variables_section(
-    text: Text,
-    output_variables: dict[str, str],
-) -> None:
-    if not output_variables:
-        return
-
-    _append_major_section_divider(text)
-    text.append("OUTPUT VARIABLES\n", style="bold #D7AF5F underline")
-    text.append("\n")
-    for key in sorted(output_variables):
-        value = output_variables[key]
-        if "\n" not in value:
-            text.append(f"{key}: ", style="bold #87D7FF")
-            text.append(f"{value}\n", style="#5FD75F")
-            continue
-
-        text.append(f"{key}:\n", style="bold #87D7FF")
-        for line in value.splitlines() or [""]:
-            text.append("  ")
-            text.append(f"{line}\n", style="#5FD75F")
 
 
 def build_header_text(
@@ -353,7 +325,7 @@ def build_header_text(
             style="#D7D7FF",
         )
 
-    _append_output_variables_section(header_text, agent.output_variables)
+    append_agent_output_variables_section(header_text, agent)
 
     from ._agent_commits import append_agent_commits_section
 
@@ -377,7 +349,7 @@ def build_header_text(
 
     # Meta fields from step output
     if meta_fields:
-        _append_major_section_divider(header_text)
+        append_major_section_divider(header_text)
         header_text.append(
             f"{WORKFLOW_VARIABLES_SECTION_LABEL}\n",
             style="bold #D7AF5F underline",
