@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from sase.axe.image_attachments import ExtraRepoScan
+from sase.axe.image_attachments import collect_agent_image_paths
 from sase.axe.image_attachments import collect_agent_markdown_paths
 from sase.axe.image_attachments import collect_agent_video_paths
 
@@ -164,6 +166,53 @@ def test_collect_agent_markdown_paths_dedupes_against_existing_and_sources(
     ]
 
 
+def test_collect_agent_paths_from_extra_repo_base_range_and_untracked(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "workspace"
+    primary.mkdir()
+    _init_repo(primary)
+    (primary / "base.txt").write_text("base\n")
+    _run(primary, "git", "add", ".")
+    _run(primary, "git", "commit", "-m", "base")
+
+    extra = tmp_path / "sdd"
+    extra.mkdir()
+    _init_repo(extra)
+    (extra / "research").mkdir()
+    (extra / "images").mkdir()
+    (extra / "research" / "before.md").write_text("# Before\n")
+    (extra / "images" / "before.png").write_bytes(b"before")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "before base")
+    base_sha = _run(extra, "git", "rev-parse", "HEAD")
+
+    committed_md = extra / "research" / "after.md"
+    committed_image = extra / "images" / "after.png"
+    untracked_md = extra / "research" / "untracked.md"
+    untracked_image = extra / "images" / "untracked.webp"
+    committed_md.write_text("# After\n")
+    committed_image.write_bytes(b"after")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "after base")
+    untracked_md.write_text("# Untracked\n")
+    untracked_image.write_bytes(b"untracked")
+
+    scan = ExtraRepoScan(str(extra), base_sha)
+    assert collect_agent_markdown_paths(str(primary), extra_repo_scans=()) == []
+    assert collect_agent_markdown_paths(
+        str(primary),
+        extra_repo_scans=[scan],
+    ) == [
+        str(committed_md.resolve()),
+        str(untracked_md.resolve()),
+    ]
+    assert collect_agent_image_paths(str(primary), extra_repo_scans=[scan]) == [
+        str(committed_image.resolve()),
+        str(untracked_image.resolve()),
+    ]
+
+
 def test_collect_agent_video_paths_from_working_tree(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     (tmp_path / "existing.txt").write_text("base\n")
@@ -281,7 +330,8 @@ def _init_repo(cwd: Path) -> None:
     _run(cwd, "git", "config", "user.name", "Test User")
 
 
-def _run(cwd: Path, *args: str) -> None:
+def _run(cwd: Path, *args: str) -> str:
     import subprocess
 
-    subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+    result = subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+    return result.stdout.strip()

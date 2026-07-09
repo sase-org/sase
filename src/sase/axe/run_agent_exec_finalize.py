@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import sys
 from typing import Any
 
@@ -241,12 +242,14 @@ def _collect_default_artifacts(
     )
     workspace_dir = getattr(ctx, "workspace_dir", os.getcwd())
     base_files = [path for path in [saved_path, diff_path] if path]
+    extra_repo_scans = _sdd_repo_scans(ctx)
     markdown_paths = collect_agent_markdown_paths(
         workspace_dir,
         diff_path=diff_path,
         include_head_commit=include_head_commit,
         existing_files=base_files,
         artifacts_dir=state.current_artifacts_dir,
+        extra_repo_scans=extra_repo_scans,
     )
     markdown_source_count = len(markdown_paths)
     markdown_pdf_paths = _render_markdown_pdfs(ctx, state, markdown_paths)
@@ -256,12 +259,14 @@ def _collect_default_artifacts(
         diff_path=diff_path,
         include_head_commit=include_head_commit,
         existing_files=[*base_files, *markdown_pdf_paths],
+        extra_repo_scans=extra_repo_scans,
     )
     video_paths = collect_agent_video_paths(
         workspace_dir,
         diff_path=diff_path,
         include_head_commit=include_head_commit,
         existing_files=[*base_files, *markdown_pdf_paths, *image_paths],
+        extra_repo_scans=extra_repo_scans,
     )
 
     try:
@@ -285,6 +290,30 @@ def _collect_default_artifacts(
         video_paths,
         default_artifacts_persisted,
     )
+
+
+def _sdd_repo_scans(ctx: AgentExecContext) -> list[Any]:
+    try:
+        from sase.axe.image_attachments import ExtraRepoScan
+        from sase.sdd.store import resolve_sdd_store
+
+        store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num)
+    except Exception:
+        return []
+
+    if store.is_in_tree:
+        return []
+    repo_root = Path(store.repo_root).expanduser()
+    if not (repo_root / ".git").exists():
+        return []
+
+    base_sha = _metadata_str(ctx.agent_meta, "sdd_base_sha")
+    if base_sha is None:
+        base_sha = _metadata_str(
+            _read_transcript_agent_meta(ctx.artifacts_dir),
+            "sdd_base_sha",
+        )
+    return [ExtraRepoScan(str(repo_root), base_sha)]
 
 
 def _read_retry_handoff_meta(

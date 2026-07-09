@@ -58,6 +58,7 @@ from sase.axe.run_agent_runner_setup import (
     apply_retry_chain_to_meta,
     bump_spawn_telemetry,
     build_output_variable_namespaces,
+    capture_sdd_base_sha,
     enter_agent_workspace,
     load_retry_handoff_from_env,
     prepare_linked_repo_workspaces_if_needed,
@@ -67,6 +68,7 @@ from sase.axe.run_agent_runner_setup import (
     refresh_linked_repos_for_workspace,
     setup_artifacts_directory,
     write_submitted_xprompt_artifact,
+    write_agent_meta,
     write_home_running_marker,
 )
 from sase.axe.runner_utils import (
@@ -468,6 +470,11 @@ def main() -> None:
                 output_variable_namespaces = build_output_variable_namespaces(
                     info.wait_names
                 )
+
+                sdd_base_sha = capture_sdd_base_sha(workspace_dir, workspace_num)
+                if sdd_base_sha:
+                    agent_meta["sdd_base_sha"] = sdd_base_sha
+                    write_agent_meta(artifacts_dir, agent_meta)
 
                 ctx = AgentExecContext(
                     cl_name=cl_name,

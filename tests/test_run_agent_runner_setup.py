@@ -12,6 +12,7 @@ from sase.axe.run_agent_exec_markers import (
 )
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
+    capture_sdd_base_sha,
     prepare_linked_repo_workspaces_if_needed,
     prepare_workspace_if_needed,
     preprocess_prompt_xprompts,
@@ -26,6 +27,7 @@ from sase.linked_repos import (
     _ResolvedLinkedRepo,
     resolve_linked_repos_for_project,
 )
+from sase.sdd.store import SddStore
 
 
 def _resolution(
@@ -254,6 +256,41 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None
 
     prepare.assert_not_called()
     ensure_clone.assert_not_called()
+
+
+def test_capture_sdd_base_sha_for_companion_repo(tmp_path: Path) -> None:
+    sdd_repo = tmp_path / "workspace" / ".sase" / "sdd"
+    sdd_repo.mkdir(parents=True)
+    _git(sdd_repo, "git", "init")
+    _git(sdd_repo, "git", "config", "user.email", "test@example.com")
+    _git(sdd_repo, "git", "config", "user.name", "Test User")
+    (sdd_repo / "README.md").write_text("# SDD\n")
+    _git(sdd_repo, "git", "add", ".")
+    _git(sdd_repo, "git", "commit", "-m", "base")
+    expected = _git(sdd_repo, "git", "rev-parse", "HEAD")
+
+    with patch(
+        "sase.sdd.store.resolve_sdd_store",
+        return_value=SddStore("separate_repo", sdd_repo, sdd_repo),
+    ):
+        assert capture_sdd_base_sha(str(tmp_path / "workspace"), 1) == expected
+
+
+def test_capture_sdd_base_sha_skips_in_tree_and_missing_clone(
+    tmp_path: Path,
+) -> None:
+    with patch(
+        "sase.sdd.store.resolve_sdd_store",
+        return_value=SddStore("in_tree", tmp_path / "sdd", tmp_path),
+    ):
+        assert capture_sdd_base_sha(str(tmp_path), 1) is None
+
+    missing = tmp_path / ".sase" / "sdd"
+    with patch(
+        "sase.sdd.store.resolve_sdd_store",
+        return_value=SddStore("local", missing, missing),
+    ):
+        assert capture_sdd_base_sha(str(tmp_path), 1) is None
 
 
 def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note(
@@ -525,3 +562,10 @@ def test_workflow_pdf_status_updates_artifact_index(tmp_path: Path) -> None:
     data = state_path.read_text(encoding="utf-8")
     assert '"pdf_status"' in data
     assert '"activity"' not in data
+
+
+def _git(cwd: Path, *args: str) -> str:
+    import subprocess
+
+    result = subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+    return result.stdout.strip()

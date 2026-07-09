@@ -8,6 +8,8 @@ counters, and the home-mode running marker.
 
 import json
 import os
+from pathlib import Path
+import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -331,6 +333,39 @@ def refresh_linked_repos_for_workspace(
         agent_meta["sibling_repos"] = resolution.to_jsonable()
     write_agent_meta(artifacts_dir, agent_meta)
     return resolution
+
+
+def capture_sdd_base_sha(workspace_dir: str, workspace_num: int) -> str | None:
+    """Return the companion SDD repo HEAD to bound finalize-time scans."""
+    try:
+        from sase.sdd.store import resolve_sdd_store
+
+        store = resolve_sdd_store(workspace_dir, workspace_num)
+    except Exception:
+        return None
+
+    if store.is_in_tree:
+        return None
+
+    repo_root = Path(store.repo_root).expanduser()
+    if not (repo_root / ".git").exists():
+        return None
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    sha = result.stdout.strip()
+    return sha or None
 
 
 def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:

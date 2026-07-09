@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.media_types import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
@@ -12,6 +13,14 @@ from sase.media_types import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
 SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
 _ATTACHMENT_STATUS_LETTERS = frozenset({"A", "C", "M", "R", "T"})
+
+
+@dataclass(frozen=True)
+class ExtraRepoScan:
+    """Additional git repository to scan for agent-created attachments."""
+
+    repo_dir: str
+    base_sha: str | None = None
 
 
 def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
@@ -51,6 +60,7 @@ def collect_agent_image_paths(
     diff_path: str | None = None,
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
+    extra_repo_scans: Iterable[ExtraRepoScan] = (),
 ) -> list[str]:
     """Collect image files added or modified by an agent.
 
@@ -65,6 +75,7 @@ def collect_agent_image_paths(
         diff_path=diff_path,
         include_head_commit=include_head_commit,
         existing_files=existing_files,
+        extra_repo_scans=extra_repo_scans,
     )
 
 
@@ -74,6 +85,7 @@ def collect_agent_video_paths(
     diff_path: str | None = None,
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
+    extra_repo_scans: Iterable[ExtraRepoScan] = (),
 ) -> list[str]:
     """Collect video files added or modified by an agent.
 
@@ -86,6 +98,7 @@ def collect_agent_video_paths(
         diff_path=diff_path,
         include_head_commit=include_head_commit,
         existing_files=existing_files,
+        extra_repo_scans=extra_repo_scans,
     )
 
 
@@ -96,6 +109,7 @@ def collect_agent_markdown_paths(
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
     artifacts_dir: str | None = None,
+    extra_repo_scans: Iterable[ExtraRepoScan] = (),
 ) -> list[str]:
     """Collect Markdown files added or modified by an agent.
 
@@ -112,6 +126,7 @@ def collect_agent_markdown_paths(
         include_head_commit=include_head_commit,
         existing_files=existing_files,
         artifacts_dir=artifacts_dir,
+        extra_repo_scans=extra_repo_scans,
     )
 
 
@@ -123,6 +138,7 @@ def _collect_agent_attachment_paths(
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
     artifacts_dir: str | None = None,
+    extra_repo_scans: Iterable[ExtraRepoScan] = (),
 ) -> list[str]:
     candidates: list[str] = []
     candidates.extend(_local_changed_paths(workspace_dir))
@@ -143,6 +159,22 @@ def _collect_agent_attachment_paths(
             )
         )
     ]
+    for scan in extra_repo_scans:
+        repo_dir = _scan_repo_dir(scan)
+        if repo_dir is None:
+            continue
+        attachment_paths.extend(
+            resolved
+            for candidate in _extra_repo_changed_paths(repo_dir, scan.base_sha)
+            if (
+                resolved := _resolve_existing_attachment_path(
+                    candidate,
+                    repo_dir,
+                    is_supported_path=is_supported_path,
+                    artifacts_dir=artifacts_dir,
+                )
+            )
+        )
     return append_unique_paths(attachment_paths, existing_files)
 
 
@@ -156,6 +188,42 @@ def _head_commit_paths(workspace_dir: str) -> list[str]:
     return _paths_from_name_status(
         _run_git(workspace_dir, "diff", "--name-status", "-z", "HEAD~1..HEAD", "--")
     )
+
+
+def _extra_repo_changed_paths(repo_dir: str, base_sha: str | None) -> list[str]:
+    paths: list[str] = []
+    base = (base_sha or "").strip()
+    if base:
+        head = _git_head_sha(repo_dir)
+        if head and head != base:
+            paths.extend(
+                _paths_from_name_status(
+                    _run_git(
+                        repo_dir,
+                        "diff",
+                        "--name-status",
+                        "-z",
+                        f"{base}..HEAD",
+                        "--",
+                    )
+                )
+            )
+    paths.extend(_local_changed_paths(repo_dir))
+    paths.extend(_untracked_paths(repo_dir))
+    return paths
+
+
+def _scan_repo_dir(scan: ExtraRepoScan) -> str | None:
+    if not scan.repo_dir:
+        return None
+    repo_dir = Path(os.path.expanduser(scan.repo_dir))
+    if not (repo_dir / ".git").exists():
+        return None
+    return str(repo_dir)
+
+
+def _git_head_sha(workspace_dir: str) -> str:
+    return _run_git(workspace_dir, "rev-parse", "HEAD").strip()
 
 
 def _untracked_paths(workspace_dir: str) -> list[str]:

@@ -95,6 +95,27 @@ class TestRunStartedAtRecording:
 
         assert len(seen_run_started_at) == 1
 
+    def test_runner_persists_sdd_base_sha_before_execution(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        patches = base_patches(artifacts_dir)
+        seen: list[str] = []
+
+        def run_loop(ctx: Any, _prompt: str) -> Any:
+            meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+            assert meta["sdd_base_sha"] == "abc123"
+            assert ctx.agent_meta["sdd_base_sha"] == "abc123"
+            seen.append(meta["sdd_base_sha"])
+            return exec_result(artifacts_dir)
+
+        patches[f"{RUNNER}.capture_sdd_base_sha"] = MagicMock(return_value="abc123")
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+
+        run_main(patches, tmp_path)
+
+        assert seen == ["abc123"]
+
     def test_runner_populates_multi_agent_prompt_file_from_env(
         self,
         tmp_path: Path,
