@@ -66,7 +66,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser.add_argument(
         "-k",
         "--kind",
-        choices=("prompts", "tales", "epics", "all"),
+        choices=("prompts", "tales", "epics", "legends", "myths", "all"),
         default="all",
         help="File kind to list (default: all)",
     )

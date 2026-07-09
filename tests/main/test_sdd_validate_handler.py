@@ -208,3 +208,24 @@ def test_validate_resolves_legacy_plans_link_to_canonical_tales(
         handle_sdd_command(make_args(path=str(root), quiet=True))
 
     assert excinfo.value.code == 0
+
+
+def test_validate_accepts_legend_plan_like_links(tmp_path: Path) -> None:
+    root = tmp_path / "sdd"
+    prompt = root / "prompts" / "202605" / "roadmap.md"
+    legend = root / "legends" / "202605" / "roadmap.md"
+    prompt.parent.mkdir(parents=True)
+    legend.parent.mkdir(parents=True)
+    prompt.write_text(
+        "---\nplan: sdd/legends/202605/roadmap.md\n---\n# Prompt\n",
+        encoding="utf-8",
+    )
+    legend.write_text(
+        "---\nprompt: sdd/prompts/202605/roadmap.md\n---\n# Legend\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), quiet=True))
+
+    assert excinfo.value.code == 0
