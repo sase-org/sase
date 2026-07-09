@@ -212,7 +212,10 @@ class WorkspaceHookSpec:
 
         Providers should return a schema-versioned record mapping suitable for
         ``.sase/sdd-store.json``. ``options["create"]`` indicates whether the
-        provider may create the remote if it is missing.
+        provider may create the remote if it is missing. Existing materialized
+        records may be passed back through ``options["sdd_repo"]``,
+        ``options["sdd_host"]``, and ``options["sdd_remote_url"]`` so providers
+        can verify the exact recorded remote.
         """
         ...
 

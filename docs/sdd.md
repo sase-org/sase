@@ -173,8 +173,9 @@ filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
 The `sase sdd init` command creates or connects the effective SDD store, then refreshes the top-level README, the
 directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. On
-GitHub projects whose provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository when
-missing and writes `sdd.storage: separate_repo`; bare-git projects keep the legacy in-tree
+GitHub projects whose provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository as
+public when missing, ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`.
+Existing private companion repositories are not made public automatically. Bare-git projects keep the legacy in-tree
 `sdd.version_controlled: true` default. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh
 generated project guides or to opt into the appropriate SDD storage for the project. The generated guides are safe to
 overwrite, so do not put hand-maintained conceptual prose in those README files.

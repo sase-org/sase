@@ -276,7 +276,76 @@ def test_create_and_materialize_sdd_store_creates_and_bootstraps(
     assert committed == ["Initialize SDD store"]
 
 
-def test_create_and_materialize_sdd_store_reuses_existing_record(
+def test_create_and_materialize_sdd_store_refreshes_existing_record_with_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_patch,
+) -> None:
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    config_patch({"sdd": {"storage": "auto", "version_controlled": False}})
+    _write_sdd_store_record(
+        workspace,
+        {
+            "storage": "separate_repo",
+            "provider": "fake",
+            "host": "github.com",
+            "repo": "owner/repo--sdd",
+            "remote_url": "git@example.com:owner/repo--sdd.git",
+            "discovery": "found",
+        },
+    )
+    calls: list[dict[str, object]] = []
+
+    class FakePlugin:
+        @hookimpl
+        def ws_create_sdd_remote(
+            self,
+            primary_workspace_dir: str,
+            workspace_dir: str,
+            options: dict[str, object],
+        ) -> dict[str, object] | None:
+            calls.append(options)
+            return {
+                "schema_version": 1,
+                "storage": "separate_repo",
+                "provider": "fake",
+                "host": "github.com",
+                "repo": "owner/repo--sdd",
+                "remote_url": "git@example.com:owner/repo--sdd.git",
+                "discovery": "found",
+                "created": False,
+            }
+
+    install_workspace_plugin(monkeypatch, FakePlugin())
+
+    def fake_clone(workspace_dir: str | Path, workspace_num: int) -> None:
+        del workspace_num
+        (Path(workspace_dir) / ".sase" / "sdd").mkdir(parents=True)
+
+    monkeypatch.setattr("sase.sdd.store.ensure_workspace_sdd_clone", fake_clone)
+    monkeypatch.setattr(
+        "sase.sdd.store._ensure_materialized_store_initialized",
+        lambda store: None,
+    )
+
+    outcome = create_and_materialize_sdd_store(workspace, 1)
+
+    assert outcome.repo == "owner/repo--sdd"
+    assert outcome.created is False
+    assert calls == [
+        {
+            "workspace_num": 1,
+            "create": True,
+            "vcs_name": "",
+            "sdd_repo": "owner/repo--sdd",
+            "sdd_host": "github.com",
+            "sdd_remote_url": "git@example.com:owner/repo--sdd.git",
+        }
+    ]
+
+
+def test_create_and_materialize_sdd_store_preserves_existing_record_without_provider(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     config_patch,
@@ -295,17 +364,7 @@ def test_create_and_materialize_sdd_store_reuses_existing_record(
         },
     )
 
-    class ExplodingPlugin:
-        @hookimpl
-        def ws_create_sdd_remote(
-            self,
-            primary_workspace_dir: str,
-            workspace_dir: str,
-            options: dict[str, object],
-        ) -> dict[str, object] | None:
-            raise AssertionError("provider hook should not run")
-
-    install_workspace_plugin(monkeypatch, ExplodingPlugin())
+    install_workspace_plugin(monkeypatch, object())
 
     def fake_clone(workspace_dir: str | Path, workspace_num: int) -> None:
         del workspace_num

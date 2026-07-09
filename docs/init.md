@@ -204,8 +204,9 @@ sase memory log --id <read-id>
 
 `sase init sdd` is an alias for `sase sdd init`. It creates or connects the effective SDD store, then creates or
 refreshes generated SDD guide files and the directory-map asset for either a project root or an SDD root. On GitHub
-projects whose provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository when
-missing and writes `sdd.storage: separate_repo`; bare-git projects keep the legacy in-tree
+projects whose provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository as public
+when missing, ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`. Existing
+private companion repositories are not made public automatically. Bare-git projects keep the legacy in-tree
 `sdd.version_controlled: true` default. An explicit `sdd.storage` value still wins.
 
 ```bash

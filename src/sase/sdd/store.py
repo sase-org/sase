@@ -220,18 +220,24 @@ def create_and_materialize_sdd_store(
     existing = read_sdd_store_record(primary)
     if _is_materialized_record(existing):
         existing_record = cast(SddStoreRecord, existing)
-        store = _finalize_materialized_store(
+        result = _dispatch_create_sdd_remote(
+            primary,
+            workspace,
+            workspace_num,
+            existing_record=existing_record,
+        )
+        if result is not None:
+            return _finalize_create_sdd_remote_result(
+                primary,
+                workspace,
+                workspace_num,
+                result,
+            )
+        return _finalize_existing_materialized_store(
             primary,
             workspace,
             workspace_num,
             existing_record,
-        )
-        record = read_sdd_store_record(primary) or existing_record
-        return SddInitOutcome(
-            store=store,
-            repo=record.repo,
-            remote_url=record.remote_url,
-            created=False,
         )
 
     result = _dispatch_create_sdd_remote(primary, workspace, workspace_num)
@@ -241,6 +247,41 @@ def create_and_materialize_sdd_store(
             "repository (only GitHub is currently supported). Use `sase sdd "
             "init --storage local` for local storage."
         )
+    return _finalize_create_sdd_remote_result(
+        primary,
+        workspace,
+        workspace_num,
+        result,
+    )
+
+
+def _finalize_existing_materialized_store(
+    primary: Path,
+    workspace: Path,
+    workspace_num: int,
+    existing_record: SddStoreRecord,
+) -> SddInitOutcome:
+    store = _finalize_materialized_store(
+        primary,
+        workspace,
+        workspace_num,
+        existing_record,
+    )
+    record = read_sdd_store_record(primary) or existing_record
+    return SddInitOutcome(
+        store=store,
+        repo=record.repo,
+        remote_url=record.remote_url,
+        created=False,
+    )
+
+
+def _finalize_create_sdd_remote_result(
+    primary: Path,
+    workspace: Path,
+    workspace_num: int,
+    result: object,
+) -> SddInitOutcome:
     if not isinstance(result, dict):
         raise SddMaterializationError("provider returned an invalid SDD store record")
 
@@ -387,18 +428,29 @@ def _dispatch_create_sdd_remote(
     primary: Path,
     workspace: Path,
     workspace_num: int,
+    *,
+    existing_record: SddStoreRecord | None = None,
 ) -> dict[str, Any] | None:
     try:
         from sase.workspace_provider import create_sdd_remote
 
+        options: dict[str, object] = {
+            "workspace_num": workspace_num,
+            "create": True,
+            "vcs_name": _detect_vcs_name(workspace) or "",
+        }
+        if existing_record is not None:
+            if existing_record.repo:
+                options["sdd_repo"] = existing_record.repo
+            if existing_record.host:
+                options["sdd_host"] = existing_record.host
+            if existing_record.remote_url:
+                options["sdd_remote_url"] = existing_record.remote_url
+
         return create_sdd_remote(
             str(primary),
             str(workspace),
-            {
-                "workspace_num": workspace_num,
-                "create": True,
-                "vcs_name": _detect_vcs_name(workspace) or "",
-            },
+            options,
         )
     except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
         raise SddMaterializationError(str(exc) or type(exc).__name__) from exc

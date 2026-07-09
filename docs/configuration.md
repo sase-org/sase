@@ -1068,8 +1068,10 @@ needed.
 
 Running `sase sdd init` or its `sase init sdd` alias creates or updates the project-local SDD config, then refreshes
 generated SDD guide files and the directory map. On GitHub projects whose provider policy is `separate_repo`, init
-creates or connects the `<owner>/<repo>--sdd` companion repository and writes `sdd.storage: separate_repo`. Bare-git
-projects keep the legacy in-tree `sdd.version_controlled: true` default, and an explicit `sdd.storage` value still wins.
+creates or connects the selected companion repository, creates new GitHub companions as public, ensures the selected
+companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`. Existing private companion repositories are
+not made public automatically. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default, and an
+explicit `sdd.storage` value still wins.
 
 Source: `src/sase/default_config.yml`
 
@@ -1605,10 +1607,11 @@ linked repo uses numbered workspace resolution.
 ### `sase init sdd`
 
 `sase init sdd` is an alias for `sase sdd init`. It creates or connects GitHub companion repositories when
-`separate_repo` is the effective storage policy, otherwise it writes the legacy `sdd.version_controlled` alias as
-needed, then creates or refreshes generated SDD README files and the directory map asset. Bare-git projects run the
-generated-file refresh automatically during repository setup and first SDD writes, but the explicit command remains
-available for manual opt-in, refresh, and `--check` audits.
+`separate_repo` is the effective storage policy, creates new GitHub companions as public, and ensures the selected
+companion has a `sase--sdd` label. Existing private companion repositories are not made public automatically. Otherwise
+it writes the legacy `sdd.version_controlled` alias as needed, then creates or refreshes generated SDD README files and
+the directory map asset. Bare-git projects run the generated-file refresh automatically during repository setup and
+first SDD writes, but the explicit command remains available for manual opt-in, refresh, and `--check` audits.
 
 | Flag          | Values | Default                  | Description                                                       |
 | ------------- | ------ | ------------------------ | ----------------------------------------------------------------- |
