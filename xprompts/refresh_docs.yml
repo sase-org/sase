@@ -121,6 +121,7 @@ steps:
     output: { launched: int }
 
   - name: update_marker
+    hidden: true
     if: "{{ count_commits.count >= threshold and launch_docs_agents.launched > 0 }}"
     python: |
       import subprocess
