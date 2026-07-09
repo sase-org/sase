@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 
 import pytest
+from rich.text import Text
 
 import sase.vcs_log.render as render_mod
 from sase.core.vcs_log_wire import (
@@ -295,8 +296,41 @@ def test_pretty_tags_suffix_before_author(
 
     text = _render(_tagged_result(), "pretty", show_tags=True)
 
-    assert "tagged subject  · TYPE=sdd · PLAN=sdd/foo.md  · bryan" in text
+    assert "tagged subject  · ◆ sdd · plan sdd/foo.md  · bryan" in text
     assert "plain subject  · bryan" in text
+
+
+def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
+    entry = _entry(
+        "sase",
+        "a1b2c3d4",
+        300,
+        "tagged subject",
+        body=(
+            "body text\n\n"
+            "SASE_PLAN=sdd/tales/foo.md\n"
+            "SASE_BUG=412\n"
+            "SASE_AGENT=worker-1\n"
+            "SASE_TYPE=sdd"
+        ),
+    )
+
+    line = render_mod._commit_line(
+        entry,
+        {"sase": "#87D7FF"},
+        repo_width=len("sase"),
+        sha_width=7,
+        dt_local=datetime(2026, 7, 8, 14, 22),
+        show_tags=True,
+    )
+
+    assert "◆ sdd · @worker-1 · plan sdd/tales/foo.md · #412" in line.plain
+    assert _styles_covering(line, "◆") == ["#87D7FF"]
+    assert _styles_covering(line, "@") == ["#FFD700"]
+    assert _styles_covering(line, "worker-1") == ["#FFD700"]
+    assert _styles_covering(line, "foo.md") == ["#5FAFFF"]
+    assert _styles_covering(line, "#") == ["#FF8787"]
+    assert _styles_covering(line, "412") == ["#FF8787"]
 
 
 def test_pretty_filter_summary_and_empty_message(
@@ -364,9 +398,56 @@ def test_full_tags_line_and_footer_cleanup(
     text = _render(_tagged_result(), "full", show_tags=True)
 
     assert "body text" in text
-    assert "tags: TYPE=sdd · PLAN=sdd/foo.md" in text
+    assert "     ◆ type  sdd" in text
+    assert "       plan  sdd/foo.md" in text
+    assert "tags:" not in text
     assert "SASE_TYPE=sdd" not in text
     assert "SASE_PLAN=sdd/foo.md" not in text
+
+
+def test_full_tag_spans_use_semantic_chip_colors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(render_mod, "_relative_age", lambda dt: "38m ago")
+    entry = _entry(
+        "sase",
+        "a1b2c3d4",
+        300,
+        "tagged subject",
+        body=(
+            "body text\n\n"
+            "SASE_PLAN=sdd/tales/foo.md\n"
+            "SASE_BUG=412\n"
+            "SASE_AGENT=worker-1\n"
+            "SASE_TYPE=sdd"
+        ),
+    )
+
+    lines = render_mod._full_commit_lines(
+        entry,
+        {"sase": "#87D7FF"},
+        datetime(2026, 7, 8, 14, 22),
+        show_tags=True,
+    )
+
+    tag_lines = [
+        line
+        for line in lines
+        if line.plain.startswith(("     ◆", "     @", "       plan", "     #"))
+    ]
+    assert [line.plain for line in tag_lines] == [
+        "     ◆ type   sdd",
+        "     @ agent  worker-1",
+        "       plan   sdd/tales/foo.md",
+        "     # bug    412",
+    ]
+    assert _styles_covering(tag_lines[0], "◆") == ["#87D7FF"]
+    assert _styles_covering(tag_lines[0], "sdd") == ["#87D7FF"]
+    assert _styles_covering(tag_lines[1], "@") == ["#FFD700"]
+    assert _styles_covering(tag_lines[1], "worker-1") == ["#FFD700"]
+    assert _styles_covering(tag_lines[2], "foo.md") == ["#5FAFFF"]
+    assert _styles_covering(tag_lines[3], "#") == ["#FF8787"]
+    assert _styles_covering(tag_lines[3], "412") == ["#FF8787"]
 
 
 def test_pretty_empty_shows_no_commits() -> None:
@@ -380,3 +461,13 @@ def test_pretty_empty_still_shows_warnings() -> None:
     text = _render(empty, "pretty")
     assert "No commits found" in text
     assert "⚠ boom" in text
+
+
+def _styles_covering(text: Text, fragment: str) -> list[str]:
+    start = text.plain.index(fragment)
+    end = start + len(fragment)
+    return [
+        str(span.style)
+        for span in text.spans
+        if span.start <= start and span.end >= end
+    ]

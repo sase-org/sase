@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+from rich.text import Text
+
 from sase.core.vcs_log_wire import VcsCommitWire
+from sase.vcs_log._tag_style import full_tag_lines, inline_tag_text
 from sase.vcs_log.tags import commit_tag_view
 
 
@@ -69,3 +73,93 @@ def test_duplicate_sase_keys_keep_later_value() -> None:
 
     assert view.tags == (("TYPE", "new"), ("PLAN", "plan.md"))
     assert view.body == "body text"
+
+
+@pytest.mark.parametrize(
+    ("type_value", "expected_color"),
+    [
+        ("sdd", "#87D7FF"),
+        ("init", "#5FD75F"),
+        ("beads", "#5FD7AF"),
+        ("bead_work", "#00D7AF"),
+        ("memory", "#AF87FF"),
+        ("skills", "#D787AF"),
+        ("xprompt", "#FFAF5F"),
+        ("config", "#D7AF5F"),
+    ],
+)
+def test_tag_style_type_colors(type_value: str, expected_color: str) -> None:
+    text = inline_tag_text((("TYPE", type_value),))
+
+    assert text.plain == f"◆ {type_value}"
+    assert _styles_covering(text, "◆") == [expected_color]
+    assert _styles_covering(text, type_value) == [expected_color]
+
+
+def test_tag_style_unknown_type_falls_back_to_neutral_mauve() -> None:
+    text = inline_tag_text((("TYPE", "experimental"),))
+
+    assert text.plain == "◆ experimental"
+    assert _styles_covering(text, "◆") == ["#AF87D7"]
+    assert _styles_covering(text, "experimental") == ["#AF87D7"]
+
+
+def test_tag_style_ordering_and_known_chip_styles() -> None:
+    text = inline_tag_text(
+        (
+            ("PLAN", "sdd/tales/foo.md"),
+            ("EXTRA", "value"),
+            ("BUG", "412"),
+            ("MACHINE", "athena"),
+            ("AGENT", "worker-1"),
+            ("TYPE", "sdd"),
+        )
+    )
+
+    assert (
+        text.plain
+        == "◆ sdd · @worker-1 · machine athena · plan sdd/tales/foo.md · #412 · extra value"
+    )
+    assert _styles_covering(text, "@") == ["#FFD700"]
+    assert _styles_covering(text, "worker-1") == ["#FFD700"]
+    assert _styles_covering(text, "#") == ["#FF8787"]
+    assert _styles_covering(text, "412") == ["#FF8787"]
+    assert _styles_covering(text, "machine") == ["#8A8A8A"]
+    assert _styles_covering(text, "athena") == ["#8A8A8A"]
+    assert _styles_covering(text, "plan") == ["dim"]
+    assert _styles_covering(text, "sdd/tales/") == ["dim"]
+    assert _styles_covering(text, "foo.md") == ["#5FAFFF"]
+    assert _styles_covering(text, "extra") == ["dim"]
+    assert _styles_covering(text, "value") == []
+
+
+def test_full_tag_lines_align_keys_and_reuse_chip_styles() -> None:
+    lines = full_tag_lines(
+        (
+            ("BUG", "412"),
+            ("TYPE", "sdd"),
+            ("PLAN", "sdd/tales/foo.md"),
+            ("AGENT", "worker-1"),
+        )
+    )
+
+    assert [line.plain for line in lines] == [
+        "     ◆ type   sdd",
+        "     @ agent  worker-1",
+        "       plan   sdd/tales/foo.md",
+        "     # bug    412",
+    ]
+    assert _styles_covering(lines[0], "◆") == ["#87D7FF"]
+    assert _styles_covering(lines[1], "worker-1") == ["#FFD700"]
+    assert _styles_covering(lines[2], "foo.md") == ["#5FAFFF"]
+    assert _styles_covering(lines[3], "412") == ["#FF8787"]
+
+
+def _styles_covering(text: Text, fragment: str) -> list[str]:
+    start = text.plain.index(fragment)
+    end = start + len(fragment)
+    return [
+        str(span.style)
+        for span in text.spans
+        if span.start <= start and span.end >= end
+    ]

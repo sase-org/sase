@@ -22,6 +22,7 @@ from rich.text import Text
 from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log._style import GOLD, INCOMING, UNPUSHED, make_console, repo_colors
+from sase.vcs_log._tag_style import full_tag_lines, inline_tag_text
 from sase.vcs_log.tags import commit_tag_view
 
 _HEADER_WIDTH = 56
@@ -308,7 +309,7 @@ def _commit_line(
         tags = commit_tag_view(commit).tags
         if tags:
             line.append("  · ", style="dim")
-            line.append(_format_tags(tags, separator=" · "), style="dim")
+            line.append_text(inline_tag_text(tags))
     if commit.author_name:
         line.append(f"  · {commit.author_name}", style="dim")
     return line
@@ -321,29 +322,34 @@ def _print_full_commit(
     dt_local: datetime,
     show_tags: bool,
 ) -> None:
+    for line in _full_commit_lines(entry, colors, dt_local, show_tags=show_tags):
+        console.print(line, soft_wrap=True)
+
+
+def _full_commit_lines(
+    entry: AggregatedCommitWire,
+    colors: dict[str, str],
+    dt_local: datetime,
+    show_tags: bool,
+) -> tuple[Text, ...]:
     commit = entry.commit
     repo_color = colors.get(entry.repo, "")
+    lines: list[Text] = []
 
     header = Text("   ")
     header.append("▌ ", style=repo_color or None)
     header.append(entry.repo, style=f"bold {repo_color}".strip() or None)
     header.append("  ")
     header.append(commit.subject, style="bold")
-    console.print(header, soft_wrap=True)
+    lines.append(header)
 
     tag_view = commit_tag_view(commit) if show_tags else None
     body = (tag_view.body if tag_view is not None else commit.body).strip("\n")
     if body:
         for line in body.splitlines():
-            console.print(Text(f"     {line}", style="dim"), soft_wrap=True)
+            lines.append(Text(f"     {line}", style="dim"))
     if tag_view is not None and tag_view.tags:
-        console.print(
-            Text(
-                f"     tags: {_format_tags(tag_view.tags, separator=' · ')}",
-                style="dim",
-            ),
-            soft_wrap=True,
-        )
+        lines.extend(full_tag_lines(tag_view.tags))
 
     author = commit.author_name
     if commit.author_email:
@@ -354,7 +360,8 @@ def _print_full_commit(
         style="dim",
     )
     footer.append(f" · {_presence_label(commit.presence)}", style="dim")
-    console.print(footer, soft_wrap=True)
+    lines.append(footer)
+    return tuple(lines)
 
 
 def _print_warnings(console: Console, result: VcsLogResult) -> None:
