@@ -16,7 +16,6 @@ from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
 from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.agent.launch_types import AgentLaunchResult
-from sase.workspace_provider._hookspec import WorkflowMetadata
 
 
 class _FakeApp(AgentLaunchMixin):
@@ -226,26 +225,3 @@ def _run_launch_body_with_common_patches(
             )
         )
         return app._run_agent_launch_body(prompt)
-
-
-def _cd_metadata() -> tuple[WorkflowMetadata, ...]:
-    return (
-        WorkflowMetadata(
-            workflow_type="cd",
-            ref_pattern=r"(?:^|(?<=\s))#cd(?:[_:]([^\s()]+)|\(([^)]*)\))",
-            display_name="Directory",
-            pre_allocated_env_prefix="SASE_CD",
-        ),
-    )
-
-
-def _cd_git_metadata() -> tuple[WorkflowMetadata, ...]:
-    return (
-        *_cd_metadata(),
-        WorkflowMetadata(
-            workflow_type="git",
-            ref_pattern=r"(?:^|(?<=\s))#git(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
-            display_name="Git",
-            pre_allocated_env_prefix="SASE_GIT",
-        ),
-    )

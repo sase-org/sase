@@ -1,10 +1,7 @@
 """Shared environment variable contracts for SASE runtime coordination."""
 
 SASE_ACTIVE_PROJECT_DIR_ENV = "SASE_ACTIVE_PROJECT_DIR"
-SASE_WORKSPACE_DIR_ENV_VARS: tuple[str, ...] = (
-    "SASE_GIT_WORKSPACE_DIR",
-    "SASE_CD_WORKSPACE_DIR",
-)
+SASE_WORKSPACE_DIR_ENV_VARS: tuple[str, ...] = ("SASE_GIT_WORKSPACE_DIR",)
 PROVIDER_PROJECT_DIR_ENV_VARS: tuple[str, ...] = (
     "CODEX_PROJECT_DIR",
     SASE_ACTIVE_PROJECT_DIR_ENV,

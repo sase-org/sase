@@ -341,11 +341,10 @@ The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It
 implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_creator`, `@epic_lander`, `@phase_worker`), and
 configured model aliases; provider short aliases are shown as filter/display hints but are not inserted.
 
-File-path completion roots relative lookups in the prompt-selected workspace. A resolvable `#cd` reference takes
-precedence; without `#cd`, registered workspace-provider refs and known-project refs such as `#git:<project>` or
-`#gh:<owner>/<repo>` can root lookup in that project checkout. If no prompt workspace ref resolves, lookups fall back to
-the TUI process directory. These root rules are shared by live path suggestions, manual `Ctrl+T` path completion, and
-the manual `Ctrl+R` recursive finder.
+File-path completion roots relative lookups in the prompt-selected workspace. Registered workspace-provider refs and
+known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup in that project checkout. If no
+prompt workspace ref resolves, lookups fall back to the TUI process directory. These root rules are shared by live path
+suggestions, manual `Ctrl+T` path completion, and the manual `Ctrl+R` recursive finder.
 
 Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
 `src/sase/ace/tui/widgets/prompt_completion_root.py`, `src/sase/ace/tui/widgets/recursive_file_finder.py`
@@ -1286,18 +1285,18 @@ entry points directly.
 
 These are set automatically by sase when launching agent subprocesses and are not intended for manual use. Workspace
 plugins declare an env-var prefix, then SASE passes `<PREFIX>_PRE_ALLOCATED`, `<PREFIX>_WORKSPACE_NUM`, and
-`<PREFIX>_WORKSPACE_DIR` into the child process. Built-in prefixes include `SASE_CD` for `#cd` and `SASE_GIT` for
-`#git`; plugin packages may add prefixes such as `SASE_GH` for GitHub. The launcher clears inherited
-`SASE_*_PRE_ALLOCATED`, `SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables before applying the current
-launch's values so follow-up agents cannot inherit stale workspace claims.
+`<PREFIX>_WORKSPACE_DIR` into the child process. Built-in prefixes include `SASE_GIT` for `#git`; plugin packages may
+add prefixes such as `SASE_GH` for GitHub. The launcher clears inherited `SASE_*_PRE_ALLOCATED`, `SASE_*_WORKSPACE_NUM`,
+and `SASE_*_WORKSPACE_DIR` variables before applying the current launch's values so follow-up agents cannot inherit
+stale workspace claims.
 
-| Variable                       | Description                                                                 |
-| ------------------------------ | --------------------------------------------------------------------------- |
-| `SASE_SYNC_CWD`                | Working directory override for sync operations.                             |
-| `<PREFIX>_PRE_ALLOCATED`       | Set to `"1"` when a workspace provider has pre-allocated a launch context.  |
-| `<PREFIX>_WORKSPACE_NUM`       | Pre-allocated workspace number, or `0` for non-claiming directory contexts. |
-| `<PREFIX>_WORKSPACE_DIR`       | Pre-allocated workspace directory path.                                     |
-| `SASE_CD_*`, `SASE_GIT_*`, ... | Concrete forms for built-in and plugin-provided workspace prefixes.         |
+| Variable                 | Description                                                                |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `SASE_SYNC_CWD`          | Working directory override for sync operations.                            |
+| `<PREFIX>_PRE_ALLOCATED` | Set to `"1"` when a workspace provider has pre-allocated a launch context. |
+| `<PREFIX>_WORKSPACE_NUM` | Pre-allocated workspace number.                                            |
+| `<PREFIX>_WORKSPACE_DIR` | Pre-allocated workspace directory path.                                    |
+| `SASE_GIT_*`, ...        | Concrete forms for built-in and plugin-provided workspace prefixes.        |
 
 ## CLI Flags
 

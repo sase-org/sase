@@ -347,8 +347,8 @@ class TestDeferredWorkspacePreparation:
         self, tmp_path: Path
     ) -> None:
         artifacts_dir = str(tmp_path / "artifacts")
-        cd_workspace = tmp_path / "cd-target"
-        cd_workspace.mkdir()
+        direct_workspace = tmp_path / "direct-target"
+        direct_workspace.mkdir()
         events: list[Any] = []
 
         wait_info = AGENT_INFO._replace(wait_duration=0.0)
@@ -366,20 +366,22 @@ class TestDeferredWorkspacePreparation:
 
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
         patches[f"{RUNNER}.claim_deferred_workspace"] = MagicMock(
-            side_effect=AssertionError("cd agents must not claim deferred workspaces")
+            side_effect=AssertionError(
+                "home-mode agents must not claim deferred workspaces"
+            )
         )
         patches[f"{RUNNER}.run_execution_loop"] = run_loop
 
         run_main(
             patches,
             tmp_path,
-            workspace_dir=cd_workspace,
+            workspace_dir=direct_workspace,
             workspace_num="0",
             is_home_mode=True,
             env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
         )
 
-        assert events == ["wait", ("run", 0, str(cd_workspace))]
+        assert events == ["wait", ("run", 0, str(direct_workspace))]
 
     def test_repeat_stop_exits_before_workspace_claim_and_run_loop(
         self, tmp_path: Path

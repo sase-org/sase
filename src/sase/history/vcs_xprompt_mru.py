@@ -280,8 +280,8 @@ def _vcs_prefix_ref_is_gone(
     want to prune.
 
     Returns ``True`` only when the ref is confidently gone. Structural,
-    path/owner-repo, non-workspace (``#cd``), unregistered, or
-    snapshot-unavailable cases all keep the entry.
+    path/owner-repo, unregistered, or snapshot-unavailable cases all keep the
+    entry.
     """
     if index is None:
         return False
@@ -291,12 +291,6 @@ def _vcs_prefix_ref_is_gone(
             return False
         workflow_type, ref = parsed
 
-        from sase.ace.tui.actions.agent_workflow._ref_resolution import (
-            is_non_workspace_workflow,
-        )
-
-        if is_non_workspace_workflow(workflow_type):
-            return False
         if "/" in ref or ref.startswith("~") or ref == "home":
             return False
 

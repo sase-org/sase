@@ -11,14 +11,14 @@ from sase.ace.tui.widgets.prompt_completion_root import (
     resolve_prompt_completion_base_dir,
 )
 from sase.workspace_provider import ResolvedRef
-from tests._cd_launch_resolution_helpers import patch_cd_git_metadata
+from tests._workspace_provider_helpers import patch_git_metadata
 
 
 def test_git_completion_root_uses_known_projects_without_provider_resolution(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    patch_cd_git_metadata(monkeypatch)
+    patch_git_metadata(monkeypatch)
     workspace = tmp_path / "bob-cli"
     workspace.mkdir()
     monkeypatch.setattr(

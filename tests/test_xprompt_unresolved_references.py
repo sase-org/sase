@@ -31,13 +31,12 @@ def _stable_unresolved_env(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "sase.workspace_provider.get_workflow_names",
-        lambda: {"git", "cd"},
+        lambda: {"git"},
     )
     monkeypatch.setattr(
         "sase.workspace_provider.get_ref_patterns",
         lambda: {
             "git": re.compile(r"(?:^|(?<=\s))#git(?:[_:]([^\s]+)|\(([^)]*)\))"),
-            "cd": re.compile(r"(?:^|(?<=\s))#cd(?:[_:]([^\s]+)|\(([^)]*)\))"),
         },
     )
     monkeypatch.setattr(
@@ -85,12 +84,15 @@ def test_alias_resolved_name_is_not_flagged(monkeypatch: pytest.MonkeyPatch) -> 
     assert find_unresolved_reference_names("#rvw") == ()
 
 
-def test_vcs_and_resume_references_are_not_flagged(
+def test_vcs_and_resume_references_are_not_flagged_but_removed_cd_is(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sase.xprompt.loader.get_all_prompts", lambda: {})
 
-    assert find_unresolved_reference_names("#git:sase #cd:/tmp #fork #resume:abc") == ()
+    removed_ref = "#" + "cd:/tmp"
+    assert find_unresolved_reference_names(
+        f"#git:sase {removed_ref} #fork #resume:abc"
+    ) == ("cd",)
 
 
 def test_fenced_disabled_numeric_and_midword_hashes_are_ignored(

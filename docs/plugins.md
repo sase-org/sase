@@ -29,7 +29,7 @@ points resolve to a module whose package resources are read by Sase.
 
 | Package         | Description                                                                             | Entry Points                                                                                           |
 | --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `sase` (core)   | Bare-git VCS, bare-git and `#cd` workspaces, and built-in LLM providers                 | `sase_vcs: bare_git`, `sase_workspace: bare_git, cd`, `sase_llm: agy, claude, codex, opencode, qwen`   |
+| `sase` (core)   | Bare-git VCS, bare-git workspaces, and built-in LLM providers                           | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_llm: agy, claude, codex, opencode, qwen`       |
 | `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github` |
 | `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                  |
 | `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                               |

@@ -69,7 +69,7 @@ def test_planned_bead_work_stashes_on_validation_failure(
     # pre-launch validation raises before the existing launch catch blocks.
     with pytest.raises(ValueError):
         launch_planned_bead_work_agents(
-            segments=["#cd:work %name:actual finish the bead work"],
+            segments=["%name:actual finish the bead work"],
             segment_extra_env=[{}],
             expected_names={"expected"},
             project_name="proj",

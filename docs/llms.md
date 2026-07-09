@@ -219,10 +219,10 @@ user-managed Claude settings:
 - Each SASE-installed hook command carries a `_sase_managed` sentinel value. On exit, cleanup removes only entries
   carrying that sentinel; any pre-existing user or project hooks (including hooks for unrelated events such as
   `Notification`) are left untouched.
-- "Home-mode" launches — agents started outside a tracked workspace, identified by the absence of all three of
-  `SASE_GIT_WORKSPACE_DIR`, `SASE_CD_WORKSPACE_DIR`, and `SASE_ACTIVE_PROJECT_DIR` — skip the settings mutation
-  entirely. They emit a `claude_hooks_skipped` diagnostic to `tool_calls_writer_errors.jsonl` so the operator can see
-  why the hook records are missing, and rely on the stream-derived fallback writer (below) to populate the timeline.
+- "Home-mode" launches — agents started outside a tracked workspace, identified by the absence of
+  `SASE_GIT_WORKSPACE_DIR` and `SASE_ACTIVE_PROJECT_DIR` — skip the settings mutation entirely. They emit a
+  `claude_hooks_skipped` diagnostic to `tool_calls_writer_errors.jsonl` so the operator can see why the hook records are
+  missing, and rely on the stream-derived fallback writer (below) to populate the timeline.
 - If `.claude/settings.local.json` exists but is malformed JSON, it is left alone, the run logs a diagnostic, and the
   fallback writer takes over.
 - If SASE created the file (it did not pre-exist) and only SASE entries remain at exit, both the file and an empty

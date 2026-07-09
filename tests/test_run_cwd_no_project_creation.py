@@ -14,9 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.workspace_provider._hookspec import ResolvedRef
-from tests._cd_launch_resolution_helpers import (
-    patch_cd_git_metadata,
-)
+from tests._workspace_provider_helpers import patch_git_metadata
 
 _INFERRED_PROJECT = "myrepo"
 
@@ -35,7 +33,7 @@ def test_detached_bare_prompt_falls_back_to_home_without_creating_cwd_project(
     tmp_path: Path,
 ) -> None:
     """A bare detached launch from an inferred (spec-less) git project -> home."""
-    patch_cd_git_metadata(monkeypatch)
+    patch_git_metadata(monkeypatch)
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
 
@@ -97,7 +95,7 @@ def test_detached_explicit_ref_resolves_referenced_project_not_cwd(
     tmp_path: Path,
 ) -> None:
     """An explicit ``#git:sase`` launch resolves ``sase`` and never ``myrepo``."""
-    patch_cd_git_metadata(monkeypatch)
+    patch_git_metadata(monkeypatch)
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
 

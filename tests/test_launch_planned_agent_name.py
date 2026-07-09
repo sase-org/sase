@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tests._cd_launch_resolution_helpers import patch_cd_metadata
+from tests._workspace_provider_helpers import patch_no_workspace_metadata
 
 
 def _make_spawn_capture() -> MagicMock:
@@ -45,7 +45,7 @@ def test_single_prompt_launch_result_carries_auto_planned_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A bare prompt with no explicit name gets a parent-allocated auto name."""
-    patch_cd_metadata(monkeypatch)
+    patch_no_workspace_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
 
     spawn = _make_spawn_capture()
@@ -77,7 +77,7 @@ def test_single_prompt_launch_result_uses_durable_reserved_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Parent-side auto planning skips historical reserved names."""
-    patch_cd_metadata(monkeypatch)
+    patch_no_workspace_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
 
     spawn = _make_spawn_capture()
@@ -108,10 +108,9 @@ def test_single_prompt_launch_result_uses_durable_reserved_names(
 
 def test_single_prompt_launch_result_carries_explicit_name(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
     """A ``%name:foo`` prompt makes the launch result carry ``foo``."""
-    patch_cd_metadata(monkeypatch)
+    patch_no_workspace_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
 
     spawn = _make_spawn_capture()
@@ -130,7 +129,7 @@ def test_single_prompt_launch_result_carries_explicit_name(
         patch("sase.running_field.get_first_available_axe_workspace"),
         patch("sase.running_field.get_workspace_directory_for_num"),
     ):
-        results = launch_agents_from_cwd(f"%name:foo\n#cd:{tmp_path} do work")
+        results = launch_agents_from_cwd("%name:foo\ndo work")
 
     assert len(results) == 1
     assert results[0].agent_name == "foo"
@@ -143,7 +142,7 @@ def test_single_prompt_launch_result_carries_wait_derived_name(
     tmp_path: Path,
 ) -> None:
     """A single explicit wait gets a parent-allocated wait-derived name."""
-    patch_cd_metadata(monkeypatch)
+    patch_no_workspace_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
 
     spawn = _make_spawn_capture()
@@ -171,10 +170,9 @@ def test_single_prompt_launch_result_carries_wait_derived_name(
 
 def test_single_prompt_with_unexpanded_xprompt_leaves_agent_name_unset(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
     """A prompt whose name depends on xprompt expansion is not pre-planned."""
-    patch_cd_metadata(monkeypatch)
+    patch_no_workspace_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
 
     spawn = _make_spawn_capture()
@@ -192,7 +190,7 @@ def test_single_prompt_with_unexpanded_xprompt_leaves_agent_name_unset(
         patch("sase.running_field.get_first_available_axe_workspace"),
         patch("sase.running_field.get_workspace_directory_for_num"),
     ):
-        results = launch_agents_from_cwd(f"#somextprompt #cd:{tmp_path} do work")
+        results = launch_agents_from_cwd("run #somextprompt do work")
 
     assert len(results) == 1
     kwargs = spawn.call_args.kwargs

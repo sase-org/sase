@@ -37,7 +37,7 @@ def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
     assert "usage: sase run [-h] [PROMPT]" in run_help
     assert "PROMPT" in run_help
     assert (
-        'sase run "#cd:$(pwd) summarize what this repository does; do not change files"'
+        'sase run "#git:home summarize what this repository does; do not change files"'
         in run_help
     )
     assert 'sase run "#fork(agent_name) follow up on the previous result"' in run_help

@@ -63,12 +63,11 @@ have to feel native.
 | Path-like token (`./`, `~/`, `/`, `@…`) | Filesystem entries; directories drill down on accept                        |
 | Whitespace / empty prompt               | Recent-file history from `~/.sase/file_reference_history.json`              |
 
-Path completion is rooted in the prompt when possible. A resolvable `#cd` reference wins. When no `#cd` reference is
-present, registered workspace-provider refs and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can
-make relative path candidates come from that project checkout instead of from whatever directory launched ACE. For
-broader search, `Ctrl+R` opens a recursive fuzzy finder. A path token like `src/alp` uses `src/` as the root and `alp`
-as the initial fuzzy query; when the `Ctrl+T` panel is already open on a file/path candidate, the highlighted entry
-seeds the recursive root.
+Path completion is rooted in the prompt when possible. Registered workspace-provider refs and known-project refs such as
+`#git:<project>` or `#gh:<owner>/<repo>` can make relative path candidates come from that project checkout instead of
+from whatever directory launched ACE. For broader search, `Ctrl+R` opens a recursive fuzzy finder. A path token like
+`src/alp` uses `src/` as the root and `alp` as the initial fuzzy query; when the `Ctrl+T` panel is already open on a
+file/path candidate, the highlighted entry seeds the recursive root.
 
 Inside a known xprompt argument position, `Ctrl+T` flips to argument completion: `path` inputs delegate to file
 completion, `bool` inputs offer `true` / `false`, and inside `name(arg=…)` syntax the panel completes _missing_ named
@@ -94,7 +93,7 @@ prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it int
 (pressing `Tab` does the same thing). Normal launch writes skip trivial one-token prompts (`y`, `ok`) so they do not
 clutter the list, while failed-launch recovery can still preserve a short submitted prompt.
 
-`Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (`#git:foo`, `#hg:bar`, `#cd:~/path`) through one
+`Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (`#git:foo`, `#hg:bar`, `#gh:org/repo`) through one
 ring with a no-prefix stop: `Ctrl+P` moves toward older entries, and `Ctrl+N` moves toward newer ones. They replace the
 first launchable workspace tag in the prompt or prepend a tag when none is present. The history files behind this —
 monthly prompt-history shards under `~/.sase/prompt_history/` and the file-reference history — use a sidecar lock plus

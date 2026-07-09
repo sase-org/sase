@@ -10,10 +10,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata
+from tests._workspace_provider_helpers import git_metadata
 from tests.ace.tui._agent_launch_helpers import (
     _LaunchBodyApp,
-    _cd_git_metadata,
-    _cd_metadata,
     _fake_context,
     _run_launch_body_with_common_patches,
 )
@@ -28,58 +27,6 @@ def _gh_metadata() -> tuple[WorkflowMetadata, ...]:
             pre_allocated_env_prefix="SASE_GH",
         ),
     )
-
-
-def test_run_agent_launch_body_cd_keeps_home_mode_and_uses_target_dir(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = _LaunchBodyApp()
-    app._prompt_context = _fake_context()
-
-    from sase.ace.tui.actions.agent_workflow._ref_resolution import (
-        resolve_ref_from_prompt,
-    )
-
-    app._resolve_vcs_from_prompt = (  # type: ignore[method-assign]
-        lambda prompt, wf_name, skip_workspace=False: resolve_ref_from_prompt(
-            prompt, wf_name, skip_workspace=skip_workspace
-        )
-    )
-
-    import sase.workspace_provider._registry as registry
-
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_metadata)
-
-    with ExitStack() as stack:
-        stack.enter_context(
-            patch(
-                "sase.axe.run_agent_phases.resolve_agent_refs_in_prompt",
-                side_effect=lambda p: (p, None),
-            )
-        )
-        stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
-        stack.enter_context(
-            patch(
-                "sase.history.file_references.extract_recordable_file_refs",
-                return_value=[],
-            )
-        )
-        stack.enter_context(
-            patch("sase.history.file_references.record_file_references")
-        )
-        stack.enter_context(
-            patch("sase.ace.last_agent_selection._save_last_agent_selection")
-        )
-        app._run_agent_launch_body(f"#cd:{tmp_path} do work")
-
-    assert len(app.launched) == 1
-    launch = app.launched[0]
-    assert launch["workspace_dir"] == str(tmp_path.resolve())
-    assert launch["workspace_num"] == 0
-    assert launch["is_home_mode"] is True
-    assert launch["update_target"] == ""
-    assert launch["vcs_ref"] == ("cd", str(tmp_path))
 
 
 def test_run_agent_launch_body_uses_canonical_ref_for_first_use_repo_path(
@@ -202,7 +149,7 @@ def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
 
     import sase.workspace_provider._registry as registry
 
-    monkeypatch.setattr(registry, "get_all_workflow_metadata", _cd_git_metadata)
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", git_metadata)
 
     with ExitStack() as stack:
         stack.enter_context(

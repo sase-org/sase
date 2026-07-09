@@ -249,7 +249,6 @@ class TestSpawnEnvScrub:
             "SASE_GIT_PRE_ALLOCATED": "1",
             "SASE_GIT_WORKSPACE_NUM": "10",
             "SASE_GIT_WORKSPACE_DIR": "/managed/old-parent_10/",
-            "SASE_CD_WORKSPACE_DIR": "/managed/old-cd/",
             "SASE_ACTIVE_PROJECT_DIR": "/managed/old-parent_10/",
             "UNRELATED": "keep",
         }
@@ -257,7 +256,6 @@ class TestSpawnEnvScrub:
         assert "SASE_GIT_WORKSPACE_DIR" not in env
         assert "SASE_GIT_WORKSPACE_NUM" not in env
         assert "SASE_GIT_PRE_ALLOCATED" not in env
-        assert "SASE_CD_WORKSPACE_DIR" not in env
         # Active project dir is rewritten separately so the spawn helper
         # always plants the freshly resolved checkout.
         _overwrite_project_dir_env(env, "/managed/new-child_42/")

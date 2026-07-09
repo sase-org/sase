@@ -184,8 +184,7 @@ digests. ACE starts axe automatically unless launched with `sase ace --no-axe`.
 | `sase init skills`               | Compatibility alias for `sase skill init`.                                  | [Initialization](init.md#skill-initialization)                                              |
 
 Use `#name(...)` for inline xprompt expansion and `#!workflow(...)` for standalone workflow references. Workspace
-references such as `#cd:<path>`, `#git:<project>`, and plugin-provided references are resolved before the prompt or
-workflow runs.
+references such as `#git:<project>` and plugin-provided references are resolved before the prompt or workflow runs.
 
 ## Review And Delivery
 

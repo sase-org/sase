@@ -59,12 +59,6 @@ def _write_project_spec(projects_root: Path, project_name: str) -> Path:
 def _metadata() -> tuple[WorkflowMetadata, ...]:
     return (
         WorkflowMetadata(
-            workflow_type="cd",
-            ref_pattern=r"(?:^|(?<=\s))#cd(?:[_:]([^\s()]+)|\(([^)]*)\))",
-            display_name="Directory",
-            pre_allocated_env_prefix="SASE_CD",
-        ),
-        WorkflowMetadata(
             workflow_type="gh",
             ref_pattern=r"(?:^|(?<=\s))#gh(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
             display_name="GitHub",
@@ -273,7 +267,6 @@ def test_canonicalize_project_aliases_in_prompt_does_not_rewrite_non_exact_refs(
         "#gh:bbugyi200/bob keep\n"
         "#gh:bob-tools keep\n"
         "#bob keep\n"
-        "#cd:bob keep\n"
         "plain bob keep\n"
         "```text\n#gh:bob keep\n```\n"
         "#gh:bob rewrite"
@@ -283,7 +276,6 @@ def test_canonicalize_project_aliases_in_prompt_does_not_rewrite_non_exact_refs(
         "#gh:bbugyi200/bob keep\n"
         "#gh:bob-tools keep\n"
         "#bob keep\n"
-        "#cd:bob keep\n"
         "plain bob keep\n"
         "```text\n#gh:bob keep\n```\n"
         "#gh:bob-cli rewrite"

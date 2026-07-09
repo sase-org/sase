@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
@@ -11,7 +11,8 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from tests._cd_launch_resolution_helpers import patch_cd_metadata
+from sase.workspace_provider import ResolvedRef
+from tests._workspace_provider_helpers import patch_git_metadata
 
 from ._completion_helpers import CompletionTestApp, create_entries
 
@@ -344,7 +345,7 @@ class TestPromptFileCompletion:
         tmp_path: Path,
         monkeypatch: MonkeyPatch,
     ) -> None:
-        patch_cd_metadata(monkeypatch)
+        patch_git_metadata(monkeypatch)
         project_root = tmp_path / "bob-cli"
         other_cwd = tmp_path / "cwd"
         (project_root / "sdd").mkdir(parents=True)
@@ -380,21 +381,21 @@ class TestPromptFileCompletion:
                 "sdd/beta.md",
             ]
 
-    async def test_ctrl_t_prefers_cd_workspace_over_known_project(
+    async def test_ctrl_t_uses_registered_ref_in_prompt_order(
         self,
         tmp_path: Path,
         monkeypatch: MonkeyPatch,
     ) -> None:
-        patch_cd_metadata(monkeypatch)
+        patch_git_metadata(monkeypatch)
         project_root = tmp_path / "bob-cli"
-        cd_root = tmp_path / "cd-target"
+        spy_root = tmp_path / "spy-target"
         other_cwd = tmp_path / "cwd"
         (project_root / "sdd").mkdir(parents=True)
-        (cd_root / "sdd").mkdir(parents=True)
+        (spy_root / "sdd").mkdir(parents=True)
         (other_cwd / "sdd").mkdir(parents=True)
         (project_root / "sdd" / "project.md").write_text("x", encoding="utf-8")
-        (cd_root / "sdd" / "alpha.md").write_text("x", encoding="utf-8")
-        (cd_root / "sdd" / "beta.md").write_text("x", encoding="utf-8")
+        (spy_root / "sdd" / "alpha.md").write_text("x", encoding="utf-8")
+        (spy_root / "sdd" / "beta.md").write_text("x", encoding="utf-8")
         (other_cwd / "sdd" / "wrong.md").write_text("x", encoding="utf-8")
         monkeypatch.chdir(other_cwd)
         monkeypatch.setattr(
@@ -402,16 +403,37 @@ class TestPromptFileCompletion:
             lambda include_states=("active",): {"bob-cli": project_root},
         )
         monkeypatch.setattr(
+            "sase.workspace_provider.get_ref_patterns",
+            lambda: {
+                "git": re.compile(
+                    r"(?:^|(?<=\s))#git(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))"
+                ),
+                "spy": re.compile(r"(?:^|(?<=\s))#spy[_:]([^\s]+)"),
+            },
+        )
+
+        def peek_ref(ref: str, workflow_type: str) -> ResolvedRef | None:
+            if (workflow_type, ref) != ("spy", "target"):
+                return None
+            return ResolvedRef(
+                project_file="/tmp/spy.sase",
+                project_name="spy",
+                primary_workspace_dir=str(spy_root),
+                checkout_target="main",
+            )
+
+        monkeypatch.setattr("sase.workspace_provider.peek_ref", peek_ref)
+        monkeypatch.setattr(
             "sase.workspace_provider.resolve_ref",
-            lambda ref, workflow_type: SimpleNamespace(
-                primary_workspace_dir=str(cd_root)
+            lambda _ref, _wf: (_ for _ in ()).throw(
+                AssertionError("resolve_ref should not be called for completion")
             ),
         )
 
         app = CompletionTestApp()
         async with app.run_test():
             ta = app.query_one(PromptTextArea)
-            text = f"#gh:bob-cli #cd:{cd_root} sdd/"
+            text = "#spy:target #git:bob-cli sdd/"
             ta.load_text(text)
             ta.cursor_location = (0, len(text))
             with patch.object(

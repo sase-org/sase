@@ -12,7 +12,7 @@ from ._launch_history import (
     save_replayable_vcs_selection,
 )
 from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
-from ._ref_resolution import is_non_workspace_workflow, strip_all_vcs_refs
+from ._ref_resolution import strip_all_vcs_refs
 from ._types import PromptContext
 from ..failure_messages import with_log_panel_hint
 
@@ -82,11 +82,10 @@ def run_single_agent_launch_body(
         known_project_vcs_fallback = False
         if ctx.is_home_mode:
             for wf_name in get_workflow_names():
-                fixed_ref_workspace = has_wait or is_non_workspace_workflow(wf_name)
                 resolved = app._resolve_vcs_from_prompt(
                     _vcs_prompt,
                     wf_name,
-                    skip_workspace=has_wait or not is_non_workspace_workflow(wf_name),
+                    skip_workspace=True,
                 )
                 if resolved is not None:
                     (
@@ -96,7 +95,7 @@ def run_single_agent_launch_body(
                         resolved_workspace_num,
                         ref_value,
                     ) = resolved
-                    if fixed_ref_workspace:
+                    if has_wait:
                         ctx.workspace_dir = resolved_workspace_dir
                         ctx.workspace_num = resolved_workspace_num
                     else:
@@ -106,11 +105,8 @@ def run_single_agent_launch_body(
                     ctx.display_name = ref_value
                     ctx.history_sort_key = ref_value
                     ctx.update_target = ""  # workflow .yml handles checkout
-                    if is_non_workspace_workflow(wf_name):
-                        ctx.is_home_mode = True
-                    else:
-                        # Enable workspace claiming/releasing for VCS workspaces.
-                        ctx.is_home_mode = False
+                    # Enable workspace claiming/releasing for VCS workspaces.
+                    ctx.is_home_mode = False
                     break
             if vcs_ref is None:
                 from sase.agent.launcher import resolve_known_project_vcs_launch_ref
@@ -137,7 +133,7 @@ def run_single_agent_launch_body(
         # ref from the actual submitted prompt. Without this, editing
         # ``#gh:sase-telegram`` to ``#gh:sase`` before submitting
         # would still replay as ``#gh:sase-telegram`` on the next Ctrl+Space.
-        if vcs_ref is not None and not is_non_workspace_workflow(vcs_ref[0]):
+        if vcs_ref is not None:
             save_replayable_vcs_selection(app, ctx, vcs_ref)
 
         if vcs_ref is not None:

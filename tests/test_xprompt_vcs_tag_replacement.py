@@ -159,12 +159,12 @@ def test_inherit_vcs_tag_applies_per_multi_prompt_segment() -> None:
 
 
 def test_inherit_vcs_tag_skips_explicit_workspace_refs() -> None:
-    """Explicit VCS or directory refs remain authoritative."""
+    """Explicit VCS refs remain authoritative."""
     with (
         _patch_ref_patterns(),
         patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
     ):
-        prompt = "#git:other Fix A\n---\n#cd:~/work Fix B"
+        prompt = "#git:other Fix A\n---\n#hg:work Fix B"
         assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == prompt
 
 

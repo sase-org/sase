@@ -22,9 +22,9 @@ def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
     active project dir, and the common finalizer consumes that value.
     """
     from sase.running_field import ClaimResult
-    from tests._cd_launch_resolution_helpers import patch_cd_git_metadata
+    from tests._workspace_provider_helpers import patch_git_metadata
 
-    patch_cd_git_metadata(monkeypatch)
+    patch_git_metadata(monkeypatch)
 
     clean_parent = tmp_path / "parent-clean"
     dirty_workspace = tmp_path / "child-dirty"

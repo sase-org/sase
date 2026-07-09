@@ -23,14 +23,3 @@ def patch_vcs_patterns():
             "git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))"),
         },
     )
-
-
-def patch_vcs_patterns_with_cd():
-    return patch(
-        "sase.workspace_provider.get_ref_patterns",
-        return_value={
-            "cd": re.compile(r"#cd(?::([^\s]+)|\(([^)]*)\))"),
-            "gh": re.compile(r"#gh(?::([^\s]+)|\(([^)]*)\))"),
-            "git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))"),
-        },
-    )

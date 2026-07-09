@@ -58,7 +58,6 @@ def launch_agents_from_cwd_impl(
     submitted_query = query
 
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
-        is_non_workspace_workflow,
         resolve_ref_from_prompt,
     )
     from sase.history.prompt import add_or_update_prompt, record_failed_launch_prompt
@@ -361,24 +360,23 @@ def launch_agents_from_cwd_impl(
 
     # Resolve VCS metadata without reserving a numbered workspace for normal
     # VCS refs. The executor claims the final slot atomically just before
-    # spawn; only fixed #cd and deferred %wait launches carry a workspace here.
+    # spawn; deferred %wait launches carry a workspace here.
     for wf_name in get_workflow_names():
-        fixed_ref_workspace = has_wait or is_non_workspace_workflow(wf_name)
         resolved = resolve_ref_from_prompt(
             query,
             wf_name,
-            skip_workspace=has_wait or not is_non_workspace_workflow(wf_name),
+            skip_workspace=True,
         )
         if resolved is not None:
             project_file, project_name, resolved_dir, ws_num, ref_value = resolved
-            if fixed_ref_workspace:
+            if has_wait:
                 workspace_dir = resolved_dir
                 workspace_num = ws_num
             else:
                 workspace_dir = None
                 workspace_num = None
             vcs_ref = (wf_name, ref_value)
-            is_home_mode = is_non_workspace_workflow(wf_name)
+            is_home_mode = False
             break
 
     if vcs_ref is None:
@@ -431,12 +429,9 @@ def launch_agents_from_cwd_impl(
     if vcs_ref is not None:
         cl_name = vcs_ref[1]
         history_sort_key = vcs_ref[1]
-        if is_non_workspace_workflow(vcs_ref[0]):
-            update_target = ""
-        else:
-            from sase.vcs_provider import VCS_DEFAULT_REVISION
+        from sase.vcs_provider import VCS_DEFAULT_REVISION
 
-            update_target = VCS_DEFAULT_REVISION
+        update_target = VCS_DEFAULT_REVISION
     else:
         cl_name = project_name
         history_sort_key = ""

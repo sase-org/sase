@@ -18,7 +18,6 @@ from sase.xprompt.models import InputArg, InputType
 from tests._xprompt_swarm_helpers import (
     patch_catalog,
     patch_vcs_patterns,
-    patch_vcs_patterns_with_cd,
     xp,
 )
 
@@ -268,7 +267,7 @@ def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )
     }
-    with patch_catalog(catalog), patch_vcs_patterns_with_cd():
+    with patch_catalog(catalog), patch_vcs_patterns():
         out = expand_xprompt_swarms(["%n:abq #gh:sase #swarm:: review the changes"])
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
@@ -278,7 +277,6 @@ def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
         "%w #gh:sase #fork #research/more %m:opus",
         "%w #gh:sase #fork #research/image",
     ]
-    assert "#cd:~" not in "\n".join(normalized)
 
 
 def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
@@ -289,7 +287,7 @@ def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )
     }
-    with patch_catalog(catalog), patch_vcs_patterns_with_cd():
+    with patch_catalog(catalog), patch_vcs_patterns():
         out = expand_xprompt_swarms(
             ["%n:abq %model:opus #gh:sase #swarm:: review the changes"]
         )
@@ -300,7 +298,6 @@ def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
         "%n:abq %model:opus #gh:sase Plan review the changes",
         "%w #gh:sase #fork #research/more",
     ]
-    assert "#cd:~" not in "\n".join(normalized)
 
 
 def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref() -> (
@@ -317,7 +314,7 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
         patch_catalog(catalog),
         patch(
             "sase.workspace_provider.get_ref_patterns",
-            return_value={"cd": re.compile(r"#cd(?::([^\s]+)|\(([^)]*)\))")},
+            return_value={"git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))")},
         ),
         patch(
             "sase.xprompt.loader.get_known_project_workspaces",
@@ -332,7 +329,6 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
         "%n:abq #gh_sase Plan review the changes",
         "%w #gh_sase #fork #research/more",
     ]
-    assert "#cd:~" not in "\n".join(normalized)
 
 
 def test_expand_inline_vcs_prefix_does_not_override_generated_vcs_ref() -> None:

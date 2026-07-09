@@ -35,10 +35,10 @@ The launch path follows the same shape across those entry points:
 1. Parse prompt text, directives, and optional multi-prompt separators.
 2. Canonicalize ProjectSpec aliases in launch-bound VCS refs, so aliases such as `#gh:bob` become stable project
    directory keys such as `#gh:bob-cli` before history or artifact snapshots are written.
-3. Resolve workspace references such as `#cd:<path>`, `#git:<project>`, or plugin-provided forms, rejecting inactive
-   known projects before new work is claimed. Providers may return an optional `canonical_ref` for raw locators such as
-   first-use owner/repo refs; when they do, launch metadata, history, and prompt MRU entries use that stable ref instead
-   of the raw locator.
+3. Resolve workspace references such as `#git:<project>` or plugin-provided forms, rejecting inactive known projects
+   before new work is claimed. Providers may return an optional `canonical_ref` for raw locators such as first-use
+   owner/repo refs; when they do, launch metadata, history, and prompt MRU entries use that stable ref instead of the
+   raw locator.
 4. Allocate or prepare the target workspace through the workspace provider layer.
 5. Expand xprompt references and standalone workflow references.
 6. Invoke the selected LLM provider or workflow executor.
@@ -85,9 +85,9 @@ Provider abstractions keep SASE above any single agent runtime, version-control 
 | Resource plugins   | Extra xprompt/workflow files and default configuration.                                                          | [Plugins](plugins.md)           |
 | Integration APIs   | Public Python helpers and fixed JSON bridge contracts for companion tools.                                       | [Integrations](integrations.md) |
 
-Core SASE ships built-in providers for common local use: bundled LLM provider entry points, plain-git VCS support,
-bare-git workspaces, and `#cd` directory runs. Optional packages can add hosted VCS workflows, notification delivery,
-editor integrations, or extra prompt resources.
+Core SASE ships built-in providers for common local use: bundled LLM provider entry points, plain-git VCS support, and
+bare-git workspaces. Optional packages can add hosted VCS workflows, notification delivery, editor integrations, or
+extra prompt resources.
 
 ## Rust Core Boundary
 

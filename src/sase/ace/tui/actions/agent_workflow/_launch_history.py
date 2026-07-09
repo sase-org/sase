@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Protocol
 
-from ._ref_resolution import is_non_workspace_workflow
 from ._types import PromptContext
 
 log = logging.getLogger(__name__)
@@ -94,18 +93,15 @@ def record_launched_vcs_xprompt_usage(
                 owner_project_name = resolved[1]
                 ref = resolved[4]
                 prefix = f"#{workflow_type}:{ref}"
-            elif is_non_workspace_workflow(workflow_type):
-                return
 
     if is_default_vcs_xprompt_prefix(prefix):
         record_vcs_xprompt_usage(prefix)
         return
 
-    if not is_non_workspace_workflow(workflow_type):
-        if owner_project_name is None:
-            return
-        if not _is_launchable_replay_project(owner_project_name):
-            return
+    if owner_project_name is None:
+        return
+    if not _is_launchable_replay_project(owner_project_name):
+        return
 
     record_vcs_xprompt_usage(prefix)
 

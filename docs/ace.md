@@ -1897,11 +1897,10 @@ currently stashed.
 Press `Ctrl+T` to activate token completion. The completion kind is determined by the token under the cursor:
 
 - **XPrompt completion**: When the cursor is on a `#`-prefixed token (e.g., `#my_pro`), completion shows matching
-  xprompt names from all discovery sources. Built-in workspace references such as `#cd` are included; use `#cd:<path>`
-  to run from a specific directory without VCS workspace management. Completion rows include the xprompt kind and
-  visible typed inputs, with required arguments shown as `name: type` and optional arguments shown as `name?: type` plus
-  a default when the default is a simple scalar. Standalone workflow references use the `#!name` insertion form; typing
-  `#!` filters completion to entries whose canonical insertion starts with `#!`.
+  xprompt names from all discovery sources, including registered workspace workflow xprompts. Completion rows include
+  the xprompt kind and visible typed inputs, with required arguments shown as `name: type` and optional arguments shown
+  as `name?: type` plus a default when the default is a simple scalar. Standalone workflow references use the `#!name`
+  insertion form; typing `#!` filters completion to entries whose canonical insertion starts with `#!`.
 - **Project/ChangeSpec completion**: When the cursor is on a `#+` token, or on a `+` token that is the first character
   in the prompt, completion opens a project/ChangeSpec picker. The picker contains active launchable projects plus
   active PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status; system-managed `home`, inactive projects,
@@ -1934,9 +1933,8 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
 - **File path completion**: When the cursor is on a path-like token (starting with `/`, `./`, `../`, `~/`, or containing
   `/`), completion shows matching filesystem entries. Tokens starting with `@` are also recognized — the `@` prefix is
   preserved in the completed path (useful for file-reference arguments). Relative paths use the prompt-selected base
-  directory: a resolvable `#cd` reference takes precedence; without `#cd`, registered workspace-provider refs and
-  known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root completion in that project checkout. If
-  no prompt workspace ref resolves, ACE uses the TUI process directory.
+  directory: registered workspace-provider refs and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>`
+  can root completion in that project checkout. If no prompt workspace ref resolves, ACE uses the TUI process directory.
 - **File-history completion**: When the cursor is in whitespace (or at an empty prompt prefix), `Ctrl+T` opens a list of
   recently referenced files drawn from prompt history, ranked by recency. Project-local `.sase/` paths are filtered out
   so internal bead/plan artifacts don't pollute the suggestions. Press `Ctrl+D` in the completion panel to delete the
@@ -2170,12 +2168,11 @@ Normal launch writes skip trivial one-token prompts (e.g. `y`, `ok`) so they do 
 failed-launch recovery can still preserve a short submitted prompt.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit workspace reference appears with the
-default `#git:home` prefix. Use `#cd:~` for direct home-directory runs with no VCS workspace management. Explicit
-workspace prefixes, including `#cd:<path>`, also feed the prompt-input MRU controls. In the prompt input, the MRU ring
-is ordered from most recent to oldest: `Ctrl+P` moves toward older launchable workspace prefixes, while `Ctrl+N` moves
-toward newer prefixes. Each edge has a no-prefix stop that removes the first launchable workspace tag from the prompt
-without touching the remaining prompt text, then wraps. When no workspace tag is present, `Ctrl+P` starts at the most
-recent entry and `Ctrl+N` starts at the oldest one.
+default `#git:home` prefix. Explicit workspace prefixes also feed the prompt-input MRU controls. In the prompt input,
+the MRU ring is ordered from most recent to oldest: `Ctrl+P` moves toward older launchable workspace prefixes, while
+`Ctrl+N` moves toward newer prefixes. Each edge has a no-prefix stop that removes the first launchable workspace tag
+from the prompt without touching the remaining prompt text, then wraps. When no workspace tag is present, `Ctrl+P`
+starts at the most recent entry and `Ctrl+N` starts at the oldest one.
 
 ### Keybindings
 

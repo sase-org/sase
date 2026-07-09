@@ -78,9 +78,7 @@ def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:
     if _LAUNCH_XPROMPT_AT_REF_RE is None:
         from sase.workspace_provider import get_workflow_names
 
-        workflows = (
-            set(get_workflow_names()) | set(_KNOWN_FALLBACK_VCS_PREFIXES) | {"cd"}
-        )
+        workflows = set(get_workflow_names()) | set(_KNOWN_FALLBACK_VCS_PREFIXES)
         alts = "|".join(re.escape(name) for name in sorted(workflows))
         _LAUNCH_XPROMPT_AT_REF_RE = re.compile(
             rf"(?P<context>^|(?<=[\s([{{\"']))"

@@ -321,7 +321,7 @@ def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
 
     from sase.agent.launcher import launch_agents_from_cwd
 
-    prompt = "%name:bad--name\n#cd:~ Do work"
+    prompt = "%name:bad--name\n#git:home Do work"
     with patch.object(Path, "home", return_value=tmp_path):
         with pytest.raises(AgentNameSyntaxError):
             launch_agents_from_cwd(prompt)

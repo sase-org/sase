@@ -55,7 +55,6 @@ Start project work with a workspace ref; bare prompts normalize to `#git:home`.
 | ------------ | ----------------------------------------------------- |
 | `#gh:<ref>`  | GitHub project, ChangeSpec, `owner/repo`, or `@agent` |
 | `#git:<ref>` | Bare-git workspace                                    |
-| `#cd:<path>` | Directory only; no numbered workspace or VCS          |
 
 Append a rollover xprompt for code-changing tasks; each sets `SASE_COMMIT_METHOD` and injects the no-direct-commit rule.
 

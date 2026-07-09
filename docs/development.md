@@ -169,7 +169,7 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `src/sase/sdd/`                | Spec-driven development file and bead integration helpers.                                             |
 | `src/sase/llm_provider/`       | Built-in LLM providers and provider registry.                                                          |
 | `src/sase/vcs_provider/`       | VCS provider hook specs, plugin registry, and built-in git provider.                                   |
-| `src/sase/workspace_provider/` | Workspace provider hook specs, plugin registry, `#cd`, and bare-git workspace support.                 |
+| `src/sase/workspace_provider/` | Workspace provider hook specs, plugin registry, and bare-git workspace support.                        |
 | `src/sase/running_field/`      | Workspace claim and slot-management helpers.                                                           |
 | `src/sase/notifications/`      | Notification delivery and storage integration.                                                         |
 | `src/sase/telemetry/`          | Prometheus metrics, health, dashboard, and monitoring export support.                                  |

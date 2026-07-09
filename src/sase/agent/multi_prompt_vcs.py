@@ -91,14 +91,13 @@ def resolve_segment_vcs_context(
     """Resolve launch metadata for one multi-prompt segment.
 
     Multi-prompts can mix VCS refs across segments.  The launcher therefore
-    derives the display ChangeSpec, project context, VCS ref, and history key from the
-    segment's own VCS ref when present, falling back to the caller's context for
-    legacy prompts that rely on an already-selected ChangeSpec. Normal VCS segments
-    leave workspace selection to the shared launch executor; fixed ``#cd`` and
+    derives the display ChangeSpec, project context, VCS ref, and history key
+    from the segment's own VCS ref when present, falling back to the caller's
+    context for legacy prompts that rely on an already-selected ChangeSpec.
+    Normal VCS segments leave workspace selection to the shared launch executor;
     deferred ``%wait`` segments keep their resolved workspace context.
     """
     from sase.ace.tui.actions.agent_workflow._ref_resolution import (
-        is_non_workspace_workflow,
         resolve_ref_from_prompt,
     )
 
@@ -121,17 +120,13 @@ def resolve_segment_vcs_context(
         )
 
     wf_name, ref_value = segment_vcs_ref
-    if is_non_workspace_workflow(wf_name):
-        update_target = ""
-    else:
-        from sase.vcs_provider import VCS_DEFAULT_REVISION
+    from sase.vcs_provider import VCS_DEFAULT_REVISION
 
-        update_target = VCS_DEFAULT_REVISION
-    fixed_ref_workspace = has_wait or is_non_workspace_workflow(wf_name)
+    update_target = VCS_DEFAULT_REVISION
     resolved = resolve_ref_from_prompt(
         prompt,
         wf_name,
-        skip_workspace=has_wait or not is_non_workspace_workflow(wf_name),
+        skip_workspace=True,
     )
     if resolved is None:
         if known_project_context is not None:
@@ -151,10 +146,10 @@ def resolve_segment_vcs_context(
         cl_name=resolved_ref,
         project_file=project_file,
         project_name=project_name,
-        is_home_mode=is_non_workspace_workflow(wf_name),
+        is_home_mode=False,
         vcs_ref=(wf_name, resolved_ref),
         history_sort_key=resolved_ref,
         update_target=update_target,
-        workspace_num=workspace_num if fixed_ref_workspace else None,
-        workspace_dir=workspace_dir if fixed_ref_workspace else None,
+        workspace_num=workspace_num if has_wait else None,
+        workspace_dir=workspace_dir if has_wait else None,
     )

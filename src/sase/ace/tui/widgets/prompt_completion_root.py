@@ -31,14 +31,8 @@ def resolve_prompt_completion_base_dir(prompt: str) -> str | None:
     if not patterns:
         return _known_project_base_dir(normalized)
 
-    cd_base = _resolve_cd_base_dir(normalized, patterns)
-    if cd_base is not None:
-        return cd_base
-    if _has_cd_ref(normalized, patterns):
-        return None
-
     known_projects: dict[str, Any] | None = None
-    for prompt_ref in _iter_registered_refs(normalized, patterns, exclude={"cd"}):
+    for prompt_ref in _iter_registered_refs(normalized, patterns):
         base_dir = _peek_registered_base_dir(
             prompt_ref.ref,
             prompt_ref.workflow_type,
@@ -82,37 +76,12 @@ def _get_ref_patterns() -> dict[str, re.Pattern[str]]:
         return {}
 
 
-def _resolve_cd_base_dir(
-    prompt: str,
-    patterns: dict[str, re.Pattern[str]],
-) -> str | None:
-    pattern = patterns.get("cd")
-    if pattern is None:
-        return None
-    match = pattern.search(prompt)
-    if match is None:
-        return None
-    ref = _ref_from_match(match)
-    if not ref:
-        return None
-    return _resolve_registered_base_dir(ref, "cd")
-
-
-def _has_cd_ref(prompt: str, patterns: dict[str, re.Pattern[str]]) -> bool:
-    pattern = patterns.get("cd")
-    return pattern is not None and pattern.search(prompt) is not None
-
-
 def _iter_registered_refs(
     prompt: str,
     patterns: dict[str, re.Pattern[str]],
-    *,
-    exclude: set[str],
 ) -> list[_PromptWorkflowRef]:
     refs: list[_PromptWorkflowRef] = []
     for workflow_type, pattern in patterns.items():
-        if workflow_type in exclude:
-            continue
         for match in pattern.finditer(prompt):
             ref = _ref_from_match(match)
             if ref:
@@ -130,18 +99,6 @@ def _ref_from_match(match: re.Match[str]) -> str | None:
         if value:
             return value
     return None
-
-
-def _resolve_registered_base_dir(ref: str, workflow_type: str) -> str | None:
-    try:
-        from sase.workspace_provider import resolve_ref
-
-        resolved = resolve_ref(ref, workflow_type)
-    except Exception:
-        return None
-
-    base_dir = resolved.primary_workspace_dir
-    return str(base_dir) if base_dir else None
 
 
 def _peek_registered_base_dir(ref: str, workflow_type: str) -> str | None:

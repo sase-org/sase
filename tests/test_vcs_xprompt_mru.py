@@ -200,10 +200,10 @@ def test_record_uses_redirected_sase_home_without_mru_file_patch(
     isolated_mru = sase_home / "vcs_xprompt_mru.json"
     real_home_mru = Path.home() / ".sase" / "vcs_xprompt_mru.json"
 
-    record_vcs_xprompt_usage(f"#cd:{tmp_path}")
+    record_vcs_xprompt_usage("#gh:first")
 
     assert isolated_mru.exists()
-    assert _load_vcs_xprompt_mru() == [f"#cd:{tmp_path}"]
+    assert _load_vcs_xprompt_mru() == ["#gh:first"]
     assert isolated_mru != real_home_mru
 
 

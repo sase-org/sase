@@ -61,7 +61,7 @@ so you can authenticate once and run manual checks such as:
 
 ```bash
 sase doctor
-sase run "#cd:/work summarize this scratch environment"
+sase run "#git:home summarize this scratch environment"
 sase agent list
 sase ace
 ```

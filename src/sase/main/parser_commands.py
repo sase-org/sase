@@ -344,7 +344,7 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "Examples:\n"
-            '  sase run "#cd:$(pwd) summarize what this repository does; do not change files"\n'
+            '  sase run "#git:home summarize what this repository does; do not change files"\n'
             '  sase run "#fork(agent_name) follow up on the previous result"\n'
             "  sase chat list"
         ),

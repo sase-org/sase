@@ -27,7 +27,6 @@ from .commit_finalizer_types import (
 _WORKSPACE_NUM_ENV_VARS: tuple[str, ...] = (
     "SASE_AGENT_WORKSPACE_NUM",
     "SASE_GIT_WORKSPACE_NUM",
-    "SASE_CD_WORKSPACE_NUM",
 )
 
 

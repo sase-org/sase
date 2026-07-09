@@ -17,7 +17,7 @@ launch setup:
   xprompt swarm fan-out check
   -> default workspace ref insertion when needed (#git:home)
   -> project name/alias canonicalization (#gh:bob -> #gh_bbugyi200__bob)
-  -> workspace ref resolution (#cd/#git/#gh/#hg and known-project fallbacks)
+  -> workspace ref resolution (#git/#gh/#hg and known-project fallbacks)
   -> prompt/workflow execution
 
 xprompt expansion inside a prompt or prompt_part:
@@ -283,8 +283,7 @@ to the model. Shell examples should use single quotes around `#!...` so `!` is n
 
 For workspace references, underscores can be used as an alternative to colons: `#gh_sase` is equivalent to `#gh:sase`.
 The underscore is normalized to a colon before pattern matching, so both forms work identically. This is useful in
-contexts where colons are inconvenient. The `#cd` directory workflow is still a workspace reference even though it skips
-VCS checkout/release work.
+contexts where colons are inconvenient.
 
 Provider-backed references also support `@name` agent references in the ref portion. The `@name` is resolved at runtime
 to the named agent's ChangeSpec (branch name), allowing one agent's prompt to target another agent's workspace:
@@ -300,25 +299,21 @@ This is useful when chaining agents — for example, a review agent can target t
 ### VCS Workspace References
 
 Workspace-managing workflows use the same `#name:ref` reference syntax as xprompts, but they control where the agent
-runs before the rest of the prompt is executed. Some workspace references are VCS-backed (`#git`, `#gh`, `#hg`); `#cd`
-is directory-backed and does not reserve a numbered workspace.
+runs before the rest of the prompt is executed. Built-in `#git` references are VCS-backed; provider plugins can add
+other workspace refs such as `#gh` or `#hg`.
 
-| Reference    | Behavior                                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------- |
-| `#cd:<path>` | Run in a local directory without reserving a numbered SASE workspace or doing VCS checkout/release work |
-| `#git:<ref>` | Run in a bare-git workspace                                                                             |
-| `#gh:<ref>`  | Run in a GitHub workspace, when the GitHub plugin is installed                                          |
-| `#hg:<ref>`  | Run in a Mercurial workspace, when an hg workspace plugin is installed                                  |
+| Reference    | Behavior                                                               |
+| ------------ | ---------------------------------------------------------------------- |
+| `#git:<ref>` | Run in a bare-git workspace                                            |
+| `#gh:<ref>`  | Run in a GitHub workspace, when the GitHub plugin is installed         |
+| `#hg:<ref>`  | Run in a Mercurial workspace, when an hg workspace plugin is installed |
 
 Prompts that do not contain a workspace reference are normalized to `#git:home`, so a bare prompt runs from the managed
-bare-git `home` project by default and gets normal numbered workspace, checkout, diff, and release behavior. Use
-`#cd:~`, `#cd:/abs/path`, `#cd:relative/path`, `#cd:../sibling`, or `#cd(.)` to choose a directory explicitly and skip
-VCS workspace management.
+bare-git `home` project by default and gets normal numbered workspace, checkout, diff, and release behavior.
 
 By default, a missing or uninitialized `home` ProjectSpec is bootstrapped as a managed empty bare-git project at the
 default `home` paths. To make bare prompts use an existing home/dotfiles bare repository, register a bare repository
-whose basename resolves to `home`, for example `#git:/path/to/home.git`. Use `#cd:~` when you want a direct
-home-directory run without VCS workspace management.
+whose basename resolves to `home`, for example `#git:/path/to/home.git`.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching
 workspace plugin is not loaded in the current process. Known projects come from `~/.sase/projects/*/*.sase` (with legacy
@@ -369,10 +364,6 @@ Known-project lookup defaults to active ProjectSpecs. Inactive and sibling proje
 xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
 hint to run `sase project activate <project>` before launching new work. Management and history code paths that need
 hidden projects opt into an all-state scan explicitly.
-
-The raw colon form stops at whitespace, so paths with spaces should use the parenthesized form when possible:
-`#cd(/tmp/my project)`. Backtick quoting is supported for ordinary xprompt arguments, but workspace-reference path
-matching is intentionally conservative; prefer paths without spaces for embedded workspace tags.
 
 Double underscores (`__`) in xprompt names are treated as forward slashes (`/`), enabling flat references to namespaced
 xprompts. For example, `#foo__bar` resolves to the xprompt registered as `foo/bar`, and `#a__b__c` resolves to `a/b/c`.
@@ -613,24 +604,24 @@ making the system extensible — a plugin or user can override the CRS workflow 
 
 ### Available Tags
 
-| Tag                            | Description                                                                                                                   |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `vcs`                          | Workspace workflow xprompt (`#cd`, `#git`, `#gh`, `#hg`) — wraps other embedded workflows, running setup/teardown around them |
-| `crs`                          | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                          |
-| `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                        |
-| `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                              |
-| `mentor`                       | Mentor review prompt workflow                                                                                                 |
-| `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                         |
-| `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                  |
-| `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                   |
-| `diff_file`                    | Injects the PR diff into the mentor prompt                                                                                    |
-| `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                                 |
-| `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                           |
-| `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                             |
-| `create_legend_bead`           | Plan-approval Legend flow — creates a legend-tier bead with `epic_count`, then runs legend work                               |
-| `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                            |
-| `land_epic`                    | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                           |
-| `land_legend`                  | Final land-the-legend agent prompt used by `sase bead work` after legend epics complete                                       |
+| Tag                            | Description                                                                                                            |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `vcs`                          | Workspace workflow xprompt (`#git`, `#gh`, `#hg`) — wraps other embedded workflows, running setup/teardown around them |
+| `crs`                          | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                   |
+| `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                 |
+| `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                       |
+| `mentor`                       | Mentor review prompt workflow                                                                                          |
+| `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                  |
+| `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                           |
+| `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                            |
+| `diff_file`                    | Injects the PR diff into the mentor prompt                                                                             |
+| `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                          |
+| `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                    |
+| `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                      |
+| `create_legend_bead`           | Plan-approval Legend flow — creates a legend-tier bead with `epic_count`, then runs legend work                        |
+| `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                     |
+| `land_epic`                    | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                    |
+| `land_legend`                  | Final land-the-legend agent prompt used by `sase bead work` after legend epics complete                                |
 
 ### Defining Tags
 
@@ -826,7 +817,6 @@ defaults. Common entries include:
 
 | Reference             | Body summary                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------- |
-| `#cd`                 | Switch the agent into a resolved SASE workspace directory                                         |
 | `#git`                | Check out a git ref in an isolated workspace and show resulting changes                           |
 | `#commit`             | Create a normal commit from completed agent changes                                               |
 | `#propose`            | Create a proposal from completed agent changes                                                    |

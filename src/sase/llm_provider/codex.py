@@ -101,10 +101,7 @@ def _log_interrupt(message: str, cycle: int) -> None:
         pass
 
 
-_WORKSPACE_ENV_VARS: tuple[str, ...] = (
-    "SASE_GIT_WORKSPACE_DIR",
-    "SASE_CD_WORKSPACE_DIR",
-)
+_WORKSPACE_ENV_VARS: tuple[str, ...] = ("SASE_GIT_WORKSPACE_DIR",)
 
 
 def _workspace_env_value() -> str | None:

@@ -123,9 +123,8 @@ Now the agent has permission to make a visible diff in its isolated numbered wor
 commit workflow records a ChangeSpec that you can review on ACE's PRs tab before landing or submitting anything.
 
 For your own repositories, use `#git:<name>` to target a managed project or `#git:<bare-repo-path>` to register an
-existing bare repository. Provider plugins add other workspace references, such as `#gh:<owner>/<repo>` for GitHub.
-`#cd:<path>` also exists, but it runs directly in that directory with no numbered workspace or VCS lifecycle; use it
-only when you deliberately want an in-place run. The [workspace guide](../../workspace.md) has the full model.
+existing bare repository. Provider plugins add other workspace references, such as `#gh:<owner>/<repo>` for GitHub. The
+[workspace guide](../../workspace.md) has the full model.
 
 **What you just did.** Moved from a read-only run to a small editable task after confirming where SASE records agent
 state.

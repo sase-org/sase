@@ -2,11 +2,11 @@
 
 The **workspace provider layer** is an abstraction that handles workspace-level operations that vary across VCS hosting
 environments. While the [VCS provider](vcs.md) handles low-level version control commands (commit, diff, checkout), the
-workspace provider handles higher-level concerns: workflow type detection, reference resolution (e.g., `#git:repo` or
-`#gh:org/repo`), change submission, mail preparation, and workspace directory management.
+workspace provider handles higher-level concerns: workflow type detection, reference resolution (for example `#git:repo`
+or `#gh:org/repo`), change submission, mail preparation, and workspace directory management.
 
-A **workspace reference** is a prompt prefix such as `#cd:/tmp/project`, `#git:sase`, `#gh:sase`, or `#hg:mychange`. It
-tells SASE which project and workspace should be used before the rest of the prompt or workflow runs.
+A **workspace reference** is a prompt prefix such as `#git:sase`, `#gh:sase`, or `#hg:mychange`. It tells SASE which
+project and workspace should be used before the rest of the prompt or workflow runs.
 
 ## Plugin Architecture
 
@@ -14,11 +14,10 @@ Workspace providers are implemented as [pluggy](https://pluggy.readthedocs.io/) 
 VCS plugins. The core `sase` package bundles the **BareGitWorkspacePlugin** for local bare-remote git repositories.
 Additional backends must be installed in the same Python environment as `sase`:
 
-| Package       | Plugin                   | Description                                       |
-| ------------- | ------------------------ | ------------------------------------------------- |
-| `sase` (core) | `CdWorkspacePlugin`      | Local directory runs via `#cd:<path>` without VCS |
-| `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)          |
-| `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI)   |
+| Package       | Plugin                   | Description                                     |
+| ------------- | ------------------------ | ----------------------------------------------- |
+| `sase` (core) | `BareGitWorkspacePlugin` | Bare-git repos (local filesystem remote)        |
+| `sase-github` | `GitHubWorkspacePlugin`  | GitHub-hosted repos (PR workflows via `gh` CLI) |
 
 Plugins register themselves via the `sase_workspace` entry point group. The plugin manager loads all registered plugins
 and dispatches operations through pluggy hooks. Most hooks use `firstresult=True` — the first plugin that returns a
@@ -37,7 +36,7 @@ Each workspace plugin declares metadata about the workflow type it supports:
 
 | Field                      | Type   | Description                                                            |
 | -------------------------- | ------ | ---------------------------------------------------------------------- |
-| `workflow_type`            | string | Short name used in `#type:ref` prompts (e.g., `"cd"`, `"git"`, `"gh"`) |
+| `workflow_type`            | string | Short name used in `#type:ref` prompts (e.g., `"git"`, `"gh"`)         |
 | `ref_pattern`              | string | Regex matching `#type:ref` or `#type(ref)` syntax                      |
 | `display_name`             | string | Human-readable name (e.g., `"Git (bare)"`, `"GitHub"`)                 |
 | `pre_allocated_env_prefix` | string | Env-var prefix for pre-allocated workspace variables                   |
@@ -45,8 +44,7 @@ Each workspace plugin declares metadata about the workflow type it supports:
 | `vcs_provider_name`        | string | Specific VCS provider name (e.g., `"bare_git"`, `"github"`)            |
 | `sdd_storage_policy`       | string | Optional provider SDD policy declaration: `in_tree` or `separate_repo` |
 
-Built-in metadata includes `SASE_CD` for `#cd` and `SASE_GIT` for `#git`. Plugin packages can add prefixes such as
-`SASE_GH` and `SASE_HG`.
+Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefixes such as `SASE_GH` and `SASE_HG`.
 
 SASE uses `sdd_storage_policy` only while `sdd.storage` is `auto`. `in_tree` takes effect immediately, as it does for
 the built-in bare-git provider. `separate_repo` is a provider capability declaration; `auto` stays on the local
@@ -138,20 +136,6 @@ manager. These are the primary API for consumers:
 | `get_ref_patterns()`               | Get all registered ref patterns            |
 | `get_pre_allocated_env_prefix()`   | Get env-var prefix for a workflow type     |
 
-## Directory Workflow (`#cd`)
-
-The core package also registers `#cd:<path>` as a workspace workflow. It resolves a local directory, makes that
-directory the agent/workflow CWD, and deliberately skips numbered workspace allocation, checkout, diff, submit, and
-release behavior. `#cd` is the right choice for one-off work in an existing directory when SASE should not prepare or
-release a VCS workspace.
-
-Prompts without any workspace reference are normalized to `#git:home`; use `#cd:~` when you want a direct home-directory
-run with no VCS workspace management.
-
-Supported examples include `#cd:~`, `#cd:/tmp/project`, `#cd:../sibling`, and `#cd(.)`. The target must already exist
-and must be a directory. `~` and environment variables are expanded, and relative paths are resolved from the launching
-process's current directory. Prefer the parenthesized form for paths with spaces, for example `#cd(/tmp/my project)`.
-
 ## Bare-Git Reference Auto-Initialization
 
 The bundled bare-git provider resolves `#git:<ref>` in four modes:
@@ -170,8 +154,7 @@ creates the bare-git project on demand.
 `#git:home` is special because it is the default for bare prompts. If the `home` ProjectSpec is missing or has not yet
 recorded `BARE_REPO_DIR`, SASE bootstraps a managed empty bare-git project at the default `home` paths. To point a
 project at an existing bare repository, use `#git:<bare-repo-path>`; the path basename becomes the SASE project name, so
-`#git:/path/to/home.git` registers the `home` project. Add `#cd:~` to a prompt for a one-off direct home-directory run
-without VCS.
+`#git:/path/to/home.git` registers the `home` project.
 
 Bare-git projects use in-tree SDD under `sdd/`. SASE creates or refreshes generated SDD guide files during new project
 initialization, existing bare-repo registration, and first `#git` or `sase workspace open` materialization. When
@@ -201,8 +184,7 @@ Non-wait launches allocate the next available numbered workspace for the project
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching
 `<PREFIX>_PRE_ALLOCATED`, `<PREFIX>_WORKSPACE_NUM`, and `<PREFIX>_WORKSPACE_DIR` values into the child process. Launches
 that start with a wait directive keep workspace number `0` until the dependency is ready, then resolve a real workspace
-during normal runner setup. Directory runs such as `#cd` also use workspace number `0` because they do not reserve a
-numbered workspace. Before applying the current launch context, SASE removes inherited `SASE_*_PRE_ALLOCATED`,
+during normal runner setup. Before applying the current launch context, SASE removes inherited `SASE_*_PRE_ALLOCATED`,
 `SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables so nested or follow-up launches do not accidentally reuse a
 stale parent workspace.
 
