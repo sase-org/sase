@@ -70,14 +70,14 @@ class TestJinjaContextRendering:
         prompt = (
             "before\n"
             "%xprompts_enabled:false\n"
-            "%{%m:claude/opus | %m:codex/gpt-5.5}\n"
+            "%{%m:claude/opus | %m:codex/gpt-5.6}\n"
             "%xprompts_enabled:true\n"
             "after\n"
         )
 
         result = preprocess_prompt_early(prompt, context={"N": 1})
 
-        assert "%{%m:claude/opus | %m:codex/gpt-5.5}" in result.prompt
+        assert "%{%m:claude/opus | %m:codex/gpt-5.6}" in result.prompt
 
     @patch("sase.xprompt.process_xprompt_references", side_effect=lambda x, **kw: x)
     def test_disabled_region_jinja_content_is_opaque(

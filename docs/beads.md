@@ -167,7 +167,7 @@ Create a new issue.
 | `--tier`            | no       | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                 |
 | `-c, --changespec`  | no       | Attach a ChangeSpec name to a plan bead                                                                                                                                                                                          |
 | `-b, --bug-id`      | no       | Bug ID for the attached ChangeSpec; requires `--changespec`                                                                                                                                                                      |
-| `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.5`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
+| `-m, --model`       | no       | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase beads it is the per-phase work model. |
 
 ChangeSpec metadata is valid only on plan beads. It is used by the epic-approval and `sase bead work` flows to keep plan
 beads linked to the ChangeSpec they are intended to produce.

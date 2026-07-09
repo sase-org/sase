@@ -460,21 +460,21 @@ def test_plan_agent_launch_fanout_empty_alt_preserves_following_model() -> None:
     pytest.importorskip("sase_core_rs")
 
     plan = plan_agent_launch_fanout(
-        "Do work. %{extra} %{%model:opus | %model:gpt-5.5}",
+        "Do work. %{extra} %{%model:opus | %model:gpt-5.6}",
         launch_kind="model",
     )
 
     assert [slot.model for slot in plan.slots] == [
         "opus",
-        "gpt-5.5",
+        "gpt-5.6",
         "opus",
-        "gpt-5.5",
+        "gpt-5.6",
     ]
     assert [slot.prompt for slot in plan.slots] == [
         "Do work. extra %model:opus",
-        "Do work. extra %model:gpt-5.5",
+        "Do work. extra %model:gpt-5.6",
         "Do work. %model:opus",
-        "Do work. %model:gpt-5.5",
+        "Do work. %model:gpt-5.6",
     ]
 
 

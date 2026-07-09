@@ -39,12 +39,12 @@ def _override(
 def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        lambda: ("codex", "gpt-5.5"),
+        lambda: ("codex", "gpt-5.6"),
     )
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " CODEX(gpt-5.5) "
+    assert text.plain == " CODEX(gpt-5.6) "
     assert "cyan" in str(text.style)
 
 

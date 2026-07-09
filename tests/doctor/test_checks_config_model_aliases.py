@@ -14,7 +14,7 @@ def test_model_aliases_warns_on_worker_models_and_default_model(
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
-            "worker_models": {"claude": "codex/gpt-5.5"},
+            "worker_models": {"claude": "codex/gpt-5.6"},
             "default_model": "claude/opus",
         },
     )

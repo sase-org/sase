@@ -154,7 +154,7 @@ async def test_colon_after_model_auto_opens_model_value_panel() -> None:
         assert ta._completion_kind == "directive_arg"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "claude-fable-5",
-            "gpt-5.5",
+            "gpt-5.6",
         ]
         panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "directive values"

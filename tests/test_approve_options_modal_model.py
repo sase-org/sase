@@ -109,7 +109,7 @@ async def test_default_model_uses_planner_coder_alias() -> None:
     """With planner context, the default resolves that planner's coder alias."""
     with patch(
         "sase.llm_provider.registry.resolve_model_provider",
-        return_value=("codex", "gpt-5.5"),
+        return_value=("codex", "gpt-5.6"),
     ) as resolve_mock:
         async with ApproveOptionsApp().run_test() as pilot:
             modal = ApproveOptionsModal(
@@ -120,7 +120,7 @@ async def test_default_model_uses_planner_coder_alias() -> None:
 
             model_display = modal.query_one("#coder-model-display", Static)
             display_text = str(model_display.render())
-            assert "Follow-up — CODEX(gpt-5.5)" in display_text
+            assert "Follow-up — CODEX(gpt-5.6)" in display_text
     resolve_mock.assert_any_call("@claude_coder")
 
 

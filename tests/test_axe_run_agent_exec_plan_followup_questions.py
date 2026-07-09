@@ -380,7 +380,7 @@ class TestPlanFollowupQuestions:
         (code_dir / "agent_meta.json").write_text(
             json.dumps(
                 {
-                    "model": "gpt-5.5",
+                    "model": "gpt-5.6",
                     "llm_provider": "codex",
                     "name": "test_agent--code",
                 }
@@ -395,7 +395,7 @@ class TestPlanFollowupQuestions:
             handle_questions_marker({"questions": []}, ctx, state)
 
         base_meta = questions_mod.create_followup_artifacts.call_args.args[1]
-        assert base_meta["model"] == "gpt-5.5"
+        assert base_meta["model"] == "gpt-5.6"
         assert base_meta["llm_provider"] == "codex"
 
     def test_question_followup_metadata_falls_back_when_meta_unreadable(

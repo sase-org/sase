@@ -245,7 +245,7 @@ def test_invoke_agent_no_directive_routes_through_configured_default_alias(
     """
     cfg = {
         "provider": "claude",
-        "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+        "model_aliases": {"builtin": {"default": "codex/gpt-5.6"}},
     }
     mock_config.return_value = cfg
     mock_registry_config.return_value = cfg
@@ -261,7 +261,7 @@ def test_invoke_agent_no_directive_routes_through_configured_default_alias(
         "preprocessed",
         model_tier="large",
         suppress_output=True,
-        model_override="gpt-5.5",
+        model_override="gpt-5.6",
         options=_NO_EFFORT,
     )
 

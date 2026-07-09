@@ -101,7 +101,7 @@ def test_active_non_default_overrides_drops_default(
         f"{_MODULE}.get_active_alias_overrides",
         lambda: {
             "default": _override(),
-            "coder": _override(model="gpt-5.5"),
+            "coder": _override(model="gpt-5.6"),
         },
     )
 
@@ -131,7 +131,7 @@ def test_initial_content_reflects_non_default_override(
         f"{_MODULE}.get_active_alias_overrides",
         lambda: {
             "default": _override(),
-            "coder": _override(model="gpt-5.5", expires_at=None),
+            "coder": _override(model="gpt-5.6", expires_at=None),
         },
     )
 

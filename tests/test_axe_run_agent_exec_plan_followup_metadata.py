@@ -226,12 +226,12 @@ class TestPlanFollowupMetadata:
             ),
             patch(
                 "sase.llm_provider.registry.resolve_model_provider",
-                return_value=("codex", "gpt-5.5"),
+                return_value=("codex", "gpt-5.6"),
             ) as resolve_mock,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         resolve_mock.assert_any_call("@claude_coder")
-        assert meta_updates.get("model") == "gpt-5.5"
+        assert meta_updates.get("model") == "gpt-5.6"
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@claude_coder\n")
 
@@ -248,7 +248,7 @@ class TestPlanFollowupMetadata:
             meta_updates[key] = value
 
         def fake_resolve(model):
-            return ("codex", "gpt-5.5")
+            return ("codex", "gpt-5.6")
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
@@ -270,7 +270,7 @@ class TestPlanFollowupMetadata:
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert meta_updates.get("model") == "gpt-5.5"
+        assert meta_updates.get("model") == "gpt-5.6"
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@epic_creator\n")
 
@@ -297,7 +297,7 @@ class TestPlanFollowupMetadata:
             # default, so its model — not @claude_coder's — is what gets recorded.
             if directive == "sonnet":
                 return ("anthropic", "claude-sonnet-4-5")
-            return ("codex", "gpt-5.5")
+            return ("codex", "gpt-5.6")
 
         with (
             patch(

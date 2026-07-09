@@ -1191,11 +1191,11 @@ You can also attach an effort to a `%model` value with a trailing `@<effort>` su
 
 ```
 %model:opus@xhigh            # opus, run at xhigh effort
-%m:codex/gpt-5.5@high        # alias form, with an explicit provider/model
+%m:codex/gpt-5.6@high        # alias form, with an explicit provider/model
 ```
 
 The suffix is split off the clean model before alias/provider resolution, so the resolved model stays `opus` /
-`codex/gpt-5.5`. To preserve an `@` that is genuinely part of a model id, wrap the value in a backtick literal
+`codex/gpt-5.6`. To preserve an `@` that is genuinely part of a model id, wrap the value in a backtick literal
 (`` %model:`literal@id` ``) — backtick literals are never split.
 
 The `@effort` suffix works per branch in a fan-out, so different variants can run at different efforts (and the effort
@@ -1478,7 +1478,7 @@ longer supported; use `%{%m:opus | %m:sonnet}` instead. Colon syntax (`%m:opus`)
 (`%m(opus)`) launch a single agent.
 
 When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
-they can be told apart at a glance. Given `%{%m:opus | %m:gpt-5.5} %n:foo`, the two agents are named `foo.cld` and
+they can be told apart at a glance. Given `%{%m:opus | %m:gpt-5.6} %n:foo`, the two agents are named `foo.cld` and
 `foo.cdx`. The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook)
 — `cld`, `cdx`, `agy`, `qwn`, `opc` for the built-in providers — falling back to the full provider name for plugins that
 don't declare one. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`)

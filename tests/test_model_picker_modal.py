@@ -58,6 +58,7 @@ def test_build_model_options_has_known_models() -> None:
     assert "sonnet" in ids
     assert "claude-fable-5" in ids
     assert "o3" in ids
+    assert "gpt-5.6" in ids
     assert "gpt-5.5" in ids
     assert "Gemini 3.5 Flash (High)" in ids
 
@@ -299,6 +300,7 @@ async def test_model_picker_filters_by_provider() -> None:
         ids = {option.id for option in option_list.options}
         assert "__header_codex__" in ids
         assert "o3" in ids
+        assert "gpt-5.6" in ids
         assert "gpt-5.5" in ids
         assert "__header_agy__" not in ids
 

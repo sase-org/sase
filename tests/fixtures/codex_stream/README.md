@@ -3,7 +3,7 @@
 These fixtures document the Codex NDJSON stream shapes used by the SASE tool-call artifact tests.
 
 - `codex-cli-0.130.0-tools.jsonl` was captured locally from `codex-cli 0.130.0` on 2026-05-14 with
-  `codex exec --model gpt-5.5 --dangerously-bypass-approvals-and-sandbox --json --color never --skip-git-repo-check -`.
+  `codex exec --model gpt-5.6 --dangerously-bypass-approvals-and-sandbox --json --color never --skip-git-repo-check -`.
 - `codex-cli-0.130.0-error.jsonl` was captured locally from `codex-cli 0.130.0` on 2026-05-14 by invoking an unsupported
   model.
 - `synthesized-unknown-item.jsonl` is synthetic and exists to pin current parser behavior for an unknown item shape

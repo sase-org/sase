@@ -9,12 +9,12 @@ from sase.xprompt.models import XPrompt
 
 def test_split_prompt_for_models_multi_model_distinct_runtimes() -> None:
     """Two models on distinct runtimes get plain runtime suffixes (no model)."""
-    prompt = "%n:foo\n%{%model:opus | %model:gpt-5.5}\nReview this code"
+    prompt = "%n:foo\n%{%model:opus | %model:gpt-5.6}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:foo.cld\n%model:opus\nReview this code"
-    assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
+    assert result[1] == "%name:foo.cdx\n%model:gpt-5.6\nReview this code"
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -33,12 +33,12 @@ def test_split_prompt_for_models_alias_uses_resolved_suffix(
         }
     }
 
-    prompt = "%n:foo\n%{%model:@other | %model:gpt-5.5}\nReview this code"
+    prompt = "%n:foo\n%{%model:@other | %model:gpt-5.6}\nReview this code"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:foo.cld\n%model:@other\nReview this code"
-    assert result[1] == "%name:foo.cdx\n%model:gpt-5.5\nReview this code"
+    assert result[1] == "%name:foo.cdx\n%model:gpt-5.6\nReview this code"
 
 
 def test_split_prompt_for_models_other_resolves_to_configured_alias(
@@ -127,20 +127,20 @@ def test_split_prompt_for_models_resume_base_wins_over_wait(
 
 def test_split_prompt_for_models_multi_model_auto_generated_base() -> None:
     """No %name with multi-model injects grouped auto-name templates."""
-    result = split_prompt_for_models("%{%model:opus | %model:gpt-5.5}\nReview")
+    result = split_prompt_for_models("%{%model:opus | %model:gpt-5.6}\nReview")
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:@.cld\n%model:opus\nReview"
-    assert result[1] == "%name:@.cdx\n%model:gpt-5.5\nReview"
+    assert result[1] == "%name:@.cdx\n%model:gpt-5.6\nReview"
 
 
 def test_split_prompt_for_models_multi_model_bare_name_auto_generated() -> None:
     """Bare %name with multi-model behaves like an unnamed generated launch."""
-    result = split_prompt_for_models("%name\n%{%model:opus | %model:gpt-5.5}\nReview")
+    result = split_prompt_for_models("%name\n%{%model:opus | %model:gpt-5.6}\nReview")
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:@.cld\n%model:opus\nReview"
-    assert result[1] == "%name:@.cdx\n%model:gpt-5.5\nReview"
+    assert result[1] == "%name:@.cdx\n%model:gpt-5.6\nReview"
 
 
 def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
@@ -173,11 +173,11 @@ def test_split_prompt_for_models_unknown_model_uses_default_provider() -> None:
 
 def test_split_prompt_for_models_codex_collision_uses_short_alias() -> None:
     """Same-runtime codex collision substitutes short aliases for model names."""
-    prompt = "%n:o\n%{%model:gpt-5.5 | %model:gpt-5.3-codex}\nReview"
+    prompt = "%n:o\n%{%model:gpt-5.6 | %model:gpt-5.3-codex}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == ("%name:o.cdx_gpt55\n%model:gpt-5.5\nReview")
+    assert result[0] == ("%name:o.cdx_gpt56\n%model:gpt-5.6\nReview")
     assert result[1] == ("%name:o.cdx_gpt53\n%model:gpt-5.3-codex\nReview")
 
 
@@ -220,12 +220,12 @@ def test_split_prompt_for_models_claude_collision_unchanged() -> None:
 
 def test_split_prompt_for_models_no_collision_unchanged() -> None:
     """Distinct-runtime case never embeds the model name (alias irrelevant)."""
-    prompt = "%n:o\n%{%model:opus | %model:gpt-5.5}\nReview"
+    prompt = "%n:o\n%{%model:opus | %model:gpt-5.6}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
     assert result[0] == "%name:o.cld\n%model:opus\nReview"
-    assert result[1] == "%name:o.cdx\n%model:gpt-5.5\nReview"
+    assert result[1] == "%name:o.cdx\n%model:gpt-5.6\nReview"
 
 
 def test_split_prompt_for_models_unknown_model_falls_through() -> None:
@@ -236,18 +236,18 @@ def test_split_prompt_for_models_unknown_model_falls_through() -> None:
         # Test relies on unknown_xyz routing to codex (the fallback default).
         # If a different default is configured, skip the assertion path.
         return
-    prompt = "%n:o\n%{%model:gpt-5.5 | %model:unknown_xyz}\nReview"
+    prompt = "%n:o\n%{%model:gpt-5.6 | %model:unknown_xyz}\nReview"
     result = split_prompt_for_models(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == ("%name:o.cdx_gpt55\n%model:gpt-5.5\nReview")
+    assert result[0] == ("%name:o.cdx_gpt56\n%model:gpt-5.6\nReview")
     assert result[1] == "%name:o.cdx_unknown_xyz\n%model:unknown_xyz\nReview"
 
 
 def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
     """Two models that alias to the same short form fall back to raw names."""
     fake_aliases = {
-        "gpt-5.5": "gp",
+        "gpt-5.6": "gp",
         "gpt-5.3-codex": "gp",
     }
     with patch(
@@ -255,18 +255,18 @@ def test_split_prompt_for_models_alias_collision_falls_back_to_raw() -> None:
         return_value=fake_aliases,
     ):
         result = split_prompt_for_models(
-            "%n:o\n%{%model:gpt-5.5 | %model:gpt-5.3-codex}\nReview"
+            "%n:o\n%{%model:gpt-5.6 | %model:gpt-5.3-codex}\nReview"
         )
     assert result is not None
     assert len(result) == 2
-    assert result[0] == ("%name:o.cdx_gpt_5.5\n%model:gpt-5.5\nReview")
+    assert result[0] == ("%name:o.cdx_gpt_5.6\n%model:gpt-5.6\nReview")
     assert result[1] == ("%name:o.cdx_gpt_5.3_codex\n%model:gpt-5.3-codex\nReview")
 
 
 def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> None:
     """A model shorthand keeps its raw directive but names with the resolved alias."""
     xprompts = {
-        "flash": XPrompt(name="flash", content="gpt-5.5"),
+        "flash": XPrompt(name="flash", content="gpt-5.6"),
     }
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
         result = split_prompt_for_models(
@@ -275,14 +275,14 @@ def test_split_prompt_for_models_global_shorthand_name_uses_resolved_alias() -> 
 
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:o.cdx_gpt55\n%model:#flash\nReview"
+    assert result[0] == "%name:o.cdx_gpt56\n%model:#flash\nReview"
     assert result[1] == "%name:o.cdx_gpt53\n%model:gpt-5.3-codex\nReview"
 
 
 def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() -> None:
     """Same-runtime shorthand variants disambiguate with resolved model aliases."""
     xprompts = {
-        "flash": XPrompt(name="flash", content="gpt-5.5"),
+        "flash": XPrompt(name="flash", content="gpt-5.6"),
         "pro": XPrompt(name="pro", content="gpt-4.1"),
     }
     with patch("sase.xprompt.processor.get_all_xprompts", return_value=xprompts):
@@ -292,7 +292,7 @@ def test_split_prompt_for_models_same_runtime_shorthands_use_resolved_aliases() 
 
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%name:ag.cdx_gpt55\n%model:#flash\nReview"
+    assert result[0] == "%name:ag.cdx_gpt56\n%model:#flash\nReview"
     assert result[1] == "%name:ag.cdx_gpt41\n%model:#pro\nReview"
 
 
@@ -356,7 +356,7 @@ def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -
         return_value="cdx",
     ):
         result = split_prompt_for_models(
-            "%n:o\n%{%model:#unknown_model_alias | %model:gpt-5.5}\nReview"
+            "%n:o\n%{%model:#unknown_model_alias | %model:gpt-5.6}\nReview"
         )
 
     assert result is not None
@@ -364,4 +364,4 @@ def test_split_prompt_for_models_unknown_shorthand_name_strips_hash_fallback() -
     assert result[0] == (
         "%name:o.cdx_unknown_model_alias\n%model:#unknown_model_alias\nReview"
     )
-    assert result[1] == "%name:o.cdx_gpt55\n%model:gpt-5.5\nReview"
+    assert result[1] == "%name:o.cdx_gpt56\n%model:gpt-5.6\nReview"

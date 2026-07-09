@@ -54,7 +54,7 @@ def test_is_valid_effort() -> None:
 
 def test_split_model_effort_splits_known_trailing_level() -> None:
     assert split_model_effort("opus@xhigh") == ("opus", "xhigh")
-    assert split_model_effort("codex/gpt-5.5@xhigh") == ("codex/gpt-5.5", "xhigh")
+    assert split_model_effort("codex/gpt-5.6@xhigh") == ("codex/gpt-5.6", "xhigh")
     assert split_model_effort("opus@max") == ("opus", "max")
 
 
@@ -161,10 +161,10 @@ def test_duplicate_effort_directive_raises() -> None:
 
 def test_model_suffix_split_colon() -> None:
     cleaned, directives = extract_prompt_directives(
-        "%model:codex/gpt-5.5@xhigh\nReview"
+        "%model:codex/gpt-5.6@xhigh\nReview"
     )
     assert cleaned == "Review"
-    assert directives.model == "codex/gpt-5.5"
+    assert directives.model == "codex/gpt-5.6"
     assert directives.reasoning_effort == "xhigh"
 
 
@@ -265,11 +265,11 @@ def test_fanout_same_runtime_strips_effort_from_names() -> None:
 
 def test_fanout_distinct_runtime_strips_effort_from_names() -> None:
     result = split_prompt_for_models(
-        "%n:foo\n%{%m:opus@xhigh | %m:gpt-5.5@low}\nReview"
+        "%n:foo\n%{%m:opus@xhigh | %m:gpt-5.6@low}\nReview"
     )
     assert result == [
         "%name:foo.cld\n%m:opus@xhigh\nReview",
-        "%name:foo.cdx\n%m:gpt-5.5@low\nReview",
+        "%name:foo.cdx\n%m:gpt-5.6@low\nReview",
     ]
 
 

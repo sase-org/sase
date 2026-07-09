@@ -202,12 +202,12 @@ def test_default_alias_resolves_to_configured_target(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6"}},
         },
     )
 
-    assert resolve_model_alias("default") == "codex/gpt-5.5"
-    assert resolve_model_provider("default") == ("codex", "gpt-5.5")
+    assert resolve_model_alias("default") == "codex/gpt-5.6"
+    assert resolve_model_provider("default") == ("codex", "gpt-5.6")
 
 
 def test_default_alias_falls_back_to_provider_tier_default(
@@ -226,12 +226,12 @@ def test_coder_alias_chains_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6"}},
         },
     )
 
-    assert resolve_model_alias("coder") == "codex/gpt-5.5"
-    assert resolve_model_provider("coder") == ("codex", "gpt-5.5")
+    assert resolve_model_alias("coder") == "codex/gpt-5.6"
+    assert resolve_model_provider("coder") == ("codex", "gpt-5.6")
 
 
 def test_provider_coder_alias_chains_to_coder(
@@ -242,13 +242,13 @@ def test_provider_coder_alias_chains_to_coder(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6"}},
         },
     )
 
     # codex is a registered provider, so codex_coder is an implicit alias.
-    assert resolve_model_alias("codex_coder") == "codex/gpt-5.5"
-    assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.5")
+    assert resolve_model_alias("codex_coder") == "codex/gpt-5.6"
+    assert resolve_model_provider("codex_coder") == ("codex", "gpt-5.6")
 
 
 def test_provider_coder_alias_follows_configured_coder(
@@ -267,7 +267,7 @@ def test_provider_coder_alias_follows_configured_coder(
             "provider": "claude",
             "model_aliases": {
                 "builtin": {
-                    "default": "codex/gpt-5.5",
+                    "default": "codex/gpt-5.6",
                     "coder": "claude/sonnet",
                 }
             },
@@ -275,7 +275,7 @@ def test_provider_coder_alias_follows_configured_coder(
     )
 
     # codex_coder is unconfigured, so it inherits @coder (claude/sonnet) rather
-    # than skipping straight to @default (codex/gpt-5.5).
+    # than skipping straight to @default (codex/gpt-5.6).
     assert resolve_model_alias("codex_coder") == "claude/sonnet"
     assert resolve_model_provider("codex_coder") == ("claude", "sonnet")
 
@@ -290,7 +290,7 @@ def test_configured_provider_coder_shadows_generic_coder(
             "provider": "claude",
             "model_aliases": {
                 "builtin": {
-                    "default": "codex/gpt-5.5",
+                    "default": "codex/gpt-5.6",
                     "coder": "claude/sonnet",
                     "codex_coder": "codex/o3",
                 }
@@ -310,12 +310,12 @@ def test_epic_role_aliases_chain_to_default(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6"}},
         },
     )
 
     for role in ("epic_creator", "epic_lander", "phase_worker"):
-        assert resolve_model_alias(role) == "codex/gpt-5.5"
+        assert resolve_model_alias(role) == "codex/gpt-5.6"
 
 
 def test_configured_role_alias_shadows_implicit_default(
@@ -328,7 +328,7 @@ def test_configured_role_alias_shadows_implicit_default(
             "provider": "claude",
             "model_aliases": {
                 "builtin": {
-                    "default": "codex/gpt-5.5",
+                    "default": "codex/gpt-5.6",
                     "phase_worker": "claude/sonnet",
                 }
             },
@@ -336,7 +336,7 @@ def test_configured_role_alias_shadows_implicit_default(
     )
 
     assert resolve_model_alias("phase_worker") == "claude/sonnet"
-    assert resolve_model_alias("coder") == "codex/gpt-5.5"  # still @default
+    assert resolve_model_alias("coder") == "codex/gpt-5.6"  # still @default
 
 
 def test_alias_value_may_reference_another_alias_with_at(

@@ -24,12 +24,12 @@ def test_effective_default_uses_configured_default_alias(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6"}},
         },
     )
 
-    assert resolve_default_alias_provider_model() == ("codex", "gpt-5.5")
-    assert resolve_effective_default_provider_model() == ("codex", "gpt-5.5")
+    assert resolve_default_alias_provider_model() == ("codex", "gpt-5.6")
+    assert resolve_effective_default_provider_model() == ("codex", "gpt-5.6")
 
 
 def test_effective_default_falls_back_to_provider_tier_default(
@@ -54,7 +54,7 @@ def test_active_override_wins_over_configured_default_alias(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.5"}},
+            "model_aliases": {"builtin": {"default": "codex/gpt-5.6"}},
         },
     )
 
@@ -64,8 +64,8 @@ def test_active_override_wins_over_configured_default_alias(
     assert resolve_effective_default_provider_model() == ("agy", "Gemini 3.5 Pro")
     # ... but an explicit @default reference still resolves to the configured
     # target (the override only wins the no-directive slot).
-    assert resolve_default_alias_provider_model() == ("codex", "gpt-5.5")
-    assert resolve_model_alias("default") == "codex/gpt-5.5"
+    assert resolve_default_alias_provider_model() == ("codex", "gpt-5.6")
+    assert resolve_model_alias("default") == "codex/gpt-5.6"
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")

@@ -43,6 +43,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert values == [
         "claude-fable-5",
         "opus",
+        "gpt-5.6",
         "gpt-5.5",
         "o4-mini",
         "anthropic/claude-sonnet-4-5",
@@ -137,7 +138,7 @@ def test_model_completion_filter_matches_values_and_short_aliases(
     assert [
         entry.value
         for entry in model_completion.filter_model_completion_entries(entries, "GPT")
-    ] == ["gpt-5.5"]
+    ] == ["gpt-5.6", "gpt-5.5"]
     assert [
         entry.value
         for entry in model_completion.filter_model_completion_entries(entries, "fa")
@@ -182,7 +183,7 @@ def _metadata_payload() -> dict[str, object]:
         "providers": {
             "codex": {
                 "provider_name": "Codex",
-                "known_model_names": ["gpt-5.5", "o4-mini"],
+                "known_model_names": ["gpt-5.6", "gpt-5.5", "o4-mini"],
             },
             "claude": {
                 "provider_name": "Claude",
@@ -198,6 +199,7 @@ def _metadata_payload() -> dict[str, object]:
             },
         },
         "model_to_provider": {
+            "gpt-5.6": "codex",
             "gpt-5.5": "codex",
             "o4-mini": "codex",
             "claude-fable-5": "claude",
@@ -207,6 +209,7 @@ def _metadata_payload() -> dict[str, object]:
         },
         "model_short_aliases": {
             "claude-fable-5": "fable",
+            "gpt-5.6": "gpt56",
             "gpt-5.5": "gpt55",
         },
         "autodetect_candidates": [

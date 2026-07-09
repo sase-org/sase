@@ -72,7 +72,7 @@ def test_run_agent_launch_body_xprompt_model_axis_joins_alt_fanout() -> None:
     """
     app = _LaunchBodyApp()
     catalog = {
-        "codex": XPrompt(name="codex", content="gpt-5.5"),
+        "codex": XPrompt(name="codex", content="gpt-5.6"),
         "m_opus_codex": XPrompt(
             name="m_opus_codex",
             content="%{%model:opus | %model:#codex}",

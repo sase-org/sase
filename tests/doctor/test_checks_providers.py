@@ -18,9 +18,9 @@ def _payload() -> dict[str, object]:
     return {
         "providers": {
             "codex": {
-                "known_model_names": ["gpt-5.5"],
+                "known_model_names": ["gpt-5.6", "gpt-5.5"],
                 "autodetect_cli_name": "codex",
-                "model_resolutions": {"large": "gpt-5.5"},
+                "model_resolutions": {"large": "gpt-5.6"},
             }
         },
         "autodetect_candidates": [
@@ -37,7 +37,7 @@ def _auth_payload(
     return {
         "providers": {
             "codex": {
-                "known_model_names": ["gpt-5.5"],
+                "known_model_names": ["gpt-5.6", "gpt-5.5"],
                 "autodetect_cli_name": "codex",
                 "auth_evidence": {
                     "credential_paths": credential_paths
@@ -47,7 +47,7 @@ def _auth_payload(
                     if env_vars is not None
                     else ["OPENAI_API_KEY"],
                 },
-                "model_resolutions": {"large": "gpt-5.5"},
+                "model_resolutions": {"large": "gpt-5.6"},
             }
         },
         "autodetect_candidates": [
@@ -60,9 +60,9 @@ def _autodetect_payload() -> dict[str, object]:
     return {
         "providers": {
             "codex": {
-                "known_model_names": ["gpt-5.5"],
+                "known_model_names": ["gpt-5.6", "gpt-5.5"],
                 "autodetect_cli_name": "codex",
-                "model_resolutions": {"large": "gpt-5.5"},
+                "model_resolutions": {"large": "gpt-5.6"},
             },
             "gemini": {
                 "known_model_names": ["gemini-3-flash-preview"],
