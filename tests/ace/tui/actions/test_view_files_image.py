@@ -188,13 +188,30 @@ def test_tool_call_report_materialization_failure_drops_path(
 
 def test_commit_hint_opens_commit_view_modal() -> None:
     app = _make_app()
-    app._hint_commit_views = {1: _commit_spec()}
+    spec = _commit_spec()
+    app._hint_commit_views = {1: spec}
 
     app._process_view_input("1")
 
     app.app.push_screen.assert_called_once()
     modal = app.app.push_screen.call_args.args[0]
     assert isinstance(modal, CommitViewModal)
+    assert modal._commit_specs == (spec,)
+
+
+def test_multiple_commit_hints_open_one_navigable_commit_view_modal() -> None:
+    app = _make_app()
+    first = _commit_spec(sha="111111111111111111111111")
+    second = _commit_spec(sha="222222222222222222222222")
+    app._hint_commit_views = {1: first, 2: second}
+
+    app._process_view_input("2 1")
+
+    app.app.push_screen.assert_called_once()
+    modal = app.app.push_screen.call_args.args[0]
+    assert isinstance(modal, CommitViewModal)
+    assert modal._commit_specs == (second, first)
+    app.notify.assert_not_called()
 
 
 def test_commit_hint_copy_suffix_copies_short_sha(
@@ -215,6 +232,27 @@ def test_commit_hint_copy_suffix_copies_short_sha(
     app.app.push_screen.assert_not_called()
 
 
+def test_multiple_commit_hint_copy_suffix_copies_all_short_shas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._processing.copy_to_system_clipboard",
+        lambda content: copied.append(content) is None or True,
+    )
+    app = _make_app()
+    app._hint_commit_views = {
+        1: _commit_spec(sha="111111111111111111111111"),
+        2: _commit_spec(sha="222222222222222222222222"),
+    }
+
+    app._process_view_input("1 2%")
+
+    assert copied == ["111111111111 222222222222"]
+    app.notify.assert_called_once_with("Copied 2 commit SHA(s) to clipboard")
+    app.app.push_screen.assert_not_called()
+
+
 def test_commit_hint_editor_suffix_opens_raw_diff_path(tmp_path: Path) -> None:
     diff_path = tmp_path / "commit.diff"
     app = _make_app()
@@ -226,6 +264,31 @@ def test_commit_hint_editor_suffix_opens_raw_diff_path(tmp_path: Path) -> None:
     result = app._open_files_in_editor.call_args.args[0]
     assert result.files == [str(diff_path)]
     assert result.open_in_editor is True
+    app.app.push_screen.assert_not_called()
+
+
+def test_multiple_commit_hint_editor_suffix_opens_raw_diff_paths(
+    tmp_path: Path,
+) -> None:
+    first_diff = tmp_path / "first.diff"
+    third_diff = tmp_path / "third.diff"
+    app = _make_app()
+    app._hint_commit_views = {
+        1: _commit_spec(sha="111111111111111111111111", diff_path=str(first_diff)),
+        2: _commit_spec(sha="222222222222222222222222"),
+        3: _commit_spec(sha="333333333333333333333333", diff_path=str(third_diff)),
+    }
+    app._open_files_in_editor = MagicMock()  # type: ignore[method-assign]
+
+    app._process_view_input("1 2 3@")
+
+    result = app._open_files_in_editor.call_args.args[0]
+    assert result.files == [str(first_diff), str(third_diff)]
+    assert result.open_in_editor is True
+    app.notify.assert_called_once_with(
+        "No raw diff path for commit(s): 222222222222",
+        severity="warning",
+    )
     app.app.push_screen.assert_not_called()
 
 

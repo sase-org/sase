@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from sase.ace.testing import AcePage
@@ -110,12 +108,10 @@ async def test_preview_panel_file_png_snapshot(
 async def test_commit_view_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    diff_path = tmp_path / "commit.diff"
-    diff_path.write_text(
-        """diff --git a/src/sase/ace/tui/widgets/prompt_panel.py b/src/sase/ace/tui/widgets/prompt_panel.py
+    diff_path = "/workspace/sase/.sase/diffs/52c99ca5d123.diff"
+    diff_text = """diff --git a/src/sase/ace/tui/widgets/prompt_panel.py b/src/sase/ace/tui/widgets/prompt_panel.py
 --- a/src/sase/ace/tui/widgets/prompt_panel.py
 +++ b/src/sase/ace/tui/widgets/prompt_panel.py
 @@ -12,7 +12,11 @@ class AgentPromptPanel:
@@ -133,9 +129,7 @@ new file mode 100644
 @@ -0,0 +1,4 @@
 +def test_commit_view_opens_modal():
 +    assert True
-""",
-        encoding="utf-8",
-    )
+"""
     spec = CommitViewSpec(
         short_sha="52c99ca5d123",
         sha="52c99ca5d1234567890abcdef",
@@ -147,13 +141,44 @@ new file mode 100644
             "Register COMMITS entries as view targets and render the full "
             "commit message with the captured patch."
         ),
-        diff_path=str(diff_path),
+        diff_path=diff_path,
         is_primary=True,
+    )
+    second_diff_path = "/workspace/sase/.sase/diffs/8ed4cc91a777.diff"
+    second_diff_text = """diff --git a/src/sase/ace/tui/modals/commit_view_modal.py b/src/sase/ace/tui/modals/commit_view_modal.py
+--- a/src/sase/ace/tui/modals/commit_view_modal.py
++++ b/src/sase/ace/tui/modals/commit_view_modal.py
+@@ -55,6 +55,8 @@ class CommitViewModal:
+         self._commit_specs = specs
++        self._current_index = initial_index
++        self._diff_text_by_index = {}
+"""
+    second_spec = CommitViewSpec(
+        short_sha="8ed4cc91a777",
+        sha="8ed4cc91a7774567890abcdef",
+        repo_name="sase",
+        cwd="/workspace/sase",
+        subject="feat(tui): navigate selected commits",
+        message=(
+            "feat(tui): navigate selected commits\n\n"
+            "Keep the selected commit set inside the modal and switch between "
+            "loaded diffs with ctrl+n and ctrl+p."
+        ),
+        diff_path=second_diff_path,
+        is_primary=True,
+    )
+    diff_text_by_path = {
+        diff_path: diff_text,
+        second_diff_path: second_diff_text,
+    }
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.commit_view_modal.load_commit_diff_text",
+        lambda spec: diff_text_by_path.get(spec.diff_path or ""),
     )
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        page.app.push_screen(CommitViewModal(spec))
+        page.app.push_screen(CommitViewModal([spec, second_spec], initial_index=1))
         await page.expect_modal("CommitViewModal")
         for _ in range(20):
             modal = page.app.screen_stack[-1]

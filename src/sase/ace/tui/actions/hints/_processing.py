@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from ....hint_types import EditHooksResult, ViewFilesResult
@@ -216,19 +216,12 @@ class InputProcessingMixin(HintMixinBase):
 
     def _open_commit_hint(self, commit_hint_nums: list[int]) -> None:
         commit_views = getattr(self, "_hint_commit_views", {})
-        first_hint = commit_hint_nums[0]
-        self._open_commit_view(commit_views[first_hint])
-        if len(commit_hint_nums) > 1:
-            ignored = len(commit_hint_nums) - 1
-            self.notify(  # type: ignore[attr-defined]
-                f"Opened first commit; ignored {ignored} extra commit selection(s)",
-                severity="warning",
-            )
+        self._open_commit_view(tuple(commit_views[hint] for hint in commit_hint_nums))
 
-    def _open_commit_view(self, spec: CommitViewSpec) -> None:
+    def _open_commit_view(self, specs: Sequence[CommitViewSpec]) -> None:
         from ...modals.commit_view_modal import CommitViewModal
 
-        self.app.push_screen(CommitViewModal(spec))  # type: ignore[attr-defined]
+        self.app.push_screen(CommitViewModal(specs))  # type: ignore[attr-defined]
 
     def _copy_commit_selection_to_clipboard(
         self,
