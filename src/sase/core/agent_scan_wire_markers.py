@@ -115,7 +115,6 @@ class AgentMetaWire:
     question_session_id: str | None = None
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None
-    legend_bead_id: str | None = None
     commit_changespec_name: str | None = None
     commit_entry_id: str | None = None
     commit_result: str | None = None

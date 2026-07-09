@@ -10,7 +10,6 @@ from sase.bead.cli_common import get_project
 from sase.bead.cli_work_cleanup import (
     ForcedReuseCleanupError,
     prepare_bead_work_force_reuse,
-    rollback_legend_work_launch,
     rollback_work_launch,
     warn_force_reuse_collisions,
 )
@@ -23,11 +22,8 @@ from sase.bead.cli_work_launch import launch_bead_work_agents
 from sase.bead.cli_work_plan import (
     confirm_launch,
     expected_agent_names,
-    expected_legend_agent_names,
-    find_live_legend_name_collisions,
     find_live_name_collisions,
     legacy_epic_cleanup_names,
-    print_legend_work_plan_summary,
     print_work_plan_summary,
 )
 from sase.bead.model import BeadTier, IssueType, Status
@@ -84,15 +80,10 @@ def handle_bead_work(args: argparse.Namespace) -> None:
                 proj, args.id, dry_run=dry_run, yes=yes, no_push=no_push, timer=timer
             )
             return
-        if issue.tier == BeadTier.LEGEND:
-            _handle_legend_bead_work(
-                proj, args.id, dry_run=dry_run, yes=yes, no_push=no_push, timer=timer
-            )
-            return
 
         tier = issue.tier.value if issue.tier else "missing tier"
         print(
-            "Error: sase bead work only applies to epic or legend plan beads "
+            "Error: sase bead work only applies to epic plan beads "
             f"(got {tier} for {args.id})",
             file=sys.stderr,
         )
@@ -252,129 +243,6 @@ def _handle_epic_bead_work(
         epic_id,
         issue.title,
         kind="epic",
-        no_push=no_push,
-        timer=timer,
-    )
-
-
-def _handle_legend_bead_work(
-    proj: BeadProject,
-    legend_id: str,
-    *,
-    dry_run: bool,
-    yes: bool,
-    no_push: bool,
-    timer: LaunchTimingRecorder,
-) -> None:
-    from sase.bead.work import (
-        LegendPlanError,
-        build_legend_work_plan_from_beads_dir,
-        legend_work_segment_env,
-        render_legend_multi_prompt,
-    )
-    from sase.bead.xprompts import (
-        BeadXPromptNotFoundError,
-        resolve_land_legend_xprompt,
-    )
-
-    with timer.stage("xprompt_lookup"):
-        try:
-            land_legend_xprompt = resolve_land_legend_xprompt()
-        except (BeadXPromptNotFoundError, ValueError) as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-
-    issue = proj.show(legend_id)
-    with timer.stage("work_plan_build"):
-        try:
-            plan = build_legend_work_plan_from_beads_dir(proj.beads_dir, legend_id)
-        except LegendPlanError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-
-    with timer.stage("vcs_context"):
-        vcs_context = resolve_vcs_launch_context()
-
-    with timer.stage("prompt_render"):
-        query = render_legend_multi_prompt(
-            plan,
-            land_legend_xprompt=land_legend_xprompt,
-            vcs_context=vcs_context,
-        )
-
-    if issue.is_ready_to_work:
-        print(f"Legend {legend_id} is already ready; retrying epic agent launch.")
-    print_legend_work_plan_summary(legend_id, issue.title, plan)
-
-    if dry_run:
-        warn_force_reuse_collisions(find_live_legend_name_collisions(plan))
-        print("\n--- Multi-prompt (dry run) ---")
-        print(query)
-        return
-
-    if not yes and not confirm_launch():
-        print("Aborted.")
-        return
-
-    with timer.stage("force_reuse_cleanup"):
-        try:
-            query = prepare_bead_work_force_reuse(
-                query,
-                expected_names=expected_legend_agent_names(plan),
-            )
-        except ForcedReuseCleanupError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-
-    marked_ready_this_run = False
-    if not issue.is_ready_to_work:
-        with timer.stage("mark_ready"):
-            try:
-                proj.mark_ready_to_work(legend_id)
-                marked_ready_this_run = True
-            except AlreadyReadyError:
-                marked_ready_this_run = False
-            except (KeyError, NotAPlanError) as e:
-                print(f"Error: {e}", file=sys.stderr)
-                sys.exit(1)
-
-    try:
-        with timer.stage("agent_launch"):
-            results = launch_bead_work_agents(
-                query,
-                segment_extra_env=legend_work_segment_env(plan),
-                expected_names=expected_legend_agent_names(plan),
-                launch_context=vcs_context,
-            )
-    except Exception as e:
-        print(
-            f"Error: agent launch failed for legend {legend_id}: {e}\n"
-            "For broader diagnostics, run `sase doctor -v`.",
-            file=sys.stderr,
-        )
-        launched_results = list(getattr(e, "results", []))
-        launched_pids = [r.pid for r in launched_results]
-        rollback_legend_work_launch(
-            proj,
-            legend_id,
-            unmark_ready=marked_ready_this_run,
-            launched_pids=launched_pids,
-            launched_results=launched_results,
-        )
-        sys.exit(1)
-
-    epic_agent_count = len(plan.assignments)
-    agent_count = epic_agent_count + 1
-    print(
-        f"✓ Launched {agent_count} agents for legend {legend_id} — "
-        f"{issue.title} ({epic_agent_count} epic-planning, 1 land; "
-        f"workspace {results[0].workspace_num})"
-    )
-    commit_successful_work_launch(
-        proj.beads_dir,
-        legend_id,
-        issue.title,
-        kind="legend",
         no_push=no_push,
         timer=timer,
     )

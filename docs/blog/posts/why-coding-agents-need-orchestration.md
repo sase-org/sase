@@ -204,7 +204,7 @@ Cases where YAML workflows really are necessary:
 - `#!sase/pylimit_split`, because it coordinates analysis and mechanical follow-up work.
 - `#!sase/refresh_docs`, because it compares docs drift and launches targeted documentation work.
 - Research swarms, because they need fan-out, aggregation, and artifacts.
-- Bead epic/legend creation workflows, because they write SDD plans, initialize beads, and launch follow-up work.
+- Bead epic creation workflows, because they write SDD plans, initialize beads, and launch follow-up work.
 
 The key distinction: an xprompt swarm is excellent when the structure is "run these prompt segments, maybe with `%wait`
 ordering." A YAML workflow is for "run code, branch, gather outputs, call agents, validate, and continue."
@@ -334,8 +334,8 @@ Draw dependencies between phase beads clearly, with ready beads highlighted.
 Purpose: show that chat history is not the source of truth; durable files and state records are.
 -->
 
-> **Friction note:** SDD has a lot of nouns. Prompt, tale, epic, legend, bead, ChangeSpec. The nouns are there because
-> the lifecycle stages are different, but the docs and UI need to keep doing better at teaching "what do I touch today?"
+> **Friction note:** SDD has a lot of nouns. Prompt, tale, epic, bead, ChangeSpec. The nouns are there because the
+> lifecycle stages are different, but the docs and UI need to keep doing better at teaching "what do I touch today?"
 > versus "what exists for the full research roadmap?"
 
 ## ACE: The Cockpit
@@ -441,9 +441,9 @@ Useful things it can do:
 TELEGRAM SCREENSHOT BRIEF 1 - place after the feature list.
 Asset suggestion: docs/images/blog/00-telegram-plan-approval.png
 View: Telegram chat showing a SASE plan approval message with concise plan summary and inline buttons.
-Buttons should include Tale, Epic, Legend, Reject, and Feedback if the current UI supports them.
+Buttons should include Tale, Epic, Reject, and Feedback if the current UI supports them.
 The message should make clear which repo/workspace/agent produced the plan.
-Alt text: "Telegram message from SASE asking for plan approval with action buttons for Tale, Epic, Legend, Reject, and
+Alt text: "Telegram message from SASE asking for plan approval with action buttons for Tale, Epic, Reject, and
 Feedback."
 -->
 

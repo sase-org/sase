@@ -43,8 +43,8 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_create_parser.add_argument("-a", "--assignee", help="Assignee")
     bead_create_parser.add_argument(
         "--tier",
-        choices=["plan", "epic", "legend"],
-        help="Plan-bead tier (plan, epic, or legend)",
+        choices=["plan", "epic"],
+        help="Plan-bead tier (plan or epic)",
     )
     bead_create_parser.add_argument(
         "-c", "--changespec", help="Attach a ChangeSpec name to a plan bead"
@@ -55,17 +55,11 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Bug ID to pass when creating the attached ChangeSpec",
     )
     bead_create_parser.add_argument(
-        "-E",
-        "--epic-count",
-        type=int,
-        help="Number of epics proposed by a legend plan bead",
-    )
-    bead_create_parser.add_argument(
         "-m",
         "--model",
         help=(
             "Model to use when this bead is launched. Provider-qualified "
-            "(e.g. codex/gpt-5.5) or local alias (e.g. #pro). For epic/legend "
+            "(e.g. codex/gpt-5.5) or local alias (e.g. #pro). For epic "
             "plan beads this becomes the land-agent model; for phase beads it "
             "is the per-phase work model."
         ),
@@ -104,7 +98,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     bead_list_parser.add_argument(
         "--tier",
-        choices=["plan", "epic", "legend"],
+        choices=["plan", "epic"],
         action="append",
         help="Filter by plan-bead tier (repeatable)",
     )
@@ -194,7 +188,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     bead_search_parser.add_argument(
         "--tier",
-        choices=["plan", "epic", "legend"],
+        choices=["plan", "epic"],
         action="append",
         help="Filter by plan-bead tier (repeatable)",
     )
@@ -222,9 +216,9 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead work
     bead_work_parser = bead_subparsers.add_parser(
         "work",
-        help="Launch agents for an epic or legend plan bead",
+        help="Launch agents for an epic plan bead",
     )
-    bead_work_parser.add_argument("id", help="Epic or legend plan bead ID")
+    bead_work_parser.add_argument("id", help="Epic plan bead ID")
     bead_work_parser.add_argument(
         "-n",
         "--dry-run",
@@ -255,8 +249,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     bead_update_parser.add_argument("-n", "--notes")
     bead_update_parser.add_argument("-D", "--design")
     bead_update_parser.add_argument("-a", "--assignee")
-    bead_update_parser.add_argument("--tier", choices=["plan", "epic", "legend"])
-    bead_update_parser.add_argument("-E", "--epic-count", type=int)
+    bead_update_parser.add_argument("--tier", choices=["plan", "epic"])
     bead_update_parser.add_argument(
         "-m",
         "--model",

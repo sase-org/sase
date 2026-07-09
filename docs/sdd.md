@@ -2,7 +2,7 @@
 
 SDD is sase's system for persisting the intent behind agent work. When an agent submits a plan for approval, SDD can
 capture both the expanded prompt snapshot and the approved planning artifact, creating a traceable chain from intent to
-execution. In this guide, "plan-like artifact" means a tale, epic, or legend.
+execution. In this guide, "plan-like artifact" means a tale or epic.
 
 ## Why SDD Exists
 
@@ -12,15 +12,13 @@ SDD fixes this by writing prompt snapshots and plans to disk as first-class arti
 - **Prompts** record the full expanded prompt the agent received, so the "why" behind the work is preserved.
 - **Tales** record ordinary approved implementation plans, so decomposition decisions are queryable after the fact.
 - **Epics** record executable multi-phase plans that can be handed to `sase bead work`.
-- **Legends** record higher-level coordination plans that can own linked epics.
-- **Myths** record long-horizon narrative, strategy, and context that is broader than active roadmap plans.
 - **Research** records exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - **Beads** provide structured issue tracking that links SDD artifacts to execution via plan-like bead tiers and phase
   IDs in commit messages.
 
-Together, these create an audit trail from prompt snapshots to planning artifacts and supporting context. Tales, epics,
-and legends can link into the bead hierarchy and phase commits; myths and research notes preserve the longer-lived
-context those plans depend on.
+Together, these create an audit trail from prompt snapshots to planning artifacts and supporting context. Tales and
+epics can link into the bead hierarchy and phase commits; research notes preserve the longer-lived context those plans
+depend on.
 
 ## Storage Modes
 
@@ -69,7 +67,6 @@ The plan file produced by the agent is:
    effective SDD root look like:
    - normal approval: `tales/{YYYYMM}/{plan_name}.md`
    - epic approval: `epics/{YYYYMM}/{plan_name}.md`
-   - legend approval: `legends/{YYYYMM}/{plan_name}.md`
 
 Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
 the creation date. This keeps the directories manageable as the number of prompts, plans, and research artifacts grows
@@ -77,20 +74,18 @@ over time. Both flat and `YYYYMM` layouts are supported for backwards compatibil
 and `plans` paths when resolving files.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
-the bead issue tracker. Legend artifacts use `legend_bead_id` for the legend container bead and `epic_count` for the
-number of proposed epics; epics linked under a legend also preserve that `legend_bead_id`.
+the bead issue tracker.
 
 When `sase plan propose` submits a plan for approval, it touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI
 flips the agent into the `PLAN` status immediately rather than waiting for the next auto-refresh tick. The pulse file is
 consumed by the inotify-based artifact watcher and is harmless when no TUI is open.
 
 Humans can approve the pending proposal from ACE or from the CLI. `sase plan` lists pending PlanApproval notifications,
-recent approvals, and inferred rejected archived proposals. `sase plan approve <id-prefix> --kind tale|epic|legend`
-writes the same approval response as the TUI and tells the runner to commit the promoted plan under the matching SDD
-tier before launching the follow-up. `--kind approve` runs the coder without committing an SDD plan, while
-`--kind commit` records the approved plan in SDD without launching a coder. `sase plan reject <id-prefix>` writes the
-same no-feedback rejection response as the TUI, then attempts to dismiss and user-kill the matching planner row when it
-can be found.
+recent approvals, and inferred rejected archived proposals. `sase plan approve <id-prefix> --kind tale|epic` writes the
+same approval response as the TUI and tells the runner to commit the promoted plan under the matching SDD tier before
+launching the follow-up. `--kind approve` runs the coder without committing an SDD plan, while `--kind commit` records
+the approved plan in SDD without launching a coder. `sase plan reject <id-prefix>` writes the same no-feedback rejection
+response as the TUI, then attempts to dismiss and user-kill the matching planner row when it can be found.
 
 To recall prior plans, `sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source, surfaced
 first) and the machine-local `~/.sase/plans/` archive by content. The query is optional — omit it to browse and filter
@@ -121,9 +116,9 @@ plan: tales/202605/example.md
 prompt: prompts/202605/example.md
 ```
 
-`sase sdd validate` checks these bidirectional links for prompts, tales, epics, and legends. It treats unpaired
-historical files as warnings by default and as errors with `--strict`. Myths and research notes are durable SDD context,
-but they are not part of the prompt-plan link validator.
+`sase sdd validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical files
+as warnings by default and as errors with `--strict`. Research notes are durable SDD context, but they are not part of
+the prompt-plan link validator.
 
 ### Model Field
 
@@ -140,10 +135,8 @@ model: opus
 Epic plan files can additionally annotate individual phases with their own `model:` lines so different phases can be
 worked by different models. The `bd/new_epic` xprompt forwards the top-level `model:` field to `sase bead create`'s
 `-m/--model` flag on the epic plan bead (so the land agent inherits it) and forwards each phase's `model:` annotation to
-that phase bead's `-m/--model` flag. The `bd/new_legend` xprompt forwards only the top-level `model:` to the legend plan
-bead (the legend's land-legend agent inherits it); legend plans propose epics rather than phases, so per-phase model
-assignment happens later when each epic is split via `bd/new_epic`. When the field is absent, `--model` is omitted and
-the bead falls back to the launcher default.
+that phase bead's `-m/--model` flag. When the field is absent, `--model` is omitted and the bead falls back to the
+launcher default.
 
 ## CLI
 
@@ -157,7 +150,7 @@ when passing list flags such as `--kind` or `--json`.
 | `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                |
 | `sase init sdd`         | Compatibility alias for the default init flow; use `sase sdd init --storage ...` for explicit storage   |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
-| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, `legends`, or `all`        |
+| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, or `all`                   |
 | `sase sdd migrate`      | Migrate existing in-tree or local SDD files into the provider companion repository                      |
 | `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                         |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
@@ -174,16 +167,16 @@ on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
 The `sase sdd init` command creates or connects the effective SDD store, then refreshes the top-level README, the
-directory map asset, and generated `README.md` files in `tales/`, `epics/`, `legends/`, `myths/`, and `research/`. On
-GitHub projects whose provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository as
-public when missing, ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`.
-When an in-tree `sdd/` store already exists during separate-repo init, SASE migrates those artifacts into the companion
-checkout instead of starting from an empty store. Existing private companion repositories are not made public
-automatically. Bare-git projects keep the legacy in-tree `sdd.version_controlled: true` default. `sase init sdd` covers
-the same default flow and check/path flags; use `sase sdd init --storage ...` when explicitly choosing `in_tree`,
-`local`, or `separate_repo`. Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated
-project guides or to opt into the appropriate SDD storage for the project. The generated guides are safe to overwrite,
-so do not put hand-maintained conceptual prose in those README files.
+directory map asset, and generated `README.md` files in `tales/`, `epics/`, and `research/`. On GitHub projects whose
+provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository as public when missing,
+ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`. When an in-tree `sdd/`
+store already exists during separate-repo init, SASE migrates those artifacts into the companion checkout instead of
+starting from an empty store. Existing private companion repositories are not made public automatically. Bare-git
+projects keep the legacy in-tree `sdd.version_controlled: true` default. `sase init sdd` covers the same default flow
+and check/path flags; use `sase sdd init --storage ...` when explicitly choosing `in_tree`, `local`, or `separate_repo`.
+Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides or to opt into
+the appropriate SDD storage for the project. The generated guides are safe to overwrite, so do not put hand-maintained
+conceptual prose in those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for
@@ -201,21 +194,10 @@ Plan-like beads carry a `tier` value:
 
 - `plan` for ordinary non-epic implementation plans.
 - `epic` for executable multi-phase plans.
-- `legend` for higher-level coordination plans.
 
 For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. Each phase of the epic gets its
-own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. Legend files
-carry `legend_bead_id`, `tier: legend`, and `epic_count`; linked epics also include `legend_bead_id`. For smaller plans,
-commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file.
-
-Linked epics are created as ordinary plan beads with a legend parent:
-
-```bash
-sase bead create --title "<title>" --type "plan(${SASE_SDD_DIR}/epics/202605/example.md,<legend_bead_id>)" --tier epic
-```
-
-Legend beads are executable kickoff points for their proposed epics. `sase bead work <legend_bead_id>` launches one
-epic-planning agent per stored `epic_count`; it does not create phase beads directly.
+own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. For smaller
+plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
 workspaces can resolve. Agents can also build paths from `SASE_SDD_DIR`, for example

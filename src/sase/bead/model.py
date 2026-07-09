@@ -20,7 +20,6 @@ class IssueType(Enum):
 class BeadTier(Enum):
     PLAN = "plan"
     EPIC = "epic"
-    LEGEND = "legend"
 
 
 @dataclass
@@ -51,7 +50,6 @@ class Issue:
     design: str = ""
     model: str = ""
     is_ready_to_work: bool = False
-    epic_count: int | None = None
     changespec_name: str = ""
     changespec_bug_id: str = ""
     dependencies: list[Dependency] = field(default_factory=list)
@@ -69,13 +67,6 @@ class Issue:
             raise ValueError("Phase issues cannot carry plan tier metadata")
         if self.issue_type == IssueType.PHASE and self.is_ready_to_work:
             raise ValueError("Only plan issues can be marked is_ready_to_work")
-        if self.issue_type != IssueType.PLAN and self.epic_count is not None:
-            raise ValueError("Only plan issues can carry epic_count")
-        if self.epic_count is not None:
-            if self.tier != BeadTier.LEGEND:
-                raise ValueError("Only legend plan beads can carry epic_count")
-            if self.epic_count <= 0:
-                raise ValueError("epic_count must be a positive integer")
         if self.issue_type == IssueType.PHASE and (
             self.changespec_name or self.changespec_bug_id
         ):

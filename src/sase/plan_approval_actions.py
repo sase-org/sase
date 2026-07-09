@@ -292,7 +292,7 @@ def persisted_plan_action(response_json: dict[str, Any]) -> str | None:
 
 def _persisted_plan_action(response_json: dict[str, Any]) -> str | None:
     action = response_json.get("action")
-    if action in {"epic", "legend"}:
+    if action == "epic":
         return str(action)
     if action != "approve":
         return None
@@ -475,13 +475,7 @@ def _archive_plan_for_approval(
                 commit=True,
                 push=False,
             )
-        plan_kind = (
-            "epics"
-            if persisted_action == "epic"
-            else "legends"
-            if persisted_action == "legend"
-            else "tales"
-        )
+        plan_kind = "epics" if persisted_action == "epic" else "tales"
         dest_dir = sdd_dir / plan_kind / get_yyyymm()
         dest_dir.mkdir(parents=True, exist_ok=True)
         src_plan = Path(notification.host_files[0])

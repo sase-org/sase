@@ -140,11 +140,6 @@ def _visible_plan_agents(monkeypatch: pytest.MonkeyPatch) -> None:
             "epic",
         ),
         (
-            "legend",
-            {"action": "legend", "commit_plan": True, "run_coder": True},
-            "legend",
-        ),
-        (
             "commit",
             {"action": "approve", "commit_plan": True, "run_coder": False},
             "commit",

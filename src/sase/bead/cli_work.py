@@ -20,15 +20,10 @@ print_work_plan_summary = cli_work_plan.print_work_plan_summary
 resolve_changespec_launch_context = cli_work_context.resolve_changespec_launch_context
 rollback_work_launch = cli_work_cleanup.rollback_work_launch
 
-# Backward-compatible aliases for older tests/importers of the original module.
-_expected_legend_agent_names = cli_work_plan.expected_legend_agent_names
-_find_live_legend_name_collisions = cli_work_plan.find_live_legend_name_collisions
 _launch_bead_work_agents = cli_work_launch.launch_bead_work_agents
 
 __all__ = [
     "BEAD_WORK_TIMING_ENV",
-    "_expected_legend_agent_names",
-    "_find_live_legend_name_collisions",
     "_launch_bead_work_agents",
     "confirm_launch",
     "expected_agent_names",

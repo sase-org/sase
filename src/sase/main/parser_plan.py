@@ -68,9 +68,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         default="approve",
         help=(
             "Approval kind: approve runs coder without committing an SDD plan; "
-            "tale commits to sdd/tales; epic commits to sdd/epics; legend "
-            "commits to sdd/legends; commit records the plan without launching "
-            "coder"
+            "tale commits to sdd/tales; epic commits to sdd/epics; commit "
+            "records the plan without launching coder"
         ),
     )
     approve_parser.add_argument(
@@ -200,10 +199,9 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     search_parser.add_argument(
         "-k",
         "--kind",
-        choices=["tale", "epic", "legend", "myth", "research"],
+        choices=["tale", "epic", "research"],
         action="append",
-        help="Filter SDD-store plans by kind: tale, epic, legend, myth, or "
-        "research (repeatable)",
+        help="Filter SDD-store plans by kind: tale, epic, or research (repeatable)",
     )
     search_parser.add_argument(
         "-n",

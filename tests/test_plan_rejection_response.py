@@ -163,13 +163,6 @@ def test_approval_choice_response_mapping() -> None:
         "run_coder": True,
     }
 
-    legend = _plan_approval_result_for_choice("legend")
-    assert _build_plan_approval_response(legend) == {
-        "action": "legend",
-        "commit_plan": True,
-        "run_coder": True,
-    }
-
 
 def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
     tmp_path: Path,
@@ -253,46 +246,6 @@ def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
     archive_plan.assert_called_once()
 
 
-def test_legend_writes_response_and_sets_status(tmp_path: Path) -> None:
-    """Legend approval writes the action, persists metadata, and sets LEGEND APPROVED."""
-    app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
-        tmp_path
-    )
-    app.run_worker.side_effect = lambda work, thread=True: work()
-    app.call_from_thread.side_effect = lambda callback: callback()
-
-    from sase.ace.tui.actions.agents._notification_modals import (
-        handle_plan_approval,
-    )
-
-    with patch(
-        "sase.ace.tui.actions.agents._notification_navigation.find_agent_for_notification",
-        return_value=mock_agent,
-    ):
-        handle_plan_approval(app, notification)
-
-        on_dismiss = app.push_screen.call_args[0][1]
-
-        with (
-            patch("sase.notifications.mark_dismissed"),
-            patch(
-                "sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"
-            ) as persist_plan_approved,
-            patch(
-                "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
-                return_value=None,
-            ) as archive_plan,
-        ):
-            on_dismiss(PlanApprovalResult(action="legend"))
-
-    data = json.loads((response_dir / "plan_response.json").read_text())
-    assert data["action"] == "legend"
-    assert app._agent_status_overrides[mock_agent.identity] == "LEGEND APPROVED"
-    persist_plan_approved.assert_called_once_with(mock_agent, action="legend")
-    archive_plan.assert_called_once()
-    assert archive_plan.call_args.args[1] == "legend"
-
-
 def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
     tmp_path: Path,
 ) -> None:
@@ -326,11 +279,11 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):
-        saved = _archive_plan_for_approval(notification, "legend")
+        saved = _archive_plan_for_approval(notification, "epic")
 
-    assert saved == str(workspace / "sdd" / "legends" / "202605" / "plan.md")
+    assert saved == str(workspace / "sdd" / "epics" / "202605" / "plan.md")
     assert Path(saved).read_text(encoding="utf-8").startswith("---\ncreate_time:")
-    assert not (workspace / ".sase" / "sdd" / "legends").exists()
+    assert not (workspace / ".sase" / "sdd" / "epics").exists()
     ensure_sdd.assert_called_once_with(
         str(workspace),
         commit=True,

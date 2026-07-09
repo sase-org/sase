@@ -141,23 +141,6 @@ async def test_default_model_shows_epic_creator_alias_for_epic() -> None:
     resolve_mock.assert_any_call("@epic_creator")
 
 
-async def test_default_model_shows_default_alias_for_legend() -> None:
-    """Legend follow-ups resolve the generic ``@default`` role alias."""
-    with patch(
-        "sase.llm_provider.registry.resolve_model_provider",
-        return_value=("claude", "opus"),
-    ) as resolve_mock:
-        async with ApproveOptionsApp().run_test() as pilot:
-            modal = ApproveOptionsModal(choice="legend")
-            pilot.app.push_screen(modal)
-            await pilot.pause()
-
-            model_display = modal.query_one("#coder-model-display", Static)
-            display_text = str(model_display.render())
-            assert "Follow-up — CLAUDE(opus)" in display_text
-    resolve_mock.assert_any_call("@default")
-
-
 async def test_model_picker_resets_coder_model_to_followup_default() -> None:
     """Re-opening the picker and choosing the default resets a selected model."""
     with patch(

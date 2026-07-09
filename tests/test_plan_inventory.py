@@ -266,7 +266,7 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
         "20260613140000",
         {
             "plan_approved": True,
-            "plan_action": "legend",
+            "plan_action": "epic",
             "plan_path": str(shared_plan),
         },
         minutes_ago=1,
@@ -302,7 +302,7 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
         {
             "timestamp": shared_rows[0]["timestamp"],
             "age": shared_rows[0]["age"],
-            "action": "legend",
+            "action": "epic",
             "agent": "-",
             "project": "demo",
             "provider_model": "-",

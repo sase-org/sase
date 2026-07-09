@@ -40,7 +40,6 @@ def test_init_creates_readme_for_project_root(
     assert "![SDD directory map](assets/sdd-directory-map.png)" in text
     assert "`prompts/`" in text
     assert "`tales/`" in text
-    assert "`myths/`" in text
     assert "`research/`" in text
     assert "`sase sdd path`" in text
     assert "`SASE_SDD_DIR`" in text
@@ -51,8 +50,6 @@ def test_init_creates_readme_for_project_root(
         encoding="utf-8"
     )
     assert "larger work plans" in readmes["epics"].read_text(encoding="utf-8")
-    assert "broad roadmap or strategy" in readmes["legends"].read_text(encoding="utf-8")
-    assert "long-horizon narrative" in readmes["myths"].read_text(encoding="utf-8")
     assert "exploratory findings" in readmes["research"].read_text(encoding="utf-8")
 
 

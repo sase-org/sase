@@ -14,8 +14,6 @@ _AUTO_COMMIT_GIT_TIMEOUT_SECONDS = 5
 _SDD_PLAN_DIR_PREFIXES = (
     "sdd/tales/",
     "sdd/epics/",
-    "sdd/legends/",
-    "sdd/myths/",
 )
 
 

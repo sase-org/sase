@@ -84,10 +84,6 @@ async def test_action_keys_select_choices() -> None:
         await pilot.pause()
         assert "selected" in modal.query_one("#approval-choice-epic", Static).classes
 
-        await pilot.press("l")
-        await pilot.pause()
-        assert "selected" in modal.query_one("#approval-choice-legend", Static).classes
-
 
 async def test_enter_returns_selected_choice() -> None:
     result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
@@ -125,7 +121,7 @@ async def test_p_key_preserves_choice_in_edit_prompt() -> None:
             result = r
 
         modal = ApproveOptionsModal(
-            choice="legend",
+            choice="epic",
             coder_prompt="existing prompt",
         )
         pilot.app.push_screen(modal, callback=on_dismiss)
@@ -135,7 +131,7 @@ async def test_p_key_preserves_choice_in_edit_prompt() -> None:
         await pilot.pause()
 
         assert isinstance(result, ApproveOptionsEditPrompt)
-        assert result.choice == "legend"
+        assert result.choice == "epic"
         assert result.commit_plan is True
         assert result.run_coder is True
         assert result.coder_prompt == "existing prompt"
@@ -178,7 +174,7 @@ async def test_title_and_footer_use_custom_label() -> None:
         footer_text = str(footer.render())
 
         assert "Custom Approval" in title_text
-        assert "a/t/e/l" in footer_text
+        assert "a/t/e" in footer_text
         assert "Tale Options" not in title_text
 
 

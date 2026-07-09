@@ -80,8 +80,8 @@ enumerates.
    cleanup** are not surfaced as their own boxes — the side "Rust owns" panel partially recovers some of them, but the
    layered visual itself is wrong.
 2. **Bead data operations are massively underweighted.** Beads are the most recently migrated and one of the largest
-   surfaces (read queries, merged-workspace reads, mutations, JSONL codecs, sync-clean checks, deterministic epic/legend
-   work planning, and the early `sase bead` CLI fast path; tracked as its own epic
+   surfaces (read queries, merged-workspace reads, mutations, JSONL codecs, sync-clean checks, deterministic epic work
+   planning, and the early `sase bead` CLI fast path; tracked as its own epic
    `sdd/epics/202605/bead_rust_backend_migration.md`). The bottom layer reduces this to "work DAG" inside a compound
    box. The right-side ownership panel adds "bead reads mutations DAG" as a single line item. Neither treatment reflects
    that the entire `sase bead` data path (not just the work DAG) is Rust-owned.

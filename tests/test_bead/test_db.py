@@ -162,23 +162,6 @@ class TestCreateAndGet:
         assert issue.changespec_name == "feature_epic"
         assert issue.changespec_bug_id == "12345"
 
-    def test_create_legend_with_epic_count(self, conn: sqlite3.Connection) -> None:
-        create_issue(
-            conn,
-            Issue(
-                id="l-1",
-                title="Legend",
-                issue_type=IssueType.PLAN,
-                tier=BeadTier.LEGEND,
-                created_at=NOW,
-                updated_at=NOW,
-                epic_count=4,
-            ),
-        )
-        issue = get_issue(conn, "l-1")
-        assert issue is not None
-        assert issue.epic_count == 4
-
     def test_create_phase_with_changespec_metadata_fails(
         self, conn: sqlite3.Connection
     ) -> None:
@@ -245,23 +228,6 @@ class TestUpdateIssue:
         assert updated is not None
         assert updated.changespec_name == "feature_epic"
         assert updated.changespec_bug_id == "12345"
-
-    def test_update_epic_count(self, conn: sqlite3.Connection) -> None:
-        create_issue(
-            conn,
-            Issue(
-                id="l-1",
-                title="Legend",
-                issue_type=IssueType.PLAN,
-                tier=BeadTier.LEGEND,
-                created_at=NOW,
-                updated_at=NOW,
-                epic_count=2,
-            ),
-        )
-        updated = update_issue(conn, "l-1", epic_count=5, updated_at=NOW)
-        assert updated is not None
-        assert updated.epic_count == 5
 
 
 class TestCloseIssue:
@@ -532,13 +498,12 @@ class TestModelField:
             "    CHECK(status IN ('open','in_progress','closed')),"
             "  issue_type TEXT NOT NULL DEFAULT 'phase'"
             "    CHECK(issue_type IN ('plan','phase')),"
-            "  tier TEXT CHECK(tier IN ('plan','epic','legend')),"
+            "  tier TEXT CHECK(tier IN ('plan','epic')),"
             "  parent_id TEXT, owner TEXT, assignee TEXT,"
             "  created_at TEXT NOT NULL, created_by TEXT,"
             "  updated_at TEXT NOT NULL, closed_at TEXT,"
             "  close_reason TEXT, description TEXT, notes TEXT, design TEXT,"
             "  is_ready_to_work INTEGER NOT NULL DEFAULT 0,"
-            "  epic_count INTEGER,"
             "  changespec_name TEXT NOT NULL DEFAULT '',"
             "  changespec_bug_id TEXT NOT NULL DEFAULT '',"
             "  CHECK((issue_type='phase' AND parent_id IS NOT NULL)"

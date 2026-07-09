@@ -25,12 +25,11 @@ from sase.plan_approval_choices import (
 
 
 def test_registry_exposes_existing_local_surface_vocabularies() -> None:
-    assert PLAN_APPROVAL_MODAL_CHOICES == ("approve", "tale", "epic", "legend")
+    assert PLAN_APPROVAL_MODAL_CHOICES == ("approve", "tale", "epic")
     assert PLAN_APPROVAL_CLI_KINDS == (
         "approve",
         "commit",
         "epic",
-        "legend",
         "tale",
     )
     assert PLAN_APPROVAL_AUTO_MODE_CHOICES == ("approve", "tale", "epic")
@@ -41,7 +40,6 @@ def test_registry_exposes_existing_local_surface_vocabularies() -> None:
     assert custom_modal_choice_for_key("a") == "approve"
     assert custom_modal_choice_for_key("t") == "tale"
     assert custom_modal_choice_for_key("e") == "epic"
-    assert custom_modal_choice_for_key("l") == "legend"
 
 
 def test_run_choice_is_first_class_no_commit_approval() -> None:
@@ -67,7 +65,6 @@ def test_external_plan_choice_snapshot_matches_registry() -> None:
         "run",
         "reject",
         "epic",
-        "legend",
         "feedback",
     )
     for choice in PLAN_APPROVAL_REMOTE_CHOICES:

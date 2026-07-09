@@ -22,9 +22,7 @@ from sase.axe.run_agent_exec_plan_artifacts import get_embedded_workflow_refs
 from sase.axe.run_agent_exec_plan_sdd import (
     build_epic_plan_ref,
     build_saved_plan_ref,
-    build_sdd_plan_ref,
     commit_sdd_files_for_exec_plan,
-    infer_epic_legend_bead_id,
     plan_kind_for_action,
 )
 from sase.axe.run_agent_helpers import (
@@ -34,7 +32,6 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.llm_provider.config import (
     CODER_MODEL_ALIAS_NAME,
-    DEFAULT_MODEL_ALIAS_NAME,
     EPIC_CREATOR_MODEL_ALIAS_NAME,
     coder_model_alias_for_provider,
     format_model_directive_value,
@@ -43,7 +40,6 @@ from sase.llm_provider.config import (
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
-    PLAN_CHAIN_LEGEND_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     plan_chain_agent_name,
 )
@@ -132,19 +128,9 @@ def _resolve_coder_alias_followup(ctx: AgentExecContext) -> _FollowupModel:
 
 
 def _resolve_epic_role_followup(action: str) -> _FollowupModel:
-    """Route an epic/legend create follow-up through its role alias.
-
-    Epic-creation (``#bd/new_epic``) follow-ups default to ``%model:@epic_creator``
-    (epic sase-5d phase 4). Legend-creation (``#bd/new_legend``) follow-ups are
-    not one of the migrated bead/epic roles, so they fall through to the generic
-    ``%model:@default`` launch alias rather than inventing a ``legend_*`` alias.
-    The recorded meta resolves the alias chain to the concrete
-    ``(provider, model)`` the launch will actually use so display and behavior
-    stay in sync.
-    """
-    alias = (
-        EPIC_CREATOR_MODEL_ALIAS_NAME if action == "epic" else DEFAULT_MODEL_ALIAS_NAME
-    )
+    """Route an epic create follow-up through its role alias."""
+    del action
+    alias = EPIC_CREATOR_MODEL_ALIAS_NAME
     directive = role_model_directive_value(alias)
     return _FollowupModel(
         model_prefix=f"%model:{directive}\n",
@@ -167,9 +153,7 @@ def _resolve_followup_model(
        - coder follow-ups (``approve`` / ``tale``) route through the planner
          provider's coder alias (``%model:@<planner_provider>_coder``, or
          ``%model:@coder`` when planner provider metadata is missing);
-       - epic follow-ups (``#bd/new_epic``) default to ``%model:@epic_creator``;
-       - legend follow-ups (``#bd/new_legend``) fall through to the generic
-         ``%model:@default`` launch alias.
+       - epic follow-ups (``#bd/new_epic``) default to ``%model:@epic_creator``.
 
     A ``%model`` directive embedded in a custom coder prompt is handled by the
     caller and supersedes this result.
@@ -183,7 +167,7 @@ def _resolve_followup_model(
             model_prefix=prefix, meta=_resolve_model_meta(coder_model)
         )
 
-    if plan_result.action in ("epic", "legend"):
+    if plan_result.action == "epic":
         return _resolve_epic_role_followup(plan_result.action)
 
     return _resolve_coder_alias_followup(ctx)
@@ -217,7 +201,7 @@ def _write_followup_effort_meta(state: LoopState, followup_prompt: str) -> None:
 def _plan_followup_base_meta(base_meta: dict[str, Any]) -> dict[str, Any]:
     """Return parent metadata minus effort for accepted plan-chain handoffs.
 
-    Accepted coder/epic/legend follow-ups resolve effort from their own final
+    Accepted coder/epic follow-ups resolve effort from their own final
     prompt. Dropping the inherited value here lets an unset follow-up omit
     ``reasoning_effort`` instead of accidentally displaying the planner's
     explicit effort.
@@ -334,11 +318,7 @@ def handle_accepted_plan(
 
     # Unified SDD commit: epics always need committed files (the #gh
     # pre-step wipes uncommitted files); other actions respect commit_plan.
-    should_commit = (
-        plan_result.commit_plan
-        if plan_result.action not in ("epic", "legend")
-        else True
-    )
+    should_commit = plan_result.commit_plan if plan_result.action != "epic" else True
     required_sdd_commit_succeeded = True
     if should_commit and sdd_plan_name:
         if sdd_in_tree:
@@ -365,7 +345,7 @@ def handle_accepted_plan(
     )
     update_meta_field(state.current_artifacts_dir, "plan_committed", plan_committed)
 
-    if not plan_result.run_coder and plan_result.action not in ("epic", "legend"):
+    if not plan_result.run_coder and plan_result.action != "epic":
         return "plan_committed"
 
     # VCS workflow tag prefix for follow-up agents
@@ -378,8 +358,7 @@ def handle_accepted_plan(
 
     # Decide the follow-up model: an explicit picker model wins; otherwise coder
     # follow-ups route through the planner provider's coder alias
-    # (``@<provider>_coder``), epic follow-ups default to ``@epic_creator``, and
-    # legend follow-ups fall through to ``@default``.
+    # (``@<provider>_coder``), and epic follow-ups default to ``@epic_creator``.
     followup_model = _resolve_followup_model(plan_result, ctx)
     model_prefix = followup_model.model_prefix
     followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)
@@ -416,27 +395,13 @@ def handle_accepted_plan(
         )
         return None
 
-    if plan_result.action in ("epic", "legend"):
+    if plan_result.action == "epic":
         # Ensure beads are initialized before spawning epic agent
         from sase.sdd.beads import ensure_beads_initialized
 
         ensure_beads_initialized(ctx.workspace_dir, ctx.workspace_num)
-        legend_bead_id = (
-            infer_epic_legend_bead_id(
-                sdd_plan_path=sdd_plan_path,
-                workspace_dir=ctx.workspace_dir,
-                sdd_dir=sdd_dir,
-            )
-            if plan_result.action == "epic"
-            else None
-        )
-
-        # Epic/legend: spawn a follow-up agent to create the container bead.
-        state.current_role_suffix = transition.role_suffix or (
-            PLAN_CHAIN_EPIC_SUFFIX
-            if plan_result.action == "epic"
-            else PLAN_CHAIN_LEGEND_SUFFIX
-        )
+        # Epic: spawn a follow-up agent to create the container bead.
+        state.current_role_suffix = transition.role_suffix or (PLAN_CHAIN_EPIC_SUFFIX)
         state.agent_step += 1
         if state.agent_step == 2 and ctx.agent_name:
             promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
@@ -459,9 +424,6 @@ def handle_accepted_plan(
                 else None,
                 "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
                 "plan_committed": plan_committed,
-                "legend_bead_id": (
-                    legend_bead_id if plan_result.action == "epic" else None
-                ),
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": source_plan_agent_name,
                 "plan_approval_selected_member_ids": list(selected_member_ids)
@@ -472,38 +434,19 @@ def handle_accepted_plan(
         )
         update_meta_field(
             state.current_artifacts_dir,
-            "epic_started_at" if plan_result.action == "epic" else "legend_started_at",
+            "epic_started_at",
             datetime.now(UTC).isoformat(),
         )
         _write_followup_model_meta(state, followup_model)
-        if plan_result.action == "epic":
-            plan_ref = build_epic_plan_ref(
-                sdd_plan_path=sdd_plan_path if plan_committed else None,
-                sdd_dir=sdd_dir,
-                workspace_dir=ctx.workspace_dir,
-                sdd_plan_name=sdd_plan_name if plan_committed else None,
-                version_controlled=sdd_in_tree,
-                fallback_plan_file=plan_result.plan_file,
-            )
-            legend_bead_id = infer_epic_legend_bead_id(
-                sdd_plan_path=sdd_plan_path,
-                workspace_dir=ctx.workspace_dir,
-                sdd_dir=sdd_dir,
-            )
-            if legend_bead_id:
-                plan_ref = f"{plan_ref},{legend_bead_id}"
-            xprompt_name = "bd/new_epic"
-        else:
-            plan_ref = build_sdd_plan_ref(
-                sdd_plan_path=sdd_plan_path if plan_committed else None,
-                sdd_dir=sdd_dir,
-                workspace_dir=ctx.workspace_dir,
-                sdd_plan_name=sdd_plan_name if plan_committed else None,
-                version_controlled=sdd_in_tree,
-                fallback_plan_file=plan_result.plan_file,
-                plan_kind="legends",
-            )
-            xprompt_name = "bd/new_legend"
+        plan_ref = build_epic_plan_ref(
+            sdd_plan_path=sdd_plan_path if plan_committed else None,
+            sdd_dir=sdd_dir,
+            workspace_dir=ctx.workspace_dir,
+            sdd_plan_name=sdd_plan_name if plan_committed else None,
+            version_controlled=sdd_in_tree,
+            fallback_plan_file=plan_result.plan_file,
+        )
+        xprompt_name = "bd/new_epic"
         state.current_prompt = (
             f"{model_prefix}{vcs_prefix}#{xprompt_name}:{plan_ref}\n{embedded_refs}"
         )
@@ -608,7 +551,7 @@ def handle_accepted_plan(
         _write_followup_effort_meta(state, state.current_prompt)
 
     # A ``/sase_questions`` interruption from this follow-up phase must rebuild
-    # from the exact code/epic/legend prompt (with its resolved ``%model``
+    # from the exact code/epic prompt (with its resolved ``%model``
     # directive), not the initial planner prompt.
     state.question_base_prompt = state.current_prompt
     return None  # continue loop

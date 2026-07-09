@@ -267,7 +267,7 @@ def _plan_approval_protocol_fields(
         protocol = approval_protocol_for_choice(result.choice)
         return protocol.action, protocol.commit_plan, protocol.run_coder
 
-    if result.action in ("epic", "legend"):
+    if result.action == "epic":
         return result.action, True, True
 
     return result.action, result.commit_plan, result.run_coder
@@ -276,8 +276,6 @@ def _plan_approval_protocol_fields(
 def _plan_kind_for_action(action: str) -> str:
     if action == "epic":
         return "epics"
-    if action == "legend":
-        return "legends"
     return "tales"
 
 
@@ -361,7 +359,7 @@ def _plan_approval_choice_for_status(result: PlanApprovalResult) -> str | None:
         return "tale"
     if result.action == "approve" and not result.commit_plan and result.run_coder:
         return "approve"
-    if result.action in ("epic", "legend"):
+    if result.action == "epic":
         return result.action
     return None
 

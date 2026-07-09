@@ -7,8 +7,6 @@ _SDD_PROMPT_KINDS = {"prompts", "specs"}
 SDD_CANONICAL_DIRS = (
     "beads",
     "epics",
-    "legends",
-    "myths",
     "prompts",
     "research",
     "tales",

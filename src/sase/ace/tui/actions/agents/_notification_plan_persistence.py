@@ -19,7 +19,7 @@ def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
 
     Args:
         agent: The agent whose plan was approved.
-        action: The plan action taken: "approve", "commit", "epic", or "legend".
+        action: The plan action taken: "approve", "commit", or "epic".
     """
     artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
     if not artifacts_dir:

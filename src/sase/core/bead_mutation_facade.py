@@ -40,7 +40,6 @@ def create(
     assignee: str = "",
     changespec_name: str | int | None = "",
     changespec_bug_id: str | int | None = "",
-    epic_count: int | None = None,
     model: str = "",
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
@@ -59,7 +58,6 @@ def create(
             "assignee": assignee,
             "changespec_name": _optional_text(changespec_name),
             "changespec_bug_id": _optional_text(changespec_bug_id),
-            "epic_count": epic_count,
             "model": model,
             "now": now,
         },

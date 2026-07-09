@@ -65,7 +65,7 @@ class LoopState:
     original_prompt: str
     # Base prompt for question continuations: the currently executing phase's
     # prompt before merged Q&A is appended. Refreshed on phase transitions
-    # (accepted-plan code/epic/legend handoff and plan-feedback replan) so a
+    # (accepted-plan code/epic handoff and plan-feedback replan) so a
     # ``/sase_questions`` interruption from the code phase rebuilds from the
     # code-agent prompt rather than the initial planner prompt. Defaults to the
     # initial prompt at loop start (see ``__post_init__``). Unlike

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS issues (
     issue_type  TEXT NOT NULL DEFAULT 'phase'
                   CHECK(issue_type IN ('plan', 'phase')),
     tier        TEXT
-                  CHECK(tier IN ('plan', 'epic', 'legend')),
+                  CHECK(tier IN ('plan', 'epic')),
     parent_id   TEXT
                   REFERENCES issues(id) ON DELETE CASCADE,
     owner       TEXT,
@@ -34,7 +34,6 @@ CREATE TABLE IF NOT EXISTS issues (
     design      TEXT,
     model       TEXT NOT NULL DEFAULT '',
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
-    epic_count  INTEGER,
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
     CHECK(
@@ -43,10 +42,6 @@ CREATE TABLE IF NOT EXISTS issues (
     ),
     CHECK(issue_type = 'plan' OR tier IS NULL),
     CHECK(is_ready_to_work IN (0, 1)),
-    CHECK(
-        epic_count IS NULL OR
-        (issue_type = 'plan' AND tier = 'legend' AND epic_count > 0)
-    ),
     CHECK(
         issue_type = 'plan' OR
         (changespec_name = '' AND changespec_bug_id = '')
@@ -111,17 +106,6 @@ def _migrate_add_changespec_metadata(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _migrate_add_epic_count(conn: sqlite3.Connection) -> None:
-    """Add legend epic-count metadata to a pre-existing issues table."""
-    columns = {
-        row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()
-    }
-    if not columns or "epic_count" in columns:
-        return
-    conn.execute("ALTER TABLE issues ADD COLUMN epic_count INTEGER")
-    conn.commit()
-
-
 def _migrate_add_model(conn: sqlite3.Connection) -> None:
     """Add model column to a pre-existing issues table if missing."""
     columns = {
@@ -141,8 +125,7 @@ def _migrate_add_tier(conn: sqlite3.Connection) -> None:
     if not columns or "tier" in columns:
         return
     conn.execute(
-        "ALTER TABLE issues ADD COLUMN tier TEXT "
-        "CHECK(tier IN ('plan','epic','legend'))"
+        "ALTER TABLE issues ADD COLUMN tier TEXT CHECK(tier IN ('plan','epic'))"
     )
     conn.execute(
         "UPDATE issues SET tier = 'epic' "
@@ -171,7 +154,7 @@ def _migrate_issue_types(conn: sqlite3.Connection) -> None:
         "    CHECK(status IN ('open','in_progress','closed')),"
         "  issue_type TEXT NOT NULL DEFAULT 'phase'"
         "    CHECK(issue_type IN ('plan','phase')),"
-        "  tier TEXT CHECK(tier IN ('plan','epic','legend')),"
+        "  tier TEXT CHECK(tier IN ('plan','epic')),"
         "  parent_id TEXT, owner TEXT, assignee TEXT,"
         "  created_at TEXT NOT NULL, created_by TEXT,"
         "  updated_at TEXT NOT NULL, closed_at TEXT,"
@@ -212,7 +195,6 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     _migrate_add_is_ready_to_work(conn)
     _migrate_add_changespec_metadata(conn)
     _migrate_add_tier(conn)
-    _migrate_add_epic_count(conn)
     _migrate_add_model(conn)
     conn.executescript(_SCHEMA)
     return conn
@@ -238,7 +220,6 @@ def _row_to_issue(row: sqlite3.Row) -> Issue:
         design=row["design"] or "",
         model=row["model"] or "",
         is_ready_to_work=bool(row["is_ready_to_work"]),
-        epic_count=row["epic_count"],
         changespec_name=row["changespec_name"] or "",
         changespec_bug_id=row["changespec_bug_id"] or "",
     )
@@ -270,9 +251,9 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
         "INSERT INTO issues "
         "(id, title, status, issue_type, parent_id, owner, assignee, "
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
-        "description, notes, design, model, is_ready_to_work, epic_count, "
+        "description, notes, design, model, is_ready_to_work, "
         "changespec_name, changespec_bug_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -292,7 +273,6 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
             issue.design,
             issue.model,
             int(issue.is_ready_to_work),
-            issue.epic_count,
             issue.changespec_name,
             issue.changespec_bug_id,
         ),
@@ -359,7 +339,6 @@ def update_issue(
         "model",
         "tier",
         "is_ready_to_work",
-        "epic_count",
         "changespec_name",
         "changespec_bug_id",
     }

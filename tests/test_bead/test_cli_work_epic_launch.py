@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import BeadTier, IssueType, Status
+from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 
@@ -83,54 +83,6 @@ def test_work_launches_and_passes_rendered_multi_prompt(
 
     out = capsys.readouterr().out
     assert "Launched" in out
-
-
-def test_work_linked_legend_epic_uses_legend_tag_and_links(
-    project_dir: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    with BeadProject(project_dir) as proj:
-        legend = proj.create(
-            "Legend roadmap",
-            IssueType.PLAN,
-            tier=BeadTier.LEGEND,
-            design="sdd/legends/202605/roadmap.md",
-            epic_count=1,
-        )
-        epic = proj.create("Legend child epic", IssueType.PLAN, parent_id=legend.id)
-        p1 = proj.create("P1", IssueType.PHASE, parent_id=epic.id)
-        p2 = proj.create("P2", IssueType.PHASE, parent_id=epic.id)
-        proj.add_dependency(p2.id, p1.id)
-
-    captured: dict[str, Any] = {}
-
-    def fake_launch(
-        query: str,
-        extra_env: Any = None,
-        segment_extra_env: Any = None,
-    ) -> FakeLaunchResult:
-        captured["query"] = query
-        captured["extra_env"] = extra_env
-        captured["segment_extra_env"] = segment_extra_env
-        return FakeLaunchResult()
-
-    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
-
-    bead_cli.handle_bead_work(make_args(epic.id, yes=True))
-
-    query = captured["query"]
-    assert query.count(f"%group:{legend.id}") == 3
-    assert f"%group:{epic.id}" not in query
-    assert f"#bd/work_phase_bead:{p1.id}" in query
-    assert f"#bd/work_phase_bead:{p2.id}" in query
-    assert f"#bd/land_epic:{epic.id}" in query
-
-    assert captured["extra_env"] is None
-    assert captured["segment_extra_env"] == (
-        {"SASE_BEAD_ID": p1.id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-        {"SASE_BEAD_ID": p2.id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-        {"SASE_BEAD_ID": epic.id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-    )
 
 
 def test_work_stale_owner_round_trip_wipes_and_rewrites(

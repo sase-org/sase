@@ -70,9 +70,8 @@ and commit-workflow infographics, whose PNGs are stale and intentionally not emb
 
 ### `docs/beads.md`
 
-- Separate the issue model from the execution flow: plan beads with tiers (`plan`, `epic`, `legend`), phase children,
-  statuses, dependencies, ready/blocked states, and hierarchical IDs belong in one area; `sase bead work` belongs in
-  another.
+- Separate the issue model from the execution flow: plan beads with tiers (`plan`, `epic`), phase children, statuses,
+  dependencies, ready/blocked states, and hierarchical IDs belong in one area; `sase bead work` belongs in another.
 - Show `events/**` as the git-portable source of truth, `issues.jsonl` as a compatibility projection, and `beads.db` as
   the local compatibility cache, all owned by Rust-backed bead operations.
 - Show the current checkout's in-tree `sdd/beads/` event store as the source of truth for in-tree SDD.

@@ -17,8 +17,8 @@ tracked, resumed, reviewed, retried, and handed off through stable project artif
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md) |
 | ChangeSpecs  | PR-sized review records with lifecycle state, commits, hooks, comments, mentors, and timestamps.                              | [ChangeSpecs](change_spec.md)     |
 | Memory       | Instruction memory, audited long-term reads, and reviewed write proposals.                                                    | [Memory](memory.md)               |
-| SDD          | Durable prompt, tale, epic, legend, myth, and research artifacts.                                                             | [SDD](sdd.md)                     |
-| Beads        | Git-portable issue/dependency tracking and executable epic/legend launch plans.                                               | [Beads](beads.md)                 |
+| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                           | [SDD](sdd.md)                     |
+| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                      | [Beads](beads.md)                 |
 | Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)             |
 | Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations. | [Rust backend](rust_backend.md)   |
 | Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                      | [Integrations](integrations.md)   |
@@ -60,8 +60,8 @@ inspected by users, agents, and automation:
 | ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Project lifecycle state plus review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps. |
 | Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.                     |
 | Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                        |
-| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, legends, myths, and research notes.                                  |
-| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, epic/legend execution metadata.                                  |
+| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, and research notes.                                                  |
+| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, and epic execution metadata.                                     |
 | Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                         |
 | Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                       |
 | Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.                                |

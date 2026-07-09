@@ -44,7 +44,7 @@ waves for cross-wave properties. Show a final landing node at the far right. Dra
 representative nodes in all three waves into the landing node, not only from the last wave.
 
 Color palette: neutral white/off-white base; teal for plan/model, blue for storage/read, green for primary write/Rust
-mutation, amber for epic/legend accents, red for blocked state, dark gray for connectors.
+mutation, amber for epic accents, red for blocked state, dark gray for connectors.
 
 Constraints: 16:9 landscape, readable at 900px wide after labels are added, complete-looking after post-processing,
 consistent with polished software documentation diagrams. Avoid tiny details, dense texture, ornamental backgrounds,
@@ -59,7 +59,7 @@ Final labels were added locally with ImageMagick and DejaVu Sans. The determinis
 showing:
 
 - all three phase states, including the pre-claimed `in_progress` state;
-- tier semantics, with `epic` feeding `sase bead work` and `legend` feeding the epic-planning chain elsewhere;
+- tier semantics, with `epic` feeding `sase bead work` and `plan` representing non-executable planning records;
 - three workspace folders feeding merged reads, with primary writes labeled on the write path;
 - Rust-backed mutations, `beads.db` as the gitignored cache, and `issues.jsonl` as the git-tracked export/rebuild
   artifact;

@@ -70,17 +70,6 @@ class TestPlanFollowupModelSelection:
         assert state.current_prompt.startswith("%model:@epic_creator\n")
         assert "%model:@worker" not in state.current_prompt
 
-    def test_legend_followup_uses_default_alias(self, tmp_path) -> None:
-        """A legend follow-up (``#bd/new_legend``) falls through to ``%model:@default``."""
-        state = run_followup_plan(
-            tmp_path,
-            action="legend",
-            agent_model="opus",
-            agent_llm_provider="claude",
-        )
-        assert state.current_prompt.startswith("%model:@default\n")
-        assert "%model:@worker" not in state.current_prompt
-
     @pytest.mark.parametrize(
         ("agent_model", "agent_llm_provider"),
         [

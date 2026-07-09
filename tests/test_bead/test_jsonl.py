@@ -126,21 +126,6 @@ class TestExport:
         data = json.loads(jsonl_path.read_text())
         assert data["model"] == ""
 
-    def test_export_includes_legend_epic_count(
-        self, conn: sqlite3.Connection, tmp_path: object
-    ) -> None:
-        from pathlib import Path
-
-        assert isinstance(tmp_path, Path)
-        legend = _epic("l-1")
-        legend.tier = BeadTier.LEGEND
-        legend.epic_count = 3
-        create_issue(conn, legend)
-        jsonl_path = tmp_path / "issues.jsonl"
-        export_to_jsonl(conn, jsonl_path)
-        data = json.loads(jsonl_path.read_text())
-        assert data["epic_count"] == 3
-
     def test_export_empty_db(self, conn: sqlite3.Connection, tmp_path: object) -> None:
         from pathlib import Path
 
@@ -277,55 +262,6 @@ class TestImport:
         issue = get_issue(conn, "e-1")
         assert issue is not None
         assert issue.model == ""
-
-    def test_import_missing_epic_count_defaults_none(
-        self, conn: sqlite3.Connection, tmp_path: object
-    ) -> None:
-        from pathlib import Path
-
-        assert isinstance(tmp_path, Path)
-        jsonl_path = tmp_path / "issues.jsonl"
-        data = {
-            "id": "l-1",
-            "title": "Imported Legend",
-            "status": "open",
-            "issue_type": "plan",
-            "tier": "legend",
-            "parent_id": None,
-            "created_at": NOW,
-            "updated_at": NOW,
-            "dependencies": [],
-        }
-        jsonl_path.write_text(json.dumps(data) + "\n")
-        import_from_jsonl(jsonl_path, conn)
-        issue = get_issue(conn, "l-1")
-        assert issue is not None
-        assert issue.epic_count is None
-
-    def test_import_preserves_legend_epic_count(
-        self, conn: sqlite3.Connection, tmp_path: object
-    ) -> None:
-        from pathlib import Path
-
-        assert isinstance(tmp_path, Path)
-        jsonl_path = tmp_path / "issues.jsonl"
-        data = {
-            "id": "l-1",
-            "title": "Imported Legend",
-            "status": "open",
-            "issue_type": "plan",
-            "tier": "legend",
-            "parent_id": None,
-            "created_at": NOW,
-            "updated_at": NOW,
-            "epic_count": 4,
-            "dependencies": [],
-        }
-        jsonl_path.write_text(json.dumps(data) + "\n")
-        import_from_jsonl(jsonl_path, conn)
-        issue = get_issue(conn, "l-1")
-        assert issue is not None
-        assert issue.epic_count == 4
 
     def test_import_missing_file(
         self, conn: sqlite3.Connection, tmp_path: object

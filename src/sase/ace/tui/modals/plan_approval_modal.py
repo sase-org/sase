@@ -65,7 +65,7 @@ def _provider_badge_markup(llm_provider: str | None, model: str | None) -> str:
 class PlanApprovalResult:
     """Result from the plan approval modal."""
 
-    action: str  # "approve", "reject", "epic", "legend", "feedback_requested", or "approve_prompt_edit"
+    action: str  # "approve", "reject", "epic", "feedback_requested", or "approve_prompt_edit"
     feedback: str | None = None
     commit_plan: bool = True
     run_coder: bool = True
@@ -305,10 +305,6 @@ class PlanApprovalModal(
     def action_epic(self) -> None:
         """Create an epic from the plan."""
         self.dismiss(_plan_approval_result_for_choice("epic"))
-
-    def action_legend(self) -> None:
-        """Create a legend from the plan."""
-        self.dismiss(_plan_approval_result_for_choice("legend"))
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""

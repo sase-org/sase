@@ -262,8 +262,8 @@ class Agent:
     # plan approval). Renders as the ⚡T / ⚡E row-icon suffix.
     auto_approve_plan_action: str | None = None
 
-    # The plan action chosen at approval time, e.g. "tale", "epic", "commit",
-    # "legend". Persisted in agent_meta.json so the parent's approved-status
+    # The plan action chosen at approval time, e.g. "tale", "epic", "commit".
+    # Persisted in agent_meta.json so the parent's approved-status
     # variant can be reconstructed across `sase ace` restart even after the
     # workflow itself has completed.
     plan_action: str | None = None

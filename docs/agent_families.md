@@ -27,7 +27,7 @@ Every family member records an `agent_family_role` derived from its name suffix:
 
 | Suffix                                          | Role                              | Status labels                                                                                               |
 | ----------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `plan`, `q`, `code`, `epic`, `legend`, `commit` | The corresponding built-in role   | Built-in role statuses (e.g. coder statuses)                                                                |
+| `plan`, `q`, `code`, `epic`, `commit`           | The corresponding built-in role   | Built-in role statuses (e.g. coder statuses)                                                                |
 | Numeric (`@` in `%n` allocates the next number) | `feedback` (a feedback/Q&A round) | Feedback-round statuses                                                                                     |
 | Any other word (`reviewer`, `tester`, ...)      | The word itself (open set)        | Generic RUNNING/DONE, unless a custom role definition supplies [display labels](#custom-role-status-labels) |
 
@@ -98,7 +98,7 @@ Per-role fields (unknown keys are load errors):
 
 | Field                 | Required | Values / default                                      | Notes                                                                                                                                                |
 | --------------------- | -------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `suffix`              | no       | default `--<role_id>`; must match `^--[A-Za-z0-9_]+$` | Must not collide with the reserved suffixes (`--plan`, `--q`, `--code`, `--epic`, `--legend`, `--commit`)                                            |
+| `suffix`              | no       | default `--<role_id>`; must match `^--[A-Za-z0-9_]+$` | Must not collide with the reserved suffixes (`--plan`, `--q`, `--code`, `--epic`, `--commit`)                                                        |
 | `prompt_template`     | yes      | an xprompt reference string                           | Validated against the xprompt catalog; format placeholders: `plan_file`, `source_artifacts`, `artifacts_ref`, `outcome`, `source_role`, `role`       |
 | `placement`           | yes      | mapping with required `after: <role>`                 | `after: plan` binds to the plan-approval gate; `after: code` (and other terminal roles) binds to role completion                                     |
 | `on_done`             | yes      | `re_review` \| `continue` \| `terminate`              | Declared follow-on intent, validated and recorded in the run snapshot; looping is driven by the role's prompt template (see [Loop Caps](#loop-caps)) |

@@ -37,7 +37,6 @@ _PLAN_LIKE_STATUSES = (
             "PLAN REJECTED",
             "EPIC APPROVED",
             "EPIC CREATED",
-            "LEGEND APPROVED",
             "QUESTION",
         }
     )
@@ -49,7 +48,6 @@ _PLAN_APPROVAL_STATUSES = (
         {
             "PLAN COMMITTED",
             "EPIC APPROVED",
-            "LEGEND APPROVED",
         }
     )
     | ACTIVE_PLAN_HANDOFF_STATUSES
@@ -472,8 +470,6 @@ class ArtifactRestorationMixin:
                 data["plan_action"] = "commit"
             elif agent.status == "EPIC APPROVED":
                 data["plan_action"] = "epic"
-            elif agent.status == "LEGEND APPROVED":
-                data["plan_action"] = "legend"
 
         return data
 

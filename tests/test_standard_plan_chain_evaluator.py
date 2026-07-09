@@ -27,7 +27,6 @@ def test_standard_plan_chain_definition_exposes_current_protocol_choices() -> No
         "feedback",
         "code",
         "epic",
-        "legend",
         "commit",
     }
     assert tuple(choice.id for choice in plan_gate.choices) == PLAN_APPROVAL_CHOICE_IDS

@@ -431,9 +431,9 @@ def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
             prefix_len=8,
             resolution="unique_prefix",
         )
-        result = execute_mobile_plan_action("abcdef12", "legend")
+        result = execute_mobile_plan_action("abcdef12", "epic")
 
-    saved = str(workspace / "sdd" / "legends" / "202605" / "plan.md")
+    saved = str(workspace / "sdd" / "epics" / "202605" / "plan.md")
     assert result.response_json["saved_plan_path"] == saved
     assert Path(saved).is_file()
     ensure_sdd.assert_called_once_with(

@@ -24,7 +24,7 @@ _POLL_INTERVAL = 0.5
 class PlanApprovalResult:
     """Result from plan approval flow."""
 
-    action: str  # "approve", "epic", "legend", or "feedback"
+    action: str  # "approve", "epic", or "feedback"
     plan_file: str
     feedback: str | None = None
     commit_plan: bool = True
@@ -317,7 +317,7 @@ def handle_plan_approval(
                     request_data = {}
 
                 action = response_data.get("action")
-                if action in ("approve", "epic", "legend", "commit"):
+                if action in ("approve", "epic", "commit"):
                     response_path.unlink()
                     assert plan_file is not None
                     # Read custom approval fields with type validation

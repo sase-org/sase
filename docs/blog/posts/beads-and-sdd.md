@@ -34,11 +34,10 @@ both the **expanded prompt snapshot** (every `#xprompt` resolved, every `%direct
 as first-class artifacts on disk. The two files cross-reference each other via `prompt:` and `plan:` frontmatter fields,
 and `sase sdd validate` checks that the link graph is intact.
 
-Three plan tiers, three directories under the effective SDD root:
+Two plan tiers, two plan directories under the effective SDD root:
 
 - **Tales** — ordinary implementation plans, at `tales/{YYYYMM}/{name}.md`.
 - **Epics** — executable multi-phase plans, at `epics/{YYYYMM}/{name}.md`.
-- **Legends** — higher-level coordination plans that own linked epics, at `legends/{YYYYMM}/{name}.md`.
 
 Storage is resolved through `sdd.storage`. The default, `auto`, keeps provider defaults: built-in bare-git projects use
 in-tree `sdd/`, while other providers use a standalone git repo inside the primary workspace at `.sase/sdd/` unless
@@ -54,10 +53,9 @@ The reference is in [`sdd.md`](../../sdd.md).
 
 A **bead** is a git-portable issue record backed by a canonical append-only event store. Status moves through `open` →
 `in_progress` → `closed`. Beads have dependency edges. Each one can carry a plan reference (the `design` field), a tier
-(`plan`, `epic`, or `legend`), and a model annotation (`-m/--model`). Storage lives under the resolved SDD store:
-`events/**` is the source of truth, `issues.jsonl` is a generated compatibility projection, and `beads.db` is a
-gitignored compatibility cache. Fresh clones read the tracked event store directly and can rebuild the mirrors on
-demand.
+(`plan` or `epic`), and a model annotation (`-m/--model`). Storage lives under the resolved SDD store: `events/**` is
+the source of truth, `issues.jsonl` is a generated compatibility projection, and `beads.db` is a gitignored
+compatibility cache. Fresh clones read the tracked event store directly and can rebuild the mirrors on demand.
 
 Two issue types:
 
@@ -99,11 +97,6 @@ a killed or failed run while still committing submitted phase and landing plans 
 AXE's `wait_checks` chop is what unblocks each phase the moment its blockers have `done.json` outcomes of `completed`.
 Failed or killed phases keep the land agent parked until that phase name retries successfully — there is no fail-open.
 
-Legend-tier work is similar in shape but plans rather than executes: `sase bead work <legend-id>` launches one
-epic-planning agent per stored `epic_count` (sequentially via `%wait` chaining), then a final `land_legend` agent. Those
-epic-planning agents create epic plans through the normal plan-approval flow; the linked epic and its phase beads are
-created later by the `bd/new_epic` automation.
-
 ## The Promote-From-Chat Discipline
 
 Agents propose plans; humans (or distillation workflows) promote them into SDD. The reason: keeping raw transcripts out
@@ -113,9 +106,8 @@ something a reviewer can trust six months later without needing to re-read the c
 In practice, SDD enforces this shape by writing the plan only when it is submitted via `sase plan propose` (which
 touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the `PLAN` status immediately) and by
 appending Q&A exchanges, when present, as a single merged `### Questions and Answers` section with monotonic numbering
-across rounds. The proposal can then be promoted from ACE or with
-`sase plan approve <id-prefix> --kind tale|epic|legend`; the promoted plan is what links to the bead, while the chat
-stays as a `CHAT:` drawer on the eventual commit.
+across rounds. The proposal can then be promoted from ACE or with `sase plan approve <id-prefix> --kind tale|epic`; the
+promoted plan is what links to the bead, while the chat stays as a `CHAT:` drawer on the eventual commit.
 
 ## Workspace Behavior
 
@@ -132,8 +124,7 @@ stores, agents synchronize through the companion repository clone in their activ
 
 ## What To Read Next
 
-- [Spec-Driven Development](../../sdd.md) — full reference for tales, epics, legends, myths, research, storage modes,
-  bead integration.
+- [Spec-Driven Development](../../sdd.md) — full reference for tales, epics, research, storage modes, bead integration.
 - [Beads](../../beads.md) — every `sase bead` subcommand, the data model, and the current-checkout source-of-truth rule.
 - [\[05\] Commit Workflows — The Pluggable Path From Diff to PR](commit-workflows-plugins.md) — how the work that
   `sase bead work` schedules eventually lands as commits, proposals, or PRs.

@@ -182,11 +182,11 @@ def test_resolve_sdd_readme_path_sdd_root(tmp_path: Path) -> None:
     )
 
 
-def test_resolve_sdd_readme_path_detects_myths_only_sdd_root(
+def test_resolve_sdd_readme_path_detects_epics_only_sdd_root(
     tmp_path: Path,
 ) -> None:
     sdd_root = tmp_path / "custom-sdd"
-    (sdd_root / "myths").mkdir(parents=True)
+    (sdd_root / "epics").mkdir(parents=True)
 
     assert (
         _resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
@@ -315,19 +315,15 @@ def test_find_sdd_file_legacy_specs_alias() -> None:
         assert find_sdd_file(base, "specs", "my_plan.md") == legacy
 
 
-def test_find_sdd_file_supports_epics_and_legends() -> None:
+def test_find_sdd_file_supports_epics() -> None:
     """Resolution covers all SDD plan-like kinds."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
         (base / "sdd" / "epics" / "202603").mkdir(parents=True)
-        (base / "sdd" / "legends" / "202603").mkdir(parents=True)
         epic = base / "sdd" / "epics" / "202603" / "roadmap.md"
-        legend = base / "sdd" / "legends" / "202603" / "roadmap.md"
         epic.write_text("epic", encoding="utf-8")
-        legend.write_text("legend", encoding="utf-8")
 
         assert find_sdd_file(base, "epics", "roadmap.md") == epic
-        assert find_sdd_file(base, "legends", "roadmap.md") == legend
 
 
 def test_find_sdd_file_missing() -> None:

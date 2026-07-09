@@ -48,9 +48,9 @@ response is postprocessed normally.
 
 There are two special cases before the normal enforced-work follow-up path:
 
-- If the only enforced dirty file is a tracked markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or
-  `sdd/myths/`, and the only file diff is one leading-front-matter line changing from `status: wip` to `status: done`,
-  SASE creates a direct closeout commit with the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag.
+- If the only enforced dirty file is a tracked markdown file under `sdd/tales/` or `sdd/epics/`, and the only file diff
+  is one leading-front-matter line changing from `status: wip` to `status: done`, SASE creates a direct closeout commit
+  with the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag.
 - Linked repos configured with `workspace.strategy: none` are static singletons. Dirty static linked repos are included
   in the follow-up prompt as advisory work: the agent is told to commit them only if it made those changes in this
   session, and leaving them dirty does not fail the finalizer. A run with only advisory static linked-repo changes can
@@ -435,7 +435,7 @@ Antigravity (`agy`), Qwen, OpenCode, and provider plugins share the same behavio
    `git status --porcelain`: numbered linked repos are limited to names in `opened_linked_workspaces.json`, while static
    `workspace.strategy: none` linked repos are advisory.
 5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout when that is the only enforced
-   change and the file is under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`, or `sdd/myths/`.
+   change and the file is under `sdd/tales/` or `sdd/epics/`.
 6. If dirty enforced repos or advisory static linked repos exist, run follow-up provider invocations up to
    `commit.finalizer.max_passes`. When an artifacts directory is available, also write
    `commit_finalizer_pass_<N>_prompt.md` and `commit_finalizer_pass_<N>_response.md`.

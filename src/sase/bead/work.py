@@ -52,27 +52,6 @@ class EpicWorkPlan:
 
 
 @dataclass(frozen=True)
-class _LegendEpicAssignment:
-    """One proposed epic from a legend plan assigned to an epic-planning agent."""
-
-    epic_number: int
-    agent_name: str
-    waits_on: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class LegendWorkPlan:
-    """Linear plan to create proposed epics plus the final legend land agent."""
-
-    legend_id: str
-    plan_file: str
-    assignments: tuple[_LegendEpicAssignment, ...]
-    land_agent_name: str
-    land_waits_on: tuple[str, ...]
-    land_model: str = ""
-
-
-@dataclass(frozen=True)
 class VCSLaunchContext:
     """VCS launch wrapper for project-scoped epic work."""
 
@@ -90,10 +69,6 @@ class ChangeSpecLaunchContext(VCSLaunchContext):
 
 class EpicPlanError(ValueError):
     """Base error for epic-work-plan construction failures."""
-
-
-class LegendPlanError(ValueError):
-    """Base error for legend-work-plan construction failures."""
 
 
 class _CycleError(EpicPlanError):
@@ -141,30 +116,6 @@ def build_epic_work_plan_from_beads_dir(
     return _build_epic_work_plan(beads_dir, epic_id)
 
 
-def _build_legend_work_plan(
-    source: sqlite3.Connection | str | Path,
-    legend_id: str,
-) -> LegendWorkPlan:
-    """Compute the epic-planning assignments for a legend bead."""
-    if isinstance(source, sqlite3.Connection):
-        return _build_legend_work_plan_from_issues(db.list_issues(source), legend_id)
-
-    binding = require_rust_binding("bead_build_legend_work_plan")
-    try:
-        payload: dict[str, Any] = binding(str(source), legend_id)
-    except ValueError as exc:
-        _raise_legend_plan_error(exc)
-    return _legend_plan_from_payload(payload)
-
-
-def build_legend_work_plan_from_beads_dir(
-    beads_dir: str | Path,
-    legend_id: str,
-) -> LegendWorkPlan:
-    """Compute a legend work plan directly from a bead store through Rust."""
-    return _build_legend_work_plan(beads_dir, legend_id)
-
-
 def _build_epic_work_plan_from_issues(
     issues: list[Issue],
     epic_id: str,
@@ -178,21 +129,6 @@ def _build_epic_work_plan_from_issues(
     except ValueError as exc:
         _raise_epic_plan_error(exc)
     return _plan_from_payload(payload)
-
-
-def _build_legend_work_plan_from_issues(
-    issues: list[Issue],
-    legend_id: str,
-) -> LegendWorkPlan:
-    binding = require_rust_binding("bead_build_legend_work_plan_from_issues")
-    try:
-        payload: dict[str, Any] = binding(
-            [_issue_to_wire_dict(issue) for issue in issues],
-            legend_id,
-        )
-    except ValueError as exc:
-        _raise_legend_plan_error(exc)
-    return _legend_plan_from_payload(payload)
 
 
 def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
@@ -219,29 +155,6 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
     )
 
 
-def _legend_plan_from_payload(payload: dict[str, Any]) -> LegendWorkPlan:
-    legend_id = str(payload["legend_id"])
-    assignments = tuple(
-        _LegendEpicAssignment(
-            epic_number=int(assignment["epic_number"]),
-            agent_name=str(assignment["agent_name"]),
-            waits_on=tuple(str(v) for v in assignment.get("waits_on", [])),
-        )
-        for assignment in payload["assignments"]
-    )
-    land_waits_on = (
-        (f"{legend_id}.{assignments[-1].epic_number}",) if assignments else ()
-    )
-    return LegendWorkPlan(
-        legend_id=legend_id,
-        plan_file=str(payload["plan_file"]),
-        assignments=assignments,
-        land_agent_name=legend_id,
-        land_waits_on=land_waits_on,
-        land_model=str(payload.get("land_model", "")),
-    )
-
-
 def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
     return {
         "id": issue.id,
@@ -262,7 +175,6 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "design": issue.design,
         "model": issue.model,
         "is_ready_to_work": issue.is_ready_to_work,
-        "epic_count": issue.epic_count,
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
         "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
@@ -285,11 +197,6 @@ def _raise_epic_plan_error(exc: ValueError) -> None:
     if kind == "cross_epic_blocker":
         raise _CrossEpicBlockerError(message) from exc
     raise EpicPlanError(message) from exc
-
-
-def _raise_legend_plan_error(exc: ValueError) -> None:
-    _, message = _split_rust_error(str(exc))
-    raise LegendPlanError(message) from exc
 
 
 def _split_rust_error(text: str) -> tuple[str, str]:
@@ -379,67 +286,6 @@ def epic_work_segment_env(plan: EpicWorkPlan) -> tuple[dict[str, str], ...]:
         for assignment in wave:
             envs.append(_bead_env(assignment.bead_id))
     envs.append(_bead_env(plan.epic_id))
-    return tuple(envs)
-
-
-def render_legend_multi_prompt(
-    plan: LegendWorkPlan,
-    land_legend_xprompt: Workflow,
-    vcs_context: VCSLaunchContext | None = None,
-) -> str:
-    """Render legend epic-planning assignments and final land agent.
-
-    The emitted ``%name`` directives use the force-reuse prefix
-    (``%name:!<name>``) so re-running ``sase bead work`` after a prior failed
-    or killed launch wipes stale owner records before relaunching. Callers
-    are responsible for the wipe/rewrite handshake before passing the rendered
-    prompt to the launcher.
-    """
-    if isinstance(vcs_context, ChangeSpecLaunchContext):
-        raise ValueError("legend work does not support ChangeSpec launch context")
-    if vcs_context is not None:
-        _validate_vcs_context(vcs_context)
-
-    segments: list[str] = []
-    for assignment in plan.assignments:
-        lines = _segment_prefix(vcs_context, is_first_phase=True)
-        lines.extend(
-            [
-                f"%name:!{assignment.agent_name}",
-                _group_directive(plan.legend_id),
-                "%auto:epic",
-            ]
-        )
-        if assignment.waits_on:
-            lines.append(f"%w:{','.join(assignment.waits_on)}")
-        lines.append(
-            "Can you help me implement epic "
-            f"#{assignment.epic_number} from the legend plan in the "
-            f"{plan.plan_file} file? #epic Keep in mind that this epic "
-            "will be split into phases and worked by separate agents after "
-            "approval."
-        )
-        segments.append("\n".join(lines))
-
-    land_lines = _segment_prefix(vcs_context, is_first_phase=True)
-    land_lines.append(f"%name:!{plan.land_agent_name}")
-    land_lines.append(_group_directive(plan.legend_id))
-    if plan.land_model:
-        land_model = format_model_directive_value(plan.land_model)
-        land_lines.append(f"%model:{land_model}")
-    land_lines.append("%auto")
-    if plan.land_waits_on:
-        land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
-    land_lines.append(f"#{land_legend_xprompt.name}:{plan.legend_id}")
-    segments.append("\n".join(land_lines))
-
-    return "\n---\n".join(segments)
-
-
-def legend_work_segment_env(plan: LegendWorkPlan) -> tuple[dict[str, str], ...]:
-    """Return per-segment env for a legend work prompt rendered from *plan*."""
-    envs = [_bead_env(plan.legend_id) for _ in plan.assignments]
-    envs.append(_bead_env(plan.legend_id))
     return tuple(envs)
 
 

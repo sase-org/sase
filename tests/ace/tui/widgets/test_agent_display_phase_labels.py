@@ -39,14 +39,6 @@ class TestGetPhaseLabel:
         agent = make_agent(role_suffix="-epic")
         assert get_phase_label(agent) == "EPIC"
 
-    def test_legend(self) -> None:
-        agent = make_agent(role_suffix="-legend")
-        assert get_phase_label(agent) == "LEGEND"
-
-    def test_legacy_legend(self) -> None:
-        agent = make_agent(role_suffix=".legend")
-        assert get_phase_label(agent) == "LEGEND"
-
     def test_commit(self) -> None:
         agent = make_agent(role_suffix="-commit")
         assert get_phase_label(agent) == "COMMIT"

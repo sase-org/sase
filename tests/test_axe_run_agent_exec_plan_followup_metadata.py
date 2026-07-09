@@ -110,7 +110,6 @@ class TestPlanFollowupMetadata:
             ("approve", True, False, "commit"),
             ("approve", False, False, "commit"),
             ("epic", True, True, "epic"),
-            ("legend", True, True, "legend"),
         ],
     )
     def test_accepted_plan_action_for_meta_matches_choice(
@@ -236,20 +235,8 @@ class TestPlanFollowupMetadata:
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@claude_coder\n")
 
-    @pytest.mark.parametrize(
-        ("action", "directive"),
-        [("epic", "@epic_creator"), ("legend", "@default")],
-    )
-    def test_epic_legend_meta_records_resolved_role_alias(
-        self, tmp_path, action: str, directive: str
-    ) -> None:
-        """Epic/legend follow-ups record the concrete model their role alias resolves to.
-
-        Epic creation routes through ``@epic_creator`` and legend creation
-        through the generic ``@default`` alias; the recorded meta is the
-        concrete ``(provider, model)`` the alias resolves to so display matches
-        the launch.
-        """
+    def test_epic_meta_records_resolved_role_alias(self, tmp_path) -> None:
+        """Epic follow-ups record the concrete model their role alias resolves to."""
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
@@ -261,10 +248,9 @@ class TestPlanFollowupMetadata:
             meta_updates[key] = value
 
         def fake_resolve(model):
-            # Both @epic_creator and @default resolve to the configured target.
             return ("codex", "gpt-5.5")
 
-        approval = PlanApprovalResult(action=action, plan_file=plan_file)
+        approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
             patch(
                 "sase.llm_provider._plan_utils.handle_plan_approval",
@@ -286,7 +272,7 @@ class TestPlanFollowupMetadata:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
         assert meta_updates.get("model") == "gpt-5.5"
         assert meta_updates.get("llm_provider") == "codex"
-        assert state.current_prompt.startswith(f"%model:{directive}\n")
+        assert state.current_prompt.startswith("%model:@epic_creator\n")
 
     def test_coder_prompt_model_directive_updates_meta(self, tmp_path) -> None:
         """A custom prompt %model directive records the model that launch will use."""

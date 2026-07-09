@@ -16,7 +16,6 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
     AGENT_STATUS_BUCKETS,
     EPIC_APPROVED_STATUS,
-    LEGEND_APPROVED_STATUS,
     PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
     status_bucket_for_values,
@@ -169,8 +168,6 @@ class AgentListEntry:
                 return "⚡T"
             if action == "epic":
                 return "⚡E"
-            if action == "legend":
-                return "⚡L"
         return "⚡" if self.approve else None
 
 
@@ -390,8 +387,6 @@ def _plan_status(meta: AgentMetaWire) -> str | None:
             return TALE_APPROVED_STATUS
         if action == "epic":
             return EPIC_APPROVED_STATUS
-        if action == "legend":
-            return LEGEND_APPROVED_STATUS
         return PLAN_APPROVED_STATUS
     if meta.plan_submitted_at and not (meta.approve or meta.auto_approve_plan_action):
         return "PLAN"

@@ -15,8 +15,8 @@ of `docs/beads.md`. The diagram is reviewed against:
 
 Three visual zones:
 
-- **Top-left — "Bead model"**: a _Plan bead_ card with three tier chips (`plan / epic / legend`); below it three smaller
-  cards (`Phase child` / `Depends on` / `Blocked phase`) with sub-labels `ready · blockers closed`, `ID: parent.N`, and
+- **Top-left — "Bead model"**: a _Plan bead_ card with tier chips (`plan / epic`); below it three smaller cards
+  (`Phase child` / `Depends on` / `Blocked phase`) with sub-labels `ready · blockers closed`, `ID: parent.N`, and
   `waiting on dependency`.
 - **Bottom-left — "Multi-workspace reads"**: two folders (`sibling workspace`, `primary writes`) connecting to a SQLite
   cylinder labeled `SQLite cache` and a stack labeled `Rust mutations`.
@@ -80,18 +80,14 @@ status/dependency model.
 7. **The status set is incomplete.** Phases have three statuses; the diagram models two. The `in_progress` (`◐`) state
    is _exactly_ the state pre-claiming sets the phase to before its agent launches — so showing it would also tighten
    the link between the bead model and the epic execution panels.
-8. **Tier chips order is fine but tier semantics are not visualized.** The chips (`plan / epic / legend`) are all
-   rendered as peer-equivalent options on a single Plan bead. The doc describes meaningful asymmetry: only `epic`-tier
-   plans accept `sase bead work`; `legend`-tier plans launch epic-planning agents instead. The current diagram does not
-   hint at this — a new reader will think any tier flows into the epic-execution panel, which is wrong.
-9. **Legend-tier work is silently out of scope.** This is acceptable for a diagram titled "epic work", but the alt text
-   should make it clear (current alt: `Bead issue model, storage sync, and epic wave execution` — fine), and ideally a
-   small footnote-style chip should say "legend tier handled by `bd/new_epic` chain elsewhere" to keep readers from
-   concluding the diagram covers all of `sase bead work`.
-10. **"primary writes" framing is mildly misleading.** Reads are merged across all workspaces; writes go to the
-    _primary_ workspace only. The diagram does show this, but the `primary writes` label is on a _folder_ rather than on
-    the _write arrow_, which makes it ambiguous whether the folder itself is the "primary" or whether the arrow into
-    SQLite is the write path. Moving the label onto the write edge would remove the ambiguity.
+8. **Tier chips order is fine but tier semantics are not visualized.** The chips (`plan / epic`) are rendered as
+   peer-equivalent options on a single Plan bead. The doc describes meaningful asymmetry: only `epic`-tier plans accept
+   `sase bead work`, while `plan` records do not launch the work DAG. The current diagram does not hint at this — a new
+   reader will think any tier flows into the epic-execution panel, which is wrong.
+9. **"primary writes" framing is mildly misleading.** Reads are merged across all workspaces; writes go to the _primary_
+   workspace only. The diagram does show this, but the `primary writes` label is on a _folder_ rather than on the _write
+   arrow_, which makes it ambiguous whether the folder itself is the "primary" or whether the arrow into SQLite is the
+   write path. Moving the label onto the write edge would remove the ambiguity.
 
 ## Concrete suggested changes for the regenerated image
 
@@ -119,8 +115,8 @@ These are scoped so the regen agent can act on them directly without rewriting t
    label off the folder onto the write arrow itself**. The merged-read lens stays the same.
 7. **Differentiate the tier chips on the Plan bead.** Either color-code the `epic` chip and add a thin arrow from it to
    the `sase bead work <epic>` trigger box, or add a tiny caption under the chips like
-   `epic → bead work · legend → epic-planning agents`. This corrects the false impression that all three tiers feed the
-   same execution flow.
+   `epic -> bead work · plan -> planning record`. This corrects the false impression that both tiers feed the same
+   execution flow.
 8. **Tighten the gutter** between the bead-model zone and the storage/multi-workspace zone with a faint divider or
    background tint shift, so the three zones read as three.
 9. **Keep the existing 16:9 layout, neutral palette, no-text-in-base-render policy, and DejaVu-Sans deterministic

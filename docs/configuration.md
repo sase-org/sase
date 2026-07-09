@@ -487,10 +487,10 @@ follow-up invocation that instructs the same provider to use the appropriate com
 (`workspace.strategy: none`) are reported to that follow-up as advisory work and do not fail the finalizer if they
 remain dirty. Advisory-only static linked-repo changes still get one follow-up prompt so the agent can commit them when
 it made those changes. When the only enforced change is one tracked markdown file under `sdd/tales/`, `sdd/epics/`,
-`sdd/legends/`, or `sdd/myths/`, and that file's only diff is leading front matter changing exactly from `status: wip`
-to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit instead of invoking the provider
-again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is
-recorded in `commit_finalizer_result.json`.
+`sdd/epics/`, and that file's only diff is leading front matter changing exactly from `status: wip` to `status: done`,
+the finalizer creates a direct `chore: Mark SDD plan done` commit instead of invoking the provider again. When
+`$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is recorded in
+`commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
@@ -1035,8 +1035,7 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/mobile_gateway.py`
 
 ### sdd
 
-Configuration for spec-driven development features, including prompt, tale, epic, legend, myth, research, and bead
-storage.
+Configuration for spec-driven development features, including prompt, tale, epic, research, and bead storage.
 
 ```yaml
 sdd:
@@ -1054,12 +1053,12 @@ sdd:
 | `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
 | `sdd.push_after_commit`  | bool or str | `async` | Controls `git push` after SDD commits in `separate_repo`: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                     |
 
-In-tree mode stores prompt snapshots, tales, epics, legends, myths, research notes, and bead state under `sdd/` in the
-project root. Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace.
-Separate-repo mode uses the same `.sase/sdd/` layout as a provider-backed clone in the active workspace, with
-materialization metadata recorded in the primary workspace's `.sase/sdd-store.json`. Projects resolved as the built-in
-`bare_git` VCS provider declare in-tree SDD under `sdd/` when storage is automatic. See [SDD Storage](sdd_storage.md)
-for storage behavior and [Beads](beads.md) for the bead system reference.
+In-tree mode stores prompt snapshots, tales, epics, research notes, and bead state under `sdd/` in the project root.
+Local mode stores the same layout in a standalone `.sase/sdd/` git repo in the primary workspace. Separate-repo mode
+uses the same `.sase/sdd/` layout as a provider-backed clone in the active workspace, with materialization metadata
+recorded in the primary workspace's `.sase/sdd-store.json`. Projects resolved as the built-in `bare_git` VCS provider
+declare in-tree SDD under `sdd/` when storage is automatic. See [SDD Storage](sdd_storage.md) for storage behavior and
+[Beads](beads.md) for the bead system reference.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -1703,16 +1702,15 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead create`
 
-| Flag                | Values                   | Default    | Description                                                                 |
-| ------------------- | ------------------------ | ---------- | --------------------------------------------------------------------------- |
-| `-t, --title`       | string                   | (required) | Issue title                                                                 |
-| `-T, --type`        | string                   | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
-| `-d, --description` | string                   | -          | Issue description                                                           |
-| `-a, --assignee`    | string                   | -          | Assignee name                                                               |
-| `--tier`            | `plan`, `epic`, `legend` | -          | Plan-bead tier                                                              |
-| `-c, --changespec`  | ChangeSpec name          | -          | Attach ChangeSpec metadata to a plan bead                                   |
-| `-b, --bug-id`      | string                   | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
-| `-E, --epic-count`  | positive integer         | -          | Number of epics proposed by a legend plan bead                              |
+| Flag                | Values          | Default    | Description                                                                 |
+| ------------------- | --------------- | ---------- | --------------------------------------------------------------------------- |
+| `-t, --title`       | string          | (required) | Issue title                                                                 |
+| `-T, --type`        | string          | (required) | Bead type: `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)` |
+| `-d, --description` | string          | -          | Issue description                                                           |
+| `-a, --assignee`    | string          | -          | Assignee name                                                               |
+| `--tier`            | `plan`, `epic`  | -          | Plan-bead tier                                                              |
+| `-c, --changespec`  | ChangeSpec name | -          | Attach ChangeSpec metadata to a plan bead                                   |
+| `-b, --bug-id`      | string          | -          | Bug ID for the attached ChangeSpec; requires `--changespec`                 |
 
 #### `sase bead list`
 
@@ -1720,7 +1718,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | -------------- | ------------------------------- | ------- | ------------------------------------- |
 | `-s, --status` | `open`, `in_progress`, `closed` | -       | Filter by status (repeatable)         |
 | `-t, --type`   | `plan`, `phase`                 | -       | Filter by type (repeatable)           |
-| `--tier`       | `plan`, `epic`, `legend`        | -       | Filter by plan-bead tier (repeatable) |
+| `--tier`       | `plan`, `epic`                  | -       | Filter by plan-bead tier (repeatable) |
 
 #### `sase bead search`
 
@@ -1731,7 +1729,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-f, --format` | `compact`, `json`, `full`       | `compact`   | Output format                                                       |
 | `-n, --limit`  | non-negative integer            | (unlimited) | Maximum results to print; `0` also means unlimited                  |
 | `-s, --status` | `open`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
-| `--tier`       | `plan`, `epic`, `legend`        | -           | Filter by plan-bead tier (repeatable)                               |
+| `--tier`       | `plan`, `epic`                  | -           | Filter by plan-bead tier (repeatable)                               |
 | `-t, --type`   | `plan`, `phase`                 | -           | Filter by type (repeatable)                                         |
 
 #### `sase bead show`
@@ -1748,17 +1746,16 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead update`
 
-| Flag                | Values                          | Default    | Description              |
-| ------------------- | ------------------------------- | ---------- | ------------------------ |
-| `id`                | string                          | (required) | Issue ID to update       |
-| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status            |
-| `-t, --title`       | string                          | -          | Change title             |
-| `-d, --description` | string                          | -          | Change description       |
-| `-n, --notes`       | string                          | -          | Change notes             |
-| `-D, --design`      | path                            | -          | Change plan path         |
-| `-a, --assignee`    | string                          | -          | Change assignee          |
-| `--tier`            | `plan`, `epic`, `legend`        | -          | Change plan-bead tier    |
-| `-E, --epic-count`  | positive integer                | -          | Change legend epic count |
+| Flag                | Values                          | Default    | Description           |
+| ------------------- | ------------------------------- | ---------- | --------------------- |
+| `id`                | string                          | (required) | Issue ID to update    |
+| `-s, --status`      | `open`, `in_progress`, `closed` | -          | Change status         |
+| `-t, --title`       | string                          | -          | Change title          |
+| `-d, --description` | string                          | -          | Change description    |
+| `-n, --notes`       | string                          | -          | Change notes          |
+| `-D, --design`      | path                            | -          | Change plan path      |
+| `-a, --assignee`    | string                          | -          | Change assignee       |
+| `--tier`            | `plan`, `epic`                  | -          | Change plan-bead tier |
 
 #### `sase bead close`
 
@@ -1790,7 +1787,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 | Flag            | Values | Default    | Description                                                              |
 | --------------- | ------ | ---------- | ------------------------------------------------------------------------ |
-| `id`            | string | (required) | Epic or legend plan bead ID.                                             |
+| `id`            | string | (required) | Epic plan bead ID.                                                       |
 | `-n, --dry-run` | flag   | -          | Print the wave plan and rendered multi-prompt without mutating state.    |
 | `-P, --no-push` | flag   | -          | Commit launched bead state locally but skip the post-commit `git push`.  |
 | `-y, --yes`     | flag   | -          | Skip the launch confirmation prompt when launching phase or epic agents. |
@@ -1806,7 +1803,7 @@ directly for `--storage`.
 | Subcommand     | Flags                                                                    | Description                                                                                               |
 | -------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `init`         | `-p/--path`, `-c/--check`, `-s/--storage`                                | Create/connect companion storage when effective, refresh SDD guide files, and report drift with `--check` |
-| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, `legends`, or `all`                         |
+| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, or `all`                                    |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                           |
 | `migrate`      | `-p/--path`, `-c/--create`, `-r/--remove-in-tree`                        | Migrate in-tree or local SDD files into the provider companion repository                                 |
 | `path`         | `[kind]`                                                                 | Print the effective SDD root or one canonical child directory; does not materialize remote stores         |
@@ -1996,7 +1993,7 @@ With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 The Rejected rows are inferred from archived proposal files that are not represented by current proposed or approved
 state, so they are useful for history but are not actionable selectors. Approval kind `approve` runs the coder without
 asking the runner to commit an SDD plan, `tale` commits the plan as an SDD tale and then runs the coder, `epic` and
-`legend` commit the matching SDD tier and launch the bead follow-up, and `commit` records the approved plan in SDD
+`epic` commits the matching SDD tier and launches the bead follow-up, and `commit` records the approved plan in SDD
 without launching a coder. The `-m/--model` flag applies to the follow-up agent; `-p/--prompt` adds extra coder
 instructions only for the `approve` and `tale` paths. `sase plan reject` writes the rejection response first, then
 attempts the same durable cleanup path as TUI no-feedback rejection when the matching planner row is still discoverable.
@@ -2004,10 +2001,10 @@ attempts the same durable cleanup path as TUI no-feedback rejection when the mat
 `sase plan search [query]` scans plans in the resolved SDD store (the `repo` source) and the machine-local
 `~/.sase/plans/` archive. The query is a literal case-insensitive substring; omit it to browse and filter. `--format`
 accepts `compact`, `full`, `json`, or `markdown`; `--kind` is repeatable and filters SDD-store plans to `tale`, `epic`,
-`legend`, `myth`, or `research`; `--status` is repeatable and filters frontmatter status to `wip` or `done`; `--source`
-selects `all`, `repo`, or `local`; `--sort` selects `relevance`, `recent`, or `title` (defaulting to relevance with a
-query and recent without one); `--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such
-as `14d`; and `--limit 0` prints all matches.
+`research`; `--status` is repeatable and filters frontmatter status to `wip` or `done`; `--source` selects `all`,
+`repo`, or `local`; `--sort` selects `relevance`, `recent`, or `title` (defaulting to relevance with a query and recent
+without one); `--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such as `14d`; and
+`--limit 0` prints all matches.
 
 ### `sase artifact`
 

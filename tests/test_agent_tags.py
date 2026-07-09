@@ -188,7 +188,7 @@ def test_save_atomic_replace_overwrites_existing_file(tmp_path: Path) -> None:
 def test_update_agent_tag_preserves_existing_entries(tmp_path: Path) -> None:
     test_file = tmp_path / "agent_tags.json"
     existing = (AgentType.RUNNING, "keep", "ts1")
-    new = (AgentType.WORKFLOW, "legend", "ts2")
+    new = (AgentType.WORKFLOW, "sample", "ts2")
 
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
         assert save_agent_tags({existing: "alpha"})
@@ -202,7 +202,7 @@ def test_update_agent_tag_preserves_existing_entries(tmp_path: Path) -> None:
 
 def test_update_agent_tag_validates_input(tmp_path: Path) -> None:
     test_file = tmp_path / "agent_tags.json"
-    identity = (AgentType.WORKFLOW, "legend", "ts")
+    identity = (AgentType.WORKFLOW, "sample", "ts")
 
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
         with pytest.raises(InvalidTagError):
@@ -233,7 +233,7 @@ def test_update_agent_tag_from_existing_name_group_preserves_entries(
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
     existing = (AgentType.RUNNING, "keep", "ts1")
-    new = (AgentType.WORKFLOW, "legend", "ts2")
+    new = (AgentType.WORKFLOW, "sample", "ts2")
 
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
         assert save_agent_tags({existing: "foo"})
@@ -250,7 +250,7 @@ def test_update_agent_tag_from_existing_name_group_no_match_does_not_write(
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
     existing = (AgentType.RUNNING, "keep", "ts1")
-    new = (AgentType.WORKFLOW, "legend", "ts2")
+    new = (AgentType.WORKFLOW, "sample", "ts2")
 
     with (
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),

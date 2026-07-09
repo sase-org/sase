@@ -39,8 +39,7 @@ def launch_planned_bead_work_agents(
     :func:`launch_agents_from_cwd` would otherwise rediscover: the segment
     split, the deterministic per-agent names, the per-segment env, and the
     project context. Every rendered segment references exactly one bead xprompt
-    (``#bd/work_phase_bead`` / ``#bd/land_epic`` / ``#bd/land_legend``) and never
-    fans out.
+    (``#bd/work_phase_bead`` / ``#bd/land_epic``) and never fans out.
 
     This adapter skips the generic discovery -- xprompt swarm expansion,
     per-segment fan-out probing, and the CWD project re-parse -- by feeding

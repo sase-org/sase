@@ -251,8 +251,8 @@ of agents instead of playing guess-the-window.
 
 ACE is also where you steer. When an agent submits a plan through `/sase_plan` or `sase plan propose`, the row enters
 PLAN status and the notification carries provider/model metadata. The plan approval modal uses single keys: `a` approve
-and run the coder, `r` reject, `f` request feedback, `e` edit, `t` save as a tale, `E` make an epic, and `L` make a
-legend. The `A` key on an active row opens the auto-approve menu, matching `%auto`, `%auto:tale`, and `%auto:epic`.
+and run the coder, `r` reject, `f` request feedback, `e` edit, `t` save as a tale, and `E` make an epic. The `A` key on
+an active row opens the auto-approve menu, matching `%auto`, `%auto:tale`, and `%auto:epic`.
 
 Launch approval is the second gate. If a running agent asks SASE to launch more agents, the request becomes a priority
 `LaunchApproval` notification. The modal previews the requested launch; `a` approves, `r` rejects, and `q` cancels. This

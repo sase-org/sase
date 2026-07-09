@@ -109,33 +109,6 @@ def test_apply_status_overrides_active_epic_child_sets_epic_approved() -> None:
     assert epic_child.status == "EPIC APPROVED"
 
 
-def test_apply_status_overrides_active_legend_child_sets_legend_approved() -> None:
-    """A DONE plan parent with an active .legend follow-up becomes LEGEND APPROVED."""
-    parent = Agent(
-        agent_type=AgentType.WORKFLOW,
-        cl_name="my_cl",
-        project_file="/tmp/test.sase",
-        status="DONE",
-        start_time=datetime(2026, 4, 20, 10, 0, 0),
-        raw_suffix="20260420100000",
-        role_suffix=".plan",
-    )
-    legend_child = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="my_cl",
-        project_file="/tmp/test.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 4, 20, 10, 10, 0),
-        parent_timestamp="20260420100000",
-        role_suffix=".legend",
-    )
-    agents = [parent, legend_child]
-    _apply_status_overrides(agents)
-
-    assert parent.status == "LEGEND APPROVED"
-    assert legend_child.status == "LEGEND APPROVED"
-
-
 def test_apply_status_overrides_active_commit_child_sets_plan_committed() -> None:
     """A DONE plan parent with an active .commit follow-up becomes PLAN COMMITTED."""
     parent = Agent(

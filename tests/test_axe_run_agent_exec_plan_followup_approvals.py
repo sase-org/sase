@@ -129,57 +129,15 @@ class TestPlanFollowupApprovals:
         assert commit_kwargs
         assert all(kwargs["push_after_commit"] is True for kwargs in commit_kwargs)
 
-    def test_legend_prompt_uses_legend_sdd_ref(self, tmp_path) -> None:
-        """Legend approval writes to sdd/legends and launches bd/new_legend."""
-        ctx = make_ctx(tmp_path)
-        state = make_state(tmp_path)
-        plan_file = str(tmp_path / "scratch_plan.md")
-        (tmp_path / "scratch_plan.md").write_text("# Plan")
-        sdd_plan = tmp_path / "sdd" / "legends" / "202605" / "scratch_plan.md"
-        sdd_plan.parent.mkdir(parents=True)
-        sdd_plan.write_text("# Saved Legend")
-
-        approval = PlanApprovalResult(action="legend", plan_file=plan_file)
-        with (
-            patch(
-                "sase.llm_provider._plan_utils.handle_plan_approval",
-                return_value=approval,
-            ),
-            patch(
-                "sase.sdd.files.write_sdd_files",
-                return_value=(
-                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
-                    sdd_plan,
-                ),
-            ) as write_sdd_files,
-            patch(
-                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
-            ) as mock_commit,
-        ):
-            handle_plan_marker({"plan_file": plan_file}, ctx, state)
-
-        assert state.current_role_suffix == "--legend"
-        assert (
-            "#bd/new_legend:sdd/legends/202605/scratch_plan.md" in state.current_prompt
-        )
-        assert write_sdd_files.call_args.kwargs["plan_kind"] == "legends"
-        assert mock_commit.call_args.kwargs["plan_kind"] == "legends"
-
-    @pytest.mark.parametrize(
-        ("action", "expected_kind"),
-        [("epic", "epics"), ("legend", "legends")],
-    )
-    def test_epic_and_legend_force_sdd_commit(
-        self, tmp_path, action: str, expected_kind: str
-    ) -> None:
-        """Epic and legend approvals commit SDD files even with stale false flags."""
+    def test_epic_force_sdd_commit(self, tmp_path) -> None:
+        """Epic approvals commit SDD files even with stale false flags."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
         (tmp_path / "plan.md").write_text("# Plan")
 
         approval = PlanApprovalResult(
-            action=action,
+            action="epic",
             plan_file=plan_file,
             commit_plan=False,
             run_coder=False,
@@ -200,7 +158,7 @@ class TestPlanFollowupApprovals:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
         mock_commit.assert_called_once()
-        assert mock_commit.call_args.kwargs["plan_kind"] == expected_kind
+        assert mock_commit.call_args.kwargs["plan_kind"] == "epics"
 
     def test_approve_no_coder_commit_true_returns_plan_committed(
         self, tmp_path
@@ -401,20 +359,17 @@ class TestPlanFollowupApprovals:
             accept_mod.update_meta_field.call_args_list
         )
 
-    @pytest.mark.parametrize("action", ["epic", "legend"])
-    def test_epic_legend_followup_records_default_effort(
-        self, tmp_path, monkeypatch, action: str
-    ) -> None:
-        """Epic/legend follow-up metadata records llm_provider.default_effort."""
+    def test_epic_followup_records_default_effort(self, tmp_path, monkeypatch) -> None:
+        """Epic follow-up metadata records llm_provider.default_effort."""
         monkeypatch.setattr(
             "sase.llm_provider.config._get_default_effort", lambda: "high"
         )
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
-        plan_file = str(tmp_path / f"{action}.md")
-        (tmp_path / f"{action}.md").write_text("# Plan")
+        plan_file = str(tmp_path / "epic.md")
+        (tmp_path / "epic.md").write_text("# Plan")
 
-        approval = PlanApprovalResult(action=action, plan_file=plan_file)
+        approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
             patch(
                 "sase.llm_provider._plan_utils.handle_plan_approval",
@@ -422,7 +377,7 @@ class TestPlanFollowupApprovals:
             ),
             patch(
                 "sase.sdd.files.write_sdd_files",
-                return_value=(tmp_path / "spec.md", tmp_path / f"{action}.md"),
+                return_value=(tmp_path / "spec.md", tmp_path / "epic.md"),
             ),
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
@@ -633,32 +588,19 @@ class TestPlanFollowupApprovals:
             accept_mod.update_meta_field.call_args_list
         )
 
-    @pytest.mark.parametrize(
-        ("action", "plan_kind", "xprompt_name"),
-        [
-            ("epic", "epics", "bd/new_epic"),
-            ("legend", "legends", "bd/new_legend"),
-        ],
-    )
-    def test_epic_legend_commit_failure_uses_archived_plan_ref(
-        self,
-        tmp_path,
-        action: str,
-        plan_kind: str,
-        xprompt_name: str,
-    ) -> None:
-        """Epic/legend handoffs fall back to the archived plan after commit failure."""
+    def test_epic_commit_failure_uses_archived_plan_ref(self, tmp_path) -> None:
+        """Epic handoffs fall back to the archived plan after commit failure."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
-        archived_plan = tmp_path / "archive" / f"{action}_plan.md"
+        archived_plan = tmp_path / "archive" / "epic_plan.md"
         archived_plan.parent.mkdir()
         archived_plan.write_text("# Archived Plan")
-        sdd_plan = tmp_path / "sdd" / plan_kind / "202605" / f"{action}_plan.md"
+        sdd_plan = tmp_path / "sdd" / "epics" / "202605" / "epic_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
 
         approval = PlanApprovalResult(
-            action=action,
+            action="epic",
             plan_file=str(archived_plan),
             commit_plan=True,
             run_coder=True,
@@ -671,7 +613,7 @@ class TestPlanFollowupApprovals:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    tmp_path / "sdd" / "prompts" / "202605" / f"{action}_plan.md",
+                    tmp_path / "sdd" / "prompts" / "202605" / "epic_plan.md",
                     sdd_plan,
                 ),
             ),
@@ -682,8 +624,8 @@ class TestPlanFollowupApprovals:
         ):
             handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
-        assert f"#{xprompt_name}:{archived_plan}" in state.current_prompt
-        assert f"sdd/{plan_kind}/202605/{action}_plan.md" not in state.current_prompt
+        assert f"#bd/new_epic:{archived_plan}" in state.current_prompt
+        assert "sdd/epics/202605/epic_plan.md" not in state.current_prompt
         relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
             "relationships"
         ]

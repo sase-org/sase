@@ -70,12 +70,6 @@ def _context(
             "Epic approved",
         ),
         (
-            "legend",
-            {},
-            {"action": "legend", "commit_plan": True, "run_coder": True},
-            "Legend approved",
-        ),
-        (
             "commit",
             {},
             {"action": "approve", "commit_plan": True, "run_coder": False},
@@ -213,12 +207,6 @@ def test_shared_plan_response_writer_includes_selected_members(
             {"action": "epic", "commit_plan": True, "run_coder": True},
             "EPIC APPROVED",
             "epic",
-        ),
-        (
-            PlanApprovalResult(action="legend", choice=None),
-            {"action": "legend", "commit_plan": True, "run_coder": True},
-            "LEGEND APPROVED",
-            "legend",
         ),
         (
             PlanApprovalResult(action="reject", feedback="Try again", choice=None),

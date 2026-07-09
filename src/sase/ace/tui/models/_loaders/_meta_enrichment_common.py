@@ -95,8 +95,6 @@ def plan_enrichment_status(
             return "TALE APPROVED"
         if plan_action == "epic":
             return "EPIC APPROVED"
-        if plan_action == "legend":
-            return "LEGEND APPROVED"
         return "PLAN APPROVED"
 
     if plan_submitted and not auto_approved:

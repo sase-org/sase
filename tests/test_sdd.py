@@ -281,7 +281,7 @@ def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
         plan_file.write_text("# Plan\n", encoding="utf-8")
 
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
-            for plan_kind in ("tales", "epics", "legends"):
+            for plan_kind in ("tales", "epics"):
                 write_sdd_files(
                     sdd_dir,
                     f"my_{plan_kind}",
@@ -301,7 +301,6 @@ def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
         assert (sdd_dir / "tales" / "202603" / "my_tales.md").exists()
         assert (sdd_dir / "tales" / "202603" / "my_legacy_plans.md").exists()
         assert (sdd_dir / "epics" / "202603" / "my_epics.md").exists()
-        assert (sdd_dir / "legends" / "202603" / "my_legends.md").exists()
         assert not (Path(tmpdir) / "plans").exists()
         assert not (sdd_dir / "plans").exists()
         assert not (Path(tmpdir) / "prompts").exists()
@@ -352,13 +351,7 @@ def test_write_sdd_files_preserves_existing_plan_frontmatter() -> None:
         sdd_dir = Path(tmpdir) / "sdd"
         plan_file = Path(tmpdir) / "source_plan.md"
         plan_file.write_text(
-            "---\n"
-            "bead_id: sase-1y\n"
-            "legend_bead_id: sase-legend\n"
-            "tier: epic\n"
-            "status: ready\n"
-            "---\n"
-            "# Plan\n",
+            "---\nbead_id: sase-1y\ntier: epic\nstatus: ready\n---\n# Plan\n",
             encoding="utf-8",
         )
 
@@ -373,7 +366,6 @@ def test_write_sdd_files_preserves_existing_plan_frontmatter() -> None:
 
         plan_fm, body, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
         assert plan_fm["bead_id"] == "sase-1y"
-        assert plan_fm["legend_bead_id"] == "sase-legend"
         assert plan_fm["tier"] == "epic"
         assert plan_fm["status"] == "ready"
         assert plan_fm["prompt"] == "sdd/prompts/202603/preserve.md"

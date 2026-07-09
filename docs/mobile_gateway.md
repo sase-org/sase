@@ -377,15 +377,10 @@ curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/feedback" \
   -d '{"schema_version":1,"feedback":"Revise the rollout section"}'
 ```
 
-Epic and legend approvals use the same route shape:
+Epic approvals use the same route shape:
 
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/epic" \
-  -H "$AUTH_HEADER" \
-  -H 'Content-Type: application/json' \
-  -d '{"schema_version":1}'
-
-curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/legend" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"schema_version":1}'

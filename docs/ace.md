@@ -1322,7 +1322,7 @@ initial agent family is named `a`:
 1. The root workflow row keeps `a`.
 2. The planner phase uses suffix `--plan` and is displayed as `a--plan` when ACE renders it as a phase child.
 3. Feedback and question-continuation rounds become `a--2`, `a--3`, etc.
-4. Terminal follow-ups use the phase suffix, such as `a--code`, `a--epic`, `a--legend`, or `a--commit`.
+4. Terminal follow-ups use the phase suffix, such as `a--code`, `a--epic`, or `a--commit`.
 
 The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve to the family root.
 New plan-family metadata stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). ACE still
@@ -1497,8 +1497,8 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   with follow-up phases (planner, feedback rounds, coder), the AGENT REPLY section consolidates replies from all phases
   into a single view with purple phase dividers showing each phase's label and start time. Phase labels are derived from
   canonical plan-family `role_suffix` values: `--plan` renders as `PLANNER`, `--code` as `CODER`, `--q` as `QUESTIONS`,
-  `--epic` as `EPIC`, `--legend` as `LEGEND`, `--commit` as `COMMIT`, and numeric feedback suffixes such as `--2` as
-  `PLANNER (round 2)`. Legacy dotted and single-dash suffixes render the same way.
+  `--epic` as `EPIC`, `--commit` as `COMMIT`, and numeric feedback suffixes such as `--2` as `PLANNER (round 2)`. Legacy
+  dotted and single-dash suffixes render the same way.
 - **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with additional `meta_*` keys are grouped
   under a dedicated header. The special routing keys `meta_project`, `meta_changespec`, and `meta_workspace` are still
   promoted into the normal header fields; other metadata keys are title-cased and shown in this section.
@@ -1579,14 +1579,13 @@ filename — orange for Claude, lime for Codex, Antigravity indigo (`#6E5DE7`) f
 The badge is omitted when provider/model metadata is absent, leaving the legacy title shape unchanged.
 
 The same pending approvals are available from the CLI. Run `sase plan` to see pending proposals, recent approvals, and
-inferred rejected archived plans; run `sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` or
+inferred rejected archived plans; run `sase plan approve <id-prefix> --kind approve|commit|epic|tale` or
 `sase plan reject <id-prefix>` to write the same response protocol used by the TUI modal. Use the `id_prefix` from a
 Proposed row; if the selector is omitted, the CLI acts only when exactly one proposal is pending. `approve` starts the
-coder without committing an SDD plan, `tale` commits the plan as an SDD tale and starts the coder, `epic` and `legend`
-commit the matching SDD tier and launch the bead follow-up, and `commit` records the approved plan in SDD without
-launching a coder. `-m/--model` picks the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for
-the `approve` and `tale` paths. CLI rejection also attempts the durable planner cleanup used by no-feedback TUI
-rejection.
+coder without committing an SDD plan, `tale` commits the plan as an SDD tale and starts the coder, `epic` commit the
+matching SDD tier and launch the bead follow-up, and `commit` records the approved plan in SDD without launching a
+coder. `-m/--model` picks the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for the
+`approve` and `tale` paths. CLI rejection also attempts the durable planner cleanup used by no-feedback TUI rejection.
 
 For active Agents-tab rows, `A` opens the **Auto-Approve menu**, a single-key modal that configures how the agent's
 _next_ submitted plan is auto-approved. The agent's current state is marked with `▸`; pressing `p` (Plan — approve the
@@ -1608,7 +1607,6 @@ auto-approval; it does not answer unrelated HITL prompts.
 | `f`          | Request feedback (send follow-up questions to the agent) |
 | `e`          | Edit the plan file in `$EDITOR`                          |
 | `E`          | Mark the plan as an epic (creates bead)                  |
-| `L`          | Mark the plan as a legend (creates legend-tier bead)     |
 | `y`          | Copy plan content to clipboard                           |
 | `Y`          | Copy plan file path to clipboard                         |
 | `Ctrl+D`/`U` | Scroll plan content down / up                            |
@@ -1620,9 +1618,9 @@ The question modal also supports `y` to copy questions and selected answers.
 ### Custom Approval
 
 Pressing `c` in the plan approval modal opens a custom approval dialog. Choose the approval outcome directly: Approve,
-Tale, Epic, or Legend. These choices map to the same response protocol used by external approval transports: Approve
-runs the coder without asking the runner to commit an SDD plan, while Tale, Epic, and Legend commit the plan under the
-matching tier in the resolved SDD store (`sdd/tales|epics|legends` in in-tree mode, `.sase/sdd/...` otherwise).
+Tale, or Epic. These choices map to the same response protocol used by external approval transports: Approve runs the
+coder without asking the runner to commit an SDD plan, while Tale and Epic commit the plan under the matching tier in
+the resolved SDD store (`sdd/tales|epics` in in-tree mode, `.sase/sdd/...` otherwise).
 
 | Key          | Action                                    |
 | ------------ | ----------------------------------------- |
@@ -1630,7 +1628,6 @@ matching tier in the resolved SDD store (`sdd/tales|epics|legends` in in-tree mo
 | `a`          | Highlight Approve                         |
 | `t`          | Highlight Tale                            |
 | `e`          | Highlight Epic                            |
-| `l`          | Highlight Legend                          |
 | `m`          | Select coder model                        |
 | `p`          | Edit additional coder prompt              |
 | `1`-`9`      | Toggle an "Also run" custom family member |
@@ -1640,17 +1637,16 @@ matching tier in the resolved SDD store (`sdd/tales|epics|legends` in in-tree mo
 The dialog keeps the custom coder prompt and follow-up model controls:
 
 - **Additional prompt** — Optional extra instructions for the coder follow-up. It is used by Approve and Tale; Epic and
-  Legend generate their follow-up prompts from the bead xprompts.
+  Epic generates its follow-up prompt from the bead xprompts.
 - **Coder model** — Select an LLM model for the next follow-up agent instead of using the role default. For Approve and
-  Tale that agent is the coder; for Epic and Legend it is the bead follow-up. Shows all registered models grouped by
-  provider (Claude, Codex, Antigravity, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to filter by
-  provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the
-  filter or cancel, and `'` for jump hints over the visible selectable rows. The displayed default resolves to the model
-  the handoff will actually use: for Approve and Tale it is the planner provider's coder alias
-  (`@<planner_provider>_coder`, e.g. `@claude_coder`, falling back to `@coder` when planner provider metadata is
-  missing); for Epic it is the `@epic_creator` role alias and for Legend it is the `@default` launch alias. Selecting a
-  specific model and then re-opening the picker and choosing "Follow-up default" resets the follow-up back to that role
-  default (distinct from pressing `Esc`, which keeps the current selection).
+  Tale that agent is the coder; for Epic it is the bead follow-up. Shows all registered models grouped by provider
+  (Claude, Codex, Antigravity, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to filter by provider,
+  model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the filter or
+  cancel, and `'` for jump hints over the visible selectable rows. The displayed default resolves to the model the
+  handoff will actually use: for Approve and Tale it is the planner provider's coder alias (`@<planner_provider>_coder`,
+  e.g. `@claude_coder`, falling back to `@coder` when planner provider metadata is missing); for Epic it is the
+  `@epic_creator` role alias. Selecting a specific model and then re-opening the picker and choosing "Follow-up default"
+  resets the follow-up back to that role default (distinct from pressing `Esc`, which keeps the current selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.

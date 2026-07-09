@@ -30,7 +30,6 @@ def test_choice_bindings_are_available() -> None:
     assert ("a", "choose_approve", "Approve") in ApproveOptionsModal.BINDINGS
     assert ("t", "choose_tale", "Tale") in ApproveOptionsModal.BINDINGS
     assert ("e", "choose_epic", "Epic") in ApproveOptionsModal.BINDINGS
-    assert ("l", "choose_legend", "Legend") in ApproveOptionsModal.BINDINGS
 
 
 def test_on_key_calls_approve_on_enter() -> None:
@@ -59,10 +58,10 @@ def test_on_key_selects_action_key() -> None:
 
     modal._select_choice = fake_select_choice  # type: ignore[method-assign]
 
-    key_event = events.Key("l", character="l")
+    key_event = events.Key("e", character="e")
     modal.on_key(key_event)
 
-    assert selected == ["legend"]
+    assert selected == ["epic"]
     assert key_event._stop_propagation  # type: ignore[attr-defined]
 
 

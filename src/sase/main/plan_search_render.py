@@ -50,8 +50,6 @@ _DEFAULT_STATUS_STYLE = "dim"
 _KIND_STYLES = {
     "tale": "cyan",
     "epic": "magenta",
-    "legend": "bright_blue",
-    "myth": "blue",
     "research": "green",
     "local": "bright_black",
 }

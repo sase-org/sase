@@ -226,8 +226,6 @@ def format_agent_option(
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == "EPIC APPROVED":
         text.append(display_status, style="bold #5FD7AF")  # Sea-green
-    elif agent.status == "LEGEND APPROVED":
-        text.append(display_status, style="bold #D7AFFF")  # Lavender
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)

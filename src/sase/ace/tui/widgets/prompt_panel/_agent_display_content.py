@@ -13,7 +13,6 @@ from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
-    PLAN_CHAIN_LEGEND_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
     agent_family_role_for_suffix,
@@ -31,7 +30,6 @@ _PHASE_LABELS = {
     PLAN_CHAIN_CODER_SUFFIX: "CODER",
     PLAN_CHAIN_QUESTION_SUFFIX: "QUESTIONS",
     PLAN_CHAIN_EPIC_SUFFIX: "EPIC",
-    PLAN_CHAIN_LEGEND_SUFFIX: "LEGEND",
     PLAN_CHAIN_COMMIT_SUFFIX: "COMMIT",
 }
 
@@ -65,8 +63,6 @@ def get_phase_label(agent: Agent) -> str:
         return "CODER"
     if role == "epic":
         return "EPIC"
-    if role == "legend":
-        return "LEGEND"
     if role == "commit":
         return "COMMIT"
     if role == "plan":

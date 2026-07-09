@@ -37,7 +37,7 @@ def _write_plan(
 
 @pytest.fixture
 def corpus(tmp_path: Path) -> tuple[Path, Path]:
-    """Build a temp repo ``sdd/`` tree (tale/epic/legend) + a local archive."""
+    """Build a temp repo ``sdd/`` tree (tale/epic/research) + a local archive."""
     repo = tmp_path / "repo"
     sase_home = tmp_path / ".sase"
     (repo / "sase.yml").parent.mkdir(parents=True, exist_ok=True)
@@ -61,7 +61,7 @@ def corpus(tmp_path: Path) -> tuple[Path, Path]:
         body="Consolidate the providers behind one interface.",
     )
     _write_plan(
-        repo / "sdd" / "legends" / "202604" / "auth_strategy.md",
+        repo / "sdd" / "research" / "202604" / "auth_strategy.md",
         title="Long-term auth strategy",
         status="wip",
         create_time="2026-04-15 09:00:00",

@@ -18,8 +18,8 @@ class Plan:
 
     ``source`` is ``"repo"`` for committed ``sdd/`` plans and ``"local"`` for the
     machine-local archive. ``kind`` is one of the repo plan kinds
-    (``tale``/``epic``/``legend``/``myth``/``research``) or the synthetic
-    ``"local"`` kind for archive entries. ``relpath`` is relative to the plan's
+    (``tale``/``epic``/``research``) or the synthetic ``"local"`` kind for
+    archive entries. ``relpath`` is relative to the plan's
     root and always uses ``/`` separators.
     """
 

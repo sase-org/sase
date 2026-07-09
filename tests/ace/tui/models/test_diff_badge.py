@@ -85,7 +85,7 @@ rename to sdd/tales/202606/new.md
 def test_diff_has_real_edits_accepts_sase_sdd_variant(tmp_path: Path) -> None:
     diff_path = tmp_path / "commit_diff.diff"
     diff_path.write_text(
-        _git_diff(".sase/sdd/legends/202606/change.md"),
+        _git_diff(".sase/sdd/epics/202606/change.md"),
         encoding="utf-8",
     )
 

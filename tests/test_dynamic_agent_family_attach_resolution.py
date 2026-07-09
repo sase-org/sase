@@ -239,7 +239,6 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
         ("q", "q"),
         ("code", "code"),
         ("epic", "epic"),
-        ("legend", "legend"),
         ("commit", "commit"),
         ("reviewer", "reviewer"),
         ("improve_plan", "improve_plan"),

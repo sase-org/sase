@@ -92,10 +92,6 @@ def test_bindings_include_capital_g_scroll_to_bottom() -> None:
     assert ("G", "scroll_to_bottom", "Bottom") in PlanApprovalModal.BINDINGS
 
 
-def test_bindings_include_legend_action() -> None:
-    assert ("L", "legend", "Legend") in PlanApprovalModal.BINDINGS
-
-
 def test_bindings_show_approve_for_approve_action() -> None:
     assert ("a", "approve", "Approve") in PlanApprovalModal.BINDINGS
     assert ("a", "approve", "Tale") not in PlanApprovalModal.BINDINGS

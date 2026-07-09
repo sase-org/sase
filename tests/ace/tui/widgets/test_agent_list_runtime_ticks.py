@@ -20,7 +20,7 @@ from .agent_list_runtime_helpers import (
 )
 
 
-@pytest.mark.parametrize("status", ["PLAN APPROVED", "LEGEND APPROVED"])
+@pytest.mark.parametrize("status", ["PLAN APPROVED"])
 def test_runtime_suffix_ticks_parent_status_alone_is_stable(status: str) -> None:
     result = agent(status=status)
     assert runtime_suffix_ticks(result) is False

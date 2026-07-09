@@ -83,9 +83,9 @@ The grounding sources for accuracy are `../sase-telegram/README.md`, `../sase-te
   `sase_chop_tg_inbound` (defined in `pyproject.toml` `[project.scripts]`). The diagram uses "Outbound chop" / inbound
   paraphrases. Showing the real script names anchors readers who go look for them in the codebase.
 - **Plan Approval keyboard is incomplete.** The chat mock shows roughly "Approve / Reject / Feedback / Custom". Per
-  `formatting.py` the actual plan approval keyboard exposes six primary buttons — Tale / ✅ Approve / Epic / Legend /
-  Reject / Feedback — plus dynamic option buttons for User Questions. A reader would conclude approvals are binary,
-  which is wrong. Either redraw the keyboard or note "(buttons vary by notification type)".
+  `formatting.py` the actual plan approval keyboard exposes five primary buttons — Tale / ✅ Approve / Epic / Reject /
+  Feedback — plus dynamic option buttons for User Questions. A reader would conclude approvals are binary, which is
+  wrong. Either redraw the keyboard or note "(buttons vary by notification type)".
 - **Inbound dispatch outcomes are missing one branch.** Inbound writes a response file _or_ launches an agent _or_ runs
   a slash command (`/list`, `/kill`, `/resume`, `/changes`, `/xprompts`, `/bead`, `/update`). The diagram only shows
   "Write response JSON or launch agent". Add a "slash-command dispatch" branch.
@@ -111,8 +111,8 @@ first-time reader.
 2. Expand state-store contents to include `rate_limit.json`, `update_offset.txt`, `outbound_debug.log`,
    `commands_registered_ts`, and `images/` (group as: _delivery_ — rate*limit, last_sent_ts, outbound.lock,
    outbound_debug.log; \_inbound* — update*offset, awaiting_feedback, pending_actions; \_attachments* — images/).
-3. Replace the single "Approve / Reject" keyboard with the actual plan-approval row (Tale · ✅ Approve · Epic · Legend ·
-   Reject · Feedback) and add a small badge strip naming the eight notification types and the seven slash commands.
+3. Replace the single "Approve / Reject" keyboard with the actual plan-approval row (Tale · ✅ Approve · Epic · Reject ·
+   Feedback) and add a small badge strip naming the eight notification types and the seven slash commands.
 4. Show AXE feeding **both** lanes; show `generated images & artifacts` feeding the OUTBOUND format step.
 5. Re-letter the lanes (`O1..O5`, `I1..I3`) so the two flows are visually independent.
 6. Insert an explicit `SASE core | ../sase-telegram` process boundary, and label the cross-boundary artifacts

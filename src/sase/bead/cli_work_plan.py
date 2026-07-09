@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from sase.bead.work import EpicWorkPlan, LegendWorkPlan
+    from sase.bead.work import EpicWorkPlan
 
 
 def expected_agent_names(plan: EpicWorkPlan) -> set[str]:
@@ -43,20 +43,6 @@ def find_live_name_collisions(plan: EpicWorkPlan) -> dict[str, str]:
     return get_live_agent_name_subset(expected)
 
 
-def expected_legend_agent_names(plan: LegendWorkPlan) -> set[str]:
-    names = {assignment.agent_name for assignment in plan.assignments}
-    names.add(plan.land_agent_name)
-    return names
-
-
-def find_live_legend_name_collisions(plan: LegendWorkPlan) -> dict[str, str]:
-    """Return live collisions for legend epic-planning agent names."""
-    from sase.agent.names import get_live_agent_name_subset
-
-    expected = expected_legend_agent_names(plan)
-    return get_live_agent_name_subset(expected)
-
-
 def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:
     phase_count = sum(len(w) for w in plan.waves)
     wave_count = len(plan.waves)
@@ -67,29 +53,6 @@ def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> Non
     for i, wave in enumerate(plan.waves):
         names = ", ".join(f"{a.bead_id} → {a.agent_name}" for a in wave)
         print(f"  Wave {i}: {names}")
-    if plan.land_waits_on:
-        print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
-
-
-def print_legend_work_plan_summary(
-    legend_id: str,
-    title: str,
-    plan: LegendWorkPlan,
-) -> None:
-    agent_count = len(plan.assignments)
-    print(
-        f"Legend {legend_id} — {title}: {agent_count} epic agent(s) plus "
-        f"1 land agent ({plan.land_agent_name})."
-    )
-    for assignment in plan.assignments:
-        print(f"  Epic #{assignment.epic_number}: {assignment.agent_name}")
-    wait_edges = [
-        f"{assignment.agent_name} waits on {', '.join(assignment.waits_on)}"
-        for assignment in plan.assignments
-        if assignment.waits_on
-    ]
-    if wait_edges:
-        print(f"  Wait chain: {'; '.join(wait_edges)}")
     if plan.land_waits_on:
         print(f"  Land waits on: {', '.join(plan.land_waits_on)}")
 

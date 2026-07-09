@@ -618,10 +618,8 @@ making the system extensible — a plugin or user can override the CRS workflow 
 | `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                          |
 | `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                    |
 | `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                      |
-| `create_legend_bead`           | Plan-approval Legend flow — creates a legend-tier bead with `epic_count`, then runs legend work                        |
 | `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                     |
 | `land_epic`                    | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                    |
-| `land_legend`                  | Final land-the-legend agent prompt used by `sase bead work` after legend epics complete                                |
 
 ### Defining Tags
 
@@ -830,13 +828,11 @@ defaults. Common entries include:
 | `#!sync`              | Sync the current workspace and launch conflict-resolution help if needed                          |
 | `#plan`               | Asks the agent to think the work through and use its `/sase_plan` skill before any file changes   |
 | `#epic`               | Marks the request as a multi-phase epic and chains `#plan`                                        |
-| `#legend`             | Marks the request as a larger legend-level planning effort that should later split into epics     |
 | `#review`             | Asks the agent to fix bugs and apply only clear-win improvements                                  |
 | `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
 | `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
-| `#bd/new_legend`      | Legend kickoff that records `epic_count`, commits metadata, then runs `sase bead work`            |
 | `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
 | `#bd/land_epic`       | Final land-agent prompt used by `sase bead work`                                                  |
 | `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                               |
@@ -859,13 +855,9 @@ original prompts).
 When `bug_id` is supplied, `changespec` must also be supplied; the generated plan bead is created with the corresponding
 `sase bead create -c/--changespec` and `-b/--bug-id` metadata.
 
-`#bd/new_epic` also accepts an optional `legend_bead_id`. When supplied, or when the epic plan file frontmatter contains
-`legend_bead_id`, the epic is linked under that legend with `--type plan(<plan_file>,<legend_bead_id>) --tier epic`. It
-creates the epic plan bead first, then creates phase beads sequentially in the order they appear in the plan file. Phase
-bead creation is intentionally not parallelized because child bead suffixes are allocated by creation order.
-`#bd/new_legend` creates a `--tier legend --epic-count <count>` plan bead for the resolved legend plan file, writes
-`legend_bead_id`, `tier: legend`, and `epic_count` frontmatter to that plan, commits the metadata, then runs
-`sase bead work <legend_bead_id> --yes`.
+`#bd/new_epic` creates the epic plan bead first, then creates phase beads sequentially in the order they appear in the
+plan file. Phase bead creation is intentionally not parallelized because child bead suffixes are allocated by creation
+order.
 
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
@@ -1097,13 +1089,13 @@ to the newest visible root agent in the current project, composes the child name
 the same family metadata as runner-created follow-ups, and strips the directive before the model sees the prompt. The
 suffix argument is a bare token: write `%n(foo, reviewer)`, not `%n(foo, --reviewer)`.
 
-Reserved suffixes (`plan`, `q`, `code`, `epic`, `legend`, `commit`) select their built-in family roles and status
-labels. Numeric suffixes and `@` are feedback/Q&A rounds; `@` allocates the next free suffix. Other alphanumeric
-suffixes such as `reviewer` or `tester` are allowed as custom roles and use ordinary running/done status labels while
-preserving the custom role in `agent_family_role` metadata. A manual attach does not run the custom lifecycle machinery:
-even when the suffix matches a defined custom role, display labels and lifecycle handling apply only to members the
-family evaluator inserts itself — see [Agent Families](agent_families.md) for custom role definitions, plan-gate member
-selection, and display labels.
+Reserved suffixes (`plan`, `q`, `code`, `epic`, `commit`) select their built-in family roles and status labels. Numeric
+suffixes and `@` are feedback/Q&A rounds; `@` allocates the next free suffix. Other alphanumeric suffixes such as
+`reviewer` or `tester` are allowed as custom roles and use ordinary running/done status labels while preserving the
+custom role in `agent_family_role` metadata. A manual attach does not run the custom lifecycle machinery: even when the
+suffix matches a defined custom role, display labels and lifecycle handling apply only to members the family evaluator
+inserts itself — see [Agent Families](agent_families.md) for custom role definitions, plan-gate member selection, and
+display labels.
 
 If the parent is still running, the child is launched immediately as a WAITING child row under the parent and starts
 when that exact parent artifact completes successfully. If the parent fails, is stopped, or is killed, the queued child
@@ -1314,11 +1306,11 @@ the alias to the concrete model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
 rejected archived plans. Use the `id_prefix` from a Proposed row with
-`sase plan approve <id-prefix> --kind approve|commit|epic|legend|tale` to approve from a shell, or
+`sase plan approve <id-prefix> --kind approve|commit|epic|tale` to approve from a shell, or
 `sase plan reject <id-prefix>` to reject. The `approve` kind runs the coder without committing an SDD plan; `tale`
-commits an SDD tale and runs the coder; `epic` and `legend` commit the matching SDD tier and launch the bead follow-up;
-`commit` records the approved plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model,
-while `-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths. CLI rejection writes the same
+commits an SDD tale and runs the coder; `epic` commits the matching SDD tier and launches the bead follow-up; `commit`
+records the approved plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model, while
+`-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths. CLI rejection writes the same
 no-feedback rejection response as ACE, then attempts to dismiss and user-kill the matching planner when it can be found.
 
 When an agent launched with `%auto:epic` later submits a plan with `/sase_plan` or `sase plan propose`, sase follows the

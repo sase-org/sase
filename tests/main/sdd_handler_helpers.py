@@ -43,7 +43,4 @@ def write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
 
 
 def directory_readmes(root: Path) -> dict[str, Path]:
-    return {
-        kind: root / kind / "README.md"
-        for kind in ("tales", "epics", "legends", "myths", "research")
-    }
+    return {kind: root / kind / "README.md" for kind in ("tales", "epics", "research")}

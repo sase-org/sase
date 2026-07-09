@@ -34,7 +34,6 @@ _QUESTION_OVERRIDE_PROGRESS_STATUSES = frozenset(
         "RUNNING",
         *ACTIVE_PLAN_HANDOFF_STATUSES,
         "EPIC APPROVED",
-        "LEGEND APPROVED",
         "PLAN COMMITTED",
     }
 )

@@ -13,7 +13,7 @@ DiffBadgeCacheKey = tuple[str, int, int]
 _diff_badge_cache: dict[DiffBadgeCacheKey, bool] = {}
 _diff_badge_cache_lock = Lock()
 
-_SDD_PLAN_DIRS = frozenset({"prompts", "tales", "epics", "legends"})
+_SDD_PLAN_DIRS = frozenset({"prompts", "tales", "epics"})
 
 
 def _path_segments(path: str) -> list[str]:

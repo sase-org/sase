@@ -186,29 +186,28 @@ SASE keeps durable state outside any one chat session:
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
   in the producer's `OUTPUT VARIABLES` metadata panel.
-- **SDD storage** - `sdd.storage` resolves where prompt snapshots, tales, epics, legends, myths, research notes, and
-  beads live. `auto` keeps provider defaults: built-in bare-git projects use in-tree `sdd/`, while other providers use
-  the primary workspace's `.sase/sdd/` local store unless explicit config or a materialized `.sase/sdd-store.json`
-  companion-store record selects `separate_repo`. The legacy `sdd.version_controlled: true` alias still maps to
-  `in_tree` while `sdd.storage` is `auto`.
+- **SDD storage** - `sdd.storage` resolves where prompt snapshots, tales, epics, research notes, and beads live. `auto`
+  keeps provider defaults: built-in bare-git projects use in-tree `sdd/`, while other providers use the primary
+  workspace's `.sase/sdd/` local store unless explicit config or a materialized `.sase/sdd-store.json` companion-store
+  record selects `separate_repo`. The legacy `sdd.version_controlled: true` alias still maps to `in_tree` while
+  `sdd.storage` is `auto`.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
   `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` and `sase plan reject [id]`
   write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without
-  committing an SDD plan, commits the plan as a tale/epic/legend before the follow-up, or records the approved plan in
-  SDD and stops there. A no-feedback rejection writes the response first, then attempts to kill and dismiss the matching
-  planner row when it can be found. Custom agent-family members defined in `kind: agent_family` YAML can be toggled per
-  approval (TUI digit toggles or `sase plan approve --with/--without`) with sticky per-project defaults, and launches
-  requested by running agents are gated behind `LaunchApproval` requests resolved in ACE or with
-  `sase launch approve/reject`.
+  committing an SDD plan, commits the plan as a tale/epic before the follow-up, or records the approved plan in SDD and
+  stops there. A no-feedback rejection writes the response first, then attempts to kill and dismiss the matching planner
+  row when it can be found. Custom agent-family members defined in `kind: agent_family` YAML can be toggled per approval
+  (TUI digit toggles or `sase plan approve --with/--without`) with sticky per-project defaults, and launches requested
+  by running agents are gated behind `LaunchApproval` requests resolved in ACE or with `sase launch approve/reject`.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and enforces only configured numbered Git linked-repo workspaces
   opened during the run with `sase workspace open -p ...`. Static linked repos (`workspace.strategy: none`) are reported
   as advisory work that the agent may commit when it made those changes, but they do not fail the run if they remain
-  dirty. If the only enforced change is one tracked SDD markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/legends/`,
-  or `sdd/myths/` whose leading front matter changes exactly from `status: wip` to `status: done`, SASE commits that
-  closeout directly. Other dirty enforced workspaces trigger bounded follow-up invocations that tell the same agent to
-  use the configured commit skill; if enforced workspaces are still dirty after the configured pass limit, the agent run
-  fails with a clear artifact trail.
+  dirty. If the only enforced change is one tracked SDD markdown file under `sdd/tales/` or `sdd/epics/` whose leading
+  front matter changes exactly from `status: wip` to `status: done`, SASE commits that closeout directly. Other dirty
+  enforced workspaces trigger bounded follow-up invocations that tell the same agent to use the configured commit skill;
+  if enforced workspaces are still dirty after the configured pass limit, the agent run fails with a clear artifact
+  trail.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, dismissed-agent bundles, saved agent
   groups, ChangeSpecs, SDD files, and beads are stored in predictable project/user directories so ACE, AXE, CLI
   commands, and external integrations can share state. Long-term memory reads and write proposals are also

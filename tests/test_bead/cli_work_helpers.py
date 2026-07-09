@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sase.bead.model import BeadTier, IssueType
+from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 
 
@@ -47,18 +47,6 @@ def seed_changespec_epic(project_dir: Path) -> tuple[str, list[str]]:
         p2 = proj.create("P2", IssueType.PHASE, parent_id=epic.id)
         proj.add_dependency(p2.id, p1.id)
         return epic.id, [p1.id, p2.id]
-
-
-def seed_legend(project_dir: Path, *, epic_count: int = 2) -> str:
-    with BeadProject(project_dir) as proj:
-        legend = proj.create(
-            "Legend roadmap",
-            IssueType.PLAN,
-            tier=BeadTier.LEGEND,
-            design="sdd/legends/202605/roadmap.md",
-            epic_count=epic_count,
-        )
-        return legend.id
 
 
 def make_args(

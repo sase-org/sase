@@ -90,23 +90,23 @@ launched from ACE, just rendered as buttons instead of keystrokes.
 
 The actionable notification types each get their own inline keyboard:
 
-| Notification      | Buttons                                               | Use                                                                     |
-| ----------------- | ----------------------------------------------------- | ----------------------------------------------------------------------- |
-| Plan Approval     | Tale / ✅ Approve / Epic / Legend / Reject / Feedback | The four SDD plan modes from [\[04\]](beads-and-sdd.md), plus rejection |
-| HITL Request      | Accept / Reject / Feedback                            | Mid-run human-in-the-loop checkpoints                                   |
-| User Question     | dynamic option buttons + Custom                       | Multiple-choice questions emitted via `sase_questions`                  |
-| Agent Launched    | Resume / Wait / Kill / Retry                          | Lifecycle control over the run that was just launched                   |
-| Workflow Complete | Resume copy button                                    | Re-enter the conversation with one tap                                  |
-| Image Generated   | inline image                                          | Review what an agent rendered without leaving the chat                  |
-| Error Digest      | digest file attachments                               | Triage failures with the same context the TUI shows                     |
-| Agent Killed      | Retry copy button                                     | Re-launch the killed prompt with one tap                                |
+| Notification      | Buttons                                      | Use                                                                |
+| ----------------- | -------------------------------------------- | ------------------------------------------------------------------ |
+| Plan Approval     | Tale / ✅ Approve / Epic / Reject / Feedback | The SDD plan modes from [\[04\]](beads-and-sdd.md), plus rejection |
+| HITL Request      | Accept / Reject / Feedback                   | Mid-run human-in-the-loop checkpoints                              |
+| User Question     | dynamic option buttons + Custom              | Multiple-choice questions emitted via `sase_questions`             |
+| Agent Launched    | Resume / Wait / Kill / Retry                 | Lifecycle control over the run that was just launched              |
+| Workflow Complete | Resume copy button                           | Re-enter the conversation with one tap                             |
+| Image Generated   | inline image                                 | Review what an agent rendered without leaving the chat             |
+| Error Digest      | digest file attachments                      | Triage failures with the same context the TUI shows                |
+| Agent Killed      | Retry copy button                            | Re-launch the killed prompt with one tap                           |
 
 Plan approvals are the everyday case. The plan content is wrapped in an expandable MarkdownV2 blockquote, and when the
 plan is long enough to be inconvenient inline, sase-telegram renders it to PDF through SASE's shared Markdown renderer
 and sends the PDF as an attachment. Either way, the four mode buttons map directly to the SDD plan modes from [04] —
-**Tale**, **Epic**, and **Legend** queue work at different scopes, and **Approve** accepts a plan as-is. **Feedback** is
-the escape hatch: tap it and your next text message becomes the feedback body, written to a response file SASE picks up
-on the next sweep.
+**Tale** and **Epic** queue work at different scopes, and **Approve** accepts a plan as-is. **Feedback** is the escape
+hatch: tap it and your next text message becomes the feedback body, written to a response file SASE picks up on the next
+sweep.
 
 Image notifications are how generated artifacts come back. The `sase_chop_tg_outbound` script attaches generated images
 inline so you can review what an agent rendered without leaving the chat. Combined with launching from a photo, this

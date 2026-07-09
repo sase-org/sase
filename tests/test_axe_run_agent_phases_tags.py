@@ -38,7 +38,7 @@ def test_extract_directives_persists_tag_with_atomic_helper(
             "%name:taggy\n%group:sase-26\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
-            cl_name="legend-cl",
+            cl_name="sample-cl",
         )
 
     assert info.tag == "sase-26"
@@ -46,7 +46,7 @@ def test_extract_directives_persists_tag_with_atomic_helper(
         "sase-26"
     )
     update_agent_tag.assert_called_once_with(
-        (AgentType.WORKFLOW, "legend-cl", "20260506120000"),
+        (AgentType.WORKFLOW, "sample-cl", "20260506120000"),
         "sase-26",
     )
 
@@ -56,7 +56,7 @@ def _extract_with_agent_tags(
     prompt: str,
     *,
     seed_tags: dict[tuple[AgentType, str, str | None], str],
-    cl_name: str | None = "legend-cl",
+    cl_name: str | None = "sample-cl",
     planned_name: str | None = None,
     raw_resolved_prompt: str | None = None,
     artifacts_suffix: str = "20260506121000",
@@ -98,7 +98,7 @@ def _extract_with_agent_tags(
 
 def test_explicit_group_wins_over_matching_existing_group(tmp_path: Path) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
-    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -116,7 +116,7 @@ def test_explicit_group_wins_over_matching_existing_group(tmp_path: Path) -> Non
 
 def test_named_agent_auto_persists_existing_group(tmp_path: Path) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
-    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -136,7 +136,7 @@ def test_wait_derived_agent_name_auto_persists_existing_group(
     tmp_path: Path,
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
-    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -157,7 +157,7 @@ def test_fork_derived_agent_name_auto_persists_existing_group(
     tmp_path: Path,
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
-    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -180,7 +180,7 @@ def test_planned_template_name_auto_uses_final_longest_group(
 ) -> None:
     parent = (AgentType.RUNNING, "seed-parent", "ts1")
     child = (AgentType.RUNNING, "seed-child", "ts2")
-    identity = (AgentType.WORKFLOW, "legend-cl", "20260506121000")
+    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,

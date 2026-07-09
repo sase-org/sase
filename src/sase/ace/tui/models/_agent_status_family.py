@@ -4,7 +4,6 @@ from datetime import datetime
 
 from sase.agent.status_buckets import (
     EPIC_APPROVED_STATUS,
-    LEGEND_APPROVED_STATUS,
     PLAN_APPROVED_STATUS,
     PLAN_COMMITTED_STATUS,
     TALE_APPROVED_STATUS,
@@ -24,7 +23,7 @@ from ._agent_status_roles import agent_family_role
 from .agent import Agent, AgentType
 
 
-APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "legend", "commit"})
+APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "commit"})
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
 
@@ -134,8 +133,6 @@ def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | No
     role = agent_family_role(child)
     if role == "epic":
         return EPIC_APPROVED_STATUS
-    if role == "legend":
-        return LEGEND_APPROVED_STATUS
     if role == "commit":
         return PLAN_COMMITTED_STATUS
     if role != "code":

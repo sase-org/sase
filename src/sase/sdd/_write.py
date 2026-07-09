@@ -4,7 +4,7 @@ from pathlib import Path
 
 from sase.sdd._paths import get_yyyymm
 
-_SDD_PLAN_KINDS = {"tales", "epics", "legends"}
+_SDD_PLAN_KINDS = {"tales", "epics"}
 _SDD_PLAN_KIND_ALIASES = {"plans": "tales"}
 _QA_HEADER = "### Questions and Answers"
 

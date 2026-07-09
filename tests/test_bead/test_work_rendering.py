@@ -12,7 +12,6 @@ from sase.bead.work import (
     VCSLaunchContext,
     _build_epic_work_plan,
     epic_work_segment_env,
-    legend_work_segment_env,
     render_multi_prompt,
 )
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
@@ -20,7 +19,7 @@ from sase.llm_provider.registry import resolve_model_provider
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
-from .work_test_helpers import depends, epic, legend, phase, seed
+from .work_test_helpers import depends, epic, phase, seed
 
 
 class TestRenderEdgeCases:
@@ -71,31 +70,6 @@ class TestRenderEdgeCases:
         assert plan.waves[0][0].agent_name == "sase-r.1"
         assert plan.land_agent_name == "sase-r"
 
-    def test_legend_child_epic_uses_legend_tag_only(
-        self, conn: sqlite3.Connection
-    ) -> None:
-        seed(
-            conn,
-            [
-                legend("l1"),
-                epic("e1", parent_id="l1"),
-                phase("p1", parent_id="e1"),
-            ],
-        )
-        plan = _build_epic_work_plan(conn, "e1")
-
-        rendered = render_multi_prompt(
-            plan,
-            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
-            land_epic_xprompt=Workflow(name="bd/land_epic"),
-        )
-
-        assert plan.launch_tag_id == "l1"
-        assert rendered.count("%group:l1") == 2
-        assert "%group:e1" not in rendered
-        assert "#bd/work_phase_bead:p1" in rendered
-        assert "#bd/land_epic:e1" in rendered
-
     def test_dotted_launch_tag_directives_extract_cleanly(self) -> None:
         plan = EpicWorkPlan(
             epic_id="sase-42.3",
@@ -142,50 +116,6 @@ class TestRenderEdgeCases:
             {SASE_BEAD_ID_ENV: "p1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
             {SASE_BEAD_ID_ENV: "p2", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
             {SASE_BEAD_ID_ENV: "e1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-        )
-
-    def test_legend_child_epic_env_uses_work_beads_not_display_tag(
-        self,
-        conn: sqlite3.Connection,
-    ) -> None:
-        seed(
-            conn,
-            [
-                legend("l1"),
-                epic("e1", parent_id="l1"),
-                phase("p1", parent_id="e1"),
-            ],
-        )
-        plan = _build_epic_work_plan(conn, "e1")
-
-        assert plan.launch_tag_id == "l1"
-        assert epic_work_segment_env(plan) == (
-            {SASE_BEAD_ID_ENV: "p1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-            {SASE_BEAD_ID_ENV: "e1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-        )
-
-    def test_legend_work_segment_env_uses_legend_bead_id(self) -> None:
-        from sase.bead.work import _LegendEpicAssignment, LegendWorkPlan
-
-        plan = LegendWorkPlan(
-            legend_id="l1",
-            plan_file="sdd/legends/202605/roadmap.md",
-            assignments=(
-                _LegendEpicAssignment(epic_number=1, agent_name="l1.1.0", waits_on=()),
-                _LegendEpicAssignment(
-                    epic_number=2,
-                    agent_name="l1.2.0",
-                    waits_on=("l1.1",),
-                ),
-            ),
-            land_agent_name="l1",
-            land_waits_on=("l1.2",),
-        )
-
-        assert legend_work_segment_env(plan) == (
-            {SASE_BEAD_ID_ENV: "l1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-            {SASE_BEAD_ID_ENV: "l1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-            {SASE_BEAD_ID_ENV: "l1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
         )
 
 

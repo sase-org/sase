@@ -16,7 +16,7 @@ from ._json_cache import (
 from ._meta_enrichment import enrich_agent_from_meta
 from ._workflow_loaders import get_workflow_timestamp_dirs
 
-FAMILY_PROGRESSED_PLAN_ACTIONS = frozenset({"epic", "tale", "legend", "commit"})
+FAMILY_PROGRESSED_PLAN_ACTIONS = frozenset({"epic", "tale", "commit"})
 _PLAN_STEP_NAMES = frozenset({"plan"})
 NON_TERMINAL_STEP_DISPLAY_STATUSES = frozenset({"RUNNING", "WAITING INPUT"})
 
@@ -207,8 +207,8 @@ def _load_workflow_agent_steps_for_dir(
                 agent, artifacts_dir_from_marker, workflow_child=True
             )
 
-            # Family root advanced past plan approval (EPIC/TALE/LEGEND
-            # APPROVED / PLAN COMMITTED) but the planner's own marker is
+            # Family root advanced past plan approval (EPIC/TALE APPROVED /
+            # PLAN COMMITTED) but the planner's own marker is
             # still non-terminal — common when an in-process SDK provider
             # was SIGTERM'd before the executor could persist completion.
             if (

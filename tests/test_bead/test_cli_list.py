@@ -37,7 +37,7 @@ def test_list_skill_examples_parse_against_cli_contract() -> None:
         "sase bead list --type=plan",
         "sase bead list --type=phase",
         "sase bead list --tier=epic",
-        "sase bead list --tier=legend",
+        "sase bead list --tier=plan",
     ]
 
     parser = create_parser()

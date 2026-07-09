@@ -29,8 +29,8 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   workspace-claim planning/mutation helpers
 - Bead data operations: read queries (`show`, `list`, `ready`, `blocked`, `stats`, `doctor`, epic-child lookups), merged
   multi-workspace reads, mutations (`init`, `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags,
-  sync-clean checks, compatibility projection export), deterministic epic/legend work planning, and the early
-  `sase bead` CLI fast path for common read/write commands
+  sync-clean checks, compatibility projection export), deterministic epic work planning, and the early `sase bead` CLI
+  fast path for common read/write commands
 
 The intentionally Python-owned facade surfaces (host logic, not backend fallbacks) are:
 

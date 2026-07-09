@@ -104,11 +104,11 @@ def test_workflow_step_loader_marks_stuck_plan_done_when_family_advanced(
     assert agents[0].status == "DONE"
 
 
-def test_workflow_step_loader_marks_stuck_plan_done_for_tale_legend_commit(
+def test_workflow_step_loader_marks_stuck_plan_done_for_tale_epic_commit(
     tmp_path: Path,
 ) -> None:
-    """tale / legend / commit all qualify as 'family advanced past plan'."""
-    for action in ("tale", "legend", "commit"):
+    """tale / epic / commit all qualify as 'family advanced past plan'."""
+    for action in ("tale", "epic", "commit"):
         project_dir = tmp_path / f"demo_{action}"
         timestamp_dir = project_dir / "artifacts" / "ace-run" / "20260523143000"
         _write_family_root_workflow(

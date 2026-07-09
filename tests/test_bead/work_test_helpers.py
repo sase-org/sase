@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 from sase.bead import db
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType, Status
 from sase.bead.work import EpicWorkPlan, _PhaseAssignment as PhaseAssignment
 
 NOW = "2026-04-25T00:00:00Z"
@@ -22,26 +22,6 @@ def epic(
         title=f"Epic {epic_id}",
         issue_type=IssueType.PLAN,
         parent_id=parent_id,
-        model=model,
-        created_at=NOW,
-        updated_at=NOW,
-    )
-
-
-def legend(
-    legend_id: str = "l1",
-    *,
-    epic_count: int | None = 3,
-    design: str = "sdd/legends/202605/roadmap.md",
-    model: str = "",
-) -> Issue:
-    return Issue(
-        id=legend_id,
-        title=f"Legend {legend_id}",
-        issue_type=IssueType.PLAN,
-        tier=BeadTier.LEGEND,
-        epic_count=epic_count,
-        design=design,
         model=model,
         created_at=NOW,
         updated_at=NOW,

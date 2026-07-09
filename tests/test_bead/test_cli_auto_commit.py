@@ -143,7 +143,6 @@ def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
         changespec=None,
         bug_id=None,
         tier=None,
-        epic_count=None,
         title="Created",
         description=None,
         assignee=None,
@@ -170,7 +169,6 @@ def test_handle_bead_create_auto_commit_message(
         changespec=None,
         bug_id=None,
         tier=None,
-        epic_count=None,
         title="Created",
         description=None,
         assignee=None,
@@ -198,7 +196,6 @@ def test_handle_bead_update_auto_commit_message(project_dir: Path) -> None:
                 design=None,
                 assignee=None,
                 tier=None,
-                epic_count=None,
                 model=None,
             )
         )

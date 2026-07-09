@@ -55,10 +55,8 @@ def test_parse_tags_all_values() -> None:
             "append_to_pr",
             "append_to_commit_and_propose",
             "create_epic_bead",
-            "create_legend_bead",
             "work_phase_bead",
             "land_epic",
-            "land_legend",
         ]
     )
     assert result == frozenset(XPromptTag)

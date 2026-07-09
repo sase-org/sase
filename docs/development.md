@@ -165,7 +165,7 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `src/sase/workflows/`          | Change lifecycle workflows for commit, mentor, CRS, accept, and rewind operations.                     |
 | `src/sase/memory/`             | Memory inventory, audited read logs, and proposal write/review flows.                                  |
 | `src/sase/core/`               | Python facade and stable wire records for operations served by `sase_core_rs`.                         |
-| `src/sase/bead/`               | Python host layer for bead storage discovery, CLI integration, and epic/legend launch flow.            |
+| `src/sase/bead/`               | Python host layer for bead storage discovery, CLI integration, and epic launch flow.                   |
 | `src/sase/sdd/`                | Spec-driven development file and bead integration helpers.                                             |
 | `src/sase/llm_provider/`       | Built-in LLM providers and provider registry.                                                          |
 | `src/sase/vcs_provider/`       | VCS provider hook specs, plugin registry, and built-in git provider.                                   |
@@ -178,7 +178,7 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `src/sase/scripts/`            | Packaged utility scripts used by axe chops and support commands.                                       |
 | `tests/`                       | Python test suite, with subdirectories mirroring major `src/sase/` areas.                              |
 | `docs/`                        | MkDocs Material site source.                                                                           |
-| `sdd/`                         | Project-local prompt, tale, epic, legend, research, and bead artifacts.                                |
+| `sdd/`                         | Project-local prompt, tale, epic, research, and bead artifacts.                                        |
 | `xprompts/`                    | Repository-local xprompts and workflows for SASE maintenance agents.                                   |
 | `tools/`                       | Development scripts used by `just` targets and CI checks.                                              |
 | `memory/`                      | SASE memory files used by repository agents.                                                           |

@@ -95,9 +95,9 @@ def test_plan_subcommand_help_is_complete() -> None:
     assert "If SELECTOR is omitted, exactly one" in reject_help
     assert "sase plan reject abcdef12" in reject_help
 
-    assert "{approve,commit,epic,legend,tale}" in approve_help
-    assert "-k {approve,commit,epic,legend,tale}" in approve_help
-    assert "--kind {approve,commit,epic,legend,tale}" in approve_help
+    assert "{approve,commit,epic,tale}" in approve_help
+    assert "-k {approve,commit,epic,tale}" in approve_help
+    assert "--kind {approve,commit,epic,tale}" in approve_help
     assert "-m MODEL" in approve_help
     assert "--model MODEL" in approve_help
     assert "-p PROMPT" in approve_help

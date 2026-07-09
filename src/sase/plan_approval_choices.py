@@ -15,17 +15,15 @@ type PlanApprovalChoiceId = Literal[
     "run",
     "tale",
     "epic",
-    "legend",
     "commit",
     "reject",
     "feedback",
 ]
-type PlanApprovalModalChoice = Literal["approve", "tale", "epic", "legend"]
+type PlanApprovalModalChoice = Literal["approve", "tale", "epic"]
 type PlanApprovalCliKind = Literal[
     "approve",
     "commit",
     "epic",
-    "legend",
     "tale",
 ]
 type PlanApprovalMemberAuto = Literal["run", "skip"]
@@ -166,25 +164,6 @@ PLAN_APPROVAL_CHOICE_RECORDS: tuple[_PlanApprovalChoiceRecord, ...] = (
         allow_coder_options=True,
     ),
     _PlanApprovalChoiceRecord(
-        id="legend",
-        display_label="Legend",
-        response_message="Legend approved",
-        protocol=PlanApprovalProtocolFields(
-            action="legend",
-            commit_plan=True,
-            run_coder=True,
-        ),
-        custom_modal_key="l",
-        review_modal_key="L",
-        consequence_text="Commit to sdd/legends; launch bd/new_legend",
-        cli_kind_name="legend",
-        archive_side_effect=True,
-        auto_mode_eligible=False,
-        persist_action="legend",
-        status_label="LEGEND APPROVED",
-        allow_coder_options=True,
-    ),
-    _PlanApprovalChoiceRecord(
         id="commit",
         display_label="Commit",
         response_message="Plan committed",
@@ -222,13 +201,11 @@ PLAN_APPROVAL_MODAL_CHOICES: tuple[PlanApprovalModalChoice, ...] = (
     "approve",
     "tale",
     "epic",
-    "legend",
 )
 PLAN_APPROVAL_CLI_KINDS: tuple[PlanApprovalCliKind, ...] = (
     "approve",
     "commit",
     "epic",
-    "legend",
     "tale",
 )
 PLAN_APPROVAL_AUTO_MODE_CHOICES: tuple[PlanApprovalChoiceId, ...] = tuple(
@@ -239,7 +216,6 @@ PLAN_APPROVAL_REMOTE_CHOICES: tuple[PlanApprovalChoiceId, ...] = (
     "run",
     "reject",
     "epic",
-    "legend",
     "feedback",
 )
 
@@ -307,7 +283,7 @@ def review_modal_choice_hints_markup() -> str:
         key = record.review_modal_key
         if key is None:
             continue
-        color = "magenta" if choice in {"epic", "legend"} else "green"
+        color = "magenta" if choice == "epic" else "green"
         parts.append(f"[{color}]{key}[/{color}]={record.display_label}")
     return "  ".join(parts)
 

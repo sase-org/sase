@@ -59,7 +59,7 @@ def _make_load_state() -> AgentLoadState:
 def _make_agent(tag: str | None) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="legend-cl",
+        cl_name="sample-cl",
         project_file="/tmp/myproj/myproj.sase",
         status="RUNNING",
         start_time=datetime(2026, 5, 6, 12, 0, 0),

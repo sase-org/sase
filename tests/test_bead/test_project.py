@@ -50,39 +50,14 @@ def test_create_epic(project):
     assert issue.id  # has an ID
 
 
-def test_create_legend_and_filter_by_tier(project):
-    legend = project.create("Legend", IssueType.PLAN, tier=BeadTier.LEGEND)
+def test_create_plan_and_filter_by_tier(project):
+    plan = project.create("Plan", IssueType.PLAN, tier=BeadTier.PLAN)
     epic = project.create("Epic", IssueType.PLAN)
 
-    legends = project.list_issues(tiers=[BeadTier.LEGEND])
+    plans = project.list_issues(tiers=[BeadTier.PLAN])
 
-    assert [issue.id for issue in legends] == [legend.id]
+    assert [issue.id for issue in plans] == [plan.id]
     assert project.show(epic.id).tier == BeadTier.EPIC
-
-
-def test_create_and_update_legend_epic_count(project):
-    legend = project.create(
-        "Legend",
-        IssueType.PLAN,
-        tier=BeadTier.LEGEND,
-        epic_count=2,
-    )
-
-    assert project.show(legend.id).epic_count == 2
-
-    updated = project.update(legend.id, epic_count=5)
-    assert updated.epic_count == 5
-    assert project.show(legend.id).epic_count == 5
-
-
-def test_create_rejects_epic_count_on_epic_plan(project):
-    with pytest.raises(ValueError, match="Only legend plan beads"):
-        project.create(
-            "Epic",
-            IssueType.PLAN,
-            tier=BeadTier.EPIC,
-            epic_count=2,
-        )
 
 
 def test_create_and_update_model(project):
@@ -398,19 +373,6 @@ def test_mark_ready_to_work_flips_flag(project):
     updated = project.mark_ready_to_work(epic.id)
     assert updated.is_ready_to_work is True
     assert project.show(epic.id).is_ready_to_work is True
-
-
-def test_mark_ready_to_work_allows_legend(project):
-    legend = project.create(
-        "Legend",
-        IssueType.PLAN,
-        tier=BeadTier.LEGEND,
-        design="sdd/legends/roadmap.md",
-        epic_count=2,
-    )
-    updated = project.mark_ready_to_work(legend.id)
-    assert updated.is_ready_to_work is True
-    assert project.show(legend.id).is_ready_to_work is True
 
 
 def test_mark_ready_to_work_rejects_phase(project):

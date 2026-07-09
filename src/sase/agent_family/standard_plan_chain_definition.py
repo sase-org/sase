@@ -16,7 +16,6 @@ from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
-    PLAN_CHAIN_LEGEND_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
 )
 
@@ -107,8 +106,6 @@ def _choice_target_role(choice: str) -> str | None:
         return "commit"
     if choice == "epic":
         return "epic"
-    if choice == "legend":
-        return "legend"
     if choice == "feedback":
         return "feedback"
     return None
@@ -119,7 +116,7 @@ def _choice_side_effects(choice: str) -> tuple[str, ...]:
         return ("write_sdd", "commit_sdd", "set_sase_plan_env")
     if choice == "commit":
         return ("write_sdd", "commit_sdd")
-    if choice in {"epic", "legend"}:
+    if choice == "epic":
         return ("write_sdd", "commit_sdd", f"launch_{choice}_creator")
     if choice in {"approve", "run"}:
         return ("write_sdd", "set_sase_plan_env")
@@ -171,11 +168,6 @@ def standard_plan_chain_definition() -> _FamilyDefinition:
                 id="epic",
                 suffix=PLAN_CHAIN_EPIC_SUFFIX,
                 prompt_template="bd/new_epic",
-            ),
-            _FamilyRoleDefinition(
-                id="legend",
-                suffix=PLAN_CHAIN_LEGEND_SUFFIX,
-                prompt_template="bd/new_legend",
             ),
             _FamilyRoleDefinition(
                 id="commit",

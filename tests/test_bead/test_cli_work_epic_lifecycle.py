@@ -438,7 +438,7 @@ def test_work_rejects_plain_plan_tier(
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_work(make_args(plan.id, yes=True))
     assert excinfo.value.code == 1
-    assert "only applies to epic or legend plan beads" in capsys.readouterr().err
+    assert "only applies to epic plan beads" in capsys.readouterr().err
 
 
 def test_rollback_kills_partially_launched_agents(

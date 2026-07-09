@@ -158,8 +158,8 @@ SASE.
 
 When a task is too big to hand to a single agent and hope, SASE asks you to write a plan first. **Spec-Driven
 Development (SDD)** keeps those plans as first-class artifacts on disk under three (admittedly whimsical) names:
-ordinary plans are _tales_, executable multi-phase plans are _epics_, and longer cross-cutting plans are _legends_. Any
-of them can be filed as a **bead** — a git-portable, issue-like work unit with status, dependencies, and an assignee.
+ordinary plans are _tales_, and executable multi-phase plans are _epics_. Any of them can be filed as a **bead** — a
+git-portable, issue-like work unit with status, dependencies, and an assignee.
 
 The smallest useful loop:
 
@@ -192,7 +192,7 @@ The names you'll keep bumping into, in one place:
 - **[Beads](../../beads.md)** — dependency-aware, git-portable work units. Powers epic execution.
 - **[XPrompts](../../xprompt.md)** — reusable prompt templates and YAML workflows with typed inputs and multi-agent
   fan-out. See also [workflow specs](../../workflow_spec.md).
-- **[SDD](../../sdd.md)** — Spec-Driven Development. Plans, epics, and legends as first-class artifacts on disk.
+- **[SDD](../../sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts on disk.
 - **[Plugins and providers](../../plugins.md)** — model and VCS providers behind a common boundary: Claude Code,
   Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode for agents; bare git and GitHub for version control.
 

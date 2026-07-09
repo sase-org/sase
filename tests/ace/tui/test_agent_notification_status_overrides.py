@@ -223,11 +223,6 @@ def test_user_question_root_timestamp_sets_parent_question_override() -> None:
             "epic",
         ),
         (
-            {"action": "legend", "commit_plan": True, "run_coder": True},
-            "LEGEND APPROVED",
-            "legend",
-        ),
-        (
             {"action": "approve", "commit_plan": True, "run_coder": False},
             "PLAN COMMITTED",
             "commit",

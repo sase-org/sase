@@ -28,12 +28,10 @@ agent environments to locate it.
 - `prompts/` stores the original user prompts or expanded prompt snapshots that led to plan-like artifacts.
 - `tales/` stores task-level implementation plans and follow-up plans.
 - `epics/` stores larger work plans that may be split into phase beads.
-- `legends/` stores broad roadmap or strategy artifacts that can spawn epics.
-- `myths/` stores long-horizon narrative, strategy, and context artifacts that are broader than active roadmap plans.
 - `research/` stores exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - `beads/` stores bead issue data for SDD-backed work tracking.
 
-Prompt, tale, epic, legend, and research files are normally organized under a `YYYYMM/` month directory relative to this
+Prompt, tale, epic, and research files are normally organized under a `YYYYMM/` month directory relative to this
 root, for example `prompts/202605/example.md`, `tales/202605/example.md`, and `research/202605/example.md`. Prompt files
 should link to their generated plan-like artifact with frontmatter such as `plan: tales/202605/example.md`; the
 plan-like artifact should link back with `prompt: prompts/202605/example.md`.
@@ -49,7 +47,7 @@ plan-like artifact should link back with `prompt: prompts/202605/example.md`.
 
 ## Compatibility
 
-The canonical directories are `prompts/`, `tales/`, `epics/`, `legends/`, `myths/`, `research/`, and `beads/`. Older
+The canonical directories are `prompts/`, `tales/`, `epics/`, `research/`, and `beads/`. Older
 trees may still contain `specs/` for prompt snapshots or `plans/` for tale-like plans; SDD tooling keeps limited
 compatibility for those legacy names, but new artifacts should use `prompts/` and `tales/`.
 """
@@ -65,20 +63,10 @@ for focused work that is ready to implement.
 The `epics/` directory stores larger work plans that may span multiple phases or beads. Epics connect concrete delivery
 work to a broader feature or project outcome.
 """,
-    "legends": """# Legends
-
-The `legends/` directory stores broad roadmap or strategy artifacts that can spawn epics. Legends describe direction and
-sequencing before the work is broken into implementation-sized plans.
-""",
-    "myths": """# Myths
-
-The `myths/` directory stores long-horizon narrative, strategy, and context artifacts. Myths are broader than active
-roadmap plans and preserve the background story that helps future plans make sense.
-""",
     "research": """# Research
 
 The `research/` directory stores exploratory findings, prior art, options, critiques, and recommendations that inform
-later tales, epics, legends, or implementation work.
+later tales, epics, or implementation work.
 """,
 }
 

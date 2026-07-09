@@ -79,8 +79,6 @@ def handle_bead_show(args: argparse.Namespace) -> None:
             print(f"Assignee: {issue.assignee}")
         if issue.model:
             print(f"Model: {issue.model}")
-        if issue.epic_count is not None:
-            print(f"Epic Count: {issue.epic_count}")
         resolved_parent: Issue | None = None
         if issue.parent_id:
             try:
@@ -354,7 +352,6 @@ def _issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "design": issue.design,
         "model": issue.model,
         "is_ready_to_work": issue.is_ready_to_work,
-        "epic_count": issue.epic_count,
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
         "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],

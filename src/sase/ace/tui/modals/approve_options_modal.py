@@ -25,23 +25,21 @@ from .plan_approval_modal import (
 def _contextual_epic_role_lane(
     choice: PlanApprovalChoice,
 ) -> tuple[str | None, str]:
-    """Resolve the epic/legend follow-up default through its role alias.
+    """Resolve the epic follow-up default through its role alias.
 
     Mirrors the runtime handoff (``_resolve_epic_role_followup``): epic
-    follow-ups default to ``@epic_creator`` and legend follow-ups to the generic
-    ``@default`` launch alias. Resolving the directive here keeps the modal's
-    displayed default equal to the model the follow-up will actually launch with.
+    follow-ups default to ``@epic_creator``. Resolving the directive here keeps
+    the modal's displayed default equal to the model the follow-up will actually
+    launch with.
     """
     from sase.llm_provider.config import (
-        DEFAULT_MODEL_ALIAS_NAME,
         EPIC_CREATOR_MODEL_ALIAS_NAME,
         role_model_directive_value,
     )
     from sase.llm_provider.registry import resolve_model_provider
 
-    alias = (
-        EPIC_CREATOR_MODEL_ALIAS_NAME if choice == "epic" else DEFAULT_MODEL_ALIAS_NAME
-    )
+    del choice
+    alias = EPIC_CREATOR_MODEL_ALIAS_NAME
     directive = role_model_directive_value(alias)
     try:
         return resolve_model_provider(directive)
@@ -85,8 +83,8 @@ def _model_display_label(
 
     When no model is chosen, the displayed default resolves to the model the
     handoff will actually use: coder follow-ups (``approve`` / ``tale``) resolve
-    the planner provider's coder alias, while epic/legend follow-ups resolve
-    their role alias (``@epic_creator`` / ``@default``).
+    the planner provider's coder alias, while epic follow-ups resolve their
+    role alias (``@epic_creator``).
     """
     from sase.llm_provider.registry import (
         format_provider_model_label,
@@ -94,7 +92,7 @@ def _model_display_label(
     )
 
     if coder_model is None:
-        if choice in ("epic", "legend"):
+        if choice == "epic":
             role_provider, role_model = _contextual_epic_role_lane(choice)
             label = format_provider_model_label(role_provider, role_model)
             return f"Follow-up — {label}"
@@ -156,7 +154,6 @@ class ApproveOptionsModal(
         ("a", "choose_approve", "Approve"),
         ("t", "choose_tale", "Tale"),
         ("e", "choose_epic", "Epic"),
-        ("l", "choose_legend", "Legend"),
         ("p", "edit_prompt", "Edit prompt"),
         ("m", "select_model", "Model"),
         ("q", "cancel", "Quit"),
@@ -228,7 +225,7 @@ class ApproveOptionsModal(
 
             yield Static(
                 "[green]enter[/green]=Choose  "
-                "[green]a/t/e/l[/green]=Action  "
+                "[green]a/t/e[/green]=Action  "
                 "[magenta]m[/magenta]=Model  "
                 "[magenta]p[/magenta]=Edit prompt  "
                 "[cyan]1-9[/cyan]=Members  "
@@ -288,7 +285,7 @@ class ApproveOptionsModal(
     def _select_choice(self, choice: PlanApprovalChoice) -> None:
         self._choice = choice
         self._refresh_choice_rows()
-        # The unset default differs by role (coder alias vs epic/legend role
+        # The unset default differs by role (coder alias vs epic role
         # alias), so the displayed default must track the selected action.
         self._update_model_display()
 
@@ -378,9 +375,6 @@ class ApproveOptionsModal(
     def action_choose_epic(self) -> None:
         self._select_choice("epic")
 
-    def action_choose_legend(self) -> None:
-        self._select_choice("legend")
-
     def action_select_model(self) -> None:
         """Open the model picker modal."""
 
@@ -402,8 +396,7 @@ class ApproveOptionsModal(
                 self.app.push_screen(CustomModelInputModal(), on_custom_dismiss)
             elif result == DEFAULT_SENTINEL:
                 # "Follow-up default" selected: reset any prior coder model back
-                # to the role default (coder alias, or @epic_creator/@default for
-                # epic/legend).
+                # to the role default (coder alias, or @epic_creator for epic).
                 self._coder_model = None
                 self._update_model_display()
             elif result is not None:

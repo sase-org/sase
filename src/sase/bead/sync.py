@@ -90,11 +90,10 @@ def commit_bead_work_launch(
             _format_git_failure(f"inspect staged changes for {rel_beads}", diff_result)
         )
 
-    subject_kind = "legend" if kind == "legend" else "bead"
     from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
     message = apply_auto_commit_type_tag(
-        f"chore: mark {subject_kind} work launched for {bead_id}",
+        f"chore: mark bead work launched for {bead_id}",
         "bead_work",
     )
     _run_git_or_raise(

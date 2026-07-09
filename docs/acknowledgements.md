@@ -20,13 +20,13 @@ the state of five concurrent workstreams -- sase replaces that manual overhead w
 - **XPrompts instead of ad-hoc prompts** -- Reusable, composable prompt templates with YAML front matter replace the
   prompt fragments scattered across shell history and scratch files.
 - **True SDD instead of plan mode** -- Plan mode produces ephemeral plans that vanish when the session ends. sase
-  persists prompt snapshots plus ordinary tales, executable epics, and higher-level legends under `sdd/`. The
-  `sdd/research/` corpus keeps exploratory notes with that same repository-local history. For larger efforts, epic files
-  carry a bead ID in their frontmatter that links them to an epic-tier bead, and each phase of the epic gets its own
-  bead whose ID appears in the corresponding commit messages -- creating a traceable chain from epic to phase to commit.
-  For smaller tales, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The result is
-  spec-driven development where the full history of intent, decomposition, and execution is preserved and queryable, not
-  trapped in a single agent session's context window.
+  persists prompt snapshots plus ordinary tales and executable epics under `sdd/`. The `sdd/research/` corpus keeps
+  exploratory notes with that same repository-local history. For larger efforts, epic files carry a bead ID in their
+  frontmatter that links them to an epic-tier bead, and each phase of the epic gets its own bead whose ID appears in the
+  corresponding commit messages -- creating a traceable chain from epic to phase to commit. For smaller tales, commit
+  messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The result is spec-driven development where
+  the full history of intent, decomposition, and execution is preserved and queryable, not trapped in a single agent
+  session's context window.
 - **ACE instead of tmux** -- A single TUI provides unified navigation, filtering, and management across all active
   workstreams, replacing the manual tab-switching workflow.
 - **AXE instead of manual supervision** -- A background daemon handles scheduling, monitoring, and lifecycle management
@@ -52,10 +52,9 @@ drastically simplifying the surface area:
 - **SQLite + JSONL instead of Dolt** -- sase stores issues in SQLite for fast local queries and exports to a sorted
   JSONL file for git portability. Fresh clones rebuild the database automatically from JSONL, giving version-controlled
   persistence without an external database engine.
-- **Plan tiers instead of arbitrary nesting** -- sase uses plan-like beads with explicit `plan`, `epic`, and `legend`
-  tiers plus executable phase children, rather than deeply nested dotted-ID trees. Linked epics use
-  `--type plan(<plan_file>,<legend_bead_id>) --tier epic`; legend beads store `--epic-count` and `sase bead work`
-  launches one epic-planning agent per proposed epic.
+- **Plan tiers instead of arbitrary nesting** -- sase uses plan-like beads with explicit `plan` and `epic` tiers plus
+  executable phase children, rather than deeply nested dotted-ID trees. Linked epics use
+  `--type plan(<plan_file>) --tier epic`; `sase bead work` launches one epic-planning agent per proposed epic.
 - **Multi-workspace aggregation** -- Because sase already manages multiple parallel workspaces, `sase bead` can read
   issues across all workspace clones through a merged in-memory view, giving every agent visibility into the full
   project state without Dolt's sync machinery.

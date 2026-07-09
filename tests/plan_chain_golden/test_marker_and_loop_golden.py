@@ -76,7 +76,6 @@ def test_handle_plan_marker_persists_standard_chain_gate_metadata(
     [
         ("--code", "code"),
         ("--epic", "epic"),
-        ("--legend", "legend"),
     ],
 )
 def test_normally_completing_followup_breaks_exec_loop_via_role_completed(
@@ -215,8 +214,8 @@ def test_killed_followup_does_not_emit_role_completed(tmp_path: Path) -> None:
     assert evaluate.call_args_list == []
 
 
-@pytest.mark.parametrize("auto_action", ["legend", "commit"])
-def test_auto_plan_action_rejects_legend_and_commit_values(
+@pytest.mark.parametrize("auto_action", ["commit"])
+def test_auto_plan_action_rejects_commit_value(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     auto_action: str,

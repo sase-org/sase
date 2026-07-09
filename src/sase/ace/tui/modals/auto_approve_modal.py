@@ -37,10 +37,7 @@ class _AutoApproveOption:
 
 
 # Data-driven choice list. The mnemonics intentionally mirror the directive
-# aliases (`p`->Plan, `t`->Tale, `e`->Epic) plus `d`->Disable. Adding a future
-# `Legend` option would be a one-line addition here — but Legend is
-# intentionally OUT OF SCOPE: there is no `%legend` directive, and we keep
-# menu/directive parity (plan/tale/epic).
+# aliases (`p`->Plan, `t`->Tale, `e`->Epic) plus `d`->Disable.
 _OPTIONS: tuple[_AutoApproveOption, ...] = (
     _AutoApproveOption("p", "plan", "Plan", "approve the plan as-is"),
     _AutoApproveOption("t", "tale", "Tale", "approve & commit as a tale"),

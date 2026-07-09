@@ -167,35 +167,3 @@ def _wipe_force_reuse_owner(name: str) -> None:
             f"forced reuse cleanup left agent name '{name}' reserved after "
             "rebuild; resolve the conflicting owner and retry"
         )
-
-
-def rollback_legend_work_launch(
-    proj: BeadProject,
-    legend_id: str,
-    *,
-    unmark_ready: bool,
-    launched_pids: list[int] | None = None,
-    launched_results: list[AgentLaunchResult] | None = None,
-) -> None:
-    """Best-effort: terminate already-spawned agents and revert legend readiness."""
-    _rollback_launched_agents(
-        launched_results=launched_results,
-        launched_pids=launched_pids,
-    )
-
-    if not unmark_ready:
-        return
-
-    print(
-        "Rolling back is_ready_to_work flag. If rollback also fails, fix the "
-        "legend bead manually.",
-        file=sys.stderr,
-    )
-    try:
-        proj.unmark_ready_to_work(legend_id)
-    except Exception as exc:  # noqa: BLE001
-        print(
-            f"Warning: failed to roll back is_ready_to_work on {legend_id}: {exc}",
-            file=sys.stderr,
-        )
-    auto_commit_bead_store(f"chore(beads): rollback legend work launch {legend_id}")

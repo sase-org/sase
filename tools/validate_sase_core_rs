@@ -50,8 +50,6 @@ REQUIRED_BINDINGS = (
     "agent_name_template_tokens_after",
     "set_prompt_stash_pinned",
     "rewrite_prompt_stash",
-    "bead_build_legend_work_plan",
-    "bead_build_legend_work_plan_from_issues",
 )
 
 

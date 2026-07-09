@@ -24,10 +24,8 @@ class XPromptTag(Enum):
     append_to_pr = "append_to_pr"
     append_to_commit_and_propose = "append_to_commit_and_propose"
     create_epic_bead = "create_epic_bead"
-    create_legend_bead = "create_legend_bead"
     work_phase_bead = "work_phase_bead"
     land_epic = "land_epic"
-    land_legend = "land_legend"
 
 
 def parse_tags(raw: str | list[str] | None) -> frozenset[XPromptTag]:
