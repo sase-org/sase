@@ -164,7 +164,8 @@ one repo is shown as a warning and does not hide the other repos.
 
 Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
 store when present. `sase vcs log` uses the same repo resolver as `sase vcs list`, so both commands operate on the same
-repository set. By default it refreshes the compared `origin` ref with a narrow `git fetch` and marks each commit as
+repository set. By default it shows trailing SASE commit tags, refreshes the compared `origin` ref with a narrow
+`git fetch` when that checkout/ref has not been fetched successfully in the last 60 seconds, and marks each commit as
 synced, unpushed, GitHub-only, or unknown when no remote comparison is available.
 
 Common forms:
@@ -172,9 +173,10 @@ Common forms:
 ```bash
 sase vcs log
 sase vcs log --branch main --no-fetch
+sase vcs log --fetch --limit 3
 sase vcs log --since 2w --author bryan
 sase vcs log --limit 0 --since 2026-07-01 --format full
-sase vcs log --reverse --format json
+sase vcs log --reverse --format json --no-tags
 ```
 
 Options:
@@ -184,10 +186,12 @@ Options:
 | `-a`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
 | `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                        |
 | `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                   |
+| `-o`, `--current-only`                    | Read only the current/primary repo.                                                     |
+| `-F`, `--fetch`                           | Fetch remote refs now, bypassing the 60-second freshness cache.                         |
 | `-f`, `--format pretty/full/oneline/json` | Choose compact pretty output, full commit-message blocks, pipe-friendly lines, or JSON. |
 | `-n`, `--limit N`                         | Max commits in the merged timeline; `0` means unlimited.                                |
 | `-N`, `--no-fetch`                        | Skip the remote fetch and compare against existing remote-tracking refs.                |
-| `-o`, `--current-only`                    | Read only the current/primary repo.                                                     |
+| `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.   |
 | `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                           |
 | `-R`, `--reverse`                         | Display the selected commits oldest-first.                                              |
 | `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                     |

@@ -11,9 +11,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import replace
+from pathlib import Path
+import time
 
 from sase.core.vcs_log_facade import aggregate_commit_log, classify_commit_presence
 from sase.core.vcs_log_wire import CommitPresence, VcsCommitWire
+from sase.vcs_log.fetch_cache import fresh_fetch_time, record_successful_fetch
 from sase.vcs_log.models import (
     UNLIMITED,
     CommitFilters,
@@ -34,7 +37,10 @@ def collect_vcs_log(
     limit: int,
     filters: CommitFilters | None = None,
     no_fetch: bool = False,
+    force_fetch: bool = False,
     remote_ref: str | None = None,
+    fetch_cache_path: str | Path | None = None,
+    now: float | None = None,
     provider_factory: ProviderFactory | None = None,
 ) -> VcsLogResult:
     """Fetch each repo's log (isolated) and merge into one timeline.
@@ -60,7 +66,10 @@ def collect_vcs_log(
                 effective_limit,
                 filters,
                 no_fetch=no_fetch,
+                force_fetch=force_fetch,
                 remote_ref=remote_ref,
+                fetch_cache_path=fetch_cache_path,
+                now=now,
             )
         except Exception as exc:
             warnings.append(f"{repo.name}: {_failure_reason(exc)}")
@@ -87,7 +96,10 @@ def run_vcs_log(
     repo_filters: Sequence[str] = (),
     current_only: bool = False,
     no_fetch: bool = False,
+    force_fetch: bool = False,
     remote_ref: str | None = None,
+    fetch_cache_path: str | Path | None = None,
+    now: float | None = None,
     provider_factory: ProviderFactory | None = None,
 ) -> VcsLogResult:
     """Resolve the repo set, collect logs, and merge resolution warnings.
@@ -104,7 +116,10 @@ def run_vcs_log(
         limit=limit,
         filters=filters,
         no_fetch=no_fetch,
+        force_fetch=force_fetch,
         remote_ref=remote_ref,
+        fetch_cache_path=fetch_cache_path,
+        now=now,
         provider_factory=provider_factory,
     )
     return VcsLogResult(
@@ -133,7 +148,10 @@ def _collect_repo_commits(
     filters: CommitFilters,
     *,
     no_fetch: bool,
+    force_fetch: bool,
     remote_ref: str | None,
+    fetch_cache_path: str | Path | None,
+    now: float | None,
 ) -> tuple[list[VcsCommitWire], RepoRemoteState, list[str]]:
     warnings: list[str] = []
     resolved_ref, resolver_available = _resolve_remote_ref(
@@ -152,17 +170,34 @@ def _collect_repo_commits(
         )
 
     fetched = False
+    fetched_at: float | None = None
     if not no_fetch:
-        ok, error = provider.fetch_remote(  # type: ignore[attr-defined]
-            cwd=repo.path,
-            refs=(resolved_ref,),
-        )
-        fetched = ok
-        if not ok:
-            warnings.append(
-                f"{repo.name}: fetch failed for {resolved_ref}: "
-                f"{error or 'unknown error'}; using existing remote ref"
+        if not force_fetch:
+            fetched_at = fresh_fetch_time(
+                repo.path,
+                resolved_ref,
+                now=now,
+                cache_path=fetch_cache_path,
             )
+        if fetched_at is None:
+            ok, error = provider.fetch_remote(  # type: ignore[attr-defined]
+                cwd=repo.path,
+                refs=(resolved_ref,),
+            )
+            fetched = ok
+            if ok:
+                fetched_at = time.time() if now is None else float(now)
+                record_successful_fetch(
+                    repo.path,
+                    resolved_ref,
+                    fetched_at=fetched_at,
+                    cache_path=fetch_cache_path,
+                )
+            else:
+                warnings.append(
+                    f"{repo.name}: fetch failed for {resolved_ref}: "
+                    f"{error or 'unknown error'}; using existing remote ref"
+                )
 
     try:
         commits = provider.log(  # type: ignore[attr-defined]
@@ -187,13 +222,20 @@ def _collect_repo_commits(
         commits = _local_log(provider, repo.path, limit, filters)
         return (
             _mark_presence(commits, "unknown"),
-            RepoRemoteState(repo.name, None, 0, 0, fetched),
+            RepoRemoteState(repo.name, None, 0, 0, fetched, fetched_at),
             warnings,
         )
 
     return (
         classify_commit_presence(commits, ahead, behind),
-        RepoRemoteState(repo.name, resolved_ref, len(ahead), len(behind), fetched),
+        RepoRemoteState(
+            repo.name,
+            resolved_ref,
+            len(ahead),
+            len(behind),
+            fetched,
+            fetched_at,
+        ),
         warnings,
     )
 

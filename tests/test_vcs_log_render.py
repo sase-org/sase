@@ -100,7 +100,7 @@ def _render(
     limit: int = 20,
     filters: CommitFilters | None = None,
     reverse: bool = False,
-    show_tags: bool = False,
+    show_tags: bool = True,
 ) -> str:
     out = io.StringIO()
     render(
@@ -130,9 +130,15 @@ def test_oneline_empty_is_blank() -> None:
 
 
 def test_oneline_tags_suffix() -> None:
-    assert _render(_tagged_result(), "oneline", show_tags=True) == (
+    assert _render(_tagged_result(), "oneline") == (
         "● a1b2c3d sase tagged subject [TYPE=sdd PLAN=sdd/foo.md]\n"
         "● b2c3d4e sase plain subject\n"
+    )
+
+
+def test_oneline_no_tags_suppresses_suffix() -> None:
+    assert _render(_tagged_result(), "oneline", show_tags=False) == (
+        "● a1b2c3d sase tagged subject\n● b2c3d4e sase plain subject\n"
     )
 
 
@@ -152,6 +158,7 @@ def test_json_shape_and_ordering() -> None:
         "full_id": "a1b2c3d4",
         "presence": "local_only",
         "repo": "sase",
+        "sase_tags": {},
         "short_id": "a1b2c3d",
         "subject": "fix(sdd): link store",
         "timestamp": 300,
@@ -171,18 +178,26 @@ def test_json_shape_and_ordering() -> None:
         "ahead": 1,
         "behind": 0,
         "fetched": True,
+        "fetched_at": None,
     }
     assert payload["warnings"] == ["sase-telegram: no such checkout"]
 
 
 def test_json_tags_shape() -> None:
-    payload = json.loads(_render(_tagged_result(), "json", show_tags=True))
+    payload = json.loads(_render(_tagged_result(), "json"))
 
     assert payload["commits"][0]["sase_tags"] == {
         "PLAN": "sdd/foo.md",
         "TYPE": "sdd",
     }
     assert payload["commits"][1]["sase_tags"] == {}
+
+
+def test_json_no_tags_omits_sase_tags() -> None:
+    payload = json.loads(_render(_tagged_result(), "json", show_tags=False))
+
+    assert "sase_tags" not in payload["commits"][0]
+    assert "sase_tags" not in payload["commits"][1]
 
 
 def test_json_empty_result() -> None:
@@ -294,7 +309,7 @@ def test_pretty_tags_suffix_before_author(
     monkeypatch.setattr(render_mod, "_local_now", lambda: now)
     monkeypatch.setattr(render_mod, "_to_local", lambda ts: local[ts])
 
-    text = _render(_tagged_result(), "pretty", show_tags=True)
+    text = _render(_tagged_result(), "pretty")
 
     assert "tagged subject  · ◆ sdd · plan sdd/foo.md  · bryan" in text
     assert "plain subject  · bryan" in text
@@ -395,7 +410,7 @@ def test_full_tags_line_and_footer_cleanup(
     )
     monkeypatch.setattr(render_mod, "_relative_age", lambda dt: "38m ago")
 
-    text = _render(_tagged_result(), "full", show_tags=True)
+    text = _render(_tagged_result(), "full")
 
     assert "body text" in text
     assert "     ◆ type  sdd" in text
@@ -461,6 +476,54 @@ def test_pretty_empty_still_shows_warnings() -> None:
     text = _render(empty, "pretty")
     assert "No commits found" in text
     assert "⚠ boom" in text
+
+
+def test_pretty_cached_remote_summary_shows_fetch_age(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
+    monkeypatch.setattr(
+        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    )
+    monkeypatch.setattr(render_mod, "_now_epoch", lambda: 1030.0)
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(_entry("sase", "a1b2c3d4", 300, "cached"),),
+        warnings=(),
+        remote_states=(RepoRemoteState("sase", "origin/main", 0, 0, False, 1000.0),),
+    )
+
+    text = _render(result, "pretty")
+
+    assert "vs origin/main · fetched 30s ago" in text
+
+
+def test_pretty_mixed_fetched_and_cached_remote_summary_is_fresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(render_mod, "_local_now", lambda: datetime(2026, 7, 8, 15, 0))
+    monkeypatch.setattr(
+        render_mod, "_to_local", lambda ts: datetime(2026, 7, 8, 14, 22)
+    )
+    result = VcsLogResult(
+        repos=(
+            LogRepo("sase", "/p/sase", "primary"),
+            LogRepo("sase-core", "/p/core", "linked"),
+        ),
+        commits=(
+            _entry("sase", "a1b2c3d4", 300, "fetched"),
+            _entry("sase-core", "b2c3d4e5", 200, "cached"),
+        ),
+        warnings=(),
+        remote_states=(
+            RepoRemoteState("sase", "origin/main", 0, 0, True, 1030.0),
+            RepoRemoteState("sase-core", "origin/main", 0, 0, False, 1000.0),
+        ),
+    )
+
+    text = _render(result, "pretty")
+
+    assert "vs origin/main · fresh" in text
 
 
 def _styles_covering(text: Text, fragment: str) -> list[str]:

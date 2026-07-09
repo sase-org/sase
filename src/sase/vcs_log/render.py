@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from datetime import UTC, datetime, timedelta
 from typing import TextIO
 
@@ -37,7 +38,7 @@ def render(
     limit: int = 20,
     filters: CommitFilters | None = None,
     reverse: bool = False,
-    show_tags: bool = False,
+    show_tags: bool = True,
 ) -> None:
     """Render *result* in the requested format to *out* (default stdout)."""
     stream = out if out is not None else sys.stdout
@@ -124,6 +125,7 @@ def _repo_json(repo: LogRepo, states: dict[str, RepoRemoteState]) -> dict[str, o
         "ahead": state.ahead,
         "behind": state.behind,
         "fetched": state.fetched,
+        "fetched_at": state.fetched_at,
     }
 
 
@@ -432,13 +434,36 @@ def _remote_summary(states: tuple[RepoRemoteState, ...]) -> str:
         ref_text = next(iter(refs)) or ""
     else:
         ref_text = ", ".join(f"{state.name}={state.remote_ref}" for state in known)
-    if all(state.fetched for state in known):
-        fetch_text = "fetched"
-    elif any(state.fetched for state in known):
-        fetch_text = "partly fetched"
-    else:
-        fetch_text = "not fetched"
+    fetch_text = _remote_fetch_summary(known)
     return f"vs {ref_text} · {fetch_text}"
+
+
+def _remote_fetch_summary(states: list[RepoRemoteState]) -> str:
+    if all(state.fetched for state in states):
+        return "fetched"
+    if all(state.fetched_at is not None and not state.fetched for state in states):
+        fetched_at = min(
+            state.fetched_at for state in states if state.fetched_at is not None
+        )
+        return f"fetched {_format_fetch_age(fetched_at)}"
+    if all(state.fetched or state.fetched_at is not None for state in states):
+        return "fresh"
+    if any(state.fetched or state.fetched_at is not None for state in states):
+        return "partly fetched"
+    return "not fetched"
+
+
+def _format_fetch_age(fetched_at: float) -> str:
+    age_seconds = max(0, int(_now_epoch() - fetched_at))
+    if age_seconds < 60:
+        return f"{age_seconds}s ago"
+    minutes = age_seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    return f"{hours // 24}d ago"
 
 
 def _repo_colors(result: VcsLogResult) -> dict[str, str]:
@@ -501,6 +526,10 @@ def _local_now() -> datetime:
     from sase.core.time import local_now
 
     return local_now()
+
+
+def _now_epoch() -> float:
+    return time.time()
 
 
 def _day_label(dt_local: datetime, now_local: datetime) -> str:

@@ -53,6 +53,7 @@ class RepoRemoteState:
     ahead: int
     behind: int
     fetched: bool
+    fetched_at: float | None = None
 
 
 @dataclass(frozen=True)

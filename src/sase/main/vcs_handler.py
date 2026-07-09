@@ -63,6 +63,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         repo_filters=args.repos,
         current_only=args.current_only,
         no_fetch=args.no_fetch,
+        force_fetch=args.force_fetch,
         remote_ref=args.remote_ref,
     )
     render(
@@ -72,7 +73,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         limit=args.limit,
         filters=filters,
         reverse=args.reverse,
-        show_tags=getattr(args, "tags", False),
+        show_tags=args.show_tags,
     )
     return 0 if result.repos else 1
 

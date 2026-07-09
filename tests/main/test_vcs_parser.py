@@ -67,10 +67,11 @@ class TestVcsParser:
         assert ns.format == "pretty"
         assert ns.color == "auto"
         assert ns.no_fetch is False
+        assert ns.force_fetch is False
         assert ns.remote_ref is None
         assert ns.reverse is False
         assert ns.since is None
-        assert ns.tags is False
+        assert ns.show_tags is True
         assert ns.until is None
 
     def test_log_limit_and_format_and_color(self) -> None:
@@ -93,6 +94,18 @@ class TestVcsParser:
 
         assert ns.remote_ref == "main"
         assert ns.no_fetch is True
+
+    def test_log_force_fetch_option(self) -> None:
+        ns = create_parser().parse_args(["vcs", "log", "-F"])
+
+        assert ns.force_fetch is True
+        assert ns.no_fetch is False
+
+    def test_log_fetch_and_no_fetch_are_mutually_exclusive(self) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            create_parser().parse_args(["vcs", "log", "--fetch", "--no-fetch"])
+
+        assert excinfo.value.code == 2
 
     def test_log_ref_alias(self) -> None:
         ns = create_parser().parse_args(["vcs", "log", "--ref", "release"])
@@ -152,12 +165,50 @@ class TestVcsParser:
         assert ns.since == "1d"
         assert ns.until == "today"
 
-    def test_log_tags_aliases(self) -> None:
+    def test_log_no_tags_option(self) -> None:
+        short = create_parser().parse_args(["vcs", "log", "-T"])
+        long = create_parser().parse_args(["vcs", "log", "--no-tags"])
+
+        assert short.show_tags is False
+        assert long.show_tags is False
+
+    def test_log_tags_aliases_remain_hidden_no_ops(self) -> None:
         short = create_parser().parse_args(["vcs", "log", "-t"])
         long = create_parser().parse_args(["vcs", "log", "--tags"])
 
-        assert short.tags is True
-        assert long.tags is True
+        assert short.show_tags is True
+        assert long.show_tags is True
+
+    def test_log_help_shows_sorted_current_tag_and_fetch_options(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            create_parser().parse_args(["vcs", "log", "-h"])
+
+        assert excinfo.value.code == 0
+        help_text = capsys.readouterr().out
+        assert "--fetch" in help_text
+        assert "--no-fetch" in help_text
+        assert "--no-tags" in help_text
+        assert "-t, --tags" not in help_text
+        long_options = [
+            "--author",
+            "--branch",
+            "--color",
+            "--current-only",
+            "--fetch",
+            "--format",
+            "--limit",
+            "--no-fetch",
+            "--no-tags",
+            "--repo",
+            "--reverse",
+            "--since",
+            "--until",
+        ]
+        assert [help_text.index(option) for option in long_options] == sorted(
+            help_text.index(option) for option in long_options
+        )
 
 
 class TestVcsHandlerDispatch:
@@ -189,10 +240,11 @@ class TestVcsHandlerDispatch:
             format="pretty",
             color="auto",
             no_fetch=False,
+            force_fetch=False,
             remote_ref=None,
             reverse=False,
             since="last week",
-            tags=False,
+            show_tags=True,
             until=None,
             authors=[],
         )
@@ -212,10 +264,11 @@ class TestVcsHandlerDispatch:
             format="pretty",
             color="auto",
             no_fetch=False,
+            force_fetch=False,
             remote_ref=None,
             reverse=False,
             since="2026-07-09",
-            tags=False,
+            show_tags=True,
             until="2026-07-08",
             authors=[],
         )

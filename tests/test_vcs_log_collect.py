@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
 
 from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_log import collect as collect_module
 from sase.vcs_log.collect import collect_vcs_log, run_vcs_log
+from sase.vcs_log.fetch_cache import _read_fetch_cache, record_successful_fetch
 from sase.vcs_log.models import CommitFilters, LogRepo, UNLIMITED
 from sase.vcs_log.resolve import ResolvedRepos
 
@@ -213,20 +215,27 @@ def test_collect_threads_filters_and_unlimited_sentinel() -> None:
     }
 
 
-def test_collect_classifies_remote_presence_and_records_state() -> None:
+def test_collect_classifies_remote_presence_and_records_state(tmp_path: Path) -> None:
     provider = _RemoteProvider(
         [_commit("synced", 300), _commit("ahead", 200), _commit("behind", 100)],
         ahead={"ahead"},
         behind={"behind"},
     )
     repos = [LogRepo("sase", "/a", "primary")]
+    cache_path = tmp_path / "fetch-cache.json"
 
-    result = collect_vcs_log(repos, limit=20, provider_factory=lambda path: provider)
+    result = collect_vcs_log(
+        repos,
+        limit=20,
+        now=1000.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: provider,
+    )
 
     assert provider.fetch_calls == [("origin/main",)]
     assert provider.log_revs == ("HEAD", "origin/main")
     assert result.remote_states == (
-        collect_module.RepoRemoteState("sase", "origin/main", 1, 1, True),
+        collect_module.RepoRemoteState("sase", "origin/main", 1, 1, True, 1000.0),
     )
     assert [entry.commit.presence for entry in result.commits] == [
         "synced",
@@ -254,11 +263,17 @@ def test_collect_no_fetch_uses_existing_remote_ref() -> None:
     )
 
 
-def test_collect_fetch_failure_warns_but_uses_existing_ref() -> None:
+def test_collect_fetch_failure_warns_but_uses_existing_ref(tmp_path: Path) -> None:
     provider = _RemoteProvider([_commit("synced", 300)], fetch_ok=False)
     repos = [LogRepo("sase", "/a", "primary")]
 
-    result = collect_vcs_log(repos, limit=20, provider_factory=lambda path: provider)
+    result = collect_vcs_log(
+        repos,
+        limit=20,
+        now=1000.0,
+        fetch_cache_path=tmp_path / "fetch-cache.json",
+        provider_factory=lambda path: provider,
+    )
 
     assert result.remote_states == (
         collect_module.RepoRemoteState("sase", "origin/main", 0, 0, False),
@@ -266,6 +281,173 @@ def test_collect_fetch_failure_warns_but_uses_existing_ref() -> None:
     assert result.warnings == (
         "sase: fetch failed for origin/main: network down; using existing remote ref",
     )
+
+
+def test_collect_fetch_cache_skips_second_run_within_ttl(tmp_path: Path) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    repos = [LogRepo("sase", "/a", "primary")]
+    first = _RemoteProvider([_commit("synced", 300)])
+    second = _RemoteProvider([_commit("synced", 300)])
+
+    collect_vcs_log(
+        repos,
+        limit=20,
+        now=1000.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: first,
+    )
+    result = collect_vcs_log(
+        repos,
+        limit=20,
+        now=1059.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: second,
+    )
+
+    assert first.fetch_calls == [("origin/main",)]
+    assert second.fetch_calls == []
+    assert result.remote_states == (
+        collect_module.RepoRemoteState("sase", "origin/main", 0, 0, False, 1000.0),
+    )
+
+
+def test_collect_fetch_cache_expires_at_ttl_boundary(tmp_path: Path) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    repos = [LogRepo("sase", "/a", "primary")]
+    first = _RemoteProvider([_commit("synced", 300)])
+    second = _RemoteProvider([_commit("synced", 300)])
+
+    collect_vcs_log(
+        repos,
+        limit=20,
+        now=1000.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: first,
+    )
+    result = collect_vcs_log(
+        repos,
+        limit=20,
+        now=1060.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: second,
+    )
+
+    assert second.fetch_calls == [("origin/main",)]
+    assert result.remote_states == (
+        collect_module.RepoRemoteState("sase", "origin/main", 0, 0, True, 1060.0),
+    )
+
+
+def test_collect_force_fetch_bypasses_fresh_cache(tmp_path: Path) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    repos = [LogRepo("sase", "/a", "primary")]
+    assert record_successful_fetch(
+        "/a", "origin/main", fetched_at=1000.0, cache_path=cache_path
+    )
+    provider = _RemoteProvider([_commit("synced", 300)])
+
+    result = collect_vcs_log(
+        repos,
+        limit=20,
+        force_fetch=True,
+        now=1010.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: provider,
+    )
+
+    assert provider.fetch_calls == [("origin/main",)]
+    assert result.remote_states == (
+        collect_module.RepoRemoteState("sase", "origin/main", 0, 0, True, 1010.0),
+    )
+
+
+def test_collect_no_fetch_never_records_fetch_cache(tmp_path: Path) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    provider = _RemoteProvider([_commit("synced", 300)])
+
+    collect_vcs_log(
+        [LogRepo("sase", "/a", "primary")],
+        limit=20,
+        no_fetch=True,
+        now=1000.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: provider,
+    )
+
+    assert provider.fetch_calls == []
+    assert _read_fetch_cache(cache_path) == {}
+
+
+def test_collect_fetch_cache_keys_repo_paths_and_refs_independently(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    assert record_successful_fetch(
+        "/a", "origin/main", fetched_at=1000.0, cache_path=cache_path
+    )
+    providers = {
+        "/a": _RemoteProvider([_commit("a", 300)], remote_ref="origin/main"),
+        "/b": _RemoteProvider([_commit("b", 300)], remote_ref="origin/main"),
+    }
+
+    result = collect_vcs_log(
+        [LogRepo("a", "/a", "primary"), LogRepo("b", "/b", "linked")],
+        limit=20,
+        now=1010.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: providers[path],
+    )
+
+    assert providers["/a"].fetch_calls == []
+    assert providers["/b"].fetch_calls == [("origin/main",)]
+    assert result.remote_states == (
+        collect_module.RepoRemoteState("a", "origin/main", 0, 0, False, 1000.0),
+        collect_module.RepoRemoteState("b", "origin/main", 0, 0, True, 1010.0),
+    )
+
+    ref_provider = _RemoteProvider([_commit("dev", 300)], remote_ref="origin/main")
+    collect_vcs_log(
+        [LogRepo("a", "/a", "primary")],
+        limit=20,
+        remote_ref="dev",
+        now=1020.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: ref_provider,
+    )
+    assert ref_provider.fetch_calls == [("origin/dev",)]
+
+
+def test_collect_failed_fetch_is_not_recorded(tmp_path: Path) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    provider = _RemoteProvider([_commit("synced", 300)], fetch_ok=False)
+
+    collect_vcs_log(
+        [LogRepo("sase", "/a", "primary")],
+        limit=20,
+        now=1000.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: provider,
+    )
+
+    assert provider.fetch_calls == [("origin/main",)]
+    assert _read_fetch_cache(cache_path) == {}
+
+
+def test_collect_corrupt_fetch_cache_is_ignored(tmp_path: Path) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    cache_path.write_text("{nope", encoding="utf-8")
+    provider = _RemoteProvider([_commit("synced", 300)])
+
+    collect_vcs_log(
+        [LogRepo("sase", "/a", "primary")],
+        limit=20,
+        now=1000.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: provider,
+    )
+
+    assert provider.fetch_calls == [("origin/main",)]
+    assert _read_fetch_cache(cache_path) != {}
 
 
 def test_run_merges_resolution_warnings_ahead_of_collection(

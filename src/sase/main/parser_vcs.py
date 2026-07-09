@@ -3,12 +3,35 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
+from typing import Any
 
 from sase.main.parser_bead import nonnegative_int
 from sase.vcs_log.dates import DATE_HELP
 
 #: Default number of commits in the merged timeline.
 _DEFAULT_LIMIT = 20
+
+
+class _NoOpAction(argparse.Action):
+    """Accept a deprecated flag without changing the parsed namespace."""
+
+    def __init__(
+        self,
+        option_strings: Sequence[str],
+        dest: str,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, namespace, values, option_string
 
 
 def _add_list_options(parser: argparse.ArgumentParser) -> None:
@@ -88,6 +111,14 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Only the current/primary repo (skip linked repos and the SDD store)",
     )
+    fetch_group = parser.add_mutually_exclusive_group()
+    fetch_group.add_argument(
+        "-F",
+        "--fetch",
+        action="store_true",
+        dest="force_fetch",
+        help="Fetch remote refs now, bypassing the short freshness cache",
+    )
     parser.add_argument(
         "-f",
         "--format",
@@ -103,11 +134,19 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         metavar="N",
         help=f"Max commits in the merged timeline; 0 means unlimited (default: {_DEFAULT_LIMIT})",
     )
-    parser.add_argument(
+    fetch_group.add_argument(
         "-N",
         "--no-fetch",
         action="store_true",
         help="Skip remote fetch; compare against existing remote-tracking refs",
+    )
+    parser.add_argument(
+        "-T",
+        "--no-tags",
+        action="store_false",
+        default=True,
+        dest="show_tags",
+        help="Hide trailing SASE_* commit tags",
     )
     parser.add_argument(
         "-r",
@@ -136,8 +175,9 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-t",
         "--tags",
-        action="store_true",
-        help="Show trailing SASE_* commit tags without the SASE_ prefix",
+        action=_NoOpAction,
+        dest="show_tags",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "-u",

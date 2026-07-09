@@ -1,4 +1,4 @@
-"""Tests for ``sase vcs log --tags`` footer parsing helpers."""
+"""Tests for ``sase vcs log`` SASE footer parsing helpers."""
 
 from __future__ import annotations
 
