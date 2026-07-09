@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from dataclasses import replace
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from textual.widgets import Static
@@ -10,7 +13,9 @@ from textual.widgets import Static
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
+from sase.ace.tui.modals import plugins_browser_sase_update as pbsu
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
+from sase.ace.tui.task_queue import TaskInfo, TaskQueue
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.updates.incoming_commits import (
     CommitSummary,
@@ -63,6 +68,69 @@ def _multi_root_dev_plan() -> DevUpdatePlan:
             )
         )
     return replace(base, packages=tuple(packages), roots=tuple(roots))
+
+
+def _task(
+    task_id: str,
+    task_type: str,
+    status: str = "running",
+) -> TaskInfo:
+    return TaskInfo(
+        task_id=task_id,
+        task_type=task_type,
+        cl_name=f"{task_type}-cl",
+        project_file="/tmp/project.sase",
+        status=status,
+        message=f"{task_type} task",
+        started_at=datetime(2026, 7, 9, 12, 0, 0),
+    )
+
+
+def _queue(*tasks: TaskInfo) -> TaskQueue:
+    queue = TaskQueue()
+    for task in tasks:
+        queue._tasks[task.task_id] = task
+    return queue
+
+
+class _FailingTaskQueue:
+    def get_all(self) -> list[TaskInfo]:
+        raise RuntimeError("queue unavailable")
+
+
+def test_restart_blockers_include_running_tracked_background_tasks() -> None:
+    blockers = pbsu._running_background_tasks(
+        SimpleNamespace(
+            _task_queue=_queue(
+                _task("run-sync", "sync"),
+                _task("run-mail", "mail"),
+                _task("run-launch", "launch"),
+                _task("done-sync", "sync", status="success"),
+                _task("done-mail", "mail", status="error"),
+                _task("done-update", "sase-update", status="success"),
+            )
+        )
+    )
+
+    assert {task.task_id for task in blockers} == {
+        "run-sync",
+        "run-mail",
+        "run-launch",
+    }
+
+
+def test_restart_blockers_fail_open_when_queue_cannot_be_inspected() -> None:
+    assert (
+        pbsu._running_background_tasks(SimpleNamespace(_task_queue=_FailingTaskQueue()))
+        == []
+    )
+    assert (
+        pbsu._running_background_tasks(
+            SimpleNamespace(_task_queue=SimpleNamespace(get_all=None))
+        )
+        == []
+    )
+    assert pbsu._running_background_tasks(SimpleNamespace()) == []
 
 
 async def test_updates_pane_sase_update_opens_preview_modal(
@@ -137,18 +205,46 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             "_restart_tui",
             lambda *, restart_axe: restart_calls.append(restart_axe),
         )
-        monkeypatch.setattr(page.app, "_count_running_tasks", lambda: 2)
+        timer_callbacks: list[Any] = []
+
+        def _set_timer(delay: float, callback: Any) -> object:
+            assert delay == 1.0
+            timer_callbacks.append(callback)
+            return SimpleNamespace(stop=lambda: None)
+
+        monkeypatch.setattr(page.app, "set_timer", _set_timer)
+        background = page.app._task_queue.submit(
+            "sync",
+            "feature_a",
+            "/tmp/project.sase",
+            display_name="sync feature_a",
+        )
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
-        await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
-        assert restart_calls == [True]
+        await page.wait_for(lambda _s: bool(executed) and bool(timer_callbacks))
+        assert restart_calls == []
         assert calls  # initial load happened; changed update does not need a reload
+        assert any(
+            "restart queued until 1 background task finishes" in message
+            for message, _severity in messages
+        )
+
+        page.app._task_queue.complete(
+            background.task_id,
+            success=True,
+            message="sync done",
+            output="sync done",
+        )
+        timer_callbacks.pop(0)()
+        await page.pause()
+
+        assert restart_calls == [True]
         assert any("restarting ACE" in message for message, _severity in messages)
-        assert any("2 background tasks" in message for message, _severity in messages)
+        assert not any("will be stopped" in message for message, _severity in messages)
         receipt = update_receipt.read_and_clear_pending_update_toast()
         assert receipt is not None
         assert receipt.primary is not None

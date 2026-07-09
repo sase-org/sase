@@ -43,9 +43,6 @@ _CORE_DIST_KEYS = {
     normalize_distribution_name("sase-core-rs"),
 }
 _SASE_UPDATE_NOOP_MESSAGE = "Nothing to update: sase, core, and plugins are current."
-_CODE_UPDATE_TASK_TYPES = frozenset(
-    {"sase-update", "dev-update", "plugin-update", "plugin-dev-update", "mode-switch"}
-)
 
 
 def installed_version(name: str) -> str | None:
@@ -444,14 +441,16 @@ class SaseUpdateActionsMixin:
         self._restart_after_update_when_ready(message, deferred=False)
 
     def _restart_after_update_when_ready(self, message: str, *, deferred: bool) -> None:
-        """Restart after other code-update tasks have finished."""
-        update_tasks = _running_code_update_tasks(self.app)
-        if update_tasks:
+        """Restart after tracked background tasks have finished."""
+        running_tasks = _running_background_tasks(self.app)
+        if running_tasks:
             if not deferred:
-                count = len(update_tasks)
+                count = len(running_tasks)
                 noun = "task" if count == 1 else "tasks"
+                verb = "finishes" if count == 1 else "finish"
                 self._notify(
-                    f"{message} - restart queued until {count} update {noun} finish."
+                    f"{message} - restart queued until {count} background "
+                    f"{noun} {verb}."
                 )
             set_timer = getattr(self.app, "set_timer", None)
             if callable(set_timer):
@@ -463,17 +462,7 @@ class SaseUpdateActionsMixin:
                 )
             return
 
-        suffix = ""
-        count_tasks = getattr(self.app, "_count_running_tasks", None)
-        if callable(count_tasks):
-            try:
-                count = int(count_tasks())
-            except Exception:
-                count = 0
-            if count > 0:
-                noun = "task" if count == 1 else "tasks"
-                suffix = f" {count} background {noun} will be stopped."
-        self._notify(f"{message} — restarting ACE to load new code.{suffix}")
+        self._notify(f"{message} — restarting ACE to load new code.")
         restart = getattr(self.app, "_restart_tui", None)
         if callable(restart):
             restart(restart_axe=True)
@@ -517,7 +506,7 @@ def _dev_update_reporter_runner(reporter: TaskReporter) -> Any:
     return _run
 
 
-def _running_code_update_tasks(app: Any) -> list[Any]:
+def _running_background_tasks(app: Any) -> list[Any]:
     task_queue = getattr(app, "_task_queue", None)
     get_all = getattr(task_queue, "get_all", None)
     if not callable(get_all):
@@ -526,9 +515,4 @@ def _running_code_update_tasks(app: Any) -> list[Any]:
         tasks = get_all()
     except Exception:  # noqa: BLE001 - restart checks must not break update flow.
         return []
-    return [
-        task
-        for task in tasks
-        if getattr(task, "status", None) == "running"
-        and getattr(task, "task_type", None) in _CODE_UPDATE_TASK_TYPES
-    ]
+    return [task for task in tasks if getattr(task, "status", None) == "running"]
