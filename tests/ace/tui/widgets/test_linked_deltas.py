@@ -10,6 +10,10 @@ import pytest
 
 from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    build_detail_header_summary,
+    build_header_text,
+)
 from sase.linked_repos import record_opened_linked_repo
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 
@@ -170,6 +174,52 @@ new file mode 100644
     assert provider.has_changes_calls == [str(core), str(clean), str(nvim)]
     assert provider.diff_calls == [str(core), str(nvim)]
     assert linked_deltas_mod.get_cached_linked_delta_groups(agent) == groups
+
+
+def test_compute_linked_delta_groups_filters_root_commit_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    core = tmp_path / "sase-core"
+    core.mkdir()
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace={str(core): " M src/lib.rs\n?? commit_message.md"},
+        diff_by_workspace={
+            str(core): """diff --git a/commit_message.md b/commit_message.md
+new file mode 100644
+--- /dev/null
++++ b/commit_message.md
+@@ -0,0 +1 @@
++temporary message
+diff --git a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1 +1,2 @@
+ old
++new
+""",
+        },
+    )
+    _patch_provider(monkeypatch, provider)
+    agent = _agent(linked_repos=(_repo("sase-core", core),))
+
+    groups = linked_deltas_mod.compute_linked_delta_groups(agent)
+
+    assert [group.repo_name for group in groups] == ["sase-core"]
+    assert groups[0].entries == (
+        DeltaEntry(
+            path="src/lib.rs",
+            change_type="M",
+            line_stats=DeltaLineStats(added=1),
+        ),
+    )
+    assert linked_deltas_mod.get_cached_linked_delta_groups(agent) == groups
+
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
+
+    assert "Deltas:\n" in header.plain
+    assert "commit_message.md" not in header.plain
+    assert "    ~ src/lib.rs  +1\n" in header.plain
 
 
 def test_compute_linked_delta_groups_skips_terminal_agents(

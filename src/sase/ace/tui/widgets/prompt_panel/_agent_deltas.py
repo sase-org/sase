@@ -148,6 +148,46 @@ def parse_unified_diff_deltas(diff_text: str) -> list[DeltaEntry]:
 _parse_unified_diff_deltas = parse_unified_diff_deltas
 
 
+def _normalized_agent_delta_path(path: str) -> str:
+    normalized = path.strip().replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def _is_commit_message_bookkeeping_path(path: str) -> bool:
+    return _normalized_agent_delta_path(path) == "commit_message.md"
+
+
+def visible_agent_delta_entries(entries: Iterable[DeltaEntry]) -> list[DeltaEntry]:
+    """Return agent-display delta entries excluding SASE commit bookkeeping."""
+    return [
+        entry
+        for entry in entries
+        if not _is_commit_message_bookkeeping_path(entry.path)
+    ]
+
+
+def _visible_linked_delta_groups(
+    groups: Iterable[LinkedDeltaGroup],
+) -> tuple[LinkedDeltaGroup, ...]:
+    visible_groups: list[LinkedDeltaGroup] = []
+    for group in groups:
+        entries = tuple(visible_agent_delta_entries(group.entries))
+        if not entries:
+            continue
+        visible_groups.append(
+            LinkedDeltaGroup(
+                repo_name=group.repo_name,
+                workspace_dir=group.workspace_dir,
+                entries=entries,
+                diff_text=group.diff_text,
+                fetched_at=group.fetched_at,
+            )
+        )
+    return tuple(visible_groups)
+
+
 def _merge_line_stats(
     left: DeltaLineStats | None,
     right: DeltaLineStats | None,
@@ -210,7 +250,9 @@ def _commit_diff_delta_entries(
         if not diff_text:
             continue
         diff_texts.append(diff_text)
-        entries.extend(parse_unified_diff_deltas(diff_text))
+        entries.extend(
+            visible_agent_delta_entries(parse_unified_diff_deltas(diff_text))
+        )
     return _merge_delta_entries(entries), "\n".join(diff_texts)
 
 
@@ -227,8 +269,7 @@ def agent_delta_entries(agent: Agent) -> list[DeltaEntry]:
     if not diff_text:
         return []
 
-    deltas = parse_unified_diff_deltas(diff_text)
-    return deltas
+    return visible_agent_delta_entries(parse_unified_diff_deltas(diff_text))
 
 
 def _linked_workspace_dir_for_repo(agent: Agent, repo_name: str) -> str:
@@ -274,8 +315,8 @@ def append_agent_deltas_section(
     hint_state: HeaderHintState | None = None,
 ) -> None:
     """Append precomputed delta entries when available."""
-    deltas = delta_entries or []
-    linked_groups = tuple(group for group in linked_delta_groups if group.entries)
+    deltas = visible_agent_delta_entries(delta_entries or [])
+    linked_groups = _visible_linked_delta_groups(linked_delta_groups)
     if not deltas and not linked_groups:
         return
 

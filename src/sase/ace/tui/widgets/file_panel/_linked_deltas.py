@@ -242,9 +242,12 @@ def _compute_repo_group(
             _linked_delta_cache[key] = None
         return None
 
-    from ..prompt_panel._agent_deltas import parse_unified_diff_deltas
+    from ..prompt_panel._agent_deltas import (
+        parse_unified_diff_deltas,
+        visible_agent_delta_entries,
+    )
 
-    entries = tuple(parse_unified_diff_deltas(diff_text))
+    entries = tuple(visible_agent_delta_entries(parse_unified_diff_deltas(diff_text)))
     group = (
         LinkedDeltaGroup(
             repo_name=repo_name,
