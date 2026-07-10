@@ -20,6 +20,141 @@ from tests.main.init_memory_handler_helpers import (
 )
 
 
+@pytest.mark.parametrize(
+    "local_config",
+    [
+        None,
+        "memory:\n  enabled: false\nlinked_repos:\n  - malformed\n",
+        'amd_h1_title: "Legacy title is not an opt-in"\n',
+    ],
+)
+def test_unmanaged_project_does_not_manage_memory_or_root_agents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    local_config: str | None,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    config_path = project_root / "sase.yml"
+    if local_config is None:
+        config_path.unlink()
+    else:
+        write(config_path, local_config)
+    # A merged/global opt-in must not authorize project writes.
+    write(config_dir / "sase.yml", "memory:\n  enabled: true\n")
+    agents_content = "# Custom Project Instructions\n\nDo not replace this.\n"
+    memory_content = "---\ntype: long\nparent: memory/missing.md\n---\n# Existing\n"
+    write(project_root / "AGENTS.md", agents_content)
+    write(project_root / "memory" / "existing.md", memory_content)
+
+    plan = plan_memory()
+
+    project_actions = tuple(
+        action for action in plan.actions if action.path.is_relative_to(project_root)
+    )
+    assert plan.blockers == ()
+    assert {action.path for action in project_actions} == {
+        project_root / filename for filename in PROVIDER_SHIM_FILES
+    }
+    assert project_root / "AGENTS.md" not in {action.path for action in project_actions}
+
+    assert run_memory() == 0
+    assert (project_root / "AGENTS.md").read_text(encoding="utf-8") == agents_content
+    assert (project_root / "memory" / "existing.md").read_text(
+        encoding="utf-8"
+    ) == memory_content
+    assert not (project_root / "memory" / "sase.md").exists()
+    for filename in PROVIDER_SHIM_FILES:
+        assert (project_root / filename).read_text(encoding="utf-8") == agents_content
+
+
+@pytest.mark.parametrize(
+    "config_text, expected_error",
+    [
+        ("- not\n- a mapping\n", "expected a YAML mapping"),
+        ("memory: null\n", "memory must be a mapping"),
+        ("memory: []\n", "memory must be a mapping"),
+        ('memory:\n  enabled: "yes"\n', "memory.enabled must be a boolean"),
+        ("memory:\n  enabled: 1\n", "memory.enabled must be a boolean"),
+    ],
+)
+def test_invalid_project_memory_opt_in_blocks_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_text: str,
+    expected_error: str,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase.yml", config_text)
+
+    plan = plan_memory()
+
+    assert plan.actions == ()
+    assert any(expected_error in blocker for blocker in plan.blockers)
+    assert run_memory() == 1
+    assert not (project_root / "memory").exists()
+    assert not (project_root / "AGENTS.md").exists()
+    assert not (home_root / "memory").exists()
+
+
+def test_unmanaged_project_copies_root_and_nested_agents_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    nested = project_root / "demos" / "tapes"
+    standalone = project_root / "docs"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase.yml", "memory:\n  enabled: false\n")
+    root_content = "# Root\n\nRoot bytes stay exact.\n"
+    nested_content = "# Nested\n\nNested bytes stay exact.\n"
+    standalone_content = "# Standalone Claude instructions\n"
+    write(project_root / "AGENTS.md", root_content)
+    write(nested / "AGENTS.md", nested_content)
+    write(standalone / "CLAUDE.md", standalone_content)
+
+    assert run_memory() == 0
+
+    for filename in PROVIDER_SHIM_FILES:
+        assert (project_root / filename).read_text(encoding="utf-8") == root_content
+        assert (nested / filename).read_text(encoding="utf-8") == nested_content
+    assert (standalone / "CLAUDE.md").read_text(encoding="utf-8") == (
+        standalone_content
+    )
+    for filename in set(PROVIDER_SHIM_FILES) - {"CLAUDE.md"}:
+        assert not (standalone / filename).exists()
+    assert not (project_root / "memory").exists()
+    assert plan_memory().actions == ()
+
+
 def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -308,6 +443,7 @@ def test_memory_plan_preserves_existing_user_agents_file(
         home_root=home_root,
         config_dir=config_dir,
     )
+    (project_root / "sase.yml").unlink()
     write(
         project_root / "AGENTS.md",
         "# Custom Instructions\n\n@memory/sase.md\n",
@@ -341,6 +477,8 @@ def test_memory_plan_invalid_linked_repo_config_returns_blocker_without_writing(
     write(
         project_root / "sase.yml",
         """
+memory:
+  enabled: true
 linked_repos:
   - name: core
     path: ../sase-core
@@ -373,6 +511,8 @@ def test_memory_check_blockers_render_through_shared_output(
     write(
         project_root / "sase.yml",
         """
+memory:
+  enabled: true
 linked_repos:
   - name: core
     path: ../sase-core
@@ -419,7 +559,10 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(
+        project_root / "sase.yml",
+        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+    )
     write(project_root / "AGENTS.md", "# Stale Instructions\n")
     write(
         project_root / "memory" / "detail.md",
@@ -452,9 +595,11 @@ def test_memory_plan_repairs_unreferenced_long_memory_without_title(
         home_root=home_root,
         config_dir=config_dir,
     )
-    # bob-cli shape: SASE memory with a long note that the minimal AGENTS.md
-    # leaves unreferenced, no ``amd_h1_title`` configured.
-    write(project_root / "sase.yml", "sdd:\n  version_controlled: true\n")
+    # Enabled project memory with no ``amd_h1_title`` derives a stable title.
+    write(
+        project_root / "sase.yml",
+        "memory:\n  enabled: true\nsdd:\n  version_controlled: true\n",
+    )
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
     write(
         project_root / "memory" / "sase.md",
@@ -489,7 +634,10 @@ def test_memory_apply_repairs_unreferenced_long_memory_without_title(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", "sdd:\n  version_controlled: true\n")
+    write(
+        project_root / "sase.yml",
+        "memory:\n  enabled: true\nsdd:\n  version_controlled: true\n",
+    )
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
     write(
         project_root / "memory" / "cli_rules.md",
@@ -526,7 +674,10 @@ def test_memory_plan_invalid_amd_title_still_blocks(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", "amd_h1_title: 123\n")
+    write(
+        project_root / "sase.yml",
+        "memory:\n  enabled: true\namd_h1_title: 123\n",
+    )
     write(
         project_root / "memory" / "cli_rules.md",
         "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"

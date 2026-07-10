@@ -35,6 +35,8 @@ def test_init_memory_plan_empty_after_prettier_formats_generated_files(
     write(
         project_root / "sase.yml",
         """
+memory:
+  enabled: true
 linked_repos:
   - name: core
     path: ../sase-core

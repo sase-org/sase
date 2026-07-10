@@ -156,6 +156,29 @@ def _load_yaml_mapping(path: Path) -> tuple[Mapping[str, Any], str | None]:
     return data, None
 
 
+def project_memory_enabled(config_path: Path) -> tuple[bool, str | None]:
+    """Return the project-local memory ownership opt-in.
+
+    This intentionally reads only *config_path*.  In particular, merged user
+    configuration must never authorize writes to a project's memory tree or
+    root ``AGENTS.md``.
+    """
+    config, load_error = _load_yaml_mapping(config_path)
+    if load_error is not None:
+        return False, load_error
+    if "memory" not in config:
+        return False, None
+    memory = config["memory"]
+    if not isinstance(memory, Mapping):
+        return False, f"{config_path}: memory must be a mapping"
+    if "enabled" not in memory:
+        return False, None
+    enabled = memory["enabled"]
+    if not isinstance(enabled, bool):
+        return False, f"{config_path}: memory.enabled must be a boolean"
+    return enabled, None
+
+
 def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
     """Return the configured related-repo list plus the source config key.
 

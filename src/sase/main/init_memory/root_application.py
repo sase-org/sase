@@ -78,7 +78,9 @@ def initialize_memory_root(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
+    manage_memory: bool = True,
     enable_amd: bool = False,
+    derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
 ) -> MemoryRootResult:
@@ -86,7 +88,9 @@ def initialize_memory_root(
         root,
         linked_entries,
         project_name=project_name,
+        manage_memory=manage_memory,
         enable_amd=enable_amd,
+        derive_project_title=derive_project_title,
         chezmoi_home_roots=chezmoi_home_roots,
         include_project_agent_docs=include_project_agent_docs,
     )
@@ -102,6 +106,6 @@ def initialize_memory_root(
     return MemoryRootResult(
         root=root,
         written_paths=written,
-        unreferenced=unreferenced_memory_files(root),
+        unreferenced=unreferenced_memory_files(root) if manage_memory else (),
         deleted_paths=deleted,
     )

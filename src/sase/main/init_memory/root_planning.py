@@ -38,17 +38,14 @@ def _amd_sync_plan(
     root: Path,
     *,
     enable_amd: bool,
+    derive_project_title: bool,
     generated_short_notes: dict[str, str],
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return None
-    # The onboarding fallback (derive a managed title when memory exists but
-    # none is configured) is scoped to project roots inside
-    # ``resolve_amd_h1_title`` via its home-root check, so home/chezmoi roots
-    # only get a managed AGENTS.md when a title is explicitly configured.
     return plan_amd_memory_sync(
         root,
-        onboarding=True,
+        derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes,
     )
 
@@ -123,12 +120,14 @@ def _resolved(path: Path) -> Path:
     return path.expanduser().resolve(strict=False)
 
 
-def _additional_agent_doc_shim_plans(root: Path) -> tuple[ProviderShimPlan, ...]:
+def _agent_doc_shim_plans(
+    root: Path, *, include_root: bool
+) -> tuple[ProviderShimPlan, ...]:
     root_resolved = _resolved(root)
     root_agents = _resolved(root_resolved / "AGENTS.md")
     plans: list[ProviderShimPlan] = []
     for agents_path in discover_project_agent_docs(root_resolved):
-        if _resolved(agents_path) == root_agents:
+        if not include_root and _resolved(agents_path) == root_agents:
             continue
         agents_content, read_error = read_text(agents_path)
         if read_error is not None or agents_content is None:
@@ -227,16 +226,31 @@ def memory_root_context(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
+    manage_memory: bool = True,
     enable_amd: bool = False,
+    derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
 ) -> _MemoryRootContext:
+    if not manage_memory:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(
+                _agent_doc_shim_plans(root, include_root=True)
+                if include_project_agent_docs
+                else ()
+            ),
+        )
+
     generated_sase_body = generated_sase_memory_body(
         linked_entries, project_name=project_name
     )
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
+        derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes(generated_sase_body),
     )
     expected_files = render_expected_memory_files(
@@ -252,7 +266,9 @@ def memory_root_context(
         chezmoi_home_roots=chezmoi_home_roots,
     )
     additional_shim_plans = (
-        _additional_agent_doc_shim_plans(root) if include_project_agent_docs else ()
+        _agent_doc_shim_plans(root, include_root=False)
+        if include_project_agent_docs
+        else ()
     )
     return _MemoryRootContext(
         amd_sync=amd_sync,
@@ -267,7 +283,9 @@ def plan_memory_root(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
+    manage_memory: bool = True,
     enable_amd: bool = False,
+    derive_project_title: bool = False,
     chezmoi_home_roots: Iterable[Path] = (),
     include_project_agent_docs: bool = False,
 ) -> MemoryRootPlan:
@@ -275,7 +293,9 @@ def plan_memory_root(
         root,
         linked_entries,
         project_name=project_name,
+        manage_memory=manage_memory,
         enable_amd=enable_amd,
+        derive_project_title=derive_project_title,
         chezmoi_home_roots=chezmoi_home_roots,
         include_project_agent_docs=include_project_agent_docs,
     )
@@ -287,7 +307,9 @@ def plan_memory_root(
             + _provider_shim_changes(context.shim_plan)
             + _provider_shim_plan_changes(context.additional_shim_plans)
         ),
-        unreferenced=unreferenced_memory_files(root, overlay=overlay),
+        unreferenced=(
+            unreferenced_memory_files(root, overlay=overlay) if manage_memory else ()
+        ),
         blockers=(
             (() if context.amd_sync is None else context.amd_sync.blockers)
             + context.shim_plan.blockers

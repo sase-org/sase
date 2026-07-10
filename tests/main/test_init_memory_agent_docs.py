@@ -23,10 +23,14 @@ from tests.main.init_memory_handler_helpers import (
 )
 
 
-def _assert_minimal_inlined_agents(agents: str) -> None:
-    """Assert *agents* is a self-contained minimal AGENTS.md (sase.md inlined)."""
+def _assert_derived_managed_agents(agents: str) -> None:
+    """Assert *agents* is managed using the derived project title."""
     assert agents.startswith(
-        "# Agent Instructions\n\n"
+        "# project - Agent Instructions\n\n"
+        "IMPORTANT: You should not modify any of these memory files without "
+        "approval from the user.\n\n"
+        "## Tier 1 (short-term) Memory\n\n"
+        "The following memories contains core (always loaded) context:\n\n"
         "### 1. SASE = Structured Agentic Software Engineering (sase)\n"
     )
     assert "@memory/sase.md" not in agents
@@ -135,11 +139,11 @@ def test_init_memory_does_not_migrate_single_custom_provider_file(
 
     assert run_handler() == 0
 
-    # The legacy migration is gone: a minimal AGENTS.md is created and the
+    # The legacy migration is gone: managed AGENTS.md is created and the
     # custom provider file is overwritten with a shim instead of being copied
     # into AGENTS.md.
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    _assert_minimal_inlined_agents(agents)
+    _assert_derived_managed_agents(agents)
     assert "Keep this." not in agents
     assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == agents
 
@@ -163,11 +167,11 @@ def test_init_memory_overwrites_multiple_custom_provider_files(
     write(project_root / "GEMINI.md", "# Gemini custom\n")
 
     # The old AMD migration blocked on multiple custom provider files; memory
-    # init now simply repairs each preferred-path shim and creates the minimal
+    # init now simply repairs each preferred-path shim and creates managed
     # AGENTS.md.
     assert run_handler() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    _assert_minimal_inlined_agents(agents)
+    _assert_derived_managed_agents(agents)
     assert (project_root / "CLAUDE.md").read_text(encoding="utf-8") == agents
     assert (project_root / "GEMINI.md").read_text(encoding="utf-8") == agents

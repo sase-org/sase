@@ -7,15 +7,10 @@ import re
 
 import sase.config.core as config_core
 
-from sase.memory.notes import discover_memory_notes
-
 from ._shared import load_yaml_mapping
 
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
-_ONBOARDING_TITLE_SUFFIX = "Agent Instructions"
-# The minimal ``AGENTS.md`` template references only the generated short note,
-# so a project that has *only* this note never needs managed instructions.
-_GENERATED_SHORT_MEMORY_RELATIVE_PATH = "memory/sase.md"
+_PROJECT_TITLE_SUFFIX = "Agent Instructions"
 
 
 def _validate_amd_h1_title(raw: object, *, path: Path) -> tuple[str | None, str | None]:
@@ -88,54 +83,29 @@ def _load_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
     return _load_user_amd_h1_title(config_dir)
 
 
-def _is_home_amd_root(root: Path) -> bool:
-    """Return whether *root* is a home / chezmoi-home AMD root.
-
-    Home roots derive their title from user config only; the onboarding
-    fallback never applies to them.
-    """
-    return _user_config_dir_for_home_amd_root(root) is not None
-
-
-def _project_has_onboarding_memory(root: Path) -> bool:
-    """Return whether *root* has memory the minimal template can't reference.
-
-    The minimal ``AGENTS.md`` references only the generated ``memory/sase.md``
-    short note, so any other discovered note would be left unreferenced. Such a
-    project needs managed instructions to keep its memory graph reachable.
-    """
-    return any(
-        note.relative_path != _GENERATED_SHORT_MEMORY_RELATIVE_PATH
-        for note in discover_memory_notes(root)
-    )
-
-
-def _onboarding_project_name(root: Path) -> str:
+def _project_name(root: Path) -> str:
     name = root.resolve(strict=False).name
     stripped = _WORKSPACE_SUFFIX_RE.sub("", name)
     return stripped or name or "Project"
 
 
-def _onboarding_fallback_title(root: Path) -> str:
-    return f"{_onboarding_project_name(root)} - {_ONBOARDING_TITLE_SUFFIX}"
+def _project_fallback_title(root: Path) -> str:
+    return f"{_project_name(root)} - {_PROJECT_TITLE_SUFFIX}"
 
 
 def resolve_amd_h1_title(
-    root: Path, *, onboarding: bool = False
+    root: Path, *, derive_project_title: bool = False
 ) -> tuple[str | None, str | None]:
-    """Resolve the AMD H1 title, optionally deriving an onboarding fallback.
+    """Resolve the AMD H1 title, optionally deriving a project title.
 
     Explicit project / user configuration always wins, and invalid configured
-    values still surface as errors. When *onboarding* is enabled and a project
-    root has SASE memory the minimal instruction file would leave unreferenced,
-    derive a stable, directory-based title (``<project> - Agent Instructions``)
-    so onboarding can write managed instructions instead of blocking.
+    values still surface as errors. Project memory initialization passes
+    *derive_project_title* only after the local ``memory.enabled`` opt-in has
+    been validated, making that boolean sufficient by itself.
     """
     title, title_error = _load_amd_h1_title(root)
     if title is not None or title_error is not None:
         return title, title_error
-    if not onboarding or _is_home_amd_root(root):
+    if not derive_project_title:
         return None, None
-    if not _project_has_onboarding_memory(root):
-        return None, None
-    return _onboarding_fallback_title(root), None
+    return _project_fallback_title(root), None

@@ -27,6 +27,7 @@ from .init_project_scope import is_project_directory
 from .init_memory.config import (
     primary_workspace_root_for_memory as _primary_workspace_root_for_memory,
     project_config_path as _project_config_path,
+    project_memory_enabled as _project_memory_enabled,
     project_memory_name as _project_memory_name,
     linked_entries_from_config as _linked_entries_from_config,
 )
@@ -58,6 +59,7 @@ class _MemoryInitInputs:
     use_chezmoi: bool
     no_commit: bool
     is_project_dir: bool
+    project_memory_enabled: bool
     global_config: Path
     project_root: Path
     home_root: Path
@@ -123,10 +125,19 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     project_entries: tuple[_LinkedRepoMemoryEntry, ...]
     project_errors: tuple[str, ...]
     if is_project_dir:
-        project_entries, project_errors = _linked_entries_from_config(
-            project_config, label="project", primary_root=primary_root
-        )
+        project_enabled, project_enabled_error = _project_memory_enabled(project_config)
+        if project_enabled_error is not None:
+            project_entries = ()
+            project_errors = (project_enabled_error,)
+        elif project_enabled:
+            project_entries, project_errors = _linked_entries_from_config(
+                project_config, label="project", primary_root=primary_root
+            )
+        else:
+            project_entries = ()
+            project_errors = ()
     else:
+        project_enabled = False
         project_entries = ()
         project_errors = ()
     home_entries, home_errors = _linked_entries_from_config(
@@ -135,13 +146,14 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     config_errors = (*project_errors, *home_errors)
     project_name = (
         None
-        if config_errors or not is_project_dir
+        if config_errors or not is_project_dir or not project_enabled
         else _project_memory_name(project_root)
     )
     return _MemoryInitInputs(
         use_chezmoi=use_chezmoi,
         no_commit=bool(getattr(args, "no_commit", False)),
         is_project_dir=is_project_dir,
+        project_memory_enabled=project_enabled,
         global_config=global_config,
         project_root=project_root,
         home_root=_home_root_path(use_chezmoi),
@@ -281,6 +293,7 @@ def _deploy_to_project_repo(
     project_result: _MemoryRootResult,
     *,
     no_commit: bool,
+    manage_memory: bool = True,
     git_state: PreInitGitState | None = None,
     message: str | None = None,
 ) -> int:
@@ -325,6 +338,10 @@ def _deploy_to_project_repo(
         print(f"{COMMAND_LABEL}: nothing to commit in {git_root}")
         return 0
 
+    if not init_changed and not memory_dirty:
+        print(f"{COMMAND_LABEL}: nothing to commit in {git_root}")
+        return 0
+
     fold_commit_message: str | None = None
     if memory_dirty:
         fold_commit_message = _resolve_fold_commit_message(memory_dirty, message)
@@ -334,12 +351,11 @@ def _deploy_to_project_repo(
     if not run_precommit(str(git_root)):
         return 1
 
-    memory_path = _sase_memory_path(project_result.root)
     stage_paths = _unique_paths(
         (
             *project_result.written_paths,
             *project_result.deleted_paths,
-            memory_path,
+            *((_sase_memory_path(project_result.root),) if manage_memory else ()),
             *(git_root / dirty_path.path for dirty_path in memory_dirty),
         )
     )
@@ -463,7 +479,9 @@ def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]
                 inputs.project_root,
                 inputs.project_entries,
                 project_name=inputs.project_name,
+                manage_memory=inputs.project_memory_enabled,
                 enable_amd=True,
+                derive_project_title=inputs.project_memory_enabled,
                 chezmoi_home_roots=chezmoi_home_roots,
                 include_project_agent_docs=True,
             )
@@ -585,6 +603,12 @@ def run_init_memory(args: argparse.Namespace) -> int:
     git_state = None
     if inputs.is_project_dir and not inputs.no_commit:
         git_state = _capture_pre_init_git_state(inputs.project_root)
+        if git_state is not None and not inputs.project_memory_enabled:
+            git_state = PreInitGitState(
+                git_root=git_state.git_root,
+                memory_dirty=(),
+                other_dirty=(*git_state.other_dirty, *git_state.memory_dirty),
+            )
 
     project_result: _MemoryRootResult | None = None
     if inputs.is_project_dir:
@@ -592,7 +616,9 @@ def run_init_memory(args: argparse.Namespace) -> int:
             inputs.project_root,
             inputs.project_entries,
             project_name=inputs.project_name,
+            manage_memory=inputs.project_memory_enabled,
             enable_amd=True,
+            derive_project_title=inputs.project_memory_enabled,
             chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
             include_project_agent_docs=True,
         )
@@ -611,7 +637,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
         return 1
 
     print(f"{COMMAND_LABEL}: initialized memory")
-    if inputs.is_project_dir:
+    if inputs.is_project_dir and inputs.project_memory_enabled:
         print(f"  project memory target: {_sase_memory_path(inputs.project_root)}")
     print(f"  home memory target: {_home_memory_path(inputs.use_chezmoi)}")
     print(f"  global config source: {inputs.global_config}")
@@ -621,6 +647,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
         project_exit_code = _deploy_to_project_repo(
             project_result,
             no_commit=inputs.no_commit,
+            manage_memory=inputs.project_memory_enabled,
             git_state=git_state,
             message=getattr(args, "message", None),
         )

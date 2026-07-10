@@ -91,7 +91,10 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(
+        project_root / "sase.yml",
+        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+    )
     write(project_root / "memory" / "extra.md", short_note("# Extra\n"))
     write(
         project_root / "memory" / "described.md",
@@ -184,7 +187,10 @@ def test_init_memory_managed_agents_wraps_long_memory_descriptions(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(
+        project_root / "sase.yml",
+        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+    )
     write(
         project_root / "memory" / "generated_skills.md",
         long_note(
@@ -237,7 +243,10 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(
+        project_root / "sase.yml",
+        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+    )
     write(
         project_root / "memory" / "described.md",
         long_note("# Described\n", description="A long note."),
@@ -272,7 +281,10 @@ def test_init_memory_rejects_short_memory_with_deep_heading(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", 'amd_h1_title: "Managed Instructions"\n')
+    write(
+        project_root / "sase.yml",
+        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+    )
     # A short note with an H4 heading cannot be inlined and must block init.
     write(project_root / "memory" / "bad.md", short_note("# Bad\n\n#### Too Deep\n"))
 
@@ -299,9 +311,9 @@ def test_init_memory_rejects_unreferenced_memory_files(
         config_dir=config_dir,
     )
     write(project_root / "AGENTS.md", "@memory/sase.md\n")
-    # Parented under a memory note that does not exist, so the managed
-    # instructions onboarding fallback (which only references short notes and
-    # top-level ``parent: AGENTS.md`` long notes) cannot make it reachable.
+    # Parented under a memory note that does not exist, so managed instructions
+    # (which only reference short notes and top-level ``parent: AGENTS.md`` long
+    # notes) cannot make it reachable.
     write(
         project_root / "memory" / "orphan.md",
         "---\ntype: long\nparent: memory/ghost.md\ndescription: Orphan.\n---\n"

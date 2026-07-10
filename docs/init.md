@@ -14,9 +14,10 @@ The coordinator plans in registry order: memory, SDD, then skills. Memory initia
 initialization (managed `AGENTS.md` and its provider instruction copies). Planning is read-only. In non-interactive
 shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
 unattended apply run. Apply runs can write project files, deploy home files through chezmoi when configured, and use
-each initializer's normal commit/push behavior. Bare `sase init` only lets memory init generate managed project
-`AGENTS.md` content when the current project's own `./sase.yml` sets `amd_h1_title`; otherwise it writes a minimal
-`AGENTS.md` and still repairs the provider instruction files.
+each initializer's normal commit/push behavior. Bare `sase init` only lets memory init generate managed project memory
+and root `AGENTS.md` content when the current project's own `./sase.yml` sets `memory.enabled: true`. Without that
+explicit local opt-in, it leaves project memory and the root `AGENTS.md` untouched while still copying every existing
+project-tree `AGENTS.md` to the provider instruction files beside it.
 
 Explicit subcommands are still available when you need narrower control:
 
@@ -67,7 +68,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                             |
 | `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                              |
 | `sase memory log --id <read-id>`      | Show one full audited read event by id or unambiguous id prefix.                            |
-| `sase memory init`                    | Create or refresh project/home memory roots, managed `AGENTS.md`, and provider copies.      |
+| `sase memory init`                    | Refresh home and opted-in project memory plus provider copies for existing `AGENTS.md`.     |
 | `sase memory init --check`            | Report memory initialization drift without writing files.                                   |
 | `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                          |
 | `sase init memory`                    | Compatibility alias for `sase memory init`.                                                 |
@@ -104,29 +105,36 @@ that creates or refreshes these documents.
 
 ## Memory Initialization
 
-`sase memory init` initializes both project-local and home-level memory surfaces, and owns agent-document initialization
-(managed `AGENTS.md` and its provider instruction copies):
+`sase memory init` always initializes the home-level memory surface. It initializes project-local memory only when the
+project explicitly opts in, and independently owns provider instruction copies:
 
-- Project memory under `./memory/`, including `memory/README.md` and flat note files with `type`/`parent` frontmatter.
+- Project memory under `./memory/`, including `memory/README.md` and flat note files with `type`/`parent` frontmatter,
+  only when the project's own `./sase.yml` contains `memory.enabled: true`.
 - Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
-- A managed `AGENTS.md` for any root whose configured `amd_h1_title` opts it in, or a minimal `AGENTS.md` when one does
-  not already exist and the root is not opted in.
+- A managed project `AGENTS.md` only with that same explicit opt-in. `amd_h1_title` customizes its H1; otherwise SASE
+  derives the stable `<project> - Agent Instructions` title.
 - Provider instruction files `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`; each is a byte-for-byte copy of
   that root's final `AGENTS.md`. Chezmoi home source roots use static `.md` files (not `*.md.tmpl` imports), since the
   inlined `AGENTS.md` carries no template variables. Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import shims and
   `*.md.tmpl` sources are still recognized and migrated to full copies.
 
-Managed `AGENTS.md` generation applies to both the project root and the home/chezmoi root. When a root's local
-`./sase.yml` sets `amd_h1_title`, `sase memory init` writes a managed `AGENTS.md` for that root, inlines each short-term
-note's body verbatim into the Tier 1 (short-term) memory block, renders the Tier 2 (long-term) list from `description`
-values, and adds missing canonical frontmatter to memory files before reachability validation runs. The live home root
-and chezmoi home source root take their title from user config (`~/.config/sase/sase.yml`, `~/.config/sase/sase_*.yml`,
-or the source-side `dot_config/sase/` equivalents) instead of `./sase.yml`. Bare `sase init` can additionally derive a
-fallback project title when SASE memory would otherwise be unreachable from a minimal `AGENTS.md`.
+For an enabled project, `sase memory init` inlines each short-term note's body into Tier 1, renders Tier 2 from
+long-note descriptions, adds missing canonical frontmatter, and validates reachability. Missing, false, merged-global,
+or `amd_h1_title`-only configuration does not authorize any project memory or root `AGENTS.md` creation, refresh, or
+validation. Projects that previously relied on a title or inferred onboarding must add:
 
-There is no legacy single-custom-provider-file migration. When `AGENTS.md` is missing and custom provider files exist,
-`sase memory init` writes a minimal `AGENTS.md` and overwrites those provider files with full copies of it rather than
-copying their content into `AGENTS.md`.
+```yaml
+memory:
+  enabled: true
+```
+
+Home and chezmoi-home initialization is unchanged: those roots remain managed and take an optional title from user
+config (`~/.config/sase/sase.yml`, overlays, or source-side `dot_config/sase/`).
+
+Provider copying is the exception to project ownership. In both managed and unmanaged projects, every readable
+`AGENTS.md` found with the normal project-tree pruning rules is copied byte-for-byte to `CLAUDE.md`, `GEMINI.md`,
+`QWEN.md`, and `OPENCODE.md` beside it. A directory with no `AGENTS.md` is untouched, including any standalone provider
+files already there.
 
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
@@ -145,9 +153,9 @@ read-only drift check, or `sase memory init --no-commit` when you want to review
 committing. `--no-commit` only skips the project deploy path; home memory deployment still follows `use_chezmoi` when it
 is enabled.
 
-Memory validation is reachability-based: Markdown files under `memory/` must be reachable from `AGENTS.md` directly or
-through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the command fail so
-important agent context is not silently ignored.
+For managed roots, memory validation is reachability-based: Markdown files under `memory/` must be reachable from
+`AGENTS.md` directly or through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the
+command fail so important agent context is not silently ignored. Unmanaged project memory is not validated.
 
 ## Memory Context List
 

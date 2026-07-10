@@ -12,6 +12,7 @@ and CLI flags.
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
+  - [memory](#memory)
   - [ace](#ace)
   - [agent_family](#agent_family)
   - [llm_provider](#llm_provider)
@@ -174,7 +175,7 @@ Source: `src/sase/config/core.py`
 
 ### amd_h1_title
 
-Opts a root into a generated managed `AGENTS.md` by providing the Markdown H1 title for that file.
+Optionally customizes the Markdown H1 title of a generated managed `AGENTS.md`.
 
 ```yaml
 amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions" # default: null
@@ -184,14 +185,35 @@ amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructio
 | -------------- | -------------- | ------- | --------------------------------------------------------------------------------------- |
 | `amd_h1_title` | string \| null | `null`  | H1 title used by the `sase memory init` `AGENTS.md` generator when enabled for a scope. |
 
-For ordinary project roots, this field is intentionally local to the root being initialized. `sase memory init` reads
-only that root's `./sase.yml` value, so a global `~/.config/sase/sase.yml` value does not opt every repository on the
-machine into generated `AGENTS.md` files.
+For ordinary project roots, `memory.enabled: true` in that root's own `./sase.yml` is the authorization switch. An
+enabled project with no title derives `<project> - Agent Instructions`; `amd_h1_title` alone does not opt a project in.
 
 Home roots are the exception. For the live home root, user config from `~/.config/sase/sase.yml` and
 `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. For the chezmoi home source root, source-side config
 under `dot_config/sase/` is used instead. With `use_chezmoi: true`, `sase memory init` initializes the chezmoi home
 source root rather than writing a live-home `AGENTS.md`.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
+
+### memory
+
+Controls whether SASE owns project-local memory and the root `AGENTS.md`.
+
+```yaml
+memory:
+  enabled: false # default
+```
+
+| Field            | Type    | Default | Description                                                                  |
+| ---------------- | ------- | ------- | ---------------------------------------------------------------------------- |
+| `memory.enabled` | boolean | `false` | Explicitly authorize project memory and managed root `AGENTS.md` generation. |
+
+Only the current project's checked-in `./sase.yml` is consulted for this authorization. Defaults, user config, and
+merged overlays cannot opt repositories in globally. When false or absent, memory init does not create, refresh, or
+validate project memory and does not create or alter the root `AGENTS.md`; it still propagates every existing project
+`AGENTS.md` to provider files beside it. Existing managed projects must add `memory.enabled: true` when migrating.
+
+Home and chezmoi-home memory initialization does not use this project-local switch.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
@@ -1536,8 +1558,8 @@ Bare `sase init` is the onboarding coordinator for SASE-managed resources. It ru
 and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
 Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. The memory
 planner (which owns agent-document initialization) only generates managed project `AGENTS.md` from bare `sase init` when
-the current project's own `./sase.yml` sets `amd_h1_title`, or when SASE memory would otherwise be unreachable from a
-minimal `AGENTS.md`.
+the current project's own `./sase.yml` sets `memory.enabled: true`. It never infers project ownership from
+`amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
 
 Advanced deploy controls stay on explicit subcommands such as `sase memory init --no-commit` and
 `sase skill init --no-push`.
@@ -1585,18 +1607,17 @@ sase memory log --id <read-id>
 
 ### `sase memory init`
 
-Creates or refreshes project and home memory roots and regenerates each root's managed `AGENTS.md`. It owns
-agent-document initialization: it writes a managed `AGENTS.md` for any root opted in via `amd_h1_title`, creates a
-minimal `AGENTS.md` when absent for roots that are not opted in, and overwrites each provider instruction file
-(`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a byte-for-byte copy of that root's `AGENTS.md` (legacy
-`@AGENTS.md` / `*.md.tmpl` import shims are recognized and migrated to full copies). When a root's `./sase.yml` (or, for
-home/chezmoi roots, user config) sets `amd_h1_title`, memory init synchronizes that root's managed memory: short-term
-notes are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes are rendered as a description-driven
-reference list, and missing long-memory `description` frontmatter is inserted. There is no legacy
-single-custom-provider-file migration: custom provider files next to a missing `AGENTS.md` are overwritten with shims
-rather than copied into `AGENTS.md`. By default it also tries to commit, rebase-pull, and push generated project-side
-files. `sase init memory` is a compatibility alias for this command. Generated linked-repository memory includes
-`sase workspace open` guidance for every configured linked repo.
+Creates or refreshes home memory and explicitly enabled project memory. Project ownership requires
+`memory.enabled: true` in the project's own `./sase.yml`; `amd_h1_title` is optional title customization, with a stable
+derived title otherwise. It never creates or alters an unmanaged project's root `AGENTS.md`. Independently, it
+overwrites each provider instruction file (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a byte-for-byte copy
+of that root's `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import shims are recognized and migrated to full copies).
+This copy applies to every existing project-tree `AGENTS.md`; directories without one are untouched. For managed roots,
+memory init synchronizes memory: short-term notes are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term
+notes are rendered as a description-driven reference list, and missing long-memory `description` frontmatter is
+inserted. By default it also tries to commit, rebase-pull, and push generated project-side files. `sase init memory` is
+a compatibility alias for this command. Generated linked-repository memory includes `sase workspace open` guidance for
+every configured linked repo.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

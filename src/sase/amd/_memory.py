@@ -250,7 +250,7 @@ def _render_managed_agents(
 def plan_amd_memory_sync(
     root: Path | None = None,
     *,
-    onboarding: bool = False,
+    derive_project_title: bool = False,
     generated_short_notes: Mapping[str, str] | None = None,
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
@@ -260,7 +260,9 @@ def plan_amd_memory_sync(
     ``memory/sase.md``) in a single pass instead of a stale on-disk copy.
     """
     root = root or Path.cwd()
-    title, title_error = resolve_amd_h1_title(root, onboarding=onboarding)
+    title, title_error = resolve_amd_h1_title(
+        root, derive_project_title=derive_project_title
+    )
     if title_error is not None:
         return AmdMemorySyncPlan(
             title=None,

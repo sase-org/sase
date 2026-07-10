@@ -114,6 +114,19 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
         assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_boolean_project_memory_opt_in() -> None:
+    schema = _schema()
+
+    for enabled in (False, True):
+        errors = tuple(
+            Draft7Validator(schema).iter_errors({"memory": {"enabled": enabled}})
+        )
+        assert errors == ()
+
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema).validate({"memory": {"enabled": "true"}})
+
+
 def test_config_schema_accepts_agent_family_plan_approval_defaults() -> None:
     schema = _schema()
     config = {

@@ -94,8 +94,20 @@
   "properties": {
     "amd_h1_title": {
       "type": ["string", "null"],
-      "description": "Project-local H1 title that opts a repository into generated AMD-managed AGENTS.md. The generator ignores global values.",
+      "description": "Optional H1 title used by generated AMD-managed AGENTS.md. Enabled projects derive a stable project title when this is null.",
       "default": null
+    },
+    "memory": {
+      "type": "object",
+      "description": "Project-local SASE-managed memory settings.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Explicitly authorize SASE to manage this project's memory tree and root AGENTS.md. Only the current project's own sase.yml is consulted.",
+          "default": false
+        }
+      }
     },
     "agent_family": {
       "type": "object",
