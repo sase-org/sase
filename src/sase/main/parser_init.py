@@ -79,6 +79,13 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
             "use `sase init memory --no-commit` or `sase skill init --no-push`."
         ),
     )
+    project_scope_group = init_parser.add_mutually_exclusive_group()
+    project_scope_group.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Attempt every known active main SASE project",
+    )
     mode_group = init_parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "-c",
@@ -86,7 +93,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Report initialization drift without writing files or running initializers",
     )
-    add_enable_project_memory_argument(init_parser)
+    add_enable_project_memory_argument(project_scope_group)
     mode_group.add_argument(
         "-y",
         "--yes",

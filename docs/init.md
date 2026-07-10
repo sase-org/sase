@@ -9,6 +9,9 @@ sase init -c       # report drift without writing
 sase init          # prompt before each needed initializer
 sase init --yes    # run every needed initializer in order
 sase init -M --yes # opt this project into managed memory, then initialize it
+sase init --all --check # check every active main project without writing
+sase init --all         # visit every active main project; prompt when interactive
+sase init --all --yes   # initialize every active main project without prompting
 ```
 
 The coordinator plans in registry order: memory, SDD, then skills. Memory initialization owns agent-document
@@ -20,10 +23,19 @@ and root `AGENTS.md` content when the current project's own `./sase.yml` sets `m
 explicit local opt-in, it leaves project memory and the root `AGENTS.md` untouched while still copying every existing
 project-tree `AGENTS.md` to the provider instruction files beside it.
 
+`sase init --all` uses the registered project inventory, so it can be run inside a project or from an unrelated
+directory. It visits active main projects only: inactive projects, sibling bookkeeping records, and the system-managed
+`home` project are excluded. Each project runs from its recorded primary workspace. Missing workspaces, invalid project
+records, planning errors, and initializer failures are reported under that project's heading without preventing later
+projects from being attempted; the final summary and exit status reflect the whole batch. `--all --check` is fully
+read-only and exits non-zero if any project has drift or cannot be checked. Without a TTY, `--all` remains read-only
+unless `--yes` is supplied.
+
 Use `-M, --enable-project-memory` to create or update the current project's `./sase.yml` with `memory.enabled: true`
 before normal initialization. The option preserves other local configuration and is available on both bare `sase init`
 and `sase memory init` (as well as the `sase init memory` compatibility alias). Because it writes configuration, it
-cannot be combined with `--check`.
+cannot be combined with `--check`. It also cannot be combined with `--all`; managed project memory must be enabled one
+project at a time.
 
 Explicit subcommands are still available when you need narrower control:
 
@@ -62,6 +74,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | Command                                 | Purpose                                                                                     |
 | --------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `sase init`                             | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells.    |
+| `sase init -a, --all`                   | Check or initialize every registered active main project, continuing after project errors.  |
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.      |
 | `sase init -M, --enable-project-memory` | Opt the current project into managed memory before running initialization.                  |
 | `sase init --yes`                       | Run every needed initializer in memory, SDD, skills order without prompting.                |

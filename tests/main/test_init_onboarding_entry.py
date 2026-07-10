@@ -35,6 +35,43 @@ def test_cli_main_dispatches_bare_init(
     )
 
 
+def test_cli_main_rejects_all_with_explicit_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main import entry
+
+    monkeypatch.setattr(sys, "argv", ["sase", "init", "--all", "memory"])
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 2
+    assert "--all cannot be combined" in capsys.readouterr().err
+
+
+def test_cli_main_dispatches_all_project_init(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main import entry, init_onboarding
+
+    seen: list[object] = []
+    monkeypatch.setattr(
+        init_onboarding,
+        "run_init_onboarding_all",
+        lambda args: seen.append(args) or 9,
+    )
+    monkeypatch.setattr(sys, "argv", ["sase", "init", "--all", "--check"])
+
+    with pytest.raises(SystemExit) as exc:
+        entry.main()
+
+    assert exc.value.code == 9
+    assert len(seen) == 1
+    assert seen[0].all is True
+    assert seen[0].check is True
+
+
 def test_init_check_memory_alias_does_not_apply(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

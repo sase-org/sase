@@ -3,20 +3,44 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 import copy
+from dataclasses import dataclass
+import os
 from pathlib import Path
 import sys
-from typing import TextIO
+from typing import Literal, TextIO
 
 from rich.console import Console
 
 from ._init_chezmoi_deploy import defer_chezmoi_deploy, deploy_deferred_chezmoi
 from .init_plan import InitAction, InitPlan
-from .init_project_scope import is_project_directory
+from .init_project_scope import (
+    InitProjectInventory,
+    InitProjectTarget,
+    is_project_directory,
+    resolve_init_project_inventory,
+)
 from .init_registry import InitCommandSpec, iter_init_command_specs
 
 _MAX_ACTION_DETAILS = 3
+
+InitRunStatus = Literal[
+    "current",
+    "initialized",
+    "needs_attention",
+    "failed",
+    "cancelled",
+]
+
+
+@dataclass(frozen=True)
+class _InitRunResult:
+    """Structured result for one onboarding run."""
+
+    exit_code: int
+    status: InitRunStatus
 
 
 def _console_for(file: TextIO) -> Console:
@@ -228,20 +252,66 @@ def run_init_check(
     return 1 if has_changes else 0
 
 
-def run_init_onboarding(
+def _run_changed_plans(
+    args: argparse.Namespace,
+    *,
+    plans: Sequence[InitPlan],
+    specs: Sequence[InitCommandSpec],
+    input_func: Callable[[str], str],
+    console: Console,
+) -> _InitRunResult:
+    spec_by_name = {spec.name: spec for spec in specs}
+    skipped = False
+    for plan in plans:
+        if not plan.has_changes or not plan.runnable:
+            continue
+        spec = spec_by_name[plan.command]
+        if getattr(args, "yes", False):
+            should_run = True
+        else:
+            try:
+                should_run = _prompt_for_plan(plan, input_func=input_func)
+            except EOFError:
+                should_run = False
+            except KeyboardInterrupt:
+                console.print()
+                console.print("init: confirmation cancelled; aborting.")
+                return _InitRunResult(1, "cancelled")
+        if not should_run:
+            skipped = True
+            continue
+        exit_code = spec.run(_apply_args(args, spec))
+        if exit_code != 0:
+            console.print()
+            console.print(
+                f"init {plan.command} failed with exit code {exit_code}.",
+                style="red",
+            )
+            return _InitRunResult(exit_code, "failed")
+
+    if skipped:
+        # Preserve the single-project coordinator's successful exit when a
+        # human declines work, while allowing a batch to report remaining
+        # drift in its aggregate status.
+        return _InitRunResult(0, "needs_attention")
+    return _InitRunResult(0, "initialized")
+
+
+def _run_init_onboarding_result(
     args: argparse.Namespace,
     *,
     specs: Sequence[InitCommandSpec] | None = None,
     input_func: Callable[[str], str] = input,
     stdin: TextIO | None = None,
     console: Console | None = None,
-) -> int:
-    """Run bare ``sase init`` and return a process exit code."""
+    manage_chezmoi_deploy: bool = True,
+) -> _InitRunResult:
+    """Run one project's onboarding and return a structured result."""
     if getattr(args, "enable_project_memory", False):
         from .init_memory_handler import prepare_project_memory_opt_in
 
         if not prepare_project_memory_opt_in(args):
-            return 1
+            return _InitRunResult(1, "failed")
 
     active_specs = _active_onboarding_specs(specs)
     out_console = console or _console_for(sys.stdout)
@@ -249,7 +319,7 @@ def run_init_onboarding(
 
     if not active_specs:
         _render_no_specs(out_console)
-        return 1
+        return _InitRunResult(1, "failed")
 
     plans = _plan_specs(args, active_specs)
     has_changes, has_blockers, _has_warnings = _render_check_summary(
@@ -259,52 +329,218 @@ def run_init_onboarding(
     )
 
     if has_blockers:
-        return 1
+        return _InitRunResult(1, "failed")
 
     if not has_changes:
-        return 0
+        return _InitRunResult(0, "current")
 
     if getattr(args, "check", False):
-        return 1
+        return _InitRunResult(1, "needs_attention")
 
     if not getattr(args, "yes", False) and not is_tty:
         out_console.print()
         out_console.print("Run `sase init --yes` to apply these changes.")
-        return 1
+        return _InitRunResult(1, "needs_attention")
 
-    spec_by_name = {spec.name: spec for spec in active_specs}
+    if not manage_chezmoi_deploy:
+        return _run_changed_plans(
+            args,
+            plans=plans,
+            specs=active_specs,
+            input_func=input_func,
+            console=out_console,
+        )
+
     with defer_chezmoi_deploy() as deferred_chezmoi:
-        for plan in plans:
-            if not plan.has_changes or not plan.runnable:
-                continue
-            spec = spec_by_name[plan.command]
-            if getattr(args, "yes", False):
-                should_run = True
-            else:
-                try:
-                    should_run = _prompt_for_plan(plan, input_func=input_func)
-                except EOFError:
-                    should_run = False
-                except KeyboardInterrupt:
-                    out_console.print()
-                    out_console.print("init: confirmation cancelled; aborting.")
-                    return 1
-            if not should_run:
-                continue
-            exit_code = spec.run(_apply_args(args, spec))
-            if exit_code != 0:
-                out_console.print()
-                out_console.print(
-                    f"init {plan.command} failed with exit code {exit_code}.",
-                    style="red",
-                )
-                return exit_code
+        result = _run_changed_plans(
+            args,
+            plans=plans,
+            specs=active_specs,
+            input_func=input_func,
+            console=out_console,
+        )
+        if result.exit_code != 0:
+            return result
 
         deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
         if deploy_exit_code != 0:
-            return deploy_exit_code
+            return _InitRunResult(deploy_exit_code, "failed")
 
-    return 0
+    return result
+
+
+def run_init_onboarding(
+    args: argparse.Namespace,
+    *,
+    specs: Sequence[InitCommandSpec] | None = None,
+    input_func: Callable[[str], str] = input,
+    stdin: TextIO | None = None,
+    console: Console | None = None,
+) -> int:
+    """Run bare ``sase init`` and return a process exit code."""
+    return _run_init_onboarding_result(
+        args,
+        specs=specs,
+        input_func=input_func,
+        stdin=stdin,
+        console=console,
+    ).exit_code
+
+
+@contextmanager
+def _working_directory(path: Path) -> Iterator[None]:
+    """Temporarily enter *path* and always restore the caller's directory."""
+    original = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(original)
+
+
+def _project_args(args: argparse.Namespace) -> argparse.Namespace:
+    """Return a fresh namespace for one project in a batch run."""
+    project_args = copy.copy(args)
+    project_args.all = False
+    project_args.enable_project_memory = False
+    for marker in (
+        "_project_memory_opt_in_prepared",
+        "_project_config_changed",
+        "_project_config_git_state",
+        "_project_config_operation",
+    ):
+        if hasattr(project_args, marker):
+            delattr(project_args, marker)
+    return project_args
+
+
+def _render_project_heading(console: Console, target: InitProjectTarget) -> None:
+    console.print()
+    console.print(f"Project: {target.reference}", style="bold cyan")
+    if target.warnings:
+        console.print("Project inventory warnings:", style="yellow")
+        for warning in target.warnings:
+            console.print(f"  {warning}")
+
+
+def _summary_parts(
+    *,
+    checked: int,
+    current: int,
+    initialized: int,
+    needs_attention: int,
+    unavailable: int,
+    failed: int,
+    cancelled: bool,
+    deploy_failed: bool,
+) -> list[str]:
+    parts = [f"{checked} checked"]
+    for count, singular in (
+        (current, "current"),
+        (initialized, "initialized"),
+        (needs_attention, "needs attention"),
+        (unavailable, "unavailable"),
+        (failed, "failed"),
+    ):
+        if count:
+            parts.append(f"{count} {singular}")
+    if cancelled:
+        parts.append("cancelled")
+    if deploy_failed:
+        parts.append("deployment failed")
+    return parts
+
+
+def run_init_onboarding_all(
+    args: argparse.Namespace,
+    *,
+    specs: Sequence[InitCommandSpec] | None = None,
+    input_func: Callable[[str], str] = input,
+    stdin: TextIO | None = None,
+    console: Console | None = None,
+) -> int:
+    """Run bare onboarding for every active main SASE project."""
+    out_console = console or _console_for(sys.stdout)
+    inventory: InitProjectInventory = resolve_init_project_inventory()
+    if inventory.error is not None:
+        out_console.print(f"init --all: {inventory.error}", style="red")
+        return 1
+    if not inventory.targets:
+        out_console.print("init --all: no active main SASE projects were found.")
+        return 1
+
+    checked = current = initialized = needs_attention = unavailable = failed = 0
+    cancelled = deploy_failed = False
+
+    with defer_chezmoi_deploy() as deferred_chezmoi:
+        for target in inventory.targets:
+            _render_project_heading(out_console, target)
+            if target.unavailable_reason is not None or target.workspace_dir is None:
+                unavailable += 1
+                reason = target.unavailable_reason or "primary workspace is unavailable"
+                out_console.print(f"init --all: {reason}", style="red")
+                continue
+
+            checked += 1
+            try:
+                with _working_directory(target.workspace_dir):
+                    result = _run_init_onboarding_result(
+                        _project_args(args),
+                        specs=specs,
+                        input_func=input_func,
+                        stdin=stdin,
+                        console=out_console,
+                        manage_chezmoi_deploy=False,
+                    )
+            except KeyboardInterrupt:
+                out_console.print()
+                out_console.print("init --all: cancelled; aborting.")
+                cancelled = True
+                break
+            except Exception as exc:
+                out_console.print(
+                    f"init --all: project failed: {exc}",
+                    style="red",
+                )
+                failed += 1
+                continue
+
+            if result.status == "current":
+                current += 1
+            elif result.status == "initialized":
+                initialized += 1
+            elif result.status == "needs_attention":
+                needs_attention += 1
+            elif result.status == "cancelled":
+                cancelled = True
+                break
+            else:
+                failed += 1
+
+        if not cancelled:
+            deploy_exit_code = deploy_deferred_chezmoi(deferred_chezmoi)
+            deploy_failed = deploy_exit_code != 0
+
+    parts = _summary_parts(
+        checked=checked,
+        current=current,
+        initialized=initialized,
+        needs_attention=needs_attention,
+        unavailable=unavailable,
+        failed=failed,
+        cancelled=cancelled,
+        deploy_failed=deploy_failed,
+    )
+    out_console.print()
+    out_console.print(f"Initialization summary: {', '.join(parts)}")
+
+    return int(
+        cancelled
+        or deploy_failed
+        or unavailable > 0
+        or failed > 0
+        or needs_attention > 0
+    )
 
 
 __all__ = [
@@ -312,4 +548,5 @@ __all__ = [
     "InitPlan",
     "run_init_check",
     "run_init_onboarding",
+    "run_init_onboarding_all",
 ]

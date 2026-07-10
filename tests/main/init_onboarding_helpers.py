@@ -20,6 +20,7 @@ def _args(
     yes: bool = False,
     check: bool = False,
     enable_project_memory: bool = False,
+    all_projects: bool = False,
 ) -> argparse.Namespace:
     return argparse.Namespace(
         command="init",
@@ -27,6 +28,7 @@ def _args(
         yes=yes,
         check=check,
         enable_project_memory=enable_project_memory,
+        all=all_projects,
     )
 
 

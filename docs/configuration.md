@@ -1561,11 +1561,18 @@ planner (which owns agent-document initialization) only generates managed projec
 the current project's own `./sase.yml` sets `memory.enabled: true`. It never infers project ownership from
 `amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
 
+`--all` applies that coordinator to every registered active main project from its recorded primary workspace, even when
+the command starts outside a project. It excludes inactive, sibling, `home`, and other system-managed records, continues
+after per-project failures, and returns non-zero if any project has drift, is unavailable, or fails. `--all --check` is
+read-only, while non-interactive apply still requires `--yes`. `--all` is incompatible with `--enable-project-memory`
+and with explicit compatibility subcommands.
+
 Advanced deploy controls stay on explicit subcommands such as `sase memory init --no-commit` and
 `sase skill init --no-push`.
 
 | Flag                          | Values | Default | Description                                                                          |
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
+| `-a, --all`                   | flag   | -       | Attempt every known active main SASE project and report one aggregate status.        |
 | `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
 | `-M, --enable-project-memory` | flag   | -       | Create/update `./sase.yml` with `memory.enabled: true` before initialization.        |
 | `-y, --yes`                   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |

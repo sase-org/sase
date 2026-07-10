@@ -177,9 +177,18 @@ def main() -> NoReturn:
 
     # --- init ---
     if args.command == "init":
+        if getattr(args, "all", False) and args.init_subcommand is not None:
+            parser.error(
+                "sase init --all cannot be combined with an explicit init subcommand"
+            )
         if args.init_subcommand is None:
-            from .init_onboarding import run_init_onboarding
+            from .init_onboarding import (
+                run_init_onboarding,
+                run_init_onboarding_all,
+            )
 
+            if getattr(args, "all", False):
+                sys.exit(run_init_onboarding_all(args))
             sys.exit(run_init_onboarding(args))
 
         if args.init_subcommand == "memory":

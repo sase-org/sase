@@ -14,6 +14,7 @@ def test_parser_accepts_bare_init_modes() -> None:
     init_args = parser.parse_args(["init"])
     assert init_args.command == "init"
     assert init_args.init_subcommand is None
+    assert init_args.all is False
     assert init_args.yes is False
     assert init_args.check is False
     assert init_args.enable_project_memory is False
@@ -36,6 +37,15 @@ def test_parser_accepts_bare_init_modes() -> None:
     short_check_args = parser.parse_args(["init", "-c"])
     assert short_check_args.init_subcommand is None
     assert short_check_args.check is True
+
+    all_args = parser.parse_args(["init", "--all"])
+    assert all_args.all is True
+
+    short_all_args = parser.parse_args(["init", "-a"])
+    assert short_all_args.all is True
+
+    assert parser.parse_args(["init", "--all", "--check"]).check is True
+    assert parser.parse_args(["init", "--all", "--yes"]).yes is True
 
 
 def test_parser_accepts_scoped_init_check_modes() -> None:
@@ -118,6 +128,13 @@ def test_parser_rejects_bare_init_check_yes_conflict() -> None:
     assert yes_args.yes is True
 
 
+def test_parser_rejects_all_project_memory_opt_in() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "--all", "--enable-project-memory"])
+
+
 def test_init_help_lists_existing_subcommands(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -132,9 +149,14 @@ def test_init_help_lists_existing_subcommands(
     assert "memory" in out
     assert "sdd" in out
     assert "skills" in out
+    assert "-a, --all" in out
     assert "-c, --check" in out
     assert "-M, --enable-project-memory" in out
     assert "Advanced deploy controls live on explicit subcommands" in out
+    assert "active main SASE project" in out
+    assert out.index("-a, --all") < out.index("-c, --check")
+    assert out.index("-c, --check") < out.index("-M, --enable-project-memory")
+    assert out.index("-M, --enable-project-memory") < out.index("-y, --yes")
 
 
 def test_registry_order_is_memory_sdd_skills() -> None:
