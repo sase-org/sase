@@ -212,6 +212,12 @@ class PromptStepMixin:
                 effective_directives,
                 model=self.inherited_model_override,
             )
+        retry_model_override = os.environ.get("SASE_MODEL_OVERRIDE")
+        if retry_model_override:
+            effective_directives = replace(
+                effective_directives,
+                model=retry_model_override,
+            )
 
         # Then expand embedded workflows
         # This executes pre-steps and replaces workflow refs with prompt_part content
