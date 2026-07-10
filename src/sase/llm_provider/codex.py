@@ -292,6 +292,7 @@ class CodexProvider(LLMProvider):
                 "Too Many Requests",
                 "rate limit",
                 "failed to connect to websocket",
+                "Selected model is at capacity",
             ],
             wait_times=[60, 300, 1800],
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,

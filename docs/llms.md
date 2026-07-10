@@ -1070,9 +1070,9 @@ Claude and Codex; user config can replace or extend it through the normal config
 
 - **max_retries**: 3
 - **error_patterns**:
-  `["exceeded retry limit", "429 Too Many Requests", "Too Many Requests", "rate limit", "failed to connect to websocket"]`
-  — the Codex CLI's own give-up message, the terminal rate-limit status, and the transient websocket transport error. A
-  bare `403 Forbidden` is deliberately excluded so a persistent auth failure is not retried forever.
+  `["exceeded retry limit", "429 Too Many Requests", "Too Many Requests", "rate limit", "failed to connect to websocket", "Selected model is at capacity"]`
+  — the Codex CLI's own give-up message, terminal rate-limit and model-capacity statuses, and the transient websocket
+  transport error. A bare `403 Forbidden` is deliberately excluded so a persistent auth failure is not retried forever.
 - **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min) — rate limits need a real cool-down
 
 ### Provider-Supplied Retry Defaults
@@ -1093,8 +1093,8 @@ Claude:
 Codex:
 
 - **error patterns**: `"exceeded retry limit"`, `"429 Too Many Requests"`, `"Too Many Requests"`, `"rate limit"`, and
-  `"failed to connect to websocket"` — the transient transport / rate-limit failure mode where the Codex CLI exhausts
-  its own internal reconnects and exits non-zero
+  `"failed to connect to websocket"`, and `"Selected model is at capacity"` — the transient transport, rate-limit, and
+  model-capacity failure modes where the Codex CLI exhausts its own internal reconnects or exits non-zero
 - **max_retries**: 3
 - **wait_times**: `[60, 300, 1800]` — the bundled Codex policy supplies the same backoff
 - **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude

@@ -34,6 +34,11 @@ _CODEX_TRANSIENT_FAILURE = (
     "[turn.failed] exceeded retry limit, last status: 429 Too Many Requests"
 )
 
+_CODEX_CAPACITY_FAILURE = (
+    "[error] Selected model is at capacity. Please try a different model.\n"
+    "[turn.failed] Selected model is at capacity. Please try a different model."
+)
+
 # A persistent credential/authorization failure with no rate-limit wording —
 # must NOT be retried (guards against over-matching a bare 403).
 _CODEX_PERSISTENT_AUTH_FAILURE = (
@@ -470,6 +475,7 @@ class TestCodexBuiltInDefaults:
         assert "exceeded retry limit" in config.error_patterns
         assert "429 Too Many Requests" in config.error_patterns
         assert "failed to connect to websocket" in config.error_patterns
+        assert "Selected model is at capacity" in config.error_patterns
         # Rate limits need a real cool-down, unlike Claude's [0] context-limit
         # cadence.
         assert config.wait_times == [60, 300, 1800]
@@ -498,6 +504,25 @@ class TestCodexBuiltInDefaults:
         assert config is not None
         assert config.max_retries == 3
         assert "exceeded retry limit" in config.error_patterns
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_capacity_failure_matches_built_in(self, mock_config: object) -> None:
+        """The observed model-capacity failure is retried by default."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("codex")
+        assert config is not None
+        assert is_retryable_error(_CODEX_CAPACITY_FAILURE, config) is True
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_capacity_failure_discovered_by_finder(
+        self, mock_config: object
+    ) -> None:
+        """find_retry_config_for_error recognizes Codex capacity failures."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = find_retry_config_for_error(_CODEX_CAPACITY_FAILURE)
+        assert config is not None
+        assert config.max_retries == 3
+        assert "Selected model is at capacity" in config.error_patterns
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_codex_persistent_auth_failure_not_retried(
@@ -534,6 +559,7 @@ class TestCodexBuiltInDefaults:
             "Too Many Requests",
             "rate limit",
             "failed to connect to websocket",
+            "Selected model is at capacity",
             "my custom codex pattern",
         ]
         assert config.max_retries == 3  # inherited from built-in
