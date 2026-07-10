@@ -19,6 +19,7 @@ def test_keybinding_footer_status_indicator_starting() -> None:
     text = footer._get_status_text()
     text_str = str(text)
 
+    assert "AXE" in text_str
     assert "STARTING" in text_str
 
 
@@ -33,7 +34,53 @@ def test_keybinding_footer_status_indicator_stopping() -> None:
     text = footer._get_status_text()
     text_str = str(text)
 
+    assert "AXE" in text_str
     assert "STOPPING" in text_str
+
+
+def test_keybinding_footer_status_indicator_restarting() -> None:
+    """Test status indicator labels axe while it is restarting."""
+    footer = KeybindingFooter()
+    footer.end_startup_stopwatch()
+    footer._axe_restarting = True
+
+    text_str = str(footer._get_status_text())
+
+    assert "AXE" in text_str
+    assert "RESTARTING" in text_str
+
+
+def test_keybinding_footer_status_indicator_running() -> None:
+    """Test status indicator labels axe while it is running."""
+    footer = KeybindingFooter()
+    footer.end_startup_stopwatch()
+    footer._axe_running = True
+
+    text_str = str(footer._get_status_text())
+
+    assert "AXE" in text_str
+    assert "RUNNING" in text_str
+
+
+def test_keybinding_footer_status_indicator_stopped() -> None:
+    """Test status indicator labels axe while it is stopped."""
+    footer = KeybindingFooter()
+    footer.end_startup_stopwatch()
+
+    text_str = str(footer._get_status_text())
+
+    assert "AXE" in text_str
+    assert "STOPPED" in text_str
+
+
+def test_keybinding_footer_startup_indicator_is_labeled() -> None:
+    """Test the startup stopwatch is identified as axe status."""
+    footer = KeybindingFooter()
+
+    text_str = str(footer._get_status_text())
+
+    assert "AXE" in text_str
+    assert "starting" in text_str
 
 
 def test_keybinding_footer_set_axe_stopping() -> None:

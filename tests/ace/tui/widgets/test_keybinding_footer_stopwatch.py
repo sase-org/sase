@@ -54,9 +54,11 @@ def _assert_stopwatch_style(
     frame: int = 0,
 ) -> None:
     text = _render_stopwatch(elapsed, frame=frame)
-    assert len(text.spans) == 3
-    assert all(expected_bg in str(span.style) for span in text.spans)
-    assert all(expected_fg in str(span.style) for span in text.spans)
+    assert len(text.spans) == 4
+    label_span, *stopwatch_spans = text.spans
+    assert text.plain[label_span.start : label_span.end].strip() == "AXE"
+    assert all(expected_bg in str(span.style) for span in stopwatch_spans)
+    assert all(expected_fg in str(span.style) for span in stopwatch_spans)
     assert _label_is_bold(text) is emphasized
 
 
@@ -67,8 +69,7 @@ def test_default_state_shows_stopwatch() -> None:
     text = footer._get_status_text()
     assert _has_any_frame_glyph(text.plain)
     assert "starting" in text.plain
-    # Leading spaces before the frame glyph match the padded-badge convention.
-    assert text.plain.startswith("  ")
+    assert text.plain.startswith(" AXE ")
 
 
 def test_elapsed_formatting_one_decimal() -> None:

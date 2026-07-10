@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from textual.timer import Timer
 
 
+_AXE_LABEL_TEXT = " AXE "
+_AXE_LABEL_STYLE = "bold white on rgb(68,71,90)"
 _STARTUP_STOPWATCH_TIMEOUT_SECS = 30.0
 _STOPWATCH_GLYPH_FRAMES = ("◴", "◷", "◶", "◵")
 _STOPWATCH_TIER_YELLOW_SECS = 3.0
@@ -173,6 +175,7 @@ class KeybindingStatusMixin:
             Formatted Text object for the status indicator.
         """
         text = Text()
+        text.append(_AXE_LABEL_TEXT, style=_AXE_LABEL_STYLE)
         if self._startup_stopwatch_active:
             bg, fg, emphasized = _stopwatch_palette(
                 self._startup_elapsed, self._stopwatch_frame

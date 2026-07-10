@@ -1366,7 +1366,8 @@ the parent.
 The keybinding footer renders available conditional actions as non-breaking key/label chips. When the chips do not fit
 on one line, the footer switches to a deterministic grid so narrow terminals and leader-mode action sets do not wrap in
 the middle of a binding. Mode labels such as `LEADER` are pinned on the left, and the axe/status indicator remains
-pinned on the right.
+pinned on the right. The status is a segmented badge with a neutral `AXE` label chip before the colored state chip, so
+the indicator always identifies the daemon it describes.
 
 The footer also shows axe daemon status indicators:
 

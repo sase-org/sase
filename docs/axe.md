@@ -458,7 +458,7 @@ The Axe tab in the ACE TUI provides live monitoring of the daemon:
 - A lumberjack tree sidebar (lumberjack rows + their chops as children + background-command rows)
 - A lumberjack overview, per-chop detail view, and run-history pager (see [AXE Tab Views](#axe-tab-views))
 - Start/stop the orchestrator (`x` key or `!x`) and runner counts
-- Footer shows daemon status: RUNNING, STOPPED, STARTING, STOPPING, or RESTARTING
+- Footer shows a segmented `AXE` badge followed by daemon status: RUNNING, STOPPED, STARTING, STOPPING, or RESTARTING
 
 The RESTARTING indicator appears when `sase ace --restart-axe` (`-R`) is used — the daemon restarts in the background
 while the TUI starts up normally.
