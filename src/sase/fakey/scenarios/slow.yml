@@ -1,0 +1,7 @@
+version: 1
+delay: 0.25
+stream:
+  chunk_delay: 0.05
+reply: |-
+  Fakey is streaming.
+  Fakey completed successfully.

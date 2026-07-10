@@ -1,0 +1,10 @@
+version: 1
+attempts:
+  - fail:
+      message: transient fakey failure (1/2)
+      retryable: true
+  - fail:
+      message: transient fakey failure (2/2)
+      retryable: true
+  - succeed:
+      reply: Fakey recovered on the third attempt.

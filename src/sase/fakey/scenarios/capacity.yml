@@ -1,0 +1,7 @@
+version: 1
+attempts:
+  - fail:
+      message: Selected model is at capacity
+      retryable: false
+      exit_code: 1
+      channel: stderr

@@ -92,6 +92,7 @@ docs-pdf = [
 ]
 
 [project.scripts]
+fakey = "sase.fakey.cli:main"
 sase = "sase.main.entry:main"
 sase_bug = "sase.scripts:sase_bug"
 sase_git_commit = "sase.scripts:sase_git_commit"

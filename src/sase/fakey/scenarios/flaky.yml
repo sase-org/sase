@@ -1,0 +1,9 @@
+version: 1
+attempts:
+  - fail:
+      message: transient fakey failure
+      retryable: true
+      exit_code: 1
+      channel: stderr
+  - succeed:
+      reply: Fakey recovered on the second attempt.

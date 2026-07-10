@@ -1,0 +1,7 @@
+version: 1
+attempts:
+  - fail:
+      message: simulated fakey crash
+      retryable: false
+      exit_code: 1
+      channel: stderr
