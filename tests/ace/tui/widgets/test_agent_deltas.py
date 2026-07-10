@@ -356,7 +356,6 @@ new file mode 100644
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir=str(linked),
-                workspace_strategy="suffix",
             ),
         ),
         step_output={
@@ -527,7 +526,6 @@ def test_agent_deltas_render_cached_linked_groups(tmp_path: Path) -> None:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir=str(linked_workspace),
-                workspace_strategy="suffix",
             ),
         ),
     )
@@ -565,7 +563,6 @@ def test_agent_deltas_render_path_uses_linked_cache_only(
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir=str(linked_workspace),
-                workspace_strategy="suffix",
             ),
         ),
     )

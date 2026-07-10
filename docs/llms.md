@@ -145,10 +145,9 @@ postprocessing when the process is a SASE agent session (`SASE_AGENT_TIMESTAMP` 
 project workspace through the active VCS provider and checks configured linked repositories as Git worktrees at their
 resolved `workspace_dir`. If it finds dirty enforced work, it sends the same provider a bounded follow-up prompt that
 lists the dirty files and instructs the agent to use the appropriate commit skill, such as `/sase_git_commit`. Dirty
-static linked repos (`workspace.strategy: none`) are included in that prompt only as advisory work and do not fail the
-run if they remain dirty. A narrow generated SDD plan closeout, where the only enforced change is one markdown file's
-frontmatter `status: wip` becoming `status: done`, is committed directly with a `SASE_TYPE=sdd` commit instead of
-consuming a provider follow-up pass.
+linked repo clones are enforced like the main workspace. A narrow generated SDD plan closeout, where the only enforced
+change is one markdown file's frontmatter `status: wip` becoming `status: done`, is committed directly with a
+`SASE_TYPE=sdd` commit instead of consuming a provider follow-up pass.
 
 The finalizer skips when the call is outside a SASE agent session, when `commit.finalizer.enabled` is false, or when
 `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set. When an artifacts directory is available, each follow-up pass writes
@@ -1419,7 +1418,7 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 ├── 11. Run commit finalizer for SASE agent sessions
 │   ├── Skip when disabled or outside an agent session
 │   ├── Check main workspace and configured Git linked repos
-│   ├── Treat static linked repos as advisory dirty targets
+│   ├── Enforce dirty linked repo clones
 │   ├── Auto-commit exact tracked SDD done-status closeouts
 │   └── Run bounded follow-up provider invocations until enforced repos are clean or failed
 │

@@ -51,21 +51,8 @@ def _extend_workspace_section(lines: list[str], project_name: str) -> None:
     )
 
 
-def _static_linked_repo_display_path(entry: LinkedRepoMemoryEntry) -> str:
-    display_path = entry.path
-    if not display_path.endswith("/"):
-        display_path = f"{display_path}/"
-    return display_path
-
-
 def _linked_repo_list_item(entry: LinkedRepoMemoryEntry) -> str:
-    text = f"- `{entry.name}`: {entry.description}"
-    if entry.workspace_strategy == "none":
-        text += (
-            " This repo is defined in the "
-            f"`{_static_linked_repo_display_path(entry)}` directory."
-        )
-    return text
+    return f"- `{entry.name}`: {entry.description}"
 
 
 def _extend_linked_repository_section(
@@ -88,30 +75,23 @@ def _extend_linked_repository_section(
         lines.append("")
         return
 
-    numbered_entries = tuple(
-        entry for entry in entries if entry.workspace_strategy != "none"
+    lines.extend(
+        [
+            "",
+            "When you need to make changes to files in a numbered-workspace linked repo or need to review numbered-workspace linked repo code, agents MUST run:",
+            "",
+            "```bash",
+            'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>',
+            "```",
+            "",
+            "`<workspace_num>` must be the workspace number assigned to the primary repo "
+            "(check what directory you were started in to figure this out). Use the path printed by",
+            "`sase workspace open` as the only linked repo path for numbered-workspace linked reads/writes.",
+            "",
+            "IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any other way than by using `sase workspace open`!",
+            "",
+        ]
     )
-
-    if numbered_entries:
-        lines.extend(
-            [
-                "",
-                "When you need to make changes to files in a numbered-workspace linked repo or need to review numbered-workspace linked repo code, agents MUST run:",
-                "",
-                "```bash",
-                'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>',
-                "```",
-                "",
-                "`<workspace_num>` must be the workspace number assigned to the primary repo "
-                "(check what directory you were started in to figure this out). Use the path printed by",
-                "`sase workspace open` as the only linked repo path for numbered-workspace linked reads/writes.",
-                "",
-                "IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any other way than by using `sase workspace open`!",
-                "",
-            ]
-        )
-    else:
-        lines.append("")
 
 
 def _render_sase_memory(

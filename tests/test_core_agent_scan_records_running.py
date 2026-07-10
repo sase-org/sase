@@ -210,12 +210,10 @@ def test_running_record_linked_repos_survive_scan_index_and_enrichment(
         LinkedRepoMetadata(
             name="sase-core",
             workspace_dir="/tmp/workspaces/sase-core_14",
-            workspace_strategy="suffix",
         ),
         LinkedRepoMetadata(
             name="sase-github",
             workspace_dir="/tmp/workspaces/sase-github_14",
-            workspace_strategy="suffix",
         ),
     )
 

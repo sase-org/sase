@@ -13,6 +13,7 @@ import pytest
 
 from sase.main.workspace_handler import handle_workspace_command
 from sase.main.workspace_handler_context import ProjectContext
+from sase.main.workspace_handler_list import resolve_checkout_path
 from sase.linked_repos import LINKED_REPOS_JSON_ENV, opened_linked_repo_records
 from sase.sibling_repos import OPENED_SIBLINGS_FILENAME, opened_sibling_names
 from sase.vcs_provider import VCS_DEFAULT_REVISION
@@ -87,6 +88,99 @@ class TestList:
 
 
 class TestPath:
+    def test_linked_repo_path_is_host_scoped(self, tmp_path: Path) -> None:
+        host_primary = tmp_path / "main"
+        linked_primary = tmp_path / "core"
+        host_primary.mkdir()
+        linked_primary.mkdir()
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=str(tmp_path / "core.sase"),
+            primary_workspace_dir=str(linked_primary),
+            store=WorkspaceStore(str(linked_primary)),
+            is_sibling=True,
+            is_configured_linked_repo=True,
+            linked_host_primary_workspace_dir=str(host_primary),
+        )
+
+        path = resolve_checkout_path(
+            ctx,
+            10,
+            materialize=False,
+            load_config=lambda: {"workspace": {"root": "adjacent"}},
+        )
+
+        assert path == str(
+            host_primary.with_name("main_10") / ".sase" / "workspaces" / "core"
+        )
+
+    def test_linked_repo_primary_passthrough(self, tmp_path: Path) -> None:
+        linked_primary = tmp_path / "core"
+        linked_primary.mkdir()
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=str(tmp_path / "core.sase"),
+            primary_workspace_dir=str(linked_primary),
+            store=WorkspaceStore(str(linked_primary)),
+            is_sibling=True,
+            is_configured_linked_repo=True,
+        )
+
+        path = resolve_checkout_path(
+            ctx,
+            1,
+            materialize=False,
+            load_config=lambda: {},
+        )
+
+        assert path == str(linked_primary)
+
+    def test_linked_repo_numbered_path_requires_host_context(
+        self, tmp_path: Path
+    ) -> None:
+        linked_primary = tmp_path / "core"
+        linked_primary.mkdir()
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=str(tmp_path / "core.sase"),
+            primary_workspace_dir=str(linked_primary),
+            store=WorkspaceStore(str(linked_primary)),
+            is_sibling=True,
+            is_configured_linked_repo=True,
+        )
+
+        with pytest.raises(RuntimeError, match="host-scoped"):
+            resolve_checkout_path(
+                ctx,
+                10,
+                materialize=False,
+                load_config=lambda: {},
+            )
+
+    def test_sibling_project_direct_path_uses_its_own_store(
+        self, tmp_path: Path
+    ) -> None:
+        linked_primary = tmp_path / "core"
+        linked_primary.mkdir()
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=str(tmp_path / "core.sase"),
+            primary_workspace_dir=str(linked_primary),
+            store=WorkspaceStore(
+                str(linked_primary), config={"workspace": {"root": "adjacent"}}
+            ),
+            is_sibling=True,
+        )
+
+        path = resolve_checkout_path(
+            ctx,
+            10,
+            materialize=False,
+            load_config=lambda: {"workspace": {"root": "adjacent"}},
+        )
+
+        assert path == str(linked_primary.with_name("core_10"))
+
     def test_path_zero_prints_primary(
         self,
         project_layout: tuple[str, str, Path],

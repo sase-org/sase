@@ -367,11 +367,10 @@ place after the editor exits.
 ### Linked Workspace Context
 
 Configured `linked_repos` are recorded in agent metadata at launch time. For non-terminal agents, ACE can include dirty,
-existing suffix-strategy linked repo workspaces in the agent detail `DELTAS` section. The folded summary counts primary
-and linked-repo changes together; the unfolded view groups linked entries under the workspace glyph and linked-repo
-name, and file hints resolve paths relative to the linked workspace directory. Static linked repos
-(`workspace.strategy: none`), missing workspace directories, clean repos, and completed/failed agents are not part of
-this live linked-delta display.
+existing linked repo workspaces in the agent detail `DELTAS` section. The folded summary counts primary and linked-repo
+changes together; the unfolded view groups linked entries under the workspace glyph and linked-repo name, and file hints
+resolve paths relative to the linked workspace directory. Missing workspace directories, clean repos, and
+completed/failed agents are not part of this live linked-delta display.
 
 When a SASE-launched agent opens a configured linked repo with
 `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`, the run records an opened-workspace marker. Here
@@ -688,7 +687,7 @@ actions operate on terminal rows that are loaded in the Agents tab; `,j` only ta
 | `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                           |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation            |
-| `,r`       | Revert focused or marked agent commits, including recorded suffix-strategy linked repos      |
+| `,r`       | Revert focused or marked agent commits, including recorded linked repos                      |
 | `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                     |
 | `,<space>` | Run agent from current agent's PR (skips selection)                                          |
 | `,.`       | Open prompt history modal                                                                    |
@@ -706,12 +705,11 @@ Embedded `---` inside an individual agent prompt stays inside that agent's pane.
 
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent before creating git revert commits.
 For plan/follow-up families, ACE reverts the family scope when the row carries family metadata; otherwise it reverts the
-focused agent name. The preview includes the primary workspace plus recorded `linked_repos` metadata entries that use
-the numbered-workspace suffix strategy and still point at an existing workspace directory; static linked repos and
-never-opened linked workspaces are not part of this action. Each repository is checked before execution, and a dirty or
-non-git linked repo is reported and skipped while clean repositories can still be reverted. Successful execution creates
-one revert commit per repository, pushes when a remote tracking branch is available, and writes `revert_result.json`
-beside the agent artifacts.
+focused agent name. The preview includes the primary workspace plus recorded `linked_repos` metadata entries that still
+point at an existing workspace directory; never-opened linked workspaces are not part of this action. Each repository is
+checked before execution, and a dirty or non-git linked repo is reported and skipped while clean repositories can still
+be reverted. Successful execution creates one revert commit per repository, pushes when a remote tracking branch is
+available, and writes `revert_result.json` beside the agent artifacts.
 
 When agents are marked, `,r` previews the combined commit set for the marked `DONE` / `FAILED` rows. Marked agents must
 come from the same primary workspace. The bulk path still groups work by repository, deduplicates overlapping family

@@ -183,7 +183,7 @@ def set_workspace_dir(project_file: str, workspace_dir: str) -> bool:
         return False
 
 
-def _ensure_git_clone_at(
+def ensure_git_clone_at(
     primary_workspace_dir: str,
     workspace_num: int,
     target_checkout_dir: str,
@@ -332,7 +332,7 @@ def ensure_workspace_checkout(
         config = load_merged_config()
     store = WorkspaceStore(primary_workspace_dir, config=config, env=env)
     path = store.resolve(workspace_num)
-    checkout_dir = _ensure_git_clone_at(
+    checkout_dir = ensure_git_clone_at(
         primary_workspace_dir, workspace_num, path.checkout_dir
     )
     _record_managed_workspace(store, path)

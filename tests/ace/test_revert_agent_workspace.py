@@ -372,7 +372,7 @@ def test_prepare_materializes_and_prepares_linked_repo(
             SimpleNamespace(
                 name="sase-core",
                 workspace_dir=str(claimed_linked),
-                workspace_strategy="suffix",
+                primary_dir=str(primary_origin),
             )
         ]
     )
@@ -422,7 +422,7 @@ def test_prepare_blocks_linked_repo_missing_branch(
             SimpleNamespace(
                 name="sase-core",
                 workspace_dir=str(claimed_linked),
-                workspace_strategy="suffix",
+                primary_dir=str(primary_origin),
             )
         ]
     )

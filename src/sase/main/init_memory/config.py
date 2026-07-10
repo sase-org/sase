@@ -7,17 +7,16 @@ import os
 from pathlib import Path
 import re
 import subprocess
-from typing import Any, cast
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
 from sase.linked_repos import LINKED_REPOS_CONFIG_KEY, SIBLING_REPOS_CONFIG_KEY
 
 from .constants import COMMAND_LABEL
-from .models import LinkedRepoMemoryEntry, WorkspaceStrategy
+from .models import LinkedRepoMemoryEntry
 
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
-_VALID_WORKSPACE_STRATEGIES = {"suffix", "none"}
 
 
 def project_config_path() -> Path:
@@ -157,25 +156,6 @@ def _load_yaml_mapping(path: Path) -> tuple[Mapping[str, Any], str | None]:
     return data, None
 
 
-def _workspace_strategy(item: Mapping[str, Any]) -> WorkspaceStrategy | None:
-    workspace = item.get("workspace", {})
-    if not isinstance(workspace, Mapping):
-        workspace = {}
-    raw = workspace.get("strategy", "suffix")
-    strategy = str(raw or "suffix")
-    if strategy not in _VALID_WORKSPACE_STRATEGIES:
-        return None
-    return cast(WorkspaceStrategy, strategy)
-
-
-def _resolve_memory_static_path(path: str, *, relative_to: Path) -> str:
-    expanded = os.path.expandvars(os.path.expanduser(path))
-    candidate = Path(expanded)
-    if not candidate.is_absolute():
-        candidate = relative_to / candidate
-    return str(candidate.resolve(strict=False))
-
-
 def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
     """Return the configured related-repo list plus the source config key.
 
@@ -206,11 +186,6 @@ def linked_entries_from_config(
 
     entries: list[LinkedRepoMemoryEntry] = []
     errors: list[str] = []
-    relative_root = (
-        primary_workspace_root_for_memory(Path.cwd())
-        if primary_root is None
-        else primary_root.resolve(strict=False)
-    )
     for index, item in enumerate(raw):
         prefix = f"{config_path}: {source_key}[{index}]"
         if not isinstance(item, Mapping):
@@ -237,27 +212,13 @@ def linked_entries_from_config(
             )
             continue
 
-        strategy = _workspace_strategy(item)
-        if strategy is None:
-            errors.append(
-                f"{prefix} ({name.strip()!r}) has unsupported workspace.strategy"
-            )
-            continue
-
         path = raw_path.strip()
-        static_path = (
-            _resolve_memory_static_path(path, relative_to=relative_root)
-            if strategy == "none"
-            else None
-        )
 
         entries.append(
             LinkedRepoMemoryEntry(
                 name=name.strip(),
                 description=" ".join(description.strip().split()),
                 path=path,
-                workspace_strategy=strategy,
-                static_path=static_path,
             )
         )
 

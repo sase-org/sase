@@ -40,30 +40,23 @@ and injects an instruction telling the agent **not** to create commits directly.
 When a provider invocation succeeds inside a SASE-launched agent session, the provider-neutral **commit finalizer** runs
 in the shared LLM invocation layer before normal success postprocessing. In practice this means the process has
 `SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted changes through the active VCS
-provider. It enforces configured numbered linked repositories only after the agent opens that linked workspace with
-`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`, which records the linked-repo name in the run's
-artifacts. Static linked repos are still checked only as advisory work, as described below. It does not scan arbitrary
-same-remote numbered workspaces just because their paths appear in run artifacts. If everything is clean, the agent
-response is postprocessed normally.
+provider. It enforces configured linked repositories at their host-scoped workspace paths. The
+`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` command also records manually opened linked
+workspaces for ACE context. It does not scan arbitrary same-remote numbered workspaces just because their paths appear
+in run artifacts. If everything is clean, the agent response is postprocessed normally.
 
-There are two special cases before the normal enforced-work follow-up path:
+There is one special case before the normal enforced-work follow-up path:
 
 - If the only enforced dirty file is a tracked markdown file under `sdd/tales/` or `sdd/epics/`, and the only file diff
   is one leading-front-matter line changing from `status: wip` to `status: done`, SASE creates a direct closeout commit
-  with the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag.
-- Linked repos configured with `workspace.strategy: none` are static singletons. Dirty static linked repos are included
-  in the follow-up prompt as advisory work: the agent is told to commit them only if it made those changes in this
-  session, and leaving them dirty does not fail the finalizer. A run with only advisory static linked-repo changes can
-  still get a follow-up prompt, but it finalizes successfully after that pass even if the advisory repo stays dirty.
-
-If enforced changes or advisory static linked-repo changes remain, the finalizer starts bounded follow-up passes with
-the same provider. Each pass sends one follow-up prompt that lists dirty files and instructs the agent to use a commit
-skill such as `/sase_git_commit` or `/sase_hg_commit`. For the main workspace, the skill name is selected from the
-detected VCS provider; provider-specific generated skills can be scoped to the runtimes that support that provider. For
-configured linked repos, the current finalizer checks `git status` only in the resolved linked-repo `workspace_dir`
-assigned to the same workspace number after that linked-repo name appears in `opened_linked_workspaces.json`, and emits
-Git commit-skill instructions that first `cd` into that linked workspace. Non-static dirty linked repos are enforced
-after they are opened; static linked repos are advisory as described above.
+  with the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag. If enforced changes remain, the
+  finalizer starts bounded follow-up passes with the same provider. Each pass sends one follow-up prompt that lists
+  dirty files and instructs the agent to use a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the
+  main workspace, the skill name is selected from the detected VCS provider; provider-specific generated skills can be
+  scoped to the runtimes that support that provider. For configured linked repos, the current finalizer checks
+  `git status` only in the resolved linked-repo `workspace_dir` assigned to the same workspace number after that
+  linked-repo name appears in `opened_linked_workspaces.json`, and emits Git commit-skill instructions that first `cd`
+  into that linked workspace. Dirty linked repos are enforced after they are opened.
 
 Generated skills normally run an observable wrapper such as `sase_git_commit`, which records skill invocation evidence
 and then delegates to `sase commit`. A typical Git skill invocation omits `--type` because the xprompt already set
@@ -432,25 +425,21 @@ Antigravity (`agy`), Qwen, OpenCode, and provider plugins share the same behavio
 2. Resolve the project directory from provider/workspace environment variables.
 3. Check the main workspace through the VCS provider's diff helpers.
 4. Check configured linked repos from `SASE_LINKED_REPOS_JSON`, or from project config when available, with
-   `git status --porcelain`: numbered linked repos are limited to names in `opened_linked_workspaces.json`, while static
-   `workspace.strategy: none` linked repos are advisory.
+   `git status --porcelain`; opened-workspace markers provide paths for linked repos opened during the run.
 5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout when that is the only enforced
    change and the file is under `sdd/tales/` or `sdd/epics/`.
-6. If dirty enforced repos or advisory static linked repos exist, run follow-up provider invocations up to
-   `commit.finalizer.max_passes`. When an artifacts directory is available, also write
-   `commit_finalizer_pass_<N>_prompt.md` and `commit_finalizer_pass_<N>_response.md`.
+6. If dirty enforced repos exist, run follow-up provider invocations up to `commit.finalizer.max_passes`. When an
+   artifacts directory is available, also write `commit_finalizer_pass_<N>_prompt.md` and
+   `commit_finalizer_pass_<N>_response.md`.
 7. Re-check every dirty target. If all enforced repos are clean, write `commit_finalizer_result.json` with status
    `finalized` when artifacts are enabled, and append the follow-up response to the agent's final response.
 8. If enforced changes remain after `commit.finalizer.max_passes`, write status `failed` when artifacts are enabled and
    fail the invocation instead of silently accepting dirty work.
 
-Configured linked repos are resolved to workspace-matched directories before agent launch. For example, an agent in
-`sase_10` sees a `../sase-core` linked repo as `sase-core_10` when that checkout is available or can be materialized.
-Repos configured with `workspace.strategy: none` are exposed to the agent and reported as advisory dirty targets when
-they are Git repos, but they are not enforced because their singleton ownership is ambiguous. The current linked-repo
-dirty-check path is Git-specific and opened-workspace gated: non-Git linked-repo paths can still be exposed to the agent
-through environment variables and metadata, and unopened numbered linked repos are ignored, but the finalizer does not
-enforce them as dirty targets.
+Configured linked repos are resolved to host-scoped directories before agent launch. For example, an agent in `sase_10`
+sees a `../sase-core` linked repo at `sase_10/.sase/workspaces/sase-core`. The linked-repo dirty-check path is
+Git-specific: non-Git linked-repo paths can still be exposed through environment variables and metadata, but the
+finalizer does not enforce them as dirty targets.
 
 When the only enforced dirty state is the exact SDD status closeout described above, the finalizer creates the commit
 itself instead of running a follow-up provider invocation. The result artifact records

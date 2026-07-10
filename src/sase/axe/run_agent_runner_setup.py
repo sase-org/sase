@@ -82,13 +82,11 @@ def prepare_linked_repo_workspaces_if_needed(
     resolution: "LinkedRepoResolution",
     cl_name: str,
 ) -> None:
-    """Prepare suffix-strategy linked repo workspaces for a launch."""
+    """Materialize and prepare host-scoped linked repo workspaces for a launch."""
     repos = [
         repo
         for repo in resolution.repos
-        if repo.workspace_strategy == "suffix"
-        and repo.workspace_dir
-        and repo.workspace_dir != repo.primary_dir
+        if repo.workspace_dir and repo.workspace_dir != repo.primary_dir
     ]
     if not repos:
         return
@@ -97,8 +95,20 @@ def prepare_linked_repo_workspaces_if_needed(
 
     print("=== Preparing Linked Repo Workspaces ===")
     for repo in repos:
+        from sase.linked_repos import materialize_linked_repo_workspace
+
         name = repo.name
-        workspace_dir = repo.workspace_dir
+        try:
+            workspace_dir = materialize_linked_repo_workspace(
+                primary_dir=repo.primary_dir,
+                workspace_dir=repo.workspace_dir,
+                workspace_num=repo.workspace_num,
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"Failed to materialize linked repo {name!r} workspace: "
+                f"{repo.workspace_dir}: {exc}"
+            ) from exc
         print(f"Preparing linked repo {name}: {workspace_dir}")
         if not prepare_workspace(
             workspace_dir,
@@ -324,6 +334,7 @@ def refresh_linked_repos_for_workspace(
         project_file=project_file,
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,
+        materialize=False,
     )
     apply_linked_repo_env(os.environ, resolution)
     agent_meta["workspace_dir"] = workspace_dir

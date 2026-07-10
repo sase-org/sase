@@ -193,6 +193,7 @@ def spawn_agent_subprocess(
                 project_file=project_file,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
+                materialize=False,
             )
         )
 

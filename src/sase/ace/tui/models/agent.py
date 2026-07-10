@@ -65,7 +65,6 @@ class LinkedRepoMetadata:
 
     name: str
     workspace_dir: str
-    workspace_strategy: str
 
 
 @dataclass

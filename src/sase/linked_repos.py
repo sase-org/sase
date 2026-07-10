@@ -36,7 +36,6 @@ OPENED_SIBLINGS_FILENAME = "opened_siblings.json"
 LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
 
-_VALID_WORKSPACE_STRATEGIES = {"suffix", "none"}
 _OPENED_SCHEMA_VERSION = 2
 
 
@@ -49,7 +48,6 @@ class _ResolvedLinkedRepo:
     primary_dir: str
     workspace_dir: str
     workspace_num: int
-    workspace_strategy: str
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -58,7 +56,6 @@ class _ResolvedLinkedRepo:
             "primary_dir": self.primary_dir,
             "workspace_dir": self.workspace_dir,
             "workspace_num": self.workspace_num,
-            "workspace_strategy": self.workspace_strategy,
         }
 
 
@@ -148,6 +145,12 @@ def linked_repo_metadata_from_env(
         if isinstance(item, Mapping):
             metadata.append({str(key): value for key, value in item.items()})
     return metadata
+
+
+def is_legacy_static_linked_repo_record(mapping: Mapping[str, object]) -> bool:
+    """Return whether *mapping* is an old shared-primary linked-repo record."""
+
+    return mapping.get("workspace_strategy") == "none"
 
 
 def record_opened_linked_repo(
@@ -351,16 +354,11 @@ def _resolve_linked_repos(
             warnings.append(f"Skipping linked repo {name!r} with missing path")
             continue
 
-        workspace = entry.get("workspace", {})
-        if not isinstance(workspace, Mapping):
-            workspace = {}
-        strategy_raw = workspace.get("strategy", "suffix")
-        strategy = str(strategy_raw or "suffix")
-        if strategy not in _VALID_WORKSPACE_STRATEGIES:
+        if "workspace" in entry:
             warnings.append(
-                f"Skipping linked repo {name!r}: unsupported workspace.strategy {strategy!r}"
+                f"Linked repo {name!r} uses deprecated workspace configuration; "
+                "ignoring it because linked workspaces are now host-scoped"
             )
-            continue
 
         primary_dir = _resolve_config_path(raw_path, relative_to=primary_root)
         if not Path(primary_dir).is_dir():
@@ -372,8 +370,9 @@ def _resolve_linked_repos(
         try:
             workspace_dir = _resolve_workspace_dir(
                 primary_dir,
+                name=name,
+                host_primary_dir=primary_root,
                 workspace_num=workspace_num,
-                strategy=strategy,
                 config=config,
                 materialize=materialize,
             )
@@ -390,7 +389,6 @@ def _resolve_linked_repos(
                 primary_dir=primary_dir,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
-                workspace_strategy=strategy,
             )
         )
 
@@ -530,14 +528,9 @@ def _entries_equivalent(left: Mapping[str, Any], right: Mapping[str, Any]) -> bo
 def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
     name = entry.get("name")
     path = entry.get("path")
-    workspace = entry.get("workspace")
-    strategy: object = None
-    if isinstance(workspace, Mapping):
-        strategy = workspace.get("strategy")
     return {
         "name": name if isinstance(name, str) else "",
         "path": path if isinstance(path, str) else "",
-        "workspace_strategy": strategy if isinstance(strategy, str) else "",
     }
 
 
@@ -556,28 +549,50 @@ def _normalize_path(path: str) -> str:
 def _resolve_workspace_dir(
     primary_dir: str,
     *,
+    name: str,
+    host_primary_dir: str,
     workspace_num: int,
-    strategy: str,
     config: Mapping[str, Any],
     materialize: bool,
 ) -> str:
-    if strategy == "none" or workspace_num <= 1:
+    if workspace_num <= 1:
         return primary_dir
 
-    if not materialize:
-        from sase.workspace_provider.store import WorkspaceStore
+    from sase.workspace_provider.store import WorkspaceStore
 
-        return _normalize_path(
-            WorkspaceStore(primary_dir, config=config)
-            .resolve(workspace_num)
-            .checkout_dir.rstrip("/")
-        )
-
-    from sase.workspace_provider.utils import ensure_workspace_checkout
-
-    return _normalize_path(
-        ensure_workspace_checkout(primary_dir, workspace_num, config=config)
+    host_workspace_dir = (
+        WorkspaceStore(host_primary_dir, config=config)
+        .resolve(workspace_num)
+        .checkout_dir.rstrip("/")
     )
+    target = _normalize_path(
+        str(Path(host_workspace_dir) / ".sase" / "workspaces" / name)
+    )
+    if not materialize:
+        return target
+
+    return materialize_linked_repo_workspace(
+        primary_dir=primary_dir,
+        workspace_dir=target,
+        workspace_num=workspace_num,
+    )
+
+
+def materialize_linked_repo_workspace(
+    *, primary_dir: str, workspace_dir: str, workspace_num: int
+) -> str:
+    """Clone a host-scoped linked workspace and initialize its SDD companion."""
+
+    from sase.workspace_provider.utils import ensure_git_clone_at
+
+    checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
+    try:
+        from sase.sdd.store import ensure_workspace_sdd_clone
+
+        ensure_workspace_sdd_clone(checkout_dir, workspace_num)
+    except Exception:
+        pass
+    return _normalize_path(checkout_dir)
 
 
 def _sanitize_env_name(name: str) -> str:

@@ -52,7 +52,6 @@ def _linked_repo_diff_agent() -> Agent:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/workspace/sase-core_14",
-                workspace_strategy="suffix",
             ),
         ),
     )
@@ -111,12 +110,10 @@ def _linked_repo_commits_agent() -> Agent:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/workspace/sase-core_18",
-                workspace_strategy="suffix",
             ),
             LinkedRepoMetadata(
                 name="sase-github",
                 workspace_dir="/workspace/sase-github_18",
-                workspace_strategy="suffix",
             ),
         ),
     )

@@ -157,22 +157,23 @@ def parse_linked_repos(raw_value: object) -> tuple[LinkedRepoMetadata, ...]:
         return ()
 
     parsed: list[LinkedRepoMetadata] = []
+    from sase.linked_repos import is_legacy_static_linked_repo_record
+
     for item in raw_value:
         if not isinstance(item, dict):
             continue
+        if is_legacy_static_linked_repo_record(item):
+            continue
         raw_name = item.get("name")
         raw_workspace_dir = item.get("workspace_dir")
-        raw_strategy = item.get("workspace_strategy")
         if not isinstance(raw_name, str) or not raw_name:
             continue
         if not isinstance(raw_workspace_dir, str) or not raw_workspace_dir:
             continue
-        strategy = raw_strategy if isinstance(raw_strategy, str) else ""
         parsed.append(
             LinkedRepoMetadata(
                 name=raw_name,
                 workspace_dir=raw_workspace_dir,
-                workspace_strategy=strategy,
             )
         )
     return tuple(parsed)

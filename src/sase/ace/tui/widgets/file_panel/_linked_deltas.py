@@ -83,13 +83,11 @@ def _linked_metadata_agents(agent: Agent) -> tuple[Agent, ...]:
     return (agent, source)
 
 
-def _suffix_workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
+def _workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
     repos: list[LinkedRepoMetadata] = []
     seen: set[tuple[str, str]] = set()
     for metadata_agent in _linked_metadata_agents(agent):
         for repo in metadata_agent.linked_repos:
-            if repo.workspace_strategy != "suffix":
-                continue
             workspace_dir = _normalized_workspace_dir(repo.workspace_dir)
             if workspace_dir is None:
                 continue
@@ -101,19 +99,9 @@ def _suffix_workspace_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ..
                 LinkedRepoMetadata(
                     name=repo.name,
                     workspace_dir=workspace_dir,
-                    workspace_strategy=repo.workspace_strategy,
                 )
             )
     return tuple(repos)
-
-
-def _static_none_workspace_names(agent: Agent) -> frozenset[str]:
-    return frozenset(
-        repo.name
-        for metadata_agent in _linked_metadata_agents(agent)
-        for repo in metadata_agent.linked_repos
-        if repo.workspace_strategy == "none"
-    )
 
 
 def _has_possible_opened_workspace_markers(agent: Agent) -> bool:
@@ -125,7 +113,7 @@ def _has_possible_opened_workspace_markers(agent: Agent) -> bool:
 def _eligible_static_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
     if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
         return ()
-    return _suffix_workspace_linked_repos(agent)
+    return _workspace_linked_repos(agent)
 
 
 def _eligible_linked_workspace_candidates(
@@ -147,10 +135,9 @@ def _eligible_linked_workspace_candidates(
         seen.add(key)
         candidates.append(_LinkedWorkspaceCandidate(repo_name, normalized))
 
-    for repo in _suffix_workspace_linked_repos(agent):
+    for repo in _workspace_linked_repos(agent):
         add(repo.name, repo.workspace_dir)
 
-    static_none_names = _static_none_workspace_names(agent)
     try:
         from sase.ace.tui.opened_workspaces import (
             load_opened_workspaces_for_agent_context,
@@ -161,8 +148,6 @@ def _eligible_linked_workspace_candidates(
         opened_events = ()
 
     for event in opened_events:
-        if event.name in static_none_names:
-            continue
         add(event.name, event.workspace_dir)
 
     return tuple(candidates)

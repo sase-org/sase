@@ -10,6 +10,7 @@ from sase.linked_repos import (
     LINKED_REPOS_JSON_ENV,
     SIBLING_REPOS_JSON_ENV,
     linked_repo_metadata_from_env,
+    is_legacy_static_linked_repo_record,
     opened_linked_repo_names,
     opened_linked_repo_workspace_dirs,
 )
@@ -21,7 +22,6 @@ from .commit_finalizer_types import (
     DirtyRepo,
     DirtyState,
     SiblingTarget,
-    _WorkspaceStrategy,
 )
 
 _WORKSPACE_NUM_ENV_VARS: tuple[str, ...] = (
@@ -63,9 +63,6 @@ def collect_dirty_state(
             opened_workspace_dirs=opened_workspace_dirs,
         )
     )
-    advisory_sibling_repos = tuple(
-        _dirty_configured_advisory_sibling_repos(sibling_targets)
-    )
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
@@ -75,13 +72,11 @@ def collect_dirty_state(
         main_instruction=main_instruction,
         main_repo=main_repo,
         sibling_repos=sibling_repos,
-        advisory_sibling_repos=advisory_sibling_repos,
     )
     return DirtyState(
         project_dir=finalizer_git._normalize_path(project_dir),
         repos=tuple(repos),
         details=details,
-        advisory_repos=advisory_sibling_repos,
     )
 
 
@@ -143,8 +138,6 @@ def _blocking_sibling_candidates(
             continue
 
         target = targets_by_name.get(name)
-        if target is not None and target.workspace_strategy == "none":
-            continue
 
         workspace_dir = recorded_workspace_dir.strip()
         if workspace_dir:
@@ -157,47 +150,9 @@ def _blocking_sibling_candidates(
         candidates.append((name, workspace_dir))
 
     for target in sibling_targets:
-        if target.workspace_strategy == "none":
-            continue
         candidates.append((target.name, target.workspace_dir))
 
     return candidates
-
-
-def _dirty_configured_advisory_sibling_repos(
-    sibling_targets: list[SiblingTarget],
-) -> list[DirtyRepo]:
-    return _dirty_configured_sibling_repos_for_strategy(
-        sibling_targets,
-        advisory=True,
-        opened_names=None,
-    )
-
-
-def _dirty_configured_sibling_repos_for_strategy(
-    sibling_targets: list[SiblingTarget],
-    *,
-    advisory: bool,
-    opened_names: set[str] | None,
-) -> list[DirtyRepo]:
-    dirty: list[DirtyRepo] = []
-    for target in sibling_targets:
-        if (target.workspace_strategy == "none") != advisory:
-            continue
-        if opened_names is not None and target.name not in opened_names:
-            continue
-        changed_files = git_changed_files(target.workspace_dir)
-        if not changed_files:
-            continue
-        dirty.append(
-            DirtyRepo(
-                name=target.name,
-                path=target.workspace_dir,
-                changed_files=tuple(changed_files),
-                kind="sibling",
-            )
-        )
-    return dirty
 
 
 def _configured_sibling_targets(
@@ -213,6 +168,8 @@ def _configured_sibling_targets(
 def _sibling_targets_from_env() -> list[SiblingTarget]:
     targets: list[SiblingTarget] = []
     for index, item in enumerate(linked_repo_metadata_from_env(os.environ), start=1):
+        if is_legacy_static_linked_repo_record(item):
+            continue
         workspace_dir = item.get("workspace_dir")
         if not isinstance(workspace_dir, str) or not workspace_dir.strip():
             continue
@@ -223,9 +180,6 @@ def _sibling_targets_from_env() -> list[SiblingTarget]:
             SiblingTarget(
                 name=name.strip(),
                 workspace_dir=finalizer_git._normalize_path(workspace_dir),
-                workspace_strategy=_sibling_workspace_strategy(
-                    item.get("workspace_strategy")
-                ),
             )
         )
     return targets
@@ -258,16 +212,9 @@ def _sibling_targets_from_config(
         SiblingTarget(
             name=repo.name,
             workspace_dir=finalizer_git._normalize_path(repo.workspace_dir),
-            workspace_strategy=_sibling_workspace_strategy(repo.workspace_strategy),
         )
         for repo in resolution.repos
     ]
-
-
-def _sibling_workspace_strategy(value: object) -> _WorkspaceStrategy:
-    if value == "none":
-        return "none"
-    return "suffix"
 
 
 def _workspace_num_for_project_file(project_file: str, project_dir: str) -> int | None:

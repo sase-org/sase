@@ -11,7 +11,7 @@ import pytest
 
 from sase.running_field import ClaimResult, WorkspaceClaimError
 from sase.workspace_provider.utils import (
-    _ensure_git_clone_at,
+    ensure_git_clone_at,
     ensure_workspace_checkout,
     get_default_branch,
     non_interactive_git_env,
@@ -132,7 +132,7 @@ class TestSetWorkspaceDir:
             os.unlink(f.name)
 
 
-# ── _ensure_git_clone_at (Phase 2 target-aware materializer) ──────────
+# ── ensure_git_clone_at (Phase 2 target-aware materializer) ──────────
 
 
 class TestEnsureGitCloneAt:
@@ -140,18 +140,18 @@ class TestEnsureGitCloneAt:
         primary = tmp_path / "repo"
         primary.mkdir()
         # workspace_num=0 (new PRIMARY identity) returns the supplied target
-        result = _ensure_git_clone_at(str(primary), 0, str(primary))
+        result = ensure_git_clone_at(str(primary), 0, str(primary))
         assert result == str(primary)
 
     def test_legacy_primary_num_one(self, tmp_path: Path) -> None:
         primary = tmp_path / "repo"
         primary.mkdir()
-        result = _ensure_git_clone_at(str(primary), 1, str(primary))
+        result = ensure_git_clone_at(str(primary), 1, str(primary))
         assert result == str(primary)
 
     def test_primary_missing_raises(self) -> None:
         with pytest.raises(RuntimeError, match="does not exist"):
-            _ensure_git_clone_at("/nonexistent/dir", 0, "/nonexistent/dir")
+            ensure_git_clone_at("/nonexistent/dir", 0, "/nonexistent/dir")
 
     @patch("sase.workspace_provider.utils.subprocess.run")
     def test_creates_clone_at_explicit_target(
@@ -163,7 +163,7 @@ class TestEnsureGitCloneAt:
         primary = tmp_path / "repo"
         primary.mkdir()
         target = tmp_path / "managed" / "repo_10"  # parent doesn't exist
-        result = _ensure_git_clone_at(str(primary) + "/", 10, str(target) + "/")
+        result = ensure_git_clone_at(str(primary) + "/", 10, str(target) + "/")
         assert result == str(target) + "/"
         # Parent should have been created
         assert target.parent.is_dir()
@@ -196,7 +196,7 @@ class TestEnsureGitCloneAt:
         # Drop a junk file so we can confirm shutil.rmtree ran
         (target / "stale.txt").write_text("garbage")
 
-        result = _ensure_git_clone_at(str(primary) + "/", 2, str(target) + "/")
+        result = ensure_git_clone_at(str(primary) + "/", 2, str(target) + "/")
         assert result == str(target) + "/"
         assert not (target / "stale.txt").exists()
         assert mock_run.call_count == 5

@@ -181,7 +181,6 @@ class TestRunStartedAtRecording:
                         primary_dir=str(tmp_path / "sase-core"),
                         workspace_dir=str(linked_workspace_dir),
                         workspace_num=7,
-                        workspace_strategy="suffix",
                     ),
                 )
             )
@@ -208,7 +207,7 @@ class TestRunStartedAtRecording:
 
         run_loop.assert_not_called()
         assert (
-            "Failed to prepare linked repo 'core' workspace"
+            "Failed to materialize linked repo 'core' workspace"
             in (write_error.call_args.kwargs["error"])
         )
         meta_path = artifacts_dir / "agent_meta.json"

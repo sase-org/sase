@@ -94,7 +94,6 @@ def _linked_repo(name: str, workspace_dir: Path) -> LinkedRepoMetadata:
     return LinkedRepoMetadata(
         name=name,
         workspace_dir=str(workspace_dir),
-        workspace_strategy="suffix",
     )
 
 

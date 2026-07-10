@@ -61,12 +61,10 @@ def test_bundle_round_trip_linked_repos() -> None:
         LinkedRepoMetadata(
             name="sase-core",
             workspace_dir="/tmp/sase-core_12",
-            workspace_strategy="suffix",
         ),
         LinkedRepoMetadata(
             name="sase-nvim",
             workspace_dir="/tmp/sase-nvim",
-            workspace_strategy="none",
         ),
     )
     agent = Agent(
@@ -85,12 +83,10 @@ def test_bundle_round_trip_linked_repos() -> None:
         {
             "name": "sase-core",
             "workspace_dir": "/tmp/sase-core_12",
-            "workspace_strategy": "suffix",
         },
         {
             "name": "sase-nvim",
             "workspace_dir": "/tmp/sase-nvim",
-            "workspace_strategy": "none",
         },
     ]
     json.dumps(bundle)
@@ -191,7 +187,6 @@ def test_bundle_dict_is_json_serializable_for_populated_agent() -> None:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/tmp/sase-core_12",
-                workspace_strategy="suffix",
             ),
         ),
         waiting_for=["agent-a"],

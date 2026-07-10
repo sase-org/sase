@@ -223,7 +223,7 @@ class RevertIntent:
     agent_name: str
     family_base: str | None = None
     artifacts_dir: str | None = None
-    #: Names of suffix-strategy linked repos the agent run touched. Re-resolved
+    #: Names of linked repos the agent run touched. Re-resolved
     #: against the freshly claimed workspace number rather than reusing the
     #: agent's original linked checkouts.
     linked_repo_names: tuple[str, ...] = ()

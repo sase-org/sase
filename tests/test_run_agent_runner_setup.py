@@ -36,7 +36,6 @@ def _resolution(
     primary_dir: str = "/repos/sase-core",
     workspace_dir: str = "/repos/sase-core_7",
     workspace_num: int = 7,
-    workspace_strategy: str = "suffix",
 ) -> LinkedRepoResolution:
     return LinkedRepoResolution(
         repos=(
@@ -46,7 +45,6 @@ def _resolution(
                 primary_dir=primary_dir,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
-                workspace_strategy=workspace_strategy,
             ),
         )
     )
@@ -341,8 +339,12 @@ def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note
     assert meta["linked_repos"] == resolution.to_jsonable()
     assert meta["sibling_repos"] == resolution.to_jsonable()
     written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
-    assert written["linked_repos"][0]["workspace_dir"] == str(tmp_path / "sase-core_7")
-    assert written["sibling_repos"][0]["workspace_dir"] == str(tmp_path / "sase-core_7")
+    assert written["linked_repos"][0]["workspace_dir"] == str(
+        workspace / ".sase" / "workspaces" / "core"
+    )
+    assert written["sibling_repos"][0]["workspace_dir"] == str(
+        workspace / ".sase" / "workspaces" / "core"
+    )
     assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
     assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
 
@@ -445,9 +447,15 @@ def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel() -> None
 
     calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
-    with patch(
-        "sase.axe.run_agent_runner_setup.prepare_workspace",
-        side_effect=lambda *args, **kwargs: calls.append((args, kwargs)) or True,
+    with (
+        patch(
+            "sase.linked_repos.materialize_linked_repo_workspace",
+            return_value="/repos/sase-core_7",
+        ),
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            side_effect=lambda *args, **kwargs: calls.append((args, kwargs)) or True,
+        ),
     ):
         prepare_linked_repo_workspaces_if_needed(
             resolution=_resolution(),
@@ -462,7 +470,7 @@ def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel() -> None
     ]
 
 
-def test_prepare_linked_repo_workspaces_skips_static_and_primary_paths() -> None:
+def test_prepare_linked_repo_workspaces_skips_primary_paths() -> None:
     resolution = LinkedRepoResolution(
         repos=(
             _ResolvedLinkedRepo(
@@ -471,7 +479,6 @@ def test_prepare_linked_repo_workspaces_skips_static_and_primary_paths() -> None
                 primary_dir="/repos/sase-core",
                 workspace_dir="/repos/sase-core",
                 workspace_num=7,
-                workspace_strategy="none",
             ),
             _ResolvedLinkedRepo(
                 name="first-workspace",
@@ -479,7 +486,6 @@ def test_prepare_linked_repo_workspaces_skips_static_and_primary_paths() -> None
                 primary_dir="/repos/plugin",
                 workspace_dir="/repos/plugin",
                 workspace_num=1,
-                workspace_strategy="suffix",
             ),
         )
     )
@@ -495,6 +501,10 @@ def test_prepare_linked_repo_workspaces_skips_static_and_primary_paths() -> None
 
 def test_prepare_linked_repo_workspaces_failure_names_workspace() -> None:
     with (
+        patch(
+            "sase.linked_repos.materialize_linked_repo_workspace",
+            return_value="/repos/sase-core_7",
+        ),
         patch("sase.axe.run_agent_runner_setup.prepare_workspace", return_value=False),
         pytest.raises(RuntimeError) as exc_info,
     ):

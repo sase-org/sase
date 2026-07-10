@@ -24,19 +24,6 @@
           "type": "string",
           "description": "Human-readable purpose used when generating agent memory for this linked repository.",
           "minLength": 1
-        },
-        "workspace": {
-          "type": "object",
-          "description": "Linked repository workspace materialization policy.",
-          "additionalProperties": false,
-          "properties": {
-            "strategy": {
-              "type": "string",
-              "description": "Use 'suffix' for primary_<workspace_num> git clones, or 'none' to expose the primary path directly.",
-              "enum": ["suffix", "none"],
-              "default": "suffix"
-            }
-          }
         }
       }
     },

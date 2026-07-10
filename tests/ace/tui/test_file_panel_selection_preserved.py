@@ -305,7 +305,6 @@ def test_desired_file_list_orders_primary_linked_then_extra_files() -> None:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/tmp/sase-core",
-                workspace_strategy="suffix",
             ),
         ),
     )
@@ -337,7 +336,6 @@ def test_desired_file_list_plan_default_is_value_based_with_linked_pages() -> No
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/tmp/sase-core",
-                workspace_strategy="suffix",
             ),
         ),
     )
@@ -370,7 +368,6 @@ def test_reconcile_adds_linked_page_and_preserves_current_file() -> None:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/tmp/sase-core",
-                workspace_strategy="suffix",
             ),
         ),
     )
@@ -400,7 +397,6 @@ def test_reconcile_removes_linked_page_and_falls_back_to_plan() -> None:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/tmp/sase-core",
-                workspace_strategy="suffix",
             ),
         ),
     )
@@ -426,7 +422,6 @@ def test_completed_agents_do_not_get_linked_pages() -> None:
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir="/tmp/sase-core",
-                workspace_strategy="suffix",
             ),
         ),
     )
@@ -486,7 +481,6 @@ def test_commit_slot_label_path_and_display_resolution() -> None:
     linked_repo = LinkedRepoMetadata(
         name="sase-core",
         workspace_dir="/tmp/sase-core_7",
-        workspace_strategy="suffix",
     )
     agent = _make_agent(
         status="DONE",

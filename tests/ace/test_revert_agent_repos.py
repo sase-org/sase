@@ -30,17 +30,14 @@ def test_resolve_revert_repos_includes_done_suffix_linked_repos(
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir=str(linked),
-                workspace_strategy="suffix",
             ),
             LinkedRepoMetadata(
                 name="missing",
                 workspace_dir=str(missing),
-                workspace_strategy="suffix",
             ),
             LinkedRepoMetadata(
                 name="nonsuffix",
                 workspace_dir=str(nonsuffix),
-                workspace_strategy="shared",
             ),
         ),
     )
@@ -50,4 +47,5 @@ def test_resolve_revert_repos_includes_done_suffix_linked_repos(
     assert [(repo.label, repo.is_primary) for repo in repos] == [
         ("primary", True),
         ("sase-core", False),
+        ("nonsuffix", False),
     ]

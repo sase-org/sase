@@ -141,7 +141,6 @@ def test_single_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
                 LinkedRepoMetadata(
                     name="sase-core",
                     workspace_dir=str(linked),
-                    workspace_strategy="suffix",
                 ),
             ),
         )
@@ -297,7 +296,6 @@ def test_bulk_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
         LinkedRepoMetadata(
             name="sase-core",
             workspace_dir=str(linked),
-            workspace_strategy="suffix",
         ),
     )
     foo = _agent(

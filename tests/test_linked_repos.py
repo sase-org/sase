@@ -51,7 +51,9 @@ def test_resolves_canonical_linked_repos_key(tmp_path: Path) -> None:
     assert len(resolution.repos) == 1
     repo = resolution.repos[0]
     assert repo.primary_dir == str(linked.resolve())
-    assert repo.workspace_dir == str((tmp_path / "sase-core_10").resolve())
+    assert repo.workspace_dir == str(
+        (workspace / ".sase" / "workspaces" / "core").resolve()
+    )
     assert repo.workspace_num == 10
 
 
@@ -159,10 +161,10 @@ def test_distinct_names_with_colliding_env_names_still_alias(tmp_path: Path) -> 
 
     env = resolution.to_env()
     assert env["SASE_LINKED_REPO_SASE_CORE_DIR"] == str(
-        (tmp_path / "first_4").resolve()
+        (tmp_path / "main_4" / ".sase" / "workspaces" / "sase-core").resolve()
     )
     assert env["SASE_LINKED_REPO_SASE_CORE_2_DIR"] == str(
-        (tmp_path / "second_4").resolve()
+        (tmp_path / "main_4" / ".sase" / "workspaces" / "sase.core").resolve()
     )
 
 
@@ -185,7 +187,9 @@ def test_env_emits_linked_and_sibling_aliases(tmp_path: Path) -> None:
     )
 
     env = resolution.to_env()
-    workspace_dir = str((tmp_path / "sase-core_4").resolve())
+    workspace_dir = str(
+        (tmp_path / "sase_4" / ".sase" / "workspaces" / "core").resolve()
+    )
     primary_dir = str(core.resolve())
     assert env["SASE_LINKED_REPO_CORE_DIR"] == workspace_dir
     assert env["SASE_LINKED_REPO_CORE_PRIMARY_DIR"] == primary_dir
@@ -197,7 +201,7 @@ def test_env_emits_linked_and_sibling_aliases(tmp_path: Path) -> None:
     assert [item["env_name"] for item in loaded] == ["CORE"]
 
 
-def test_static_none_strategy_uses_primary_path(tmp_path: Path) -> None:
+def test_legacy_workspace_strategy_is_ignored_with_warning(tmp_path: Path) -> None:
     primary = tmp_path / "sase"
     chezmoi = tmp_path / "home" / ".local" / "share" / "chezmoi"
     primary.mkdir()
@@ -209,21 +213,25 @@ def test_static_none_strategy_uses_primary_path(tmp_path: Path) -> None:
         workspace_dir=str(tmp_path / "sase_10"),
         workspace_num=10,
         config={
+            "workspace": {"root": "adjacent"},
             "linked_repos": [
                 {
                     "name": "chezmoi",
                     "path": str(chezmoi),
                     "workspace": {"strategy": "none"},
                 }
-            ]
+            ],
         },
         materialize=False,
     )
 
     repo = resolution.repos[0]
     assert repo.primary_dir == str(chezmoi.resolve())
-    assert repo.workspace_dir == str(chezmoi.resolve())
-    assert repo.workspace_strategy == "none"
+    assert repo.workspace_dir == str(
+        (tmp_path / "sase_10" / ".sase" / "workspaces" / "chezmoi").resolve()
+    )
+    assert any("deprecated workspace" in warning for warning in resolution.warnings)
+    assert "workspace_strategy" not in repo.to_json_dict()
 
 
 def test_scrub_removes_linked_and_sibling_env() -> None:
@@ -269,10 +277,9 @@ def test_apply_replaces_stale_inherited_env(tmp_path: Path) -> None:
 
     assert "SASE_SIBLING_REPO_STALE_DIR" not in env
     assert env["UNRELATED"] == "keep"
-    assert env["SASE_LINKED_REPO_CORE_DIR"] == str((tmp_path / "sase-core_4").resolve())
-    assert env["SASE_SIBLING_REPO_CORE_DIR"] == str(
-        (tmp_path / "sase-core_4").resolve()
-    )
+    workspace_dir = tmp_path / "sase_4" / ".sase" / "workspaces" / "core"
+    assert env["SASE_LINKED_REPO_CORE_DIR"] == str(workspace_dir.resolve())
+    assert env["SASE_SIBLING_REPO_CORE_DIR"] == str(workspace_dir.resolve())
 
 
 def test_metadata_from_env_prefers_linked_then_falls_back() -> None:

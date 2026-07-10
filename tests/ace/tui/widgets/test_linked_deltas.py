@@ -72,13 +72,10 @@ def _agent(
 def _repo(
     name: str,
     workspace_dir: Path,
-    *,
-    strategy: str = "suffix",
 ) -> LinkedRepoMetadata:
     return LinkedRepoMetadata(
         name=name,
         workspace_dir=str(workspace_dir),
-        workspace_strategy=strategy,
     )
 
 
@@ -118,7 +115,7 @@ def test_compute_linked_delta_groups_filters_and_dedupes(
         changes_by_workspace={
             str(core): " M crates/core/src/lib.rs",
             str(nvim): "?? plugin.lua",
-            str(static): " M ignored.py",
+            str(static): None,
             str(clean): None,
         },
         diff_by_workspace={
@@ -142,7 +139,7 @@ new file mode 100644
     agent = _agent(
         linked_repos=(
             _repo("sase-core", core),
-            _repo("sase-static", static, strategy="none"),
+            _repo("sase-static", static),
             _repo("sase-missing", missing),
             _repo("sase-clean", clean),
             _repo("sase-core", core),
@@ -171,7 +168,7 @@ new file mode 100644
     )
     assert groups[1].diff_text == provider.diff_by_workspace[str(nvim)]
     assert groups[1].fetched_at is not None
-    assert provider.has_changes_calls == [str(core), str(clean), str(nvim)]
+    assert provider.has_changes_calls == [str(core), str(static), str(clean), str(nvim)]
     assert provider.diff_calls == [str(core), str(nvim)]
     assert linked_deltas_mod.get_cached_linked_delta_groups(agent) == groups
 
@@ -315,7 +312,7 @@ def test_compute_linked_delta_groups_includes_opened_workspace_records(
     assert provider.has_changes_calls == [str(opened_workspace)]
 
 
-def test_opened_workspace_skips_static_none_strategy(
+def test_opened_workspace_uses_recorded_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -331,24 +328,21 @@ def test_opened_workspace_skips_static_none_strategy(
         opened_at="2026-07-07T16:00:00+00:00",
     )
 
-    def fail_provider(_workspace_dir: str) -> Any:
-        raise AssertionError("workspace.strategy=none should not be probed")
-
-    monkeypatch.setattr(
-        linked_deltas_mod,
-        "resolve_vcs_provider_for_live_diff",
-        fail_provider,
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace={str(opened_workspace): None},
+        diff_by_workspace={str(opened_workspace): ""},
     )
+    _patch_provider(monkeypatch, provider)
     agent = _agent(
         linked_repos=(
             LinkedRepoMetadata(
                 name="sase-core",
                 workspace_dir=str(opened_workspace),
-                workspace_strategy="none",
             ),
         )
     )
     agent.artifacts_dir = str(artifacts_dir)
 
     assert linked_deltas_mod.compute_linked_delta_groups(agent) == ()
-    assert linked_deltas_mod.linked_agent_file_change_hint(agent) is None
+    assert linked_deltas_mod.linked_agent_file_change_hint(agent) is False
+    assert provider.has_changes_calls == [str(opened_workspace)]

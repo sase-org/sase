@@ -222,7 +222,7 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert run_handler(check=True) == 0
 
 
-def test_init_memory_static_linked_repos_use_paths_without_workspace_open(
+def test_init_memory_legacy_workspace_config_uses_workspace_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -263,21 +263,15 @@ linked_repos:
     assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
     )
-    assert (
-        "- `dotfiles`: User dotfiles source. This repo is defined in the "
-        "`$STATIC_ONE/` directory."
-    ) in project_memory_line
-    assert (
-        "- `notes`: Static notes checkout. This repo is defined in the "
-        "`../static-two/` directory."
-    ) in project_memory_line
+    assert "- `dotfiles`: User dotfiles source." in project_memory_line
+    assert "- `notes`: Static notes checkout." in project_memory_line
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        not in project_memory
+        in project_memory
     )
 
 
-def test_init_memory_mixed_linked_repos_render_static_location_and_workspace_open(
+def test_init_memory_mixed_linked_repos_render_workspace_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -314,10 +308,7 @@ linked_repos:
     assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
     )
-    assert (
-        "- `dotfiles`: Static dotfiles source. This repo is defined in the "
-        "`../dotfiles/` directory."
-    ) in project_memory_line
+    assert "- `dotfiles`: Static dotfiles source." in project_memory_line
     assert "numbered-workspace linked repo" in project_memory
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
@@ -327,7 +318,7 @@ linked_repos:
     assert "the only linked repo path" in project_memory_line
 
 
-def test_init_memory_static_relative_paths_use_configured_display_path(
+def test_init_memory_legacy_relative_paths_use_workspace_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -373,17 +364,14 @@ linked_repos:
     assert run_handler() == 0
 
     project_memory = (project_root / "memory" / "sase.md").read_text()
-    assert (
-        "- `shared`: Static shared checkout. This repo is defined in the "
-        "`../shared/` directory."
-    ) in single_line(project_memory)
+    assert "- `shared`: Static shared checkout." in single_line(project_memory)
     assert str((tmp_path / "primary" / "shared").resolve(strict=False)) not in (
         project_memory
     )
     assert str(numbered_relative_path.resolve(strict=False)) not in project_memory
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        not in project_memory
+        in project_memory
     )
 
 

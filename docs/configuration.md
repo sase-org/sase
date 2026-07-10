@@ -478,19 +478,15 @@ commit:
 | `commit.finalizer.enabled`    | bool | `true`  | Run the post-invocation commit finalizer for SASE-launched agent sessions.           |
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
 
-When enabled, the finalizer checks the main workspace through the active VCS provider. For configured `linked_repos` Git
-worktrees using the numbered-workspace strategy, it checks only linked-repo names recorded in the run's
-`opened_linked_workspaces.json` artifact, normally written by
-`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` during the agent run. In that command,
-`-p/--project` names the configured linked repo's hidden backing project record. Dirty enforced workspaces trigger a
-follow-up invocation that instructs the same provider to use the appropriate commit skill. Dirty static linked repos
-(`workspace.strategy: none`) are reported to that follow-up as advisory work and do not fail the finalizer if they
-remain dirty. Advisory-only static linked-repo changes still get one follow-up prompt so the agent can commit them when
-it made those changes. When the only enforced change is one tracked markdown file under `sdd/tales/`, `sdd/epics/`,
-`sdd/epics/`, and that file's only diff is leading front matter changing exactly from `status: wip` to `status: done`,
-the finalizer creates a direct `chore: Mark SDD plan done` commit instead of invoking the provider again. When
-`$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is recorded in
-`commit_finalizer_result.json`.
+When enabled, the finalizer checks the main workspace through the active VCS provider and configured `linked_repos` Git
+worktrees at their resolved paths. `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` records manual
+opens in `opened_linked_workspaces.json` for ACE context. In that command, `-p/--project` names the configured linked
+repo's hidden backing project record. Dirty enforced workspaces trigger a follow-up invocation that instructs the same
+provider to use the appropriate commit skill. Dirty linked repos are enforced like the main workspace. When the only
+enforced change is one tracked markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/epics/`, and that file's only diff
+is leading front matter changing exactly from `status: wip` to `status: done`, the finalizer creates a direct
+`chore: Mark SDD plan done` commit instead of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass
+writes prompt/response artifacts there, and the final outcome is recorded in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
@@ -499,12 +495,12 @@ Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructio
 
 ### linked_repos
 
-Declares related repositories that should be visible to launched agents. Git linked-repo worktrees using numbered
-workspace resolution are also eligible for commit-finalizer checks at their resolved `workspace_dir`, but only after the
-agent run opens that linked workspace with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` and
-records the linked repo in its artifacts. The `-p/--project` value is the linked repo's configured name; SASE
-materializes a hidden sibling-state ProjectSpec for that name when needed. Entries can live in user config or a
-project-local `sase.yml`; local entries are resolved relative to the project's primary workspace directory.
+Declares related repositories that should be visible to launched agents. Git linked-repo worktrees are eligible for
+commit-finalizer checks at their resolved `workspace_dir`. The
+`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` command records manually opened linked workspaces
+in run artifacts for ACE context. The `-p/--project` value is the linked repo's configured name; SASE materializes a
+hidden sibling-state ProjectSpec for that name when needed. Entries can live in user config or a project-local
+`sase.yml`; local entries are resolved relative to the project's primary workspace directory.
 
 The deprecated `sibling_repos` key is still accepted as an alias during the compatibility window. Prefer `linked_repos`
 in new config.
@@ -520,24 +516,17 @@ linked_repos:
   - name: chezmoi
     path: ~/.local/share/chezmoi
     description: User dotfiles source managed by chezmoi.
-    workspace:
-      strategy: none
 ```
 
-| Field                               | Type   | Default    | Description                                                                                                  |
-| ----------------------------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `linked_repos[].name`               | string | required   | Stable alias used in generated environment variable names and memory summaries.                              |
-| `linked_repos[].path`               | string | required   | Primary checkout path. Relative paths resolve from the project's primary workspace.                          |
-| `linked_repos[].description`        | string | required   | Human-readable purpose used when generating agent memory for the linked repository.                          |
-| `linked_repos[].workspace.strategy` | string | `"suffix"` | `suffix` exposes a workspace-matched checkout for workspace `N`; `none` always exposes the primary checkout. |
+| Field                        | Type   | Default  | Description                                                                         |
+| ---------------------------- | ------ | -------- | ----------------------------------------------------------------------------------- |
+| `linked_repos[].name`        | string | required | Stable alias used in generated environment variable names and memory summaries.     |
+| `linked_repos[].path`        | string | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
+| `linked_repos[].description` | string | required | Human-readable purpose used when generating agent memory for the linked repository. |
 
-For `suffix` linked repos, workspace numbers `0` and `1` use the primary checkout. Higher workspace numbers use
-workspace-matched linked-repo checkouts, materializing the checkout through the same `workspace.root` policy when the
-workspace provider can do so. With explicit `workspace.root: adjacent` that path is a legacy adjacent checkout such as
-`sase-core_10`; with the default `xdg-state` it lives under the managed state root. Linked repos with
-`workspace.strategy: none` are exposed to agents and can appear as advisory dirty targets in commit finalizer prompts,
-but they are not commit-finalizer enforcement targets. SASE passes the resolved paths into environment variables and
-agent metadata:
+Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
+`<host_workspace>/.sase/workspaces/<linked_repo>`, naturally namespaced by host project and workspace number. SASE
+passes the resolved paths into environment variables and agent metadata:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |
@@ -1606,9 +1595,8 @@ notes are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes
 reference list, and missing long-memory `description` frontmatter is inserted. There is no legacy
 single-custom-provider-file migration: custom provider files next to a missing `AGENTS.md` are overwritten with shims
 rather than copied into `AGENTS.md`. By default it also tries to commit, rebase-pull, and push generated project-side
-files. `sase init memory` is a compatibility alias for this command. Generated linked-repository memory lists direct
-paths for `workspace.strategy: none` linked repos and only includes `sase workspace open` guidance when a configured
-linked repo uses numbered workspace resolution.
+files. `sase init memory` is a compatibility alias for this command. Generated linked-repository memory includes
+`sase workspace open` guidance for every configured linked repo.
 
 | Flag              | Values | Default | Description                                                                                             |
 | ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

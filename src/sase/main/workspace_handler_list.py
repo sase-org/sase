@@ -15,6 +15,7 @@ from sase.workspace_provider.registry import (
     WorkspaceRegistry,
     load_or_init_registry,
 )
+from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import ensure_workspace_checkout
 from sase.project_display_names import project_display_name_for
 
@@ -134,6 +135,35 @@ def resolve_checkout_path(
 
     Materializes (cloning when missing) only when *materialize* is true.
     """
+    if workspace_num <= 1:
+        return ctx.primary_workspace_dir.rstrip("/") or ctx.primary_workspace_dir
+    if ctx.is_configured_linked_repo and workspace_num > 1:
+        host_primary = ctx.linked_host_primary_workspace_dir
+        if not host_primary:
+            raise RuntimeError(
+                f"Linked repo '{ctx.project_name}' workspaces are host-scoped; "
+                "run this command from the host project workspace that configures it"
+            )
+        config = load_config()
+        host_store = WorkspaceStore(host_primary, config=config)
+        if materialize:
+            host_checkout = ensure_workspace_checkout(
+                host_primary, workspace_num, config=config
+            )
+        else:
+            host_checkout = host_store.resolve(workspace_num).checkout_dir.rstrip("/")
+        workspace_dir = os.path.join(
+            host_checkout, ".sase", "workspaces", ctx.project_name
+        )
+        if not materialize:
+            return os.path.normpath(workspace_dir)
+        from sase.linked_repos import materialize_linked_repo_workspace
+
+        return materialize_linked_repo_workspace(
+            primary_dir=ctx.primary_workspace_dir,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+        )
     if materialize:
         path = ensure_workspace_checkout(
             ctx.primary_workspace_dir,

@@ -30,6 +30,8 @@ class ProjectContext:
     primary_workspace_dir: str
     store: WorkspaceStore
     is_sibling: bool = False
+    is_configured_linked_repo: bool = False
+    linked_host_primary_workspace_dir: str | None = None
 
 
 @dataclass(frozen=True)
@@ -158,6 +160,8 @@ def _materialize_sibling_project_context(
         primary_workspace_dir=primary,
         store=store,
         is_sibling=True,
+        is_configured_linked_repo=True,
+        linked_host_primary_workspace_dir=linked_repo.current_primary_workspace_dir,
     )
 
 
@@ -204,6 +208,8 @@ def _heal_sibling_project_context(
         primary_workspace_dir=primary,
         store=store,
         is_sibling=True,
+        is_configured_linked_repo=True,
+        linked_host_primary_workspace_dir=linked_repo.current_primary_workspace_dir,
     )
 
 
@@ -216,7 +222,7 @@ def _configured_linked_repo(
     if not is_valid_sase_project_name(project_name):
         return None
 
-    env_repo = _linked_repo_project_from_env(project_name)
+    env_repo = _linked_repo_project_from_env(project_name, load_config=load_config)
     if env_repo is not None:
         return env_repo
 
@@ -257,7 +263,9 @@ def _configured_linked_repo(
     )
 
 
-def _linked_repo_project_from_env(project_name: str) -> _LinkedRepoProject | None:
+def _linked_repo_project_from_env(
+    project_name: str, *, load_config: ConfigLoader
+) -> _LinkedRepoProject | None:
     from sase.linked_repos import linked_repo_metadata_from_env
 
     for item in linked_repo_metadata_from_env(os.environ):
@@ -266,7 +274,15 @@ def _linked_repo_project_from_env(project_name: str) -> _LinkedRepoProject | Non
         primary_dir = str(item.get("primary_dir") or "").strip()
         if not primary_dir:
             return None
-        return _LinkedRepoProject(name=project_name, primary_dir=primary_dir)
+        current = _current_project_context(load_config=load_config)
+        return _LinkedRepoProject(
+            name=project_name,
+            primary_dir=primary_dir,
+            current_project_file=(current.project_file if current else None),
+            current_primary_workspace_dir=(
+                current.primary_workspace_dir if current else None
+            ),
+        )
     return None
 
 

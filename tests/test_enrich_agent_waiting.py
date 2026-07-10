@@ -54,7 +54,6 @@ def test_linked_repos_from_agent_meta(tmp_path: Path) -> None:
         LinkedRepoMetadata(
             name="sase-core",
             workspace_dir="/tmp/sase-core_7",
-            workspace_strategy="suffix",
         ),
     )
 
@@ -81,7 +80,6 @@ def test_linked_repos_from_agent_meta_wire() -> None:
         LinkedRepoMetadata(
             name="sase-github",
             workspace_dir="/tmp/sase-github_7",
-            workspace_strategy="suffix",
         ),
     )
 

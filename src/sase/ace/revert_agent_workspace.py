@@ -286,10 +286,10 @@ def _resolve_linked_checkouts(
     primary_dir: str,
     workspace_num: int,
 ) -> list[tuple[str, str]]:
-    """Resolve and materialize suffix-linked repos for the claimed workspace.
+    """Resolve and materialize linked repos for the claimed workspace.
 
     Only linked repos the agent run actually touched (``linked_repo_names``) are
-    materialized, and only suffix-strategy repos participate in reverts. Returns
+    materialized. Returns
     ``(name, workspace_dir)`` pairs for the materialized checkouts.
     """
     if not intent.linked_repo_names:
@@ -304,7 +304,7 @@ def _resolve_linked_checkouts(
     return [
         (repo.name, repo.workspace_dir)
         for repo in resolution.repos
-        if repo.workspace_strategy == "suffix" and repo.name in wanted
+        if repo.workspace_dir != repo.primary_dir and repo.name in wanted
     ]
 
 

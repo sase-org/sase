@@ -79,7 +79,6 @@ def test_bundle_save_load_round_trip_with_linked_repos(tmp_path: Path) -> None:
     linked_repo = LinkedRepoMetadata(
         name="sase-core",
         workspace_dir="/tmp/sase-core_12",
-        workspace_strategy="suffix",
     )
     with (
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
@@ -96,7 +95,6 @@ def test_bundle_save_load_round_trip_with_linked_repos(tmp_path: Path) -> None:
             {
                 "name": "sase-core",
                 "workspace_dir": "/tmp/sase-core_12",
-                "workspace_strategy": "suffix",
             }
         ]
         loaded = load_dismissed_bundles({"20250615103000"})

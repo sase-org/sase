@@ -160,8 +160,9 @@ class TestDeferredWorkspacePreparation:
             )
 
         # Canonical linked env plus the deprecated sibling alias are recomputed.
-        assert os.environ["SASE_LINKED_REPO_CORE_DIR"] == str(tmp_path / "sase-core_7")
-        assert os.environ["SASE_SIBLING_REPO_CORE_DIR"] == str(tmp_path / "sase-core_7")
+        linked_workspace = primary.with_name("sase_7") / ".sase" / "workspaces" / "core"
+        assert os.environ["SASE_LINKED_REPO_CORE_DIR"] == str(linked_workspace)
+        assert os.environ["SASE_SIBLING_REPO_CORE_DIR"] == str(linked_workspace)
         assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
         assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
 
@@ -299,7 +300,6 @@ class TestDeferredWorkspacePreparation:
                         primary_dir=str(tmp_path / "sase-core"),
                         workspace_dir=str(tmp_path / "sase-core_3"),
                         workspace_num=3,
-                        workspace_strategy="suffix",
                     ),
                 )
             )

@@ -121,7 +121,6 @@ class TestWorkflowVariablesHeader:
                 LinkedRepoMetadata(
                     name="sase-core",
                     workspace_dir=str(linked),
-                    workspace_strategy="suffix",
                 ),
             ),
         )
@@ -162,7 +161,6 @@ class TestWorkflowVariablesHeader:
                 LinkedRepoMetadata(
                     name="sase-core",
                     workspace_dir=str(linked),
-                    workspace_strategy="suffix",
                 ),
             ),
         )
@@ -288,7 +286,6 @@ class TestWorkflowVariablesHeader:
                 LinkedRepoMetadata(
                     name="sase-core",
                     workspace_dir=str(linked),
-                    workspace_strategy="suffix",
                 ),
             ),
         )

@@ -71,7 +71,7 @@ def resolve_revert_repos(agent: Agent) -> tuple[RevertRepo, ...]:
         )
         seen_dirs.add(_dedup_workspace_key(primary_dir))
 
-    for linked in _suffix_workspace_linked_repos_for_revert(agent):
+    for linked in _workspace_linked_repos_for_revert(agent):
         workspace_dir = _existing_workspace_dir(linked.workspace_dir)
         if workspace_dir is None:
             continue
@@ -200,14 +200,14 @@ def _preview_linked_repo_names(
 
 
 def _suffix_linked_repo_names(agent: Agent) -> tuple[str, ...]:
-    """Ordered suffix-strategy linked repo names recorded for *agent*."""
-    return tuple(repo.name for repo in _suffix_workspace_linked_repos_for_revert(agent))
+    """Ordered linked repo names recorded for *agent*."""
+    return tuple(repo.name for repo in _workspace_linked_repos_for_revert(agent))
 
 
 def _union_suffix_linked_repo_names(
     agents: _Sequence[Agent],
 ) -> tuple[str, ...]:
-    """Ordered union of suffix-strategy linked repo names across *agents*."""
+    """Ordered union of linked repo names across *agents*."""
     names: list[str] = []
     seen: set[str] = set()
     for agent in agents:
@@ -245,7 +245,7 @@ def _dedup_workspace_key(workspace_dir: str) -> str:
     return os.path.normcase(os.path.abspath(os.path.expanduser(workspace_dir)))
 
 
-def _suffix_workspace_linked_repos_for_revert(
+def _workspace_linked_repos_for_revert(
     agent: Agent,
 ) -> tuple[LinkedRepoMetadata, ...]:
     repos: list[LinkedRepoMetadata] = []
@@ -254,8 +254,6 @@ def _suffix_workspace_linked_repos_for_revert(
         if repo.name in seen_names:
             continue
         seen_names.add(repo.name)
-        if repo.workspace_strategy != "suffix":
-            continue
         if not repo.workspace_dir:
             continue
         repos.append(repo)
@@ -277,7 +275,7 @@ def _agent_name_from_meta(artifacts_dir: str) -> str | None:
 
 
 __all__ = [
-    "_suffix_workspace_linked_repos_for_revert",
+    "_workspace_linked_repos_for_revert",
     "build_bulk_revert_execute_intent",
     "build_bulk_revert_intent",
     "build_revert_execute_intent",

@@ -10,7 +10,6 @@ _DEFAULT_MAX_PASSES = 2
 
 _FinalizerStatus = Literal["skipped", "clean", "finalized", "failed"]
 _DirtyRepoKind = Literal["main", "sibling"]
-_WorkspaceStrategy = Literal["suffix", "none"]
 
 
 class CommitFinalizerError(Exception):
@@ -31,7 +30,6 @@ class CommitFinalizerResult:
     passes: int
     changed_files: list[str]
     error: str | None = None
-    advisory_changed_files: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -47,15 +45,13 @@ class DirtyState:
     project_dir: str
     repos: tuple[DirtyRepo, ...]
     details: str
-    advisory_repos: tuple[DirtyRepo, ...] = ()
 
     @property
     def is_clean(self) -> bool:
-        return not self.repos and not self.advisory_repos
+        return not self.repos
 
 
 @dataclass(frozen=True)
 class SiblingTarget:
     name: str
     workspace_dir: str
-    workspace_strategy: _WorkspaceStrategy = "suffix"

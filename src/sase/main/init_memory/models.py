@@ -9,7 +9,6 @@ from typing import Literal
 MemoryChangeOperation = Literal["create", "update", "overwrite", "delete"]
 MemoryExpectedContent = str | bytes
 MemoryWritePolicy = Literal["overwrite", "create_if_missing"]
-WorkspaceStrategy = Literal["suffix", "none"]
 
 
 @dataclass(frozen=True)
@@ -17,8 +16,6 @@ class LinkedRepoMemoryEntry:
     name: str
     description: str
     path: str
-    workspace_strategy: WorkspaceStrategy
-    static_path: str | None = None
 
 
 @dataclass(frozen=True)

@@ -179,11 +179,12 @@ SASE keeps durable state outside any one chat session:
 - **Configured linked repos** - Project and user config can expose related repositories to launched agents as
   workspace-matched directories via the `linked_repos` key (the legacy `sibling_repos` key still works as a deprecated
   alias). SASE records those paths in environment variables and agent metadata so cross-repo work uses the same numbered
-  workspace as the main checkout, while singleton repos such as chezmoi can opt out with `workspace.strategy: none`. ACE
-  uses that metadata for live context: dirty suffix-strategy linked repos can appear in a non-terminal agent's `DELTAS`
-  section, and linked workspaces opened inside the agent with
-  `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` appear in the `SASE CONTEXT` `WORKSPACES` lane
-  and the `t` tmux chooser. In that command, `-p/--project` names the configured linked repo's backing project record.
+  workspace as the main checkout. Numbered linked checkouts live under
+  `<host_workspace>/.sase/workspaces/<linked_repo>`, so two host projects cannot collide. ACE uses that metadata for
+  live context: dirty linked repos can appear in a non-terminal agent's `DELTAS` section, and linked workspaces opened
+  inside the agent with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` appear in the
+  `SASE CONTEXT` `WORKSPACES` lane and the `t` tmux chooser. In that command, `-p/--project` names the configured linked
+  repo's backing project record.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
@@ -201,14 +202,12 @@ SASE keeps durable state outside any one chat session:
   (TUI digit toggles or `sase plan approve --with/--without`) with sticky per-project defaults, and launches requested
   by running agents are gated behind `LaunchApproval` requests resolved in ACE or with `sase launch approve/reject`.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
-  provider-neutral finalizer checks the main workspace and enforces only configured numbered Git linked-repo workspaces
-  opened during the run with `sase workspace open -p ...`. Static linked repos (`workspace.strategy: none`) are reported
-  as advisory work that the agent may commit when it made those changes, but they do not fail the run if they remain
-  dirty. If the only enforced change is one tracked SDD markdown file under `sdd/tales/` or `sdd/epics/` whose leading
-  front matter changes exactly from `status: wip` to `status: done`, SASE commits that closeout directly. Other dirty
-  enforced workspaces trigger bounded follow-up invocations that tell the same agent to use the configured commit skill;
-  if enforced workspaces are still dirty after the configured pass limit, the agent run fails with a clear artifact
-  trail.
+  provider-neutral finalizer checks the main workspace and configured Git linked-repo workspaces. Dirty linked clones
+  are enforced like the main workspace. If the only enforced change is one tracked SDD markdown file under `sdd/tales/`
+  or `sdd/epics/` whose leading front matter changes exactly from `status: wip` to `status: done`, SASE commits that
+  closeout directly. Other dirty enforced workspaces trigger bounded follow-up invocations that tell the same agent to
+  use the configured commit skill; if enforced workspaces are still dirty after the configured pass limit, the agent run
+  fails with a clear artifact trail.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, dismissed-agent bundles, saved agent
   groups, ChangeSpecs, SDD files, and beads are stored in predictable project/user directories so ACE, AXE, CLI
   commands, and external integrations can share state. Long-term memory reads and write proposals are also

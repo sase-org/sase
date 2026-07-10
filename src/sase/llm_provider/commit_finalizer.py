@@ -44,7 +44,6 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 _DirtyRepoKind = finalizer_types._DirtyRepoKind
 _FinalizerStatus = finalizer_types._FinalizerStatus
-_WorkspaceStrategy = finalizer_types._WorkspaceStrategy
 
 _CommitFinalizerConfig = CommitFinalizerConfig
 _CommitFinalizerError = CommitFinalizerError
@@ -79,7 +78,6 @@ _configured_sibling_targets = finalizer_state._configured_sibling_targets
 _dirty_configured_sibling_repos = finalizer_state._dirty_configured_sibling_repos
 _sibling_targets_from_config = finalizer_state._sibling_targets_from_config
 _sibling_targets_from_env = finalizer_state._sibling_targets_from_env
-_sibling_workspace_strategy = finalizer_state._sibling_workspace_strategy
 _workspace_num_for_project_file = finalizer_state._workspace_num_for_project_file
 _workspace_num_from_env = finalizer_state._workspace_num_from_env
 
@@ -94,7 +92,6 @@ __all__ = [
     "DirtyState",
     "_FinalizerStatus",
     "SiblingTarget",
-    "_WorkspaceStrategy",
     "append_response",
     "artifact_root",
     "build_dirty_details",
@@ -110,12 +107,10 @@ __all__ = [
     "_normalize_max_passes",
     "_normalize_path",
     "resolve_finalizer_project_dir",
-    "_result_advisory_changed_files",
     "_result_changed_files",
     "_sibling_commit_instruction",
     "_sibling_targets_from_config",
     "_sibling_targets_from_env",
-    "_sibling_workspace_strategy",
     "_workspace_env_value",
     "_workspace_num_for_project_file",
     "_workspace_num_from_env",
@@ -213,7 +208,6 @@ def run_commit_finalizer(
         )
         return invoke_result
 
-    saw_advisory_repos = bool(dirty_state.advisory_repos)
     accumulated_content = invoke_result.content
     accumulated_usage = invoke_result.usage
 
@@ -260,13 +254,8 @@ def run_commit_finalizer(
             dirty_state,
             artifact_root,
         )
-        saw_advisory_repos = saw_advisory_repos or bool(dirty_state.advisory_repos)
         if not dirty_state.repos:
-            if dirty_state.advisory_repos:
-                reason = "advisory_dirty_remaining"
-            elif saw_advisory_repos:
-                reason = "advisory_clean_after_pass"
-            elif auto_committed:
+            if auto_committed:
                 reason = "auto_committed_done_plan_status"
             elif sdd_store_auto_committed:
                 reason = "auto_committed_sdd_store"
@@ -280,11 +269,6 @@ def run_commit_finalizer(
                     project_dir=project_dir,
                     passes=pass_number,
                     changed_files=[],
-                    advisory_changed_files=(
-                        _result_advisory_changed_files(dirty_state)
-                        if saw_advisory_repos
-                        else None
-                    ),
                 ),
             )
             return InvokeResult(content=accumulated_content, usage=accumulated_usage)
@@ -299,11 +283,6 @@ def run_commit_finalizer(
             passes=config.max_passes,
             changed_files=_result_changed_files(dirty_state),
             error=error,
-            advisory_changed_files=(
-                _result_advisory_changed_files(dirty_state)
-                if saw_advisory_repos
-                else None
-            ),
         ),
     )
     raise _CommitFinalizerError(error)
@@ -419,10 +398,3 @@ def _clean_result_reason(
     if sdd_store_auto_committed:
         return "auto_committed_sdd_store"
     return "no_changes"
-
-
-def _result_advisory_changed_files(dirty_state: DirtyState) -> list[str]:
-    changed: list[str] = []
-    for repo in dirty_state.advisory_repos:
-        changed.extend(f"{repo.name}:{path}" for path in repo.changed_files)
-    return changed
