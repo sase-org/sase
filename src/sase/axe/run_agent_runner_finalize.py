@@ -10,7 +10,10 @@ import os
 from datetime import datetime
 from typing import Any
 
-from sase.axe.image_attachments import append_unique_paths
+from sase.axe.image_attachments import (
+    MAX_COMPLETION_IMAGE_ATTACHMENTS,
+    append_unique_paths,
+)
 from sase.axe.run_agent_helpers import read_commit_result_metadata
 from sase.axe.run_agent_phases import build_done_marker, record_stop_time
 from sase.axe.run_agent_repeat_stop import STOP_OUTPUT_VARIABLE
@@ -228,7 +231,10 @@ def send_completion_notification(
         if os.path.isfile(output_path):
             extra_files.append(output_path)
     extra_files.extend(append_unique_paths(markdown_pdf_paths or [], extra_files))
-    extra_files.extend(append_unique_paths(image_paths or [], extra_files))
+    image_candidates = append_unique_paths(image_paths or [], extra_files)
+    image_attachment_count = len(image_candidates)
+    if image_attachment_count <= MAX_COMPLETION_IMAGE_ATTACHMENTS:
+        extra_files.extend(image_candidates)
     extra_files.extend(append_unique_paths(video_paths or [], extra_files))
     explicit_artifact_paths = _completion_explicit_artifact_paths(current_artifacts_dir)
     extra_files.extend(append_unique_paths(explicit_artifact_paths, extra_files))
@@ -249,6 +255,11 @@ def send_completion_notification(
         notes.append(
             f"Edited {markdown_source_count} Markdown files; skipped PDF attachments "
             f"because the limit is {MAX_MARKDOWN_PDF_ATTACHMENTS}."
+        )
+    if image_attachment_count > MAX_COMPLETION_IMAGE_ATTACHMENTS:
+        notes.append(
+            f"Discovered {image_attachment_count} images; skipped image attachments "
+            f"because the limit is {MAX_COMPLETION_IMAGE_ATTACHMENTS}."
         )
 
     # For failures with an error report, use ViewErrorReport action

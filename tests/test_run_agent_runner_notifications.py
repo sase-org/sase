@@ -14,7 +14,10 @@ from unittest.mock import patch
 import pytest
 
 from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
-from sase.axe.image_attachments import collect_agent_image_paths
+from sase.axe.image_attachments import (
+    MAX_COMPLETION_IMAGE_ATTACHMENTS,
+    collect_agent_image_paths,
+)
 from sase.axe.run_agent_phases import build_done_marker
 from sase.axe.run_agent_runner_finalize import (
     classify_exec_success,
@@ -403,6 +406,63 @@ def test_completion_notification_dedupes_image_paths(base_kwargs, tmp_path):
         send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["extra_files"] == [str(image)]
+
+
+def test_completion_notification_attaches_images_at_limit(base_kwargs, tmp_path):
+    images = [
+        str(tmp_path / f"screen_{index:02d}.png")
+        for index in range(MAX_COMPLETION_IMAGE_ATTACHMENTS)
+    ]
+    base_kwargs["image_paths"] = images
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == images
+    assert len(mock_notify.call_args.kwargs["notes"]) == 1
+
+
+def test_completion_notification_skips_images_above_limit(base_kwargs, tmp_path):
+    chat = tmp_path / "chat.md"
+    video = tmp_path / "demo.mp4"
+    image_count = MAX_COMPLETION_IMAGE_ATTACHMENTS + 1
+    base_kwargs["saved_path"] = str(chat)
+    base_kwargs["image_paths"] = [
+        str(tmp_path / f"screen_{index:02d}.png") for index in range(image_count)
+    ]
+    base_kwargs["video_paths"] = [str(video)]
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [str(chat), str(video)]
+    assert mock_notify.call_args.kwargs["notes"][-1] == (
+        f"Discovered {image_count} images; skipped image attachments because the "
+        f"limit is {MAX_COMPLETION_IMAGE_ATTACHMENTS}."
+    )
+
+
+def test_completion_notification_counts_deduped_image_candidates(base_kwargs, tmp_path):
+    already_attached = str(tmp_path / "screen_00.png")
+    image_candidates = [
+        str(tmp_path / f"screen_{index:02d}.png")
+        for index in range(1, MAX_COMPLETION_IMAGE_ATTACHMENTS + 1)
+    ]
+    base_kwargs["diff_path"] = already_attached
+    base_kwargs["image_paths"] = [
+        already_attached,
+        *image_candidates,
+        image_candidates[0],
+    ]
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["extra_files"] == [
+        already_attached,
+        *image_candidates,
+    ]
+    assert len(mock_notify.call_args.kwargs["notes"]) == 1
 
 
 def test_completion_notification_dedupes_video_paths(base_kwargs, tmp_path):

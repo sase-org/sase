@@ -12,6 +12,7 @@ from sase.media_types import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
 
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
 SUPPORTED_MARKDOWN_EXTENSIONS = frozenset({".md", ".markdown"})
+MAX_COMPLETION_IMAGE_ATTACHMENTS = 10
 _ATTACHMENT_STATUS_LETTERS = frozenset({"A", "C", "M", "R", "T"})
 
 
