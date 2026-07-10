@@ -216,7 +216,7 @@ WHERE
 SORT title
 ```
 
-Each research agent is expected to use `/bob_dataview` to run that query against Bryan's Bob vault, treat every returned
+Each research agent is expected to use `/bob_query` to run that query against Bryan's Bob vault, treat every returned
 title and URL entry as already-known, and only then search for new reading candidates. A normal invocation can rely on
 the default query:
 

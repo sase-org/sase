@@ -132,7 +132,7 @@ def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
         "Treat every URL and title already present" in segment
         for segment in research_segments
     )
-    assert all("/bob_dataview" in segment for segment in research_segments)
+    assert all("/bob_query" in segment for segment in research_segments)
     assert all(
         DEFAULT_READS_REFERENCE_QUERY in segment for segment in research_segments
     )

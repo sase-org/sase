@@ -26,7 +26,7 @@ xprompts:
 
       {{ topic }}
 
-      Use the `/bob_dataview` skill to run this Obsidian Dataview query against my Obsidian vault before searching:
+      Use the `/bob_query` skill to run this Obsidian Dataview query against my Obsidian vault before searching:
 
       {{ "```dataview" }}
       {{ reference_query }}
@@ -88,5 +88,5 @@ weaker consensus item.
 
 Return a final ranked reading list. For each item, include the title, link, publication date when available, which
 agents recommended it, and a concise reason it is worth reading. Resolve duplicate uncertainty against the transcripts
-and Dataview table data, rerunning `/bob_dataview` only if needed. Call out any near-duplicates or candidates you
+and Dataview table data, rerunning `/bob_query` only if needed. Call out any near-duplicates or candidates you
 exclude because they appear to already be in the reference table.
