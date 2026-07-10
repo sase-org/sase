@@ -101,6 +101,7 @@ def _render(
     filters: CommitFilters | None = None,
     reverse: bool = False,
     show_tags: bool = True,
+    all_projects: bool = False,
 ) -> str:
     out = io.StringIO()
     render(
@@ -112,6 +113,7 @@ def _render(
         filters=filters,
         reverse=reverse,
         show_tags=show_tags,
+        all_projects=all_projects,
     )
     return out.getvalue()
 
@@ -164,6 +166,7 @@ def test_json_shape_and_ordering() -> None:
         "timestamp": 300,
     }
     assert payload["query"] == {
+        "all": False,
         "authors": [],
         "limit": 40,
         "reverse": False,
@@ -206,6 +209,7 @@ def test_json_empty_result() -> None:
     assert payload == {
         "commits": [],
         "query": {
+            "all": False,
             "authors": [],
             "limit": 40,
             "reverse": False,
@@ -234,12 +238,45 @@ def test_json_reverse_and_query_filters() -> None:
         "a1b2c3d",
     ]
     assert payload["query"] == {
+        "all": False,
         "authors": ["bryan"],
         "limit": 0,
         "reverse": True,
         "since": 100,
         "until": 300,
     }
+
+
+def test_json_marks_all_project_scope_with_unique_local_only_labels() -> None:
+    result = VcsLogResult(
+        repos=(
+            LogRepo("alpha/shared", "/p/alpha-shared", "linked"),
+            LogRepo("beta/shared", "/p/beta-shared", "linked"),
+        ),
+        commits=(
+            _entry(
+                "alpha/shared",
+                "abc12345",
+                200,
+                "local provider commit",
+                presence="unknown",
+            ),
+        ),
+        warnings=(),
+        remote_states=(
+            RepoRemoteState("alpha/shared", None, 0, 0, False),
+            RepoRemoteState("beta/shared", None, 0, 0, False),
+        ),
+    )
+
+    payload = json.loads(_render(result, "json", all_projects=True))
+
+    assert payload["query"]["all"] is True
+    assert [repo["name"] for repo in payload["repos"]] == [
+        "alpha/shared",
+        "beta/shared",
+    ]
+    assert payload["commits"][0]["presence"] == "unknown"
 
 
 def test_pretty_day_groups_labels_and_order(

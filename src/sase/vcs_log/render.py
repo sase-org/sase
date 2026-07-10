@@ -39,13 +39,24 @@ def render(
     filters: CommitFilters | None = None,
     reverse: bool = False,
     show_tags: bool = True,
+    all_projects: bool = False,
 ) -> None:
     """Render *result* in the requested format to *out* (default stdout)."""
     stream = out if out is not None else sys.stdout
     filters = filters or CommitFilters()
     commits = _ordered_commits(result, reverse=reverse)
     if fmt == "json":
-        stream.write(_render_json(result, commits, limit, filters, reverse, show_tags))
+        stream.write(
+            _render_json(
+                result,
+                commits,
+                limit,
+                filters,
+                reverse,
+                show_tags,
+                all_projects,
+            )
+        )
         return
     if fmt == "oneline":
         stream.write(_render_oneline(commits, show_tags=show_tags))
@@ -82,12 +93,14 @@ def _render_json(
     filters: CommitFilters,
     reverse: bool,
     show_tags: bool,
+    all_projects: bool,
 ) -> str:
     states = {state.name: state for state in result.remote_states}
     payload = {
         "repos": [_repo_json(repo, states) for repo in result.repos],
         "commits": [_commit_json(entry, show_tags=show_tags) for entry in commits],
         "query": {
+            "all": all_projects,
             "limit": limit,
             "since": filters.since,
             "until": filters.until,

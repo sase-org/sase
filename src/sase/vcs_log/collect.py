@@ -101,6 +101,7 @@ def run_vcs_log(
     limit: int,
     filters: CommitFilters | None = None,
     repo_filters: Sequence[str] = (),
+    all_projects: bool = False,
     current_only: bool = False,
     no_fetch: bool = False,
     force_fetch: bool = False,
@@ -117,7 +118,10 @@ def run_vcs_log(
     problems first.
     """
     resolved = resolve_log_repos(
-        cwd=cwd, repo_filters=repo_filters, current_only=current_only
+        cwd=cwd,
+        repo_filters=repo_filters,
+        all_projects=all_projects,
+        current_only=current_only,
     )
     collected = collect_vcs_log(
         resolved.repos,
@@ -171,7 +175,7 @@ def _collect_repo_commits(
         commits = _local_log(provider, repo.path, limit, filters)
         if resolver_available:
             warnings.append(
-                f"{repo.name}: no usable origin remote; showing local commits"
+                f"{repo.name}: no usable remote log ref; showing local commits"
             )
         return (
             _mark_presence(commits, "unknown"),
@@ -262,13 +266,19 @@ def _resolve_remote_ref(
     resolver = getattr(provider, "resolve_remote_log_ref", None)
     if resolver is None:
         return (None, False)
-    return (resolver(cwd=cwd, ref_name=ref_name), True)
+    try:
+        return (resolver(cwd=cwd, ref_name=ref_name), True)
+    except NotImplementedError:
+        return (None, False)
 
 
 def _local_log(
     provider: object, cwd: str, limit: int, filters: CommitFilters
 ) -> list[VcsCommitWire]:
-    return provider.log(  # type: ignore[attr-defined]
+    log = getattr(provider, "log", None)
+    if log is None:
+        raise NotImplementedError("log is not supported by this VCS provider")
+    return log(
         cwd=cwd,
         limit=limit,
         since=filters.since,

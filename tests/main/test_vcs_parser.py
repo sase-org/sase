@@ -62,6 +62,7 @@ class TestVcsParser:
         ns = create_parser().parse_args(["vcs", "log"])
 
         assert ns.vcs_subcommand == "log"
+        assert ns.all is False
         assert ns.limit == 40
         assert ns.authors == []
         assert ns.format == "pretty"
@@ -124,6 +125,19 @@ class TestVcsParser:
 
         assert ns.current_only is True
 
+    @pytest.mark.parametrize("option", ["-a", "--all"])
+    def test_log_all_project_flags(self, option: str) -> None:
+        ns = create_parser().parse_args(["vcs", "log", option])
+
+        assert ns.all is True
+        assert ns.authors == []
+
+    def test_log_all_and_current_only_are_mutually_exclusive(self) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            create_parser().parse_args(["vcs", "log", "--all", "--current-only"])
+
+        assert excinfo.value.code == 2
+
     def test_log_accepts_limit_zero(self) -> None:
         ns = create_parser().parse_args(["vcs", "log", "--limit", "0"])
 
@@ -148,7 +162,7 @@ class TestVcsParser:
                 "today",
                 "--author",
                 "Bryan",
-                "-a",
+                "-A",
                 "amy",
                 "-R",
             ]
@@ -192,6 +206,7 @@ class TestVcsParser:
         assert "--no-tags" in help_text
         assert "-t, --tags" not in help_text
         long_options = [
+            "--all",
             "--author",
             "--branch",
             "--color",

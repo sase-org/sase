@@ -62,6 +62,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         limit=args.limit,
         filters=filters,
         repo_filters=args.repos,
+        all_projects=args.all,
         current_only=args.current_only,
         no_fetch=args.no_fetch,
         force_fetch=args.force_fetch,
@@ -76,6 +77,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         filters=filters,
         reverse=args.reverse,
         show_tags=args.show_tags,
+        all_projects=args.all,
     )
     return 0 if result.repos else 1
 

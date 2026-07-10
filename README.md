@@ -106,6 +106,7 @@ sase run "<prompt>"       # launch an agent or workflow
 sase agent list          # inspect running agents
 sase vcs list            # inspect the primary, linked, and SDD repository set
 sase vcs log             # inspect recent commits across that repository set
+sase vcs log --all       # merge commits from every registered project's repositories
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
 sase sdd path            # print the effective SDD root for this workspace

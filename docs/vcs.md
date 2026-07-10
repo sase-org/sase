@@ -163,19 +163,34 @@ one repo is shown as a warning and does not hide the other repos.
 ### `sase vcs log`
 
 Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
-store when present. `sase vcs log` uses the same repo resolver as `sase vcs list`, so both commands operate on the same
-repository set. By default it shows up to 40 commits and trailing SASE commit tags, refreshes the compared `origin` ref
-with a narrow `git fetch` when that checkout/ref has not been fetched successfully in the last 60 seconds, and marks
-each commit as synced, unpushed, GitHub-only, or unknown when no remote comparison is available.
+store when present. In its default scope, `sase vcs log` uses the same repo resolver as `sase vcs list`. Pass `--all` to
+build one timeline from every active, inactive, and sibling project in the registered SASE inventory (excluding the
+system-managed `home` project), regardless of the current directory. Global discovery includes each usable primary,
+configured linked repos without materializing missing workspaces, and existing separate SDD repositories.
+
+Global discovery canonicalizes checkout paths, so a repository registered independently and linked from one or more
+projects is read and fetched only once. Registered project display names take precedence; colliding linked-repo and SDD
+labels are qualified with their owning project. `--repo` accepts displayed labels and unambiguous source aliases.
+Failures in one project or provider are warnings and do not hide healthy repositories.
+
+By default the command shows up to 40 commits and trailing SASE commit tags, refreshes a supported remote ref when that
+checkout/ref has not been fetched successfully in the last 60 seconds, and marks each commit as synced, unpushed,
+remote-only, or unknown when no remote comparison is available. Providers without remote-log comparison still contribute
+local history through the provider-neutral `log()` hook; a provider without that hook produces an isolated warning.
 
 When a cache miss or `--fetch` triggers remote I/O, stderr shows `Fetching remote · <repo> ← <ref>` as a transient
 spinner in an interactive terminal or a durable status line when redirected. Commit data remains isolated on stdout, so
 JSON and oneline output stay safe to pipe.
 
+The short author option moved from `-a` to `-A` because `-a` now selects all-project scope. Existing scripts can migrate
+to `-A PATTERN`; the long `--author PATTERN` spelling is unchanged.
+
 Common forms:
 
 ```bash
 sase vcs log
+sase vcs log --all
+sase vcs log --all --repo sase-core --repo chezmoi
 sase vcs log --branch main --no-fetch
 sase vcs log --fetch --limit 3
 sase vcs log --since 2w --author bryan
@@ -187,7 +202,8 @@ Options:
 
 | Option                                    | Purpose                                                                                 |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `-a`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
+| `-a`, `--all`                             | Read repositories from every registered project and lifecycle state.                    |
+| `-A`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
 | `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                        |
 | `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                   |
 | `-o`, `--current-only`                    | Read only the current/primary repo.                                                     |
@@ -200,6 +216,11 @@ Options:
 | `-R`, `--reverse`                         | Display the selected commits oldest-first.                                              |
 | `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                     |
 | `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                    |
+
+`--all` and `--current-only` are mutually exclusive. `--repo` remains repeatable in global scope and is applied after
+canonical-path deduplication and unique label assignment. The `--limit` cap applies to the final merged timeline, not to
+each project's inventory: each unique candidate repository is queried deeply enough to compute the global top N. Use
+`--limit 0` for an unlimited merged timeline. JSON output records the selected global scope as `query.all`.
 
 `DATE` accepts relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM`. Dates are
 resolved in the configured SASE timezone and pushed into the provider query before the limit is applied, so filtered

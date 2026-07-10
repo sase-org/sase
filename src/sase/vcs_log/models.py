@@ -37,11 +37,13 @@ class LogRepo:
             linked-repo ``name``, or the SDD store label).
         path: Filesystem path of the repository checkout to read.
         kind: Which slot of the constellation this repo fills.
+        aliases: Additional unambiguous source names accepted by ``--repo``.
     """
 
     name: str
     path: str
     kind: LogRepoKind
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

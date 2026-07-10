@@ -81,8 +81,15 @@ def _add_list_options(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_log_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
+    scope_group = parser.add_mutually_exclusive_group()
+    scope_group.add_argument(
         "-a",
+        "--all",
+        action="store_true",
+        help="Include repos from all active, inactive, and sibling projects",
+    )
+    parser.add_argument(
+        "-A",
         "--author",
         action="append",
         default=[],
@@ -105,7 +112,7 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         default="auto",
         help="Color output: auto, always, or never (default: auto)",
     )
-    parser.add_argument(
+    scope_group.add_argument(
         "-o",
         "--current-only",
         action="store_true",
@@ -155,8 +162,7 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         default=[],
         dest="repos",
         metavar="NAME",
-        help="Restrict to a named repo (repeatable); "
-        "names are the project, each linked repo, and 'sdd'",
+        help="Restrict to a repo label or unambiguous source name (repeatable)",
     )
     parser.add_argument(
         "-R",
@@ -228,7 +234,8 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show a chronological, cross-repository commit timeline",
         description=(
             "Show a chronological, cross-repository commit timeline across "
-            "the primary repo, linked repos, and the SDD store."
+            "the primary repo, linked repos, and the SDD store. Use --all to "
+            "merge repositories from every registered project."
         ),
         epilog=f"DATE grammar: {DATE_HELP}.",
         formatter_class=argparse.RawDescriptionHelpFormatter,

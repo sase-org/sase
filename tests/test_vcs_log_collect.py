@@ -115,6 +115,16 @@ class _RemoteProvider:
         return self._commits if limit < 0 else self._commits[:limit]
 
 
+class _LocalOnlyProvider(_FakeProvider):
+    def resolve_remote_log_ref(
+        self, cwd: str, ref_name: str | None = None
+    ) -> str | None:
+        del cwd, ref_name
+        raise NotImplementedError(
+            "resolve_remote_log_ref is not supported by this VCS provider"
+        )
+
+
 def test_collect_isolates_failing_repo_and_interleaves() -> None:
     providers = {
         "/p/sase": _FakeProvider([_commit("a", 300, "recent"), _commit("b", 100)]),
@@ -176,6 +186,64 @@ def test_collect_fetches_limit_per_repo() -> None:
     repos = [LogRepo("a", "/a", "primary"), LogRepo("b", "/b", "linked")]
     collect_vcs_log(repos, limit=7, provider_factory=_Recorder)
     assert seen == {"/a": 7, "/b": 7}
+
+
+def test_collect_applies_merged_limit_across_global_catalog() -> None:
+    providers = {
+        "/a": _FakeProvider([_commit("a3", 300), _commit("a1", 100)]),
+        "/b": _FakeProvider([_commit("b4", 400), _commit("b2", 200)]),
+        "/c": _FakeProvider([_commit("c5", 500)]),
+    }
+
+    result = collect_vcs_log(
+        [
+            LogRepo("a", "/a", "primary"),
+            LogRepo("b", "/b", "primary"),
+            LogRepo("c", "/c", "linked"),
+        ],
+        limit=2,
+        provider_factory=lambda path: providers[path],
+    )
+
+    assert [(entry.repo, entry.commit.full_id) for entry in result.commits] == [
+        ("c", "c5"),
+        ("b", "b4"),
+    ]
+
+
+def test_collect_unsupported_remote_comparison_uses_local_log() -> None:
+    provider = _LocalOnlyProvider([_commit("local", 100)])
+
+    result = collect_vcs_log(
+        [LogRepo("local-vcs", "/local", "primary")],
+        limit=20,
+        provider_factory=lambda path: provider,
+    )
+
+    assert result.warnings == ()
+    assert [entry.commit.presence for entry in result.commits] == ["unknown"]
+    assert result.remote_states == (
+        collect_module.RepoRemoteState("local-vcs", None, 0, 0, False),
+    )
+
+
+def test_collect_missing_log_hook_is_actionable_and_isolated() -> None:
+    providers = {
+        "/good": _FakeProvider([_commit("good", 100)]),
+        "/bad": object(),
+    }
+
+    result = collect_vcs_log(
+        [
+            LogRepo("good", "/good", "primary"),
+            LogRepo("bad", "/bad", "linked"),
+        ],
+        limit=20,
+        provider_factory=lambda path: providers[path],
+    )
+
+    assert [repo.name for repo in result.repos] == ["good"]
+    assert result.warnings == ("bad: log is not supported by this VCS provider",)
 
 
 def test_collect_threads_filters_and_unlimited_sentinel() -> None:
@@ -494,7 +562,12 @@ def test_collect_corrupt_fetch_cache_is_ignored(tmp_path: Path) -> None:
 def test_run_merges_resolution_warnings_ahead_of_collection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_resolve(*, cwd, repo_filters=(), current_only=False):  # type: ignore[no-untyped-def]
+    scopes: list[bool] = []
+
+    def fake_resolve(  # type: ignore[no-untyped-def]
+        *, cwd, repo_filters=(), all_projects=False, current_only=False
+    ):
+        scopes.append(all_projects)
         return ResolvedRepos(
             repos=[LogRepo("sase", "/p/sase", "primary")],
             warnings=["resolve-warning"],
@@ -506,10 +579,12 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
     result = run_vcs_log(
         cwd="/anywhere",
         limit=10,
+        all_projects=True,
         provider_factory=lambda path: providers[path],
     )
 
     # Resolution warning first, then the collection warning.
+    assert scopes == [True]
     assert result.warnings == (
         "resolve-warning",
         "sase: no such checkout",
