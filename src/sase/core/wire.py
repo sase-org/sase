@@ -23,9 +23,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-CHANGESPEC_WIRE_SCHEMA_VERSION = 3
+CHANGESPEC_WIRE_SCHEMA_VERSION = 4
 SUPPORTED_CHANGESPEC_WIRE_SCHEMA_VERSIONS = frozenset(
-    {2, CHANGESPEC_WIRE_SCHEMA_VERSION}
+    {2, 3, CHANGESPEC_WIRE_SCHEMA_VERSION}
 )
 
 
@@ -140,6 +140,7 @@ class ChangeSpecWire:
     schema_version: int
     name: str
     project_basename: str
+    project_display_name: str | None
     file_path: str
     source_span: SourceSpanWire
     status: str

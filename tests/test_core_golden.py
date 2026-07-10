@@ -74,9 +74,10 @@ def test_changespec_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "name": "alpha",
                 "project_basename": "myproj",
+                "project_display_name": None,
                 "file_path": "myproj.sase",
                 "source_span": {
                     "file_path": "myproj.sase",
@@ -156,9 +157,10 @@ def test_changespec_wire_json_snapshot() -> None:
                 ],
             },
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "name": "beta",
                 "project_basename": "myproj",
+                "project_display_name": None,
                 "file_path": "myproj.sase",
                 "source_span": {
                     "file_path": "myproj.sase",
@@ -178,9 +180,10 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "name": "beta__260102_010101",
                 "project_basename": "myproj",
+                "project_display_name": None,
                 "file_path": "myproj.sase",
                 "source_span": {
                     "file_path": "myproj.sase",
@@ -200,9 +203,10 @@ def test_changespec_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "name": "gamma",
                 "project_basename": "myproj",
+                "project_display_name": None,
                 "file_path": "myproj.sase",
                 "source_span": {
                     "file_path": "myproj.sase",
@@ -247,9 +251,10 @@ def test_archive_corpus_wire_json_snapshot() -> None:
     assert payload == snapshot(
         [
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "name": "archived_one",
                 "project_basename": "myproj",
+                "project_display_name": None,
                 "file_path": "myproj-archive.sase",
                 "source_span": {
                     "file_path": "myproj-archive.sase",
@@ -281,9 +286,10 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "deltas": [],
             },
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "name": "reverted_two",
                 "project_basename": "myproj",
+                "project_display_name": None,
                 "file_path": "myproj-archive.sase",
                 "source_span": {
                     "file_path": "myproj-archive.sase",

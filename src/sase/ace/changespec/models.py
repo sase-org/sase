@@ -479,6 +479,7 @@ class ChangeSpec:
     mentors: list[MentorEntry] | None = None
     timestamps: list[TimestampEntry] | None = None
     deltas: list[DeltaEntry] | None = None
+    project_display_name: str | None = None
 
     def __init__(
         self,
@@ -496,6 +497,7 @@ class ChangeSpec:
         mentors: list[MentorEntry] | None = None,
         timestamps: list[TimestampEntry] | None = None,
         deltas: list[DeltaEntry] | None = None,
+        project_display_name: str | None = None,
         *,
         cl: str | None = None,
     ) -> None:
@@ -518,6 +520,7 @@ class ChangeSpec:
         self.mentors = mentors
         self.timestamps = timestamps
         self.deltas = deltas
+        self.project_display_name = project_display_name
 
     @property
     def cl(self) -> str | None:
@@ -551,3 +554,13 @@ class ChangeSpec:
         changespec on every filter pass.
         """
         return os.path.basename(os.path.dirname(self.file_path))
+
+    @property
+    def project_query_name(self) -> str:
+        """Effective identity for exact ``project:`` query matching.
+
+        A configured ``PROJECT_NAME`` replaces the canonical directory key as
+        the query identity. Storage and VCS callers continue using
+        :attr:`project_name` and :attr:`project_basename`.
+        """
+        return self.project_display_name or self.project_name

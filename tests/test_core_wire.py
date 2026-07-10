@@ -45,6 +45,7 @@ def _full_changespec() -> ChangeSpec:
         status="WIP",
         file_path="/proj/myproj.sase",
         line_number=10,
+        project_display_name="widgets",
         bug="BUG-1",
         commits=[
             CommitEntry(
@@ -141,6 +142,7 @@ def test_changespec_to_wire_full_round_trip() -> None:
     assert wire.schema_version == CHANGESPEC_WIRE_SCHEMA_VERSION
     assert wire.name == "my_feature"
     assert wire.project_basename == "myproj"
+    assert wire.project_display_name == "widgets"
     assert wire.source_span == SourceSpanWire(
         file_path="/proj/myproj.sase", start_line=10, end_line=42
     )
@@ -298,6 +300,28 @@ def test_changespec_wire_from_dict_treats_missing_lists_as_empty() -> None:
     wire = changespec_wire_from_dict(payload)
     assert wire.commits == []
     assert wire.deltas == []
+
+
+def test_changespec_wire_from_older_dict_defaults_project_name_metadata() -> None:
+    """Version 3 records predate configured project query metadata."""
+    payload = {
+        "schema_version": 3,
+        "name": "x",
+        "project_basename": "p",
+        "file_path": "/tmp/p/p.sase",
+        "source_span": {
+            "file_path": "/tmp/p/p.sase",
+            "start_line": 1,
+            "end_line": 1,
+        },
+        "status": "WIP",
+        "parent": None,
+        "pr_url": None,
+        "bug": None,
+        "description": "",
+    }
+    wire = changespec_wire_from_dict(payload)
+    assert wire.project_display_name is None
 
 
 def test_empty_changespec_collections_become_empty_lists() -> None:

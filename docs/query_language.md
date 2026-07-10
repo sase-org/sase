@@ -55,7 +55,7 @@ supported property filters are exact and case-insensitive:
 
 ```
 status:WIP            match ChangeSpecs with base status "WIP"
-project:myproject     match ChangeSpecs in the "myproject" project
+project:myproject     match ChangeSpecs whose effective project name is "myproject"
 ancestor:parent_cl    match if name or parent chain includes "parent_cl"
 name:foo              match ChangeSpecs whose name is exactly "foo"
 sibling:bar           match ChangeSpecs in the same sibling family as "bar"
@@ -63,6 +63,11 @@ sibling:bar           match ChangeSpecs in the same sibling family as "bar"
 
 Valid property keys: `status`, `project`, `ancestor`, `name`, and `sibling`. Values can be bare words (alphanumeric,
 `_`, `-`) or quoted strings (e.g. `status:"in progress"`).
+
+The `project:` filter uses the ProjectSpec's configured `PROJECT_NAME` when present and valid; otherwise it falls back
+to the canonical project directory key. A configured name replaces the directory key for this exact filter rather than
+adding a second alias. `PROJECT_ALIASES` are not matched by `project:` or the `+` shorthand, and storage paths,
+workspace lookup, and VCS operations continue using the canonical directory key.
 
 ### Property Shorthand Prefixes
 

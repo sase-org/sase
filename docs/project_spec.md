@@ -74,7 +74,8 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
   are read as `inactive`.
 - **PROJECT_NAME**: Optional user-facing project name. The storage key remains the directory name
   `~/.sase/projects/<project>/`; `PROJECT_NAME` is surfaced in project lists, launch pickers, agent grouping labels, and
-  VCS workspace references.
+  VCS workspace references. ChangeSpec `project:` queries (including the `+project` shorthand) also use this configured
+  name exactly and case-insensitively, falling back to the directory key only when `PROJECT_NAME` is missing or invalid.
 - **PROJECT_ALIASES**: Comma-separated alternate project names accepted in VCS workspace references. Aliases are
   canonicalized to the directory-key project name before launch state, prompt history, and agent artifacts are written.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or workflows are running.
@@ -115,6 +116,10 @@ prompt history writes, and agent artifact writes. These friendly refs should not
 using the directory key, while display surfaces prefer `PROJECT_NAME` when present. Display-only helpers also humanize
 filename-safe project stems in some artifact, retry, and mobile-facing labels when they can map the stem back to a
 ProjectSpec display name; the underlying files are not renamed.
+
+ChangeSpec `project:` queries use `PROJECT_NAME` as their sole project identity when it is configured; the directory key
+is not an additional query alias. `PROJECT_ALIASES` remain launch/xprompt aliases and do not participate in this filter.
+Active and archive ChangeSpecs share the name configured in the active ProjectSpec.
 
 Validation rules:
 

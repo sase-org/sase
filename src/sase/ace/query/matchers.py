@@ -54,16 +54,17 @@ def _match_status(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
 
 
 def _match_project(prop: PropertyMatch, changespec: ChangeSpec) -> bool:
-    """Match against ChangeSpec project (from file_path).
+    """Match against the effective ChangeSpec project query name.
 
     Args:
         prop: The PropertyMatch with key="project".
         changespec: The ChangeSpec to check.
 
     Returns:
-        True if the project basename matches (case-insensitive).
+        True if the configured display name, or directory-key fallback,
+        matches case-insensitively.
     """
-    return changespec.project_name.lower() == prop.value.lower()
+    return changespec.project_query_name.lower() == prop.value.lower()
 
 
 def _match_name(prop: PropertyMatch, changespec: ChangeSpec) -> bool:

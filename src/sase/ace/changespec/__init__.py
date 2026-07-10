@@ -37,7 +37,10 @@ from .cache import (
     find_all_changespecs_cached,
     get_global_snapshot_cache,
 )
-from .discovery import iter_changespec_project_files
+from .discovery import (
+    iter_changespec_project_file_records,
+    iter_changespec_project_files,
+)
 from .parser import parse_project_file
 from .archive import (
     get_archive_file_path,
@@ -149,8 +152,11 @@ def find_all_changespecs(
         active projects; history/agent views can pass ``"all"`` explicitly.
     """
     all_changespecs: list[ChangeSpec] = []
-    for project_file in iter_changespec_project_files(include_states=include_states):
-        all_changespecs.extend(parse_project_file(str(project_file)))
+    for item in iter_changespec_project_file_records(include_states=include_states):
+        specs = parse_project_file(str(item.path))
+        for spec in specs:
+            spec.project_display_name = item.project_display_name
+        all_changespecs.extend(specs)
     return all_changespecs
 
 

@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from threading import Lock
 
-from .discovery import iter_changespec_project_files
+from .discovery import iter_changespec_project_file_records
 from .models import ChangeSpec
 from .parser import parse_project_file
 
@@ -22,10 +22,14 @@ class ChangeSpecSnapshotCache:
     """In-process cache of parsed ChangeSpec lists per project file."""
 
     def __init__(self) -> None:
-        self._data: dict[str, tuple[int, int, list[ChangeSpec]]] = {}
+        self._data: dict[str, tuple[int, int, str | None, list[ChangeSpec]]] = {}
         self._lock = Lock()
 
-    def get_file_specs(self, path: Path | str) -> list[ChangeSpec]:
+    def get_file_specs(
+        self,
+        path: Path | str,
+        project_display_name: str | None = None,
+    ) -> list[ChangeSpec]:
         """Return parsed ChangeSpecs for *path*, using the cache when fresh."""
         p = os.fspath(path)
         try:
@@ -38,13 +42,19 @@ class ChangeSpecSnapshotCache:
         sig = (st.st_mtime_ns, st.st_size)
         with self._lock:
             cached = self._data.get(p)
-            if cached is not None and (cached[0], cached[1]) == sig:
-                return list(cached[2])
+            if (
+                cached is not None
+                and (cached[0], cached[1]) == sig
+                and cached[2] == project_display_name
+            ):
+                return list(cached[3])
 
         specs = parse_project_file(p)
+        for spec in specs:
+            spec.project_display_name = project_display_name
 
         with self._lock:
-            self._data[p] = (sig[0], sig[1], specs)
+            self._data[p] = (sig[0], sig[1], project_display_name, specs)
         return list(specs)
 
     def find_all_changespecs_cached(
@@ -54,9 +64,9 @@ class ChangeSpecSnapshotCache:
         """Find ChangeSpecs across lifecycle-selected project + archive files."""
         seen: set[str] = set()
         all_specs: list[ChangeSpec] = []
-        for fpath in iter_changespec_project_files(include_states=include_states):
-            seen.add(os.fspath(fpath))
-            all_specs.extend(self.get_file_specs(fpath))
+        for item in iter_changespec_project_file_records(include_states=include_states):
+            seen.add(os.fspath(item.path))
+            all_specs.extend(self.get_file_specs(item.path, item.project_display_name))
 
         with self._lock:
             for path in list(self._data.keys()):
