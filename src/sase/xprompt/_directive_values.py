@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ._directive_time import is_canonical_duration, parse_absolute_time, parse_duration
+from ._directive_time import parse_absolute_time, parse_duration
 from ._directive_types import AUTO_MODES, AUTO_MODES_ORDERED
 from ._exceptions import DirectiveError
 from .effort import EFFORT_LEVELS_ORDERED, is_valid_effort, split_model_effort
@@ -42,16 +42,6 @@ def resolve_wait_agent_args(seen_multi: dict[str, list[str]]) -> None:
                 )
             resolved_wait.append(prev_name)
             continue
-        if is_canonical_duration(raw_arg):
-            raise DirectiveError(
-                f"%wait:{raw_arg} is a time wait; use "
-                f"%wait(time={raw_arg}) or #t:{raw_arg} instead"
-            )
-        if parse_absolute_time(raw_arg) is not None:
-            raise DirectiveError(
-                f"%wait:{raw_arg} is a time wait; use "
-                f"%wait(time={raw_arg}) or #t:{raw_arg} instead"
-            )
         resolved_wait.append(raw_arg)
     seen_multi["wait"] = resolved_wait
 

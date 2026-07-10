@@ -6,11 +6,7 @@ import pytest
 
 from sase.core.time import local_now
 from sase.xprompt._exceptions import DirectiveError
-from sase.xprompt.directives import (
-    is_canonical_duration,
-    parse_absolute_time,
-    parse_duration,
-)
+from sase.xprompt.directives import parse_absolute_time, parse_duration
 
 
 # --- parse_duration tests ---
@@ -74,26 +70,6 @@ def test_parse_duration_agent_name() -> None:
 def test_parse_duration_empty() -> None:
     """Empty string returns None."""
     assert parse_duration("") is None
-
-
-# --- is_canonical_duration tests ---
-
-
-@pytest.mark.parametrize(
-    "value",
-    ["5s", "5m", "30s", "10s", "1h30m", "1h30m15s", "0s", "0h0m0s"],
-)
-def test_is_canonical_duration_accepts_normalized_values(value: str) -> None:
-    """Canonical durations have no leading-zero components."""
-    assert is_canonical_duration(value) is True
-
-
-@pytest.mark.parametrize("value", ["05s", "00s", "1h05m", "007", "abc", ""])
-def test_is_canonical_duration_rejects_leading_zero_components(
-    value: str,
-) -> None:
-    """Non-durations and leading-zero duration components are not canonical."""
-    assert is_canonical_duration(value) is False
 
 
 # --- parse_absolute_time tests ---

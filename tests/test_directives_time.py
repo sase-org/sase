@@ -118,11 +118,11 @@ def test_wait_time_invalid_value_suggests_positional_wait() -> None:
 
 
 def test_wait_time_xprompt_colon_form() -> None:
-    """#t:5m expands through preprocessing to wait_duration."""
-    result = preprocess_prompt_early("#t:5m\nDo work")
+    """#t:4h expands through preprocessing to wait_duration."""
+    result = preprocess_prompt_early("#t:4h\nDo work")
     assert result.prompt.strip() == "Do work"
     assert result.directives.wait == []
-    assert result.directives.wait_duration == 300.0
+    assert result.directives.wait_duration == 14400.0
 
 
 def test_wait_time_xprompt_paren_form() -> None:

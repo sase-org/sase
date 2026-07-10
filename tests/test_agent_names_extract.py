@@ -187,6 +187,15 @@ class TestExtractDirectivesAutoDismiss:
         assert result["info"].name == "foo.w-0"
         assert result["meta"].get("name") == "foo.w-0"
 
+    def test_time_shaped_wait_name_reaches_launch_metadata(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = _run_extract(tmp_path, prompt="%w:4h\nDo work")
+
+        assert result["info"].wait_names == ["4h"]
+        assert result["meta"]["wait_for"] == ["4h"]
+
     def test_explicit_name_wins_over_wait_derived_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = _run_extract(

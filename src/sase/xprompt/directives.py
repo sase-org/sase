@@ -39,11 +39,7 @@ from ._directive_scan import (
     has_model_directive,
     strip_known_directives,
 )
-from ._directive_time import (
-    is_canonical_duration,
-    parse_absolute_time,
-    parse_duration,
-)
+from ._directive_time import parse_absolute_time, parse_duration
 from ._directive_types import PromptDirectives
 from ._exceptions import DirectiveError
 from .processor import process_xprompt_references
@@ -56,7 +52,6 @@ __all__ = [
     "has_alt_directive",
     "has_deferred_start_directive",
     "has_model_directive",
-    "is_canonical_duration",
     "parse_absolute_time",
     "parse_duration",
     "plan_prompt_fanout_variants",

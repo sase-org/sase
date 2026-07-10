@@ -150,28 +150,15 @@ def test_wait_time_keyword_accepts_leading_zero_duration() -> None:
     assert directives.wait_until is None
 
 
-def test_wait_duration_arg_raises_with_migration_hint() -> None:
-    """%wait:5m raises with a migration hint pointing to time=."""
-    prompt = "%wait:5m\nDo work"
-    with pytest.raises(DirectiveError, match=r"%wait\(time=5m\).*#t:5m"):
-        extract_prompt_directives(prompt)
-
-
-def test_wait_hhmm_arg_raises_with_migration_hint() -> None:
-    """%wait:1430 raises with a migration hint pointing to time=."""
-    prompt = "%wait:1430\nDo work"
-    with pytest.raises(DirectiveError, match=r"%wait\(time=1430\).*#t:1430"):
-        extract_prompt_directives(prompt)
-
-
-def test_wait_yymmdd_arg_raises_with_migration_hint() -> None:
-    """%wait:300415/0900 raises with a migration hint pointing to time=."""
-    prompt = "%wait:300415/0900\nDo work"
-    with pytest.raises(
-        DirectiveError,
-        match=r"%wait\(time=300415/0900\).*#t:300415/0900",
-    ):
-        extract_prompt_directives(prompt)
+@pytest.mark.parametrize("agent_name", ["4h", "5m", "1430", "300415/0900"])
+def test_wait_time_shaped_arg_is_agent_name(agent_name: str) -> None:
+    """Every time-shaped positional value remains an agent dependency."""
+    prompt = f"%w:{agent_name}\nDo work"
+    cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == "Do work"
+    assert directives.wait == [agent_name]
+    assert directives.wait_duration is None
+    assert directives.wait_until is None
 
 
 def test_wait_comma_two_agents() -> None:
@@ -209,12 +196,12 @@ def test_wait_paren_form_matches_colon_form() -> None:
 
 
 def test_wait_time_keyword_sets_wait_duration() -> None:
-    """%wait(time=5m) sets wait_duration and leaves wait empty."""
-    prompt = "%wait(time=5m)\nDo work"
+    """%wait(time=4h) sets wait_duration and leaves wait empty."""
+    prompt = "%wait(time=4h)\nDo work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do work"
     assert directives.wait == []
-    assert directives.wait_duration == 300.0
+    assert directives.wait_duration == 14400.0
     assert directives.wait_until is None
 
 

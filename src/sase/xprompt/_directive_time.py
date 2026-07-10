@@ -96,16 +96,3 @@ def parse_duration(s: str) -> float | None:
     minutes = int(minutes_s) if minutes_s else 0
     seconds = int(seconds_s) if seconds_s else 0
     return float(hours * 3600 + minutes * 60 + seconds)
-
-
-def is_canonical_duration(s: str) -> bool:
-    """Return True for duration syntax with no leading-zero components."""
-    if parse_duration(s) is None:
-        return False
-    m = _DURATION_RE.match(s)
-    if not m:
-        return False
-    return all(
-        component is None or len(component) == 1 or not component.startswith("0")
-        for component in m.groups()
-    )
