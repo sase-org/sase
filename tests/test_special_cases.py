@@ -10,7 +10,7 @@ from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 def _mock_workflow_names() -> MagicMock:
     """Return a mock for get_workflow_names returning standard VCS names."""
-    return MagicMock(return_value={"gh", "git", "hg"})
+    return MagicMock(return_value={"gh", "git", "spy"})
 
 
 def test_vcs_dot_prompt_single_arg_triggers_history_picker() -> None:

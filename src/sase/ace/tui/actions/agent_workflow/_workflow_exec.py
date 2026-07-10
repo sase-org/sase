@@ -45,7 +45,7 @@ class WorkflowExecMixin:
         Args:
             prompt: The prompt starting with # (e.g., "#test_workflow" or "#split(arg)").
             has_vcs_ref: True if the original prompt contained a VCS ref (e.g.,
-                "#hg:ilar"). When True, simple xprompts are not rendered here —
+                "#gh:sase"). When True, simple xprompts are not rendered here —
                 the caller will expand them downstream via
                 ``process_xprompt_references`` (which splits colon args on
                 commas), and the rendered value would be discarded anyway.
@@ -146,7 +146,7 @@ class WorkflowExecMixin:
             return render_template(content, render_ctx)
 
         # Multi-step workflows with prompt_part are designed for embedding,
-        # not standalone execution (e.g., #gh, #hg)
+        # not standalone execution (e.g. registered workspace workflows)
         if workflow.has_prompt_part():
             return False
 

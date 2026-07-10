@@ -64,14 +64,14 @@ def _create_critique_comments_artifact(
 def _build_crs_prompt(
     critique_comments_path: str,
     cl_name: str | None = None,
-    vcs_type: str = "hg",
+    vcs_type: str | None = None,
 ) -> str:
     """Build the change request prompt using the crs xprompt.
 
     Args:
         critique_comments_path: Path to the critique comments JSON file
         cl_name: Optional ChangeSpec/branch name for embedded workflow context.
-        vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
+        vcs_type: Registered workspace workflow type. Required with ``cl_name``.
 
     Returns:
         The formatted prompt string
@@ -84,7 +84,7 @@ def _build_crs_prompt(
 def _build_crs_prompt_invocation(
     critique_comments_path: str,
     cl_name: str | None = None,
-    vcs_type: str = "hg",
+    vcs_type: str | None = None,
 ) -> str:
     """Build the generated top-level CRS xprompt invocation."""
     from sase.xprompt.tags import XPromptTag, get_by_tag
@@ -94,6 +94,8 @@ def _build_crs_prompt_invocation(
 
     escaped_path = escape_for_xprompt(critique_comments_path)
     if cl_name:
+        if not vcs_type:
+            raise ValueError("vcs_type is required when cl_name is provided")
         escaped_cl = escape_for_xprompt(cl_name)
         return (
             f'#{crs_name}(critique_comments_path="{escaped_path}", '
@@ -124,7 +126,7 @@ class CrsWorkflow(BaseWorkflow):
             who: Optional identifier for who is creating the proposal (e.g., "crs (ref)").
             project_name: Optional project name for artifacts directory.
             cl_name: Optional ChangeSpec/branch name for embedded workflow context.
-            vcs_type: VCS workflow type (``"hg"`` or ``"gh"``). Defaults to ``"hg"``.
+            vcs_type: Registered workspace workflow type. Required with ``cl_name``.
         """
         self.project_name = project_name
         self.comments_file = comments_file
@@ -175,12 +177,12 @@ class CrsWorkflow(BaseWorkflow):
         self.submitted_xprompt = _build_crs_prompt_invocation(
             critique_artifact,
             cl_name=self.cl_name,
-            vcs_type=self.vcs_type or "hg",
+            vcs_type=self.vcs_type,
         )
         prompt = _build_crs_prompt(
             critique_artifact,
             cl_name=self.cl_name,
-            vcs_type=self.vcs_type or "hg",
+            vcs_type=self.vcs_type,
         )
         self.last_prompt = prompt
 

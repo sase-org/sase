@@ -123,7 +123,7 @@ def test_extract_plugin_module_plugin_workflow() -> None:
 
 
 def test_extract_plugin_module_plugin_config() -> None:
-    assert _extract_plugin_module("plugin_config:sase_hg") == "sase_hg"
+    assert _extract_plugin_module("plugin_config:sase_spy") == "sase_spy"
 
 
 def test_extract_plugin_module_builtin() -> None:
@@ -155,7 +155,7 @@ def test_get_by_tag_vcs_hint_disambiguates() -> None:
         name="cl_diff",
         steps=[WorkflowStep(name="main", prompt_part="cl diff")],
         tags=frozenset({XPromptTag.diff_file}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
     mock_prompts = {
         "gh": wf_gh,
@@ -168,13 +168,13 @@ def test_get_by_tag_vcs_hint_disambiguates() -> None:
     assert result is wf_pr_diff
 
 
-def test_get_by_tag_vcs_hint_picks_hg_plugin() -> None:
-    """vcs_hint='hg' picks the hg plugin diff xprompt."""
-    wf_hg = Workflow(
-        name="hg",
-        steps=[WorkflowStep(name="main", prompt_part="hg vcs")],
+def test_get_by_tag_vcs_hint_picks_spy_plugin() -> None:
+    """vcs_hint='spy' picks the spy plugin diff xprompt."""
+    wf_spy = Workflow(
+        name="spy",
+        steps=[WorkflowStep(name="main", prompt_part="spy vcs")],
         tags=frozenset({XPromptTag.vcs}),
-        source_path="plugin:sase_hg/hg.yml",
+        source_path="plugin:sase_spy/spy.yml",
     )
     wf_pr_diff = Workflow(
         name="pr_diff",
@@ -186,16 +186,16 @@ def test_get_by_tag_vcs_hint_picks_hg_plugin() -> None:
         name="cl_diff",
         steps=[WorkflowStep(name="main", prompt_part="cl diff")],
         tags=frozenset({XPromptTag.diff_file}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
     mock_prompts = {
-        "hg": wf_hg,
+        "spy": wf_spy,
         "pr_diff": wf_pr_diff,
         "cl_diff": wf_cl_diff,
     }
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
-        result = get_by_tag(XPromptTag.diff_file, vcs_hint="hg")
+        result = get_by_tag(XPromptTag.diff_file, vcs_hint="spy")
     assert result is wf_cl_diff
 
 
@@ -211,7 +211,7 @@ def test_get_by_tag_no_vcs_hint_returns_last() -> None:
         name="cl_diff",
         steps=[WorkflowStep(name="main", prompt_part="cl diff")],
         tags=frozenset({XPromptTag.diff_file}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
     mock_prompts = {"pr_diff": wf_pr_diff, "cl_diff": wf_cl_diff}
 
@@ -232,7 +232,7 @@ def test_get_by_tag_vcs_hint_unknown_workflow_falls_back() -> None:
         name="cl_diff",
         steps=[WorkflowStep(name="main", prompt_part="cl diff")],
         tags=frozenset({XPromptTag.diff_file}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
     mock_prompts = {"pr_diff": wf_pr_diff, "cl_diff": wf_cl_diff}
 
@@ -259,7 +259,7 @@ def test_get_by_tag_vcs_hint_no_module_match_falls_back() -> None:
         name="cl_diff",
         steps=[WorkflowStep(name="main", prompt_part="cl diff")],
         tags=frozenset({XPromptTag.diff_file}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
     mock_prompts = {
         "custom": wf_custom_vcs,
@@ -298,22 +298,22 @@ def test_get_by_tag_single_match_ignores_vcs_hint() -> None:
 
 def test_get_by_tag_append_to_pr_vcs_disambiguates() -> None:
     """append_to_pr tag with vcs_hint picks the right VCS plugin xprompt."""
-    wf_hg = Workflow(
-        name="hg",
-        steps=[WorkflowStep(name="main", prompt_part="hg vcs")],
+    wf_spy = Workflow(
+        name="spy",
+        steps=[WorkflowStep(name="main", prompt_part="spy vcs")],
         tags=frozenset({XPromptTag.vcs}),
-        source_path="plugin:sase_hg/hg.yml",
+        source_path="plugin:sase_spy/spy.yml",
     )
     wf_no_cl_ops = Workflow(
         name="no_cl_ops",
         steps=[WorkflowStep(name="main", prompt_part="no cl ops")],
         tags=frozenset({XPromptTag.append_to_pr}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
-    mock_prompts = {"hg": wf_hg, "no_cl_ops": wf_no_cl_ops}
+    mock_prompts = {"spy": wf_spy, "no_cl_ops": wf_no_cl_ops}
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
-        result = get_by_tag(XPromptTag.append_to_pr, vcs_hint="hg")
+        result = get_by_tag(XPromptTag.append_to_pr, vcs_hint="spy")
     assert result is wf_no_cl_ops
 
 
@@ -325,11 +325,11 @@ def test_get_by_tag_append_to_commit_and_propose_vcs_disambiguates() -> None:
         tags=frozenset({XPromptTag.vcs}),
         source_path="plugin:sase_github/gh.yml",
     )
-    wf_hg_append = Workflow(
+    wf_spy_append = Workflow(
         name="no_cl_ops_and_cldd",
         steps=[WorkflowStep(name="main", prompt_part="#no_cl_ops #cldd")],
         tags=frozenset({XPromptTag.append_to_commit_and_propose}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
     wf_github_append = Workflow(
         name="prdd",
@@ -339,7 +339,7 @@ def test_get_by_tag_append_to_commit_and_propose_vcs_disambiguates() -> None:
     )
     mock_prompts = {
         "gh": wf_gh,
-        "no_cl_ops_and_cldd": wf_hg_append,
+        "no_cl_ops_and_cldd": wf_spy_append,
         "prdd": wf_github_append,
     }
 
@@ -348,19 +348,19 @@ def test_get_by_tag_append_to_commit_and_propose_vcs_disambiguates() -> None:
     assert result is wf_github_append
 
 
-def test_get_by_tag_append_to_commit_and_propose_picks_hg_plugin() -> None:
-    """append_to_commit_and_propose with hg vcs_hint picks hg plugin."""
-    wf_hg = Workflow(
-        name="hg",
-        steps=[WorkflowStep(name="main", prompt_part="hg vcs")],
+def test_get_by_tag_append_to_commit_and_propose_picks_spy_plugin() -> None:
+    """append_to_commit_and_propose with spy vcs_hint picks spy plugin."""
+    wf_spy = Workflow(
+        name="spy",
+        steps=[WorkflowStep(name="main", prompt_part="spy vcs")],
         tags=frozenset({XPromptTag.vcs}),
-        source_path="plugin:sase_hg/hg.yml",
+        source_path="plugin:sase_spy/spy.yml",
     )
-    wf_hg_append = Workflow(
+    wf_spy_append = Workflow(
         name="no_cl_ops_and_cldd",
         steps=[WorkflowStep(name="main", prompt_part="#no_cl_ops #cldd")],
         tags=frozenset({XPromptTag.append_to_commit_and_propose}),
-        source_path="plugin_config:sase_hg",
+        source_path="plugin_config:sase_spy",
     )
     wf_github_append = Workflow(
         name="prdd",
@@ -369,14 +369,14 @@ def test_get_by_tag_append_to_commit_and_propose_picks_hg_plugin() -> None:
         source_path="plugin_config:sase_github",
     )
     mock_prompts = {
-        "hg": wf_hg,
-        "no_cl_ops_and_cldd": wf_hg_append,
+        "spy": wf_spy,
+        "no_cl_ops_and_cldd": wf_spy_append,
         "prdd": wf_github_append,
     }
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock_prompts):
-        result = get_by_tag(XPromptTag.append_to_commit_and_propose, vcs_hint="hg")
-    assert result is wf_hg_append
+        result = get_by_tag(XPromptTag.append_to_commit_and_propose, vcs_hint="spy")
+    assert result is wf_spy_append
 
 
 def test_get_by_tag_append_no_match_returns_none() -> None:

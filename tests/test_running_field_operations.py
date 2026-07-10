@@ -327,11 +327,11 @@ def test_get_workspace_directory_for_num_share() -> None:
 def test_claim_workspace_rejects_duplicate_workspace_num() -> None:
     """Test that claim_workspace refuses to double-claim a workspace number."""
     project_file = _create_project_file_with_running(
-        running_claims=[WorkspaceClaim(100, "hg-foo", "foo", pid=11111)]
+        running_claims=[WorkspaceClaim(100, "spy-foo", "foo", pid=11111)]
     )
     try:
         # Second claim for workspace #100 should be rejected
-        result = claim_workspace(project_file, 100, "hg-foo", 22222, "foo")
+        result = claim_workspace(project_file, 100, "spy-foo", 22222, "foo")
         assert result.success is False
         assert result.error is not None
         assert "100" in result.error
@@ -396,7 +396,7 @@ def test_claim_next_axe_workspace_rejects_legacy_inactive_project_before_running
         WorkspaceClaimError,
         match="project 'foo' is inactive; run 'sase project activate foo'",
     ):
-        claim_next_axe_workspace(str(project_file), "hg-foo", 12345, cl_name="foo")
+        claim_next_axe_workspace(str(project_file), "spy-foo", 12345, cl_name="foo")
 
     assert "RUNNING:" not in project_file.read_text(encoding="utf-8")
 
@@ -404,11 +404,11 @@ def test_claim_next_axe_workspace_rejects_legacy_inactive_project_before_running
 def test_claim_next_axe_workspace_finds_first_available() -> None:
     """Atomic claim picks the first free workspace in the unified pool."""
     project_file = _create_project_file_with_running(
-        running_claims=[WorkspaceClaim(10, "hg-foo", "foo", pid=11111)]
+        running_claims=[WorkspaceClaim(10, "spy-foo", "foo", pid=11111)]
     )
     try:
         workspace_num = claim_next_axe_workspace(
-            project_file, "hg-bar", 22222, cl_name="bar"
+            project_file, "spy-bar", 22222, cl_name="bar"
         )
         assert workspace_num == 11
 
@@ -425,7 +425,7 @@ def test_claim_next_axe_workspace_empty_running_field() -> None:
     project_file = _create_project_file_with_running()
     try:
         workspace_num = claim_next_axe_workspace(
-            project_file, "hg-foo", 12345, cl_name="foo"
+            project_file, "spy-foo", 12345, cl_name="foo"
         )
         assert workspace_num == 10
 
@@ -444,7 +444,7 @@ def test_claim_next_axe_workspace_empty_running_header() -> None:
         project_file = f.name
     try:
         workspace_num = claim_next_axe_workspace(
-            project_file, "hg-foo", 12345, cl_name="foo"
+            project_file, "spy-foo", 12345, cl_name="foo"
         )
         assert workspace_num == 10
 
@@ -458,12 +458,12 @@ def test_claim_next_axe_workspace_empty_running_header() -> None:
 def test_claim_next_axe_workspace_legacy_range_still_works() -> None:
     """Explicit ``min_workspace`` / ``max_workspace`` preserves legacy ranges."""
     project_file = _create_project_file_with_running(
-        running_claims=[WorkspaceClaim(100, "hg-foo", "foo", pid=11111)]
+        running_claims=[WorkspaceClaim(100, "spy-foo", "foo", pid=11111)]
     )
     try:
         workspace_num = claim_next_axe_workspace(
             project_file,
-            "hg-bar",
+            "spy-bar",
             22222,
             cl_name="bar",
             min_workspace=100,
@@ -513,8 +513,8 @@ def test_running_field_malformed_claim_rows_are_ignored_for_allocation() -> None
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".sase") as f:
         f.write(
             "RUNNING:\n"
-            "  #10 | not-a-pid | hg-bad | bad\n"
-            "  #11 | 11111 | hg-good | good\n"
+            "  #10 | not-a-pid | spy-bad | bad\n"
+            "  #11 | 11111 | spy-good | good\n"
             "\n\n"
             "NAME: Test Feature\n"
             "STATUS: Ready\n"
@@ -522,7 +522,7 @@ def test_running_field_malformed_claim_rows_are_ignored_for_allocation() -> None
         project_file = f.name
     try:
         workspace_num = claim_next_axe_workspace(
-            project_file, "hg-new", 22222, cl_name="new"
+            project_file, "spy-new", 22222, cl_name="new"
         )
         assert workspace_num == 10
 

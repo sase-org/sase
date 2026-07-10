@@ -323,7 +323,7 @@ class EmbeddedWorkflowExpandMixin:
             replacement = p.rendered_prompt_part
             # When the rendered content starts with a disabled-region marker
             # but the insertion point is mid-line (e.g. after an unexpanded
-            # VCS ref like #hg:sase), prepend a newline so the marker starts
+            # workspace ref like #gh:sase), prepend a newline so the marker starts
             # at a line boundary — required for downstream protect/strip.
             if (
                 replacement

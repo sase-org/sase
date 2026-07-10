@@ -1,6 +1,6 @@
 """Regression tests for ``_try_execute_workflow`` + simple xprompt + VCS ref.
 
-Launching ``#hg:ilar #launch/free:445408805,SS_ILAR_TOGGLE`` from the TUI
+Launching ``#spy:ilar #launch/free:445408805,SS_ILAR_TOGGLE`` from the TUI
 used to fail because ``_try_execute_workflow`` eagerly Jinja-rendered the
 ``launch/free`` simple xprompt using ``parse_workflow_reference``'s
 colon-arg parsing, which (unlike ``process_xprompt_references``) does

@@ -139,7 +139,7 @@ class Workflow:
         xprompts: Workflow-local xprompt definitions (highest priority within this workflow).
         wraps_all: If True, this workflow's pre-steps run before all other embedded
             workflows' pre-steps and its post-steps run after all others. Used for
-            workspace setup/teardown workflows like #git, #gh, #hg.
+            workspace setup/teardown workflows like #git, #gh, or plugin refs.
         hidden: If true, this workflow run row is hidden by default in ACE.
         environment: Environment variables to set at workflow start. Keys are
             variable names, values are strings (supporting Jinja2 templates

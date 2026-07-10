@@ -15,7 +15,7 @@ from sase.ace.tui.widgets._vcs_mru_cycling import (
 )
 
 _TEST_EMBEDDED_VCS_PATTERN = re.compile(
-    r"(?:^|(?<=\s))#(?:gh|git|hg|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
+    r"(?:^|(?<=\s))#(?:gh|git|spy|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
 )
 
 
@@ -33,7 +33,7 @@ def _patched_vcs_parsing() -> Iterator[None]:
         ),
         patch(
             "sase.workspace_provider.get_workflow_names",
-            return_value={"gh", "git", "hg", "cd"},
+            return_value={"gh", "git", "spy", "cd"},
         ),
     ):
         yield

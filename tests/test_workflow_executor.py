@@ -249,7 +249,7 @@ class TestShouldHitl:
                 return AIMessage(content="ok")
 
             ref_pattern = re.compile(
-                r"#(?:gh|git|hg|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?=\s|$)"
+                r"#(?:gh|git|spy|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?=\s|$)"
             )
             with (
                 patch.object(

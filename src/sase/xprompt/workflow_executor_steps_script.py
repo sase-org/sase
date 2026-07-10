@@ -251,7 +251,7 @@ class ScriptStepMixin:
 
         # Execute python code using the same interpreter.
         # stderr is streamed in real-time so long-running subprocesses
-        # (e.g. sase_hg_sync) surface progress output as it happens,
+        # (e.g. a provider sync command) surface progress output as it happens,
         # while also being collected for error reporting on failure.
         try:
             proc = subprocess.Popen(

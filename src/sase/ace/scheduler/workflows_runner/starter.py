@@ -308,7 +308,7 @@ def start_fix_hook_workflow(
 ) -> str | None:
     """Start fix-hook workflow as a background process.
 
-    The runner uses #hg embedded workflow for workspace management (chdir).
+    The runner uses the project provider's embedded workflow for workspace management.
 
     Args:
         changespec: The ChangeSpec to run fix-hook for.

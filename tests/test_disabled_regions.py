@@ -219,7 +219,7 @@ class TestPreprocessPromptLateDisabledRegions:
     ) -> None:
         """Markers must be stripped even when preceded by unexpanded refs.
 
-        Regression test: when an unexpanded VCS ref like #hg:sase sits on the
+        Regression test: when an unexpanded VCS ref like #git:sase sits on the
         same line as %xprompts_enabled:false, the marker must still be stripped
         as long as it starts on its own line (after the newline fix in
         process_xprompt_references / embedded workflow expansion).
@@ -227,9 +227,9 @@ class TestPreprocessPromptLateDisabledRegions:
         from sase.llm_provider.preprocessing import preprocess_prompt_late
 
         # After the newline fix, the prompt looks like:
-        # #hg:sase \n%xprompts_enabled:false\n...
+        # #git:sase \n%xprompts_enabled:false\n...
         prompt = (
-            "#hg:sase \n"
+            "#git:sase \n"
             "%xprompts_enabled:false\n"
             "# Previous Conversation\n"
             "some history\n"

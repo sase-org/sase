@@ -37,13 +37,13 @@ the caller to reactivate the project before launching new work.
 
 Each entry in `listing.entries` has:
 
-| Field           | Description                                                    |
-| --------------- | -------------------------------------------------------------- |
-| `project`       | Parsed project basename                                        |
-| `name`          | ChangeSpec `NAME`                                              |
-| `status`        | Normalized non-terminal status                                 |
-| `workflow_type` | Detected workspace workflow type, such as `git`, `gh`, or `hg` |
-| `tag`           | Copyable xprompt target in `#{workflow_type}:{name}` form      |
+| Field           | Description                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| `project`       | Parsed project basename                                            |
+| `name`          | ChangeSpec `NAME`                                                  |
+| `status`        | Normalized non-terminal status                                     |
+| `workflow_type` | Detected registered workspace workflow type, such as `git` or `gh` |
+| `tag`           | Copyable xprompt target in `#{workflow_type}:{name}` form          |
 
 If workspace workflow detection fails for an entry, that ChangeSpec is omitted and a human-readable message is appended
 to `listing.skipped`. This lets callers still show the rest of the list while surfacing degraded entries.

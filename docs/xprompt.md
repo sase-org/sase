@@ -17,7 +17,7 @@ launch setup:
   xprompt swarm fan-out check
   -> default workspace ref insertion when needed (#git:home)
   -> project name/alias canonicalization (#gh:bob -> #gh_bbugyi200__bob)
-  -> workspace ref resolution (#git/#gh/#hg and known-project fallbacks)
+  -> workspace ref resolution (#git/#gh, plugin-provided refs, and known-project fallbacks)
   -> prompt/workflow execution
 
 xprompt expansion inside a prompt or prompt_part:
@@ -300,13 +300,13 @@ This is useful when chaining agents — for example, a review agent can target t
 
 Workspace-managing workflows use the same `#name:ref` reference syntax as xprompts, but they control where the agent
 runs before the rest of the prompt is executed. Built-in `#git` references are VCS-backed; provider plugins can add
-other workspace refs such as `#gh` or `#hg`.
+other workspace refs such as `#gh`.
 
-| Reference    | Behavior                                                               |
-| ------------ | ---------------------------------------------------------------------- |
-| `#git:<ref>` | Run in a bare-git workspace                                            |
-| `#gh:<ref>`  | Run in a GitHub workspace, when the GitHub plugin is installed         |
-| `#hg:<ref>`  | Run in a Mercurial workspace, when an hg workspace plugin is installed |
+| Reference           | Behavior                                                       |
+| ------------------- | -------------------------------------------------------------- |
+| `#git:<ref>`        | Run in a bare-git workspace                                    |
+| `#gh:<ref>`         | Run in a GitHub workspace, when the GitHub plugin is installed |
+| `#<provider>:<ref>` | Run through any other installed workspace provider             |
 
 Prompts that do not contain a workspace reference are normalized to `#git:home`, so a bare prompt runs from the managed
 bare-git `home` project by default and gets normal numbered workspace, checkout, diff, and release behavior.
@@ -604,22 +604,22 @@ making the system extensible — a plugin or user can override the CRS workflow 
 
 ### Available Tags
 
-| Tag                            | Description                                                                                                            |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `vcs`                          | Workspace workflow xprompt (`#git`, `#gh`, `#hg`) — wraps other embedded workflows, running setup/teardown around them |
-| `crs`                          | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                   |
-| `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                 |
-| `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                       |
-| `mentor`                       | Mentor review prompt workflow                                                                                          |
-| `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                  |
-| `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                           |
-| `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                            |
-| `diff_file`                    | Injects the PR diff into the mentor prompt                                                                             |
-| `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                          |
-| `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                    |
-| `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                      |
-| `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                     |
-| `land_epic`                    | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                    |
+| Tag                            | Description                                                                                                                               |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `vcs`                          | Workspace workflow xprompt (`#git`, `#gh`, or a plugin-provided ref) — wraps other embedded workflows, running setup/teardown around them |
+| `crs`                          | Code Review Summary workflow (singleton — `get_by_tag(crs)` returns the first match)                                                      |
+| `fix_hook`                     | Fix hook workflow (singleton — used by axe to find the hook-fix agent)                                                                    |
+| `rollover`                     | Marks workflows whose embedded references carry forward to follow-up agent steps                                                          |
+| `mentor`                       | Mentor review prompt workflow                                                                                                             |
+| `commit`                       | Commit workflow (appended by mentor review `A` key for direct commit)                                                                     |
+| `propose`                      | Propose workflow (appended by mentor review `a` key for propose-style amend)                                                              |
+| `make_mentor_changes`          | Apply accepted mentor comments workflow (launched by mentor review `Enter`)                                                               |
+| `diff_file`                    | Injects the PR diff into the mentor prompt                                                                                                |
+| `append_to_pr`                 | VCS-specific post-commit prompt appended when the active commit method creates a pull request                                             |
+| `append_to_commit_and_propose` | VCS-specific post-commit prompt appended when the active commit method creates a commit or proposal                                       |
+| `create_epic_bead`             | Plan-approval Epic flow — creates the plan file, beads, and the epic agent prompt                                                         |
+| `work_phase_bead`              | Per-phase agent prompt used by `sase bead work` (input: `bead_id`)                                                                        |
+| `land_epic`                    | Final land-the-epic agent prompt used by `sase bead work` after all phases complete                                                       |
 
 ### Defining Tags
 
@@ -1823,7 +1823,7 @@ the reference location and the remaining rendered body segments become follow-up
 sase run '#gh:sase Review this first: #three_phase(login)'
 ```
 
-When the call site starts with a VCS workspace reference such as `#gh:sase`, `#git:feature`, `#hg:branch`, or a
+When the call site starts with a VCS workspace reference such as `#gh:sase`, `#git:feature`, a plugin-provided ref, or a
 known-project underscore form such as `#gh_sase`, that workspace reference is inherited by every generated follow-up
 segment unless the generated segment already declares its own VCS reference. Leading launch directives stay before the
 inherited workspace reference, so a prompt like `%name:abq #gh:sase #three_phase(login)` keeps `%name:abq` attached to

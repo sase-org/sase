@@ -129,9 +129,9 @@ they show up in the chat input UI:
 | `/update`            | Starts the shared SASE chat update worker in a detached process                   |
 
 `/changes` deliberately excludes Submitted, Archived, and Reverted entries — the assumption is that a phone is for live
-work, not archive browsing. The copy-text button for each ChangeSpec emits something like `#hg:foobar` so the next agent
-you launch can target it directly. `/bead` follows the same picker pattern as the kill flow: most of the time you want a
-button list, not the cognitive overhead of remembering an ID.
+work, not archive browsing. The copy-text button for each ChangeSpec emits its detected provider ref, such as
+`#gh:foobar`, so the next agent you launch can target it directly. `/bead` follows the same picker pattern as the kill
+flow: most of the time you want a button list, not the cognitive overhead of remembering an ID.
 
 `/update` is the operationally interesting one. It detaches a worker that stops AXE, syncs the primary SASE workspace,
 runs `chat_install.command`, and tries to restart AXE even if sync or install fails. The completion message that arrives

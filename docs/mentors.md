@@ -144,7 +144,7 @@ Each mentor runs as a background process:
 1. The mentor is marked STARTING (prevents race conditions).
 2. A background subprocess is spawned with its own session.
 3. The `#mentor` xprompt workflow renders the prompt with the mentor role and focus areas.
-4. The project VCS workflow (`#git`, `#gh`, or `#hg`) provides the workspace context.
+4. The project's registered workspace workflow (for example, `#git` or `#gh`) provides the workspace context.
 5. The LLM response is parsed as structured JSON and saved to `~/.sase/mentors/`.
 
 ### 4. Completion

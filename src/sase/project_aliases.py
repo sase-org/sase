@@ -22,7 +22,7 @@ from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_
 
 logger = logging.getLogger(__name__)
 
-_KNOWN_VCS_WORKFLOW_NAMES = frozenset({"gh", "git", "hg", "jj", "p4"})
+_KNOWN_VCS_WORKFLOW_NAMES = frozenset({"gh", "git", "jj", "p4"})
 _REF_CHARS = r"[A-Za-z0-9_./~-]+"
 _REF_BOUNDARY = r"(?=$|[\s)\]},.!?;:\"'])"
 _ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)

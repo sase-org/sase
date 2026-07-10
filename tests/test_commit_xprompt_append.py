@@ -39,47 +39,47 @@ def _make_tagged_xprompt(
 # ── Tag lookup for append tags ──────────────────────────────────────────
 
 
-def test_append_to_commit_and_propose_found_for_hg_plugin() -> None:
-    """Commit workflow with hg hint finds the hg append xprompt."""
-    wf_hg = Workflow(
-        name="hg",
+def test_append_to_commit_and_propose_found_for_spy_plugin() -> None:
+    """Commit workflow with spy hint finds the spy append xprompt."""
+    wf_spy = Workflow(
+        name="spy",
         steps=[WorkflowStep(name="main", prompt_part="vcs")],
         tags=frozenset({XPromptTag.vcs}),
-        source_path="plugin:sase_hg/hg.yml",
+        source_path="plugin:sase_spy/spy.yml",
     )
     wf_append = _make_tagged_xprompt(
         "no_cl_ops_and_cldd",
         XPromptTag.append_to_commit_and_propose,
         "#no_cl_ops #cldd",
-        "sase_hg",
+        "sase_spy",
     )
-    mock = {"hg": wf_hg, "no_cl_ops_and_cldd": wf_append}
+    mock = {"spy": wf_spy, "no_cl_ops_and_cldd": wf_append}
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock):
-        result = get_by_tag(XPromptTag.append_to_commit_and_propose, vcs_hint="hg")
+        result = get_by_tag(XPromptTag.append_to_commit_and_propose, vcs_hint="spy")
     assert result is wf_append
     assert result is not None
     assert result.get_prompt_part_content() == "#no_cl_ops #cldd"
 
 
-def test_append_to_pr_found_for_hg_plugin() -> None:
-    """PR workflow with hg hint finds the hg append_to_pr xprompt."""
-    wf_hg = Workflow(
-        name="hg",
+def test_append_to_pr_found_for_spy_plugin() -> None:
+    """PR workflow with spy hint finds the spy append_to_pr xprompt."""
+    wf_spy = Workflow(
+        name="spy",
         steps=[WorkflowStep(name="main", prompt_part="vcs")],
         tags=frozenset({XPromptTag.vcs}),
-        source_path="plugin:sase_hg/hg.yml",
+        source_path="plugin:sase_spy/spy.yml",
     )
     wf_append = _make_tagged_xprompt(
         "no_cl_ops",
         XPromptTag.append_to_pr,
         "Don't create a CL.",
-        "sase_hg",
+        "sase_spy",
     )
-    mock = {"hg": wf_hg, "no_cl_ops": wf_append}
+    mock = {"spy": wf_spy, "no_cl_ops": wf_append}
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock):
-        result = get_by_tag(XPromptTag.append_to_pr, vcs_hint="hg")
+        result = get_by_tag(XPromptTag.append_to_pr, vcs_hint="spy")
     assert result is wf_append
 
 
@@ -91,11 +91,11 @@ def test_append_to_commit_and_propose_found_for_github() -> None:
         tags=frozenset({XPromptTag.vcs}),
         source_path="plugin:sase_github/gh.yml",
     )
-    wf_hg_append = _make_tagged_xprompt(
+    wf_spy_append = _make_tagged_xprompt(
         "no_cl_ops_and_cldd",
         XPromptTag.append_to_commit_and_propose,
         "#no_cl_ops #cldd",
-        "sase_hg",
+        "sase_spy",
     )
     wf_github = _make_tagged_xprompt(
         "prdd",
@@ -103,7 +103,7 @@ def test_append_to_commit_and_propose_found_for_github() -> None:
         "#pr_diff",
         "sase_github",
     )
-    mock = {"gh": wf_gh, "no_cl_ops_and_cldd": wf_hg_append, "prdd": wf_github}
+    mock = {"gh": wf_gh, "no_cl_ops_and_cldd": wf_spy_append, "prdd": wf_github}
 
     with patch("sase.xprompt.loader.get_all_prompts", return_value=mock):
         result = get_by_tag(XPromptTag.append_to_commit_and_propose, vcs_hint="gh")

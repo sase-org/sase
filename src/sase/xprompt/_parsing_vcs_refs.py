@@ -13,9 +13,16 @@ _GENERIC_PROJECT_VCS_REF_PATTERN = re.compile(
     r"(?:[_:](?P<colon>[a-zA-Z0-9_.~/-]+)|\((?P<paren>[a-zA-Z0-9_.~/-]+)\))"
     r"(?=\s|$)"
 )
-_KNOWN_FALLBACK_VCS_PREFIXES = frozenset({"gh", "git", "hg", "jj", "p4"})
+_KNOWN_FALLBACK_VCS_PREFIXES = frozenset({"gh", "git", "jj", "p4"})
 _VCS_UNDERSCORE_NORMALIZER: re.Pattern[str] | None = None
 _LAUNCH_XPROMPT_AT_REF_RE: re.Pattern[str] | None = None
+
+
+def _workspace_workflow_names() -> set[str]:
+    """Return registered workspace workflows plus supported core fallbacks."""
+    from sase.workspace_provider import get_workflow_names
+
+    return set(get_workflow_names()) | set(_KNOWN_FALLBACK_VCS_PREFIXES)
 
 
 def normalize_vcs_underscore_refs(prompt: str) -> str:
@@ -76,9 +83,7 @@ def _get_launch_xprompt_at_ref_pattern() -> re.Pattern[str]:
     """Return the scoped ``#workflow@ref`` launch-shorthand normalizer."""
     global _LAUNCH_XPROMPT_AT_REF_RE  # noqa: PLW0603
     if _LAUNCH_XPROMPT_AT_REF_RE is None:
-        from sase.workspace_provider import get_workflow_names
-
-        workflows = set(get_workflow_names()) | set(_KNOWN_FALLBACK_VCS_PREFIXES)
+        workflows = _workspace_workflow_names()
         alts = "|".join(re.escape(name) for name in sorted(workflows))
         _LAUNCH_XPROMPT_AT_REF_RE = re.compile(
             rf"(?P<context>^|(?<=[\s([{{\"']))"
@@ -245,12 +250,13 @@ def iter_known_project_vcs_refs(
     if not known_projects or "#" not in prompt:
         return []
 
+    workflow_names = _workspace_workflow_names()
     refs: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
     normalized = normalize_vcs_underscore_refs(prompt)
     for match in _GENERIC_PROJECT_VCS_REF_PATTERN.finditer(normalized):
         workflow_type = match.group("workflow")
-        if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
+        if workflow_type not in workflow_names:
             continue
         ref = match.group("colon") or match.group("paren")
         if resolve_known_project_ref(ref, known_projects) is None:
@@ -271,9 +277,11 @@ def strip_known_project_vcs_refs(prompt: str) -> str:
     if not known_projects or "#" not in prompt:
         return prompt.strip()
 
+    workflow_names = _workspace_workflow_names()
+
     def _replace(match: re.Match[str]) -> str:
         workflow_type = match.group("workflow")
-        if workflow_type not in _KNOWN_FALLBACK_VCS_PREFIXES:
+        if workflow_type not in workflow_names:
             return match.group(0)
         ref = match.group("colon") or match.group("paren")
         if resolve_known_project_ref(ref, known_projects) is not None:

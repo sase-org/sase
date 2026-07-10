@@ -24,14 +24,14 @@ if TYPE_CHECKING:
 
 
 def _vcs_prompt_prefix(project_file: str, name: str) -> str:
-    """Build a VCS prompt prefix like ``#gh:name `` or ``#hg:name ``.
+    """Build a workspace prompt prefix such as ``#gh:name ``.
 
     Args:
         project_file: Path to the project spec file.
         name: Project or ChangeSpec name to embed in the prefix.
 
     Returns:
-        A string such as ``"#gh:my_cl "`` or ``"#hg:my_cl "``.
+        A string such as ``"#gh:my_cl "``.
     """
     from sase.workspace_provider import detect_workflow_type
 

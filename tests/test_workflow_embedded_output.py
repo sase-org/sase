@@ -220,7 +220,7 @@ def test_propagate_skips_non_matching_wraps_all_workflow() -> None:
     """Test propagation finds the right embedded workflow when wraps_all is last.
 
     When the embedded_workflows list has a content-producing workflow (#file)
-    followed by a wraps_all teardown workflow (#hg) whose output doesn't
+    followed by a wraps_all teardown workflow (#spy) whose output doesn't
     type-match, propagation should use the earlier matching workflow.
     """
     # #file workflow — has matching path output
@@ -236,17 +236,17 @@ def test_propagate_skips_non_matching_wraps_all_workflow() -> None:
         workflow_name="file",
     )
 
-    # #hg workflow (wraps_all, appended at end) — no matching output
+    # #spy workflow (wraps_all, appended at end) — no matching output
     release_post_step = WorkflowStep(
         name="release",
         python='print("released")',
         output=_make_output_spec({"released": "bool"}),
     )
-    hg_info = EmbeddedWorkflowInfo(
+    spy_info = EmbeddedWorkflowInfo(
         pre_steps=[],
         post_steps=[release_post_step],
         context={"release": {"released": True}},
-        workflow_name="hg",
+        workflow_name="spy",
     )
 
     parent_step = WorkflowStep(
@@ -257,8 +257,8 @@ def test_propagate_skips_non_matching_wraps_all_workflow() -> None:
     step_state = _make_step_state("gen_desc", output={"_raw": "response"})
     context: dict[str, Any] = {"gen_desc": {"_raw": "response"}}
 
-    # List order: [#file, #hg] — #hg is last (wraps_all goes at end)
-    _call_propagate(context, [file_info, hg_info], parent_step, step_state)
+    # List order: [#file, #spy] — #spy is last (wraps_all goes at end)
+    _call_propagate(context, [file_info, spy_info], parent_step, step_state)
 
     assert step_state.output == {"desc_file": "/tmp/new_cl_desc-240101.md"}
     assert context["gen_desc"] == {"desc_file": "/tmp/new_cl_desc-240101.md"}

@@ -323,7 +323,7 @@ def test_resolve_primary_workspace_via_provider_when_workspace_dir_missing(
     with (
         patch("sase.workspace_provider.get_workspace_name", return_value=project_name),
         patch(
-            "sase.workspace_provider.detect_workflow_type", return_value="hg"
+            "sase.workspace_provider.detect_workflow_type", return_value="spy"
         ) as mock_detect,
         patch(
             "sase.workspace_provider.get_workspace_directory",
@@ -334,7 +334,7 @@ def test_resolve_primary_workspace_via_provider_when_workspace_dir_missing(
 
     assert result == primary
     mock_detect.assert_called_once_with(str(project_dir / f"{project_name}.sase"))
-    mock_get_dir.assert_called_once_with("hg", 1, project_name, "")
+    mock_get_dir.assert_called_once_with("spy", 1, project_name, "")
 
 
 # --- Phase 6: marker-first inference ---

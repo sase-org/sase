@@ -262,7 +262,7 @@ def normalize_default_vcs_workflow(prompt: str) -> str:
 def strip_vcs_workflow_tag(prompt: str) -> str:
     """Strip a leading VCS workflow tag from a prompt string.
 
-    Removes prefixes like ``#gh:sase``, ``#git(repo)``, ``#hg!!:cl``, etc.
+    Removes prefixes like ``#gh:sase``, ``#git(repo)``, and plugin-provided refs.
     so the prompt can be re-wrapped with a different VCS workflow.
     """
     return _get_vcs_tag_pattern().sub("", prompt)

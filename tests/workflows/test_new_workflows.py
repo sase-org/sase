@@ -3,7 +3,13 @@
 import os
 import tempfile
 
-from sase.workflows.crs import CrsWorkflow, _build_crs_prompt
+import pytest
+
+from sase.workflows.crs import (
+    CrsWorkflow,
+    _build_crs_prompt,
+    _build_crs_prompt_invocation,
+)
 
 
 class TestCrsWorkflow:
@@ -34,6 +40,29 @@ class TestCrsWorkflow:
             assert "#crs" in prompt or "Critique" in prompt
         finally:
             os.unlink(comments_file)
+
+    def test_build_crs_prompt_requires_provider_with_changespec(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match="vcs_type is required when cl_name is provided",
+        ):
+            _build_crs_prompt_invocation("comments.json", cl_name="feature")
+
+    def test_build_crs_prompt_uses_supplied_registered_provider(self) -> None:
+        invocation = _build_crs_prompt_invocation(
+            "comments.json",
+            cl_name="feature",
+            vcs_type="spy",
+        )
+
+        assert 'cl_name="feature"' in invocation
+        assert 'vcs_type="spy"' in invocation
+
+    def test_build_crs_prompt_ref_free_invocation_has_no_provider(self) -> None:
+        invocation = _build_crs_prompt_invocation("comments.json")
+
+        assert "cl_name=" not in invocation
+        assert "vcs_type=" not in invocation
 
 
 class TestCrsWorkflowAdvanced:

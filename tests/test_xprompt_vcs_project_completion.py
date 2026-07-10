@@ -30,10 +30,10 @@ from sase.xprompt.vcs_project_completion import (
     vcs_project_catalog_payload,
 )
 
-# A replace pattern covering gh/git/hg regardless of which workspace-provider
+# A replace pattern covering gh/git/spy regardless of which workspace-provider
 # plugins happen to be installed in the test environment.
 _TEST_VCS_REPLACE_PATTERN = re.compile(
-    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
+    r"^((?:%\S+[\s]+)*)#(?:gh|git|spy)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
     re.MULTILINE,
 )
 
@@ -563,7 +563,7 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
         list_p,
         detect_p,
         display_p,
-        patch.object(vpc, "get_workflow_names", return_value={"hg", "gh", "git"}),
+        patch.object(vpc, "get_workflow_names", return_value={"spy", "gh", "git"}),
         patch(
             "sase.xprompt.vcs_ref_completion.vcs_ref_namespaces_by_workflow",
             return_value={
@@ -575,7 +575,7 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
                     ),
                 ),
                 "git": (),
-                "hg": (),
+                "spy": (),
             },
         ),
     ):
@@ -583,7 +583,7 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
 
     assert payload["schema_version"] == VCS_PROJECT_CATALOG_SCHEMA_VERSION
     # Workflow names cover every known prefix (not just active ones), sorted.
-    assert payload["workflow_names"] == ["gh", "git", "hg"]
+    assert payload["workflow_names"] == ["gh", "git", "spy"]
     # Entries mirror VcsProjectEntry field-for-field, sorted by name, so the
     # Rust loader deserializes them directly.
     assert payload["entries"] == [
@@ -619,7 +619,7 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
             }
         ],
         "git": [],
-        "hg": [],
+        "spy": [],
     }
 
 

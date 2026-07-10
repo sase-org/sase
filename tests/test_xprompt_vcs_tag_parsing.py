@@ -15,7 +15,7 @@ from sase.xprompt._parsing import (
 
 
 _TEST_VCS_PATTERN = re.compile(
-    r"^#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
+    r"^#(?:gh|git|spy)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
 )
 
 
@@ -33,10 +33,10 @@ def test_extract_vcs_workflow_tag_basic() -> None:
         assert extract_vcs_workflow_tag("#gh:sase Fix the bug") == "#gh:sase "
 
 
-def test_extract_vcs_workflow_tag_hg_hitl() -> None:
+def test_extract_vcs_workflow_tag_spy_hitl() -> None:
     """Test extracting a VCS tag with !! HITL suffix."""
     with _patch_vcs_pattern():
-        assert extract_vcs_workflow_tag("#hg!!:cl Fix it") == "#hg!!:cl "
+        assert extract_vcs_workflow_tag("#spy!!:cl Fix it") == "#spy!!:cl "
 
 
 def test_extract_vcs_workflow_tag_git_paren() -> None:
@@ -111,7 +111,7 @@ def test_extract_vcs_workflow_tag_directive_mixed_lines() -> None:
 
 
 _TEST_EMBEDDED_VCS_PATTERN = re.compile(
-    r"(?:^|(?<=\s))#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
+    r"(?:^|(?<=\s))#(?:gh|git|spy)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)\s"
 )
 
 
@@ -179,8 +179,8 @@ def test_find_vcs_workflow_tag_paren_format() -> None:
 def test_find_vcs_workflow_tag_hitl_suffix() -> None:
     """Embedded tag with HITL suffix is recovered."""
     with _patch_embedded_vcs_pattern():
-        result = find_vcs_workflow_tag("intro #hg!!:cl Fix it")
-        assert result == "#hg!!:cl "
+        result = find_vcs_workflow_tag("intro #spy!!:cl Fix it")
+        assert result == "#spy!!:cl "
 
 
 def test_find_vcs_workflow_tag_span_matches_tag_at_end() -> None:
@@ -245,8 +245,8 @@ def test_replace_ref_in_vcs_tag_hitl_bang() -> None:
 
 
 def test_replace_ref_in_vcs_tag_hitl_question() -> None:
-    """Test that ?? HITL suffix is stripped: #hg??:cl -> #hg:new_branch."""
-    assert replace_ref_in_vcs_tag("#hg??:cl ", "new_branch") == "#hg:new_branch "
+    """Test that ?? HITL suffix is stripped: #spy??:cl -> #spy:new_branch."""
+    assert replace_ref_in_vcs_tag("#spy??:cl ", "new_branch") == "#spy:new_branch "
 
 
 def test_replace_ref_in_vcs_tag_underscore() -> None:
@@ -272,7 +272,7 @@ def test_normalize_vcs_underscore_basic() -> None:
     import sase.xprompt._parsing as _mod
 
     _mod._VCS_UNDERSCORE_NORMALIZER = None
-    with _patch_workflow_names({"gh", "git", "hg"}):
+    with _patch_workflow_names({"gh", "git", "spy"}):
         assert normalize_vcs_underscore_refs("#gh_sase Fix bug") == "#gh:sase Fix bug"
 
 
@@ -281,7 +281,7 @@ def test_normalize_vcs_underscore_git() -> None:
     import sase.xprompt._parsing as _mod
 
     _mod._VCS_UNDERSCORE_NORMALIZER = None
-    with _patch_workflow_names({"gh", "git", "hg"}):
+    with _patch_workflow_names({"gh", "git", "spy"}):
         assert (
             normalize_vcs_underscore_refs("#git_myrepo Do stuff")
             == "#git:myrepo Do stuff"
@@ -293,7 +293,7 @@ def test_normalize_vcs_underscore_not_vcs() -> None:
     import sase.xprompt._parsing as _mod
 
     _mod._VCS_UNDERSCORE_NORMALIZER = None
-    with _patch_workflow_names({"gh", "git", "hg"}):
+    with _patch_workflow_names({"gh", "git", "spy"}):
         assert normalize_vcs_underscore_refs("#my_xprompt hello") == "#my_xprompt hello"
 
 
@@ -302,7 +302,7 @@ def test_normalize_vcs_underscore_preserves_colon() -> None:
     import sase.xprompt._parsing as _mod
 
     _mod._VCS_UNDERSCORE_NORMALIZER = None
-    with _patch_workflow_names({"gh", "git", "hg"}):
+    with _patch_workflow_names({"gh", "git", "spy"}):
         assert normalize_vcs_underscore_refs("#gh:sase Fix bug") == "#gh:sase Fix bug"
 
 
@@ -311,7 +311,7 @@ def test_normalize_vcs_underscore_mid_line() -> None:
     import sase.xprompt._parsing as _mod
 
     _mod._VCS_UNDERSCORE_NORMALIZER = None
-    with _patch_workflow_names({"gh", "git", "hg"}):
+    with _patch_workflow_names({"gh", "git", "spy"}):
         assert (
             normalize_vcs_underscore_refs("text #gh_sase prompt")
             == "text #gh:sase prompt"

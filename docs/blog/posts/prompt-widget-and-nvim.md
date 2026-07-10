@@ -93,11 +93,12 @@ prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it int
 (pressing `Tab` does the same thing). Normal launch writes skip trivial one-token prompts (`y`, `ok`) so they do not
 clutter the list, while failed-launch recovery can still preserve a short submitted prompt.
 
-`Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (`#git:foo`, `#hg:bar`, `#gh:org/repo`) through one
-ring with a no-prefix stop: `Ctrl+P` moves toward older entries, and `Ctrl+N` moves toward newer ones. They replace the
-first launchable workspace tag in the prompt or prepend a tag when none is present. The history files behind this —
-monthly prompt-history shards under `~/.sase/prompt_history/` and the file-reference history — use a sidecar lock plus
-atomic tempfile replacement so concurrent agent launches do not truncate the shared state.
+`Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (such as `#git:foo`, `#gh:org/repo`, and refs from
+other installed providers) through one ring with a no-prefix stop: `Ctrl+P` moves toward older entries, and `Ctrl+N`
+moves toward newer ones. They replace the first launchable workspace tag in the prompt or prepend a tag when none is
+present. The history files behind this — monthly prompt-history shards under `~/.sase/prompt_history/` and the
+file-reference history — use a sidecar lock plus atomic tempfile replacement so concurrent agent launches do not
+truncate the shared state.
 
 ## `Ctrl+G`: Handing Off To The Editor
 

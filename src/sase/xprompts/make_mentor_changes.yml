@@ -10,8 +10,7 @@ input:
     description: PR or ChangeSpec name where the changes should be applied.
   vcs_type:
     type: word
-    default: "hg"
-    description: VCS directive prefix to use for the target PR.
+    description: Registered workspace directive prefix to use for the target PR.
 
 steps:
   - name: render_changes

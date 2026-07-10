@@ -81,7 +81,7 @@ def testload_xprompt_from_file_with_skill_provider_list() -> None:
 name: hg_commit
 skill: [gemini]
 ---
-Commit with hg"""
+Commit with a VCS provider"""
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".md", delete=False, encoding="utf-8"

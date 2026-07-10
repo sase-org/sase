@@ -2,16 +2,24 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
+from tests._workspace_provider_helpers import patch_spy_metadata
+
+
+@pytest.fixture(autouse=True)
+def _register_spy_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
+    patch_spy_metadata(monkeypatch)
 
 
 def test_embedded_vcs_removed_by_axe_pid() -> None:
     """Test that embedded VCS workspace claims are removed when sharing PID with axe agent.
 
-    When an axe(crs) agent embeds #hg, the VCS workflow claims its own workspace
-    with a "hg-<cl_name>" workflow. Both share the same PID. The VCS entry should
+    When an axe(crs) agent embeds #spy, the VCS workflow claims its own workspace
+    with a "spy-<cl_name>" workflow. Both share the same PID. The VCS entry should
     be removed entirely so it doesn't appear as a duplicate on the Agents tab,
     even when hidden agents are toggled visible.
     """
@@ -28,14 +36,14 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
         pid=781497,
     )
 
-    # Embedded #hg workspace claim on workspace #101 (same PID)
-    hg_agent = Agent(
+    # Embedded #spy workspace claim on workspace #101 (same PID)
+    spy_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
-        workflow="hg-my_feature",
+        workflow="spy-my_feature",
         raw_suffix=None,
         workspace_num=101,
         pid=781497,
@@ -56,7 +64,7 @@ def test_embedded_vcs_removed_by_axe_pid() -> None:
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-            return_value=[axe_agent, hg_agent],
+            return_value=[axe_agent, spy_agent],
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
@@ -108,14 +116,14 @@ def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
         pid=781497,
     )
 
-    # Embedded #hg workspace claim WITH workspace_num and model
-    hg_agent = Agent(
+    # Embedded #spy workspace claim WITH workspace_num and model
+    spy_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
-        workflow="hg-my_feature",
+        workflow="spy-my_feature",
         raw_suffix=None,
         workspace_num=101,
         pid=781497,
@@ -138,7 +146,7 @@ def test_embedded_vcs_fields_merged_into_axe_agent() -> None:
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-            return_value=[axe_agent, hg_agent],
+            return_value=[axe_agent, spy_agent],
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
@@ -191,14 +199,14 @@ def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
         pid=781497,
     )
 
-    # Embedded #hg workspace claim on workspace #103 (same PID)
-    hg_agent = Agent(
+    # Embedded #spy workspace claim on workspace #103 (same PID)
+    spy_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
-        workflow="hg-my_feature",
+        workflow="spy-my_feature",
         raw_suffix=None,
         workspace_num=103,
         pid=781497,
@@ -219,7 +227,7 @@ def test_embedded_vcs_removed_by_workflow_axe_pid() -> None:
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-            return_value=[hg_agent],
+            return_value=[spy_agent],
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
@@ -254,7 +262,7 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
 
     When a fix-hook agent is loaded as WORKFLOW type with workflow="fix-hook"
     (plain name, not "axe(fix-hook)-..."), its PID should still be collected
-    for VCS removal so the embedded #hg workspace claim gets removed.
+    for VCS removal so the embedded #spy workspace claim gets removed.
     """
     # fix-hook agent loaded as WORKFLOW type (plain workflow name)
     fix_hook_agent = Agent(
@@ -269,14 +277,14 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
         pid=2970578,
     )
 
-    # Embedded #hg workspace claim on workspace #100 (same PID)
-    hg_agent = Agent(
+    # Embedded #spy workspace claim on workspace #100 (same PID)
+    spy_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
-        workflow="hg-my_feature",
+        workflow="spy-my_feature",
         raw_suffix=None,
         workspace_num=100,
         pid=2970578,
@@ -297,7 +305,7 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-            return_value=[hg_agent],
+            return_value=[spy_agent],
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
@@ -332,7 +340,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
 
     This reproduces the exact scenario: the fix-hook runner doesn't claim a workspace
     in the RUNNING field, so the fix-hook agent only exists as a ChangeSpec entry
-    (with tag=review, _from_changespec=True). The embedded #hg workspace shares
+    (with tag=review, _from_changespec=True). The embedded #spy workspace shares
     the same PID. The VCS workspace should be removed entirely.
     """
     from sase.ace.agent_tags import REVIEW_AGENT_TAG
@@ -362,14 +370,14 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
         hooks=[mock_hook],
     )
 
-    # Embedded #hg workspace claim on workspace #100 (same PID as fix-hook)
-    hg_agent = Agent(
+    # Embedded #spy workspace claim on workspace #100 (same PID as fix-hook)
+    spy_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="yserve_15_yp_fields",
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
-        workflow="hg-yserve_15_yp_fields",
+        workflow="spy-yserve_15_yp_fields",
         raw_suffix=None,
         workspace_num=100,
         pid=3105619,
@@ -390,7 +398,7 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_agents_from_running_field",
-            return_value=[hg_agent],
+            return_value=[spy_agent],
         ),
         patch(
             "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
@@ -421,5 +429,5 @@ def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
     assert result[0].hidden is False
     assert result[0].tag == REVIEW_AGENT_TAG
     # No agents with VCS workflow should remain
-    hg_result = [a for a in result if a.workflow == "hg-yserve_15_yp_fields"]
-    assert len(hg_result) == 0
+    spy_result = [a for a in result if a.workflow == "spy-yserve_15_yp_fields"]
+    assert len(spy_result) == 0

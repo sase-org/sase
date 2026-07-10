@@ -14,8 +14,7 @@ input:
     description: Optional PR or ChangeSpec name to include in the review prompt.
   vcs_type:
     type: word
-    default: "hg"
-    description: VCS directive prefix to use when a PR name is provided.
+    description: Registered workspace directive prefix to use for the PR.
   schema:
     type: text
     description: JSON output schema the mentor response must satisfy.

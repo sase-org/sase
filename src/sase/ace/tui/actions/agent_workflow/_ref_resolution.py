@@ -1,4 +1,4 @@
-"""Reference resolution for VCS refs (e.g. #gh, #git, #hg) in prompts."""
+"""Reference resolution for registered workspace refs in prompts."""
 
 from __future__ import annotations
 

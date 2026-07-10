@@ -9,7 +9,7 @@ import pytest
 from sase.agent.names import AgentRefError, NamedAgent, resolve_agent_changespec
 from sase.axe.run_agent_phases import resolve_agent_refs_in_prompt
 
-_MOCK_WORKFLOW_NAMES = MagicMock(return_value={"gh", "git", "hg"})
+_MOCK_WORKFLOW_NAMES = MagicMock(return_value={"gh", "git", "spy"})
 
 
 @pytest.fixture(autouse=True)

@@ -114,11 +114,15 @@ def run_crs_workflow(
 
         # Run the CRS workflow
         console.print("[cyan]Running CRS workflow...[/cyan]")
+        from sase.workspace_provider import detect_workflow_type
+
+        vcs_type = detect_workflow_type(changespec.file_path)
         workflow = CrsWorkflow(
             comments_file=comments_file,
             timestamp=crs_start_timestamp,
             project_name=changespec.project_basename,
             cl_name=changespec.name,
+            vcs_type=vcs_type,
         )
         workflow_succeeded = workflow.run()
 

@@ -99,17 +99,17 @@ class _FakeExecutor(EmbeddedWorkflowMixin):
 def test_multiple_wraps_all_raises_error() -> None:
     """Multiple wraps_all workflows in one prompt raises WorkflowExecutionError."""
     wf_git = _make_workflow("git", wraps_all=True)
-    wf_hg = _make_workflow("hg", wraps_all=True)
+    wf_spy = _make_workflow("spy", wraps_all=True)
 
-    executor = _FakeExecutor({"git": wf_git, "hg": wf_hg})
+    executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
         "sase.xprompt.loader.get_all_workflows",
-        return_value={"git": wf_git, "hg": wf_hg},
+        return_value={"git": wf_git, "spy": wf_spy},
     ):
         with pytest.raises(WorkflowExecutionError, match="Multiple VCS-tagged"):
             executor._expand_embedded_workflows_in_prompt(
-                "#git:main #hg:cl123 Do something"
+                "#git:main #spy:cl123 Do something"
             )
 
 
@@ -155,22 +155,22 @@ def test_single_wraps_all_does_not_raise() -> None:
 def test_vcs_refs_inside_disabled_region_not_counted() -> None:
     """VCS refs inside disabled regions are inert during embedded expansion."""
     wf_git = _make_workflow("git", wraps_all=True)
-    wf_hg = _make_workflow("hg", wraps_all=True)
+    wf_spy = _make_workflow("spy", wraps_all=True)
     prompt = (
         "before\n"
         "%xprompts_enabled:false\n"
         "#git:main\n"
-        "#hg:cl123\n"
+        "#spy:cl123\n"
         "#git:feature\n"
         "%xprompts_enabled:true\n"
         "after"
     )
 
-    executor = _FakeExecutor({"git": wf_git, "hg": wf_hg})
+    executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
         "sase.xprompt.loader.get_all_workflows",
-        return_value={"git": wf_git, "hg": wf_hg},
+        return_value={"git": wf_git, "spy": wf_spy},
     ):
         expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
             prompt
@@ -184,21 +184,21 @@ def test_vcs_refs_inside_disabled_region_not_counted() -> None:
 def test_single_vcs_outside_with_vcs_mentions_inside_disabled_region() -> None:
     """Only the VCS ref outside a disabled region is expanded and counted."""
     wf_git = _make_workflow("git", wraps_all=True, prompt_part="EXPANDED-GIT")
-    wf_hg = _make_workflow("hg", wraps_all=True)
+    wf_spy = _make_workflow("spy", wraps_all=True)
     prompt = (
         "#git:main Do work\n"
         "%xprompts_enabled:false\n"
         "#git:ignored\n"
-        "#hg:also-ignored\n"
-        "#hg:still-ignored\n"
+        "#spy:also-ignored\n"
+        "#spy:still-ignored\n"
         "%xprompts_enabled:true\n"
     )
 
-    executor = _FakeExecutor({"git": wf_git, "hg": wf_hg})
+    executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
         "sase.xprompt.loader.get_all_workflows",
-        return_value={"git": wf_git, "hg": wf_hg},
+        return_value={"git": wf_git, "spy": wf_spy},
     ):
         expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
             prompt
@@ -207,8 +207,8 @@ def test_single_vcs_outside_with_vcs_mentions_inside_disabled_region() -> None:
     assert "#git:main" not in expanded
     assert "EXPANDED-GIT Do work" in expanded
     assert "#git:ignored" in expanded
-    assert "#hg:also-ignored" in expanded
-    assert "#hg:still-ignored" in expanded
+    assert "#spy:also-ignored" in expanded
+    assert "#spy:still-ignored" in expanded
     assert len(embedded) == 1
     assert embedded[0].workflow_name == "git"
     assert pre_steps == 1
@@ -217,22 +217,22 @@ def test_single_vcs_outside_with_vcs_mentions_inside_disabled_region() -> None:
 def test_segment_separator_inside_disabled_region_not_split() -> None:
     """A disabled-region markdown separator is not a multi-agent split."""
     wf_git = _make_workflow("git", wraps_all=True)
-    wf_hg = _make_workflow("hg", wraps_all=True)
+    wf_spy = _make_workflow("spy", wraps_all=True)
     prompt = (
         "before\n"
         "%xprompts_enabled:false\n"
-        "#git:left #hg:left\n"
+        "#git:left #spy:left\n"
         "---\n"
-        "#git:right #hg:right\n"
+        "#git:right #spy:right\n"
         "%xprompts_enabled:true\n"
         "after"
     )
 
-    executor = _FakeExecutor({"git": wf_git, "hg": wf_hg})
+    executor = _FakeExecutor({"git": wf_git, "spy": wf_spy})
 
     with patch(
         "sase.xprompt.loader.get_all_workflows",
-        return_value={"git": wf_git, "hg": wf_hg},
+        return_value={"git": wf_git, "spy": wf_spy},
     ):
         expanded, embedded, pre_steps = executor._expand_embedded_workflows_in_prompt(
             prompt

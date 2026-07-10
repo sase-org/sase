@@ -18,8 +18,8 @@ class TestExtractProjectFromVcsTag:
     def test_colon_format(self) -> None:
         assert extract_project_from_vcs_tag("#gh:sase ") == "sase"
 
-    def test_colon_format_hg(self) -> None:
-        assert extract_project_from_vcs_tag("#hg:myproject ") == "myproject"
+    def test_colon_format_git(self) -> None:
+        assert extract_project_from_vcs_tag("#git:myproject ") == "myproject"
 
     def test_hitl_bang_suffix(self) -> None:
         assert extract_project_from_vcs_tag("#gh!!:sase ") == "sase"

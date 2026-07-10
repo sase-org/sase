@@ -148,8 +148,9 @@ Grounding against `src/sase/xprompt/processor.py` (`process_xprompt_references` 
    Workspace References" section: prompts without a workspace reference are normalized to `#git:home`, and the workspace
    reference is applied _before_ the rest of the prompt runs. The diagram's caption "workspace selection first" hints at
    this but no chip in the resolution column captures it. A leading chip (or pre-pipeline branch) labeled "Workspace ref
-   dispatch (`#git`/`#gh`/`#hg`)" would close the gap. Bonus accuracy: the implicit `#git:home` normalization for bare
-   prompts is a real behavior worth mentioning, and it is exactly the kind of defaulting a new reader misses.
+   dispatch (`#git`/`#gh`/plugin-provided refs)" would close the gap. Bonus accuracy: the implicit `#git:home`
+   normalization for bare prompts is a real behavior worth mentioning, and it is exactly the kind of defaulting a new
+   reader misses.
 9. **Multi-agent fan-out is "one-level split into agents", but recursive multi-agent fan-out is bounded, not
    prohibited.** The doc says "Recursive fan-out (an xprompt swarm body whose own segments reference more xprompt
    swarms) is bounded by a depth cap and will raise if exceeded." "One-level" is a small accuracy slip — it is not

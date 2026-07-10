@@ -54,7 +54,7 @@ def test_lists_active_changespec_tags_and_sorts_deterministically(
     )
 
     def detect(project_file: str) -> str:
-        return "hg" if "/alpha/" in project_file else "git"
+        return "spy" if "/alpha/" in project_file else "git"
 
     monkeypatch.setattr(
         "sase.integrations.changespec_tags.detect_workflow_type", detect
@@ -66,9 +66,9 @@ def test_lists_active_changespec_tags_and_sorts_deterministically(
         (entry.project, entry.name, entry.status, entry.tag)
         for entry in listing.entries
     ] == [
-        ("alpha", "draft", "Draft", "#hg:draft"),
-        ("alpha", "ready", "Ready", "#hg:ready"),
-        ("alpha", "wip", "WIP", "#hg:wip"),
+        ("alpha", "draft", "Draft", "#spy:draft"),
+        ("alpha", "ready", "Ready", "#spy:ready"),
+        ("alpha", "wip", "WIP", "#spy:wip"),
         ("beta", "zeta", "Mailed", "#git:zeta"),
     ]
     assert listing.skipped == []
@@ -113,7 +113,7 @@ def test_filters_by_exact_project_before_workflow_detection(
 
     def detect(project_file: str) -> str:
         seen_files.append(project_file)
-        return "hg"
+        return "spy"
 
     monkeypatch.setattr(
         "sase.integrations.changespec_tags.detect_workflow_type", detect
@@ -160,7 +160,7 @@ def test_records_workflow_detection_failure_and_keeps_other_entries(
     def detect(project_file: str) -> str:
         if "/alpha/" in project_file:
             raise ValueError("no plugin")
-        return "hg"
+        return "spy"
 
     monkeypatch.setattr(
         "sase.integrations.changespec_tags.detect_workflow_type", detect
@@ -168,7 +168,7 @@ def test_records_workflow_detection_failure_and_keeps_other_entries(
 
     listing = list_changespec_xprompt_tags()
 
-    assert [entry.tag for entry in listing.entries] == ["#hg:good"]
+    assert [entry.tag for entry in listing.entries] == ["#spy:good"]
     assert listing.skipped == [
         "alpha/bad: could not detect workflow type: no plugin",
     ]

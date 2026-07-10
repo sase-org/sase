@@ -52,20 +52,20 @@ log = logging.getLogger(__name__)
 def _build_mentor_prompt(
     mentor: MentorConfig,
     cl_name: str,
-    vcs_type: str = "hg",
+    vcs_type: str,
     project: str | None = None,
 ) -> str:
     """Build the mentor prompt by resolving the #mentor xprompt workflow.
 
     Resolves the ``#mentor`` tagged xprompt, executes its pre-steps
     (focus area rendering), and returns the rendered prompt_part.
-    The result contains embedded workflow references (``#hg``, ``#json``)
+    The result contains embedded workflow references (workspace context and ``#json``)
     that must be expanded by ``expand_embedded_workflows_in_query``.
 
     Args:
         mentor: The mentor configuration.
         cl_name: ChangeSpec name passed to the embedded workflow.
-        vcs_type: VCS workflow type (``"hg"`` or ``"gh"``).
+        vcs_type: Registered workspace workflow type.
         project: Optional project name for xprompt resolution.
 
     Returns:
@@ -114,7 +114,7 @@ def _build_mentor_prompt(
 def _build_mentor_prompt_invocation(
     mentor: MentorConfig,
     cl_name: str,
-    vcs_type: str = "hg",
+    vcs_type: str,
 ) -> str:
     """Build the generated top-level mentor xprompt invocation for reports."""
     mentor_wf = get_by_tag(XPromptTag.mentor)
@@ -322,7 +322,7 @@ class MentorWorkflow(BaseWorkflow):
                 self._mentor, resolved_cl_name, vcs_type, project=project
             )
 
-            # Expand embedded workflows (#hg for VCS context, #json for output format)
+            # Expand embedded workflows (workspace context and #json output format)
             expanded_prompt, post_workflows = expand_embedded_workflows_in_query(
                 prompt, artifacts_dir
             )

@@ -64,7 +64,7 @@ def _extract_plugin_module(source_path: str | None) -> str | None:
         # "plugin:sase_github/gh.yml" → "sase_github"
         return source_path.removeprefix("plugin:").split("/")[0]
     if source_path.startswith("plugin_config:"):
-        # "plugin_config:sase_hg" -> "sase_hg"
+        # "plugin_config:sase_github" -> "sase_github"
         return source_path.removeprefix("plugin_config:")
     return None
 

@@ -18,12 +18,19 @@ _AXE_WORKFLOW_PREFIXES = ["axe(mentor)", "axe(fix_hook)", "axe(crs)", "mentor("]
 _DONE_AXE_WORKFLOWS = {"fix_hook", "crs", "summarize_hook"}
 _DONE_AXE_PREFIXES = ["mentor_"]
 
-# VCS workspace workflow prefixes (original casing, matched with startswith)
-_VCS_WORKFLOW_PREFIXES = ("hg-", "gh-", "git-")
-
 # Plain workflow names from workflow_state.json / done.json for axe-spawned agents
 _PLAIN_AXE_WORKFLOWS = {"fix_hook", "crs", "mentor", "summarize_hook"}
 _PLAIN_AXE_PREFIXES = ("mentor_",)
+
+
+def _is_workspace_claim_workflow(workflow: str | None) -> bool:
+    """Return whether *workflow* is a registered workspace-provider claim."""
+    if not workflow:
+        return False
+
+    from sase.workspace_provider import get_workflow_names
+
+    return any(workflow.startswith(f"{name}-") for name in get_workflow_names())
 
 
 def _merge_agent_fields(target: Agent, source: Agent) -> None:
@@ -158,8 +165,8 @@ def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:
 def remove_vcs_workspace_claims(agents: list[Agent]) -> list[Agent]:
     """Remove embedded VCS workspace claims from axe-spawned agents.
 
-    When an axe agent embeds #hg or #gh, the VCS workflow claims its own
-    workspace (appearing as a separate RUNNING entry like "hg-<cl_name>").
+    When an axe agent embeds a workspace workflow, that workflow claims its own
+    workspace (appearing as a separate RUNNING entry like ``git-<ref>``).
     These share the same PID as the parent axe agent via os.getppid().
     We remove these entirely (not just hide) so they never appear as
     duplicate PID entries, even when hidden agents are toggled visible.
@@ -187,8 +194,7 @@ def remove_vcs_workspace_claims(agents: list[Agent]) -> list[Agent]:
             agent.agent_type == AgentType.RUNNING
             and agent.pid is not None
             and agent.pid in axe_agents_by_pid
-            and agent.workflow
-            and agent.workflow.startswith(_VCS_WORKFLOW_PREFIXES)
+            and _is_workspace_claim_workflow(agent.workflow)
         ):
             # Merge fields from VCS workspace into surviving axe agent
             axe_agent = axe_agents_by_pid[agent.pid]
@@ -345,12 +351,8 @@ def dedup_by_pid(agents: list[Agent]) -> list[Agent]:
         if agent.pid in seen_pids:
             existing = seen_pids[agent.pid]
             # Prefer WORKFLOW over RUNNING, and non-VCS over VCS workflows
-            existing_is_vcs = existing.workflow and existing.workflow.startswith(
-                _VCS_WORKFLOW_PREFIXES
-            )
-            agent_is_vcs = agent.workflow and agent.workflow.startswith(
-                _VCS_WORKFLOW_PREFIXES
-            )
+            existing_is_vcs = _is_workspace_claim_workflow(existing.workflow)
+            agent_is_vcs = _is_workspace_claim_workflow(agent.workflow)
             if agent_is_vcs and not existing_is_vcs:
                 # New agent is VCS, existing is not — remove new
                 _merge_agent_fields(existing, agent)

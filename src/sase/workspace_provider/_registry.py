@@ -134,7 +134,7 @@ def get_embedded_vcs_tag_pattern() -> re.Pattern[str]:
 def detect_workflow_type(project_file: str) -> str:
     """Detect the workflow type for *project_file* via plugins.
 
-    Returns ``"gh"``, ``"git"``, ``"hg"``, etc.
+    Returns a registered workflow name such as ``"gh"`` or ``"git"``.
 
     Raises:
         ValueError: If no plugin claims the project.

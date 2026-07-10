@@ -68,7 +68,7 @@ def get_embedded_workflow_refs(artifacts_dir: str, vcs_tag: str | None) -> str:
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return ""
 
-    # Extract VCS workflow name from tag (e.g., "#hg:sase " -> "hg")
+    # Extract the workspace workflow name from the tag (e.g. "#gh:sase " -> "gh")
     vcs_name: str | None = None
     if vcs_tag:
         m = re.match(r"#(\w+)", vcs_tag)

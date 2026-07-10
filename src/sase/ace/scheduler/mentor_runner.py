@@ -68,8 +68,8 @@ def start_single_mentor(
 ) -> str | None:
     """Start a single mentor workflow as a background process.
 
-    The ``#hg`` embedded workflow handles workspace claiming, checkout, and
-    release.  This function only launches the subprocess and tracks status.
+    The embedded workspace workflow handles claiming, checkout, and release.
+    This function only launches the subprocess and tracks status.
 
     Args:
         changespec: The ChangeSpec to run mentor for.

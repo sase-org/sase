@@ -188,7 +188,7 @@ def test_parse_xprompt_entries_skill_provider_list() -> None:
     """Test parsing skill with provider list from structured dict format."""
     entries = {
         "hg_commit": {
-            "content": "Commit with hg",
+            "content": "Commit with a VCS provider",
             "skill": ["gemini"],
         }
     }

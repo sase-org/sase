@@ -7,7 +7,7 @@ from sase.xprompt._parsing import inherit_vcs_workflow_tag, replace_vcs_workflow
 
 
 _TEST_VCS_REPLACE_PATTERN = re.compile(
-    r"^((?:%\S+[\s]+)*)#(?:gh|git|hg)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
+    r"^((?:%\S+[\s]+)*)#(?:gh|git|spy)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
     re.MULTILINE,
 )
 
@@ -94,7 +94,7 @@ def test_replace_vcs_tags_tag_only_at_eof_same_prefix() -> None:
 def test_replace_vcs_tags_hitl_modifier() -> None:
     """Replace a VCS tag that has !! (HITL) modifier."""
     with _patch_vcs_replace_pattern():
-        result = replace_vcs_workflow_tags("#hg!!:cl Fix it", "#gh:sase")
+        result = replace_vcs_workflow_tags("#spy!!:cl Fix it", "#gh:sase")
         assert result == "#gh:sase Fix it"
 
 
@@ -115,11 +115,11 @@ def test_replace_vcs_tags_mixed_vcs_multi_prompt() -> None:
 
 def _patch_ref_patterns(names: set[str] | None = None):
     pattern = re.compile(
-        r"#(?:gh|git|hg|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?=\s|$)"
+        r"#(?:gh|git|spy|cd)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?=\s|$)"
     )
     return patch(
         "sase.workspace_provider.get_ref_patterns",
-        return_value=dict.fromkeys(names or {"gh", "git", "hg", "cd"}, pattern),
+        return_value=dict.fromkeys(names or {"gh", "git", "spy", "cd"}, pattern),
     )
 
 
@@ -164,7 +164,7 @@ def test_inherit_vcs_tag_skips_explicit_workspace_refs() -> None:
         _patch_ref_patterns(),
         patch("sase.xprompt.loader.get_known_project_workspaces", return_value=set()),
     ):
-        prompt = "#git:other Fix A\n---\n#hg:work Fix B"
+        prompt = "#git:other Fix A\n---\n#spy:work Fix B"
         assert inherit_vcs_workflow_tag(prompt, "#gh:sase ") == prompt
 
 

@@ -3,10 +3,18 @@
 from datetime import datetime
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
+from tests._workspace_provider_helpers import patch_spy_metadata
+
+
+@pytest.fixture(autouse=True)
+def _register_spy_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
+    patch_spy_metadata(monkeypatch)
 
 
 def test_pid_dedup_safety_net() -> None:
@@ -114,7 +122,7 @@ def test_pid_dedup_safety_net_works_on_review_agents() -> None:
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=None,
-        workflow="hg-my_feature",
+        workflow="spy-my_feature",
         raw_suffix=None,
         workspace_num=100,
         pid=99999,

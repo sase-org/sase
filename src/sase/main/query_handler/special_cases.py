@@ -38,7 +38,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
             file=sys.stderr,
         )
 
-    # Handle VCS workflow prefix + '.' (e.g., "#gh:sase ." or "#hg:my_cl .").
+    # Handle workspace workflow prefix + '.' (e.g. "#gh:sase .").
     # Opens the recency-ordered prompt history picker, then runs the selected
     # prompt wrapped in the current VCS workflow.
     # Handles both split args (['#gh:sase', '.']) and single arg (['#gh:sase .'])
@@ -133,7 +133,7 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
                     _print_invalid_standalone_marker(workflow_name)
                     sys.exit(1)
 
-                # Multi-step prompt_part workflows (like #gh, #hg) need to go
+                # Multi-step prompt_part workspace workflows (like #gh) need to go
                 # through the detached launch path so their embedded pre/post
                 # steps and prompt_part expansion work correctly.
                 if workflow.has_prompt_part() and not workflow.is_simple_xprompt():

@@ -59,7 +59,7 @@ _XPROMPT_PATTERN = (
     r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
 )
 
-_COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "hg", "p4"})
+_COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "p4"})
 
 
 def _candidate_name(match: re.Match[str]) -> str:

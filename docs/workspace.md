@@ -5,8 +5,8 @@ environments. While the [VCS provider](vcs.md) handles low-level version control
 workspace provider handles higher-level concerns: workflow type detection, reference resolution (for example `#git:repo`
 or `#gh:org/repo`), change submission, mail preparation, and workspace directory management.
 
-A **workspace reference** is a prompt prefix such as `#git:sase`, `#gh:sase`, or `#hg:mychange`. It tells SASE which
-project and workspace should be used before the rest of the prompt or workflow runs.
+A **workspace reference** is a prompt prefix such as `#git:sase`, `#gh:sase`, or a ref registered by another workspace
+provider. It tells SASE which project and workspace should be used before the rest of the prompt or workflow runs.
 
 ## Plugin Architecture
 
@@ -44,7 +44,7 @@ Each workspace plugin declares metadata about the workflow type it supports:
 | `vcs_provider_name`        | string | Specific VCS provider name (e.g., `"bare_git"`, `"github"`)            |
 | `sdd_storage_policy`       | string | Optional provider SDD policy declaration: `in_tree` or `separate_repo` |
 
-Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefixes such as `SASE_GH` and `SASE_HG`.
+Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefixes such as `SASE_GH`.
 
 SASE treats `sdd_storage_policy` as authoritative. `in_tree` takes effect immediately, as it does for the built-in
 bare-git provider. `separate_repo` requires the provider to materialize a companion before SDD writes or workflow setup

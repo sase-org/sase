@@ -79,7 +79,7 @@ def main() -> None:
 
     try:
         try:
-            # Run the mentor workflow (#hg handles workspace management)
+            # Run the mentor workflow (the registered provider manages the workspace)
             workflow = MentorWorkflow(
                 profile_name=profile_name,
                 mentor_name=mentor_name,

@@ -216,7 +216,7 @@ def run_single_agent_launch_body(
         recorded_vcs_xprompt_usage = True
 
     # Ensure %wait agents have a valid CWD when the VCS provider
-    # doesn't provide a primary_workspace_dir (e.g. hg).
+    # doesn't provide a primary_workspace_dir.
     if has_wait and not ctx.is_home_mode and not ctx.workspace_dir:
         from sase.running_field import get_workspace_directory
 
