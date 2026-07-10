@@ -67,6 +67,62 @@ class _FakeSeparateRepoProvider:
         }
 
 
+class _ConcurrentPushProvider:
+    """Advance the shared companion remote between the staging clone and push.
+
+    Simulates a second workspace materializing (and pushing to) the same shared
+    companion repository first, so this materialization's push is rejected as a
+    non-fast-forward and must integrate the remote work before retrying.
+    """
+
+    def __init__(self, remote: Path, rival_worktree: Path) -> None:
+        self.remote = remote
+        self._rival_worktree = rival_worktree
+        self.calls = 0
+
+    @hookimpl
+    def ws_get_workflow_metadata(self) -> WorkflowMetadata | None:
+        return WorkflowMetadata(
+            workflow_type="fake",
+            ref_pattern="",
+            display_name="Fake",
+            pre_allocated_env_prefix="SASE_FAKE",
+            vcs_provider_name="fake",
+            sdd_storage_policy="separate_repo",
+        )
+
+    @hookimpl
+    def ws_materialize_sdd_store(
+        self,
+        primary_workspace_dir: str,
+        workspace_dir: str,
+        options: dict[str, object],
+    ) -> dict[str, object] | None:
+        del primary_workspace_dir, workspace_dir
+        self.calls += 1
+        staging = Path(str(options["staging_dir"]))
+        clone(self.remote, staging)
+        # A concurrent workspace pushes to the shared companion remote after our
+        # staging clone is taken but before we push, advancing the remote past
+        # our clone so our push is a non-fast-forward rejection.
+        clone(self.remote, self._rival_worktree)
+        rival = self._rival_worktree / "research" / "rival.md"
+        rival.parent.mkdir(parents=True, exist_ok=True)
+        rival.write_text("rival\n", encoding="utf-8")
+        commit_all(self._rival_worktree, "Concurrent companion import")
+        git(["push", "origin", "HEAD"], self._rival_worktree)
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "fake",
+            "host": "example.test",
+            "repo": "owner/repo--sdd",
+            "remote_url": str(self.remote),
+            "discovery": "found",
+            "created": True,
+        }
+
+
 class _MetadataOnlyProvider:
     @hookimpl
     def ws_get_workflow_metadata(self) -> WorkflowMetadata | None:
@@ -275,6 +331,32 @@ def test_local_and_in_tree_artifacts_are_imported_without_deleting_in_tree(
     assert (store.sdd_dir / "tales" / "202607" / "tree.md").read_text() == "tree\n"
     assert tree_note.read_text() == "tree\n"
     assert not (store.sdd_dir / "beads" / "beads.db-wal").exists()
+
+
+def test_materialization_recovers_from_concurrent_companion_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "repo"
+    legacy = primary / ".sase" / "sdd" / "research" / "local.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("local\n", encoding="utf-8")
+    remote = _remote_with_files(tmp_path, {"research/remote.md": "remote\n"})
+    provider = _ConcurrentPushProvider(remote, tmp_path / "rival")
+    _install_provider(monkeypatch, provider)
+
+    store = materialize_sdd_store(primary, 1)
+
+    # Our import and the concurrently pushed rival import both survive the rebase.
+    assert (store.sdd_dir / "research" / "local.md").read_text() == "local\n"
+    assert (store.sdd_dir / "research" / "rival.md").read_text() == "rival\n"
+    assert (store.sdd_dir / "research" / "remote.md").read_text() == "remote\n"
+
+    # The staged commit was integrated and pushed, so the shared remote holds it.
+    verify = tmp_path / "verify"
+    clone(remote, verify)
+    assert (verify / "research" / "local.md").read_text() == "local\n"
+    assert (verify / "research" / "rival.md").read_text() == "rival\n"
 
 
 def test_mismatched_local_git_repo_is_imported_via_staging(

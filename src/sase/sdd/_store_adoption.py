@@ -280,16 +280,55 @@ def _bootstrap_and_push(repo: Path) -> None:
     )
     if not committed:
         return
+    _push_companion_store(repo)
+
+
+def _push_companion_store(repo: Path) -> None:
+    """Push the companion commit, integrating concurrent remote work first.
+
+    Many workspaces materialize the same shared companion repository, so a
+    non-fast-forward rejection is expected whenever another materialization (or
+    an ordinary SDD push) advanced the remote between our clone and this push.
+    Mirror the established bead-sync idiom -- push, and on rejection
+    ``git pull --rebase`` then retry -- instead of aborting the whole setup
+    transaction on the first rejection. The primary store is still only replaced
+    after the staged commit has landed on the remote.
+    """
+
     result = _run_git(
         ["push", "-u", "origin", "HEAD"],
         cwd=repo,
         op="sdd.materialize.push",
         network=True,
     )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
+    if result.returncode == 0:
+        return
+
+    push_detail = (result.stderr or result.stdout or "").strip()
+    rebase = _run_git(
+        ["pull", "--rebase"],
+        cwd=repo,
+        op="sdd.materialize.pull_rebase",
+        network=True,
+    )
+    if rebase.returncode != 0:
+        rebase_detail = (rebase.stderr or rebase.stdout or "").strip()
         raise SddMaterializationError(
-            detail or f"git push failed with exit code {result.returncode}"
+            rebase_detail
+            or push_detail
+            or f"git push failed with exit code {result.returncode}"
+        )
+
+    retry = _run_git(
+        ["push", "-u", "origin", "HEAD"],
+        cwd=repo,
+        op="sdd.materialize.push",
+        network=True,
+    )
+    if retry.returncode != 0:
+        detail = (retry.stderr or retry.stdout or push_detail or "").strip()
+        raise SddMaterializationError(
+            detail or f"git push failed with exit code {retry.returncode}"
         )
 
 
