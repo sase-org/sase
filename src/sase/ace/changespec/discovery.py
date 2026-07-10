@@ -13,7 +13,7 @@ from sase.core.project_lifecycle_wire import normalize_project_lifecycle_state_f
 
 
 @dataclass(frozen=True)
-class ChangeSpecProjectFile:
+class _ChangeSpecProjectFile:
     """A discovered ProjectSpec file and its configured query display name."""
 
     path: Path
@@ -49,7 +49,7 @@ def iter_changespec_project_file_records(
     include_states: Sequence[str] | str = ("active",),
     *,
     include_home: bool = True,
-) -> list[ChangeSpecProjectFile]:
+) -> list[_ChangeSpecProjectFile]:
     """Return ProjectSpec files with lifecycle-level display-name metadata."""
     projects_root = projects_dir or sase_projects_dir()
     if not projects_root.exists():
@@ -60,7 +60,7 @@ def iter_changespec_project_file_records(
         _normalize_project_lifecycle_states(include_states),
         include_home=include_home,
     )
-    files: list[ChangeSpecProjectFile] = []
+    files: list[_ChangeSpecProjectFile] = []
     seen: set[str] = set()
     for record in records:
         for raw_path in (record.project_file, record.archive_file):
@@ -74,7 +74,7 @@ def iter_changespec_project_file_records(
                 continue
             seen.add(path_key)
             files.append(
-                ChangeSpecProjectFile(
+                _ChangeSpecProjectFile(
                     path=path,
                     project_display_name=record.display_name,
                 )
@@ -83,7 +83,6 @@ def iter_changespec_project_file_records(
 
 
 __all__ = [
-    "ChangeSpecProjectFile",
     "iter_changespec_project_file_records",
     "iter_changespec_project_files",
 ]

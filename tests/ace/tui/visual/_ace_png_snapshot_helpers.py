@@ -21,7 +21,7 @@ from sase.ace.tui.actions.axe_display._data import (
     ChopSnapshot,
     LumberjackSnapshot,
 )
-from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.axe.state import LumberjackMetrics, LumberjackStatus
@@ -99,6 +99,53 @@ def agents() -> list[Agent]:
             tag="visual",
         ),
     ]
+
+
+def retry_agent(
+    *,
+    name: str,
+    status: str,
+    start_time: datetime,
+    raw_suffix: str,
+    stop_time: datetime | None = None,
+    retry_status: str | None = None,
+    retry_count: int = 0,
+    max_retries: int = 0,
+    retry_next_at_epoch: float | None = None,
+    retry_attempt: int = 0,
+    retry_of_timestamp: str | None = None,
+    retry_chain_root_timestamp: str | None = None,
+    retried_as_timestamp: str | None = None,
+    retry_terminal: bool = False,
+    using_fallback: bool = False,
+    fallback_model: str | None = None,
+    attempt_history: Sequence[AttemptRecord] = (),
+) -> Agent:
+    """Build a deterministic Agents-tab fixture with retry metadata."""
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=f"visual-{name}",
+        project_file="/workspace/sase/visual_project.sase",
+        status=status,
+        start_time=start_time,
+        stop_time=stop_time,
+        raw_suffix=raw_suffix,
+        agent_name=f"retry-{name}",
+        llm_provider="codex",
+        model="gpt-5",
+        retry_status=retry_status,
+        retry_count=retry_count,
+        max_retries=max_retries,
+        retry_next_at_epoch=retry_next_at_epoch,
+        retry_attempt=retry_attempt,
+        retry_of_timestamp=retry_of_timestamp,
+        retry_chain_root_timestamp=retry_chain_root_timestamp,
+        retried_as_timestamp=retried_as_timestamp,
+        retry_terminal=retry_terminal,
+        using_fallback=using_fallback,
+        fallback_model=fallback_model,
+        attempt_history=list(attempt_history),
+    )
 
 
 def agents_with_stopped_status() -> list[Agent]:
