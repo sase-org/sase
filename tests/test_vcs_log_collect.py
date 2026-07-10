@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+
+import pytest
 
 from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_log import collect as collect_module
@@ -241,6 +244,44 @@ def test_collect_classifies_remote_presence_and_records_state(tmp_path: Path) ->
         "synced",
         "local_only",
         "remote_only",
+    ]
+
+
+def test_collect_wraps_only_actual_fetches_in_progress(tmp_path: Path) -> None:
+    cache_path = tmp_path / "fetch-cache.json"
+    assert record_successful_fetch(
+        "/cached", "origin/main", fetched_at=1000.0, cache_path=cache_path
+    )
+    providers = {
+        "/cached": _RemoteProvider([_commit("cached", 300)]),
+        "/fresh": _RemoteProvider([_commit("fresh", 200)]),
+    }
+    events: list[str] = []
+
+    @contextmanager
+    def progress(repo: LogRepo, remote_ref: str) -> Iterator[None]:
+        events.append(f"start:{repo.name}:{remote_ref}")
+        yield
+        events.append(f"done:{repo.name}:{remote_ref}")
+
+    result = collect_vcs_log(
+        [
+            LogRepo("cached", "/cached", "primary"),
+            LogRepo("fresh", "/fresh", "linked"),
+        ],
+        limit=20,
+        now=1010.0,
+        fetch_cache_path=cache_path,
+        provider_factory=lambda path: providers[path],
+        fetch_progress=progress,
+    )
+
+    assert result.warnings == ()
+    assert providers["/cached"].fetch_calls == []
+    assert providers["/fresh"].fetch_calls == [("origin/main",)]
+    assert events == [
+        "start:fresh:origin/main",
+        "done:fresh:origin/main",
     ]
 
 

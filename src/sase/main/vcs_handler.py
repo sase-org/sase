@@ -34,6 +34,7 @@ def _handle_log(args: argparse.Namespace) -> int:
     from sase.vcs_log.collect import run_vcs_log
     from sase.vcs_log.dates import VcsLogDateError, parse_time_bound
     from sase.vcs_log.models import CommitFilters
+    from sase.vcs_log.progress import make_fetch_progress
     from sase.vcs_log.render import render
 
     try:
@@ -65,6 +66,7 @@ def _handle_log(args: argparse.Namespace) -> int:
         no_fetch=args.no_fetch,
         force_fetch=args.force_fetch,
         remote_ref=args.remote_ref,
+        fetch_progress=make_fetch_progress(args.color),
     )
     render(
         result,

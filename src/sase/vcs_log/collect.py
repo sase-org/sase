@@ -10,6 +10,7 @@ Rust core aggregator.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import replace
 from pathlib import Path
 import time
@@ -30,6 +31,10 @@ from sase.vcs_log.resolve import resolve_log_repos
 #: collection logic can be tested without real repositories.
 ProviderFactory = Callable[[str], object]
 
+#: A presentation hook wrapped around remote fetch I/O. The CLI uses this to
+#: show live progress without coupling collection to a specific output system.
+FetchProgress = Callable[[LogRepo, str], AbstractContextManager[None]]
+
 
 def collect_vcs_log(
     repos: Sequence[LogRepo],
@@ -42,6 +47,7 @@ def collect_vcs_log(
     fetch_cache_path: str | Path | None = None,
     now: float | None = None,
     provider_factory: ProviderFactory | None = None,
+    fetch_progress: FetchProgress | None = None,
 ) -> VcsLogResult:
     """Fetch each repo's log (isolated) and merge into one timeline.
 
@@ -70,6 +76,7 @@ def collect_vcs_log(
                 remote_ref=remote_ref,
                 fetch_cache_path=fetch_cache_path,
                 now=now,
+                fetch_progress=fetch_progress,
             )
         except Exception as exc:
             warnings.append(f"{repo.name}: {_failure_reason(exc)}")
@@ -101,6 +108,7 @@ def run_vcs_log(
     fetch_cache_path: str | Path | None = None,
     now: float | None = None,
     provider_factory: ProviderFactory | None = None,
+    fetch_progress: FetchProgress | None = None,
 ) -> VcsLogResult:
     """Resolve the repo set, collect logs, and merge resolution warnings.
 
@@ -121,6 +129,7 @@ def run_vcs_log(
         fetch_cache_path=fetch_cache_path,
         now=now,
         provider_factory=provider_factory,
+        fetch_progress=fetch_progress,
     )
     return VcsLogResult(
         repos=collected.repos,
@@ -152,6 +161,7 @@ def _collect_repo_commits(
     remote_ref: str | None,
     fetch_cache_path: str | Path | None,
     now: float | None,
+    fetch_progress: FetchProgress | None,
 ) -> tuple[list[VcsCommitWire], RepoRemoteState, list[str]]:
     warnings: list[str] = []
     resolved_ref, resolver_available = _resolve_remote_ref(
@@ -180,10 +190,16 @@ def _collect_repo_commits(
                 cache_path=fetch_cache_path,
             )
         if fetched_at is None:
-            ok, error = provider.fetch_remote(  # type: ignore[attr-defined]
-                cwd=repo.path,
-                refs=(resolved_ref,),
+            progress = (
+                fetch_progress(repo, resolved_ref)
+                if fetch_progress is not None
+                else nullcontext()
             )
+            with progress:
+                ok, error = provider.fetch_remote(  # type: ignore[attr-defined]
+                    cwd=repo.path,
+                    refs=(resolved_ref,),
+                )
             fetched = ok
             if ok:
                 fetched_at = time.time() if now is None else float(now)
@@ -271,4 +287,4 @@ def _effective_limit(limit: int) -> int:
     return UNLIMITED if limit == 0 else limit
 
 
-__all__ = ["ProviderFactory", "collect_vcs_log", "run_vcs_log"]
+__all__ = ["FetchProgress", "ProviderFactory", "collect_vcs_log", "run_vcs_log"]

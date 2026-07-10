@@ -168,6 +168,10 @@ repository set. By default it shows up to 40 commits and trailing SASE commit ta
 with a narrow `git fetch` when that checkout/ref has not been fetched successfully in the last 60 seconds, and marks
 each commit as synced, unpushed, GitHub-only, or unknown when no remote comparison is available.
 
+When a cache miss or `--fetch` triggers remote I/O, stderr shows `Fetching remote · <repo> ← <ref>` as a transient
+spinner in an interactive terminal or a durable status line when redirected. Commit data remains isolated on stdout, so
+JSON and oneline output stay safe to pipe.
+
 Common forms:
 
 ```bash
