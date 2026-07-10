@@ -25,7 +25,12 @@ from sase.llm_provider.registry import (
     provider_short_name_map,
     resolve_model_provider,
 )
-from sase.llm_provider.retry_config import get_retry_config
+from sase.llm_provider.retry_config import (
+    _built_in_defaults,
+    find_retry_config_for_error,
+    get_retry_config,
+    is_retryable_error,
+)
 from sase.llm_provider.types import LLMInvocationOptions
 from sase.main.init_skills_handler import get_skill_target_providers
 
@@ -280,3 +285,33 @@ def test_fakey_retry_defaults_and_user_merge(
     assert config.wait_times == [2]
     assert config.preserve_workspace is True
     assert config.continuation_prompt is not None
+
+
+def test_fakey_retry_markers_do_not_collide_with_real_providers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _build_llm_pm.cache_clear()
+    _llm_metadata_payload.cache_clear()
+    defaults = _built_in_defaults()
+    fakey_config = defaults["fakey"]
+    real_configs = {
+        provider: config for provider, config in defaults.items() if provider != "fakey"
+    }
+    retryable_marker = "FAKEY-RETRYABLE: simulated failure"
+    non_retryable_marker = "FAKEY-FAIL: simulated failure"
+
+    for config in real_configs.values():
+        assert not is_retryable_error(retryable_marker, config)
+        assert not is_retryable_error(non_retryable_marker, config)
+
+    assert is_retryable_error(retryable_marker, fakey_config)
+    assert not is_retryable_error(non_retryable_marker, fakey_config)
+    for config in real_configs.values():
+        for pattern in config.error_patterns:
+            assert not is_retryable_error(pattern, fakey_config)
+
+    monkeypatch.setattr("sase.llm_provider.retry_config.load_merged_config", lambda: {})
+    matched_config = find_retry_config_for_error(retryable_marker)
+
+    assert matched_config is not None
+    assert "FAKEY-RETRYABLE" in matched_config.error_patterns
