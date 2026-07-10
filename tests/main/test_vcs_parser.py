@@ -62,7 +62,7 @@ class TestVcsParser:
         ns = create_parser().parse_args(["vcs", "log"])
 
         assert ns.vcs_subcommand == "log"
-        assert ns.limit == 20
+        assert ns.limit == 40
         assert ns.authors == []
         assert ns.format == "pretty"
         assert ns.color == "auto"

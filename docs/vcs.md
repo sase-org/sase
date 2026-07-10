@@ -164,9 +164,9 @@ one repo is shown as a warning and does not hide the other repos.
 
 Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
 store when present. `sase vcs log` uses the same repo resolver as `sase vcs list`, so both commands operate on the same
-repository set. By default it shows trailing SASE commit tags, refreshes the compared `origin` ref with a narrow
-`git fetch` when that checkout/ref has not been fetched successfully in the last 60 seconds, and marks each commit as
-synced, unpushed, GitHub-only, or unknown when no remote comparison is available.
+repository set. By default it shows up to 40 commits and trailing SASE commit tags, refreshes the compared `origin` ref
+with a narrow `git fetch` when that checkout/ref has not been fetched successfully in the last 60 seconds, and marks
+each commit as synced, unpushed, GitHub-only, or unknown when no remote comparison is available.
 
 Common forms:
 
@@ -189,7 +189,7 @@ Options:
 | `-o`, `--current-only`                    | Read only the current/primary repo.                                                     |
 | `-F`, `--fetch`                           | Fetch remote refs now, bypassing the 60-second freshness cache.                         |
 | `-f`, `--format pretty/full/oneline/json` | Choose compact pretty output, full commit-message blocks, pipe-friendly lines, or JSON. |
-| `-n`, `--limit N`                         | Max commits in the merged timeline; `0` means unlimited.                                |
+| `-n`, `--limit N`                         | Max commits in the merged timeline (default: 40); `0` means unlimited.                  |
 | `-N`, `--no-fetch`                        | Skip the remote fetch and compare against existing remote-tracking refs.                |
 | `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.   |
 | `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                           |

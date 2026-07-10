@@ -10,7 +10,7 @@ from sase.main.parser_bead import nonnegative_int
 from sase.vcs_log.dates import DATE_HELP
 
 #: Default number of commits in the merged timeline.
-_DEFAULT_LIMIT = 20
+_DEFAULT_LIMIT = 40
 
 
 class _NoOpAction(argparse.Action):

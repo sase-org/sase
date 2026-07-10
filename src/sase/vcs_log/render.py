@@ -35,7 +35,7 @@ def render(
     fmt: str,
     color: str,
     out: TextIO | None = None,
-    limit: int = 20,
+    limit: int = 40,
     filters: CommitFilters | None = None,
     reverse: bool = False,
     show_tags: bool = True,

@@ -97,7 +97,7 @@ def _render(
     fmt: str,
     color: str = "never",
     *,
-    limit: int = 20,
+    limit: int = 40,
     filters: CommitFilters | None = None,
     reverse: bool = False,
     show_tags: bool = True,
@@ -165,7 +165,7 @@ def test_json_shape_and_ordering() -> None:
     }
     assert payload["query"] == {
         "authors": [],
-        "limit": 20,
+        "limit": 40,
         "reverse": False,
         "since": None,
         "until": None,
@@ -207,7 +207,7 @@ def test_json_empty_result() -> None:
         "commits": [],
         "query": {
             "authors": [],
-            "limit": 20,
+            "limit": 40,
             "reverse": False,
             "since": None,
             "until": None,
