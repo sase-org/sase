@@ -24,6 +24,11 @@ DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS = 30.0
 DEFAULT_NETWORK_GIT_TIMEOUT_SECONDS = 120.0
 DEFAULT_SLOW_GIT_MS = 1_000.0
 
+_AUTO_COMMIT_IDENTITY = (
+    ("user.email", "sase@localhost"),
+    ("user.name", "sase"),
+)
+
 
 class SddGitCommandTimeout(RuntimeError):
     """Raised when a bounded SDD git command exceeds its timeout."""
@@ -253,8 +258,9 @@ def commit_sdd_files(
         )
 
         message = apply_auto_commit_tags_with_runtime(message, auto_commit_type)
+        identity_args = _missing_identity_config(sdd_dir)
         _run_git(
-            ["commit", "-m", message, "--"] + changed_files,
+            identity_args + ["commit", "-m", message, "--"] + changed_files,
             cwd=sdd_dir,
             check=True,
             capture_output=True,
@@ -269,6 +275,31 @@ def commit_sdd_files(
             )
         return True
     return False
+
+
+def _missing_identity_config(repo: Path) -> list[str]:
+    """Return neutral Git identity overrides for unconfigured fields."""
+
+    result = _run_git(
+        ["config", "--null", "--list"],
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+        op="sdd.identity_config",
+    )
+    configured: dict[str, str] = {}
+    if result.returncode == 0:
+        for entry in result.stdout.split("\0"):
+            key, separator, value = entry.partition("\n")
+            if separator:
+                configured[key.casefold()] = value
+
+    args: list[str] = []
+    for key, fallback in _AUTO_COMMIT_IDENTITY:
+        if not configured.get(key, "").strip():
+            args.extend(("-c", f"{key}={fallback}"))
+    return args
 
 
 def commit_sdd_store_files(

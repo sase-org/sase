@@ -1,6 +1,7 @@
 """Tests for committing SDD files."""
 
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -43,6 +44,44 @@ def test_commit_sdd_files() -> None:
         )
         assert "Test commit" in log.stdout
         assert "SASE_TYPE=sdd" in log.stdout
+
+        author = subprocess.run(
+            ["git", "log", "-1", "--format=%an <%ae>"],
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert author.stdout.strip() == "Test <test@test.com>"
+
+
+def test_commit_sdd_files_supplies_identity_when_git_config_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sdd_dir = tmp_path / "sdd"
+    sdd_dir.mkdir()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    subprocess.run(["git", "init"], cwd=sdd_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.useConfigOnly", "true"],
+        cwd=sdd_dir,
+        check=True,
+        capture_output=True,
+    )
+    (sdd_dir / "test.md").write_text("hello", encoding="utf-8")
+
+    assert commit_sdd_files(sdd_dir, "Test commit") is True
+
+    identity = subprocess.run(
+        ["git", "log", "-1", "--format=%an <%ae>|%cn <%ce>"],
+        cwd=sdd_dir,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert identity.stdout.strip() == ("sase <sase@localhost>|sase <sase@localhost>")
 
 
 def test_commit_sdd_files_stages_only_targeted_paths() -> None:
