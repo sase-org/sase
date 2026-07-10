@@ -1,5 +1,6 @@
 """Tests for agent attachment source discovery."""
 
+import socket
 from pathlib import Path
 
 from sase.axe.image_attachments import ExtraRepoScan
@@ -194,11 +195,22 @@ def test_collect_agent_paths_from_extra_repo_base_range_and_untracked(
     committed_md.write_text("# After\n")
     committed_image.write_bytes(b"after")
     _run(extra, "git", "add", ".")
-    _run(extra, "git", "commit", "-m", "after base")
+    _run(
+        extra,
+        "git",
+        "commit",
+        "-m",
+        "after base\n\nSASE_AGENT=agent",
+    )
     untracked_md.write_text("# Untracked\n")
     untracked_image.write_bytes(b"untracked")
 
-    scan = ExtraRepoScan(str(extra), base_sha)
+    scan = ExtraRepoScan(
+        str(extra),
+        base_sha,
+        agent_name="agent",
+        include_working_tree=True,
+    )
     assert collect_agent_markdown_paths(str(primary), extra_repo_scans=()) == []
     assert collect_agent_markdown_paths(
         str(primary),
@@ -211,6 +223,116 @@ def test_collect_agent_paths_from_extra_repo_base_range_and_untracked(
         str(committed_image.resolve()),
         str(untracked_image.resolve()),
     ]
+
+
+def test_extra_repo_commit_paths_require_matching_agent_and_machine_tags(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "workspace"
+    primary.mkdir()
+    _init_repo(primary)
+
+    extra = tmp_path / "sdd"
+    extra.mkdir()
+    _init_repo(extra)
+    (extra / "base.txt").write_text("base\n")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "base")
+    base_sha = _run(extra, "git", "rev-parse", "HEAD")
+
+    expected: list[str] = []
+    for filename, agent_tag in (
+        ("own.md", "agent"),
+        ("hood.md", "agent.research"),
+        ("family.md", "agent--plan-0"),
+    ):
+        path = extra / filename
+        path.write_text(f"# {filename}\n")
+        _run(extra, "git", "add", ".")
+        _run(
+            extra,
+            "git",
+            "commit",
+            "-m",
+            f"add {filename}\n\nSASE_AGENT={agent_tag}",
+        )
+        expected.append(str(path.resolve()))
+
+    foreign = extra / "foreign.md"
+    foreign.write_text("# Foreign\n")
+    _run(extra, "git", "add", ".")
+    _run(
+        extra,
+        "git",
+        "commit",
+        "-m",
+        "foreign\n\nSASE_AGENT=other-agent",
+    )
+
+    untagged = extra / "untagged.md"
+    untagged.write_text("# Untagged\n")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "untagged")
+
+    other_machine = extra / "other-machine.md"
+    other_machine.write_text("# Other machine\n")
+    _run(extra, "git", "add", ".")
+    _run(
+        extra,
+        "git",
+        "commit",
+        "-m",
+        (
+            "other machine\n\nSASE_AGENT=agent\n"
+            f"SASE_MACHINE={socket.gethostname()}-other"
+        ),
+    )
+
+    assert (
+        collect_agent_markdown_paths(
+            str(primary),
+            extra_repo_scans=[ExtraRepoScan(str(extra), base_sha, agent_name="agent")],
+        )
+        == expected
+    )
+
+
+def test_extra_repo_working_tree_paths_are_opt_in(tmp_path: Path) -> None:
+    primary = tmp_path / "workspace"
+    primary.mkdir()
+    _init_repo(primary)
+
+    extra = tmp_path / "sdd"
+    extra.mkdir()
+    _init_repo(extra)
+    tracked = extra / "tracked.md"
+    tracked.write_text("base\n")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "base")
+    base_sha = _run(extra, "git", "rev-parse", "HEAD")
+
+    tracked.write_text("changed\n")
+    untracked = extra / "untracked.md"
+    untracked.write_text("new\n")
+
+    assert (
+        collect_agent_markdown_paths(
+            str(primary),
+            extra_repo_scans=[ExtraRepoScan(str(extra), base_sha, agent_name="agent")],
+        )
+        == []
+    )
+    assert collect_agent_markdown_paths(
+        str(primary),
+        extra_repo_scans=[
+            ExtraRepoScan(
+                str(extra),
+                base_sha,
+                agent_name="agent",
+                include_working_tree=True,
+            )
+        ],
+    ) == [str(tracked.resolve()), str(untracked.resolve())]
 
 
 def test_collect_agent_video_paths_from_working_tree(tmp_path: Path) -> None:

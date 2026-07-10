@@ -295,7 +295,7 @@ def _collect_default_artifacts(
 def _sdd_repo_scans(ctx: AgentExecContext) -> list[Any]:
     try:
         from sase.axe.image_attachments import ExtraRepoScan
-        from sase.sdd.store import resolve_sdd_store
+        from sase.sdd.store import SDD_STORAGE_SEPARATE_REPO, resolve_sdd_store
 
         store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num)
     except Exception:
@@ -313,7 +313,26 @@ def _sdd_repo_scans(ctx: AgentExecContext) -> list[Any]:
             _read_transcript_agent_meta(ctx.artifacts_dir),
             "sdd_base_sha",
         )
-    return [ExtraRepoScan(str(repo_root), base_sha)]
+    agent_name = ctx.agent_name
+    if agent_name is None:
+        agent_name = _metadata_str(
+            _read_transcript_agent_meta(ctx.artifacts_dir),
+            "name",
+        )
+    # A separate-repo store is an isolated per-workspace clone. Its working
+    # tree should normally be clean because the commit finalizer sweeps the
+    # agent's SDD writes first, but a crashed prior run can rarely leave files
+    # that git alone cannot attribute. Shared local stores are never scanned
+    # for working-tree files because concurrent agents write to the same tree.
+    include_working_tree = store.storage == SDD_STORAGE_SEPARATE_REPO
+    return [
+        ExtraRepoScan(
+            str(repo_root),
+            base_sha,
+            agent_name=agent_name,
+            include_working_tree=include_working_tree,
+        )
+    ]
 
 
 def _read_retry_handoff_meta(

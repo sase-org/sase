@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ class ExtraRepoScan:
 
     repo_dir: str
     base_sha: str | None = None
+    agent_name: str | None = None
+    include_working_tree: bool = False
 
 
 def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
@@ -166,7 +169,7 @@ def _collect_agent_attachment_paths(
             continue
         attachment_paths.extend(
             resolved
-            for candidate in _extra_repo_changed_paths(repo_dir, scan.base_sha)
+            for candidate in _extra_repo_changed_paths(repo_dir, scan)
             if (
                 resolved := _resolve_existing_attachment_path(
                     candidate,
@@ -191,27 +194,83 @@ def _head_commit_paths(workspace_dir: str) -> list[str]:
     )
 
 
-def _extra_repo_changed_paths(repo_dir: str, base_sha: str | None) -> list[str]:
+def _extra_repo_changed_paths(repo_dir: str, scan: ExtraRepoScan) -> list[str]:
     paths: list[str] = []
-    base = (base_sha or "").strip()
-    if base:
+    base = (scan.base_sha or "").strip()
+    agent_name = (scan.agent_name or "").strip()
+    if base and agent_name:
         head = _git_head_sha(repo_dir)
         if head and head != base:
-            paths.extend(
-                _paths_from_name_status(
-                    _run_git(
-                        repo_dir,
-                        "diff",
-                        "--name-status",
-                        "-z",
-                        f"{base}..HEAD",
-                        "--",
-                    )
+            paths.extend(_attributed_commit_paths(repo_dir, base, agent_name))
+    if scan.include_working_tree:
+        paths.extend(_local_changed_paths(repo_dir))
+        paths.extend(_untracked_paths(repo_dir))
+    return paths
+
+
+def _attributed_commit_paths(
+    repo_dir: str,
+    base_sha: str,
+    agent_name: str,
+) -> list[str]:
+    from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
+
+    output = _run_git(
+        repo_dir,
+        "log",
+        "--reverse",
+        "-z",
+        "--format=%H%x1f%B",
+        f"{base_sha}..HEAD",
+    )
+    current_hostname = _current_hostname()
+    paths: list[str] = []
+    for record in output.split("\0"):
+        if "\x1f" not in record:
+            continue
+        commit_sha, message = record.split("\x1f", 1)
+        commit_sha = commit_sha.strip()
+        if not commit_sha:
+            continue
+        tags = parse_trailing_commit_tags(message)
+        if not _agent_tag_matches(tags.get("AGENT"), agent_name):
+            continue
+        tagged_machine = tags.get("MACHINE")
+        if tagged_machine and tagged_machine != current_hostname:
+            continue
+        paths.extend(
+            _paths_from_name_status(
+                _run_git(
+                    repo_dir,
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-status",
+                    "-z",
+                    "-r",
+                    commit_sha,
                 )
             )
-    paths.extend(_local_changed_paths(repo_dir))
-    paths.extend(_untracked_paths(repo_dir))
+        )
     return paths
+
+
+def _agent_tag_matches(tagged_agent: str | None, agent_name: str) -> bool:
+    return bool(
+        tagged_agent
+        and (
+            tagged_agent == agent_name
+            or tagged_agent.startswith(f"{agent_name}.")
+            or tagged_agent.startswith(f"{agent_name}--")
+        )
+    )
+
+
+def _current_hostname() -> str | None:
+    try:
+        hostname = socket.gethostname().strip()
+    except OSError:
+        hostname = ""
+    return hostname or (os.environ.get("HOSTNAME") or "").strip() or None
 
 
 def _scan_repo_dir(scan: ExtraRepoScan) -> str | None:

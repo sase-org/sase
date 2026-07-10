@@ -9,6 +9,7 @@ from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
 from sase.attachments.markdown_pdf import MarkdownPdfProgressEvent
 from sase.axe.image_attachments import MAX_COMPLETION_IMAGE_ATTACHMENTS
 from sase.axe.run_agent_exec import AgentExecContext, LoopState, _finalize_loop
+from sase.axe.run_agent_exec_finalize import _sdd_repo_scans
 from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.axe.run_agent_runner_finalize import send_completion_notification
 from sase.core.agent_artifact_facade import list_agent_artifacts
@@ -273,6 +274,48 @@ def test_finalize_loop_retains_images_omitted_from_completion_notification(
     )
 
 
+def test_sdd_repo_scans_pass_attribution_and_storage_policy(tmp_path: Path) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    ctx.agent_meta = {"sdd_base_sha": "context-base"}
+    sdd_repo = tmp_path / "sdd"
+    (sdd_repo / ".git").mkdir(parents=True)
+
+    with patch(
+        "sase.sdd.store.resolve_sdd_store",
+        return_value=SddStore(
+            storage="separate_repo",
+            sdd_dir=sdd_repo,
+            repo_root=sdd_repo,
+        ),
+    ):
+        separate_scan = _sdd_repo_scans(ctx)
+
+    assert len(separate_scan) == 1
+    assert separate_scan[0].base_sha == "context-base"
+    assert separate_scan[0].agent_name == "agent"
+    assert separate_scan[0].include_working_tree is True
+
+    ctx.agent_name = None
+    ctx.agent_meta = {}
+    (Path(ctx.artifacts_dir) / "agent_meta.json").write_text(
+        json.dumps({"name": "transcript-agent", "sdd_base_sha": "transcript-base"})
+    )
+    with patch(
+        "sase.sdd.store.resolve_sdd_store",
+        return_value=SddStore(
+            storage="local",
+            sdd_dir=sdd_repo,
+            repo_root=sdd_repo,
+        ),
+    ):
+        local_scan = _sdd_repo_scans(ctx)
+
+    assert len(local_scan) == 1
+    assert local_scan[0].base_sha == "transcript-base"
+    assert local_scan[0].agent_name == "transcript-agent"
+    assert local_scan[0].include_working_tree is False
+
+
 def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
     tmp_path: Path,
 ) -> None:
@@ -294,7 +337,13 @@ def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
     research.write_text("# Research\n")
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     run_command(sdd_repo, "git", "add", ".")
-    run_command(sdd_repo, "git", "commit", "-m", "agent research")
+    run_command(
+        sdd_repo,
+        "git",
+        "commit",
+        "-m",
+        "agent research\n\nSASE_AGENT=agent",
+    )
 
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
