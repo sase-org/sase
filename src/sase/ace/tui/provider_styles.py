@@ -52,6 +52,13 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
         secondary_style="#0E8F70",
         dim_style="dim #8FE6CF",
     ),
+    "fakey": _ProviderStyle(
+        name_style="bold #FF5FAF",
+        delimiter_style="#D74F93",
+        model_style="#FF9FCD",
+        secondary_style="#D74F93",
+        dim_style="dim #E78FBB",
+    ),
     "openai": _ProviderStyle(
         name_style="bold #10A37F",
         delimiter_style="#0E8F70",

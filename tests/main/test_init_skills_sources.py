@@ -10,6 +10,7 @@ from sase.main import init_skills_handler
 from sase.main.init_skills_handler import (
     _get_target_path,
     _get_target_paths,
+    get_skill_target_providers,
     handle_init_skills_command,
 )
 from sase.xprompt.loader import get_sase_package_xprompts_dir
@@ -77,13 +78,13 @@ from tests.main.init_skills_handler_helpers import make_args
         ),
     ],
 )
-def test_shipped_skill_source_is_discoverable_for_all_providers(
+def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
     skill_name: str,
     expected_phrases: tuple[str, ...],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Shipped skill sources with `skill: true` render to every provider."""
+    """Shipped ``skill: true`` sources render to every deployable provider."""
     src = get_sase_package_xprompts_dir() / "skills" / f"{skill_name}.md"
     assert src.is_file(), f"missing skill source: {src}"
 
@@ -103,12 +104,7 @@ def test_shipped_skill_source_is_discoverable_for_all_providers(
         handle_init_skills_command(make_args())
     assert exc.value.code == 0
 
-    providers = [
-        name
-        for name, _ in __import__(
-            "sase.llm_provider.registry", fromlist=["iter_plugins"]
-        ).iter_plugins()
-    ]
+    providers = get_skill_target_providers(True)
     assert providers, "expected at least one registered llm provider"
 
     for provider in providers:

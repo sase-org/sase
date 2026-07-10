@@ -98,6 +98,29 @@ def _agy_payload() -> dict[str, object]:
     }
 
 
+def _fakey_payload() -> dict[str, object]:
+    return {
+        "providers": {
+            "fakey": {
+                "known_model_names": ["fakey-large", "fakey-small"],
+                "autodetect_cli_name": "fakey",
+                "auth_evidence": {
+                    "credential_paths": [],
+                    "api_key_env_vars": [],
+                    "auth_not_required": True,
+                },
+                "model_resolutions": {
+                    "large": "fakey-large",
+                    "small": "fakey-small",
+                },
+            }
+        },
+        "autodetect_candidates": [
+            {"priority": 1000, "provider": "fakey", "cli_name": "fakey"}
+        ],
+    }
+
+
 def _context(tmp_path: Path, env: dict[str, str] | None = None) -> DoctorContext:
     return DoctorContext(
         cwd=tmp_path,
@@ -390,3 +413,33 @@ def test_llm_auth_skips_when_selected_cli_missing(monkeypatch, tmp_path) -> None
     assert check.data["auth_status"] == "skipped_cli_missing"
     assert check.data["auth_verified"] is False
     assert check.next_steps[0] == "Fix `llm.default` first."
+
+
+def test_llm_auth_ok_when_provider_requires_no_auth(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_llm_metadata_payload",
+        _fakey_payload,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.llm_registry.get_default_provider_name",
+        lambda: "fakey",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_llm_provider_config",
+        lambda: {"provider": "fakey"},
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.get_active_temporary_override",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_providers.shutil.which", lambda _: "/venv/bin/fakey"
+    )
+
+    check = _check_llm_auth(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["auth_status"] == "not_required"
+    assert check.data["auth_required"] is False
+    assert check.data["evidence_found"] is False
+    assert "requires no authentication" in check.summary

@@ -160,13 +160,22 @@ def check_llm_auth(context: DoctorContext) -> DiagnosticCheck:
 
     evidence = _collect_auth_evidence(metadata, context)
     details.extend(_format_auth_evidence_details(evidence))
-    details.append(_AUTH_EVIDENCE_ONLY)
 
+    auth_not_required = evidence["auth_not_required"]
+    if not auth_not_required:
+        details.append(_AUTH_EVIDENCE_ONLY)
     found = evidence["found"]
-    if found:
-        status: CheckStatus = "OK"
+    status: CheckStatus
+    next_steps: tuple[str, ...]
+    if auth_not_required:
+        status = "OK"
+        summary = f"{provider_name} CLI is present and requires no authentication"
+        next_steps = ()
+        auth_status = "not_required"
+    elif found:
+        status = "OK"
         summary = f"{provider_name} CLI is present and offline auth evidence was found"
-        next_steps: tuple[str, ...] = ()
+        next_steps = ()
         auth_status = "evidence_found"
     else:
         status = "WARN"
@@ -194,6 +203,7 @@ def check_llm_auth(context: DoctorContext) -> DiagnosticCheck:
             "cli_ready": executable is not None or not cli_required,
             "auth_status": auth_status,
             "auth_verified": False,
+            "auth_required": not auth_not_required,
             "evidence_found": bool(found),
             "evidence": found,
             "checked_paths": evidence["checked_paths"],
@@ -241,6 +251,7 @@ def _collect_auth_evidence(
             found.append({"type": "env_var", "name": env_var})
 
     return {
+        "auth_not_required": auth_metadata["auth_not_required"],
         "found": tuple(found),
         "checked_paths": tuple(checked_paths),
         "checked_env_vars": checked_env_vars,
@@ -248,9 +259,13 @@ def _collect_auth_evidence(
     }
 
 
-def _auth_metadata(value: Any) -> dict[str, tuple[str, ...]]:
+def _auth_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
-        return {"credential_paths": (), "api_key_env_vars": ()}
+        return {
+            "credential_paths": (),
+            "api_key_env_vars": (),
+            "auth_not_required": False,
+        }
     return {
         "credential_paths": tuple(
             dict.fromkeys(metadata_list(value.get("credential_paths")))
@@ -258,6 +273,7 @@ def _auth_metadata(value: Any) -> dict[str, tuple[str, ...]]:
         "api_key_env_vars": tuple(
             dict.fromkeys(metadata_list(value.get("api_key_env_vars")))
         ),
+        "auth_not_required": value.get("auth_not_required") is True,
     }
 
 
@@ -305,6 +321,8 @@ def _path_exists(path: Path) -> bool:
 
 
 def _format_auth_evidence_details(evidence: dict[str, Any]) -> tuple[str, ...]:
+    if evidence["auth_not_required"]:
+        return ("provider declares that authentication is not required",)
     found = evidence["found"]
     if found:
         return tuple(f"evidence: {_format_evidence_item(item)}" for item in found)

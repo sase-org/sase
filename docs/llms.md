@@ -59,6 +59,7 @@ Key design principles:
 | `src/sase/llm_provider/_plugin_manager.py`    | Plugin manager wrapping pluggy (`LLMPluginManager`)    |
 | `src/sase/llm_provider/claude.py`             | Claude Code provider implementation                    |
 | `src/sase/llm_provider/codex.py`              | Codex CLI provider implementation                      |
+| `src/sase/llm_provider/fakey.py`              | Bundled deterministic testing provider                 |
 | `src/sase/llm_provider/agy.py`                | Antigravity CLI (`agy`) provider implementation        |
 | `src/sase/llm_provider/qwen.py`               | Qwen Code provider implementation                      |
 | `src/sase/llm_provider/opencode.py`           | OpenCode provider implementation                       |
@@ -112,6 +113,7 @@ the same way as external provider plugins; their entry points live in `pyproject
 [project.entry-points."sase_llm"]
 claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex  = "sase.llm_provider.codex:CodexProvider"
+fakey = "sase.llm_provider.fakey:FakeyProvider"
 agy = "sase.llm_provider.agy:AgyProvider"
 opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen   = "sase.llm_provider.qwen:QwenProvider"
@@ -543,7 +545,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 
 ```yaml
 llm_provider:
-  provider: claude # or "qwen", "opencode", "agy" (default: auto-detect)
+  provider: claude # or "qwen", "opencode", "agy", "fakey" (default: auto-detect)
   default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
   model_tier_map:
     large: opus
@@ -563,7 +565,7 @@ llm_provider:
 
 | Field                                | Type   | Default     | Description                                                                                                                                                                                                                                    |
 | ------------------------------------ | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy.                                                                                                       |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback.                                                      |
 | `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                     |
 | `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                          |
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                          |
@@ -669,6 +671,7 @@ Use `provider/model` to specify both explicitly:
 %model("agy/Gemini 3.5 Flash (High)")
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
+%model:fakey/fakey-large
 ```
 
 ### Automatic Provider Resolution
@@ -682,6 +685,7 @@ Known model names are automatically mapped to their provider:
 | `Gemini 3.5 Flash (High)`, `Gemini 3.5 Flash (Medium)`, `Gemini 3.5 Flash (Low)`, `Gemini 3.1 Pro (High)`, `Gemini 3.1 Pro (Low)`, `Claude Sonnet 4.6 (Thinking)`, `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)` | agy      |
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                            | qwen     |
 | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                | opencode |
+| `fakey-large`, `fakey-small`                                                                                                                                                                                             | fakey    |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()` hook.
 
@@ -705,6 +709,7 @@ configured model alias yourself.
 | agy      | `Gemini 3.5 Flash (High)` → `flash35h`, `Gemini 3.5 Flash (Medium)` → `flash35m`, `Gemini 3.5 Flash (Low)` → `flash35l`, `Gemini 3.1 Pro (High)` → `pro31h`, `Gemini 3.1 Pro (Low)` → `pro31l`, `Claude Sonnet 4.6 (Thinking)` → `sonnet46t`, `Claude Opus 4.6 (Thinking)` → `opus46t`, `GPT-OSS 120B (Medium)` → `gptoss120m` |
 | qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                    |
 | opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                    |
+| fakey    | `fakey-large` → `fakeyl`, `fakey-small` → `fakeys`                                                                                                                                                                                                                                                                             |
 
 Source: `llm_model_short_aliases()` in each provider module under `src/sase/llm_provider/`
 
@@ -745,6 +750,7 @@ that cannot honor the requested level:
 | OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model) | —             |
 | Antigravity (`agy`) | none today                            | —                                 | all           |
 | Qwen                | none today                            | —                                 | all           |
+| Fakey               | `--effort <level>`                    | all                               | —             |
 
 For `agy` and `qwen` (no reasoning-effort mechanism today), every level is "unsupported": an explicit effort raises,
 while a config-default effort is skipped with a warning. The effort args are appended alongside the existing
@@ -1098,6 +1104,17 @@ Codex:
 - **wait_times**: `[60, 300, 1800]` — the bundled Codex policy supplies the same backoff
 - **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude
 - **preserve_workspace**: `true`
+
+Fakey:
+
+- **error pattern**: `"FAKEY-RETRYABLE"`, the canonical marker emitted by retryable fakey scenarios
+- **max_retries**: 3
+- **wait_times**: `[0]`, keeping deterministic test retries fast
+- **continuation_prompt**: The same resume nudge as Claude and Codex
+- **preserve_workspace**: `true`
+
+These defaults make `@flaky` and other retryable fakey scenarios exercise the retry pipeline without user config. A
+commented `llm_provider.retry.fakey` example in the default config shows how to override them.
 
 Configured `llm_provider.retry.<provider>` values are merged on top of provider-supplied defaults: explicit falsy values
 (`max_retries: 0` to opt out entirely, `continuation_prompt: ""` to disable the nudge) override the built-in via

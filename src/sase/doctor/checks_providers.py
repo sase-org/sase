@@ -27,6 +27,11 @@ _PROVIDER_SETUP_HINTS: dict[str, dict[str, str]] = {
         "install": "npm install -g @openai/codex",
         "auth": "run `codex login`",
     },
+    "fakey": {
+        "tool": "Fakey",
+        "install": "bundled with SASE — nothing to install",
+        "auth": "no authentication required",
+    },
     "opencode": {
         "tool": "OpenCode",
         "install": "install from https://opencode.ai/docs",

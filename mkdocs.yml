@@ -43,6 +43,7 @@ nav:
       - Editor Integration: editor.md
       - Integration APIs: integrations.md
       - Plugins: plugins.md
+      - Fakey Testing Provider: fakey.md
       - LLM Providers: llms.md
       - VCS Providers: vcs.md
       - Rust Backend: rust_backend.md

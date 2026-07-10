@@ -1,11 +1,10 @@
 # Installing & Authenticating Agent Providers
 
-SASE orchestrates an existing coding-agent CLI; it does not ship, replace, or manage that CLI's own install and
-authentication flow. You need **at least one** supported provider CLI installed **and authenticated** before you launch
-an agent. This page collects the install command, the authentication command, and a link to each vendor's canonical
-documentation for every provider SASE currently supports. Claude Code, Codex CLI, and Qwen Code install via `npm` (so
-they need `node` and `npm` on your `PATH`); OpenCode and the Antigravity CLI use their own install methods, shown in
-their sections below.
+SASE normally orchestrates an existing coding-agent CLI; the exception is the bundled `fakey` testing provider. You need
+**at least one** supported real provider CLI installed **and authenticated** for production work. This page collects the
+install command, the authentication command, and a link to each vendor's canonical documentation for every provider SASE
+currently supports. Claude Code, Codex CLI, and Qwen Code install via `npm` (so they need `node` and `npm` on your
+`PATH`); OpenCode and the Antigravity CLI use their own install methods, shown in their sections below.
 
 `sase doctor` — specifically `sase doctor -C llm.auth -v` — is the authoritative readiness check. It prints the same
 per-provider install and auth hints documented here, so if this page and `sase doctor` ever disagree, trust the doctor
@@ -106,6 +105,14 @@ Alternatively, Antigravity honors `GEMINI_API_KEY` and `GOOGLE_API_KEY` — see 
 
 Canonical docs: <https://antigravity.google/docs/cli-install>
 
+## Fakey Testing Provider
+
+The deterministic `fakey` CLI is bundled with SASE for launch, failure, retry, and UI testing. It requires no separate
+installation or authentication and is deliberately placed last in provider autodetection. Select it explicitly with a
+model such as `%model:fakey-large` or `llm_provider.provider: fakey`; do not use it for production coding work.
+
+See the [fakey reference](fakey.md) for scenarios and environment controls.
+
 ## Verify
 
 After installing and authenticating at least one provider, confirm SASE can find and use it:
@@ -119,6 +126,6 @@ CLI is on your `PATH` and that local auth evidence exists — it cannot confirm 
 reports a missing executable or an authentication gap, re-run the relevant install/auth step above and check again.
 
 If a provider CLI lives at a non-standard path, point SASE at it with the provider's `SASE_<PROVIDER>_PATH` override
-environment variable — `SASE_CLAUDE_PATH`, `SASE_CODEX_PATH`, `SASE_OPENCODE_PATH`, `SASE_QWEN_PATH`, or
-`SASE_AGY_PATH`. For deeper integration details (model mapping, per-provider environment variables, retry/fallback
+environment variable — `SASE_CLAUDE_PATH`, `SASE_CODEX_PATH`, `SASE_OPENCODE_PATH`, `SASE_QWEN_PATH`, `SASE_AGY_PATH`,
+or `SASE_FAKEY_PATH`. For deeper integration details (model mapping, per-provider environment variables, retry/fallback
 behavior), see the [LLM provider reference](llms.md).

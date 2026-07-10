@@ -101,11 +101,12 @@ def _provider_context(provider: str) -> dict[str, str]:
 def _skill_deploy_subpaths(provider: str) -> list[str]:
     """Return subdirectories (under ``~/`` or ``CHEZMOI_HOME``) for *provider*.
 
-    Plugins may override via :meth:`llm_skill_deploy_subpath`; otherwise
-    the primary default is ``.{provider}``. Plugins may also expose extra
-    deployment locations via :meth:`llm_additional_skill_deploy_subpaths`.
+    Plugins may override via :meth:`llm_skill_deploy_subpath`; otherwise the
+    primary default is ``.{provider}``. Returning ``None`` opts out of skill
+    deployment. Plugins may also expose extra deployment locations via
+    :meth:`llm_additional_skill_deploy_subpaths`.
     """
-    primary = f".{provider}"
+    primary: str | None = f".{provider}"
     additional: list[str] = []
 
     for name, plugin in iter_plugins():
@@ -114,8 +115,7 @@ def _skill_deploy_subpaths(provider: str) -> list[str]:
         method = getattr(plugin, "llm_skill_deploy_subpath", None)
         if method is not None:
             subpath = method()
-            if subpath:
-                primary = subpath
+            primary = str(subpath) if subpath else None
         additional_method = getattr(
             plugin, "llm_additional_skill_deploy_subpaths", None
         )
@@ -130,6 +130,8 @@ def _skill_deploy_subpaths(provider: str) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
     for subpath in [primary, *additional]:
+        if subpath is None:
+            continue
         normalized = str(subpath).strip("/")
         if not normalized or normalized in seen:
             continue
@@ -145,7 +147,9 @@ def _skill_deploy_subpath(provider: str) -> str:
 
 def _get_target_providers(skill_field: bool | list[str]) -> list[str]:
     """Return the list of providers a skill should be deployed to."""
-    known = _all_providers()
+    known = [
+        provider for provider in _all_providers() if _skill_deploy_subpaths(provider)
+    ]
     if skill_field is True:
         return list(known)
     if isinstance(skill_field, list):

@@ -148,6 +148,7 @@ def test_provider_metadata_includes_auth_evidence() -> None:
     assert metadata["auth_evidence"] == {
         "credential_paths": ["~/.fake/auth.json"],
         "api_key_env_vars": ["FAKE_API_KEY"],
+        "auth_not_required": False,
     }
 
 

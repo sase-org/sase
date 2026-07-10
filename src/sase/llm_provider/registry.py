@@ -464,12 +464,17 @@ def _dataclass_to_dict(value: Any) -> dict[str, Any] | None:
     return None
 
 
-def _auth_evidence_metadata(value: Any) -> dict[str, list[str]]:
+def _auth_evidence_metadata(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
-        return {"credential_paths": [], "api_key_env_vars": []}
+        return {
+            "credential_paths": [],
+            "api_key_env_vars": [],
+            "auth_not_required": False,
+        }
     return {
         "credential_paths": _str_list(value.get("credential_paths")),
         "api_key_env_vars": _str_list(value.get("api_key_env_vars")),
+        "auth_not_required": value.get("auth_not_required") is True,
     }
 
 

@@ -8,6 +8,7 @@ _PROVIDER_EMOJI_BADGES: dict[str, str] = {
     "claude": "🎭",
     "anthropic": "🎭",
     "codex": "🤖",
+    "fakey": "🧪",
     "openai": "🤖",
     "qwen": "🐼",
     "opencode": "🐙",

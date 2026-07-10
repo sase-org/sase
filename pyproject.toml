@@ -120,6 +120,7 @@ agent_chat_from_name = "sase.scripts:agent_chat_from_name"
 agy = "sase.llm_provider.agy:AgyProvider"
 claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex = "sase.llm_provider.codex:CodexProvider"
+fakey = "sase.llm_provider.fakey:FakeyProvider"
 opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen = "sase.llm_provider.qwen:QwenProvider"
 

@@ -338,6 +338,12 @@ llm_provider:
         - "failed to connect to websocket"
         - "Selected model is at capacity"
       wait_times: [60, 300, 1800]
+    # Fakey ships retry defaults in its provider hook. Uncomment to override
+    # them for local retry experiments.
+    # fakey:
+    #   max_retries: 3
+    #   error_patterns: ["FAKEY-RETRYABLE"]
+    #   wait_times: [0]
 
 commit:
   finalizer:
