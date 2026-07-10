@@ -277,6 +277,70 @@ def test_dedup_running_vs_workflow_merges_plain_run() -> None:
     assert merged.appears_as_agent is True
 
 
+def test_dedup_running_vs_failed_workflow_keeps_live_status_for_retry() -> None:
+    """A live outer runner keeps a failed inner workflow eligible for retry state."""
+    running_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="retrying_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        workflow="run",
+        raw_suffix="20260329140000",
+    )
+    workflow_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="retrying_feature",
+        project_file="/tmp/test.sase",
+        status="FAILED",
+        start_time=None,
+        workflow="anonymous",
+        raw_suffix="20260329140000",
+        appears_as_agent=True,
+    )
+
+    result = dedup_running_vs_workflow([running_agent, workflow_agent])
+
+    assert len(result) == 1
+    assert result[0].agent_type == AgentType.WORKFLOW
+    assert result[0].status == "RUNNING"
+
+
+def test_dedup_workflow_prefers_terminal_retry_marker_and_lineage() -> None:
+    """The authoritative done row supplies retry status and chain pointers."""
+    done_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="retrying_feature",
+        project_file="/tmp/test.sase",
+        status="FAILED (RETRIED)",
+        start_time=None,
+        workflow="ace-run",
+        raw_suffix="20260329140000",
+        retried_as_timestamp="20260329140100",
+        retry_chain_root_timestamp="20260329140000",
+        retry_terminal=True,
+    )
+    workflow_agent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="retrying_feature",
+        project_file="/tmp/test.sase",
+        status="FAILED",
+        start_time=None,
+        workflow="anonymous",
+        raw_suffix="20260329140000",
+        appears_as_agent=True,
+    )
+
+    result = dedup_running_vs_workflow([done_agent, workflow_agent])
+
+    assert len(result) == 1
+    merged = result[0]
+    assert merged.status == "FAILED (RETRIED)"
+    assert merged.retried_as_timestamp == "20260329140100"
+    assert merged.retry_chain_root_timestamp == "20260329140000"
+    assert merged.retry_terminal is True
+
+
 def test_dedup_running_vs_workflow_no_match_without_suffix() -> None:
     """RUNNING 'run' without matching suffix should NOT be deduped."""
     running_agent = Agent(

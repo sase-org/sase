@@ -111,3 +111,14 @@ The first invocation fails with `FAKEY-RETRYABLE`; SASE's provider defaults retr
 succeeds. Inspect `$FAKEY_STATE_DIR/invocation-*.json` to verify both prompts, selected model, and outcomes. For tests,
 prefer a temporary scenario file and `signal`/`wait_for` barriers so assertions can freeze and release exact pipeline
 states without depending on wall-clock sleeps.
+
+The integration-test harness in `tests/fakey/harness.py` drives the real `run_execution_loop` and fakey subprocess. A
+typical executor test creates a `FakeyRetryHarness`, calls `use_scenario()` with a retryable failure followed by
+`successful_attempt()`, starts `run_in_background()`, and waits on `wait_for_retry_state()` before releasing its
+barrier. The harness isolates the SASE home, artifacts, scenario state, and retry configuration for every test.
+
+Visual retry tests use the same harness with `expose_to_agent_loader=True`. That option writes the run under the
+isolated production artifact layout so `load_agents_from_disk_with_state` reads the real `agent_meta.json`,
+`retry_state.json`, attempts, and `done.json`. Use `hold_retry_wait()` or a scenario barrier to freeze the desired
+state, then `normalize_visual_timestamps()` before capturing a PNG against the pinned visual clock. Always release the
+barrier, finish the execution handle, and assert the Agents tab reloads to its terminal state.

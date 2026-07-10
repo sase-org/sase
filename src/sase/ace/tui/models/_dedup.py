@@ -68,6 +68,21 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.start_time = source.start_time
     if target.raw_suffix is None and source.raw_suffix is not None:
         target.raw_suffix = source.raw_suffix
+    if target.retried_as_timestamp is None and source.retried_as_timestamp is not None:
+        target.retried_as_timestamp = source.retried_as_timestamp
+    if target.retry_of_timestamp is None and source.retry_of_timestamp is not None:
+        target.retry_of_timestamp = source.retry_of_timestamp
+    if (
+        target.retry_chain_root_timestamp is None
+        and source.retry_chain_root_timestamp is not None
+    ):
+        target.retry_chain_root_timestamp = source.retry_chain_root_timestamp
+    if target.retry_attempt == 0 and source.retry_attempt > 0:
+        target.retry_attempt = source.retry_attempt
+    if not target.retry_terminal and source.retry_terminal:
+        target.retry_terminal = True
+    if target.retry_error_category is None and source.retry_error_category is not None:
+        target.retry_error_category = source.retry_error_category
     # ChangeSpec-sourced fields (mentor, hook, CRS metadata)
     if target.mentor_profile is None and source.mentor_profile is not None:
         target.mentor_profile = source.mentor_profile
@@ -292,6 +307,7 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
         ):
             # Match found — merge metadata into the WORKFLOW agent
             matched = workflow_by_suffix[(agent.project_file, agent.raw_suffix)]
+            _merge_agent_fields(matched, agent)
             if matched.cl_name == "unknown" and agent.cl_name != "unknown":
                 matched.cl_name = agent.cl_name
             if matched.workspace_num is None and agent.workspace_num is not None:
@@ -324,9 +340,18 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                         matched.step_output[k] = v
             if matched.agent_name is None and agent.agent_name is not None:
                 matched.agent_name = agent.agent_name
-            # Merge status: prefer semantic non-RUNNING statuses (e.g. PLAN,
+            # A failed anonymous workflow can still belong to a live outer
+            # runner that is waiting to retry it. Keep the row live so the
+            # retry-state projection can promote it to RETRYING. A terminal
+            # failure has no live RUNNING claim and reaches the loader through
+            # done.json instead.
+            if agent.status in {"DONE", "FAILED", "FAILED (RETRIED)", "STOPPED"}:
+                matched.status = agent.status
+            elif matched.status == "FAILED" and agent.status == "RUNNING":
+                matched.status = "RUNNING"
+            # Otherwise prefer semantic non-RUNNING statuses (e.g. PLAN,
             # PLAN APPROVED, WORKING PLAN) over the raw live-process row.
-            if matched.status == "RUNNING" and agent.status != "RUNNING":
+            elif matched.status == "RUNNING" and agent.status != "RUNNING":
                 matched.status = agent.status
             continue  # Drop the RUNNING entry
         deduped_agents.append(agent)

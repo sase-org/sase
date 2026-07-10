@@ -382,6 +382,7 @@ def patch_startup_loaders(
     monkeypatch: pytest.MonkeyPatch,
     *,
     agents: list[Agent] | None = None,
+    use_real_agent_loader: bool = False,
     axe_data: AxeCollectedData | None = None,
     memory_reads: Sequence[MemoryReadEvent] | None = None,
     skill_uses: Sequence[SkillUseEvent] | None = None,
@@ -470,7 +471,10 @@ def patch_startup_loaders(
     def _fake_get_active_temporary_override(*_args: Any, **_kwargs: Any) -> None:
         return None
 
-    monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", _fake_load_agents)
+    if not use_real_agent_loader:
+        monkeypatch.setattr(
+            _loading, "load_agents_from_disk_with_state", _fake_load_agents
+        )
     monkeypatch.setattr(
         memory_reads_module,
         "_load_memory_reads_for_agent",

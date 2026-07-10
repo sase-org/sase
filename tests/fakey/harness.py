@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 import json
+import os
 from pathlib import Path
 import sys
 import threading
 import time
+from types import SimpleNamespace
 from collections.abc import Callable
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 import yaml  # type: ignore[import-untyped]
@@ -89,14 +93,29 @@ class FakeyRetryHarness:
         wait_times: list[int] | None = None,
         fallback_model: str | None = None,
         spawn_new_agent: bool = False,
+        expose_to_agent_loader: bool = False,
+        artifacts_timestamp: str = "20260710120000",
+        is_home_mode: bool = False,
     ) -> None:
+        self.repo_root = Path.cwd()
         self.root = tmp_path
         self.home = tmp_path / "sase-home"
         self.workspace = tmp_path / "workspace"
-        self.artifacts = tmp_path / "artifacts" / "20260710120000"
+        self.artifacts_timestamp = artifacts_timestamp
+        self.is_home_mode = is_home_mode
+        self.project_name = "home" if is_home_mode else "fakey-e2e"
+        if expose_to_agent_loader:
+            self.project_dir = self.home / "projects" / self.project_name
+            self.artifacts = (
+                self.project_dir / "artifacts" / "ace-run" / self.artifacts_timestamp
+            )
+            self.project_file = self.project_dir / f"{self.project_name}.sase"
+        else:
+            self.project_dir = tmp_path
+            self.artifacts = tmp_path / "artifacts" / self.artifacts_timestamp
+            self.project_file = tmp_path / "project.sase"
         self.state_dir = tmp_path / "fakey-state"
         self.scenarios_dir = tmp_path / "scenarios"
-        self.project_file = tmp_path / "project.sase"
         for path in (
             self.home,
             self.workspace,
@@ -105,7 +124,10 @@ class FakeyRetryHarness:
             self.scenarios_dir,
         ):
             path.mkdir(parents=True, exist_ok=True)
-        self.project_file.write_text("", encoding="utf-8")
+        self.project_file.write_text(
+            f"WORKSPACE_DIR: {self.workspace}\nRUNNING:\n\nNAME: fakey-e2e\n",
+            encoding="utf-8",
+        )
 
         for name in _CONTROL_ENV:
             monkeypatch.delenv(name, raising=False)
@@ -182,12 +204,12 @@ class FakeyRetryHarness:
             workspace_dir=str(self.workspace),
             output_path=str(self.root / "output.log"),
             workspace_num=1,
-            timestamp="260710_120000",
+            timestamp=_launch_timestamp(self.artifacts_timestamp),
             update_target="",
-            project_name="fakey-e2e",
-            is_home_mode=False,
+            project_name=self.project_name,
+            is_home_mode=self.is_home_mode,
             artifacts_dir=str(self.artifacts),
-            artifacts_timestamp=self.artifacts.name,
+            artifacts_timestamp=self.artifacts_timestamp,
             vcs_tag=None,
             agent_name="fakey-e2e",
             agent_model="fakey-large",
@@ -197,6 +219,190 @@ class FakeyRetryHarness:
             agent_meta={},
             local_xprompts={},
         )
+
+    def seed_running_agent(self, *, started_at: datetime) -> None:
+        """Publish the same active-agent markers consumed by the real loader."""
+        meta = {
+            "name": "fakey-e2e",
+            "pid": os.getpid(),
+            "model": "fakey-large",
+            "llm_provider": "fakey",
+            "workspace_dir": str(self.workspace),
+            "run_started_at": started_at.isoformat(),
+        }
+        (self.artifacts / "agent_meta.json").write_text(
+            json.dumps(meta, indent=2), encoding="utf-8"
+        )
+        if self.is_home_mode:
+            running = {
+                "pid": os.getpid(),
+                "cl_name": "fakey-e2e",
+                "model": "fakey-large",
+                "llm_provider": "fakey",
+                "workspace_dir": str(self.workspace),
+            }
+            (self.artifacts / "running.json").write_text(
+                json.dumps(running, indent=2), encoding="utf-8"
+            )
+
+    def clear_running_agent(self) -> None:
+        (self.artifacts / "running.json").unlink(missing_ok=True)
+
+    def hold_retry_wait(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        barrier: FakeyBarrier,
+    ) -> None:
+        """Replace only the executor's retry sleep with a file barrier."""
+        from sase.axe import run_agent_exec_retry
+
+        real_time = time.time
+
+        def wait_for_release(_seconds: float) -> None:
+            barrier.started.parent.mkdir(parents=True, exist_ok=True)
+            barrier.started.touch()
+            _wait_until(
+                barrier.release.exists,
+                barrier.timeout,
+                f"retry-wait barrier {barrier.release}",
+            )
+
+        monkeypatch.setattr(
+            run_agent_exec_retry,
+            "time",
+            SimpleNamespace(time=real_time, sleep=wait_for_release),
+        )
+
+    def normalize_visual_timestamps(
+        self,
+        visual_now: datetime,
+        *,
+        countdown_seconds: int | None = None,
+        stopped_at: datetime | None = None,
+        artifacts_dir: Path | None = None,
+        sentinel_pid: int = 4242,
+    ) -> None:
+        """Rewrite nondeterministic persisted epochs to visual-clock sentinels."""
+        target_dir = artifacts_dir or self.artifacts
+        # The countdown renderer compares against ``time.time()`` while the
+        # visual clock fixture is a naive local datetime, so preserve that
+        # local-time interpretation here.
+        visual_epoch = visual_now.timestamp()
+        retry_path = target_dir / "retry_state.json"
+        if retry_path.is_file():
+            retry_state = json.loads(retry_path.read_text(encoding="utf-8"))
+            if countdown_seconds is not None:
+                retry_state["next_retry_at_epoch"] = visual_epoch + countdown_seconds
+            retry_path.write_text(json.dumps(retry_state, indent=2), encoding="utf-8")
+
+        meta_path = target_dir / "agent_meta.json"
+        if meta_path.is_file():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta["pid"] = sentinel_pid
+            meta["run_started_at"] = datetime.strptime(
+                target_dir.name, "%Y%m%d%H%M%S"
+            ).isoformat()
+            retry_started = meta.get("retry_started_at")
+            if isinstance(retry_started, list):
+                meta["retry_started_at"] = [visual_now.isoformat()]
+            if stopped_at is not None:
+                meta["stopped_at"] = stopped_at.isoformat()
+            meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+        running_path = target_dir / "running.json"
+        if running_path.is_file():
+            running = json.loads(running_path.read_text(encoding="utf-8"))
+            running["pid"] = sentinel_pid
+            running_path.write_text(json.dumps(running, indent=2), encoding="utf-8")
+
+        workflow_path = target_dir / "workflow_state.json"
+        if workflow_path.is_file():
+            workflow = json.loads(workflow_path.read_text(encoding="utf-8"))
+            workflow["pid"] = sentinel_pid
+            workflow["start_time"] = datetime.strptime(
+                target_dir.name, "%Y%m%d%H%M%S"
+            ).isoformat()
+            for step in workflow.get("steps", []):
+                if not isinstance(step, dict):
+                    continue
+                for field_name in ("error", "traceback"):
+                    value = step.get(field_name)
+                    if isinstance(value, str):
+                        step[field_name] = value.replace(
+                            str(self.repo_root), "/workspace/sase"
+                        )
+            workflow_path.write_text(json.dumps(workflow, indent=2), encoding="utf-8")
+
+        attempt_base_epoch = visual_epoch - 20
+        for attempt_index, attempt_path in enumerate(
+            sorted((target_dir / "attempts").glob("*/attempt_meta.json"))
+        ):
+            attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+            attempt["start_epoch"] = attempt_base_epoch + attempt_index * 5
+            attempt["end_epoch"] = attempt["start_epoch"] + 1
+            attempt_path.write_text(json.dumps(attempt, indent=2), encoding="utf-8")
+
+    def run_spawn_retry_chain(
+        self,
+        *,
+        child_artifacts_timestamp: str,
+        prompt: str = "Exercise the retry pipeline.",
+    ) -> Path:
+        """Run a real fakey parent failure and child success retry chain."""
+        spawned: dict[str, Any] = {}
+
+        def capture_spawn(**kwargs: Any) -> SimpleNamespace:
+            spawned.update(kwargs)
+            return SimpleNamespace(pid=os.getpid())
+
+        child_launch_timestamp = _launch_timestamp(child_artifacts_timestamp)
+        with (
+            patch(
+                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+                return_value=[child_launch_timestamp],
+            ),
+            patch(
+                "sase.agent.launcher.spawn_agent_subprocess",
+                side_effect=capture_spawn,
+            ),
+        ):
+            parent_result = self.run(prompt)
+
+        assert parent_result.outcome == "failed_retried"
+        child_artifacts = self.artifacts.parent / child_artifacts_timestamp
+        child_artifacts.mkdir(parents=True, exist_ok=True)
+        handoff = self.retry_handoff()
+        child_meta = {
+            "name": "fakey-e2e",
+            "pid": os.getpid(),
+            "model": "fakey-large",
+            "llm_provider": "fakey",
+            "workspace_dir": str(self.workspace),
+            "run_started_at": datetime.strptime(
+                child_artifacts_timestamp, "%Y%m%d%H%M%S"
+            ).isoformat(),
+            "retry_of_timestamp": handoff["parent_timestamp"],
+            "retry_attempt": handoff["retry_attempt"],
+            "retry_chain_root_timestamp": handoff["chain_root_timestamp"],
+        }
+        (child_artifacts / "agent_meta.json").write_text(
+            json.dumps(child_meta, indent=2), encoding="utf-8"
+        )
+        child_ctx = self.context()
+        child_ctx.artifacts_dir = str(child_artifacts)
+        child_ctx.artifacts_timestamp = child_artifacts_timestamp
+        child_ctx.timestamp = child_launch_timestamp
+        child_ctx.agent_meta = child_meta
+        child_prompt = str(spawned["prompt"])
+        if child_prompt.startswith("#fork:"):
+            # The detached runner resolves #fork into transcript context before
+            # entering run_execution_loop. This exec-level harness already
+            # has the parent's continuation/original prompt in the handoff,
+            # so model that boundary by removing only the unresolved directive.
+            child_prompt = child_prompt.split("\n\n", 1)[1]
+        child_result = run_execution_loop(child_ctx, child_prompt)
+        assert child_result.success is True
+        return child_artifacts
 
     def run(self, prompt: str = "Exercise the retry pipeline.") -> AgentExecResult:
         return run_execution_loop(self.context(), f"%model:fakey-large\n{prompt}")
@@ -282,3 +488,8 @@ def _wait_until(
             return
         time.sleep(0.01)
     raise TimeoutError(f"timed out waiting for {description}")
+
+
+def _launch_timestamp(artifacts_timestamp: str) -> str:
+    parsed = datetime.strptime(artifacts_timestamp, "%Y%m%d%H%M%S")
+    return parsed.strftime("%y%m%d_%H%M%S")
