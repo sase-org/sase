@@ -8,6 +8,7 @@ back-compat with the old ``temporary_llm_override`` action id).
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, call
@@ -30,6 +31,16 @@ from sase.ace.tui.modals.models_panel import (
     _provider_model_column_width,
     _state_tag,
     _render_alias_row,
+)
+from sase.ace.tui.modals.models_panel_duration import (
+    OPEN_OVERRIDE_UNTIL,
+    OVERRIDE_UNTIL_CLEARED,
+    RelativeOverrideDuration,
+)
+from sase.ace.tui.modals.models_panel_time import (
+    OVERRIDE_UNTIL_BACK,
+    OverrideUntilModal,
+    ResolvedOverrideUntil,
 )
 from sase.ace.tui.widgets import AliasOverridesIndicator, LLMOverrideIndicator
 from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
@@ -280,19 +291,25 @@ def _make_duration_modal() -> _DurationPickerModal:
 def test_duration_preset_1_returns_15m() -> None:
     modal = _make_duration_modal()
     modal.action_preset_1()
-    modal.dismiss.assert_called_once_with(15 * 60.0)
+    modal.dismiss.assert_called_once_with(RelativeOverrideDuration(15 * 60.0))
 
 
 def test_duration_preset_3_returns_1h() -> None:
     modal = _make_duration_modal()
     modal.action_preset_3()
-    modal.dismiss.assert_called_once_with(60 * 60.0)
+    modal.dismiss.assert_called_once_with(RelativeOverrideDuration(60 * 60.0))
 
 
 def test_duration_preset_6_until_cleared_returns_none() -> None:
     modal = _make_duration_modal()
     modal.action_preset_6()
-    modal.dismiss.assert_called_once_with(None)
+    modal.dismiss.assert_called_once_with(OVERRIDE_UNTIL_CLEARED)
+
+
+def test_duration_t_opens_specific_time_path() -> None:
+    modal = _make_duration_modal()
+    modal.action_choose("t")
+    modal.dismiss.assert_called_once_with(OPEN_OVERRIDE_UNTIL)
 
 
 # ---------------------------------------------------------------------------
@@ -319,21 +336,27 @@ def test_on_duration_picked_cancel_is_noop(monkeypatch) -> None:
     assert panel._changed is False
 
 
-def test_on_duration_picked_invalid_notifies_error(monkeypatch) -> None:
-    panel = ModelsPanel()
-    panel.notify = MagicMock()  # type: ignore[method-assign]
-    panel._refresh_rows = MagicMock()  # type: ignore[method-assign]
-    panel._pending_alias = "coder"
-    panel._pending_raw_model = "bad"
+async def test_on_duration_picked_invalid_notifies_error(monkeypatch) -> None:
+    _patch_views(monkeypatch, [_view("coder", "role")])
     monkeypatch.setattr(
         models_panel,
         "set_alias_override",
         MagicMock(side_effect=ValueError("nope")),
     )
-    panel._on_duration_picked(60.0)
-    assert panel._changed is False
-    panel.notify.assert_called_once()
-    assert panel.notify.call_args.kwargs.get("severity") == "error"
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "coder"
+        panel._pending_raw_model = "bad"
+        panel._on_duration_picked(RelativeOverrideDuration(60.0))
+        await pilot.pause()
+        await pilot.pause()
+        assert panel._changed is False
+        panel.notify.assert_called_once()
+        assert panel.notify.call_args.kwargs.get("severity") == "error"
 
 
 # ---------------------------------------------------------------------------
@@ -488,10 +511,65 @@ async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:
         panel._on_model_picked("o3")
         await pilot.pause()
         assert isinstance(pilot.app.screen, _DurationPickerModal)
-        panel._on_duration_picked(3600.0)
+        panel._on_duration_picked(RelativeOverrideDuration(3600.0))
         await pilot.pause()
 
     set_mock.assert_called_once_with("coder", "o3", 3600.0, source="ace")
+    assert panel._changed is True
+
+
+async def test_t_opens_until_modal_and_back_reopens_duration(monkeypatch) -> None:
+    _patch_views(monkeypatch, [_view("coder", "role")])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "coder"
+        panel._pending_raw_model = "o3"
+        panel._on_duration_picked(OPEN_OVERRIDE_UNTIL)
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, OverrideUntilModal)
+        panel._on_override_until_picked(OVERRIDE_UNTIL_BACK)
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, _DurationPickerModal)
+
+
+async def test_exact_time_flow_dispatches_exact_api(monkeypatch) -> None:
+    _patch_views(monkeypatch, [_view("coder", "role")])
+    fake = TemporaryLLMOverride(
+        provider="codex",
+        model="o3",
+        raw_model="o3",
+        created_at=1000.0,
+        expires_at=2000.0,
+        source="ace",
+    )
+    exact_set = MagicMock(return_value=fake)
+    relative_set = MagicMock()
+    monkeypatch.setattr(models_panel, "set_alias_override_until", exact_set)
+    monkeypatch.setattr(models_panel, "set_alias_override", relative_set)
+    resolved = ResolvedOverrideUntil(
+        target=datetime.fromtimestamp(2000, UTC),
+        expires_at=2000.0,
+        target_display="Ends Thu Jan 1 at 12:33 AM EST",
+        notification_display="Thu Jan 1, 12:33 AM EST",
+        remaining_display="16m",
+        timezone_display="America/New_York",
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "coder"
+        panel._pending_raw_model = "o3"
+        panel._on_override_until_picked(resolved)
+        await pilot.pause()
+        await pilot.pause()
+
+    exact_set.assert_called_once_with("coder", "o3", 2000.0, source="ace")
+    relative_set.assert_not_called()
     assert panel._changed is True
 
 

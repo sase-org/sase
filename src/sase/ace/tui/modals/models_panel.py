@@ -26,15 +26,18 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
+from textual.worker import Worker, WorkerState
 from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 
 from sase.config import ConfigEditOp
 from sase.llm_provider import (
     AliasView,
+    TemporaryLLMOverride,
     build_alias_views,
     clear_alias_override,
     set_alias_override,
+    set_alias_override_until,
 )
 from sase.llm_provider.registry import format_provider_model_label
 
@@ -47,9 +50,18 @@ from .duration_choice_modal import (
 from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
 from .models_panel_duration import (
     DurationPickerModal as _DurationPickerModal,
+    OpenOverrideUntil,
+    OverrideDurationResult,
+    OverrideUntilCleared,
+    RelativeOverrideDuration,
     format_duration_chosen as _format_duration_chosen,
     format_remaining as _format_remaining,
     now as _now,
+)
+from .models_panel_time import (
+    OverrideUntilBack,
+    OverrideUntilModal,
+    ResolvedOverrideUntil,
 )
 from .models_panel_edit import AliasEditPreviewModal
 from .models_panel_edit_helpers import (
@@ -114,6 +126,18 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         self._pending_alias = ""
         self._pending_raw_model = ""
         self._pending_edit_view: AliasView | None = None
+        self._override_worker: (
+            Worker[tuple[TemporaryLLMOverride | None, str | None]] | None
+        ) = None
+        self._clear_worker: Worker[tuple[bool | None, str | None]] | None = None
+        self._override_write_result: (
+            RelativeOverrideDuration
+            | OverrideUntilCleared
+            | ResolvedOverrideUntil
+            | None
+        ) = None
+        self._override_write_alias = ""
+        self._clear_write_alias = ""
 
     # -- compose --------------------------------------------------------
 
@@ -216,6 +240,9 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
     # -- actions --------------------------------------------------------
 
     def action_close(self) -> None:
+        if self._override_worker is not None or self._clear_worker is not None:
+            self.notify("An override update is still in progress.", severity="warning")
+            return
         self.dismiss(ModelsPanelResult(changed=self._changed))
 
     def action_cancel(self) -> None:
@@ -223,6 +250,8 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         self.action_close()
 
     def action_override(self) -> None:
+        if self._override_worker is not None or self._clear_worker is not None:
+            return
         view = self._selected_view()
         if view is None:
             return
@@ -236,16 +265,24 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         )
 
     def action_clear(self) -> None:
+        if self._override_worker is not None or self._clear_worker is not None:
+            return
         view = self._selected_view()
         if view is None:
             return
         if view.override is None:
             self.notify(f"No active override on @{view.name}", severity="warning")
             return
-        clear_alias_override(view.name)
-        self.notify(f"Cleared override on @{view.name}")
-        self._changed = True
-        self._refresh_rows(keep=view.name)
+        alias = view.name
+
+        def task() -> tuple[bool | None, str | None]:
+            try:
+                return clear_alias_override(alias), None
+            except Exception as exc:
+                return None, str(exc)
+
+        self._clear_write_alias = alias
+        self._clear_worker = self.run_worker(task, thread=True, exclusive=True)
 
     # -- override flow callbacks ---------------------------------------
 
@@ -276,28 +313,139 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         self.app.push_screen(_DurationPickerModal(), callback=self._on_duration_picked)
 
     def _on_duration_picked(
-        self, result: float | None | DurationChoiceCancelled
+        self, result: OverrideDurationResult | DurationChoiceCancelled | None
     ) -> None:
-        # The duration modal uses a sentinel for cancel so ``None`` stays a real
-        # value ("until cleared").
-        if isinstance(result, DurationChoiceCancelled):
+        if result is None or isinstance(result, DurationChoiceCancelled):
             return
-        seconds: float | None = result
-        alias = self._pending_alias
-        try:
-            override = set_alias_override(
-                alias,
-                self._pending_raw_model,
-                seconds,
-                source="ace",
+        if isinstance(result, OpenOverrideUntil):
+            self.app.push_screen(
+                OverrideUntilModal(),
+                callback=self._on_override_until_picked,
             )
-        except ValueError as exc:
-            self.notify(f"Invalid override: {exc}", severity="error")
+            return
+        self._submit_override_write(result)
+
+    def _on_override_until_picked(
+        self,
+        result: ResolvedOverrideUntil | OverrideUntilBack | None,
+    ) -> None:
+        if result is None:
+            return
+        if isinstance(result, OverrideUntilBack):
+            self._open_duration_picker()
+            return
+        self._submit_override_write(result)
+
+    def _submit_override_write(
+        self,
+        result: (
+            RelativeOverrideDuration | OverrideUntilCleared | ResolvedOverrideUntil
+        ),
+    ) -> None:
+        if self._override_worker is not None or self._clear_worker is not None:
+            return
+        alias = self._pending_alias
+        raw_model = self._pending_raw_model
+
+        def task() -> tuple[TemporaryLLMOverride | None, str | None]:
+            try:
+                if isinstance(result, ResolvedOverrideUntil):
+                    return (
+                        set_alias_override_until(
+                            alias,
+                            raw_model,
+                            result.expires_at,
+                            source="ace",
+                        ),
+                        None,
+                    )
+                seconds = (
+                    result.seconds
+                    if isinstance(result, RelativeOverrideDuration)
+                    else None
+                )
+                return (
+                    set_alias_override(
+                        alias,
+                        raw_model,
+                        seconds,
+                        source="ace",
+                    ),
+                    None,
+                )
+            except Exception as exc:
+                return None, str(exc)
+
+        self._override_write_alias = alias
+        self._override_write_result = result
+        self._override_worker = self.run_worker(task, thread=True, exclusive=True)
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._override_worker:
+            self._on_override_worker(event)
+        elif event.worker is self._clear_worker:
+            self._on_clear_worker(event)
+
+    def _on_override_worker(self, event: Worker.StateChanged) -> None:
+        if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
+            return
+        alias = self._override_write_alias
+        result = self._override_write_result
+        self._override_worker = None
+        self._override_write_alias = ""
+        self._override_write_result = None
+        if event.state == WorkerState.ERROR:
+            detail = str(event.worker.error or "unknown error")
+            self.notify(f"Could not set override: {detail}", severity="error")
+            return
+        worker_result = event.worker.result
+        if worker_result is None:
+            self.notify("Could not set override: unknown error", severity="error")
+            return
+        override, error = worker_result
+        if error is not None or override is None:
+            self.notify(
+                f"Could not set override: {error or 'unknown error'}",
+                severity="error",
+            )
             return
         label = format_provider_model_label(override.provider, override.model)
-        self.notify(
-            f"@{alias} override: {label} for {_format_duration_chosen(seconds)}"
-        )
+        if isinstance(result, ResolvedOverrideUntil):
+            suffix = f"until {result.notification_display}"
+        elif isinstance(result, OverrideUntilCleared):
+            suffix = "until cleared"
+        elif isinstance(result, RelativeOverrideDuration):
+            suffix = f"for {_format_duration_chosen(result.seconds)}"
+        else:
+            self.notify("Could not set override: invalid result", severity="error")
+            return
+        self.notify(f"@{alias} override: {label} {suffix}")
+        self._changed = True
+        self._refresh_rows(keep=alias)
+
+    def _on_clear_worker(self, event: Worker.StateChanged) -> None:
+        if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
+            return
+        alias = self._clear_write_alias
+        self._clear_worker = None
+        self._clear_write_alias = ""
+        if event.state == WorkerState.ERROR:
+            detail = str(event.worker.error or "unknown error")
+            self.notify(f"Could not clear override: {detail}", severity="error")
+            return
+        worker_result = event.worker.result
+        if worker_result is None:
+            self.notify("Could not clear override: unknown error", severity="error")
+            return
+        cleared, error = worker_result
+        if error is not None:
+            self.notify(f"Could not clear override: {error}", severity="error")
+            return
+        if not cleared:
+            self.notify(f"No active override on @{alias}", severity="warning")
+            self._refresh_rows(keep=alias)
+            return
+        self.notify(f"Cleared override on @{alias}")
         self._changed = True
         self._refresh_rows(keep=alias)
 

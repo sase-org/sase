@@ -45,6 +45,7 @@ class DurationChoiceModal[ResultT, CancelT](ModalScreen[ResultT | CancelT]):
             Binding(str(i), f"choose('{i}')", f"Choice {i}", show=False)
             for i in range(1, 10)
         ],
+        Binding("t", "choose('t')", "Until time", show=False),
         Binding("c", "open_custom", "Custom", show=False),
         Binding("escape", "cancel_or_back", "Cancel", show=False),
         Binding("q", "cancel_or_back", "Cancel", show=False),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 
 from sase.llm_provider import parse_override_duration
 
@@ -41,20 +42,49 @@ def format_duration_chosen(seconds: float | None) -> str:
     return format_remaining(seconds)
 
 
-def _parse_override_custom(raw: str) -> float | None:
+@dataclass(frozen=True)
+class RelativeOverrideDuration:
+    """A finite override duration measured in seconds."""
+
+    seconds: float
+
+
+class OverrideUntilCleared:
+    """Sentinel for an override with no expiry."""
+
+
+class OpenOverrideUntil:
+    """Sentinel requesting the absolute-time entry popup."""
+
+
+OVERRIDE_UNTIL_CLEARED = OverrideUntilCleared()
+OPEN_OVERRIDE_UNTIL = OpenOverrideUntil()
+
+type OverrideDurationResult = (
+    RelativeOverrideDuration | OverrideUntilCleared | OpenOverrideUntil
+)
+
+
+def _parse_override_custom(raw: str) -> OverrideDurationResult:
     try:
-        return parse_override_duration(raw)
+        seconds = parse_override_duration(raw)
     except ValueError as exc:
         raise ValueError(f"Invalid duration: {exc}") from exc
+    if seconds is None:
+        return OVERRIDE_UNTIL_CLEARED
+    return RelativeOverrideDuration(seconds)
 
 
-class DurationPickerModal(DurationChoiceModal[float | None, DurationChoiceCancelled]):
+class DurationPickerModal(
+    DurationChoiceModal[OverrideDurationResult, DurationChoiceCancelled]
+):
     """Pick how long the override should last.
 
     Dismisses with one of:
 
-    - ``float`` (seconds) - a finite duration was chosen.
-    - ``None`` - "Until cleared" (no expiry).
+    - :class:`RelativeOverrideDuration` - a finite duration was chosen.
+    - :class:`OverrideUntilCleared` - no expiry.
+    - :class:`OpenOverrideUntil` - open the exact-time input.
     - shared cancel sentinel - user cancelled.
     """
 
@@ -66,39 +96,46 @@ class DurationPickerModal(DurationChoiceModal[float | None, DurationChoiceCancel
                     key="1",
                     title="15 minutes",
                     subtitle="Use for quick model checks.",
-                    value=15 * 60.0,
+                    value=RelativeOverrideDuration(15 * 60.0),
                     tone="primary",
                 ),
                 DurationChoice(
                     key="2",
                     title="30 minutes",
                     subtitle="Keep the override through a short task.",
-                    value=30 * 60.0,
+                    value=RelativeOverrideDuration(30 * 60.0),
                 ),
                 DurationChoice(
                     key="3",
                     title="1 hour",
                     subtitle="Cover a focused coding session.",
-                    value=60 * 60.0,
+                    value=RelativeOverrideDuration(60 * 60.0),
                 ),
                 DurationChoice(
                     key="4",
                     title="2 hours",
                     subtitle="Use for a longer implementation block.",
-                    value=2 * 60 * 60.0,
+                    value=RelativeOverrideDuration(2 * 60 * 60.0),
                 ),
                 DurationChoice(
                     key="5",
                     title="4 hours",
                     subtitle="Keep the override for half a day.",
-                    value=4 * 60 * 60.0,
+                    value=RelativeOverrideDuration(4 * 60 * 60.0),
                 ),
                 DurationChoice(
                     key="6",
                     title="Until cleared",
                     subtitle="Persist until you remove it.",
-                    value=None,
+                    value=OVERRIDE_UNTIL_CLEARED,
                     tone="accent",
+                ),
+                DurationChoice(
+                    key="t",
+                    title="Until a specific time",
+                    subtitle="Choose a local clock time or date.",
+                    value=OPEN_OVERRIDE_UNTIL,
+                    tone="primary",
                 ),
             ],
             parse_custom=_parse_override_custom,

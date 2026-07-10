@@ -1120,6 +1120,72 @@ _DurationPickerModal {
 }
 
 
+/* Models Panel: exact override time */
+OverrideUntilModal {
+    align: center middle;
+}
+
+#override-until-container {
+    width: 70;
+    height: 15;
+    border: double #AF87D7;
+    background: $surface;
+    padding: 1 2;
+}
+
+#override-until-title {
+    width: 100%;
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: #AF87D7;
+    margin-bottom: 1;
+}
+
+#override-until-field {
+    width: 100%;
+    height: 3;
+}
+
+#override-until-field-label {
+    width: 7;
+    height: 3;
+    color: $text-muted;
+    content-align: left middle;
+}
+
+#override-until-input {
+    width: 1fr;
+}
+
+#override-until-preview {
+    width: 100%;
+    height: 3;
+    padding-left: 7;
+}
+
+#override-until-preview.until-neutral {
+    color: $text-muted;
+}
+
+#override-until-preview.until-valid {
+    color: #87D75F;
+}
+
+#override-until-preview.until-error {
+    color: $error;
+}
+
+#override-until-footer {
+    width: 100%;
+    height: 3;
+    text-align: center;
+    color: $text-muted;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+
 /* Custom Model Input Modal styling */
 CustomModelInputModal {
     align: center middle;

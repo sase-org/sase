@@ -42,6 +42,7 @@ from .temporary_override import (
     parse_override_duration,
     resolve_effective_default_provider_model,
     set_alias_override,
+    set_alias_override_until,
     set_temporary_override,
 )
 from .types import LLMInvocationError, LoggingContext, ModelTier
@@ -86,6 +87,7 @@ __all__ = [
     "resolve_effective_default_provider_model",
     "save_prompt_to_file",
     "set_alias_override",
+    "set_alias_override_until",
     "set_temporary_override",
     "stream_process_output",
 ]

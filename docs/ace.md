@@ -1031,7 +1031,16 @@ Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlight
 ### Temporary overrides
 
 `Override` reuses the shared, provider-grouped model picker and the duration picker (`15m`, `30m`, `1h`, `2h`, `4h`,
-`Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`). Overrides are per-alias and independent:
+`Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`). Press `t` in the duration picker to choose **Until a
+specific time**. The focused time popup accepts local forms such as `5pm`, `5:30 PM`, `17:30`, `1730`, `today 5pm`,
+`tomorrow 9am`, and `2026-07-12 09:00`. An undated clock means its next occurrence (later today or tomorrow); an
+explicit day/date must still be in the future.
+
+The popup previews the resolved weekday/date, local time and abbreviation, configured IANA timezone, and remaining
+duration before Enter writes anything. Daylight-saving gaps are rejected; repeated fall-back times require an
+offset-qualified ISO value such as `2026-11-01T01:30-04:00`. Invalid input stays focused with an inline explanation.
+`Esc` goes back to the duration picker, where a second `Esc` cancels the override flow. Overrides are per-alias and
+independent:
 
 - An override on **`default`** drives the no-`%model` launch default and renders in the existing gold top-bar pill — its
   behavior is unchanged.
@@ -1069,6 +1078,8 @@ Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User ali
 
 - Highlight `default`, `o`, pick `codex/o3`, duration `1h` — default launches use Codex `o3` for the next hour, then
   revert to the configured default.
+- Highlight `coder`, `o`, pick a model, then `t`, enter `5pm` — the preview resolves the next 5:00 PM in the configured
+  timezone and the override expires at that exact instant.
 - Highlight `phase_worker`, `o`, pick `claude/opus`, `Until cleared` — `@phase_worker` resolves to CLAUDE(opus) until
   you clear it; the violet non-default pill appears in the top bar.
 - Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured

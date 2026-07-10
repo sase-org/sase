@@ -30,6 +30,7 @@ def _modal() -> DurationChoiceModal[int | None, object]:
         choices=[
             DurationChoice(key="1", title="One", subtitle="First", value=1),
             DurationChoice(key="2", title="None", subtitle="No expiry", value=None),
+            DurationChoice(key="t", title="Until time", value=3),
         ],
         parse_custom=parse_custom,
         custom_placeholder="duration",
@@ -70,6 +71,23 @@ async def test_none_choice_is_returned_as_real_value() -> None:
         await pilot.pause()
 
     assert result is None
+
+
+async def test_nonnumeric_t_choice_uses_shared_binding() -> None:
+    result: object = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object) -> None:
+            nonlocal result
+            result = value
+
+        pilot.app.push_screen(_modal(), callback=on_dismiss)
+        await pilot.pause()
+        await pilot.press("t")
+        await pilot.pause()
+
+    assert result == 3
 
 
 async def test_custom_validation_keeps_modal_open_with_error() -> None:

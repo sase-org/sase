@@ -24,6 +24,7 @@ alias take effect wherever that alias is resolved (see
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import tempfile
@@ -326,14 +327,72 @@ def set_alias_override(
         ValueError: If *alias*, *raw_model*, or *source* is empty/whitespace, or
             *duration_seconds* is non-positive.
     """
+    created_at = time.time()
+    if duration_seconds is not None and (
+        not math.isfinite(duration_seconds) or duration_seconds <= 0
+    ):
+        raise ValueError("duration_seconds must be finite and positive or None")
+    expires_at = created_at + duration_seconds if duration_seconds is not None else None
+    return _write_alias_override(
+        alias,
+        raw_model,
+        created_at=created_at,
+        expires_at=expires_at,
+        source=source,
+    )
+
+
+def set_alias_override_until(
+    alias: str,
+    raw_model: str,
+    expires_at: float,
+    *,
+    source: str,
+) -> TemporaryLLMOverride:
+    """Set a temporary override on *alias* until the exact Unix *expires_at*.
+
+    The supplied expiry is stored unchanged. It must be finite and strictly
+    later than the operation's captured creation time. Overrides on other
+    aliases are preserved, with the same provider/model resolution and atomic
+    v2 serialization used by :func:`set_alias_override`.
+
+    Raises:
+        ValueError: If any text argument is empty/whitespace, or *expires_at*
+            is non-finite or no longer in the future.
+    """
+    created_at = time.time()
+    if not math.isfinite(expires_at):
+        raise ValueError("expires_at must be finite")
+    if expires_at <= created_at:
+        raise ValueError("expires_at must be in the future")
+    return _write_alias_override(
+        alias,
+        raw_model,
+        created_at=created_at,
+        expires_at=expires_at,
+        source=source,
+    )
+
+
+def _write_alias_override(
+    alias: str,
+    raw_model: str,
+    *,
+    created_at: float,
+    expires_at: float | None,
+    source: str,
+) -> TemporaryLLMOverride:
+    """Resolve, validate, and atomically write one alias override."""
     if not alias or not alias.strip():
         raise ValueError("alias is empty")
     if not raw_model or not raw_model.strip():
         raise ValueError("raw_model is empty")
-    if duration_seconds is not None and duration_seconds <= 0:
-        raise ValueError("duration_seconds must be positive or None")
     if not source or not source.strip():
         raise ValueError("source is empty")
+    if expires_at is not None and (
+        not math.isfinite(expires_at) or expires_at <= created_at
+    ):
+        raise ValueError("expires_at must be finite and later than created_at")
 
     cleaned_alias = alias.strip()
     cleaned = raw_model.strip()
@@ -346,19 +405,16 @@ def set_alias_override(
     if resolved_provider is None:
         resolved_provider, _ = resolve_effective_default_provider_model()
 
-    now = time.time()
-    expires_at = now + duration_seconds if duration_seconds is not None else None
-
     override = TemporaryLLMOverride(
         provider=resolved_provider,
         model=resolved_model,
         raw_model=cleaned,
-        created_at=now,
+        created_at=created_at,
         expires_at=expires_at,
         source=source.strip(),
     )
 
-    overrides = _load_active_overrides()
+    overrides = _load_active_overrides(now=created_at)
     overrides[cleaned_alias] = override
     _atomic_write_json(_state_path(), _serialize_overrides(overrides))
     return override

@@ -20,6 +20,7 @@ from sase.llm_provider.temporary_override import (
     get_active_alias_overrides,
     get_active_temporary_override,
     set_alias_override,
+    set_alias_override_until,
 )
 
 
@@ -65,6 +66,53 @@ def test_set_until_cleared_has_no_expiry() -> None:
     fetched = get_active_alias_override("coder", now=far_future)
     assert fetched is not None
     assert fetched.model == "opus"
+
+
+def test_set_until_stores_exact_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
+
+    override = set_alias_override_until("coder", "codex/o3", 4321.25, source="panel")
+
+    assert override.created_at == 1000.0
+    assert override.expires_at == 4321.25
+    assert _read_state()["overrides"]["coder"]["expires_at"] == 4321.25
+
+
+def test_set_until_preserves_other_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
+    set_alias_override("phase_worker", "claude/opus", None, source="panel")
+
+    set_alias_override_until("coder", "codex/o3", 2000.0, source="panel")
+
+    data = _read_state()
+    assert data["version"] == 2
+    assert set(data) == {"version", "overrides"}
+    assert set(data["overrides"]) == {"coder", "phase_worker"}
+
+
+@pytest.mark.parametrize("expires_at", [float("nan"), float("inf"), float("-inf")])
+def test_set_until_rejects_non_finite_expiry(expires_at: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        set_alias_override_until("coder", "codex/o3", expires_at, source="panel")
+
+
+def test_set_until_rejects_expiry_at_or_before_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
+
+    with pytest.raises(ValueError, match="future"):
+        set_alias_override_until("coder", "codex/o3", 1000.0, source="panel")
+
+
+def test_set_until_uses_existing_expiry_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
+    override = set_alias_override_until("coder", "codex/o3", 2000.0, source="panel")
+
+    assert get_active_alias_override("coder", now=1999.999) == override
+    assert get_active_alias_override("coder", now=2000.0) is None
 
 
 def test_overwriting_same_alias_replaces_target() -> None:

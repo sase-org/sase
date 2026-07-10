@@ -903,6 +903,10 @@ Writes are atomic (temp file + `os.replace`). Reads are best-effort self-cleanin
 pruned and the file is deleted once no override remains, so a forgotten override never lingers past its `expires_at`,
 even with no TUI running.
 
+Relative and exact-expiry writes use the same provider/model resolution and atomic v2 serialization path. Exact-expiry
+writes persist the caller's Unix timestamp unchanged and reject non-finite or no-longer-future targets. The state schema
+is unchanged; an exact target is represented by the same `expires_at` field.
+
 ### Model Resolution
 
 The user-supplied `raw_model` is normalized through the same rules as `%model`:
@@ -922,17 +926,18 @@ persists until the user clears it from the TUI or another sase process clears th
 The override primitives live in `src/sase/llm_provider/temporary_override.py`. The alias-keyed functions are the primary
 API; the `*_temporary_override` wrappers are back-compat shims that operate on the `default` alias:
 
-| Function                                       | Purpose                                                                        |
-| ---------------------------------------------- | ------------------------------------------------------------------------------ |
-| `get_active_alias_overrides(now=None)`         | Read every active override, keyed by alias (auto-prunes expired/malformed).    |
-| `get_active_alias_override(alias, now=None)`   | Read the active override for one alias, or `None`.                             |
-| `set_alias_override(alias, raw, dur, source=)` | Set/replace one alias's override; other aliases' overrides are preserved.      |
-| `clear_alias_override(alias)`                  | Remove one alias's override; returns whether an entry was present.             |
-| `get_active_temporary_override(now=None)`      | Back-compat wrapper: the active `default` override.                            |
-| `set_temporary_override(raw, dur, source=)`    | Back-compat wrapper: set the `default` override.                               |
-| `clear_temporary_override()`                   | Back-compat wrapper: clear the `default` override.                             |
-| `parse_override_duration(value)`               | Parse a user-facing duration string into seconds (or `None`).                  |
-| `resolve_effective_default_provider_model()`   | Resolve the default launch target: active override, else the `@default` alias. |
+| Function                                                | Purpose                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `get_active_alias_overrides(now=None)`                  | Read every active override, keyed by alias (auto-prunes expired/malformed).    |
+| `get_active_alias_override(alias, now=None)`            | Read the active override for one alias, or `None`.                             |
+| `set_alias_override(alias, raw, dur, source=)`          | Set/replace one alias's relative/no-expiry override.                           |
+| `set_alias_override_until(alias, raw, expiry, source=)` | Set/replace one alias's override with an exact future Unix expiry.             |
+| `clear_alias_override(alias)`                           | Remove one alias's override; returns whether an entry was present.             |
+| `get_active_temporary_override(now=None)`               | Back-compat wrapper: the active `default` override.                            |
+| `set_temporary_override(raw, dur, source=)`             | Back-compat wrapper: set the `default` override.                               |
+| `clear_temporary_override()`                            | Back-compat wrapper: clear the `default` override.                             |
+| `parse_override_duration(value)`                        | Parse a user-facing duration string into seconds (or `None`).                  |
+| `resolve_effective_default_provider_model()`            | Resolve the default launch target: active override, else the `@default` alias. |
 
 ### Examples
 

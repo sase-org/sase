@@ -12,11 +12,17 @@ are pinned so the rows render identically on every run.
 
 from __future__ import annotations
 
+from datetime import datetime, tzinfo
+from zoneinfo import ZoneInfo
+
 import pytest
+from textual.widgets import Input
 
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
+from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
+from sase.ace.tui.modals.models_panel_time import OverrideUntilModal
 from sase.llm_provider import AliasView, TemporaryLLMOverride
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -31,6 +37,12 @@ pytestmark = pytest.mark.visual
 
 # Frozen clock so override countdowns are deterministic.
 _FROZEN_NOW = 1000.0
+_EASTERN = ZoneInfo("America/New_York")
+_TIME_MODAL_NOW = datetime(2026, 7, 10, 14, 42, tzinfo=_EASTERN)
+
+
+def _time_modal_clock(_timezone: tzinfo) -> datetime:
+    return _TIME_MODAL_NOW
 
 
 def _view(
@@ -194,3 +206,57 @@ async def test_models_panel_overrides_png_snapshot(
             "models_panel_overrides_120x40",
             title="ACE models panel (overrides active)",
         )
+
+
+async def test_models_panel_duration_picker_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(DurationPickerModal())
+        await page.expect_modal("DurationPickerModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_duration_picker_120x40",
+            title="ACE model override duration picker",
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "snapshot_name", "title"),
+    [
+        ("", "models_panel_until_neutral_120x40", "ACE override until (neutral)"),
+        ("5pm", "models_panel_until_valid_120x40", "ACE override until (valid)"),
+        (
+            "today 1pm",
+            "models_panel_until_error_120x40",
+            "ACE override until (error)",
+        ),
+    ],
+)
+async def test_models_panel_override_until_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        modal = OverrideUntilModal(timezone=_EASTERN, clock=_time_modal_clock)
+        page.app.push_screen(modal)
+        await page.expect_modal("OverrideUntilModal")
+        await page.pause()
+        if value:
+            modal.query_one("#override-until-input", Input).value = value
+            await page.pause()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
