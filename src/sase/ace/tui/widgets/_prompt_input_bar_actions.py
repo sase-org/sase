@@ -185,7 +185,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         literal ``#`` of *trigger_range*, preserving the ``Enter`` contract of
         inserting ``#name`` after the trigger ``#``.
         """
-        text_area = self._resolve_snippet_target(target_text_area, pane_id)
+        text_area = self._resolve_pane_target(target_text_area, pane_id)
         if text_area is None:
             return False
         if trigger_range is not None:
@@ -219,7 +219,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         the originating pane or bar was unmounted/rebuilt while the modal was
         open -- so the caller can notify and leave every prompt unchanged.
         """
-        text_area = self._resolve_snippet_target(target_text_area, pane_id)
+        text_area = self._resolve_pane_target(target_text_area, pane_id)
         if text_area is None:
             return False
         if text_area.read_only:
@@ -248,7 +248,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         text_area.focus()
         return True
 
-    def _resolve_snippet_target(
+    def _resolve_pane_target(
         self,
         target_text_area: object,
         pane_id: str,
@@ -257,9 +257,16 @@ class PromptInputBarActionsMixin(_MixinBase):
 
         A prompt-stack rebuild remounts panes under a fresh generation-scoped id
         (see :meth:`_pane_id`), so a captured *pane_id* that still resolves to
-        the very same widget instance is proof the trigger pane survived;
+        the very same widget instance is proof the origin pane survived;
         a missing id, a mismatched instance, or an unmounted bar means the
-        target is stale and insertion must be skipped.
+        target is stale and the operation must be skipped.
+
+        Shared by the ``#@`` selector (snippet insertion / inline expansion) and
+        the ``Ctrl+I`` history load, which all act on the exact pane that opened
+        their modal rather than whatever pane is active when it closes.  An empty
+        *pane_id* falls back to *target_text_area* itself when it is still
+        mounted, letting a programmatic caller without a captured id target the
+        pane it passed directly.
         """
         if not self.is_mounted or not isinstance(target_text_area, PromptTextArea):
             return None

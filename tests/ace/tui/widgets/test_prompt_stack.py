@@ -11,6 +11,7 @@ from __future__ import annotations
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
+    split_frontmatter,
     split_prompt_text,
 )
 from sase.xprompt.models import InputArg, InputType
@@ -438,6 +439,68 @@ def test_split_selected_keeps_other_items() -> None:
     assert state.split_selected() is True
     assert state.texts == ["x", "y", "second"]
     assert state.selected_index == 1
+
+
+# --- load_segments_at: in-place load preserving neighbors -----------------
+
+
+def test_load_segments_at_single_replaces_in_place() -> None:
+    state = PromptStackState.from_panes(["a", "b", "c"])
+    state.load_segments_at(1, ["REPLACED"])
+    assert state.texts == ["a", "REPLACED", "c"]
+    assert state.selected_index == 1
+
+
+def test_load_segments_at_multi_inserts_below_preserving_neighbors() -> None:
+    # [A, B*, C] + entry x---y---z -> [A, x*, y, z, C] (spec example).
+    state = PromptStackState.from_panes(["a", "b", "c"], selected_index=1)
+    state.load_segments_at(1, ["x", "y", "z"])
+    assert state.texts == ["a", "x", "y", "z", "c"]
+    assert state.selected_index == 1
+
+
+def test_load_segments_at_selection_stays_on_index() -> None:
+    state = PromptStackState.from_panes(["a", "b", "c"])
+    state.load_segments_at(2, ["p", "q"])
+    assert state.texts == ["a", "b", "p", "q"]
+    assert state.selected_index == 2
+
+
+def test_load_segments_at_inserted_items_have_unique_ids() -> None:
+    state = PromptStackState.from_panes(["a", "b"])
+    state.load_segments_at(0, ["x", "y", "z"])
+    ids = [item.item_id for item in state.items]
+    assert len(ids) == len(set(ids))
+
+
+def test_load_segments_at_empty_list_clears_pane_text() -> None:
+    state = PromptStackState.from_panes(["a", "b"])
+    state.load_segments_at(0, [])
+    assert state.texts == ["", "b"]
+    assert state.selected_index == 0
+
+
+def test_load_segments_at_clamps_out_of_range_index() -> None:
+    state = PromptStackState.from_panes(["a", "b"])
+    state.load_segments_at(9, ["z"])
+    assert state.texts == ["a", "z"]
+    assert state.selected_index == 1
+
+
+# --- split_frontmatter: public lift of leading frontmatter -----------------
+
+
+def test_split_frontmatter_lifts_leading_block() -> None:
+    frontmatter = "---\ndescription: hi\n---"
+    raw, body = split_frontmatter(f"{frontmatter}\nbody text")
+    assert raw == frontmatter
+    assert body == "body text"
+
+
+def test_split_frontmatter_returns_empty_when_absent() -> None:
+    raw, body = split_frontmatter("no frontmatter here")
+    assert raw == ""
+    assert body == "no frontmatter here"
 
 
 # --- structured frontmatter model wiring ----------------------------------

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from textual.screen import ModalScreen
 
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.vim_text_area import VimTextArea as _MixinBase
 
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+    from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 else:
     _MixinBase = object
 
@@ -278,6 +279,9 @@ class PromptTextAreaActionsMixin(_MixinBase):
             PromptInputBar.HistoryRequested(
                 initial_filter=self.text,
                 preserve_prompt_bar=True,
+                origin_bar=bar,
+                origin_text_area=cast("PromptTextArea", self),
+                origin_pane_id=self.id or "",
             )
         )
 

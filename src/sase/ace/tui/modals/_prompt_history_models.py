@@ -12,7 +12,7 @@ class PromptHistoryAction(Enum):
 
     SUBMIT = auto()  # Enter - submit prompt directly
     EDIT_FIRST = auto()  # Ctrl+G - open in editor first
-    LOAD = auto()  # Ctrl+I - load into prompt input widget
+    LOAD = auto()  # Ctrl+I - load inline into the origin pane (other panes kept)
 
 
 @dataclass

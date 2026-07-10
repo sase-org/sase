@@ -117,7 +117,7 @@ async def test_insert_at_target_multi_pane_targets_origin_only() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_text("#\n---\nsecond")
+        bar.load_stack_from_xprompt_markdown("#\n---\nsecond")
         await pilot.pause()
 
         upper, lower = list(bar.query(PromptTextArea))
@@ -148,7 +148,7 @@ async def test_insert_at_target_stale_pane_returns_false_without_mutation() -> N
 
         # A whole-stack rebuild bumps the generation and remounts panes under a
         # fresh id, leaving the captured reference orphaned.
-        bar.load_stack_from_text("other")
+        bar.load_stack_from_xprompt_markdown("other")
         await pilot.pause()
 
         inserted = bar.insert_snippet_at_target(
@@ -228,7 +228,7 @@ async def test_expand_at_target_multi_pane_targets_origin_only() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_text("#\n---\nsecond")
+        bar.load_stack_from_xprompt_markdown("#\n---\nsecond")
         await pilot.pause()
 
         upper, lower = list(bar.query(PromptTextArea))
@@ -257,7 +257,7 @@ async def test_expand_at_target_stale_pane_returns_false_without_mutation() -> N
         stale_pane = ta
         stale_id = ta.id or ""
 
-        bar.load_stack_from_text("other")
+        bar.load_stack_from_xprompt_markdown("other")
         await pilot.pause()
 
         expanded = bar.expand_xprompt_at_target(

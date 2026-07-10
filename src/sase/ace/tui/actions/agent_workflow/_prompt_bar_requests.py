@@ -164,14 +164,12 @@ class PromptBarRequestsMixin:
                 # Direct submit - skip editor
                 self._finish_agent_launch(_build_prompt(result.prompt_text))  # type: ignore[attr-defined]
             elif result.action == PromptHistoryAction.LOAD:
-                # Load into the prompt bar for inline editing.  A multi-prompt
-                # history entry renders as stacked panes; a single entry stays
-                # one pane (canonical split decides).
-                try:
-                    bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-                    bar.load_stack_from_text(_build_prompt(result.prompt_text))
-                except Exception:
-                    pass
+                # Load inline into the pane the modal was opened from, preserving
+                # every other pane's draft. A multi-agent entry grows the stack
+                # with new panes below the origin; a single entry replaces just
+                # that pane. A frontmatter clash prompts before overwriting the
+                # staged xprompt properties (see :meth:`_load_history_selection`).
+                self._load_history_selection(event, _build_prompt(result.prompt_text))
             else:
                 # Edit first - open editor with selected prompt
                 prompt_for_editor = _build_prompt(result.prompt_text)
@@ -193,6 +191,85 @@ class PromptBarRequestsMixin:
                 initial_filter=event.initial_filter,
             ),
             on_history_select,
+        )
+
+    def _load_history_selection(self, event: object, built: str) -> None:
+        """Load a selected history entry inline into its origin pane.
+
+        *built* is the VCS-substituted entry text. The load targets the exact
+        pane the history modal was opened from (``event`` carries its captured
+        origin), so every other pane keeps its draft; a stale origin discards
+        the selection with a warning instead of touching any prompt. When the
+        entry carries xprompt frontmatter that would overwrite properties
+        already staged on the stack, a y/n confirmation is shown first --
+        declining aborts the load and refocuses the origin pane, leaving the bar
+        and its panes untouched.
+        """
+        from sase.ace.tui.widgets.prompt_stack import split_frontmatter
+
+        from ...widgets import PromptInputBar
+
+        origin_bar = getattr(event, "origin_bar", None)
+        if isinstance(origin_bar, PromptInputBar) and origin_bar.is_mounted:
+            bar = origin_bar
+            target_text_area = getattr(event, "origin_text_area", None)
+            pane_id = getattr(event, "origin_pane_id", "")
+        else:
+            # Defensive fallback for a programmatic caller that carried no live
+            # origin: target the mounted bar's active pane (an empty pane_id
+            # lets ``_resolve_pane_target`` fall back to that text area).
+            try:
+                bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+            except Exception:
+                return
+            target_text_area = bar.active_text_area()
+            pane_id = ""
+
+        def _apply() -> None:
+            if not bar.load_prompt_into_pane(target_text_area, pane_id, built):
+                # Stale origin pane: leave every prompt unchanged (never unmount
+                # the bar) and surface the same UX as the ``#@`` selector.
+                self.notify(  # type: ignore[attr-defined]
+                    "Prompt pane is no longer available - selection discarded",
+                    severity="warning",
+                )
+
+        incoming_fm, _ = split_frontmatter(built)
+        conflict = (
+            bool(incoming_fm)
+            and bar.has_frontmatter_properties()
+            and incoming_fm != bar.current_frontmatter()
+        )
+        if not conflict:
+            _apply()
+            return
+
+        from ...modals import ConfirmActionModal, ConfirmKind
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if confirmed:
+                _apply()
+                return
+            # Declined: abort the load entirely -- nothing changes -- and return
+            # focus to the origin pane (same refocus pattern the cancel branch
+            # uses, but pinned to the captured origin).
+            try:
+                if target_text_area is not None and getattr(
+                    target_text_area, "is_mounted", False
+                ):
+                    target_text_area.focus()
+                else:
+                    bar.active_text_area().focus()
+            except Exception:
+                pass
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmActionModal(
+                "Replace xprompt properties?",
+                "Loading this prompt will replace your current xprompt properties.",
+                kind=ConfirmKind.DANGER,
+            ),
+            _on_confirm,
         )
 
     def on_prompt_input_bar_snippet_requested(self, event: object) -> None:

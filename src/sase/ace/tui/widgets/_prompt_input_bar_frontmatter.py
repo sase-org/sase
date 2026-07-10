@@ -92,7 +92,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             trigger_range: tuple[tuple[int, int], tuple[int, int]] | None,
             expanded_text: str,
         ) -> bool: ...
-        def _resolve_snippet_target(
+        def _resolve_pane_target(
             self, target_text_area: object, pane_id: str
         ) -> PromptTextArea | None: ...
 
@@ -334,7 +334,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         A stale target (the pane was unmounted/rebuilt while the modal was open),
         a no-op splice, or an expansion with no inputs records nothing.
         """
-        text_area = self._resolve_snippet_target(target_text_area, pane_id)
+        text_area = self._resolve_pane_target(target_text_area, pane_id)
         if text_area is None or not inputs:
             return
         after_text = text_area.text

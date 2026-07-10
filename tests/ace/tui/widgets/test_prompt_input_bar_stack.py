@@ -106,7 +106,7 @@ async def test_stack_title_and_separator_surface_agent_count() -> None:
         bar.active_text_area()._enter_normal_mode()
         assert bar.border_title == "Prompt · 2 agents [NORMAL]"
 
-        bar.load_stack_from_text("collapsed")
+        bar.load_stack_from_xprompt_markdown("collapsed")
         await pilot.pause()
         await pilot.pause()
 
@@ -256,96 +256,155 @@ async def test_focus_item_moves_active_pane() -> None:
         assert bar.active_text() == "first"
 
 
-async def test_load_stack_from_text_rebuilds_panes() -> None:
-    app = _PromptBarApp("only one")
+async def test_load_prompt_into_pane_single_segment_replaces_target_only() -> None:
+    app = _PromptBarApp("first\n---\nsecond\n---\nthird")
 
-    async with app.run_test(size=(80, 24)) as pilot:
+    async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        assert len(app.query(".prompt-input")) == 1
+        panes = list(app.query(PromptTextArea))
+        # Live-edit the neighbours so we can prove their drafts survive the load.
+        panes[0].load_text("first EDITED")
+        panes[2].load_text("third EDITED")
+        target = panes[1]
+        bar.focus_item(1)
+        await pilot.pause()
 
-        bar.load_stack_from_text("uno\n---\ndos\n---\ntres")
+        loaded = bar.load_prompt_into_pane(target, target.id or "", "middle LOADED")
         await pilot.pause()
         await pilot.pause()
 
+        assert loaded is True
+        assert bar.all_prompt_texts() == [
+            "first EDITED",
+            "middle LOADED",
+            "third EDITED",
+        ]
         assert len(app.query(".prompt-input")) == 3
-        assert bar.all_prompt_texts() == ["uno", "dos", "tres"]
+        assert bar._stack.selected_index == 1
         assert app.focused is bar.active_text_area()
+        assert bar.active_text_area()._vim_mode == "insert"
 
-        # And back down to a single pane.
-        bar.load_stack_from_text("collapsed")
+
+async def test_load_prompt_into_pane_multi_segment_inserts_below_target() -> None:
+    # [A, B*, C] + entry x---y---z -> [A, x*, y, z, C] (spec example).
+    app = _PromptBarApp("A\n---\nB\n---\nC")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        target = list(app.query(PromptTextArea))[1]
+        bar.focus_item(1)
+        await pilot.pause()
+
+        loaded = bar.load_prompt_into_pane(target, target.id or "", "x\n---\ny\n---\nz")
         await pilot.pause()
         await pilot.pause()
 
-        assert len(app.query(".prompt-input")) == 1
-        assert "solo" in app.query_one(".prompt-input", PromptTextArea).classes
-        assert bar.active_text() == "collapsed"
+        assert loaded is True
+        assert bar.all_prompt_texts() == ["A", "x", "y", "z", "C"]
+        assert len(app.query(".prompt-input")) == 5
+        assert bar._stack.selected_index == 1
 
 
-async def test_load_stack_from_text_lifts_single_frontmatter_and_shows_panel() -> None:
-    app = _PromptBarApp("only one")
+async def test_load_prompt_into_pane_adopts_frontmatter_when_none_set() -> None:
+    app = _PromptBarApp("plain draft")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
+        assert bar._stack.frontmatter == ""
+        ta = bar.active_text_area()
         frontmatter = "---\ndescription: loaded from history\n---"
-        bar.load_stack_from_text(f"{frontmatter}\ndo the thing")
+
+        loaded = bar.load_prompt_into_pane(
+            ta, ta.id or "", f"{frontmatter}\ndo the thing"
+        )
         await pilot.pause()
         await pilot.pause()
 
+        assert loaded is True
         assert len(app.query(".prompt-input")) == 1
         assert bar.active_text() == "do the thing"
         assert bar._stack.frontmatter == frontmatter
-        assert bar.current_prompt_text() == f"{frontmatter}\ndo the thing"
         panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
         assert not panel.has_class("hidden")
 
 
-async def test_load_stack_from_text_lifts_multi_frontmatter_and_shows_panel() -> None:
-    app = _PromptBarApp("only one")
+async def test_load_prompt_into_pane_multi_segment_adopts_frontmatter() -> None:
+    app = _PromptBarApp("plain draft")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
+        ta = bar.active_text_area()
         frontmatter = "---\ndescription: loaded multi\n---"
-        bar.load_stack_from_text(f"{frontmatter}\nalpha\n---\nbeta")
+
+        loaded = bar.load_prompt_into_pane(
+            ta, ta.id or "", f"{frontmatter}\nalpha\n---\nbeta"
+        )
         await pilot.pause()
         await pilot.pause()
 
+        assert loaded is True
         assert len(app.query(".prompt-input")) == 2
         assert bar.all_prompt_texts() == ["alpha", "beta"]
         assert bar._stack.frontmatter == frontmatter
-        assert bar.current_prompt_text() == f"{frontmatter}\nalpha\n---\nbeta"
         panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
         assert not panel.has_class("hidden")
 
 
-async def test_load_stack_from_text_plain_prompt_hides_frontmatter_panel() -> None:
+async def test_load_prompt_into_pane_keeps_frontmatter_when_entry_has_none() -> None:
+    # The spec'd fix: a frontmatter-less load must preserve staged properties.
+    frontmatter = "---\ndescription: keep me\n---"
+    app = _PromptBarApp(f"{frontmatter}\noriginal body")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        assert bar._stack.frontmatter == frontmatter
+        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
+        assert not panel.has_class("hidden")
+
+        ta = bar.active_text_area()
+        loaded = bar.load_prompt_into_pane(ta, ta.id or "", "a plain history entry")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert loaded is True
+        assert bar._stack.frontmatter == frontmatter
+        assert bar.active_text() == "a plain history entry"
+        assert not panel.has_class("hidden")
+
+
+async def test_load_prompt_into_pane_stale_target_returns_false() -> None:
     app = _PromptBarApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_text("---\ndescription: loaded\n---\nbody")
-        await pilot.pause()
-        await pilot.pause()
-        panel = app.query_one("#frontmatter-panel", FrontmatterPanel)
-        assert not panel.has_class("hidden")
+        stale_pane = bar.active_text_area()
+        stale_id = stale_pane.id or ""
 
-        bar.load_stack_from_text("plain body")
-        await pilot.pause()
+        # A whole-stack rebuild bumps the generation and remounts panes under a
+        # fresh id, orphaning the captured reference.
+        bar.load_stack_from_xprompt_markdown("rebuilt")
         await pilot.pause()
 
-        assert bar._stack.frontmatter == ""
-        assert bar.active_text() == "plain body"
-        assert panel.has_class("hidden")
+        loaded = bar.load_prompt_into_pane(stale_pane, stale_id, "should be dropped")
+        await pilot.pause()
+
+        assert loaded is False
+        assert bar.active_text() == "rebuilt"
 
 
-async def test_load_xprompt_swarm_invocation_stays_single_pane() -> None:
+async def test_load_prompt_into_pane_swarm_invocation_stays_single_pane() -> None:
     """An xprompt swarm invocation has no literal ``---`` separators.
 
     Loading it from history must keep it as the authored single-pane invocation
@@ -357,27 +416,16 @@ async def test_load_xprompt_swarm_invocation_stays_single_pane() -> None:
         await pilot.pause()
 
         bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_text("#research_swarm investigate the flake")
+        ta = bar.active_text_area()
+        loaded = bar.load_prompt_into_pane(
+            ta, ta.id or "", "#research_swarm investigate the flake"
+        )
         await pilot.pause()
         await pilot.pause()
 
+        assert loaded is True
         assert len(app.query(".prompt-input")) == 1
         assert bar.active_text() == "#research_swarm investigate the flake"
-
-
-async def test_load_single_cancelled_prompt_stays_single_pane() -> None:
-    app = _PromptBarApp("only one")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-
-        bar = app.query_one(PromptInputBar)
-        bar.load_stack_from_text("a previously cancelled prompt")
-        await pilot.pause()
-        await pilot.pause()
-
-        assert len(app.query(".prompt-input")) == 1
-        assert bar.active_text() == "a previously cancelled prompt"
 
 
 # --- update_active_pane edits only the selected pane -----------------------
@@ -413,7 +461,7 @@ async def test_is_stacked_reflects_pane_count() -> None:
         bar = app.query_one(PromptInputBar)
         assert bar.is_stacked() is False
 
-        bar.load_stack_from_text("a\n---\nb")
+        bar.load_stack_from_xprompt_markdown("a\n---\nb")
         await pilot.pause()
         await pilot.pause()
         assert bar.is_stacked() is True

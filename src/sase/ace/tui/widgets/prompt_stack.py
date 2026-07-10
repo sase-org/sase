@@ -40,7 +40,7 @@ def split_prompt_text(text: str) -> list[str]:
     return split_segments_protecting_fences(text)
 
 
-def _extract_frontmatter(text: str) -> tuple[str, str]:
+def split_frontmatter(text: str) -> tuple[str, str]:
     """Return ``(raw_frontmatter, body)`` for *text*.
 
     ``raw_frontmatter`` is the leading YAML frontmatter block including its
@@ -48,6 +48,9 @@ def _extract_frontmatter(text: str) -> tuple[str, str]:
     *text* has no valid frontmatter.  ``body`` is the remaining text after the
     frontmatter, matching :func:`parse_yaml_front_matter` exactly so that
     splitting the body stays consistent with agent dispatch.
+
+    Public so the app layer can inspect an incoming prompt's frontmatter
+    (e.g. a history entry) without loading it into the bar.
     """
     frontmatter, body = parse_yaml_front_matter(text)
     if frontmatter is None:
@@ -108,7 +111,7 @@ class PromptStackState:
         by the shared launch parser.
         """
         if lift_frontmatter:
-            frontmatter, body = _extract_frontmatter(text)
+            frontmatter, body = split_frontmatter(text)
             return cls._from_texts([body], frontmatter=frontmatter)
         return cls._from_texts([text])
 
@@ -140,7 +143,7 @@ class PromptStackState:
         still holds a single empty drafting item.  The bottom item is the
         default active item after splitting.
         """
-        frontmatter, body = _extract_frontmatter(text)
+        frontmatter, body = split_frontmatter(text)
         segments = split_prompt_text(body)
         if not segments:
             segments = [""]
@@ -351,6 +354,28 @@ class PromptStackState:
         self.selected_index = position + len(replacement) - 1
         return True
 
+    def load_segments_at(self, index: int, segments: list[str]) -> None:
+        """Load *segments* into the stack at *index*, keeping other items intact.
+
+        The item at *index* has its text replaced with the first segment (an
+        empty *segments* list behaves as ``[""]``, clearing that item's text);
+        one new item is inserted directly below for each subsequent segment, in
+        order.  Every other item — above *index* or below the inserted run —
+        keeps its text and relative order.  The selection stays on *index*
+        (clamped), so the item that received the first segment stays active.
+
+        Mirrors :meth:`split_selected`'s in-place replacement, but sources the
+        segments from an explicit list (a loaded history entry) rather than
+        re-splitting the item's own text.
+        """
+        if not segments:
+            segments = [""]
+        index = self._clamp(index)
+        self.items[index].text = segments[0]
+        additions = [self._new_item(segment) for segment in segments[1:]]
+        self.items[index + 1 : index + 1] = additions
+        self.selected_index = index
+
     # -- internal -------------------------------------------------------------
 
     def _new_item(self, text: str) -> PromptStackItem:
@@ -362,5 +387,6 @@ class PromptStackState:
 __all__ = [
     "PromptStackItem",
     "PromptStackState",
+    "split_frontmatter",
     "split_prompt_text",
 ]

@@ -14,9 +14,11 @@ from textual.widgets import Static, TextArea
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
+    split_frontmatter,
     split_prompt_text,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
@@ -94,6 +96,9 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         def _clear_active_completion_state(self) -> None: ...
         def _frontmatter_panel_reserved_rows(self) -> int: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
+        def _resolve_pane_target(
+            self, target_text_area: object, pane_id: str
+        ) -> PromptTextArea | None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def show_jinja_diagnostics(self, diagnostics: object) -> None: ...
 
@@ -163,10 +168,12 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
     def _rebuild_stack(self, enter_mode: str | None = None) -> None:
         """Re-render the prompt stack to match ``self._stack`` from scratch.
 
-        Used by deliberate whole-stack replacements (``load_stack_from_text``)
-        and by the Phase 3 structural keymaps (reorder, add pane).  Bumps the
-        generation so freshly mounted panes never share ids with the panes still
-        being detached asynchronously.  *enter_mode* optionally puts the rebuilt
+        Used by deliberate whole-stack replacements
+        (``load_stack_from_xprompt_markdown``), the inline history load
+        (``load_prompt_into_pane``), and the structural keymaps (reorder, add
+        pane).  Bumps the generation so freshly mounted panes never share ids
+        with the panes still being detached asynchronously.  *enter_mode*
+        optionally puts the rebuilt
         active pane into vim ``"normal"`` or ``"insert"`` mode once it has
         mounted, so reorder keeps the user in normal mode while adding a pane
         drops them into the new pane ready to type.
@@ -300,26 +307,12 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         :meth:`PromptStackState.from_text`, lifting leading frontmatter into the
         shared stack frontmatter and splitting real ``---`` separators into
         panes.  The frontmatter panel is re-synced so the lifted frontmatter
-        shows in the structured panel state.  Compared with
-        :meth:`load_stack_from_text`, this path also normalizes a lone body
-        pane through the canonical splitter instead of keeping the body text
-        verbatim.
+        shows in the structured panel state.  Unlike the inline history load
+        (:meth:`load_prompt_into_pane`), this replaces the whole stack and
+        normalizes a lone body pane through the canonical splitter instead of
+        keeping the body text verbatim.
         """
         self._stack = PromptStackState.from_text(text)
-        self._rebuild_stack()
-        self.refresh_frontmatter_panel_from_stack()
-
-    def load_stack_from_text(self, text: str) -> None:
-        """Replace the whole stack with panes parsed from *text*.
-
-        Real ``---`` separators render as stacked panes; anything else loads as
-        a single pane with leading YAML frontmatter lifted onto the shared stack
-        frontmatter.  Used by deliberate whole-bar loads (history load, or an
-        editor return when the bar is a single pane) rather than active-pane
-        edits.  The frontmatter panel is re-synced so the latest load can show
-        or hide it.
-        """
-        self._stack = self._state_from_text(text)
         self._rebuild_stack()
         self.refresh_frontmatter_panel_from_stack()
 
@@ -335,6 +328,88 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         self._sync_state_from_widgets()
         self._stack.selected_item.text = text
         self._rebuild_stack(enter_mode="insert")
+
+    def load_prompt_into_pane(
+        self, target_text_area: object, pane_id: str, text: str
+    ) -> bool:
+        """Load a history entry into the origin pane, preserving the rest of the stack.
+
+        The inline ``Ctrl+I`` history-load path: unlike a whole-stack replace,
+        *text* (the VCS-substituted history entry) loads into the exact pane the
+        user opened the history modal from -- resolved through the same staleness
+        guard the ``#@`` selector uses -- while every other pane keeps its live
+        text and relative order.
+
+        A single-segment body replaces just that pane's text (kept verbatim, the
+        ``lift_frontmatter=True`` single-pane path, so an xprompt-swarm
+        invocation or a plain prompt stays one pane); a multi-segment body (real
+        ``---`` separators outside fences/frontmatter) replaces the pane with its
+        first stripped segment and inserts one new pane per remaining segment
+        directly below, in order.  Leading frontmatter is lifted: a non-empty
+        block overwrites the stack's frontmatter (the conflict confirmation runs
+        in the app layer *before* this is called); an incoming-empty block leaves
+        the current frontmatter untouched.
+
+        Returns ``False`` without touching any pane when the captured target is
+        stale (its pane or bar was unmounted/rebuilt while the modal was open),
+        so the caller can notify and leave every prompt unchanged.
+        """
+        text_area = self._resolve_pane_target(target_text_area, pane_id)
+        if text_area is None:
+            return False
+
+        # Sync live edits from every pane back into the model first (like
+        # ``update_active_pane``), so panes the user touched while the modal was
+        # open survive the rebuild.
+        self._sync_state_from_widgets()
+
+        index = self._pane_index_for(text_area)
+        if index is None:
+            return False
+
+        frontmatter, body = split_frontmatter(text)
+        segments = split_prompt_text(body)
+        if len(segments) <= 1:
+            # A single-segment body is kept verbatim rather than stripped,
+            # matching ``PromptStackState.single(lift_frontmatter=True)``.
+            segments = [body]
+
+        self._stack.load_segments_at(index, segments)
+        if frontmatter:
+            self._stack.frontmatter = frontmatter
+
+        self._rebuild_stack(enter_mode="insert")
+        self.refresh_frontmatter_panel_from_stack()
+        return True
+
+    def _pane_index_for(self, text_area: PromptTextArea) -> int | None:
+        """Return the stack index whose pane widget is *text_area*, else ``None``."""
+        for index, item in enumerate(self._stack.items):
+            if self._pane_id(item) == text_area.id:
+                return index
+        return None
+
+    def has_frontmatter_properties(self) -> bool:
+        """True when the stack currently carries non-empty xprompt properties.
+
+        Drives the history-load conflict check: an incoming entry with its own
+        frontmatter must not silently clobber properties the user already
+        staged.  A non-empty frontmatter string that parses to a non-``is_empty``
+        :class:`PromptFrontmatter` counts; a non-empty string that fails to parse
+        (mid-edit YAML) is conservatively treated as properties present, so a
+        confirmation is shown rather than silently overwriting the draft.
+        """
+        raw = self._stack.frontmatter
+        if not raw:
+            return False
+        try:
+            return not PromptFrontmatter.parse(raw).is_empty
+        except Exception:
+            return True
+
+    def current_frontmatter(self) -> str:
+        """Return the stack's current raw frontmatter string (``""`` when unset)."""
+        return self._stack.frontmatter
 
     def focus_item(self, index: int) -> int:
         """Focus the pane at *index* (clamped); return the clamped index."""

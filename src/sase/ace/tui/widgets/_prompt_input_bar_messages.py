@@ -182,7 +182,26 @@ class AllEditorRequested(Message, namespace="prompt_input_bar"):
 
 
 class HistoryRequested(Message, namespace="prompt_input_bar"):
-    """Message sent when user requests the prompt history picker."""
+    """Message sent when user requests the prompt history picker.
+
+    Carries the explicit origin of the ``Ctrl+K`` trigger (mirroring
+    :class:`SnippetRequested`) so a ``Ctrl+I`` load acts on the exact pane the
+    modal was opened from, even if focus moves or the active pane changes while
+    the modal is open. Without it the app handler re-queried the generic
+    ``#prompt-input-bar`` after the modal closed and loaded into whatever pane
+    happened to be active -- the staleness bug class the pane-preserving load
+    fixes.
+
+    Fields:
+
+    - ``origin_bar``: the :class:`PromptInputBar` that owns the trigger pane.
+    - ``origin_text_area``: the :class:`PromptTextArea` the history modal was
+      opened from.
+    - ``origin_pane_id``: that text area's stable, generation-scoped widget id,
+      used as a staleness check -- a prompt-stack rebuild remounts panes under a
+      fresh id, so a captured id that no longer resolves means the origin pane
+      is gone.
+    """
 
     def __init__(
         self,
@@ -190,12 +209,19 @@ class HistoryRequested(Message, namespace="prompt_input_bar"):
         show_cancelled: bool = False,
         initial_filter: str = "",
         preserve_prompt_bar: bool = False,
+        *,
+        origin_bar: PromptInputBar | None = None,
+        origin_text_area: PromptTextArea | None = None,
+        origin_pane_id: str = "",
     ) -> None:
         super().__init__()
         self.vcs_prefix = vcs_prefix
         self.show_cancelled = show_cancelled
         self.initial_filter = initial_filter
         self.preserve_prompt_bar = preserve_prompt_bar
+        self.origin_bar = origin_bar
+        self.origin_text_area = origin_text_area
+        self.origin_pane_id = origin_pane_id
 
 
 class SnippetRequested(Message, namespace="prompt_input_bar"):
