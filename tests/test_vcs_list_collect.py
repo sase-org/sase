@@ -142,8 +142,12 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(collect_module, "_linked_config_descriptions", lambda _: {})
+    include_sdd_values: list[bool] = []
 
-    def fake_resolve(*, cwd, repo_filters=(), current_only=False):  # type: ignore[no-untyped-def]
+    def fake_resolve(  # type: ignore[no-untyped-def]
+        *, cwd, repo_filters=(), current_only=False, include_sdd=False
+    ):
+        include_sdd_values.append(include_sdd)
         return ResolvedRepos(
             repos=[LogRepo("sase", "/p/sase", "primary")],
             warnings=["resolve-warning"],
@@ -157,3 +161,4 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
 
     assert result.warnings == ("resolve-warning", "sase: no such checkout")
     assert [listing.repo.name for listing in result.repos] == ["sase"]
+    assert include_sdd_values == [True]

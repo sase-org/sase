@@ -133,8 +133,9 @@ Additional plugins may return their own provider names. `detect_vcs_family()` co
 
 ### `sase vcs list`
 
-Lists exactly the repository set used by `sase vcs log`: the primary repository, configured linked repositories, and the
-separate SDD store when present. A bare `sase vcs` delegates to `sase vcs list`.
+Lists the available repository constellation: the primary repository, configured linked repositories, and the separate
+SDD store when present. A bare `sase vcs` delegates to `sase vcs list`. The log command excludes the separate SDD
+history by default; use `sase vcs log --sdd` to include it.
 
 Common forms:
 
@@ -162,16 +163,17 @@ one repo is shown as a warning and does not hide the other repos.
 
 ### `sase vcs log`
 
-Shows a day-grouped commit timeline across the primary repository, configured linked repositories, and the separate SDD
-store when present. In its default scope, `sase vcs log` uses the same repo resolver as `sase vcs list`. Pass `--all` to
-build one timeline from every active, inactive, and sibling project in the registered SASE inventory (excluding the
-system-managed `home` project), regardless of the current directory. Global discovery includes each usable primary,
-configured linked repos without materializing missing workspaces, and existing separate SDD repositories.
+Shows a day-grouped commit timeline across the primary repository and configured linked repositories. Pass `--sdd` to
+also include the current project's existing separate SDD repository. Pass `--all` to build one timeline from every
+active, inactive, and sibling project in the registered SASE inventory (excluding the system-managed `home` project),
+regardless of the current directory. Global discovery includes each usable primary and configured linked repo without
+materializing missing workspaces; `--all --sdd` also includes existing separate SDD repositories from those projects.
 
 Global discovery canonicalizes checkout paths, so a repository registered independently and linked from one or more
 projects is read and fetched only once. Registered project display names take precedence; colliding linked-repo and SDD
-labels are qualified with their owning project. `--repo` accepts displayed labels and unambiguous source aliases.
-Failures in one project or provider are warnings and do not hide healthy repositories.
+labels are qualified with their owning project. `--repo` narrows the eligible set after SDD opt-in, so use
+`--sdd --repo sdd` to show only the current project's SDD history. `--repo sdd` without `--sdd` does not expand scope
+and reports no match. Failures in one project or provider are warnings and do not hide healthy repositories.
 
 By default the command shows up to 40 commits and trailing SASE commit tags, refreshes a supported remote ref when that
 checkout/ref has not been fetched successfully in the last 60 seconds, and marks each commit as synced, unpushed,
@@ -190,6 +192,9 @@ Common forms:
 ```bash
 sase vcs log
 sase vcs log --all
+sase vcs log --sdd
+sase vcs log --sdd --repo sdd
+sase vcs log --all --sdd
 sase vcs log --all --repo sase-core --repo chezmoi
 sase vcs log --branch main --no-fetch
 sase vcs log --fetch --limit 3
@@ -214,12 +219,14 @@ Options:
 | `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.   |
 | `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                           |
 | `-R`, `--reverse`                         | Display the selected commits oldest-first.                                              |
+| `-S`, `--sdd`                             | Include commits from existing separate SDD repositories.                                |
 | `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                     |
 | `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                    |
 
-`--all` and `--current-only` are mutually exclusive. `--repo` remains repeatable in global scope and is applied after
-canonical-path deduplication and unique label assignment. The `--limit` cap applies to the final merged timeline, not to
-each project's inventory: each unique candidate repository is queried deeply enough to compute the global top N. Use
+`--all` and `--current-only` are mutually exclusive. `--current-only` reads only the current/primary repo even when
+`--sdd` is supplied. `--repo` remains repeatable in global scope and is applied after SDD scope selection,
+canonical-path deduplication, and unique label assignment. The `--limit` cap applies to the final merged timeline, not
+to each project's inventory: each unique candidate repository is queried deeply enough to compute the global top N. Use
 `--limit 0` for an unlimited merged timeline. JSON output records the selected global scope as `query.all`.
 
 `DATE` accepts relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM`. Dates are

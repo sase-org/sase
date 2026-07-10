@@ -1396,18 +1396,21 @@ full flow, payload, checkpoint, and resume semantics.
 
 ### `sase vcs`
 
-`sase vcs` defaults to `sase vcs list`. The command group inspects the repository set made up of the primary repo,
-configured linked repos, and the separate SDD store when present.
+`sase vcs` defaults to `sase vcs list`, which inspects the available repository constellation made up of the primary
+repo, configured linked repos, and the separate SDD store when present. `sase vcs log` includes primary and linked
+history by default; add `-S/--sdd` to include existing separate SDD repository history.
 
-| Subcommand | Flags                                                                                                                                                                                                                                                               | Description                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `list`     | `-c/--color`, `-f/--format pretty\|oneline\|json`, `-N/--no-fetch`, `-o/--current-only`, `-r/--repo`, `-s/--sort`                                                                                                                                                   | List resolved repositories, descriptions, branch state, dirty state, stats, and latest activity. |
-| `log`      | `-a/--all`, `-A/--author`, `-b/--branch/--ref`, `-c/--color`, `-o/--current-only`, `-F/--fetch`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-N/--no-fetch`, `-T/--no-tags`, `-r/--repo`, `-R/--reverse`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers.                                |
+| Subcommand | Flags                                                                                                                                                                                                                                                                           | Description                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `list`     | `-c/--color`, `-f/--format pretty\|oneline\|json`, `-N/--no-fetch`, `-o/--current-only`, `-r/--repo`, `-s/--sort`                                                                                                                                                               | List resolved repositories, descriptions, branch state, dirty state, stats, and latest activity. |
+| `log`      | `-a/--all`, `-A/--author`, `-b/--branch/--ref`, `-c/--color`, `-o/--current-only`, `-F/--fetch`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-N/--no-fetch`, `-T/--no-tags`, `-r/--repo`, `-R/--reverse`, `-S/--sdd`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers.                                |
 
 `sase vcs log` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or
 `YYYY-MM-DDTHH:MM`. See [VCS Providers](vcs.md#per-command-vcs-usage) for output examples and provider notes. `--all`
 spans active, inactive, and sibling projects, deduplicates shared physical checkouts, and can be combined with
-repeatable `--repo` filters but not `--current-only`. Its `--limit` is the cap on the final merged timeline.
+repeatable `--repo` filters but not `--current-only`. Add `--sdd` to either scope before selecting SDD history with
+`--repo sdd`; without the opt-in, that repo filter does not expand the eligible set. `--all --sdd` includes existing
+separate SDD repositories across registered projects. The `--limit` is the cap on the final merged timeline.
 
 ### `sase changespec search`
 

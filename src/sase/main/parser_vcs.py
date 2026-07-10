@@ -171,6 +171,12 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         help="Show the selected commits oldest-first",
     )
     parser.add_argument(
+        "-S",
+        "--sdd",
+        action="store_true",
+        help="Include commits from existing separate SDD repositories",
+    )
+    parser.add_argument(
         "-s",
         "--since",
         "--after",
@@ -199,8 +205,8 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase vcs`` subcommand parser.
 
     ``sase vcs`` lists the resolved repository constellation by default.
-    ``sase vcs log`` shows the chronological commit timeline for the same
-    resolved repo set.
+    ``sase vcs log`` shows the chronological commit timeline for the primary
+    and linked repositories, with separate SDD history available on request.
     """
     vcs_parser = subparsers.add_parser(
         "vcs",
@@ -223,8 +229,9 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List resolved repositories and aggregate stats",
         description=(
-            "List exactly the repositories included by `sase vcs log`, with "
-            "per-repo stats, descriptions, branch state, and last activity."
+            "List the available primary, linked, and separate SDD repositories "
+            "with per-repo stats, descriptions, branch state, and last activity. "
+            "Use `sase vcs log --sdd` to include SDD commit history."
         ),
     )
     _add_list_options(list_parser)
@@ -234,8 +241,9 @@ def register_vcs_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show a chronological, cross-repository commit timeline",
         description=(
             "Show a chronological, cross-repository commit timeline across "
-            "the primary repo, linked repos, and the SDD store. Use --all to "
-            "merge repositories from every registered project."
+            "the primary repo and linked repos. Use --sdd to include separate "
+            "SDD repository commits, and --all to merge repositories from every "
+            "registered project."
         ),
         epilog=f"DATE grammar: {DATE_HELP}.",
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -71,6 +71,7 @@ class TestVcsParser:
         assert ns.force_fetch is False
         assert ns.remote_ref is None
         assert ns.reverse is False
+        assert ns.sdd is False
         assert ns.since is None
         assert ns.show_tags is True
         assert ns.until is None
@@ -186,6 +187,12 @@ class TestVcsParser:
         assert short.show_tags is False
         assert long.show_tags is False
 
+    @pytest.mark.parametrize("option", ["-S", "--sdd"])
+    def test_log_sdd_flags(self, option: str) -> None:
+        ns = create_parser().parse_args(["vcs", "log", option])
+
+        assert ns.sdd is True
+
     def test_log_tags_aliases_remain_hidden_no_ops(self) -> None:
         short = create_parser().parse_args(["vcs", "log", "-t"])
         long = create_parser().parse_args(["vcs", "log", "--tags"])
@@ -205,6 +212,7 @@ class TestVcsParser:
         assert "--no-fetch" in help_text
         assert "--no-tags" in help_text
         assert "-t, --tags" not in help_text
+        options_text = help_text.split("options:\n", 1)[1]
         long_options = [
             "--all",
             "--author",
@@ -218,11 +226,15 @@ class TestVcsParser:
             "--no-tags",
             "--repo",
             "--reverse",
+            "--sdd",
             "--since",
             "--until",
         ]
-        assert [help_text.index(option) for option in long_options] == sorted(
-            help_text.index(option) for option in long_options
+        assert [options_text.index(option) for option in long_options] == sorted(
+            options_text.index(option) for option in long_options
+        )
+        assert "Include commits from existing separate SDD repositories" in " ".join(
+            help_text.split()
         )
 
 

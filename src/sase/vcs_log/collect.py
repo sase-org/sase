@@ -103,6 +103,7 @@ def run_vcs_log(
     repo_filters: Sequence[str] = (),
     all_projects: bool = False,
     current_only: bool = False,
+    include_sdd: bool = False,
     no_fetch: bool = False,
     force_fetch: bool = False,
     remote_ref: str | None = None,
@@ -122,6 +123,7 @@ def run_vcs_log(
         repo_filters=repo_filters,
         all_projects=all_projects,
         current_only=current_only,
+        include_sdd=include_sdd,
     )
     collected = collect_vcs_log(
         resolved.repos,

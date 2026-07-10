@@ -63,6 +63,7 @@ def resolve_log_repos(
     repo_filters: Sequence[str] = (),
     all_projects: bool = False,
     current_only: bool = False,
+    include_sdd: bool = False,
 ) -> ResolvedRepos:
     """Resolve repositories for the requested timeline scope.
 
@@ -73,11 +74,12 @@ def resolve_log_repos(
     warnings: list[str] = []
 
     if all_projects:
-        repos = _resolve_all_project_repos(warnings)
+        repos = _resolve_all_project_repos(warnings, include_sdd=include_sdd)
     else:
         repos = _resolve_current_scope_repos(
             cwd=cwd,
             current_only=current_only,
+            include_sdd=include_sdd,
             warnings=warnings,
         )
         repos.sort(key=lambda repo: (_KIND_ORDER.get(repo.kind, 9), repo.name))
@@ -89,7 +91,7 @@ def resolve_log_repos(
 
 
 def _resolve_current_scope_repos(
-    *, cwd: str, current_only: bool, warnings: list[str]
+    *, cwd: str, current_only: bool, include_sdd: bool, warnings: list[str]
 ) -> list[LogRepo]:
     from sase.main.utils import ensure_project_file_and_get_workspace_num
 
@@ -103,12 +105,15 @@ def _resolve_current_scope_repos(
             workspace_num=workspace_num if workspace_num is not None else 0,
             cwd=cwd,
             current_only=current_only,
+            include_sdd=include_sdd,
             warnings=warnings,
         )
     return _resolve_fallback_repos(cwd, warnings)
 
 
-def _resolve_all_project_repos(warnings: list[str]) -> list[LogRepo]:
+def _resolve_all_project_repos(
+    warnings: list[str], *, include_sdd: bool
+) -> list[LogRepo]:
     try:
         records = list_project_records(sase_projects_dir(), "all", include_home=False)
     except Exception as exc:  # pragma: no cover - facade failures are rare
@@ -122,7 +127,9 @@ def _resolve_all_project_repos(warnings: list[str]) -> list[LogRepo]:
     for record in sorted(records, key=_record_sort_key):
         if record.project_name == "home" or record.system_managed:
             continue
-        candidates.extend(_resolve_record_candidates(record, warnings))
+        candidates.extend(
+            _resolve_record_candidates(record, warnings, include_sdd=include_sdd)
+        )
 
     repos = _deduplicate_and_name(candidates)
     warnings[:] = _collapse_global_warnings(warnings, repos)
@@ -134,7 +141,7 @@ def _record_sort_key(record: ProjectRecordWire) -> tuple[str, str]:
 
 
 def _resolve_record_candidates(
-    record: ProjectRecordWire, warnings: list[str]
+    record: ProjectRecordWire, warnings: list[str], *, include_sdd: bool
 ) -> list[_RepoCandidate]:
     project_label = effective_project_name(record)
     project_ref = _project_ref(record, project_label)
@@ -186,7 +193,7 @@ def _resolve_record_candidates(
 
     project_warnings: list[str] = []
     linked = _resolve_linked_repos(str(project_file), primary_dir, project_warnings)
-    sdd = _resolve_sdd_repo(primary_dir, 0, project_warnings)
+    sdd = _resolve_sdd_repo(primary_dir, 0, project_warnings) if include_sdd else None
     for warning in project_warnings:
         _warn_once(warnings, f"{project_ref}: {warning}")
 
@@ -233,6 +240,7 @@ def _resolve_project_repos(
     workspace_num: int,
     cwd: str,
     current_only: bool,
+    include_sdd: bool,
     warnings: list[str],
 ) -> list[LogRepo]:
     primary_dir = _primary_workspace_dir(project_file, cwd, workspace_num)
@@ -250,9 +258,10 @@ def _resolve_project_repos(
         return repos
 
     repos.extend(_resolve_linked_repos(project_file, primary_dir, warnings))
-    sdd_repo = _resolve_sdd_repo(primary_dir, workspace_num, warnings)
-    if sdd_repo is not None:
-        repos.append(sdd_repo)
+    if include_sdd:
+        sdd_repo = _resolve_sdd_repo(primary_dir, workspace_num, warnings)
+        if sdd_repo is not None:
+            repos.append(sdd_repo)
     return repos
 
 

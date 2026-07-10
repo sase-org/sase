@@ -89,7 +89,7 @@ def test_primary_only(monkeypatch: pytest.MonkeyPatch, project: None) -> None:
         _FakeSddStore(storage="in_tree", sdd_dir=Path("/ws/sase/.sase/sdd")),
     )
 
-    resolved = resolve_log_repos(cwd="/ws/sase")
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [(r.name, r.path, r.kind) for r in resolved.repos] == [
         ("sase", "/ws/sase", "primary")
@@ -107,7 +107,7 @@ def test_primary_name_falls_back_to_project_key(
         _FakeSddStore(storage="in_tree", sdd_dir=Path("/ws/sase/.sase/sdd")),
     )
 
-    resolved = resolve_log_repos(cwd="/ws/sase")
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [(r.name, r.path, r.kind) for r in resolved.repos] == [
         ("gh_sase-org__sase", "/ws/sase", "primary")
@@ -130,7 +130,7 @@ def test_primary_plus_linked_sorted_by_name(
         monkeypatch, _FakeSddStore(storage="local", sdd_dir=Path("/ws/sase/.sase/sdd"))
     )
 
-    resolved = resolve_log_repos(cwd="/ws/sase")
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     # primary first, then linked sorted by name.
     assert [r.name for r in resolved.repos] == [
@@ -153,8 +153,10 @@ def test_separate_repo_sdd_included_with_git(
         record=_FakeRecord(repo="sase-sdd"),
     )
 
-    resolved = resolve_log_repos(cwd="/ws/sase")
+    default = resolve_log_repos(cwd="/ws/sase")
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
+    assert [r.kind for r in default.repos] == ["primary"]
     sdd = [r for r in resolved.repos if r.kind == "sdd"]
     assert len(sdd) == 1
     assert sdd[0].name == "sase-sdd"
@@ -172,7 +174,7 @@ def test_separate_repo_sdd_included_without_git_specific_marker(
         _FakeSddStore(storage="separate_repo", sdd_dir=sdd_dir),
     )
 
-    resolved = resolve_log_repos(cwd="/ws/sase")
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [r.kind for r in resolved.repos] == ["primary", "sdd"]
 
@@ -186,7 +188,7 @@ def test_separate_repo_sdd_skipped_when_checkout_is_missing(
         _FakeSddStore(storage="separate_repo", sdd_dir=tmp_path / "missing"),
     )
 
-    resolved = resolve_log_repos(cwd="/ws/sase")
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [r.kind for r in resolved.repos] == ["primary"]
 
@@ -199,21 +201,23 @@ def test_in_tree_sdd_skipped(
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(monkeypatch, _FakeSddStore(storage="in_tree", sdd_dir=sdd_dir))
 
-    resolved = resolve_log_repos(cwd="/ws/sase")
+    resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [r.kind for r in resolved.repos] == ["primary"]
 
 
 def test_current_only_drops_linked_and_sdd(
-    monkeypatch: pytest.MonkeyPatch, project: None
+    monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
 ) -> None:
     _set_linked(
         monkeypatch,
         _FakeLinkedResolution(repos=(_FakeLinked("sase-core", "/ws/core"),)),
     )
-    _set_sdd(monkeypatch, _FakeSddStore(storage="separate_repo", sdd_dir=Path("/nope")))
+    sdd_dir = tmp_path / "sdd"
+    sdd_dir.mkdir()
+    _set_sdd(monkeypatch, _FakeSddStore(storage="separate_repo", sdd_dir=sdd_dir))
 
-    resolved = resolve_log_repos(cwd="/ws/sase", current_only=True)
+    resolved = resolve_log_repos(cwd="/ws/sase", current_only=True, include_sdd=True)
 
     assert [r.name for r in resolved.repos] == ["sase"]
 
@@ -251,7 +255,7 @@ def test_repo_filter_unknown_name_warns(
     assert any("nope" in w for w in resolved.warnings)
 
 
-def test_sdd_matched_by_literal_sdd_filter(
+def test_sdd_filter_requires_sdd_scope(
     monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
 ) -> None:
     sdd_dir = tmp_path / "sdd"
@@ -263,9 +267,34 @@ def test_sdd_matched_by_literal_sdd_filter(
         record=_FakeRecord(repo="sase-sdd"),
     )
 
-    resolved = resolve_log_repos(cwd="/ws/sase", repo_filters=["sdd"])
+    default = resolve_log_repos(cwd="/ws/sase", repo_filters=["sdd"])
+    resolved = resolve_log_repos(cwd="/ws/sase", repo_filters=["sdd"], include_sdd=True)
 
+    assert default.repos == []
+    assert default.warnings == ["--repo 'sdd' did not match any repository"]
     assert [r.kind for r in resolved.repos] == ["sdd"]
+
+
+def test_excluded_sdd_store_is_not_probed_or_warned(
+    monkeypatch: pytest.MonkeyPatch, project: None
+) -> None:
+    _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
+    import sase.sdd as sdd_mod
+
+    calls: list[tuple[str, int]] = []
+
+    def fail_sdd(primary_dir: str, workspace_num: int) -> object:
+        calls.append((primary_dir, workspace_num))
+        raise RuntimeError("broken SDD metadata")
+
+    monkeypatch.setattr(sdd_mod, "resolve_sdd_store", fail_sdd)
+
+    default = resolve_log_repos(cwd="/ws/sase")
+    included = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
+
+    assert calls == [("/ws/sase", 0)]
+    assert default.warnings == []
+    assert included.warnings == ["sdd store could not be resolved: broken SDD metadata"]
 
 
 def test_not_in_project_falls_back_to_current_repo(
@@ -379,6 +408,7 @@ def _configure_global_resolution(
         return linked.get(project_name, _FakeLinkedResolution(repos=()))
 
     def fake_sdd(primary_dir, workspace_num):  # type: ignore[no-untyped-def]
+        calls.append({"sdd_primary_dir": primary_dir, "workspace_num": workspace_num})
         project_name = Path(primary_dir).name
         return sdd.get(
             project_name,
@@ -417,7 +447,20 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
         sdd_records={"alpha": _FakeRecord(repo="alpha-sdd")},
     )
 
-    resolved = resolve_log_repos(cwd="/not/a/workspace", all_projects=True)
+    default = resolve_log_repos(cwd="/not/a/workspace", all_projects=True)
+
+    assert [repo.kind for repo in default.repos] == [
+        "primary",
+        "primary",
+        "primary",
+        "linked",
+    ]
+    assert not any("sdd_primary_dir" in call for call in calls)
+
+    calls.clear()
+    resolved = resolve_log_repos(
+        cwd="/not/a/workspace", all_projects=True, include_sdd=True
+    )
 
     assert [(repo.name, repo.kind) for repo in resolved.repos] == [
         ("Alpha", "primary"),
@@ -434,6 +477,8 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
     linked_calls = [call for call in calls[1:] if "materialize" in call]
     assert len(linked_calls) == 3
     assert all(call["materialize"] is False for call in linked_calls)
+    sdd_calls = [call for call in calls[1:] if "sdd_primary_dir" in call]
+    assert len(sdd_calls) == 3
 
 
 def test_all_projects_skips_bad_records_and_deduplicates_warnings(
@@ -548,3 +593,66 @@ def test_all_projects_qualifies_colliding_labels_and_rejects_ambiguous_alias(
         "--repo 'shared' is ambiguous; use one of: alpha/shared, beta/shared"
     ]
     assert [repo.name for repo in selected.repos] == ["beta/shared"]
+
+
+def test_all_projects_qualifies_colliding_sdd_labels_when_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    alpha = _global_record(tmp_path, "alpha")
+    beta = _global_record(tmp_path, "beta")
+    alpha_sdd = tmp_path / "stores" / "alpha-sdd"
+    beta_sdd = tmp_path / "stores" / "beta-sdd"
+    alpha_sdd.mkdir(parents=True)
+    beta_sdd.mkdir(parents=True)
+    _configure_global_resolution(
+        monkeypatch,
+        tmp_path,
+        [alpha, beta],
+        sdd={
+            "alpha": _FakeSddStore(storage="separate_repo", sdd_dir=alpha_sdd),
+            "beta": _FakeSddStore(storage="separate_repo", sdd_dir=beta_sdd),
+        },
+    )
+
+    resolved = resolve_log_repos(cwd="/anywhere", all_projects=True, include_sdd=True)
+    ambiguous = resolve_log_repos(
+        cwd="/anywhere",
+        all_projects=True,
+        include_sdd=True,
+        repo_filters=["sdd"],
+    )
+
+    assert [repo.name for repo in resolved.repos] == [
+        "alpha",
+        "beta",
+        "alpha/sdd",
+        "beta/sdd",
+    ]
+    assert ambiguous.repos == []
+    assert ambiguous.warnings == [
+        "--repo 'sdd' is ambiguous; use one of: alpha/sdd, beta/sdd"
+    ]
+
+
+def test_all_projects_deduplicates_shared_sdd_checkout_when_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    alpha = _global_record(tmp_path, "alpha")
+    beta = _global_record(tmp_path, "beta")
+    shared_sdd = tmp_path / "stores" / "shared-sdd"
+    shared_sdd.mkdir(parents=True)
+    _configure_global_resolution(
+        monkeypatch,
+        tmp_path,
+        [alpha, beta],
+        sdd={
+            "alpha": _FakeSddStore(storage="separate_repo", sdd_dir=shared_sdd),
+            "beta": _FakeSddStore(storage="separate_repo", sdd_dir=shared_sdd),
+        },
+    )
+
+    resolved = resolve_log_repos(cwd="/anywhere", all_projects=True, include_sdd=True)
+
+    sdd_repos = [repo for repo in resolved.repos if repo.kind == "sdd"]
+    assert len(sdd_repos) == 1
+    assert sdd_repos[0].path == str(shared_sdd.resolve())

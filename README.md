@@ -104,9 +104,10 @@ sase version             # inspect the exact SASE packages loaded by this enviro
 sase ace                  # open the interactive control surface; press # for the Admin Center (Config / Logs / Projects / Tasks / Updates / XPrompts)
 sase run "<prompt>"       # launch an agent or workflow
 sase agent list          # inspect running agents
-sase vcs list            # inspect the primary, linked, and SDD repository set
-sase vcs log             # inspect recent commits across that repository set
-sase vcs log --all       # merge commits from every registered project's repositories
+sase vcs list            # inspect the available primary, linked, and SDD repository set
+sase vcs log             # inspect recent primary and linked repository commits
+sase vcs log --sdd       # include the current project's separate SDD history
+sase vcs log --all --sdd # include repos and separate SDD histories from every project
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
 sase sdd path            # print the effective SDD root for this workspace

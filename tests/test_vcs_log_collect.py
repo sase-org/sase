@@ -562,12 +562,17 @@ def test_collect_corrupt_fetch_cache_is_ignored(tmp_path: Path) -> None:
 def test_run_merges_resolution_warnings_ahead_of_collection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scopes: list[bool] = []
+    scopes: list[tuple[bool, bool]] = []
 
     def fake_resolve(  # type: ignore[no-untyped-def]
-        *, cwd, repo_filters=(), all_projects=False, current_only=False
+        *,
+        cwd,
+        repo_filters=(),
+        all_projects=False,
+        current_only=False,
+        include_sdd=False,
     ):
-        scopes.append(all_projects)
+        scopes.append((all_projects, include_sdd))
         return ResolvedRepos(
             repos=[LogRepo("sase", "/p/sase", "primary")],
             warnings=["resolve-warning"],
@@ -582,9 +587,15 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
         all_projects=True,
         provider_factory=lambda path: providers[path],
     )
+    run_vcs_log(
+        cwd="/anywhere",
+        limit=10,
+        include_sdd=True,
+        provider_factory=lambda path: providers[path],
+    )
 
     # Resolution warning first, then the collection warning.
-    assert scopes == [True]
+    assert scopes == [(True, False), (False, True)]
     assert result.warnings == (
         "resolve-warning",
         "sase: no such checkout",

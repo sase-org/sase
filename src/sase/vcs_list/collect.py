@@ -83,6 +83,7 @@ def run_vcs_list(
         cwd=cwd,
         repo_filters=repo_filters,
         current_only=current_only,
+        include_sdd=True,
     )
     collected = _collect_vcs_list(
         resolved.repos,
