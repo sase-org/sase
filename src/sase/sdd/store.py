@@ -81,6 +81,7 @@ __all__ = [
     "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
     "ensure_workspace_sdd_clone",
+    "materialized_sdd_clone",
     "materialize_sdd_store",
     "normalize_sdd_store_record",
     "read_sdd_store_record",
@@ -125,6 +126,24 @@ def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore
         provider=provider,
         remote_url=remote_url,
     )
+
+
+def materialized_sdd_clone(
+    primary_workspace_dir: str | Path,
+) -> Path | None:
+    """Return the primary companion clone when its store was materialized."""
+
+    primary = Path(primary_workspace_dir).expanduser()
+    record = read_sdd_store_record(primary)
+    if not _is_materialized_record(record):
+        return None
+
+    clone = primary / ".sase" / "sdd"
+    if not clone.is_dir():
+        return None
+
+    assert record is not None
+    return clone if clone_matches_record(clone, record) else None
 
 
 def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore:

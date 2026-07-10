@@ -133,9 +133,9 @@ Additional plugins may return their own provider names. `detect_vcs_family()` co
 
 ### `sase vcs list`
 
-Lists the available repository constellation: the primary repository, configured linked repositories, and the separate
-SDD store when present. A bare `sase vcs` delegates to `sase vcs list`. The log command excludes the separate SDD
-history by default; use `sase vcs log --sdd` to include it.
+Lists the available repository constellation: the primary repository, configured linked repositories, and the
+materialized separate SDD store when present. A bare `sase vcs` delegates to `sase vcs list`. The log command excludes
+the separate SDD history by default; use `sase vcs log --sdd` to include it.
 
 Common forms:
 
@@ -164,10 +164,11 @@ one repo is shown as a warning and does not hide the other repos.
 ### `sase vcs log`
 
 Shows a day-grouped commit timeline across the primary repository and configured linked repositories. Pass `--sdd` to
-also include the current project's existing separate SDD repository. Pass `--all` to build one timeline from every
-active, inactive, and sibling project in the registered SASE inventory (excluding the system-managed `home` project),
-regardless of the current directory. Global discovery includes each usable primary and configured linked repo without
-materializing missing workspaces; `--all --sdd` also includes existing separate SDD repositories from those projects.
+also include the current project's materialized separate SDD repository. Pass `--all` to build one timeline from every
+registered active or inactive project (excluding the system-managed `home` project), regardless of the current
+directory. Global discovery includes each usable primary and configured linked repo without materializing missing
+workspaces. Sibling checkouts still appear as linked repositories of their owning projects; `--all --sdd` also includes
+materialized separate SDD repositories from the registered projects.
 
 Global discovery canonicalizes checkout paths, so a repository registered independently and linked from one or more
 projects is read and fetched only once. Registered project display names take precedence; colliding linked-repo and SDD
@@ -207,7 +208,7 @@ Options:
 
 | Option                                    | Purpose                                                                                 |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `-a`, `--all`                             | Read repositories from every registered project and lifecycle state.                    |
+| `-a`, `--all`                             | Read repositories from every registered active or inactive project.                     |
 | `-A`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
 | `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                        |
 | `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                   |
@@ -219,7 +220,7 @@ Options:
 | `-T`, `--no-tags`                         | Hide trailing SASE commit tags in pretty/full/oneline output and omit them from JSON.   |
 | `-r`, `--repo NAME`                       | Restrict to a resolved repo name. Repeatable.                                           |
 | `-R`, `--reverse`                         | Display the selected commits oldest-first.                                              |
-| `-S`, `--sdd`                             | Include commits from existing separate SDD repositories.                                |
+| `-S`, `--sdd`                             | Include commits from materialized separate SDD repositories.                            |
 | `-s`, `--since DATE`, `--after DATE`      | Include commits at or after `DATE`.                                                     |
 | `-u`, `--until DATE`, `--before DATE`     | Include commits at or before `DATE`.                                                    |
 

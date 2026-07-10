@@ -69,7 +69,7 @@ def resolve_log_repos(
 
     Without ``all_projects``, a non-project *cwd* falls back to the current VCS
     repository exactly as before.  Global scope is independent of *cwd* and
-    reads every active, inactive, and sibling project record except ``home``.
+    reads every registered active or inactive project record except ``home``.
     """
     warnings: list[str] = []
 
@@ -115,7 +115,9 @@ def _resolve_all_project_repos(
     warnings: list[str], *, include_sdd: bool
 ) -> list[LogRepo]:
     try:
-        records = list_project_records(sase_projects_dir(), "all", include_home=False)
+        records = list_project_records(
+            sase_projects_dir(), ("active", "inactive"), include_home=False
+        )
     except Exception as exc:  # pragma: no cover - facade failures are rare
         _warn_once(
             warnings,
@@ -146,11 +148,7 @@ def _resolve_record_candidates(
     project_label = effective_project_name(record)
     project_ref = _project_ref(record, project_label)
 
-    record_warnings = [
-        warning
-        for warning in (*record.warnings, *record.parse_warnings)
-        if warning.casefold() != "project is sibling"
-    ]
+    record_warnings = [*record.warnings, *record.parse_warnings]
     for warning in record_warnings:
         _warn_once(warnings, f"{project_ref}: {warning}")
 
@@ -193,7 +191,7 @@ def _resolve_record_candidates(
 
     project_warnings: list[str] = []
     linked = _resolve_linked_repos(str(project_file), primary_dir, project_warnings)
-    sdd = _resolve_sdd_repo(primary_dir, 0, project_warnings) if include_sdd else None
+    sdd = _resolve_sdd_repo(primary_dir, project_warnings) if include_sdd else None
     for warning in project_warnings:
         _warn_once(warnings, f"{project_ref}: {warning}")
 
@@ -259,7 +257,7 @@ def _resolve_project_repos(
 
     repos.extend(_resolve_linked_repos(project_file, primary_dir, warnings))
     if include_sdd:
-        sdd_repo = _resolve_sdd_repo(primary_dir, workspace_num, warnings)
+        sdd_repo = _resolve_sdd_repo(primary_dir, warnings)
         if sdd_repo is not None:
             repos.append(sdd_repo)
     return repos
@@ -307,26 +305,21 @@ def _resolve_linked_repos(
     return repos
 
 
-def _resolve_sdd_repo(
-    primary_dir: str, workspace_num: int, warnings: list[str]
-) -> LogRepo | None:
-    from sase.sdd import resolve_sdd_store
-    from sase.sdd.store import SDD_STORAGE_SEPARATE_REPO
+def _resolve_sdd_repo(primary_dir: str, warnings: list[str]) -> LogRepo | None:
+    from sase.sdd import materialized_sdd_clone
 
     try:
-        store = resolve_sdd_store(primary_dir, workspace_num)
+        clone = materialized_sdd_clone(primary_dir)
     except Exception as exc:  # pragma: no cover - defensive
         warnings.append(f"sdd store could not be resolved: {exc}")
         return None
 
-    # Only an existing separate repo has a distinct history. In-tree commits
-    # already appear in the primary log, and local storage is unversioned.
-    if store.storage != SDD_STORAGE_SEPARATE_REPO or not store.sdd_dir.is_dir():
+    if clone is None:
         return None
 
     return LogRepo(
         name=_sdd_label(primary_dir),
-        path=str(store.sdd_dir),
+        path=str(clone),
         kind="sdd",
         aliases=("sdd",),
     )

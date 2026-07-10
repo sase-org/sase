@@ -31,12 +31,6 @@ class _FakeLinkedResolution:
 
 
 @dataclass(frozen=True)
-class _FakeSddStore:
-    storage: str
-    sdd_dir: Path
-
-
-@dataclass(frozen=True)
 class _FakeRecord:
     repo: str | None
 
@@ -73,21 +67,18 @@ def _set_linked(
 
 def _set_sdd(
     monkeypatch: pytest.MonkeyPatch,
-    store: _FakeSddStore,
+    clone: Path | None,
     record: _FakeRecord | None = None,
 ) -> None:
     import sase.sdd as sdd_mod
 
-    monkeypatch.setattr(sdd_mod, "resolve_sdd_store", lambda *a, **k: store)
+    monkeypatch.setattr(sdd_mod, "materialized_sdd_clone", lambda *a, **k: clone)
     monkeypatch.setattr(sdd_mod, "read_sdd_store_record", lambda *a, **k: record)
 
 
 def test_primary_only(monkeypatch: pytest.MonkeyPatch, project: None) -> None:
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
-    _set_sdd(
-        monkeypatch,
-        _FakeSddStore(storage="in_tree", sdd_dir=Path("/ws/sase/.sase/sdd")),
-    )
+    _set_sdd(monkeypatch, None)
 
     resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
@@ -102,10 +93,7 @@ def test_primary_name_falls_back_to_project_key(
 ) -> None:
     monkeypatch.setattr(resolve_module, "project_display_name_for", lambda key: key)
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
-    _set_sdd(
-        monkeypatch,
-        _FakeSddStore(storage="in_tree", sdd_dir=Path("/ws/sase/.sase/sdd")),
-    )
+    _set_sdd(monkeypatch, None)
 
     resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
@@ -126,9 +114,7 @@ def test_primary_plus_linked_sorted_by_name(
             )
         ),
     )
-    _set_sdd(
-        monkeypatch, _FakeSddStore(storage="local", sdd_dir=Path("/ws/sase/.sase/sdd"))
-    )
+    _set_sdd(monkeypatch, None)
 
     resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
@@ -141,7 +127,7 @@ def test_primary_plus_linked_sorted_by_name(
     assert [r.kind for r in resolved.repos] == ["primary", "linked", "linked"]
 
 
-def test_separate_repo_sdd_included_with_git(
+def test_materialized_sdd_clone_is_included_with_record_label(
     monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
 ) -> None:
     sdd_dir = tmp_path / "sdd"
@@ -149,7 +135,7 @@ def test_separate_repo_sdd_included_with_git(
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(
         monkeypatch,
-        _FakeSddStore(storage="separate_repo", sdd_dir=sdd_dir),
+        sdd_dir,
         record=_FakeRecord(repo="sase-sdd"),
     )
 
@@ -163,47 +149,42 @@ def test_separate_repo_sdd_included_with_git(
     assert sdd[0].path == str(sdd_dir)
 
 
-def test_separate_repo_sdd_included_without_git_specific_marker(
+def test_materialized_sdd_clone_uses_fallback_label_without_repo_name(
     monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
 ) -> None:
     sdd_dir = tmp_path / "sdd"
     sdd_dir.mkdir()
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
-    _set_sdd(
-        monkeypatch,
-        _FakeSddStore(storage="separate_repo", sdd_dir=sdd_dir),
-    )
+    _set_sdd(monkeypatch, sdd_dir)
 
     resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [r.kind for r in resolved.repos] == ["primary", "sdd"]
 
 
-def test_separate_repo_sdd_skipped_when_checkout_is_missing(
+def test_materialized_sdd_record_with_unusable_clone_is_skipped(
     monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
 ) -> None:
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
-    _set_sdd(
-        monkeypatch,
-        _FakeSddStore(storage="separate_repo", sdd_dir=tmp_path / "missing"),
-    )
+    _set_sdd(monkeypatch, None, record=_FakeRecord(repo="sase-sdd"))
 
     resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [r.kind for r in resolved.repos] == ["primary"]
 
 
-def test_in_tree_sdd_skipped(
+def test_stale_non_materialized_sdd_clone_is_skipped_without_warning(
     monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
 ) -> None:
     sdd_dir = tmp_path / "sdd"
-    (sdd_dir / ".git").mkdir(parents=True)  # even with a .git, in_tree is skipped
+    (sdd_dir / ".git").mkdir(parents=True)
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
-    _set_sdd(monkeypatch, _FakeSddStore(storage="in_tree", sdd_dir=sdd_dir))
+    _set_sdd(monkeypatch, None)
 
     resolved = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
 
     assert [r.kind for r in resolved.repos] == ["primary"]
+    assert resolved.warnings == []
 
 
 def test_current_only_drops_linked_and_sdd(
@@ -215,7 +196,7 @@ def test_current_only_drops_linked_and_sdd(
     )
     sdd_dir = tmp_path / "sdd"
     sdd_dir.mkdir()
-    _set_sdd(monkeypatch, _FakeSddStore(storage="separate_repo", sdd_dir=sdd_dir))
+    _set_sdd(monkeypatch, sdd_dir)
 
     resolved = resolve_log_repos(cwd="/ws/sase", current_only=True, include_sdd=True)
 
@@ -234,9 +215,7 @@ def test_repo_filter_selects_named_repos(
             )
         ),
     )
-    _set_sdd(
-        monkeypatch, _FakeSddStore(storage="local", sdd_dir=Path("/ws/sase/.sase/sdd"))
-    )
+    _set_sdd(monkeypatch, None)
 
     resolved = resolve_log_repos(cwd="/ws/sase", repo_filters=["sase-core"])
 
@@ -247,7 +226,7 @@ def test_repo_filter_unknown_name_warns(
     monkeypatch: pytest.MonkeyPatch, project: None
 ) -> None:
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
-    _set_sdd(monkeypatch, _FakeSddStore(storage="local", sdd_dir=Path("/x")))
+    _set_sdd(monkeypatch, None)
 
     resolved = resolve_log_repos(cwd="/ws/sase", repo_filters=["nope"])
 
@@ -263,7 +242,7 @@ def test_sdd_filter_requires_sdd_scope(
     _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
     _set_sdd(
         monkeypatch,
-        _FakeSddStore(storage="separate_repo", sdd_dir=sdd_dir),
+        sdd_dir,
         record=_FakeRecord(repo="sase-sdd"),
     )
 
@@ -283,11 +262,11 @@ def test_excluded_sdd_store_is_not_probed_or_warned(
 
     calls: list[tuple[str, int]] = []
 
-    def fail_sdd(primary_dir: str, workspace_num: int) -> object:
-        calls.append((primary_dir, workspace_num))
+    def fail_sdd(primary_dir: str) -> object:
+        calls.append((primary_dir, 0))
         raise RuntimeError("broken SDD metadata")
 
-    monkeypatch.setattr(sdd_mod, "resolve_sdd_store", fail_sdd)
+    monkeypatch.setattr(sdd_mod, "materialized_sdd_clone", fail_sdd)
 
     default = resolve_log_repos(cwd="/ws/sase")
     included = resolve_log_repos(cwd="/ws/sase", include_sdd=True)
@@ -381,7 +360,7 @@ def _configure_global_resolution(
     records: list[ProjectRecordWire],
     *,
     linked: dict[str, _FakeLinkedResolution] | None = None,
-    sdd: dict[str, _FakeSddStore] | None = None,
+    sdd: dict[str, Path | None] | None = None,
     sdd_records: dict[str, _FakeRecord] | None = None,
 ) -> list[dict[str, object]]:
     calls: list[dict[str, object]] = []
@@ -391,7 +370,12 @@ def _configure_global_resolution(
 
     def fake_list(root, states, *, include_home):  # type: ignore[no-untyped-def]
         calls.append({"root": root, "states": states, "include_home": include_home})
-        return records
+        selected = (
+            {"active", "inactive", "sibling"}
+            if states == "all"
+            else ({states} if isinstance(states, str) else set(states))
+        )
+        return [record for record in records if record.state in selected]
 
     monkeypatch.setattr(resolve_module, "list_project_records", fake_list)
 
@@ -407,19 +391,16 @@ def _configure_global_resolution(
         project_name = Path(kwargs["project_file"]).stem
         return linked.get(project_name, _FakeLinkedResolution(repos=()))
 
-    def fake_sdd(primary_dir, workspace_num):  # type: ignore[no-untyped-def]
-        calls.append({"sdd_primary_dir": primary_dir, "workspace_num": workspace_num})
+    def fake_sdd(primary_dir):  # type: ignore[no-untyped-def]
+        calls.append({"sdd_primary_dir": primary_dir})
         project_name = Path(primary_dir).name
-        return sdd.get(
-            project_name,
-            _FakeSddStore(storage="local", sdd_dir=Path(primary_dir) / ".sase/sdd"),
-        )
+        return sdd.get(project_name)
 
     def fake_sdd_record(primary_dir):  # type: ignore[no-untyped-def]
         return sdd_records.get(Path(primary_dir).name)
 
     monkeypatch.setattr(linked_mod, "resolve_linked_repos_for_project", fake_linked)
-    monkeypatch.setattr(sdd_mod, "resolve_sdd_store", fake_sdd)
+    monkeypatch.setattr(sdd_mod, "materialized_sdd_clone", fake_sdd)
     monkeypatch.setattr(sdd_mod, "read_sdd_store_record", fake_sdd_record)
     return calls
 
@@ -441,9 +422,14 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
         tmp_path,
         records,
         linked={
-            "alpha": _FakeLinkedResolution(repos=(_FakeLinked("sase-core", str(core)),))
+            "alpha": _FakeLinkedResolution(
+                repos=(
+                    _FakeLinked("gamma", records[0].workspace_dir or ""),
+                    _FakeLinked("sase-core", str(core)),
+                )
+            )
         },
-        sdd={"alpha": _FakeSddStore(storage="separate_repo", sdd_dir=sdd_dir)},
+        sdd={"alpha": sdd_dir},
         sdd_records={"alpha": _FakeRecord(repo="alpha-sdd")},
     )
 
@@ -452,7 +438,7 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
     assert [repo.kind for repo in default.repos] == [
         "primary",
         "primary",
-        "primary",
+        "linked",
         "linked",
     ]
     assert not any("sdd_primary_dir" in call for call in calls)
@@ -465,20 +451,20 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
     assert [(repo.name, repo.kind) for repo in resolved.repos] == [
         ("Alpha", "primary"),
         ("beta", "primary"),
-        ("gamma", "primary"),
+        ("gamma", "linked"),
         ("sase-core", "linked"),
         ("alpha-sdd", "sdd"),
     ]
     assert calls[0] == {
         "root": tmp_path / "projects",
-        "states": "all",
+        "states": ("active", "inactive"),
         "include_home": False,
     }
     linked_calls = [call for call in calls[1:] if "materialize" in call]
-    assert len(linked_calls) == 3
+    assert len(linked_calls) == 2
     assert all(call["materialize"] is False for call in linked_calls)
     sdd_calls = [call for call in calls[1:] if "sdd_primary_dir" in call]
-    assert len(sdd_calls) == 3
+    assert len(sdd_calls) == 2
 
 
 def test_all_projects_skips_bad_records_and_deduplicates_warnings(
@@ -609,8 +595,8 @@ def test_all_projects_qualifies_colliding_sdd_labels_when_enabled(
         tmp_path,
         [alpha, beta],
         sdd={
-            "alpha": _FakeSddStore(storage="separate_repo", sdd_dir=alpha_sdd),
-            "beta": _FakeSddStore(storage="separate_repo", sdd_dir=beta_sdd),
+            "alpha": alpha_sdd,
+            "beta": beta_sdd,
         },
     )
 
@@ -646,8 +632,8 @@ def test_all_projects_deduplicates_shared_sdd_checkout_when_enabled(
         tmp_path,
         [alpha, beta],
         sdd={
-            "alpha": _FakeSddStore(storage="separate_repo", sdd_dir=shared_sdd),
-            "beta": _FakeSddStore(storage="separate_repo", sdd_dir=shared_sdd),
+            "alpha": shared_sdd,
+            "beta": shared_sdd,
         },
     )
 

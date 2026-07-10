@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.core.vcs_log_wire import VcsCommitWire
@@ -162,3 +164,43 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
     assert result.warnings == ("resolve-warning", "sase: no such checkout")
     assert [listing.repo.name for listing in result.repos] == ["sase"]
     assert include_sdd_values == [True]
+
+
+def test_run_skips_stale_sdd_clone_without_materialized_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import sase.main.utils as main_utils
+    import sase.sdd as sdd_module
+    import sase.vcs_log.resolve as resolve_module
+    import sase.workspace_provider.utils as workspace_utils
+
+    primary = tmp_path / "repo"
+    stale_sdd = primary / ".sase" / "sdd"
+    stale_sdd.mkdir(parents=True)
+    monkeypatch.setattr(
+        main_utils,
+        "ensure_project_file_and_get_workspace_num",
+        lambda *, create_missing=False: (str(tmp_path / "repo.sase"), 0, "repo"),
+    )
+    monkeypatch.setattr(
+        workspace_utils, "parse_workspace_dir", lambda project_file: str(primary)
+    )
+    monkeypatch.setattr(resolve_module, "project_display_name_for", lambda key: key)
+    monkeypatch.setattr(
+        resolve_module,
+        "_resolve_linked_repos",
+        lambda project_file, primary_dir, warnings: [],
+    )
+    monkeypatch.setattr(sdd_module, "materialized_sdd_clone", lambda primary: None)
+    monkeypatch.setattr(collect_module, "_linked_config_descriptions", lambda _: {})
+
+    result = run_vcs_list(
+        cwd=str(primary),
+        provider_factory=lambda path: _FakeProvider(_stats(3, 100)),
+    )
+
+    assert stale_sdd.is_dir()
+    assert [(listing.repo.name, listing.repo.kind) for listing in result.repos] == [
+        ("repo", "primary")
+    ]
+    assert result.warnings == ()

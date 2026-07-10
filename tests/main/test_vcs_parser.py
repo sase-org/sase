@@ -236,6 +236,10 @@ class TestVcsParser:
         assert "Include commits from existing separate SDD repositories" in " ".join(
             help_text.split()
         )
+        assert (
+            "Include repos from every registered active or inactive project"
+            in " ".join(help_text.split())
+        )
 
 
 class TestVcsHandlerDispatch:

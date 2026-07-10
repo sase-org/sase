@@ -86,7 +86,7 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
         "-a",
         "--all",
         action="store_true",
-        help="Include repos from all active, inactive, and sibling projects",
+        help="Include repos from every registered active or inactive project",
     )
     parser.add_argument(
         "-A",

@@ -10,11 +10,13 @@ from sase.sdd.store import (
     SDD_STORAGE_LOCAL,
     SDD_STORAGE_SEPARATE_REPO,
     SddMaterializationError,
+    materialized_sdd_clone,
     read_sdd_store_record,
     resolve_sdd_dir,
     resolve_sdd_store,
     write_sdd_store_record,
 )
+from tests.sdd_store._helpers import clone, init_bare_repo
 
 
 @pytest.mark.parametrize(
@@ -127,6 +129,80 @@ def test_positive_record_round_trips_atomically(tmp_path: Path) -> None:
 
     assert written.probed_at is not None
     assert read_sdd_store_record(primary) == written
+
+
+def test_materialized_sdd_clone_skips_stale_clone_without_record(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "repo"
+    stale = primary / ".sase" / "sdd"
+    stale.mkdir(parents=True)
+
+    assert materialized_sdd_clone(primary) is None
+
+
+def test_materialized_sdd_clone_returns_matching_primary_clone(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "repo"
+    companion = tmp_path / "companion.git"
+    store = primary / ".sase" / "sdd"
+    init_bare_repo(companion)
+    clone(companion, store)
+    write_sdd_store_record(
+        primary,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "owner/repo--sdd",
+            "remote_url": str(companion),
+            "discovery": "found",
+        },
+    )
+
+    assert materialized_sdd_clone(primary) == store
+
+
+def test_materialized_sdd_clone_skips_missing_clone_for_positive_record(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "repo"
+    write_sdd_store_record(
+        primary,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "owner/repo--sdd",
+            "remote_url": str(tmp_path / "companion.git"),
+            "discovery": "found",
+        },
+    )
+
+    assert materialized_sdd_clone(primary) is None
+
+
+def test_materialized_sdd_clone_skips_clone_with_mismatched_remote(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "repo"
+    expected = tmp_path / "expected.git"
+    other = tmp_path / "other.git"
+    store = primary / ".sase" / "sdd"
+    init_bare_repo(expected)
+    init_bare_repo(other)
+    clone(other, store)
+    write_sdd_store_record(
+        primary,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "owner/repo--sdd",
+            "remote_url": str(expected),
+            "discovery": "found",
+        },
+    )
+
+    assert materialized_sdd_clone(primary) is None
 
 
 def test_negative_records_cannot_be_written(tmp_path: Path) -> None:
