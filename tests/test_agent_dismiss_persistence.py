@@ -397,8 +397,92 @@ def test_delete_agent_artifacts_keeps_waiter_with_other_unresolved_dependency(  
         delete_agent_artifacts(str(parent_dir))
 
     assert not (waiter_dir / "ready.json").exists()
-    assert (waiter_dir / "waiting.json").exists()
+    waiting = json.loads((waiter_dir / "waiting.json").read_text(encoding="utf-8"))
+    assert waiting["resolved_deps"] == [
+        "b",
+        {
+            "name": "b",
+            "project_name": "proj",
+            "timestamp": parent_dir.name,
+            "artifact_dir": str(parent_dir),
+        },
+    ]
     assert not (parent_dir / "done.json").exists()
+
+    c_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260706131105"
+    c_dir.mkdir()
+    (c_dir / "agent_meta.json").write_text(json.dumps({"name": "c"}), encoding="utf-8")
+    (c_dir / "done.json").write_text(
+        json.dumps({"outcome": "completed"}), encoding="utf-8"
+    )
+    from sase.core.wait_dependency_resolution import (
+        build_wait_dependency_index,
+        dependency_resolution_status,
+    )
+
+    index = build_wait_dependency_index(
+        "proj", projects_root=tmp_path / ".sase/projects"
+    )
+    assert dependency_resolution_status(
+        index,
+        waiting["waiting_for"],
+        waiting["wait_for_artifacts"],
+        waiting["resolved_deps"],
+        self_artifact_dir=waiter_dir,
+    ).resolved
+
+
+def test_delete_failed_dependency_leaves_waiter_untouched(  # type: ignore[no-untyped-def]
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from sase.ace.tui.actions.agents._killing_utils import delete_agent_artifacts
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    parent_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260706130831"
+    waiter_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260706131004"
+    parent_dir.mkdir(parents=True)
+    waiter_dir.mkdir(parents=True)
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "b"}), encoding="utf-8"
+    )
+    (parent_dir / "done.json").write_text(
+        json.dumps({"outcome": "killed"}), encoding="utf-8"
+    )
+    (waiter_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "b--launch"}), encoding="utf-8"
+    )
+    original_waiting = {
+        "waiting_for": ["b"],
+        "wait_for_artifacts": [
+            {
+                "project_name": "proj",
+                "timestamp": parent_dir.name,
+                "artifact_dir": str(parent_dir),
+                "name": "b",
+            }
+        ],
+        "cl_name": "waiter-cl",
+        "timestamp": waiter_dir.name,
+    }
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps(original_waiting), encoding="utf-8"
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils."
+            "delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._killing_utils.try_delete_agent_artifacts",
+            return_value=False,
+        ),
+    ):
+        delete_agent_artifacts(str(parent_dir))
+
+    assert not (waiter_dir / "ready.json").exists()
+    assert json.loads((waiter_dir / "waiting.json").read_text()) == original_waiting
 
 
 def test_bulk_dismiss_fallback_batches_artifact_index_deletes(tmp_path) -> None:  # type: ignore[no-untyped-def]

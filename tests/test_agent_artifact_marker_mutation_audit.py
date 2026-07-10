@@ -51,12 +51,8 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         "src/sase/ace/tui/actions/agents/_killing_utils.py:"
         "_resolve_waiters_before_artifact_delete"
     ): Review(
-        mutation_calls=("open", "dump"),
-        exemption=(
-            "Writes ready.json success/cancellation markers only; waiting.json, "
-            "agent_meta.json, and done.json are read inputs, and ready.json is "
-            "not Tier 1 indexed."
-        ),
+        mutation_calls=("open", "dump", "open", "dump"),
+        lifecycle_calls=(_UPDATE_INDEX,),
     ),
     (
         "src/sase/ace/tui/actions/agents/_notification_plan_persistence.py:"
@@ -229,7 +225,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
     "src/sase/axe/run_agent_wait.py:wait_for_dependencies": Review(
         mutation_calls=(
             "unlink",
-            "unlink",
             "open",
             "dump",
             "unlink",
@@ -264,11 +259,10 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/scripts/sase_chop_wait_checks.py:main": Review(
-        mutation_calls=("open", "dump", "open", "dump"),
+        mutation_calls=("open", "dump"),
         exemption=(
-            "Writes ready.json success/cancellation markers only; waiting.json "
-            "and agent_meta.json are read inputs, and ready.json is not Tier 1 "
-            "indexed."
+            "Writes ready.json success markers only; waiting.json and "
+            "agent_meta.json are read inputs, and ready.json is not Tier 1 indexed."
         ),
     ),
     "src/sase/xprompt/workflow_executor.py:_save_state": Review(

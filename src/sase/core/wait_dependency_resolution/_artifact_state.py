@@ -13,13 +13,11 @@ from sase.plan_chain import (
 )
 
 from ._json_io import read_json_dict
-from ._submitted_plans import first_nonempty_str
 from ._types import (
     FAILURE_OUTCOMES,
     HANDOFF_TERMINAL_STEP_STATUSES,
     IDENTITY_SUCCESS_OUTCOMES,
     SUCCESS_OUTCOME,
-    ArtifactCandidate,
 )
 
 
@@ -49,19 +47,6 @@ def artifact_succeeded_for_identity(done_data: Mapping[str, Any] | None) -> bool
         return False
     outcome = done_outcome_from_data(done_data)
     return outcome in IDENTITY_SUCCESS_OUTCOMES
-
-
-def failed_dependency_record(
-    dependency: Mapping[str, Any],
-    candidate: ArtifactCandidate,
-) -> dict[str, str]:
-    record = {
-        "name": first_nonempty_str(dependency.get("name"), candidate.name) or "",
-        "timestamp": candidate.timestamp,
-        "project_name": candidate.project_name,
-        "artifact_dir": candidate.artifact_dir,
-    }
-    return {key: value for key, value in record.items() if value}
 
 
 def same_artifact_dir(left: str, right: str | Path | None) -> bool:

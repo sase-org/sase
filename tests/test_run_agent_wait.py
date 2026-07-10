@@ -204,7 +204,7 @@ def test_unresolved_named_wait_uses_slow_waiting_marker_path(
     assert not (waiter_dir / "ready.json").exists()
 
 
-def test_cancelled_wait_returns_failed_dependency_result(
+def test_stale_cancelled_ready_marker_is_removed_and_wait_continues(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -227,11 +227,18 @@ def test_cancelled_wait_returns_failed_dependency_result(
     )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
+    def resolve_after_stale_marker_is_removed(_seconds: float) -> None:
+        assert not (waiter_dir / "ready.json").exists()
+        (waiter_dir / "ready.json").write_text("{}", encoding="utf-8")
+
     with (
         patch("sase.axe.run_agent_wait.was_killed", return_value=False),
-        patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
+        patch(
+            "sase.axe.run_agent_wait.time.sleep",
+            side_effect=resolve_after_stale_marker_is_removed,
+        ) as sleep_mock,
     ):
-        result = wait_for_dependencies(
+        wait_for_dependencies(
             ["foo"],
             str(waiter_dir),
             "cl",
@@ -247,12 +254,64 @@ def test_cancelled_wait_returns_failed_dependency_result(
             ],
         )
 
-    sleep_mock.assert_not_called()
-    assert result.cancelled is True
-    assert result.reason == "dependency_failed"
-    assert result.failed_dependencies[0]["name"] == "foo"
+    sleep_mock.assert_called_once_with(2)
     assert not (waiter_dir / "waiting.json").exists()
     assert not (waiter_dir / "ready.json").exists()
+
+
+def test_failed_identity_dependency_waits_until_waiter_is_killed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="killed",
+    )
+    waiter_dir = _make_waiter(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    killed = False
+
+    def was_killed() -> bool:
+        return killed
+
+    def kill_waiter_after_one_poll(_seconds: float) -> None:
+        nonlocal killed
+        assert (waiter_dir / "waiting.json").exists()
+        assert not (waiter_dir / "ready.json").exists()
+        killed = True
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", side_effect=was_killed),
+        patch(
+            "sase.axe.run_agent_wait.time.sleep",
+            side_effect=kill_waiter_after_one_poll,
+        ) as sleep_mock,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        wait_for_dependencies(
+            ["foo"],
+            str(waiter_dir),
+            "cl",
+            "20260513120000",
+            {"pid": 123},
+            project_name="proj",
+            wait_identity_deps=[
+                {
+                    "project_name": "proj",
+                    "timestamp": parent_dir.name,
+                    "artifact_dir": str(parent_dir),
+                    "name": "foo",
+                }
+            ],
+        )
+
+    assert exc_info.value.code == 143
+    sleep_mock.assert_called_once_with(2)
+    assert not (waiter_dir / "waiting.json").exists()
 
 
 @pytest.mark.parametrize(

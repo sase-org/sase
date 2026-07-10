@@ -269,7 +269,7 @@ def test_identity_wait_ignores_newer_same_named_agent(
 
 
 @pytest.mark.parametrize("outcome", ["failed", "killed", "stopped"])
-def test_identity_wait_failed_parent_cancels(
+def test_identity_wait_failed_parent_keeps_waiting(
     tmp_path: Path, monkeypatch, outcome: str
 ) -> None:
     parent_dir = make_agent(
@@ -288,14 +288,10 @@ def test_identity_wait_failed_parent_cancels(
 
     run_wait_checks(tmp_path, monkeypatch)
 
-    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready["cancelled"] is True
-    assert ready["reason"] == "dependency_failed"
-    assert ready["failed_deps"][0]["name"] == "foo"
-    assert ready["failed_deps"][0]["timestamp"] == "20260506010101"
+    assert not (waiter_dir / "ready.json").exists()
 
 
-def test_identity_wait_repeat_stopped_parent_cancels(
+def test_identity_wait_repeat_stopped_parent_keeps_waiting(
     tmp_path: Path, monkeypatch
 ) -> None:
     parent_dir = make_agent(
@@ -318,9 +314,60 @@ def test_identity_wait_repeat_stopped_parent_cancels(
 
     run_wait_checks(tmp_path, monkeypatch)
 
+    assert not (waiter_dir / "ready.json").exists()
+
+
+def test_identity_wait_resolves_after_failed_parent_is_relaunched(
+    tmp_path: Path, monkeypatch
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="killed",
+    )
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "foo",
+        wait_for_artifacts=[_identity_dep(parent_dir)],
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506020202",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready["cancelled"] is True
-    assert ready["failed_deps"][0]["timestamp"] == "20260506010101"
+    assert ready == {"resolved_deps": ["foo"]}
+
+
+def test_dependency_launched_after_waiter_eventually_resolves(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "late-dep")
+
+    run_wait_checks(tmp_path, monkeypatch)
+    assert not (waiter_dir / "ready.json").exists()
+
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506020202",
+        "late-dep",
+        done=True,
+        outcome="completed",
+    )
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["late-dep"]}
 
 
 def test_concrete_indexed_wait_marker_resolves_without_template_marker(

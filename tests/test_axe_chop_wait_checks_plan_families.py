@@ -111,7 +111,7 @@ def test_identity_wait_successful_plan_family_generation_resolves(
     assert ready == {"resolved_deps": ["planfam"]}
 
 
-def test_identity_wait_failed_plan_family_generation_cancels(
+def test_identity_wait_failed_plan_family_generation_keeps_waiting(
     tmp_path: Path, monkeypatch
 ) -> None:
     root_dir = make_agent(
@@ -144,9 +144,7 @@ def test_identity_wait_failed_plan_family_generation_cancels(
 
     run_wait_checks(tmp_path, monkeypatch)
 
-    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready["cancelled"] is True
-    assert ready["failed_deps"][0]["name"] == "planfam"
+    assert not (waiter_dir / "ready.json").exists()
 
 
 @pytest.mark.parametrize("parent_has_family_meta", [False, True])
@@ -233,7 +231,7 @@ def test_queued_family_siblings_do_not_mutually_block_parent_dependency(
     }
 
 
-def test_stale_waiting_marker_on_failed_family_member_still_cancels(
+def test_stale_waiting_marker_on_failed_family_member_keeps_waiting(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -267,9 +265,7 @@ def test_stale_waiting_marker_on_failed_family_member_still_cancels(
 
     run_wait_checks(tmp_path, monkeypatch)
 
-    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
-    assert ready["cancelled"] is True
-    assert ready["failed_deps"][0]["name"] == "b"
+    assert not (waiter_dir / "ready.json").exists()
 
 
 def test_completed_plan_chain_handoff_without_done_resolves_family_dependency(

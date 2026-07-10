@@ -15,7 +15,6 @@ from ._artifact_state import (
     artifact_is_resolved,
     artifact_succeeded_for_identity,
     done_outcome_from_data,
-    failed_dependency_record,
     family_base_from_meta,
     same_artifact_dir,
 )
@@ -324,6 +323,7 @@ class WaitDependencyIndex:
         name: str,
         *,
         exclude_artifact_dir: str | Path | None = None,
+        newer_than: str | None = None,
     ) -> bool:
         candidates = [
             candidate
@@ -342,7 +342,11 @@ class WaitDependencyIndex:
             return False
 
         latest = max(candidates, key=lambda candidate: candidate.timestamp)
-        return latest.is_resolved and latest.is_done
+        return (
+            (newer_than is None or latest.timestamp > newer_than)
+            and latest.is_resolved
+            and latest.is_done
+        )
 
     def identity_status(
         self,
@@ -352,7 +356,10 @@ class WaitDependencyIndex:
     ) -> WaitDependencyStatus:
         candidate = self._identity_candidate(dependency)
         if candidate is None:
-            return WaitDependencyStatus("waiting")
+            return self._identity_name_fallback_status(
+                dependency,
+                exclude_artifact_dir=exclude_artifact_dir,
+            )
 
         family_candidate = self.family_candidate_for_root(
             candidate,
@@ -360,20 +367,42 @@ class WaitDependencyIndex:
         )
         if family_candidate is not None:
             if family_candidate.is_failed:
-                return WaitDependencyStatus(
-                    "failed",
-                    (failed_dependency_record(dependency, candidate),),
+                return self._identity_name_fallback_status(
+                    dependency,
+                    exclude_artifact_dir=exclude_artifact_dir,
+                    newer_than=family_candidate.timestamp,
                 )
             if family_candidate.is_resolved and family_candidate.is_identity_success:
                 return WaitDependencyStatus("resolved")
             return WaitDependencyStatus("waiting")
 
         if candidate.is_failed:
-            return WaitDependencyStatus(
-                "failed",
-                (failed_dependency_record(dependency, candidate),),
+            return self._identity_name_fallback_status(
+                dependency,
+                exclude_artifact_dir=exclude_artifact_dir,
+                newer_than=candidate.timestamp,
             )
         if candidate.is_identity_success:
+            return WaitDependencyStatus("resolved")
+        return WaitDependencyStatus("waiting")
+
+    def _identity_name_fallback_status(
+        self,
+        dependency: Mapping[str, Any],
+        *,
+        exclude_artifact_dir: str | Path | None,
+        newer_than: str | None = None,
+    ) -> WaitDependencyStatus:
+        name = dependency.get("name")
+        if (
+            isinstance(name, str)
+            and name
+            and self.is_resolved(
+                name,
+                exclude_artifact_dir=exclude_artifact_dir,
+                newer_than=newer_than,
+            )
+        ):
             return WaitDependencyStatus("resolved")
         return WaitDependencyStatus("waiting")
 

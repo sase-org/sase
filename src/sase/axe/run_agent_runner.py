@@ -20,7 +20,6 @@ from sase.ace.hooks import format_duration
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_phases import (
-    build_done_marker,
     claim_deferred_workspace,
     extract_directives_and_write_meta,
     record_run_started_at,
@@ -86,79 +85,6 @@ from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
-
-
-class _CancelledWaitFinished(Exception):
-    """Internal sentinel used after a queued wait is cancelled cleanly."""
-
-
-def _dependency_label(dependency: dict[str, str]) -> str:
-    name = dependency.get("name") or "unknown"
-    timestamp = dependency.get("timestamp") or "unknown"
-    return f"{name}@{timestamp}"
-
-
-def _finalize_cancelled_wait(
-    *,
-    failed_dependencies: tuple[dict[str, str], ...],
-    reason: str | None,
-    artifacts_dir: str,
-    cl_name: str,
-    project_file: str,
-    timestamp: str,
-    artifacts_timestamp: str,
-    workspace_num: int,
-    workspace_dir: str,
-    output_path: str,
-    agent_name: str | None,
-    agent_model: str | None,
-    agent_llm_provider: str | None,
-    agent_vcs_provider: str | None,
-    agent_hidden: bool,
-    prompt: str,
-) -> None:
-    labels = ", ".join(_dependency_label(dep) for dep in failed_dependencies)
-    detail = labels or reason or "dependency failed"
-    done_marker = build_done_marker(
-        cl_name,
-        project_file,
-        timestamp,
-        artifacts_timestamp,
-        workspace_num,
-        workspace_dir,
-        output_path,
-        "stopped",
-        agent_name=agent_name,
-        agent_model=agent_model,
-        agent_llm_provider=agent_llm_provider,
-        agent_vcs_provider=agent_vcs_provider,
-        agent_hidden=agent_hidden,
-        error=f"Queued launch cancelled because dependency failed: {detail}",
-    )
-    done_marker["queue_cancelled"] = True
-    done_marker["failed_dependencies"] = list(failed_dependencies)
-    write_done_marker_and_update_index(artifacts_dir, done_marker)
-
-    from sase.notifications.senders import notify_workflow_complete
-
-    action_data = {
-        "cl_name": cl_name,
-        "raw_suffix": artifacts_timestamp,
-        **({"agent_name": agent_name} if agent_name else {}),
-        "prompt": prompt,
-    }
-    notify_workflow_complete(
-        sender="user-agent",
-        cl_name=cl_name,
-        success=True,
-        notes=[
-            f"Queued agent @{agent_name or artifacts_timestamp} stopped",
-            f"Parent dependency failed: {detail}",
-        ],
-        action="JumpToAgent",
-        action_data=action_data,
-        tags=["done"],
-    )
 
 
 def main() -> None:
@@ -355,7 +281,7 @@ def main() -> None:
             wait_chats: list[str] = []
             repeat_stop: RepeatStopDecision | None = None
             if has_wait:
-                wait_result = wait_for_dependencies(
+                wait_for_dependencies(
                     info.wait_names,
                     artifacts_dir,
                     cl_name,
@@ -366,39 +292,6 @@ def main() -> None:
                     duration=info.wait_duration,
                     wait_until=info.wait_until,
                 )
-                if wait_result is not None and wait_result.cancelled is True:
-                    _finalize_cancelled_wait(
-                        failed_dependencies=wait_result.failed_dependencies,
-                        reason=wait_result.reason,
-                        artifacts_dir=artifacts_dir,
-                        cl_name=cl_name,
-                        project_file=project_file,
-                        timestamp=timestamp,
-                        artifacts_timestamp=artifacts_timestamp,
-                        workspace_num=workspace_num,
-                        workspace_dir=workspace_dir,
-                        output_path=output_path,
-                        agent_name=agent_name,
-                        agent_model=agent_model,
-                        agent_llm_provider=agent_llm_provider,
-                        agent_vcs_provider=agent_vcs_provider,
-                        agent_hidden=agent_hidden,
-                        prompt=prompt,
-                    )
-                    current_artifacts_dir = artifacts_dir
-                    success = True
-                    exec_outcome = "stopped"
-                    suppress_completion_notification = True
-                    repeat_stop = None
-                    saved_path = None
-                    diff_path = None
-                    markdown_pdf_paths = []
-                    markdown_source_count = 0
-                    image_paths = []
-                    video_paths = []
-                    step_output = None
-                    raise _CancelledWaitFinished()
-
                 repeat_stop = detect_repeat_stop()
 
             if repeat_stop is not None:
@@ -517,8 +410,6 @@ def main() -> None:
                 current_artifacts_dir = exec_result.current_artifacts_dir
                 step_output = exec_result.step_output
 
-        except _CancelledWaitFinished:
-            pass
         except Exception as e:
             success = False
             error_summary, error_traceback_str = record_runner_error(

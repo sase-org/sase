@@ -48,15 +48,10 @@ class FamilyCandidate:
 @dataclass(frozen=True)
 class WaitDependencyStatus:
     state: str
-    failed_dependencies: tuple[dict[str, str], ...] = ()
 
     @property
     def resolved(self) -> bool:
         return self.state == "resolved"
-
-    @property
-    def failed(self) -> bool:
-        return self.state == "failed"
 
 
 @dataclass(frozen=True)

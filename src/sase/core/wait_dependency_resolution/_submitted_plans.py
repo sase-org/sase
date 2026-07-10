@@ -44,7 +44,7 @@ def submitted_plan_artifact(
     if _has_submission_marker(meta.get("feedback_submitted_at")):
         return None
 
-    plan_path = first_nonempty_str(plan_path_marker, meta.get("plan_path"))
+    plan_path = _first_nonempty_str(plan_path_marker, meta.get("plan_path"))
     if plan_path is None:
         return None
 
@@ -97,7 +97,7 @@ def _has_submission_marker(raw_value: object) -> bool:
     return False
 
 
-def first_nonempty_str(*values: object) -> str | None:
+def _first_nonempty_str(*values: object) -> str | None:
     for value in values:
         if isinstance(value, str) and value:
             return value

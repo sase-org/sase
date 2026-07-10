@@ -48,7 +48,6 @@ def main() -> None:
     artifacts = 0
     waiting_markers = 0
     ready_written = 0
-    cancelled = 0
     skipped_ready = 0
     skipped_invalid = 0
     unresolved = 0
@@ -103,8 +102,11 @@ def main() -> None:
 
         waiting_for = data.get("waiting_for", [])
         wait_for_artifacts = data.get("wait_for_artifacts", [])
+        resolved_deps = data.get("resolved_deps", [])
         if not isinstance(wait_for_artifacts, list):
             wait_for_artifacts = []
+        if not isinstance(resolved_deps, list):
+            resolved_deps = []
         if not isinstance(waiting_for, list) or (
             not waiting_for and not wait_for_artifacts
         ):
@@ -115,33 +117,10 @@ def main() -> None:
             dependency_index,
             waiting_for,
             wait_for_artifacts,
+            resolved_deps,
             self_artifact_dir=waiting_marker.waiting_path.parent,
         )
-        if status.failed:
-            failed_deps = list(status.failed_dependencies)
-            cl_name = data.get("cl_name", "unknown")
-            labels = ", ".join(_dependency_label(dep) for dep in failed_deps)
-            log(
-                f"[wait_checks] Cancelling wait for {cl_name}; "
-                f"failed dependency: {labels or 'unknown'}",
-            )
-            try:
-                with open(waiting_marker.ready_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {
-                            "cancelled": True,
-                            "reason": "dependency_failed",
-                            "resolved_deps": waiting_for,
-                            "failed_deps": failed_deps,
-                        },
-                        f,
-                        indent=2,
-                    )
-            except OSError:
-                skipped_invalid += 1
-            else:
-                cancelled += 1
-        elif status.resolved:
+        if status.resolved:
             cl_name = data.get("cl_name", "unknown")
             log(
                 f"[wait_checks] Dependencies satisfied for {cl_name}, "
@@ -165,9 +144,9 @@ def main() -> None:
         "wait_checks: "
         f"projects={projects} artifacts={artifacts} waiting={waiting_markers} "
         f"ready_written={ready_written} already_ready={skipped_ready} "
-        f"cancelled={cancelled} invalid={skipped_invalid} unresolved={unresolved}"
+        f"invalid={skipped_invalid} unresolved={unresolved}"
     )
-    if ready_written == 0 and cancelled == 0:
+    if ready_written == 0:
         if projects == 0:
             reason = "no_project_dirs"
         elif waiting_markers == 0:
@@ -180,12 +159,6 @@ def main() -> None:
             reason = "no_ready_markers_written"
         summary += f" reason={reason}"
     log(summary)
-
-
-def _dependency_label(dependency: dict[str, str]) -> str:
-    name = dependency.get("name") or "unknown"
-    timestamp = dependency.get("timestamp") or "unknown"
-    return f"{name}@{timestamp}"
 
 
 if __name__ == "__main__":

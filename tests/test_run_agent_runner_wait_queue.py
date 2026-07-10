@@ -54,7 +54,7 @@ def _agent_info() -> SimpleNamespace:
 
 def _run_runner_with_wait_result(
     tmp_path: Path,
-    wait_result: SimpleNamespace,
+    wait_result: object,
 ) -> dict[str, object]:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
@@ -225,10 +225,7 @@ def _run_runner_with_wait_result(
 
 
 def test_queued_child_proceeds_after_identity_wait_barrier(tmp_path: Path) -> None:
-    result = _run_runner_with_wait_result(
-        tmp_path,
-        SimpleNamespace(cancelled=False, reason=None, failed_dependencies=()),
-    )
+    result = _run_runner_with_wait_result(tmp_path, None)
 
     wait_for_dependencies = result["wait_for_dependencies"]
     assert isinstance(wait_for_dependencies, MagicMock)
@@ -245,54 +242,3 @@ def test_queued_child_proceeds_after_identity_wait_barrier(tmp_path: Path) -> No
     assert isinstance(run_execution_loop, MagicMock)
     run_execution_loop.assert_called_once()
     assert result["done_markers"] == []
-
-
-def test_queued_child_failed_parent_finalizes_stopped_and_notifies(
-    tmp_path: Path,
-) -> None:
-    failed_dependency = {
-        "project_name": "sase",
-        "timestamp": "20260701010101",
-        "artifact_dir": "/tmp/foo-parent",
-        "name": "foo",
-    }
-    result = _run_runner_with_wait_result(
-        tmp_path,
-        SimpleNamespace(
-            cancelled=True,
-            reason="dependency_failed",
-            failed_dependencies=(failed_dependency,),
-        ),
-    )
-
-    run_execution_loop = result["run_execution_loop"]
-    assert isinstance(run_execution_loop, MagicMock)
-    run_execution_loop.assert_not_called()
-
-    done_markers = result["done_markers"]
-    assert isinstance(done_markers, list)
-    assert len(done_markers) == 1
-    _, marker = done_markers[0]
-    assert marker["outcome"] == "stopped"
-    assert marker["queue_cancelled"] is True
-    assert marker["failed_dependencies"] == [failed_dependency]
-    assert "foo@20260701010101" in str(marker["error"])
-
-    notify = result["notify"]
-    assert isinstance(notify, MagicMock)
-    notify.assert_called_once()
-    assert notify.call_args.kwargs["success"] is True
-    assert notify.call_args.kwargs["tags"] == ["done"]
-    assert notify.call_args.kwargs["action"] == "JumpToAgent"
-    assert notify.call_args.kwargs["action_data"]["agent_name"] == "foo--reviewer"
-    assert notify.call_args.kwargs["notes"] == [
-        "Queued agent @foo--reviewer stopped",
-        "Parent dependency failed: foo@20260701010101",
-    ]
-
-    shutdown_states = result["shutdown_states"]
-    assert isinstance(shutdown_states, list)
-    assert len(shutdown_states) == 1
-    shutdown_state = shutdown_states[0]
-    assert shutdown_state.exec_outcome == "stopped"
-    assert shutdown_state.suppress_completion_notification is True

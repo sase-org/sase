@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
+    update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
 from sase.core.wait_dependency_resolution import (
@@ -72,13 +73,7 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
         return
 
     project_name, workflow_dir_name, projects_root, timestamp = context
-    dependency_succeeded = _done_outcome(artifacts_path) == "completed"
-    failed_dep = _failed_dependency_record(
-        name=deleted_name,
-        project_name=project_name,
-        timestamp=timestamp,
-        artifacts_dir=artifacts_path,
-    )
+    name_succeeded, identity_succeeded = _dependency_successes(artifacts_path)
 
     try:
         artifact_dirs = tuple(
@@ -92,7 +87,7 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
         return
 
     dependency_index = None
-    if dependency_succeeded:
+    if name_succeeded or identity_succeeded:
         try:
             dependency_index = build_wait_dependency_index(
                 project_name,
@@ -124,22 +119,40 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
             artifacts_dir=artifacts_path,
         ):
             continue
-        if dependency_succeeded:
-            ready_data = _ready_data_for_completed_dependency(
-                dependency_index,
+        if not name_succeeded and not identity_succeeded:
+            continue
+        resolved_deps = waiting_data.get("resolved_deps")
+        if not isinstance(resolved_deps, list):
+            resolved_deps = []
+        ready_data = _ready_data_for_completed_dependency(
+            dependency_index,
+            waiting_for=waiting_for,
+            wait_for_artifacts=wait_for_artifacts,
+            resolved_deps=resolved_deps,
+            waiter_dir=waiter_dir,
+        )
+        if ready_data is None:
+            merged_resolved_deps = _memoize_completed_dependency(
+                resolved_deps,
                 waiting_for=waiting_for,
                 wait_for_artifacts=wait_for_artifacts,
-                waiter_dir=waiter_dir,
+                deleted_name=deleted_name,
+                project_name=project_name,
+                timestamp=timestamp,
+                artifacts_dir=artifacts_path,
+                memoize_name=name_succeeded,
+                memoize_identity=identity_succeeded,
             )
-            if ready_data is None:
+            if merged_resolved_deps == resolved_deps:
                 continue
-        else:
-            ready_data = {
-                "cancelled": True,
-                "reason": "dependency_failed",
-                "resolved_deps": waiting_for,
-                "failed_deps": [failed_dep],
-            }
+            waiting_data["resolved_deps"] = merged_resolved_deps
+            try:
+                with open(waiting_path, "w", encoding="utf-8") as f:
+                    json.dump(waiting_data, f, indent=2)
+                update_agent_artifact_index_for_marker_mutation(waiter_dir)
+            except OSError:
+                continue
+            continue
         try:
             with open(ready_path, "w", encoding="utf-8") as f:
                 json.dump(ready_data, f, indent=2)
@@ -152,6 +165,7 @@ def _ready_data_for_completed_dependency(
     *,
     waiting_for: list[str],
     wait_for_artifacts: list[object],
+    resolved_deps: list[object],
     waiter_dir: Path,
 ) -> dict[str, object] | None:
     """Return ready marker data only when all waiter dependencies are satisfied."""
@@ -161,18 +175,59 @@ def _ready_data_for_completed_dependency(
         dependency_index,
         waiting_for,
         wait_for_artifacts,
+        resolved_deps,
         self_artifact_dir=waiter_dir,
     )
-    if status.failed:
-        return {
-            "cancelled": True,
-            "reason": "dependency_failed",
-            "resolved_deps": waiting_for,
-            "failed_deps": list(status.failed_dependencies),
-        }
     if not status.resolved:
         return None
     return {"resolved_deps": waiting_for}
+
+
+def _memoize_completed_dependency(
+    resolved_deps: list[object],
+    *,
+    waiting_for: list[str],
+    wait_for_artifacts: list[object],
+    deleted_name: str | None,
+    project_name: str,
+    timestamp: str,
+    artifacts_dir: Path,
+    memoize_name: bool,
+    memoize_identity: bool,
+) -> list[object]:
+    merged = list(resolved_deps)
+    if memoize_name and deleted_name is not None and deleted_name in waiting_for:
+        if deleted_name not in merged:
+            merged.append(deleted_name)
+
+    if not memoize_identity:
+        return merged
+
+    for dependency in wait_for_artifacts:
+        if not isinstance(dependency, dict) or not _identity_dependency_matches(
+            dependency,
+            project_name=project_name,
+            timestamp=timestamp,
+            artifacts_dir=artifacts_dir,
+        ):
+            continue
+        memo = {
+            key: value
+            for key in ("name", "project_name", "timestamp", "artifact_dir")
+            if isinstance((value := dependency.get(key)), str) and value
+        }
+        if memo and not any(
+            isinstance(existing, dict)
+            and _identity_dependency_matches(
+                existing,
+                project_name=project_name,
+                timestamp=timestamp,
+                artifacts_dir=artifacts_dir,
+            )
+            for existing in merged
+        ):
+            merged.append(memo)
+    return merged
 
 
 def _artifact_project_context(
@@ -204,12 +259,16 @@ def _meta_name(meta: dict[str, object] | None) -> str | None:
     return name if isinstance(name, str) and name else None
 
 
-def _done_outcome(artifacts_path: Path) -> str | None:
+def _dependency_successes(artifacts_path: Path) -> tuple[bool, bool]:
     done_data = read_json_dict(artifacts_path / "done.json")
     if done_data is None:
-        return None
+        return False, False
     outcome = done_data.get("outcome")
-    return outcome if isinstance(outcome, str) else None
+    name_succeeded = outcome == "completed"
+    identity_succeeded = outcome in {"completed", "plan_rejected"} and not bool(
+        done_data.get("repeat_stopped")
+    )
+    return name_succeeded, identity_succeeded
 
 
 def _string_list(value: object) -> list[str]:
@@ -257,22 +316,6 @@ def _identity_dependency_matches(
         dependency.get("project_name") == project_name
         and dependency.get("timestamp") == timestamp
     )
-
-
-def _failed_dependency_record(
-    *,
-    name: str | None,
-    project_name: str,
-    timestamp: str,
-    artifacts_dir: Path,
-) -> dict[str, str]:
-    record = {
-        "name": name or "",
-        "timestamp": timestamp,
-        "project_name": project_name,
-        "artifact_dir": str(artifacts_dir),
-    }
-    return {key: value for key, value in record.items() if value}
 
 
 def _same_artifact_dir(left: str | Path, right: str | Path) -> bool:
