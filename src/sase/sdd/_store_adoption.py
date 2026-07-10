@@ -17,6 +17,12 @@ from sase.sdd._store_types import SddMaterializationError, SddStoreRecord
 
 _RUNTIME_ONLY_PATHS = frozenset(BEAD_STORE_GITIGNORE_PATTERNS)
 
+# Directory names that never hold durable SDD artifacts. ``.git`` is the source's
+# own version-control metadata, and ``.sase`` is workspace runtime state -- for
+# example a companion clone accidentally nested inside another store's tree --
+# which must never be imported as if it were a durable artifact.
+_NON_ARTIFACT_DIRS = frozenset({".git", ".sase"})
+
 
 @contextmanager
 def materialization_lock(primary: Path) -> Iterator[None]:
@@ -36,6 +42,21 @@ def new_staging_path(primary: Path) -> Path:
     """Return a unique, not-yet-created staging path beside the primary store."""
 
     return primary / ".sase" / f".sdd.materialize-{os.getpid()}-{uuid.uuid4().hex}"
+
+
+def _source_is_versioned(source: Path) -> bool:
+    """Return whether a legacy source keeps its artifacts under version control.
+
+    A version-controlled source -- most commonly a stale or renamed companion
+    clone whose ``origin`` no longer matches the record -- retains every
+    overlapping artifact in its own git history. Such a source contributes only
+    the artifacts the companion lacks; paths that already exist in the companion
+    defer to it (mirroring :func:`_copy_durable_artifacts`) instead of reading as
+    an unresolvable conflict. Loose, un-versioned sources have no such safety net,
+    so their overlapping differences are still surfaced for reconciliation.
+    """
+
+    return (source / ".git").is_dir()
 
 
 def clone_matches_record(path: Path, record: SddStoreRecord) -> bool:
@@ -118,11 +139,12 @@ def legacy_adoption_needed(
 
     target = primary / ".sase" / "sdd"
     for source in _legacy_sources(primary, workspace, target, record):
+        versioned = _source_is_versioned(source)
         for item in _iter_durable_files(source):
             destination = target / item.relative_to(source)
             if not (destination.exists() or destination.is_symlink()):
                 return True
-            if not _same_artifact(item, destination):
+            if not versioned and not _same_artifact(item, destination):
                 return True
     return False
 
@@ -194,19 +216,26 @@ def _merge_conflicts(sources: list[Path], target: Path) -> list[str]:
     conflicts: set[str] = set()
     accepted: dict[str, Path] = {}
     for source in sources:
+        versioned = _source_is_versioned(source)
         for item in _iter_durable_files(source):
             rel = item.relative_to(source).as_posix()
-            existing_source = accepted.get(rel)
             destination = target / rel
+            dest_present = destination.exists() or destination.is_symlink()
+            # A version-controlled source's overlapping artifacts stay safe in its
+            # own history and the import always defers to the companion for paths
+            # it already holds, so only such a source's unique artifacts matter.
+            # This keeps a stale or renamed companion clone whose committed files
+            # merely lag the companion from reading as an unresolvable conflict.
+            if versioned and dest_present:
+                continue
+            existing_source = accepted.get(rel)
             if existing_source is not None and not _same_artifact(
                 existing_source, item
             ):
                 conflicts.add(rel)
                 continue
             accepted.setdefault(rel, item)
-            if (
-                destination.exists() or destination.is_symlink()
-            ) and not _same_artifact(item, destination):
+            if dest_present and not _same_artifact(item, destination):
                 conflicts.add(rel)
     return sorted(conflicts)
 
@@ -228,7 +257,7 @@ def _iter_durable_files(root: Path) -> Iterator[Path]:
     if not root.is_dir():
         return
     for current, dirs, files in os.walk(root, followlinks=False):
-        dirs[:] = [name for name in dirs if name != ".git"]
+        dirs[:] = [name for name in dirs if name not in _NON_ARTIFACT_DIRS]
         current_path = Path(current)
         for name in files:
             item = current_path / name

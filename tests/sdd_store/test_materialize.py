@@ -401,6 +401,42 @@ def test_conflict_aborts_and_preserves_legacy_source(
     assert read_sdd_store_record(primary) is None
 
 
+def test_versioned_stale_clone_defers_overlap_and_skips_runtime_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = _remote_with_files(tmp_path, {"tales/202607/shared.md": "companion\n"})
+    _install_provider(monkeypatch, _FakeSeparateRepoProvider(remote))
+
+    primary = tmp_path / "repo"
+    local = primary / ".sase" / "sdd"
+    # A stale companion clone whose origin is the pre-rename URL, so it is not
+    # recognized as the companion and is inspected as a legacy source.
+    clone(remote, local)
+    git(["remote", "set-url", "origin", str(tmp_path / "renamed.git")], local)
+    # Its committed copy of the shared tale merely lags the companion, holds a
+    # not-yet-pushed unique tale, and carries an accidentally nested companion
+    # clone under .sase that must never be imported as a durable artifact.
+    (local / "tales" / "202607" / "shared.md").write_text("stale\n", encoding="utf-8")
+    (local / "tales" / "202607" / "unique.md").write_text("unique\n", encoding="utf-8")
+    nested = local / ".sase" / "sdd" / "tales" / "202607" / "nested.md"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("nested\n", encoding="utf-8")
+    commit_all(local, "Local SDD work")
+
+    store = materialize_sdd_store(primary, 1)
+
+    # The overlapping artifact defers to the authoritative companion; the stale,
+    # version-controlled copy no longer aborts the transaction as a conflict.
+    assert (store.sdd_dir / "tales" / "202607" / "shared.md").read_text() == (
+        "companion\n"
+    )
+    # The unique, unpushed artifact is still rescued into the companion.
+    assert (store.sdd_dir / "tales" / "202607" / "unique.md").read_text() == "unique\n"
+    # Nested workspace runtime metadata is excluded from durable-artifact import.
+    assert not (store.sdd_dir / ".sase").exists()
+
+
 def test_materialization_is_idempotent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
