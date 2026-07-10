@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.sdd_policy_helpers import set_sdd_policy
+
 from sase.bead import cli as bead_cli
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
@@ -82,10 +84,7 @@ def test_create_plan_stores_sibling_workspace_plan_path_relative_to_primary(
     monkeypatch.setattr(
         "sase.bead.workspace.resolve_primary_workspace", lambda: primary
     )
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": "in_tree", "version_controlled": False}},
-    )
+    set_sdd_policy(monkeypatch, "in_tree")
     args = _create_args(title="Epic", type_value=f"plan({plan})", tier="epic")
 
     bead_cli.handle_bead_create(args)
@@ -111,10 +110,7 @@ def test_create_plan_preserves_external_absolute_plan_path(
     monkeypatch.setattr(
         "sase.bead.workspace.resolve_primary_workspace", lambda: primary
     )
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": "in_tree", "version_controlled": False}},
-    )
+    set_sdd_policy(monkeypatch, "in_tree")
     args = _create_args(title="Epic", type_value=f"plan({external})", tier="epic")
 
     bead_cli.handle_bead_create(args)

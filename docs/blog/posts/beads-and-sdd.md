@@ -39,15 +39,13 @@ Two plan tiers, two plan directories under the effective SDD root:
 - **Tales** — ordinary implementation plans, at `tales/{YYYYMM}/{name}.md`.
 - **Epics** — executable multi-phase plans, at `epics/{YYYYMM}/{name}.md`.
 
-Storage is resolved through `sdd.storage`. The default, `auto`, keeps provider defaults: built-in bare-git projects use
-in-tree `sdd/`, while other providers use a standalone git repo inside the primary workspace at `.sase/sdd/` unless
-explicit config or a materialized companion-store record selects `separate_repo`. The older
-`sdd.version_controlled: true` setting is still accepted as an alias for in-tree storage while `sdd.storage` is `auto`.
-Pick the mode that matches how you want the audit trail reviewed.
+Storage follows workspace-provider policy. Built-in bare-git projects use in-tree `sdd/`; GitHub projects require a
+companion repository at `.sase/sdd/`; providerless projects use the primary workspace's local `.sase/sdd/` store. A
+positive companion-store record preserves materialized GitHub storage for offline use.
 
-`sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init` opts
-projects that still use automatic storage into in-tree SDD and refreshes the generated READMEs and directory-map asset.
-The reference is in [`sdd.md`](../../sdd.md).
+`sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init`
+materializes provider-owned storage and refreshes the generated READMEs and directory-map asset. The reference is in
+[`sdd.md`](../../sdd.md).
 
 ## Beads Are the Work Unit
 
@@ -111,16 +109,16 @@ promoted plan is what links to the bead, while the chat stays as a `CHAT:` drawe
 
 ## Workspace Behavior
 
-SDD plan artifacts are shared through the normal project workflow. In in-tree mode, bead state is deliberately
-checkout-local: `sase bead` reads and mutates the `sdd/beads/` event store in the checkout where the command runs. An
-agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`, `myproject_2/`, and
-`myproject_3/`. In local mode, numbered checkouts resolve back to the primary workspace's `.sase/sdd/beads/` store. In
-separate-repo mode, each numbered checkout uses its own `.sase/sdd/` companion clone.
+SDD plan artifacts are shared through the normal project workflow. With in-tree provider policy, bead state is
+deliberately checkout-local: `sase bead` reads and mutates the `sdd/beads/` event store in the checkout where the
+command runs. An agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`,
+`myproject_2/`, and `myproject_3/`. Providerless local storage resolves numbered checkouts back to the primary
+workspace's `.sase/sdd/beads/` store. With companion policy, each numbered checkout uses its own `.sase/sdd/` clone.
 
 That keeps the source of truth inspectable and unsurprising. For in-tree work, bead state moves between checkouts
 through the same VCS sync path as code and SDD files, and ID allocation uses the active checkout's local `config.json`
-and canonical event state. For local stores, agents share the primary workspace's `.sase/sdd/` store; for separate-repo
-stores, agents synchronize through the companion repository clone in their active workspace.
+and canonical event state. Providerless local stores are shared through the primary workspace; provider companions
+synchronize through the clone in the active workspace.
 
 ## What To Read Next
 

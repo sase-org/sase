@@ -18,7 +18,7 @@ from sase.bead.model import BeadTier, IssueType
 
 
 def handle_bead_init(args: argparse.Namespace) -> None:
-    root, beads_dirname = find_beads_location()
+    root, beads_dirname = find_beads_location(materialize=True)
     beads_path = root / beads_dirname
     if beads_path.exists():
         print(f"Already initialized: {beads_path}")

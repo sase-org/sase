@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from sase.sdd.store import _record_cache
@@ -15,14 +13,6 @@ def _clear_store_record_cache() -> None:
     yield
     _record_cache.clear()
     workspace_registry.get_all_workflow_metadata.cache_clear()
-
-
-@pytest.fixture
-def config_patch(monkeypatch: pytest.MonkeyPatch):
-    def apply(config: dict[str, Any]) -> None:
-        monkeypatch.setattr("sase.sdd.store.load_merged_config", lambda: config)
-
-    return apply
 
 
 @pytest.fixture

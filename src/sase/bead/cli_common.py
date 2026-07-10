@@ -47,7 +47,7 @@ class _WorkspaceContext:
     project_name: str | None = None
 
 
-def find_beads_location() -> tuple[Path, str]:
+def find_beads_location(*, materialize: bool = False) -> tuple[Path, str]:
     """Determine the beads root directory and subdirectory name.
 
     Uses the primary workspace and effective SDD mode to choose:
@@ -60,7 +60,7 @@ def find_beads_location() -> tuple[Path, str]:
     Returns (root_dir, beads_dirname) where root_dir / beads_dirname is the
     beads directory.
     """
-    location = resolve_beads_location()
+    location = resolve_beads_location(materialize=materialize)
     if location is None:
         cwd = Path.cwd()
         return cwd, BEADS_DIRNAME
@@ -71,6 +71,7 @@ def resolve_beads_location(
     cwd: Path | None = None,
     *,
     require_existing: bool = False,
+    materialize: bool = False,
 ) -> _BeadsLocation | None:
     """Resolve the bead store location for reads, writes, and commits."""
     current = (Path.cwd() if cwd is None else cwd).expanduser().resolve()
@@ -81,10 +82,15 @@ def resolve_beads_location(
             SDD_STORAGE_LOCAL,
             SDD_STORAGE_SEPARATE_REPO,
             SddStore,
+            materialize_sdd_store,
             resolve_sdd_store,
         )
 
-        store = resolve_sdd_store(context.root, context.workspace_num)
+        store = (
+            materialize_sdd_store(context.root, context.workspace_num)
+            if materialize
+            else resolve_sdd_store(context.root, context.workspace_num)
+        )
         if store.storage == SDD_STORAGE_IN_TREE:
             root = _select_in_tree_beads_root(
                 current,
@@ -333,7 +339,7 @@ def init_beads(root: Path, beads_dirname: str) -> None:
 
 def get_project() -> BeadProject:
     """Open the BeadProject for write operations, auto-initializing if needed."""
-    root, beads_dirname = find_beads_location()
+    root, beads_dirname = find_beads_location(materialize=True)
     beads_path = root / beads_dirname
     if not beads_path.exists():
         init_beads(root, beads_dirname)

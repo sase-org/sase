@@ -92,7 +92,10 @@ def check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
     if reported_validation_issues:
         next_steps += (f"Run `sase sdd validate -p {root} -W`.",)
     if storage_issues:
-        next_steps += ("Run `sase sdd migrate` or update sdd.storage in sase.yml.",)
+        next_steps += (
+            "Run `sase sdd init` after fixing provider access; remove any retired "
+            "sdd.storage/sdd.version_controlled keys reported above.",
+        )
 
     storage_issue_rows = [
         {
@@ -138,7 +141,10 @@ def _storage_only_check(storage_issues: list[_StorageIssue]) -> DiagnosticCheck:
             f"{issue.severity}: {issue.message} ({issue.code})"
             for issue in storage_issues[:MAX_DETAIL_ROWS]
         ),
-        next_steps=("Run `sase sdd migrate` or update sdd.storage in sase.yml.",),
+        next_steps=(
+            "Run `sase sdd init` after fixing provider access; remove any retired "
+            "sdd.storage/sdd.version_controlled keys reported above.",
+        ),
         data={
             "sdd_root": None,
             "storage_issues": [
@@ -168,17 +174,17 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
     config = _read_sdd_config(primary / "sase.yml")
     issues: list[_StorageIssue] = []
 
-    if "version_controlled" in config:
-        issues.append(
-            _StorageIssue(
-                "warning",
-                "deprecated-version-controlled",
-                "sdd.version_controlled is deprecated; use sdd.storage instead",
+    for key in ("storage", "version_controlled"):
+        if key in config:
+            issues.append(
+                _StorageIssue(
+                    "warning",
+                    f"retired-{key.replace('_', '-')}",
+                    f"sdd.{key} is retired and ignored; remove it from sase.yml",
+                )
             )
-        )
 
-    storage = config.get("storage")
-    configured_storage = storage if isinstance(storage, str) else "auto"
+    policy = _provider_sdd_policy(primary)
     record = read_sdd_store_record(primary)
     materialized_record = (
         record is not None
@@ -187,25 +193,30 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
     )
     clone = primary / ".sase" / "sdd"
 
-    if configured_storage == "separate_repo" and not materialized_record:
+    if policy == "separate_repo" and not materialized_record:
         issues.append(
             _StorageIssue(
                 "error",
                 "separate-repo-not-materialized",
-                "sdd.storage is separate_repo but no materialized store record exists",
+                "the provider requires a companion SDD repository, but no positive "
+                "materialized store record exists",
             )
         )
-    if materialized_record and configured_storage in {"in_tree", "local"}:
-        issues.append(
-            _StorageIssue(
-                "warning",
-                "record-ignored-by-config",
-                (
-                    "a companion SDD record exists but explicit "
-                    f"sdd.storage={configured_storage} ignores it"
-                ),
+    if policy == "separate_repo" and not materialized_record:
+        from sase.sdd._store_adoption import has_durable_artifacts
+
+        legacy_paths = [
+            path for path in (clone, primary / "sdd") if has_durable_artifacts(path)
+        ]
+        if legacy_paths:
+            issues.append(
+                _StorageIssue(
+                    "warning",
+                    "legacy-sdd-awaiting-import",
+                    "legacy SDD artifacts will be imported during materialization: "
+                    + ", ".join(str(path) for path in legacy_paths),
+                )
             )
-        )
     if materialized_record and not (clone / ".git").is_dir():
         issues.append(
             _StorageIssue(
@@ -221,6 +232,20 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
         issues.extend(_duplicate_remote_issues(context, primary, record.remote_url))
 
     return issues
+
+
+def _provider_sdd_policy(project_root: Path) -> str | None:
+    try:
+        from sase.vcs_provider import detect_vcs
+        from sase.workspace_provider import get_sdd_storage_policy_by_vcs
+
+        vcs_name = detect_vcs(str(project_root))
+        if not vcs_name:
+            return None
+        policy = get_sdd_storage_policy_by_vcs(vcs_name)
+    except Exception:
+        return None
+    return policy if policy in {"in_tree", "local", "separate_repo"} else None
 
 
 def _read_sdd_config(config_path: Path) -> dict[str, object]:

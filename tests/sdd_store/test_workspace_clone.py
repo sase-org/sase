@@ -17,7 +17,6 @@ from tests.sdd_store._helpers import (
 
 def test_ensure_workspace_sdd_clone_managed_separate_repo(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -31,7 +30,6 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -46,14 +44,12 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
 
 def test_ensure_workspace_sdd_clone_in_tree_noop(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     workspace = tmp_path / "repo_2"
     (tmp_path / "repo").mkdir()
     workspace.mkdir()
-    config_patch({"sdd": {"storage": "in_tree", "version_controlled": False}})
-    provider_patch(None)
+    provider_patch("bare_git")
 
     ensure_workspace_sdd_clone(workspace, 2)
 
@@ -62,12 +58,10 @@ def test_ensure_workspace_sdd_clone_in_tree_noop(
 
 def test_ensure_workspace_sdd_clone_local_noop(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     workspace = tmp_path / "repo"
     workspace.mkdir()
-    config_patch({"sdd": {"storage": "local", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(workspace, 1)
@@ -77,15 +71,13 @@ def test_ensure_workspace_sdd_clone_local_noop(
 
 def test_ensure_workspace_sdd_clone_preserves_non_store_real_dir(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     workspace = tmp_path / "repo_2"
     workspace_sdd = workspace / ".sase" / "sdd"
     workspace_sdd.mkdir(parents=True)
     (workspace_sdd / "keep.md").write_text("# Keep\n", encoding="utf-8")
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
-    provider_patch(None)
+    provider_patch("github")
 
     ensure_workspace_sdd_clone(workspace, 2)
 
@@ -96,7 +88,6 @@ def test_ensure_workspace_sdd_clone_preserves_non_store_real_dir(
 
 def test_ensure_workspace_sdd_clone_pulls_stale_clean_clone(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -109,7 +100,6 @@ def test_ensure_workspace_sdd_clone_pulls_stale_clean_clone(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -124,7 +114,6 @@ def test_ensure_workspace_sdd_clone_pulls_stale_clean_clone(
 
 def test_ensure_workspace_sdd_clone_is_idempotent(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -137,7 +126,6 @@ def test_ensure_workspace_sdd_clone_is_idempotent(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -150,7 +138,6 @@ def test_ensure_workspace_sdd_clone_is_idempotent(
 
 def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -165,7 +152,6 @@ def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -179,7 +165,6 @@ def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
 
 def test_ensure_workspace_sdd_clone_store_clone_with_dirty_tree_is_preserved(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -193,7 +178,6 @@ def test_ensure_workspace_sdd_clone_store_clone_with_dirty_tree_is_preserved(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -207,7 +191,6 @@ def test_ensure_workspace_sdd_clone_store_clone_with_dirty_tree_is_preserved(
 
 def test_ensure_workspace_sdd_clone_non_matching_remote_clone_is_preserved(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -225,7 +208,6 @@ def test_ensure_workspace_sdd_clone_non_matching_remote_clone_is_preserved(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -237,7 +219,6 @@ def test_ensure_workspace_sdd_clone_non_matching_remote_clone_is_preserved(
 def test_ensure_workspace_sdd_clone_stale_clone_makes_relative_prompt_ref_resolve(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    config_patch,
     provider_patch,
 ) -> None:
     from sase.file_references import process_file_references
@@ -252,7 +233,6 @@ def test_ensure_workspace_sdd_clone_stale_clone_makes_relative_prompt_ref_resolv
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -264,7 +244,6 @@ def test_ensure_workspace_sdd_clone_stale_clone_makes_relative_prompt_ref_resolv
 
 def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -282,7 +261,6 @@ def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -295,7 +273,6 @@ def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
 
 def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     _companion, primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
@@ -309,7 +286,6 @@ def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
             "discovery": "found",
         },
     )
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
     provider_patch(None)
 
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
@@ -327,13 +303,11 @@ def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
 
 def test_ensure_workspace_sdd_clone_missing_store_is_best_effort(
     tmp_path: Path,
-    config_patch,
     provider_patch,
 ) -> None:
     workspace = tmp_path / "repo_2"
     workspace.mkdir()
-    config_patch({"sdd": {"storage": "separate_repo", "version_controlled": False}})
-    provider_patch(None)
+    provider_patch("github")
 
     ensure_workspace_sdd_clone(workspace, 2)
 

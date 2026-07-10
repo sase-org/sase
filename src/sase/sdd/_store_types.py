@@ -7,25 +7,20 @@ from pathlib import Path
 from typing import Literal
 
 SddStorage = Literal["in_tree", "local", "separate_repo"]
-SddConfiguredStorage = Literal["auto", "in_tree", "local", "separate_repo"]
 SddPushAfterCommit = bool | Literal["async"]
 
-SDD_STORAGE_AUTO: SddConfiguredStorage = "auto"
 SDD_STORAGE_IN_TREE: SddStorage = "in_tree"
 SDD_STORAGE_LOCAL: SddStorage = "local"
 SDD_STORAGE_SEPARATE_REPO: SddStorage = "separate_repo"
 
 SDD_STORE_RECORD_FILENAME = "sdd-store.json"
 
-_CONFIGURED_STORAGE_VALUES: frozenset[str] = frozenset(
-    {"auto", "in_tree", "local", "separate_repo"}
-)
 _STORAGE_VALUES: frozenset[str] = frozenset({"in_tree", "local", "separate_repo"})
 _DISCOVERY_VALUES: frozenset[str] = frozenset({"found", "not_found"})
 
 
 class SddMaterializationError(RuntimeError):
-    """Raised when explicit separate-repo SDD storage cannot be materialized."""
+    """Raised when provider-owned separate-repo storage cannot be materialized."""
 
 
 @dataclass(frozen=True)

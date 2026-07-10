@@ -28,10 +28,6 @@ def test_parser_registers_sdd_subcommands() -> None:
     assert args.sdd_subcommand == "init"
     assert args.check is True
 
-    args = parser.parse_args(["sdd", "init", "-s", "local"])
-    assert args.sdd_subcommand == "init"
-    assert args.storage == "local"
-
     args = parser.parse_args(
         ["sdd", "validate", "-p", "sdd", "-j", "-q", "--strict", "-W"]
     )
@@ -50,12 +46,6 @@ def test_parser_registers_sdd_subcommands() -> None:
     args = parser.parse_args(["sdd", "list", "-p", "sdd", "-k", "tales"])
     assert args.kind == "tales"
 
-    args = parser.parse_args(["sdd", "migrate", "-c", "-p", ".", "-r"])
-    assert args.sdd_subcommand == "migrate"
-    assert args.create is True
-    assert args.path == "."
-    assert args.remove_in_tree is True
-
     args = parser.parse_args(["sdd", "path", "research"])
     assert args.sdd_subcommand == "path"
     assert args.kind == "research"
@@ -63,27 +53,36 @@ def test_parser_registers_sdd_subcommands() -> None:
     args = parser.parse_args(["sdd", "repair-links", "-p", "sdd", "-w"])
     assert args.write is True
 
+    with pytest.raises(SystemExit):
+        parser.parse_args(["sdd", "init", "--storage", "local"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["sdd", "migrate"])
+
 
 @pytest.mark.parametrize(
-    ("storage", "kind", "expected_relpath"),
+    ("provider", "kind", "expected_relpath"),
     [
-        ("in_tree", None, "sdd"),
-        ("local", "research", ".sase/sdd/research"),
-        ("separate_repo", "beads", ".sase/sdd/beads"),
+        ("bare_git", None, "sdd"),
+        (None, "research", ".sase/sdd/research"),
+        ("github", "beads", ".sase/sdd/beads"),
     ],
 )
 def test_path_prints_effective_sdd_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    storage: str,
+    provider: str | None,
     kind: str | None,
     expected_relpath: str,
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda _cwd: provider)
     monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": storage}},
+        "sase.workspace_provider.get_sdd_storage_policy_by_vcs",
+        lambda name: {
+            "bare_git": "in_tree",
+            "github": "separate_repo",
+        }.get(name),
     )
     args = make_args(sdd_subcommand="path", kind=kind)
 

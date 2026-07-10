@@ -6,8 +6,6 @@ Groups SDD file operations and bead initialization.
 from sase.sdd.beads import (
     init_beads,
     ensure_beads_initialized,
-    get_effective_sdd_config,
-    get_sdd_config,
 )
 from sase.sdd.files import (
     dry_expand_embedded_workflows,
@@ -20,7 +18,6 @@ from sase.sdd.files import (
     commit_sdd_files,
     commit_sdd_store_files,
     expand_prompt_for_spec,
-    get_sdd_dir,
     set_prompt_qa,
     update_prompt_with_qa,
     update_spec_with_qa,
@@ -35,7 +32,6 @@ from sase.sdd.store import (
     create_and_materialize_sdd_store,
     delete_sdd_store_record,
     ensure_workspace_sdd_clone,
-    get_configured_sdd_storage,
     materialize_sdd_store,
     normalize_sdd_store_record,
     read_sdd_store_record,
@@ -57,9 +53,6 @@ __all__ = [
     "commit_sdd_store_files",
     "ensure_beads_initialized",
     "expand_prompt_for_spec",
-    "get_effective_sdd_config",
-    "get_sdd_config",
-    "get_sdd_dir",
     "set_prompt_qa",
     "update_prompt_with_qa",
     "update_spec_with_qa",
@@ -72,7 +65,6 @@ __all__ = [
     "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
     "ensure_workspace_sdd_clone",
-    "get_configured_sdd_storage",
     "materialize_sdd_store",
     "normalize_sdd_store_record",
     "read_sdd_store_record",

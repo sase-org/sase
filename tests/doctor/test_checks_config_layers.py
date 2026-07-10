@@ -52,3 +52,22 @@ def test_config_layers_warns_on_deprecated_sibling_repos(tmp_path: Path) -> None
     detail_text = " ".join(check.details)
     assert "deprecated" in detail_text
     assert "sibling_repos -> linked_repos" in detail_text
+
+
+def test_config_layers_warns_on_retired_sdd_selectors(tmp_path: Path) -> None:
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: local\n  version_controlled: true\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "workspace"),
+    ):
+        check = check_config_layers()
+
+    assert check.status == "WARN"
+    detail_text = " ".join(check.details)
+    assert "retired keys ignored" in detail_text
+    assert "sdd.storage" in detail_text
+    assert "sdd.version_controlled" in detail_text

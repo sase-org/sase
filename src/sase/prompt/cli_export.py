@@ -167,11 +167,21 @@ def _build_export_content(record: PromptHistoryRecord, *, metadata: bool) -> str
 def _sdd_snapshot_path(record: PromptHistoryRecord) -> Path:
     """Return the default SDD ``prompts/YYYYMM/<slug>_<id>.md`` snapshot path."""
     from sase.sdd._paths import get_yyyymm
-    from sase.sdd.store import resolve_sdd_dir
+    from sase.sdd.store import materialize_sdd_store
 
     slug = _slugify(record.text)
     basename = f"{slug}_{record.id}" if slug else record.id
-    return resolve_sdd_dir(Path.cwd(), 1) / "prompts" / get_yyyymm() / f"{basename}.md"
+    workspace = Path.cwd()
+    try:
+        from sase.main.utils import ensure_project_file_and_get_workspace_num
+
+        _, workspace_num, _ = ensure_project_file_and_get_workspace_num(
+            create_missing=False
+        )
+    except Exception:
+        workspace_num = None
+    store = materialize_sdd_store(workspace, workspace_num or 1)
+    return store.sdd_dir / "prompts" / get_yyyymm() / f"{basename}.md"
 
 
 # ---------------------------------------------------------------------------

@@ -7,15 +7,13 @@ from pathlib import Path
 import pytest
 
 from sase.prompt.cli_export import handle_prompt_export, handle_prompt_save
+from tests.sdd_policy_helpers import set_sdd_policy
 
 from ._helpers import _entry, _export_ns, _prompt_id, _save_ns, _seed
 
 
 def _patch_sdd_storage(monkeypatch: pytest.MonkeyPatch, storage: str) -> None:
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": storage}},
-    )
+    set_sdd_policy(monkeypatch, storage)
 
 
 def test_export_stdout_raw_is_byte_exact(

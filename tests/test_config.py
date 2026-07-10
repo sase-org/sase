@@ -347,3 +347,23 @@ def test_load_config_layers_canonical_linked_repos_not_deprecated(
 
     user_layer = next(ly for ly in layers if ly.name == "user")
     assert user_layer.deprecated_keys == []
+
+
+def test_load_config_ignores_retired_sdd_selectors(tmp_path: Path) -> None:
+    (tmp_path / "sase.yml").write_text(
+        "sdd:\n  storage: in_tree\n  version_controlled: true\n  push_after_commit: false\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "none"),
+    ):
+        layers = load_config_layers()
+        merged = load_merged_config()
+
+    user_layer = next(ly for ly in layers if ly.name == "user")
+    assert user_layer.retired_keys == ["sdd.storage", "sdd.version_controlled"]
+    assert merged["sdd"]["push_after_commit"] is False
+    assert "storage" not in merged["sdd"]
+    assert "version_controlled" not in merged["sdd"]

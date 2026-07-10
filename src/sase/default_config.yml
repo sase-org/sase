@@ -370,8 +370,6 @@ telemetry:
     p95_latency_critical: 600.0
 
 sdd:
-  storage: auto
-  version_controlled: false
   repo:
     # Optional companion SDD repo override for providers that support
     # separate_repo storage. Accepts "name" or "owner/name"; empty uses the

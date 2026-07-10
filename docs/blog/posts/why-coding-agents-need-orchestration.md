@@ -294,8 +294,8 @@ The forked agent gets a new record and a new workspace. You still have lineage, 
 
 ## SDD: Prompts, Tales, Epics, And Beads
 
-SASE's [Spec-Driven Development](../../sdd.md) store is where agent intent becomes durable project state. The store is
-`sdd/` in in-tree mode and `.sase/sdd/` in local or separate-repo mode.
+SASE's [Spec-Driven Development](../../sdd.md) store is where agent intent becomes durable project state. Provider
+policy places it at `sdd/` for in-tree projects or `.sase/sdd/` for providerless local and companion-backed projects.
 
 The core folders are:
 

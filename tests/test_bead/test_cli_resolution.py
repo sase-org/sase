@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.sdd_policy_helpers import patched_sdd_policy, set_sdd_policy
+
 from sase.bead.cli import _find_beads_location
 
 
@@ -94,10 +96,7 @@ def test_find_beads_location_non_vc_variant_workspace_maps_to_primary(
     variant.mkdir(parents=True)
     monkeypatch.chdir(variant)
 
-    with patch(
-        "sase.sdd.store.load_merged_config",
-        return_value={"sdd": {"storage": "local", "version_controlled": False}},
-    ):
+    with patched_sdd_policy("local"):
         root, beads_dirname = _find_beads_location()
 
     assert root == primary / ".sase" / "sdd"
@@ -105,10 +104,7 @@ def test_find_beads_location_non_vc_variant_workspace_maps_to_primary(
 
 
 def _set_sdd_config(monkeypatch, *, storage: str) -> None:
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": storage, "version_controlled": False}},
-    )
+    set_sdd_policy(monkeypatch, storage)
 
 
 def _write_checkout_marker(

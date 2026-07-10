@@ -13,6 +13,7 @@ from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer import run_commit_finalizer
 from sase.llm_provider.types import InvokeResult
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
+from tests.sdd_policy_helpers import set_sdd_policy
 
 _PLAN_WIP = """---
 title: Test plan
@@ -100,10 +101,7 @@ def _use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _use_separate_sdd_store_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": "separate_repo"}},
-    )
+    set_sdd_policy(monkeypatch, "separate_repo")
     monkeypatch.setattr(
         "sase.config.load_merged_config",
         lambda: {"sdd": {"push_after_commit": False}},

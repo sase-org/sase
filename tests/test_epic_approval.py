@@ -6,10 +6,7 @@ from unittest.mock import patch
 
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.sdd.beads import ensure_beads_initialized
-
-
-def _sdd_config(storage: str) -> dict[str, dict[str, object]]:
-    return {"sdd": {"storage": storage, "version_controlled": False}}
+from tests.sdd_policy_helpers import patched_sdd_policy
 
 
 # ---------------------------------------------------------------------------
@@ -22,9 +19,7 @@ def test_ensure_beads_initialized_vc_already_exists() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         (Path(tmpdir) / "sdd/beads").mkdir(parents=True)
         with (
-            patch(
-                "sase.sdd.store.load_merged_config", return_value=_sdd_config("in_tree")
-            ),
+            patched_sdd_policy("in_tree"),
             patch("sase.sdd.beads.BeadProject") as mock_bp,
         ):
             ensure_beads_initialized(tmpdir, 1)
@@ -35,9 +30,7 @@ def test_ensure_beads_initialized_vc_creates_beads() -> None:
     """Initializes sdd/beads/ when sdd.version_controlled is enabled and sdd/beads/ missing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
-            patch(
-                "sase.sdd.store.load_merged_config", return_value=_sdd_config("in_tree")
-            ),
+            patched_sdd_policy("in_tree"),
             patch("sase.sdd.beads.BeadProject") as mock_bp,
             patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
         ):
@@ -55,9 +48,7 @@ def test_ensure_beads_initialized_non_vc_already_exists() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         (Path(tmpdir) / ".sase" / "sdd" / "beads").mkdir(parents=True)
         with (
-            patch(
-                "sase.sdd.store.load_merged_config", return_value=_sdd_config("local")
-            ),
+            patched_sdd_policy("local"),
             patch("sase.sdd.beads.init_beads") as mock_init,
         ):
             ensure_beads_initialized(tmpdir, 1)
@@ -68,9 +59,7 @@ def test_ensure_beads_initialized_non_vc_calls_init_beads() -> None:
     """Calls _init_beads when non-VC repo is missing .sase/sdd/beads/."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with (
-            patch(
-                "sase.sdd.store.load_merged_config", return_value=_sdd_config("local")
-            ),
+            patched_sdd_policy("local"),
             patch("sase.sdd.beads.init_beads") as mock_init,
         ):
             ensure_beads_initialized(tmpdir, 1)
@@ -86,9 +75,7 @@ def test_ensure_beads_initialized_workspace_num_2() -> None:
         workspace_2.mkdir()
 
         with (
-            patch(
-                "sase.sdd.store.load_merged_config", return_value=_sdd_config("in_tree")
-            ),
+            patched_sdd_policy("in_tree"),
             patch("sase.sdd.beads.BeadProject") as mock_bp,
         ):
             ensure_beads_initialized(str(workspace_2), 2)

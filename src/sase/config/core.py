@@ -358,6 +358,7 @@ def load_merged_config() -> dict[str, Any]:
             )
             result = _deep_merge(result, local_config)
 
+    result = without_retired_sdd_selectors(result)
     _merged_config_cache_token = token
     _merged_config_cache_value = result
     return result
@@ -373,6 +374,31 @@ UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})
 # nudge to migrate without breaking launched agents with repeated warnings.
 DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {"sibling_repos": "linked_repos"}
 
+# Placement is provider-owned. These nested keys are recognized only so old
+# configuration can be ignored with an actionable cleanup diagnostic.
+RETIRED_SDD_SELECTOR_KEYS: frozenset[str] = frozenset({"storage", "version_controlled"})
+
+
+def without_retired_sdd_selectors(data: dict[str, Any]) -> dict[str, Any]:
+    sdd = data.get("sdd")
+    if not isinstance(sdd, dict) or not RETIRED_SDD_SELECTOR_KEYS.intersection(sdd):
+        return data
+    cleaned = dict(data)
+    cleaned_sdd = dict(sdd)
+    for key in RETIRED_SDD_SELECTOR_KEYS:
+        cleaned_sdd.pop(key, None)
+    cleaned["sdd"] = cleaned_sdd
+    return cleaned
+
+
+def _collect_retired_keys(data: dict[str, Any] | None) -> list[str]:
+    if not data:
+        return []
+    sdd = data.get("sdd")
+    if not isinstance(sdd, dict):
+        return []
+    return [f"sdd.{key}" for key in sorted(RETIRED_SDD_SELECTOR_KEYS) if key in sdd]
+
 
 @dataclass
 class ConfigLayer:
@@ -386,6 +412,7 @@ class ConfigLayer:
     data: dict[str, Any] = field(default_factory=dict)
     unsupported_keys: list[str] = field(default_factory=list)
     deprecated_keys: list[str] = field(default_factory=list)
+    retired_keys: list[str] = field(default_factory=list)
     present: bool | None = None
     error: str | None = None
 
@@ -454,6 +481,7 @@ def load_config_layers() -> list[ConfigLayer]:
             data=default_data,
             unsupported_keys=_collect_unsupported_keys(default_data),
             deprecated_keys=_collect_deprecated_keys(default_data),
+            retired_keys=_collect_retired_keys(default_data),
             present=True,
         )
     )
@@ -477,6 +505,7 @@ def load_config_layers() -> list[ConfigLayer]:
                             data=data,
                             unsupported_keys=_collect_unsupported_keys(data),
                             deprecated_keys=_collect_deprecated_keys(data),
+                            retired_keys=_collect_retired_keys(data),
                             present=True,
                         )
                     )
@@ -505,6 +534,7 @@ def load_config_layers() -> list[ConfigLayer]:
             data=user_data or {},
             unsupported_keys=_collect_unsupported_keys(user_data),
             deprecated_keys=_collect_deprecated_keys(user_data),
+            retired_keys=_collect_retired_keys(user_data),
             present=user_present,
             error=user_error,
         )
@@ -525,6 +555,7 @@ def load_config_layers() -> list[ConfigLayer]:
                 data=overlay_data or {},
                 unsupported_keys=_collect_unsupported_keys(overlay_data),
                 deprecated_keys=_collect_deprecated_keys(overlay_data),
+                retired_keys=_collect_retired_keys(overlay_data),
                 present=overlay_present,
                 error=overlay_error,
             )
@@ -546,6 +577,7 @@ def load_config_layers() -> list[ConfigLayer]:
                 data=local_data or {},
                 unsupported_keys=_collect_unsupported_keys(local_data),
                 deprecated_keys=_collect_deprecated_keys(local_data),
+                retired_keys=_collect_retired_keys(local_data),
                 present=local_present,
                 error=local_error,
             )

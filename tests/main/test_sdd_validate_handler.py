@@ -159,6 +159,35 @@ def test_validate_downgrades_allowlisted_legacy_error(
     ]
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "recover_uncommitted_audit_work_1.md",
+        "sase_mobile_mvp_legend.md",
+    ],
+)
+def test_validate_quarantines_retired_legend_prompt_links(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    name: str,
+) -> None:
+    root = tmp_path / "sdd"
+    path = root / "prompts" / "202605" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"---\nplan: sdd/legends/202605/{name}\n---\n# Legacy prompt\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(make_args(path=str(root), json=True))
+
+    assert excinfo.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["errors"] == []
+    assert payload["warnings"][0]["code"] == ("link-missing-target-legacy-allowed")
+
+
 def test_validate_does_not_allowlist_other_paths(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

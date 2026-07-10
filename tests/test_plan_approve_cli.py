@@ -15,6 +15,7 @@ from sase.main.plan_approve_handler import _approve_plan_from_cli
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification, load_notifications
 from sase.plan_approval_actions import PlanApprovalActionError
+from tests.sdd_policy_helpers import patched_sdd_policy
 
 _LIVE_AGENT_TS = "20260613120000"
 
@@ -359,10 +360,7 @@ def test_plan_approve_archives_sdd_path_and_refreshes_index(
         patch(
             "sase.running_field.get_workspace_directory", return_value=str(workspace)
         ),
-        patch(
-            "sase.sdd.store.load_merged_config",
-            return_value={"sdd": {"storage": "in_tree", "version_controlled": False}},
-        ),
+        patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202606"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
         patch(

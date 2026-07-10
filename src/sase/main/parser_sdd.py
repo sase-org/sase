@@ -29,25 +29,15 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
 
     init_parser = sdd_sub.add_parser(
         "init",
-        help="Write legacy SDD init config and refresh generated guides",
+        help="Materialize provider storage and refresh generated guides",
     )
     init_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
-        help="Report SDD config and generated-file drift without writing files",
+        help="Report provider and generated-file work without writing files",
     )
     add_sdd_path_arg(init_parser)
-    init_parser.add_argument(
-        "-s",
-        "--storage",
-        choices=("auto", "in_tree", "local", "separate_repo"),
-        default=None,
-        help=(
-            "Write an explicit sdd.storage value instead of the legacy "
-            "version_controlled alias"
-        ),
-    )
 
     links_parser = sdd_sub.add_parser(
         "links",
@@ -72,35 +62,6 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     list_parser.add_argument(
         "-j", "--json", action="store_true", help="Emit machine-readable JSON"
-    )
-
-    migrate_parser = sdd_sub.add_parser(
-        "migrate",
-        help="Migrate SDD files to a provider companion repository",
-        description=(
-            "Migrate the current project's SDD files into the provider "
-            "companion repository used by sdd.storage=separate_repo. Existing "
-            "local .sase/sdd stores are connected to the companion remote; "
-            "in-tree sdd/ files are copied into .sase/sdd first."
-        ),
-    )
-    migrate_parser.add_argument(
-        "-c",
-        "--create",
-        action="store_true",
-        help="Create the missing companion repository before migrating",
-    )
-    migrate_parser.add_argument(
-        "-p",
-        "--path",
-        default=None,
-        help="Project root path to migrate (default: current directory)",
-    )
-    migrate_parser.add_argument(
-        "-r",
-        "--remove-in-tree",
-        action="store_true",
-        help="After migration, remove tracked in-tree sdd/ files in a separate commit",
     )
 
     path_parser = sdd_sub.add_parser(
@@ -158,5 +119,5 @@ def add_sdd_path_arg(parser: argparse.ArgumentParser) -> None:
         "-p",
         "--path",
         default=None,
-        help="SDD root or project root path (default: ./sdd or ./.sase/sdd)",
+        help="SDD root or project root path (default: current project)",
     )

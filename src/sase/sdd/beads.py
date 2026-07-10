@@ -8,23 +8,10 @@ from sase.sdd._bead_ignore import ensure_bead_store_gitignore
 from sase.sdd.files import get_primary_workspace_dir, commit_sdd_store_files
 from sase.sdd.store import (
     SDD_STORAGE_LOCAL,
-    SDD_STORAGE_IN_TREE,
     SddStore,
-    get_configured_sdd_storage,
     materialize_sdd_store,
     resolve_sdd_store,
 )
-
-
-def get_sdd_config() -> bool:
-    """Return the legacy configured in-tree SDD flag."""
-    return get_configured_sdd_storage() == SDD_STORAGE_IN_TREE
-
-
-def get_effective_sdd_config(workspace_dir: str | Path | None = None) -> bool:
-    """Return whether the effective SDD store is in the code repository."""
-    cwd = Path.cwd() if workspace_dir is None else Path(workspace_dir).expanduser()
-    return resolve_sdd_store(cwd, 1).is_in_tree
 
 
 def init_beads(workspace_dir: str, workspace_num: int) -> Path:

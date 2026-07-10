@@ -13,7 +13,6 @@ from sase.sdd.files import (
     SDD_DIRECTORY_MAP_FILENAME,
     find_sdd_file,
     get_primary_workspace_dir,
-    get_sdd_dir,
     get_yyyymm,
     _resolve_sdd_asset_path,
     _resolve_sdd_readme_path,
@@ -129,33 +128,6 @@ def test_primary_workspace_dir_uses_marker_when_project_unresolved(
     assert result == str(primary)
     # The old suffix-stripping fallback would have returned this wrong path.
     assert result != str(checkout.parent / "proj")
-
-
-# ---------------------------------------------------------------------------
-# get_sdd_dir
-# ---------------------------------------------------------------------------
-
-
-def test_get_sdd_dir_version_controlled() -> None:
-    result = get_sdd_dir("/home/user/project", 1, version_controlled=True)
-    assert result == Path("/home/user/project/sdd")
-
-
-def test_get_sdd_dir_not_version_controlled() -> None:
-    result = get_sdd_dir("/home/user/project", 1, version_controlled=False)
-    assert result == Path("/home/user/project/.sase/sdd")
-
-
-def test_get_sdd_dir_not_version_controlled_ws2() -> None:
-    result = get_sdd_dir("/home/user/project_2", 2, version_controlled=False)
-    assert result == Path("/home/user/project/.sase/sdd")
-
-
-def test_get_sdd_dir_not_version_controlled_suffix_in_parent() -> None:
-    result = get_sdd_dir(
-        "/google/src/cloud/bbugyi/pat_102/google3", 102, version_controlled=False
-    )
-    assert result == Path("/google/src/cloud/bbugyi/pat/google3/.sase/sdd")
 
 
 # ---------------------------------------------------------------------------

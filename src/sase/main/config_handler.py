@@ -27,6 +27,10 @@ def handle_config_command(args: argparse.Namespace) -> None:
             for deprecated_key in layer.deprecated_keys:
                 replacement = DEPRECATED_TOP_LEVEL_KEYS[deprecated_key]
                 print(f"  deprecated key: {deprecated_key} (rename to '{replacement}')")
+            if layer.retired_keys:
+                print(
+                    f"  retired keys (ignored; remove): {', '.join(layer.retired_keys)}"
+                )
             print()
         sys.exit(0)
 

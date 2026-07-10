@@ -40,10 +40,18 @@ def corpus(tmp_path: Path) -> tuple[Path, Path]:
     """Build a temp repo ``sdd/`` tree (tale/epic/research) + a local archive."""
     repo = tmp_path / "repo"
     sase_home = tmp_path / ".sase"
-    (repo / "sase.yml").parent.mkdir(parents=True, exist_ok=True)
-    (repo / "sase.yml").write_text(
-        "sdd:\n  storage: in_tree\n",
-        encoding="utf-8",
+    repo.mkdir(parents=True)
+    subprocess.run(
+        ["git", "init", "-q"],
+        cwd=repo,
+        check=True,
+    )
+    bare = tmp_path / "repo.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(bare)],
+        cwd=repo,
+        check=True,
     )
 
     _write_plan(

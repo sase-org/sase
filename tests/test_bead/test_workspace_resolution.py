@@ -17,13 +17,13 @@ from sase.bead.workspace import (
     _resolve_by_scanning_projects,
     resolve_primary_workspace,
 )
+from tests.sdd_policy_helpers import set_sdd_policy
 
 
 def _set_sdd_config(monkeypatch, *, storage: str = "auto") -> None:
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": storage, "version_controlled": False}},
-    )
+    if storage == "auto":
+        storage = "local"
+    set_sdd_policy(monkeypatch, storage)
 
 
 def _write_marker(

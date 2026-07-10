@@ -119,14 +119,14 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
 
     sdd_parser = init_subparsers.add_parser(
         "sdd",
-        help="Write legacy SDD init config and refresh generated guides",
+        help="Materialize provider SDD storage and refresh generated guides",
     )
     sdd_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Report SDD config and generated-file drift without writing files",
+        help="Report provider and generated-file work without writing files",
     )
     add_sdd_path_arg(sdd_parser)
 

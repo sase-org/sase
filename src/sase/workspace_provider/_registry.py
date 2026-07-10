@@ -274,7 +274,7 @@ def materialize_sdd_store(
     workspace_dir: str,
     options: dict[str, object],
 ) -> dict[str, object] | None:
-    """Materialize an external SDD store via workspace provider plugins."""
+    """Materialize a provider-required external SDD store."""
     return _get_manager().materialize_sdd_store(
         primary_workspace_dir=primary_workspace_dir,
         workspace_dir=workspace_dir,
@@ -287,7 +287,7 @@ def create_sdd_remote(
     workspace_dir: str,
     options: dict[str, object],
 ) -> dict[str, object] | None:
-    """Verify or create a companion SDD remote via workspace provider plugins."""
+    """Dispatch the compatibility companion-remote creation hook."""
     return _get_manager().create_sdd_remote(
         primary_workspace_dir=primary_workspace_dir,
         workspace_dir=workspace_dir,

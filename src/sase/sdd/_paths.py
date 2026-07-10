@@ -104,19 +104,6 @@ def looks_like_sdd_root(path: Path) -> bool:
     return any((path / dirname).is_dir() for dirname in _SDD_CANONICAL_DIRS)
 
 
-def get_sdd_dir(
-    workspace_dir: str, workspace_num: int, version_controlled: bool
-) -> Path:
-    """Return the target directory for SDD files.
-
-    If version_controlled: return Path(workspace_dir) / "sdd"
-    If not: return primary_workspace / ".sase" / "sdd"
-    """
-    from sase.sdd.store import sdd_dir_for_in_tree_bool
-
-    return sdd_dir_for_in_tree_bool(workspace_dir, workspace_num, version_controlled)
-
-
 def get_primary_workspace_dir(
     workspace_dir: str,
     workspace_num: int,

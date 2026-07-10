@@ -16,7 +16,7 @@ def _doctor_context(tmp_path: Path) -> DoctorContext:
     return DoctorContext(cwd=tmp_path, project=None, sase_home=tmp_path)
 
 
-def test_config_sdd_warns_on_deprecated_version_controlled(
+def test_config_sdd_warns_on_retired_version_controlled(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "sdd").mkdir()
@@ -29,15 +29,18 @@ def test_config_sdd_warns_on_deprecated_version_controlled(
 
     assert check.status == "WARN"
     assert any(
-        issue["code"] == "deprecated-version-controlled"
+        issue["code"] == "retired-version-controlled"
         for issue in check.data["storage_issues"]
     )
 
 
-def test_config_sdd_errors_when_separate_repo_has_no_record(tmp_path: Path) -> None:
-    (tmp_path / "sase.yml").write_text(
-        "sdd:\n  storage: separate_repo\n",
-        encoding="utf-8",
+def test_config_sdd_errors_when_provider_companion_has_no_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda _cwd: "github")
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_sdd_storage_policy_by_vcs",
+        lambda _name: "separate_repo",
     )
 
     check = check_config_sdd(_doctor_context(tmp_path))
@@ -49,14 +52,9 @@ def test_config_sdd_errors_when_separate_repo_has_no_record(tmp_path: Path) -> N
     )
 
 
-def test_config_sdd_uses_configured_separate_repo_store(
+def test_config_sdd_uses_materialized_separate_repo_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / "sase.yml").write_text(
-        "sdd:\n  storage: separate_repo\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "sdd" / "beads").mkdir(parents=True)
     _write_sdd_pair(tmp_path / ".sase" / "sdd")
     _write_materialized_sdd_record(tmp_path)
 
@@ -78,7 +76,7 @@ def test_config_sdd_uses_configured_separate_repo_store(
 
 
 def test_config_sdd_allows_non_strict_validation_warnings(tmp_path: Path) -> None:
-    tale = tmp_path / "sdd" / "tales" / "202605" / "unpaired.md"
+    tale = tmp_path / ".sase" / "sdd" / "tales" / "202605" / "unpaired.md"
     tale.parent.mkdir(parents=True)
     tale.write_text("# Unpaired\n", encoding="utf-8")
 
@@ -152,7 +150,7 @@ def _write_sdd_pair(root: Path) -> None:
     )
 
 
-def test_config_sdd_warns_when_record_ignored_by_explicit_config(
+def test_config_sdd_retired_storage_is_ignored_while_record_stays_active(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "sase.yml").write_text(
@@ -168,6 +166,9 @@ def test_config_sdd_warns_when_record_ignored_by_explicit_config(
 
     assert check.status == "WARN"
     assert any(
+        issue["code"] == "retired-storage" for issue in check.data["storage_issues"]
+    )
+    assert not any(
         issue["code"] == "record-ignored-by-config"
         for issue in check.data["storage_issues"]
     )

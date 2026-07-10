@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+from tests.sdd_policy_helpers import set_sdd_policy
+
 from sase.main.entry import main as sase_main
 
 
@@ -114,10 +116,7 @@ def _run_bead(
         "sase.bead.workspace.resolve_primary_workspace",
         lambda: primary,
     )
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": "in_tree", "version_controlled": False}},
-    )
+    set_sdd_policy(monkeypatch, "in_tree")
 
     with pytest.raises(SystemExit) as excinfo:
         sase_main()

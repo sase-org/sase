@@ -41,7 +41,6 @@ from sase.sdd._init_files import (
 )
 from sase.sdd._paths import (
     find_sdd_file,
-    get_sdd_dir as _get_sdd_dir,
     get_primary_workspace_dir as _get_primary_workspace_dir,
     get_yyyymm as _get_yyyymm,
     looks_like_sdd_root as _looks_like_sdd_root,
@@ -73,13 +72,6 @@ _SddInitAction = SddInitAction
 def get_yyyymm(dt: datetime | None = None) -> str:
     """Return a YYYYMM string for SDD subdirectory organization."""
     return _get_yyyymm(dt)
-
-
-def get_sdd_dir(
-    workspace_dir: str, workspace_num: int, version_controlled: bool
-) -> Path:
-    """Return the target directory for SDD files."""
-    return _get_sdd_dir(workspace_dir, workspace_num, version_controlled)
 
 
 def get_primary_workspace_dir(workspace_dir: str, workspace_num: int) -> str:
@@ -173,7 +165,6 @@ __all__ = [
     "expand_prompt_for_spec",
     "find_sdd_file",
     "get_primary_workspace_dir",
-    "get_sdd_dir",
     "get_yyyymm",
     "plan_sdd_init_actions",
     "set_prompt_qa",

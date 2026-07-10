@@ -1,83 +1,65 @@
 # SDD Storage
 
-SDD artifacts can live in three places. Use `sase sdd path` when you need the effective root for the current project:
+The workspace provider owns SDD placement. Use `sase sdd path` when you need the effective root for the current project:
 
 ```bash
 sase sdd path
 sase sdd path research
 ```
 
-`sase sdd path` is a fast directory resolver: it prints the root SASE would use, but it does not create, clone, fetch,
-or verify a companion repository. Launched agents also receive `SASE_SDD_DIR`, which points at the same root. Prompt
-text, hooks, and skills should use that environment variable instead of assuming `sdd/` is relative to the current
-checkout.
+`sase sdd path` is a read-only resolver: it does not create, clone, fetch, or verify a companion repository. Launched
+agents receive the same path in `SASE_SDD_DIR`. Prompts, hooks, and skills should use that variable instead of assuming
+that `sdd/` is relative to the current checkout.
 
-## Modes
+## Provider Policy
 
-| Mode            | Root                    | Repository                                                                                                   |
-| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `in_tree`       | `{workspace}/sdd`       | The code repository. SDD files are committed with code changes.                                              |
-| `local`         | `{primary}/.sase/sdd`   | A standalone local git repo beside the primary checkout.                                                     |
-| `separate_repo` | `{workspace}/.sase/sdd` | A provider-materialized companion repository, such as `owner/repo--sdd` or an explicit `owner/sdd` override. |
+| Provider policy | Root                    | Repository                                                                                      |
+| --------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `in_tree`       | `{workspace}/sdd`       | The code repository. Built-in bare-git projects use this policy.                                |
+| `separate_repo` | `{workspace}/.sase/sdd` | A required provider companion repository. GitHub projects use this policy.                      |
+| no policy       | `{primary}/.sase/sdd`   | A primary-workspace local store for providerless projects or providers with no SDD declaration. |
 
-Local and separate-repo modes use the same `.sase/sdd/` shape, but not the same workspace rule. `local` is a single
-primary-workspace store. `separate_repo` is a real companion-repository checkout under the active workspace, with the
-primary workspace holding the materialized-store record at `{primary}/.sase/sdd-store.json`. Code that only needs a
-directory should still use `sase sdd path` or `SASE_SDD_DIR` instead of deriving paths by hand.
+A positive materialized-store record at `{primary}/.sase/sdd-store.json` is authoritative, including while offline. Old
+negative records are not policy and are retried at the next materialization attempt.
 
-## Resolution
+The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer select a mode. SASE ignores and
+strips them before schema validation, and `sase doctor` reports where to remove them. This keeps old configuration files
+loadable without allowing project or user config to override provider policy.
 
-`sdd.storage` accepts `auto`, `in_tree`, `local`, or `separate_repo` and defaults to `auto`.
+## GitHub Companion Repositories
 
-When the value is not `auto`, it wins. When it is `auto`, the legacy `sdd.version_controlled: true` alias maps to
-`in_tree`; `false` leaves automatic resolution enabled. After that, SASE checks for a materialized separate-repo record,
-then provider metadata, then falls back to `local`. Because explicit `sdd.storage` wins, `sdd.version_controlled: true`
-does not force in-tree storage if the same config also says `sdd.storage: local` or `sdd.storage: separate_repo`.
+GitHub projects require a companion repository. By default sase-github finds or creates `<owner>/<repo>--sdd`, labels it
+`sase--sdd`, and clones it beneath each active workspace at `.sase/sdd`. New companions are public by default; existing
+private companions are left private. Set `sdd.repo.name` to `name` or `owner/name` only when an explicit companion
+repository override is needed.
 
-Built-in bare-git projects declare `in_tree`, preserving the historical `sdd/` behavior. Providers that opt into
-companion storage can declare separate-repo eligibility and materialize the store at setup-shaped moments, not in hot
-render or keystroke paths.
+Run `sase sdd init` to create or connect the provider store and refresh generated SDD guides. The `#gh` setup step also
+materializes the companion before claiming and launching work. Authentication, authorization, network, discovery,
+creation, label, clone, import, or initial-push failures stop setup; GitHub projects do not fall back to local storage.
 
-## Companion Repositories
+The first successful materialization is a single adoption transaction:
 
-For GitHub-style providers, default discovery checks only `<owner>/<repo>--sdd`. The clone lives at
-`{workspace}/.sase/sdd`; numbered workspaces get their own best-effort clone or fast-forwarded copy from the primary
-checkout. The store record lives at `{primary}/.sase/sdd-store.json` so it is not committed into the companion
-repository.
+1. SASE serializes setup with a primary-workspace lock and asks the provider to find or create the companion.
+2. The provider clones into a unique staging directory.
+3. SASE preflights and copies durable artifacts from legacy primary/current-workspace `sdd/` and `.sase/sdd/` stores.
+4. Conflicting paths abort with an explicit path list before any source is replaced.
+5. SASE initializes guides and beads, commits imported content, and requires the initial push to succeed when a commit
+   was created.
+6. Only then does it atomically adopt the primary clone, write the positive store record, and create the active
+   workspace clone.
 
-New GitHub companion repositories created by SASE are public by default. Existing private companion repositories are not
-made public automatically. During explicit create or verify flows such as `sase sdd init` and `sase init`, SASE also
-ensures the selected GitHub companion repository has a `sase--sdd` label; setup-time discovery and cloning do not mutate
-GitHub labels.
+In-tree legacy sources are retained. Bead SQLite runtime files and git internals are not imported. A failed transaction
+leaves no positive record, so the next write retries materialization instead of silently using another store.
 
-Providers that support companion storage may also honor `sdd.repo.name` as an override. It accepts either `name` or
-`owner/name`; an empty value uses the provider default. For GitHub, set this to `sdd` or `owner/sdd` to use an org-level
-companion repository explicitly. Separate-repo commits are local first. `sdd.push_after_commit` controls the follow-up
-push: `async` starts a detached background push, `true` pushes synchronously, and `false` skips the push.
+## Reads, Writes, and Offline Use
 
-Discovery is cached. A missing companion repository keeps setup-time discovery in local mode, but `sase sdd init` and
-`sase init` create the project-specific GitHub companion repository automatically when the provider policy is
-`separate_repo`. A found companion repository can be cloned or adopted when the existing `.sase/sdd` remote already
-matches. Existing local SDD content should not be clobbered by automatic discovery.
+Directory-only consumers resolve paths without network or filesystem writes. Operations that write SDD data—such as
+prompt export, bead initialization and mutation, and link repair with `--write`—materialize a provider-required store
+first and fail if it cannot be made usable.
 
-## Migration And Offline Behavior
+Once a positive record and primary clone exist, reads and numbered-workspace cloning can work offline from the primary
+clone. Refresh pulls are best effort. Separate-repository commits remain local if an ordinary follow-up push fails so
+they can be inspected and pushed manually; only the initial adoption push is transactional.
 
-For a new project, start with `sase sdd init` and let the provider policy choose or create the companion store. Use
-`sase sdd migrate` when a project already has in-tree `sdd/` content or a local `.sase/sdd/` store that should become
-the provider-backed companion repository:
-
-```bash
-sase sdd migrate
-sase sdd migrate --create
-sase sdd migrate --remove-in-tree
-```
-
-The command verifies the companion repository, or creates it when `--create` is present; copies in-tree `sdd/` content
-into `.sase/sdd/` when needed; initializes the generated guides and bead store; commits and pushes the companion repo;
-and writes `sdd.storage: separate_repo` in the project config. `--remove-in-tree` removes tracked in-tree `sdd/` files
-in a separate code-repo commit after the companion migration succeeds. Run that cleanup only after the companion
-migration has pushed successfully. Do not replace `.sase/sdd` by hand while an agent or bead command may be writing it.
-
-Once a separate-repo store is materialized, directory-only reads and `sase sdd path` work offline against the local
-clone. Network fetch and push work belongs to setup, provider-specific migration, and commit/push paths. Local commits
-must survive push failures so users can inspect and push manually later.
+`sdd.push_after_commit` controls pushes after later SDD commits: `async` starts a detached background push, `true`
+pushes synchronously, and `false` skips the push.

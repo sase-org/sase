@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.sdd_policy_helpers import set_sdd_policy
+
 from sase.plan_search import facade
 
 
@@ -78,10 +80,7 @@ def _search(corpus: tuple[Path, Path], **kwargs: object) -> list:
 
 
 def _patch_sdd_storage(monkeypatch: pytest.MonkeyPatch, storage: str) -> None:
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": storage}},
-    )
+    set_sdd_policy(monkeypatch, storage)
 
 
 # --- root resolution -----------------------------------------------------

@@ -75,13 +75,13 @@ def _build_sdd_plan_ref(
     sdd_dir: Path,
     workspace_dir: str,
     sdd_plan_name: str | None,
-    version_controlled: bool,
+    sdd_in_tree: bool,
     fallback_plan_file: str,
     plan_kind: str,
 ) -> str:
     """Build the plan reference passed to a plan-container creation xprompt."""
     if sdd_plan_path and sdd_plan_path.exists():
-        if version_controlled:
+        if sdd_in_tree:
             try:
                 return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
             except ValueError:
@@ -99,7 +99,7 @@ def _build_sdd_plan_ref(
     from sase.sdd.files import get_yyyymm
 
     yyyymm = get_yyyymm()
-    if sdd_plan_name and not version_controlled:
+    if sdd_plan_name and not sdd_in_tree:
         return f".sase/sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
     if sdd_plan_name:
         return f"sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
@@ -112,7 +112,7 @@ def build_epic_plan_ref(
     sdd_dir: Path,
     workspace_dir: str,
     sdd_plan_name: str | None,
-    version_controlled: bool,
+    sdd_in_tree: bool,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to the epic-creation xprompt."""
@@ -121,7 +121,7 @@ def build_epic_plan_ref(
         sdd_dir=sdd_dir,
         workspace_dir=workspace_dir,
         sdd_plan_name=sdd_plan_name,
-        version_controlled=version_controlled,
+        sdd_in_tree=sdd_in_tree,
         fallback_plan_file=fallback_plan_file,
         plan_kind="epics",
     )
@@ -138,12 +138,12 @@ def build_saved_plan_ref(
     sdd_plan_path: Path | None,
     sdd_dir: Path,
     workspace_dir: str,
-    version_controlled: bool,
+    sdd_in_tree: bool,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to a normal coder follow-up."""
     if sdd_plan_path and sdd_plan_path.exists():
-        if version_controlled:
+        if sdd_in_tree:
             try:
                 return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
             except ValueError:

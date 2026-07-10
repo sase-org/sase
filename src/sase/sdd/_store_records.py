@@ -79,6 +79,8 @@ def _write_sdd_store_record(
     """Validate and atomically write the materialized-store record."""
 
     normalized = _coerce_sdd_store_record(record)
+    if not _is_materialized_record(normalized):
+        raise ValueError("only positive materialized SDD store records may be written")
     record_path = _sdd_store_record_path(primary_workspace_dir)
     record_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = record_path.with_name(f".{record_path.name}.tmp")
@@ -191,9 +193,9 @@ def _store_not_materialized_message(record: SddStoreRecord | None) -> str:
     repo = record.repo if record is not None and record.repo else None
     target = f"'{repo}'" if repo else "the expected SDD companion repository"
     return (
-        f"SDD storage is configured as separate_repo, but {target} is not "
-        "materialized. Run `sase sdd migrate` to create or connect the "
-        "companion repository before using separate_repo storage."
+        f"The provider requires a companion SDD repository, but {target} is not "
+        "materialized. Run `sase sdd init` after fixing provider authentication, "
+        "permissions, or network access."
     )
 
 

@@ -6,9 +6,15 @@ from collections.abc import Callable
 import logging
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import uuid
 
-from sase.sdd._store_types import SDD_STORAGE_SEPARATE_REPO, SddStore
+from sase.sdd._store_types import (
+    SDD_STORAGE_SEPARATE_REPO,
+    SddMaterializationError,
+    SddStore,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -22,8 +28,9 @@ def ensure_workspace_sdd_clone(
     *,
     resolve_store: StoreResolver,
     primary_workspace_dir: PrimaryWorkspaceResolver,
+    strict: bool = False,
 ) -> None:
-    """Best-effort workspace-local clone of a separate-repo SDD store."""
+    """Ensure a workspace-local clone of a separate-repo SDD store."""
 
     workspace = Path(workspace_dir).expanduser()
     try:
@@ -35,21 +42,48 @@ def ensure_workspace_sdd_clone(
         primary = Path(primary_workspace_dir(str(workspace), workspace_num))
         primary_sdd = primary / ".sase" / "sdd"
 
+        if _paths_same_file(workspace_sdd, primary_sdd):
+            if not _is_matching_store_clone(workspace_sdd, store) and strict:
+                raise SddMaterializationError(
+                    f"primary SDD companion clone is missing or mismatched: {workspace_sdd}"
+                )
+            return
+
         workspace_sdd.parent.mkdir(parents=True, exist_ok=True)
         if workspace_sdd.is_symlink():
+            if strict:
+                _replace_workspace_sdd_clone(
+                    workspace_sdd, primary_sdd, store.remote_url
+                )
+                return
             workspace_sdd.unlink()
 
         if os.path.lexists(workspace_sdd):
             if not workspace_sdd.is_dir():
+                if strict:
+                    _replace_workspace_sdd_clone(
+                        workspace_sdd, primary_sdd, store.remote_url
+                    )
+                    return
                 _logger.warning("Refusing to overwrite SDD path at %s", workspace_sdd)
                 return
             if not (workspace_sdd / ".git").is_dir():
+                if strict:
+                    _replace_workspace_sdd_clone(
+                        workspace_sdd, primary_sdd, store.remote_url
+                    )
+                    return
                 _logger.warning(
                     "Refusing to overwrite non-git SDD directory at %s",
                     workspace_sdd,
                 )
                 return
             if not _is_matching_store_clone(workspace_sdd, store):
+                if strict:
+                    _replace_workspace_sdd_clone(
+                        workspace_sdd, primary_sdd, store.remote_url
+                    )
+                    return
                 _logger.warning(
                     "Refusing to sync SDD clone at %s because its origin does not "
                     "match the configured SDD store remote",
@@ -59,21 +93,70 @@ def ensure_workspace_sdd_clone(
             _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
             return
 
-        cloned = False
-        if store.remote_url:
+        cloned = _clone_sdd_store_from_primary(primary_sdd, workspace_sdd)
+        if cloned and store.remote_url:
+            _set_sdd_origin(workspace_sdd, store.remote_url)
+        if not cloned and store.remote_url:
             cloned = _clone_sdd_store(store.remote_url, workspace_sdd)
-        if not cloned:
-            cloned = _clone_sdd_store_from_primary(primary_sdd, workspace_sdd)
-            if cloned and store.remote_url:
-                _set_sdd_origin(workspace_sdd, store.remote_url)
         if cloned:
             _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
-    except Exception:
+        elif strict:
+            raise SddMaterializationError(
+                f"could not create workspace SDD companion clone at {workspace_sdd}"
+            )
+    except Exception as exc:
+        if strict:
+            if isinstance(exc, SddMaterializationError):
+                raise
+            raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
         _logger.warning(
             "Failed to ensure workspace SDD clone for workspace %s",
             workspace,
             exc_info=True,
         )
+
+
+def _replace_workspace_sdd_clone(
+    workspace_sdd: Path,
+    primary_sdd: Path,
+    remote_url: str | None,
+) -> None:
+    """Atomically replace legacy workspace content after primary adoption."""
+
+    temp = workspace_sdd.with_name(f".sdd.clone-{uuid.uuid4().hex}")
+    backup = workspace_sdd.with_name(f".sdd.recovery-{uuid.uuid4().hex}")
+    cloned = _clone_sdd_store_from_primary(primary_sdd, temp)
+    if cloned and remote_url:
+        _set_sdd_origin(temp, remote_url)
+    if not cloned and remote_url:
+        cloned = _clone_sdd_store(remote_url, temp)
+    if not cloned:
+        shutil.rmtree(temp, ignore_errors=True)
+        raise SddMaterializationError(
+            f"could not replace legacy workspace SDD path at {workspace_sdd}"
+        )
+
+    had_existing = os.path.lexists(workspace_sdd)
+    if had_existing:
+        workspace_sdd.replace(backup)
+    try:
+        temp.replace(workspace_sdd)
+    except Exception:
+        if (
+            had_existing
+            and os.path.lexists(backup)
+            and not os.path.lexists(workspace_sdd)
+        ):
+            backup.replace(workspace_sdd)
+        raise
+    if had_existing:
+        if backup.is_dir() and not backup.is_symlink():
+            shutil.rmtree(backup, ignore_errors=True)
+        else:
+            try:
+                backup.unlink()
+            except OSError:
+                pass
 
 
 def _sync_workspace_sdd_clone(

@@ -76,6 +76,19 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "update.dev_root, not an agent artifact directory."
         ),
     ),
+    "src/sase/sdd/_store_adoption.py:cleanup_staging": DirOpReview(
+        exemption=(
+            "Removes only provider-owned SDD materialization staging and recovery "
+            "paths under a workspace's .sase directory, not agent artifact "
+            "directories."
+        ),
+    ),
+    "src/sase/sdd/_store_link.py:_replace_workspace_sdd_clone": DirOpReview(
+        exemption=(
+            "Removes only the recovery copy left after atomically replacing a "
+            "workspace-local SDD companion clone, not an agent artifact directory."
+        ),
+    ),
     "src/sase/main/project_handler.py:delete_project_locked": DirOpReview(
         exemption=(
             "Deletes the entire SASE project state directory only after blocking "

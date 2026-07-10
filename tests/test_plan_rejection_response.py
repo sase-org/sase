@@ -9,6 +9,7 @@ from sase.ace.tui.modals.plan_approval_modal import (
     _plan_approval_result_for_choice,
 )
 from sase.notifications import Notification
+from tests.sdd_policy_helpers import patched_sdd_policy
 
 
 def test_reject_without_feedback_writes_plan_response(tmp_path: Path) -> None:
@@ -272,10 +273,7 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
             "sase.running_field.get_workspace_directory",
             return_value=str(workspace),
         ),
-        patch(
-            "sase.sdd.store.load_merged_config",
-            return_value={"sdd": {"storage": "in_tree", "version_controlled": False}},
-        ),
+        patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):
@@ -315,10 +313,7 @@ def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
             "sase.running_field.get_workspace_directory",
             return_value=str(workspace),
         ),
-        patch(
-            "sase.sdd.store.load_merged_config",
-            return_value={"sdd": {"storage": "local", "version_controlled": False}},
-        ),
+        patched_sdd_policy("local"),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
     ):

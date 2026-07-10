@@ -15,14 +15,10 @@ from sase.workflows.commit.commit_tracking import (
 )
 from sase.workflows.commit.precommit_hooks import handle_beads, handle_sase_plan
 from sase.workflows.commit.pr_operations import build_pr_body
+from tests.sdd_policy_helpers import patched_sdd_policy
 
 _CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
-_SDD_CONFIG_TARGET = "sase.sdd.store.load_merged_config"
 _GET_REPO_ROOT_TARGET = "sase.workflows.commit.precommit_hooks._get_repo_root"
-
-
-def _sdd_config(storage: str) -> dict[str, dict[str, object]]:
-    return {"sdd": {"storage": storage, "version_controlled": False}}
 
 
 @pytest.fixture(autouse=True)
@@ -410,7 +406,7 @@ class TestHandleSasePlan:
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
-            patch(_SDD_CONFIG_TARGET, return_value=_sdd_config("in_tree")),
+            patched_sdd_policy("in_tree"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):
@@ -434,7 +430,7 @@ class TestHandleSasePlan:
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
-            patch(_SDD_CONFIG_TARGET, return_value=_sdd_config("in_tree")),
+            patched_sdd_policy("in_tree"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
         ):
             handle_sase_plan(payload, str(repo_dir))
@@ -455,7 +451,7 @@ class TestHandleSasePlan:
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
-            patch(_SDD_CONFIG_TARGET, return_value=_sdd_config("local")),
+            patched_sdd_policy("local"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
         ):
             handle_sase_plan(payload, str(repo_dir))
@@ -481,7 +477,7 @@ class TestHandleSasePlan:
                 "os.environ",
                 {"SASE_PLAN": "/nonexistent/my_plan.md"},
             ),
-            patch(_SDD_CONFIG_TARGET, return_value=_sdd_config("in_tree")),
+            patched_sdd_policy("in_tree"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
@@ -508,7 +504,7 @@ class TestHandleSasePlan:
                 "os.environ",
                 {"SASE_PLAN": "/nonexistent/my_plan.md"},
             ),
-            patch(_SDD_CONFIG_TARGET, return_value=_sdd_config("local")),
+            patched_sdd_policy("local"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
         ):
@@ -530,7 +526,7 @@ class TestHandleSasePlan:
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
-            patch(_SDD_CONFIG_TARGET, return_value=_sdd_config("in_tree")),
+            patched_sdd_policy("in_tree"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
         ):
             handle_sase_plan(payload, str(repo_dir))
@@ -553,7 +549,7 @@ class TestHandleSasePlan:
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
-            patch(_SDD_CONFIG_TARGET, return_value=_sdd_config("in_tree")),
+            patched_sdd_policy("in_tree"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
         ):

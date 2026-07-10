@@ -10,6 +10,7 @@ from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.core.agent_artifact_facade import list_explicit_agent_artifacts
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
+from tests.sdd_policy_helpers import patched_sdd_policy
 
 
 def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
@@ -44,10 +45,7 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
         patch("sase.history.chat.save_chat_history", return_value="/fake/chat"),
         patch("sase.history.chat_extras.format_extra_sections", return_value=""),
         patch("sase.history.chat_links.format_plan_as_response", return_value="plan"),
-        patch(
-            "sase.sdd.store.load_merged_config",
-            return_value={"sdd": {"storage": "in_tree", "version_controlled": False}},
-        ),
+        patched_sdd_policy("in_tree"),
         patch("sase.sdd.beads.ensure_beads_initialized"),
         patch(
             "sase.sdd.files.write_sdd_files",

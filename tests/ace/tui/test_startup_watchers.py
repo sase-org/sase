@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions._startup_watchers import StartupWatchersMixin
+from tests.sdd_policy_helpers import set_sdd_policy
 
 
 class _Harness(StartupWatchersMixin):
@@ -33,10 +34,7 @@ def test_artifact_watcher_targets_resolved_local_sdd_beads_dir(
     (tmp_path / "sase_home" / "projects").mkdir(parents=True)
     beads_dir = tmp_path / ".sase" / "sdd" / "beads"
     beads_dir.mkdir(parents=True)
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": "local"}},
-    )
+    set_sdd_policy(monkeypatch, "local")
     captured_paths: list[Path] = []
 
     class _FakeWatcher:

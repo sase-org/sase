@@ -20,12 +20,12 @@ Together, these create an audit trail from prompt snapshots to planning artifact
 epics can link into the bead hierarchy and phase commits; research notes preserve the longer-lived context those plans
 depend on.
 
-## Storage Modes
+## Provider-Owned Storage
 
-SDD supports three storage modes:
+The workspace provider selects one of three storage layouts:
 
 - `in_tree` stores artifacts under the checkout's `sdd/` directory and commits them with code changes.
-- `local` stores artifacts in a standalone git repo at the primary workspace's `.sase/sdd/`.
+- `local` is the fallback for providerless projects and stores artifacts at the primary workspace's `.sase/sdd/`.
 - `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized companion
   repo.
 
@@ -33,8 +33,8 @@ Use `sase sdd path` to print the effective SDD root, or `sase sdd path research`
 Launched agents receive the same root in `SASE_SDD_DIR`, so prompts and hooks should use that instead of assuming `sdd/`
 is relative to the current checkout.
 
-See [SDD Storage](sdd_storage.md) for the full resolution order, companion-repo convention, setup guidance, and
-offline/push behavior.
+Project and user configuration cannot override this selection. See [SDD Storage](sdd_storage.md) for the provider
+contract, companion-repo convention, setup guidance, and offline/push behavior.
 
 For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files automatically. First-use
 `#git:<project>` initialization includes them in the initial commit; existing bare-repo registration, `#git`
@@ -148,10 +148,9 @@ when passing list flags such as `--kind` or `--json`.
 | Command                 | Purpose                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                |
-| `sase init sdd`         | Compatibility alias for the default init flow; use `sase sdd init --storage ...` for explicit storage   |
+| `sase init sdd`         | Compatibility alias for the provider-owned `sase sdd init` flow                                         |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, or `all`                   |
-| `sase sdd migrate`      | Migrate existing in-tree or local SDD files into the provider companion repository                      |
 | `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                         |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
@@ -166,16 +165,13 @@ warning count and appends `(use --show-warnings to display)` so they remain disc
 on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to errors before
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
-The `sase sdd init` command creates or connects the effective SDD store, then refreshes the top-level README, the
-directory map asset, and generated `README.md` files in `tales/`, `epics/`, and `research/`. On GitHub projects whose
-provider policy is `separate_repo`, it creates the `<owner>/<repo>--sdd` companion repository as public when missing,
-ensures the selected companion has a `sase--sdd` label, and writes `sdd.storage: separate_repo`. When an in-tree `sdd/`
-store already exists during separate-repo init, SASE migrates those artifacts into the companion checkout instead of
-starting from an empty store. Existing private companion repositories are not made public automatically. Bare-git
-projects keep the legacy in-tree `sdd.version_controlled: true` default. `sase init sdd` covers the same default flow
-and check/path flags; use `sase sdd init --storage ...` when explicitly choosing `in_tree`, `local`, or `separate_repo`.
-Keep conceptual details here in `docs/sdd.md`; use `sase sdd init` to refresh generated project guides or to opt into
-the appropriate SDD storage for the project. The generated guides are safe to overwrite, so do not put hand-maintained
+The `sase sdd init` command materializes the provider-selected store, then refreshes the top-level README, directory
+map, and generated `README.md` files in `tales/`, `epics/`, and `research/`. On GitHub it finds or creates the required
+public-by-default `<owner>/<repo>--sdd` companion, applies the `sase--sdd` label, and imports durable artifacts from
+legacy in-tree and local stores before recording success. Existing private companions remain private. Provider errors
+fail setup instead of falling back to local storage. `sase init sdd` exposes the same flow and check/path flags.
+
+Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
 conceptual prose in those README files.
 
 Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
@@ -208,27 +204,25 @@ canonical and legacy flat/`YYYYMM` locations for backwards compatibility.
 
 ```yaml
 sdd:
-  storage: auto
-  version_controlled: false # deprecated alias
   repo:
     name: "" # optional companion repo override for providers that support it
   push_after_commit: async
 ```
 
-| Option                   | Type        | Default | Description                                                                                                                                                                                                                             |
-| ------------------------ | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.storage`            | enum        | `auto`  | `auto`, `in_tree`, `local`, or `separate_repo`. Non-`auto` values choose the effective SDD storage mode.                                                                                                                                |
-| `sdd.version_controlled` | bool        | `false` | Deprecated alias: `true` maps to `in_tree`; `false` leaves automatic resolution enabled when storage is auto.                                                                                                                           |
-| `sdd.repo.name`          | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit`  | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                             |
+| Option                  | Type        | Default | Description                                                                                                                                                                                                                             |
+| ----------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.repo.name`         | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
+| `sdd.push_after_commit` | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                             |
+
+Storage selection is not configurable. The workspace provider owns it. Retired `sdd.storage` and
+`sdd.version_controlled` keys are ignored and reported by `sase doctor` for cleanup.
 
 See [`configuration.md`](configuration.md) for the full configuration reference and [SDD Storage](sdd_storage.md) for
 mode behavior.
 
 ## Multi-Workspace Behavior
 
-SDD artifact placement follows the configured storage mode and project workflow. In in-tree mode, bead commands read and
-write the current checkout's `sdd/beads/` store; they do not merge bead records from numbered sibling workspaces. In
-local mode, commands route to the primary workspace's `.sase/sdd/beads/` store. In separate-repo mode, commands route to
-the active workspace's companion clone under `.sase/sdd/`. Coordinate in-tree and separate-repo bead state between
-checkouts through the normal VCS sync path.
+SDD artifact placement follows provider policy. With `in_tree`, bead commands use the current checkout's `sdd/beads/`
+store. With `separate_repo`, commands first require a usable provider companion and then use the active workspace's
+`.sase/sdd/` clone. Providerless local storage uses the primary workspace. Numbered sibling stores are not merged;
+coordinate shared state through the normal VCS sync path.

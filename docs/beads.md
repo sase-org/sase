@@ -62,7 +62,7 @@ Plans are groupings that can optionally link to an SDD file via the `design` fie
 plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 
 Plan beads carry a tier. The paths below are relative to the effective SDD root. Use `sase sdd path` or `SASE_SDD_DIR`
-to locate that root in local or separate-repo modes.
+to locate that root for providerless local or provider companion layouts.
 
 | Tier   | SDD Path              | Behavior                                                 |
 | ------ | --------------------- | -------------------------------------------------------- |
@@ -97,8 +97,7 @@ Dependencies are one-way relationships: issue A **depends on** issue B. An issue
 
 ### Directory Structure
 
-When in-tree mode is effective (`sdd.storage: in_tree`, the legacy `sdd.version_controlled: true` alias, or any project
-resolved as the built-in `bare_git` VCS provider under automatic storage):
+When the workspace provider declares in-tree storage, as the built-in `bare_git` provider does:
 
 ```
 sdd/beads/
@@ -111,16 +110,16 @@ sdd/beads/
   beads.db              # SQLite compatibility cache (gitignored)
 ```
 
-In local and separate-repo modes, the directory is `.sase/sdd/beads/` with the same structure. `local` mode uses the
-primary workspace's `.sase/sdd/` path. `separate_repo` mode uses the active workspace's `.sase/sdd/` companion clone and
-records provider/remote metadata in the primary workspace's `.sase/sdd-store.json`.
+For providerless local storage and provider-owned companion storage, the directory is `.sase/sdd/beads/` with the same
+structure. Local storage uses the primary workspace. Companion storage uses the active workspace clone and records
+provider/remote metadata in the primary workspace's `.sase/sdd-store.json`.
 
 Normal bead commands read and write one store for the active checkout. In in-tree mode, canonical bead state lives in
-the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. In local mode, commands route to
-the primary workspace's `.sase/sdd/beads/` store. In separate-repo mode, commands route to the active workspace's
-companion clone so an agent working in workspace `#N` writes the matching `.sase/sdd/` checkout. If the event store is
-absent, reads fall back to legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into
-normal `sase bead` reads.
+the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. Providerless local commands route
+to the primary workspace's `.sase/sdd/beads/` store. Companion-policy commands first materialize the provider store,
+then route to the active workspace clone so an agent in workspace `#N` writes the matching `.sase/sdd/` checkout. If the
+event store is absent, reads fall back to legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not
+merged into normal `sase bead` reads.
 
 ### Event Log + Compatibility Projections
 

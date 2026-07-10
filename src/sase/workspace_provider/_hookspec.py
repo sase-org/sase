@@ -193,11 +193,13 @@ class WorkspaceHookSpec:
         workspace_dir: str,
         options: dict[str, object],
     ) -> dict[str, object] | None:
-        """Materialize an opted-in external SDD store at setup time.
+        """Materialize the provider-required external SDD store at setup time.
 
-        Providers should return a schema-versioned record mapping for
-        ``.sase/sdd-store.json`` or ``None`` when they do not own the current
-        workspace.
+        ``options["staging_dir"]`` is a unique core-owned clone target.
+        Providers should find or create the required remote, populate that
+        target, and return a positive schema-versioned record mapping for
+        ``.sase/sdd-store.json``. Return ``None`` only when the provider does
+        not own the current workspace.
         """
         ...
 
@@ -208,12 +210,12 @@ class WorkspaceHookSpec:
         workspace_dir: str,
         options: dict[str, object],
     ) -> dict[str, object] | None:
-        """Verify or create a companion SDD remote for explicit migration.
+        """Compatibility hook to verify or create a companion SDD remote.
 
         Providers should return a schema-versioned record mapping suitable for
-        ``.sase/sdd-store.json``. ``options["create"]`` indicates whether the
-        provider may create the remote if it is missing. Existing materialized
-        records may be passed back through ``options["sdd_repo"]``,
+        ``.sase/sdd-store.json``. Provider-owned materialization requires
+        creation when the remote is missing. Existing materialized records may
+        be passed back through ``options["sdd_repo"]``,
         ``options["sdd_host"]``, and ``options["sdd_remote_url"]`` so providers
         can verify the exact recorded remote.
         """

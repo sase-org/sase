@@ -46,9 +46,9 @@ Each workspace plugin declares metadata about the workflow type it supports:
 
 Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefixes such as `SASE_GH` and `SASE_HG`.
 
-SASE uses `sdd_storage_policy` only while `sdd.storage` is `auto`. `in_tree` takes effect immediately, as it does for
-the built-in bare-git provider. `separate_repo` is a provider capability declaration; `auto` stays on the local
-`.sase/sdd/` path until `.sase/sdd-store.json` records a found companion store.
+SASE treats `sdd_storage_policy` as authoritative. `in_tree` takes effect immediately, as it does for the built-in
+bare-git provider. `separate_repo` requires the provider to materialize a companion before SDD writes or workflow setup
+can continue. A positive `.sase/sdd-store.json` record preserves that materialized selection for offline use.
 
 ### ResolvedRef
 

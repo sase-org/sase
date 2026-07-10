@@ -16,6 +16,8 @@ from sase.bead.cli_common import auto_commit_bead_store
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
+from sase.sdd.store import write_sdd_store_record
+from tests.sdd_policy_helpers import set_sdd_policy
 
 
 def test_auto_commit_bead_store_commits_non_in_tree_beads_path(
@@ -124,7 +126,17 @@ def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
     workspace_sdd = workspace / ".sase" / "sdd"
     primary_sdd.mkdir(parents=True)
     workspace_sdd.mkdir(parents=True)
+    _init_git_repo(primary_sdd)
     _init_git_repo(workspace_sdd)
+    write_sdd_store_record(
+        primary,
+        {
+            "storage": "separate_repo",
+            "provider": "github",
+            "repo": "owner/project--sdd",
+            "discovery": "found",
+        },
+    )
     _write_checkout_marker(workspace, primary, workspace_num=2)
     _set_sdd_config(monkeypatch, storage="separate_repo")
     monkeypatch.chdir(workspace)
@@ -282,15 +294,10 @@ def _set_sdd_config(
     *,
     storage: str,
 ) -> None:
+    set_sdd_policy(monkeypatch, storage)
     monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {
-            "sdd": {
-                "storage": storage,
-                "version_controlled": False,
-                "push_after_commit": False,
-            }
-        },
+        "sase.config.load_merged_config",
+        lambda: {"sdd": {"push_after_commit": False}},
     )
 
 

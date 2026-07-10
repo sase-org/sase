@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sase.doctor.checks_beads import _check_project_beads
 from sase.doctor.runner import DoctorContext
+from tests.sdd_policy_helpers import set_sdd_policy
 
 
 def _context(tmp_path: Path) -> DoctorContext:
@@ -62,10 +63,7 @@ def test_project_beads_prefers_resolved_local_store(
     local_beads = tmp_path / ".sase" / "sdd" / "beads"
     in_tree_beads.mkdir(parents=True)
     local_beads.mkdir(parents=True)
-    monkeypatch.setattr(
-        "sase.sdd.store.load_merged_config",
-        lambda: {"sdd": {"storage": "local"}},
-    )
+    set_sdd_policy(monkeypatch, "local")
     monkeypatch.setattr(
         "sase.doctor.checks_beads.resolve_current_project_record",
         lambda _context: None,

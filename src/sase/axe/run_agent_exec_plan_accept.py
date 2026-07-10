@@ -443,7 +443,7 @@ def handle_accepted_plan(
             sdd_dir=sdd_dir,
             workspace_dir=ctx.workspace_dir,
             sdd_plan_name=sdd_plan_name if plan_committed else None,
-            version_controlled=sdd_in_tree,
+            sdd_in_tree=sdd_in_tree,
             fallback_plan_file=plan_result.plan_file,
         )
         xprompt_name = "bd/new_epic"
@@ -536,7 +536,7 @@ def handle_accepted_plan(
                 sdd_plan_path=sdd_plan_path,
                 sdd_dir=sdd_dir,
                 workspace_dir=ctx.workspace_dir,
-                version_controlled=sdd_in_tree,
+                sdd_in_tree=sdd_in_tree,
                 fallback_plan_file=plan_result.plan_file,
             )
         else:
