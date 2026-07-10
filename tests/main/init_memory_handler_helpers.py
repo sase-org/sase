@@ -56,20 +56,38 @@ def write(path: Path, content: str) -> None:
 
 
 def run_handler(
-    *, no_commit: bool = True, check: bool = False, message: str | None = None
+    *,
+    no_commit: bool = True,
+    check: bool = False,
+    message: str | None = None,
+    enable_project_memory: bool = False,
 ) -> int:
     with pytest.raises(SystemExit) as exc:
         handle_init_memory_command(
-            argparse.Namespace(no_commit=no_commit, check=check, message=message)
+            argparse.Namespace(
+                no_commit=no_commit,
+                check=check,
+                message=message,
+                enable_project_memory=enable_project_memory,
+            )
         )
     return int(exc.value.code)
 
 
 def run_memory(
-    *, no_commit: bool = True, check: bool = False, message: str | None = None
+    *,
+    no_commit: bool = True,
+    check: bool = False,
+    message: str | None = None,
+    enable_project_memory: bool = False,
 ) -> int:
     return init_memory_handler.run_init_memory(
-        argparse.Namespace(no_commit=no_commit, check=check, message=message)
+        argparse.Namespace(
+            no_commit=no_commit,
+            check=check,
+            message=message,
+            enable_project_memory=enable_project_memory,
+        )
     )
 
 

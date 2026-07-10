@@ -8,6 +8,7 @@ initializers that need attention:
 sase init -c       # report drift without writing
 sase init          # prompt before each needed initializer
 sase init --yes    # run every needed initializer in order
+sase init -M --yes # opt this project into managed memory, then initialize it
 ```
 
 The coordinator plans in registry order: memory, SDD, then skills. Memory initialization owns agent-document
@@ -19,11 +20,17 @@ and root `AGENTS.md` content when the current project's own `./sase.yml` sets `m
 explicit local opt-in, it leaves project memory and the root `AGENTS.md` untouched while still copying every existing
 project-tree `AGENTS.md` to the provider instruction files beside it.
 
+Use `-M, --enable-project-memory` to create or update the current project's `./sase.yml` with `memory.enabled: true`
+before normal initialization. The option preserves other local configuration and is available on both bare `sase init`
+and `sase memory init` (as well as the `sase init memory` compatibility alias). Because it writes configuration, it
+cannot be combined with `--check`.
+
 Explicit subcommands are still available when you need narrower control:
 
 ```bash
 sase memory agent-docs list
 sase memory init --no-commit
+sase memory init --enable-project-memory --no-commit
 sase memory init --check
 sase memory list
 sase memory review --list
@@ -52,38 +59,40 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 
 ## Commands
 
-| Command                               | Purpose                                                                                     |
-| ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase init`                           | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells.    |
-| `sase init -c, --check`               | Report initialization drift without writing and exit non-zero when changes are needed.      |
-| `sase init --yes`                     | Run every needed initializer in memory, SDD, skills order without prompting.                |
-| `sase memory`                         | Alias for `sase memory list`.                                                               |
-| `sase memory list`                    | Inspect loaded, referenced, available, and missing memory files for the current root.       |
-| `sase memory agent-docs`              | Alias for `sase memory agent-docs list`.                                                    |
-| `sase memory agent-docs list`         | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files. |
-| `sase memory read <path>`             | Agent-side read of one long-term memory file with an attributable audit event.              |
-| `sase memory write`                   | Create an attributable long-term memory proposal for human review.                          |
-| `sase memory review`                  | List, inspect, approve, edit, or reject pending memory proposals.                           |
-| `sase memory log`                     | Summarize audited long-term memory reads.                                                   |
-| `sase memory log --include proposals` | Include proposal and review events in the memory audit surface.                             |
-| `sase memory log --path <path>`       | Show a path-level summary and matching individual read events.                              |
-| `sase memory log --id <read-id>`      | Show one full audited read event by id or unambiguous id prefix.                            |
-| `sase memory init`                    | Refresh home and opted-in project memory plus provider copies for existing `AGENTS.md`.     |
-| `sase memory init --check`            | Report memory initialization drift without writing files.                                   |
-| `sase memory init -C`                 | Write memory files but skip the project git commit/pull/push path.                          |
-| `sase init memory`                    | Compatibility alias for `sase memory init`.                                                 |
-| `sase init sdd`                       | Compatibility alias for the provider-owned `sase sdd init` flow.                            |
-| `sase init sdd --check`               | Report provider and generated-file work without writing files.                              |
-| `sase skill`                          | Alias for `sase skill list`.                                                                |
-| `sase skill list`                     | Inspect generated skill sources, provider targets, and deployed-file drift without writing. |
-| `sase skill init`                     | Generate skill files; existing files require confirmation or `--force`.                     |
-| `sase skill init --dry-run`           | Preview generated skill target paths without writing files.                                 |
-| `sase skill init --check`             | Report generated skill-file drift without writing files.                                    |
-| `sase skill init --force`             | Generate and overwrite deployed skill files without confirmation.                           |
-| `sase skill init -p <provider>`       | Deploy only one provider's generated skill files.                                           |
-| `sase skill log`                      | Summarize or inspect audited generated skill-use events.                                    |
-| `sase skill use <name>`               | Agent-side audit event recording that a generated skill was used.                           |
-| `sase init skills`                    | Compatibility alias for `sase skill init`.                                                  |
+| Command                                 | Purpose                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `sase init`                             | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells.    |
+| `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.      |
+| `sase init -M, --enable-project-memory` | Opt the current project into managed memory before running initialization.                  |
+| `sase init --yes`                       | Run every needed initializer in memory, SDD, skills order without prompting.                |
+| `sase memory`                           | Alias for `sase memory list`.                                                               |
+| `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.       |
+| `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                    |
+| `sase memory agent-docs list`           | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files. |
+| `sase memory read <path>`               | Agent-side read of one long-term memory file with an attributable audit event.              |
+| `sase memory write`                     | Create an attributable long-term memory proposal for human review.                          |
+| `sase memory review`                    | List, inspect, approve, edit, or reject pending memory proposals.                           |
+| `sase memory log`                       | Summarize audited long-term memory reads.                                                   |
+| `sase memory log --include proposals`   | Include proposal and review events in the memory audit surface.                             |
+| `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                              |
+| `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                            |
+| `sase memory init`                      | Refresh home and opted-in project memory plus provider copies for existing `AGENTS.md`.     |
+| `sase memory init --check`              | Report memory initialization drift without writing files.                                   |
+| `sase memory init -M`                   | Create/update `./sase.yml` to enable project memory, then initialize it.                    |
+| `sase memory init -C`                   | Write memory files but skip the project git commit/pull/push path.                          |
+| `sase init memory`                      | Compatibility alias for `sase memory init`.                                                 |
+| `sase init sdd`                         | Compatibility alias for the provider-owned `sase sdd init` flow.                            |
+| `sase init sdd --check`                 | Report provider and generated-file work without writing files.                              |
+| `sase skill`                            | Alias for `sase skill list`.                                                                |
+| `sase skill list`                       | Inspect generated skill sources, provider targets, and deployed-file drift without writing. |
+| `sase skill init`                       | Generate skill files; existing files require confirmation or `--force`.                     |
+| `sase skill init --dry-run`             | Preview generated skill target paths without writing files.                                 |
+| `sase skill init --check`               | Report generated skill-file drift without writing files.                                    |
+| `sase skill init --force`               | Generate and overwrite deployed skill files without confirmation.                           |
+| `sase skill init -p <provider>`         | Deploy only one provider's generated skill files.                                           |
+| `sase skill log`                        | Summarize or inspect audited generated skill-use events.                                    |
+| `sase skill use <name>`                 | Agent-side audit event recording that a generated skill was used.                           |
+| `sase init skills`                      | Compatibility alias for `sase skill init`.                                                  |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
 the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory,
@@ -107,6 +116,9 @@ that creates or refreshes these documents.
 
 `sase memory init` always initializes the home-level memory surface. It initializes project-local memory only when the
 project explicitly opts in, and independently owns provider instruction copies:
+
+`sase memory init -M` is the convenience path for a new active main project: it creates or updates `./sase.yml` with the
+required opt-in before loading configuration and running the normal initializer.
 
 - Project memory under `./memory/`, including `memory/README.md` and flat note files with `type`/`parent` frontmatter,
   only when the project's own `./sase.yml` contains `memory.enabled: true`.

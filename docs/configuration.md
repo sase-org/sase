@@ -1564,10 +1564,11 @@ the current project's own `./sase.yml` sets `memory.enabled: true`. It never inf
 Advanced deploy controls stay on explicit subcommands such as `sase memory init --no-commit` and
 `sase skill init --no-push`.
 
-| Flag          | Values | Default | Description                                                                          |
-| ------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
-| `-c, --check` | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
-| `-y, --yes`   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
+| Flag                          | Values | Default | Description                                                                          |
+| ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
+| `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
+| `-M, --enable-project-memory` | flag   | -       | Create/update `./sase.yml` with `memory.enabled: true` before initialization.        |
+| `-y, --yes`                   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
 
 ### `sase memory agent-docs`
 
@@ -1619,10 +1620,11 @@ inserted. By default it also tries to commit, rebase-pull, and push generated pr
 a compatibility alias for this command. Generated linked-repository memory includes `sase workspace open` guidance for
 every configured linked repo.
 
-| Flag              | Values | Default | Description                                                                                             |
-| ----------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |
-| `-c, --check`     | flag   | -       | Report memory initialization drift without writing project or home files.                               |
-| `-C, --no-commit` | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config. |
+| Flag                          | Values | Default | Description                                                                                                |
+| ----------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `-c, --check`                 | flag   | -       | Report memory initialization drift without writing project or home files.                                  |
+| `-M, --enable-project-memory` | flag   | -       | Create/update `./sase.yml` with `memory.enabled: true` before initialization; incompatible with `--check`. |
+| `-C, --no-commit`             | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config.    |
 
 ### `sase init sdd`
 

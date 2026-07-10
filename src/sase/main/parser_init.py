@@ -5,6 +5,19 @@ import argparse
 from sase.main.parser_sdd import add_sdd_path_arg
 
 
+def add_enable_project_memory_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the explicit project-memory opt-in flag to an init parser."""
+    parser.add_argument(
+        "-M",
+        "--enable-project-memory",
+        action="store_true",
+        help=(
+            "Create or update ./sase.yml with memory.enabled: true before "
+            "initializing (cannot be combined with --check)"
+        ),
+    )
+
+
 def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
     """Add flags shared by ``sase skill init`` and its ``sase init skills`` alias."""
     parser.add_argument(
@@ -73,6 +86,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Report initialization drift without writing files or running initializers",
     )
+    add_enable_project_memory_argument(init_parser)
     mode_group.add_argument(
         "-y",
         "--yes",
@@ -101,6 +115,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         default=argparse.SUPPRESS,
         help="Report memory initialization drift without writing files",
     )
+    add_enable_project_memory_argument(memory_parser)
     memory_parser.add_argument(
         "-m",
         "--message",

@@ -16,6 +16,14 @@ def test_parser_accepts_bare_init_modes() -> None:
     assert init_args.init_subcommand is None
     assert init_args.yes is False
     assert init_args.check is False
+    assert init_args.enable_project_memory is False
+
+    enable_args = parser.parse_args(["init", "--enable-project-memory"])
+    assert enable_args.init_subcommand is None
+    assert enable_args.enable_project_memory is True
+
+    short_enable_args = parser.parse_args(["init", "-M"])
+    assert short_enable_args.enable_project_memory is True
 
     yes_args = parser.parse_args(["init", "--yes"])
     assert yes_args.init_subcommand is None
@@ -46,6 +54,12 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
     assert memory_short_args.memory_subcommand == "init"
     assert memory_short_args.check is True
     assert memory_short_args.no_commit is False
+    assert memory_short_args.enable_project_memory is False
+
+    memory_enable_args = parser.parse_args(
+        ["memory", "init", "--enable-project-memory"]
+    )
+    assert memory_enable_args.enable_project_memory is True
 
     memory_long_args = parser.parse_args(["memory", "init", "--check"])
     assert memory_long_args.check is True
@@ -59,6 +73,9 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
     assert init_memory_args.command == "init"
     assert init_memory_args.init_subcommand == "memory"
     assert init_memory_args.check is True
+
+    init_memory_enable_args = parser.parse_args(["init", "memory", "-M"])
+    assert init_memory_enable_args.enable_project_memory is True
 
     parent_sdd_args = parser.parse_args(["init", "--check", "sdd"])
     assert parent_sdd_args.init_subcommand == "sdd"
@@ -116,6 +133,7 @@ def test_init_help_lists_existing_subcommands(
     assert "sdd" in out
     assert "skills" in out
     assert "-c, --check" in out
+    assert "-M, --enable-project-memory" in out
     assert "Advanced deploy controls live on explicit subcommands" in out
 
 

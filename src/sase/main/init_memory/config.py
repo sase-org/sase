@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.config import ConfigEditError, set_key
 from sase.linked_repos import LINKED_REPOS_CONFIG_KEY, SIBLING_REPOS_CONFIG_KEY
 
 from .constants import COMMAND_LABEL
@@ -177,6 +178,34 @@ def project_memory_enabled(config_path: Path) -> tuple[bool, str | None]:
     if not isinstance(enabled, bool):
         return False, f"{config_path}: memory.enabled must be a boolean"
     return enabled, None
+
+
+def enable_project_memory(config_path: Path) -> tuple[bool, str | None]:
+    """Set the local project-memory opt-in while preserving existing YAML.
+
+    Returns whether the file changed and an optional user-facing error. Invalid
+    YAML and non-mapping documents are left untouched.
+    """
+    config, load_error = _load_yaml_mapping(config_path)
+    if load_error is not None:
+        return False, load_error
+    del config
+
+    try:
+        current_text = (
+            config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+        )
+        updated_text = set_key(current_text, ("memory", "enabled"), True)
+    except (ConfigEditError, OSError) as exc:
+        return False, f"{config_path}: failed to update memory.enabled: {exc}"
+
+    if updated_text == current_text:
+        return False, None
+    try:
+        config_path.write_text(updated_text, encoding="utf-8")
+    except OSError as exc:
+        return False, f"{config_path}: failed to write file: {exc}"
+    return True, None
 
 
 def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:

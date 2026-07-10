@@ -15,12 +15,18 @@ class _TtyStringIO(StringIO):
         return True
 
 
-def _args(*, yes: bool = False, check: bool = False) -> argparse.Namespace:
+def _args(
+    *,
+    yes: bool = False,
+    check: bool = False,
+    enable_project_memory: bool = False,
+) -> argparse.Namespace:
     return argparse.Namespace(
         command="init",
         init_subcommand=None,
         yes=yes,
         check=check,
+        enable_project_memory=enable_project_memory,
     )
 
 

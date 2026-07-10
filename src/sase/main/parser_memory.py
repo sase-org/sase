@@ -2,6 +2,8 @@
 
 import argparse
 
+from sase.main.parser_init import add_enable_project_memory_argument
+
 
 def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``memory`` command group."""
@@ -73,6 +75,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Report memory initialization drift without writing files",
     )
+    add_enable_project_memory_argument(init_parser)
     init_parser.add_argument(
         "-m",
         "--message",

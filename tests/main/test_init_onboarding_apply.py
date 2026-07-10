@@ -13,7 +13,7 @@ import pytest
 from sase.main import _init_chezmoi_deploy
 from sase.main._init_chezmoi_deploy import defer_chezmoi_paths
 from sase.main.init_onboarding import run_init_onboarding
-from sase.main.init_plan import InitAction
+from sase.main.init_plan import InitAction, InitPlan
 from sase.main.init_registry import InitCommandSpec
 from tests.main.init_onboarding_helpers import (
     _args,
@@ -58,6 +58,46 @@ def test_yes_runs_all_changed_specs_in_order() -> None:
     assert calls == ["memory", "skills"]
     assert [seen.init_subcommand for seen in args_seen] == ["memory", "skills"]
     assert args_seen[1].force is True
+
+
+def test_enable_project_memory_writes_config_before_planning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / ".git").mkdir()
+    monkeypatch.chdir(project_root)
+    calls: list[str] = []
+
+    def plan_memory(args: argparse.Namespace) -> InitPlan:
+        assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
+            "memory:\n  enabled: true\n"
+        )
+        return _plan(
+            "memory",
+            actions=(_changed_action("sase.yml"),),
+            summary="enable project memory",
+        )
+
+    specs = (
+        InitCommandSpec(
+            name="memory",
+            label="Memory",
+            plan=plan_memory,
+            run=lambda args: calls.append("memory") or 0,
+        ),
+    )
+
+    exit_code = run_init_onboarding(
+        _args(yes=True, enable_project_memory=True),
+        specs=specs,
+        stdin=StringIO(),
+        input_func=_reject_prompt,
+    )
+
+    assert exit_code == 0
+    assert calls == ["memory"]
 
 
 def test_yes_runs_one_deferred_chezmoi_deploy_after_selected_runs(

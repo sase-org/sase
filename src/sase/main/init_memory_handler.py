@@ -25,6 +25,7 @@ from ._init_chezmoi_deploy import (
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
 from .init_memory.config import (
+    enable_project_memory as _enable_project_memory,
     primary_workspace_root_for_memory as _primary_workspace_root_for_memory,
     project_config_path as _project_config_path,
     project_memory_enabled as _project_memory_enabled,
@@ -208,6 +209,48 @@ def _capture_pre_init_git_state(project_root: Path) -> PreInitGitState | None:
     )
 
 
+def prepare_project_memory_opt_in(args: argparse.Namespace) -> bool:
+    """Apply ``--enable-project-memory`` once, before init planning or writes."""
+    if not getattr(args, "enable_project_memory", False):
+        return True
+    if getattr(args, "_project_memory_opt_in_prepared", False):
+        return True
+    if getattr(args, "check", False):
+        print(
+            f"{COMMAND_LABEL}: --enable-project-memory cannot be combined with --check",
+            file=sys.stderr,
+        )
+        return False
+
+    project_root = Path.cwd()
+    if not is_project_directory(project_root):
+        print(
+            f"{COMMAND_LABEL}: --enable-project-memory requires a version-controlled project directory",
+            file=sys.stderr,
+        )
+        return False
+
+    no_commit = bool(getattr(args, "no_commit", False))
+    git_state = None if no_commit else _capture_pre_init_git_state(project_root)
+    config_path = _project_config_path()
+    config_existed = config_path.exists()
+    changed, error = _enable_project_memory(config_path)
+    if error is not None:
+        print(error, file=sys.stderr)
+        return False
+
+    args._project_memory_opt_in_prepared = True
+    args._project_config_changed = changed
+    args._project_config_git_state = git_state
+    if changed:
+        args._project_config_operation = "update" if config_existed else "create"
+        print(
+            f"{COMMAND_LABEL}: {args._project_config_operation}d {config_path} "
+            "with memory.enabled: true"
+        )
+    return True
+
+
 def _display_dirty_path(dirty_path: DirtyPath) -> str:
     return f"{dirty_path.path} ({dirty_path_label(dirty_path.status)})"
 
@@ -296,7 +339,9 @@ def _deploy_to_project_repo(
     manage_memory: bool = True,
     git_state: PreInitGitState | None = None,
     message: str | None = None,
+    owned_paths: Iterable[Path] = (),
 ) -> int:
+    owned_paths = tuple(owned_paths)
     if no_commit:
         return 0
 
@@ -330,7 +375,9 @@ def _deploy_to_project_repo(
         memory_dirty = git_state.memory_dirty
         other_dirty = git_state.other_dirty
 
-    init_changed = bool(project_result.written_paths or project_result.deleted_paths)
+    init_changed = bool(
+        project_result.written_paths or project_result.deleted_paths or owned_paths
+    )
     if other_dirty:
         if init_changed or memory_dirty:
             _print_foreign_dirty_refusal(other_dirty)
@@ -355,6 +402,7 @@ def _deploy_to_project_repo(
         (
             *project_result.written_paths,
             *project_result.deleted_paths,
+            *owned_paths,
             *((_sase_memory_path(project_result.root),) if manage_memory else ()),
             *(git_root / dirty_path.path for dirty_path in memory_dirty),
         )
@@ -561,6 +609,13 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
         for root_plan in root_plans
         for change in root_plan.changes
     )
+    if getattr(args, "_project_config_changed", False):
+        config_action = InitAction(
+            path=_project_config_path(),
+            operation=getattr(args, "_project_config_operation", "update"),
+            detail="enable project memory in sase.yml",
+        )
+        actions = (config_action, *actions)
     blockers = _memory_plan_blockers(root_plans)
     return InitPlan(
         command="memory",
@@ -573,6 +628,9 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
 
 def run_init_memory(args: argparse.Namespace) -> int:
     """Apply ``sase memory init`` and return a process exit code."""
+    if not prepare_project_memory_opt_in(args):
+        return 1
+
     if getattr(args, "check", False):
         from .init_onboarding import run_init_check
         from .init_registry import InitCommandSpec
@@ -600,9 +658,10 @@ def run_init_memory(args: argparse.Namespace) -> int:
         _print_config_errors(root_plan_blockers)
         return 1
 
-    git_state = None
+    git_state = getattr(args, "_project_config_git_state", None)
     if inputs.is_project_dir and not inputs.no_commit:
-        git_state = _capture_pre_init_git_state(inputs.project_root)
+        if not getattr(args, "_project_memory_opt_in_prepared", False):
+            git_state = _capture_pre_init_git_state(inputs.project_root)
         if git_state is not None and not inputs.project_memory_enabled:
             git_state = PreInitGitState(
                 git_root=git_state.git_root,
@@ -650,6 +709,11 @@ def run_init_memory(args: argparse.Namespace) -> int:
             manage_memory=inputs.project_memory_enabled,
             git_state=git_state,
             message=getattr(args, "message", None),
+            owned_paths=(
+                (_project_config_path(),)
+                if getattr(args, "_project_config_changed", False)
+                else ()
+            ),
         )
         if project_exit_code != 0:
             exit_code = project_exit_code

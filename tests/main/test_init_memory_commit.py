@@ -166,6 +166,22 @@ def test_init_memory_default_commits_and_pushes_project_changes(
     assert message == "chore: run sase init memory\n\nSASE_TYPE=memory"
 
 
+def test_enable_project_memory_stages_created_local_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
+    (project_root / "sase.yml").unlink()
+    git_calls = _install_successful_git(monkeypatch, project_root)
+    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: True)
+
+    assert run_handler(no_commit=False, enable_project_memory=True) == 0
+
+    assert any(
+        "add" in cmd and Path(cmd[-1]) == project_root / "sase.yml" for cmd in git_calls
+    )
+
+
 def test_init_memory_no_upstream_commits_and_skips_pull_push(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

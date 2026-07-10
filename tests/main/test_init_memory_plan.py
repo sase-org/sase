@@ -77,6 +77,84 @@ def test_unmanaged_project_does_not_manage_memory_or_root_agents(
         assert (project_root / filename).read_text(encoding="utf-8") == agents_content
 
 
+def test_enable_project_memory_creates_local_config_before_initializing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    (project_root / "sase.yml").unlink()
+
+    assert run_memory(enable_project_memory=True) == 0
+
+    assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
+        "memory:\n  enabled: true\n"
+    )
+    assert (project_root / "memory" / "sase.md").is_file()
+    assert (project_root / "AGENTS.md").is_file()
+
+
+def test_enable_project_memory_preserves_existing_local_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        "# Keep this comment\nlinked_repos: []\nmemory:\n  enabled: false # opt in\n",
+    )
+
+    assert run_memory(enable_project_memory=True) == 0
+
+    config_text = (project_root / "sase.yml").read_text(encoding="utf-8")
+    assert config_text == (
+        "# Keep this comment\nlinked_repos: []\nmemory:\n  enabled: true # opt in\n"
+    )
+
+
+def test_enable_project_memory_rejects_check_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    (project_root / "sase.yml").unlink()
+
+    assert run_memory(check=True, enable_project_memory=True) == 1
+
+    assert not (project_root / "sase.yml").exists()
+    assert "cannot be combined with --check" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize(
     "config_text, expected_error",
     [

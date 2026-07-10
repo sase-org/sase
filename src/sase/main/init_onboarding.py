@@ -237,6 +237,12 @@ def run_init_onboarding(
     console: Console | None = None,
 ) -> int:
     """Run bare ``sase init`` and return a process exit code."""
+    if getattr(args, "enable_project_memory", False):
+        from .init_memory_handler import prepare_project_memory_opt_in
+
+        if not prepare_project_memory_opt_in(args):
+            return 1
+
     active_specs = _active_onboarding_specs(specs)
     out_console = console or _console_for(sys.stdout)
     is_tty = (stdin or sys.stdin).isatty()
