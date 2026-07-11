@@ -27,7 +27,7 @@ def make_args(**overrides: object) -> argparse.Namespace:
 
 
 def write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
-    prompt = root / "prompts" / "202605" / f"{name}.md"
+    prompt = root / "plans" / "202605" / "prompts" / f"{name}.md"
     plan = root / "plans" / "202605" / f"{name}.md"
     prompt.parent.mkdir(parents=True, exist_ok=True)
     plan.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +36,7 @@ def write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
         encoding="utf-8",
     )
     plan.write_text(
-        f"---\nprompt: sdd/prompts/202605/{name}.md\ntier: tale\n---\n# Plan\n",
+        f"---\nprompt: sdd/plans/202605/prompts/{name}.md\ntier: tale\n---\n# Plan\n",
         encoding="utf-8",
     )
     return prompt, plan

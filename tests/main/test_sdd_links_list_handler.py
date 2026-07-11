@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.main.sdd_handler import handle_sdd_command
+from sase.sdd.links import list_sdd_files
 from tests.main.sdd_handler_helpers import (
     make_args,
     mark_tmp_path_as_project,
@@ -23,7 +24,7 @@ def test_repair_links_write_backfills_unambiguous_pair(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
-    prompt = root / "prompts" / "202605" / "fixme.md"
+    prompt = root / "plans" / "202605" / "prompts" / "fixme.md"
     plan = root / "plans" / "202605" / "fixme.md"
     prompt.parent.mkdir(parents=True, exist_ok=True)
     plan.parent.mkdir(parents=True, exist_ok=True)
@@ -40,12 +41,12 @@ def test_repair_links_write_backfills_unambiguous_pair(
     assert {action["field"] for action in payload["actions"]} == {"plan", "prompt"}
     assert payload["changed_files"] == [
         "plans/202605/fixme.md",
-        "prompts/202605/fixme.md",
+        "plans/202605/prompts/fixme.md",
     ]
     assert "plan: sdd/plans/202605/fixme.md" in prompt.read_text(encoding="utf-8")
     plan_text = plan.read_text(encoding="utf-8")
     assert "keep: true" in plan_text
-    assert "prompt: sdd/prompts/202605/fixme.md" in plan_text
+    assert "prompt: sdd/plans/202605/prompts/fixme.md" in plan_text
 
 
 def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -59,7 +60,7 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     rows = json.loads(capsys.readouterr().out)
     assert {row["path"] for row in rows} == {
         "plans/202605/linked.md",
-        "prompts/202605/linked.md",
+        "plans/202605/prompts/linked.md",
     }
     assert all(row["bidirectional"] for row in rows)
 
@@ -82,6 +83,17 @@ def test_list_default_uses_configured_separate_repo_store(
 
     assert excinfo.value.code == 0
     assert capsys.readouterr().out == "tales\tplans/202605/linked.md\n"
+
+
+def test_list_keeps_legacy_top_level_prompts_readable(tmp_path: Path) -> None:
+    root = tmp_path / "sdd"
+    prompt = root / "prompts" / "202605" / "legacy.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text("# Legacy prompt\n", encoding="utf-8")
+
+    files = list_sdd_files(root, kind="prompts")
+
+    assert [file.relpath for file in files] == ["prompts/202605/legacy.md"]
 
 
 def test_list_invalid_path_exits_nonzero(

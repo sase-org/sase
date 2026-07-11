@@ -33,6 +33,8 @@ LIST_KINDS = ("prompts", "plans", "tales", "epics")
 # Closed quarantine for historical invalid SDD files only; do not add new files.
 LEGACY_INVALID_SDD_ERROR_ALLOWLIST: frozenset[str] = frozenset(
     {
+        "plans/202605/prompts/recover_uncommitted_audit_work_1.md",
+        "plans/202605/prompts/sase_mobile_mvp_legend.md",
         "prompts/202605/recover_uncommitted_audit_work_1.md",
         "prompts/202605/sase_mobile_mvp_legend.md",
     }
@@ -89,9 +91,8 @@ def validate_sdd_tree(
             )
             continue
 
-        physical_kind = Path(file.relpath).parts[0]
         if (
-            physical_kind == "plans"
+            file.kind in PLAN_KINDS
             and normalize_plan_tier(file.frontmatter.get("tier")) is None
         ):
             issues.append(
@@ -213,6 +214,10 @@ def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
     """Return known SDD markdown files under ``root``."""
     files: list[_SddFile] = []
     if kind in {"all", "prompts"}:
+        for path in sorted((root / "plans").glob("*/prompts/*.md")):
+            sdd_file = _read_sdd_file(root, path, "prompts")
+            if sdd_file is not None:
+                files.append(sdd_file)
         for physical_kind in PROMPT_KINDS:
             kind_root = root / physical_kind
             if not kind_root.is_dir():
@@ -372,7 +377,13 @@ def _link_value_for(root: Path, target: Path) -> str:
 
 def _read_sdd_file(root: Path, path: Path, kind: str) -> _SddFile | None:
     parts = path.relative_to(root).parts
-    if len(parts) != 3:
+    is_nested_prompt = (
+        kind == "prompts"
+        and len(parts) == 4
+        and parts[0] == "plans"
+        and parts[2] == "prompts"
+    )
+    if len(parts) != 3 and not is_nested_prompt:
         return None
     yyyymm = parts[1]
     name = path.stem

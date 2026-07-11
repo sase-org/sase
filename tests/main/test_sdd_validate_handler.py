@@ -172,7 +172,7 @@ def test_validate_quarantines_retired_legend_prompt_links(
     name: str,
 ) -> None:
     root = tmp_path / "sdd"
-    path = root / "prompts" / "202605" / name
+    path = root / "plans" / "202605" / "prompts" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"---\nplan: sdd/legends/202605/{name}\n---\n# Legacy prompt\n",
