@@ -396,6 +396,42 @@ def test_one_malformed_entry_pruned_valid_kept() -> None:
     assert set(_read_state()["overrides"]) == {"coder"}
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("created_at", float("nan")),
+        ("created_at", float("inf")),
+        ("created_at", True),
+        ("created_at", 10**400),
+        ("expires_at", float("nan")),
+        ("expires_at", float("-inf")),
+        ("expires_at", False),
+        ("expires_at", 10**400),
+    ],
+)
+def test_non_finite_persisted_timestamp_is_pruned(
+    field: str,
+    value: object,
+) -> None:
+    set_alias_override("coder", "codex/o3", None, source="panel")
+    data = _read_state()
+    data["overrides"]["phase_worker"] = {
+        "provider": "claude",
+        "model": "opus",
+        "raw_model": "claude/opus",
+        "created_at": time.time(),
+        "expires_at": None,
+        "source": "panel",
+        field: value,
+    }
+    _write_state(data)
+
+    active = get_active_alias_overrides()
+
+    assert set(active) == {"coder"}
+    assert set(_read_state()["overrides"]) == {"coder"}
+
+
 def test_top_level_list_returns_empty_and_deletes() -> None:
     path = _state_path()
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -216,19 +216,30 @@ def _entry_from_dict(entry: object) -> TemporaryLLMOverride | None:
         isinstance(entry[k], str) for k in ("provider", "model", "raw_model", "source")
     ):
         return None
-    if not isinstance(entry["created_at"], (int, float)):
+    created_at = entry["created_at"]
+    if not _is_finite_number(created_at):
         return None
     expires_at = entry.get("expires_at")
-    if expires_at is not None and not isinstance(expires_at, (int, float)):
+    if expires_at is not None and not _is_finite_number(expires_at):
         return None
     return TemporaryLLMOverride(
         provider=entry["provider"],
         model=entry["model"],
         raw_model=entry["raw_model"],
-        created_at=float(entry["created_at"]),
+        created_at=float(created_at),
         expires_at=float(expires_at) if expires_at is not None else None,
         source=entry["source"],
     )
+
+
+def _is_finite_number(value: object) -> bool:
+    """Return whether *value* is a finite JSON timestamp number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _serialize_overrides(overrides: dict[str, TemporaryLLMOverride]) -> dict:
