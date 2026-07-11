@@ -134,13 +134,20 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     generated_paths = ensure_sdd_initialized(store.sdd_dir)
     for warning in migration.warnings:
         print(f"warning: {warning}", file=sys.stderr)
-    if not store.is_in_tree and (migration.moved or migration.changed):
+    if not store.is_in_tree and (
+        migration.moved or migration.removed or migration.changed
+    ):
         from sase.sdd.files import commit_sdd_store_files
 
         commit_sdd_store_files(
             store,
             "Migrate SDD plans to unified plans directory",
-            paths=[*migration.moved, *migration.changed, *generated_paths],
+            paths=[
+                *migration.moved,
+                *migration.removed,
+                *migration.changed,
+                *generated_paths,
+            ],
         )
     readme_path = expected_sdd_readme(str(store.sdd_dir)).path
     print(readme_path)
@@ -245,17 +252,26 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
             migration_warnings.append(migration.warning)
         if migration.source == migration.destination or migration.new_content is None:
             continue
-        actions.append(
-            InitAction(
-                path=migration.destination,
-                operation="create",
-                detail=(
-                    f"move {migration.source.relative_to(sdd_root).as_posix()} to "
-                    f"{migration.destination.relative_to(sdd_root).as_posix()}"
-                ),
-                new_content=migration.new_content,
+        if migration.remove_source_only:
+            actions.append(
+                InitAction(
+                    path=migration.source,
+                    operation="delete",
+                    detail="remove legacy copy already present in plans",
+                )
             )
-        )
+        else:
+            actions.append(
+                InitAction(
+                    path=migration.destination,
+                    operation="create",
+                    detail=(
+                        f"move {migration.source.relative_to(sdd_root).as_posix()} to "
+                        f"{migration.destination.relative_to(sdd_root).as_posix()}"
+                    ),
+                    new_content=migration.new_content,
+                )
+            )
     actions.extend(
         InitAction(path=path, operation="delete", detail="superseded directory README")
         for path in legacy_readme_paths(sdd_root)

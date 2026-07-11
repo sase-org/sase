@@ -239,6 +239,40 @@ def test_run_uses_materialized_path_and_does_not_change_project_config(
     assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == config_before
 
 
+def test_run_commits_migrated_destinations_and_removed_legacy_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mark_project(tmp_path)
+    sdd_dir = tmp_path / ".sase" / "sdd"
+    legacy = sdd_dir / "tales" / "202607" / "example.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# Example\n", encoding="utf-8")
+    store = SddStore("separate_repo", sdd_dir, sdd_dir, "github", "remote")
+    monkeypatch.setattr(
+        "sase.sdd.store.materialize_sdd_store",
+        lambda _path, _workspace_num, **_options: store,
+    )
+    committed_paths: list[Path] = []
+
+    def capture_commit(
+        _store: SddStore,
+        _message: str,
+        *,
+        paths: list[Path],
+    ) -> bool:
+        committed_paths.extend(paths)
+        return True
+
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", capture_commit)
+
+    assert run_sdd_init(_args(tmp_path)) == 0
+
+    destination = sdd_dir / "plans" / "202607" / "example.md"
+    assert destination in committed_paths
+    assert legacy in committed_paths
+
+
 def test_init_registry_keeps_sdd_alias() -> None:
     specs = {spec.name: spec for spec in iter_init_command_specs()}
     assert specs["sdd"].plan is plan_sdd_init

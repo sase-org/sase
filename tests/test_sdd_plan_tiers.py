@@ -14,7 +14,7 @@ from sase.sdd._plan_migration import (
     migrate_legacy_plan_directories,
     plan_legacy_plan_migration,
 )
-from sase.sdd.frontmatter import parse_frontmatter
+from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
 from sase.sdd.links import list_sdd_files, validate_sdd_tree
 from sase.sdd.plan_tiers import (
     classify_plan_file,
@@ -134,6 +134,8 @@ def test_migration_moves_backfills_rewrites_and_is_idempotent(
     assert prompt_frontmatter["plan"] == "sdd/plans/202607/same_1.md"
     assert not (root / "tales").exists()
     assert not (root / "epics").exists()
+    assert len(result.removed) == 4
+    assert all(not path.exists() for path in result.removed)
     assert result.warnings
 
     with BeadProject(tmp_path, beads_dirname="sdd/beads") as project:
@@ -142,5 +144,33 @@ def test_migration_moves_backfills_rewrites_and_is_idempotent(
 
     rerun = migrate_legacy_plan_directories(root)
     assert rerun.moved == ()
+    assert rerun.removed == ()
     assert rerun.changed == ()
     assert refresh_calls == 1
+
+
+def test_migration_removes_legacy_copy_when_canonical_content_already_exists(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "sdd"
+    legacy = _write(root / "tales" / "202607" / "same.md", "# Tale\n")
+    initial_action = plan_legacy_plan_migration(root)[0]
+    assert initial_action.new_content is not None
+    _write(root / "plans" / "202607" / "same.md", "# Name collision\n")
+    canonical = _write(
+        root / "plans" / "202607" / "same_1.md",
+        set_frontmatter_fields(
+            initial_action.new_content, {"create_time": "2020-01-01 00:00:00"}
+        ),
+    )
+
+    recovery_action = plan_legacy_plan_migration(root)[0]
+    assert recovery_action.destination == canonical
+    assert recovery_action.remove_source_only is True
+
+    result = migrate_legacy_plan_directories(root)
+
+    assert not legacy.exists()
+    assert "2020-01-01 00:00:00" in canonical.read_text(encoding="utf-8")
+    assert result.moved == ()
+    assert result.removed == (legacy,)
