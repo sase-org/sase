@@ -28,6 +28,32 @@ def _write_marker(artifacts_dir: Path, name: str, data: dict[str, object]) -> No
     (artifacts_dir / name).write_text(json.dumps(data), encoding="utf-8")
 
 
+def _write_pending_call(artifacts_dir: Path) -> None:
+    record = {
+        "schema_version": 2,
+        "recorded_at": "1970-01-01T00:01:39+00:00",
+        "runtime": "codex",
+        "source": "stream",
+        "event": "ToolUse",
+        "status": "pending",
+        "tool_name": "Bash",
+        "tool_use_id": "propose-call",
+        "session_id": "session-1",
+    }
+    (artifacts_dir / "tool_calls.jsonl").write_text(
+        json.dumps(record) + "\n", encoding="utf-8"
+    )
+
+
+def _tool_call_records(artifacts_dir: Path) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in (artifacts_dir / "tool_calls.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+
+
 def test_plan_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     state = _state(Path(ctx.artifacts_dir))
@@ -36,6 +62,7 @@ def test_plan_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
         ".sase_plan_pending",
         {"plan_file": "/tmp/plan.md", "timestamp": 99.0},
     )
+    _write_pending_call(Path(ctx.artifacts_dir))
 
     with (
         patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
@@ -49,6 +76,10 @@ def test_plan_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
     assert isinstance(event, HandoffEvent)
     assert event.kind == "plan_submitted"
     assert event.payload == {"plan_file": "/tmp/plan.md", "timestamp": 99.0}
+    result = _tool_call_records(Path(ctx.artifacts_dir))[-1]
+    assert result["event"] == "ToolResult"
+    assert result["status"] == "interrupted"
+    assert result["completed_at"] == "1970-01-01T00:01:40+00:00"
 
 
 def test_plan_marker_newer_than_sigterm_is_ignored_as_user_kill(
@@ -83,6 +114,7 @@ def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
         USER_KILL_INTENT_MARKER,
         {"schema_version": 1, "timestamp": 50.0, "pid": 123, "source": "test"},
     )
+    _write_pending_call(artifacts)
     _write_marker(
         artifacts,
         ".sase_plan_pending",
@@ -99,3 +131,6 @@ def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
     plan.assert_not_called()
     assert (artifacts / USER_KILL_INTENT_MARKER).exists()
     assert not (artifacts / ".sase_plan_pending").exists()
+    result = _tool_call_records(artifacts)[-1]
+    assert result["event"] == "ToolResult"
+    assert result["status"] == "interrupted"

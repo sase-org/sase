@@ -224,6 +224,25 @@ def test_source_activity_and_end_reference_are_per_row(tmp_path: Path) -> None:
     assert root_source.agent_is_active is True
 
 
+@pytest.mark.parametrize("status", ["PLAN APPROVED", "TALE APPROVED"])
+def test_sticky_approved_source_is_not_active(tmp_path: Path, status: str) -> None:
+    artifacts_dir = tmp_path / "ace-run" / "plan"
+    artifacts_dir.mkdir(parents=True)
+    _write_call(artifacts_dir, "propose")
+    stopped_at = datetime(2026, 7, 3, 10, 30, 0)
+    agent = _agent(artifacts_dir, status=status, stop_time=stopped_at)
+
+    with patch(
+        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        return_value=([artifacts_dir], 1),
+    ):
+        sources = build_slow_tool_sources(agent)
+
+    assert sources is not None
+    assert sources[0].agent_is_active is False
+    assert sources[0].end_reference == stopped_at
+
+
 def test_missing_artifacts_dir_child_is_skipped(tmp_path: Path) -> None:
     root_dir = tmp_path / "ace-run" / "root"
     root_dir.mkdir(parents=True)

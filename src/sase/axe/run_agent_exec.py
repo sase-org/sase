@@ -46,6 +46,7 @@ from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import get_retry_config
+from sase.llm_provider._tool_calls import finalize_pending_tool_calls
 from sase.plan_approval_choices import filter_roles_by_selected_member_ids
 from sase.telemetry.metrics import AGENT_KILLS
 
@@ -137,6 +138,12 @@ def _handle_killed_iteration(
     ctx: AgentExecContext,
     state: LoopState,
 ) -> str | None:
+    kill_time = killed_at()
+    finalize_pending_tool_calls(
+        state.current_artifacts_dir,
+        completed_at=kill_time,
+    )
+
     if has_user_kill_intent(state.current_artifacts_dir):
         read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_questions_pending")
@@ -152,7 +159,6 @@ def _handle_killed_iteration(
         ".sase_questions_pending",
     )
 
-    kill_time = killed_at()
     if plan_data and _marker_predates_kill(plan_data, kill_time):
         event = build_handoff_event(
             kind="plan_submitted",

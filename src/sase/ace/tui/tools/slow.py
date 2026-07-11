@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_is_active
 from sase.core.time import get_timezone
 
 from ._constants import (
@@ -48,14 +48,9 @@ def format_long_duration(duration_ms: int) -> str:
 
 
 def agent_is_active_for_slow_tool_calls(agent: object) -> bool:
-    """Return whether pending tool calls should keep ticking for ``agent``."""
+    """Return whether the row's runtime can still complete pending calls."""
     status = getattr(agent, "status", None)
-    retried_as_timestamp = getattr(agent, "retried_as_timestamp", None)
-    return status_bucket_for_values(status, retried_as_timestamp) in {
-        "Starting",
-        "Running",
-        "Waiting",
-    }
+    return agent_is_active(status) or status == "WAITING"
 
 
 def slow_tool_call_threshold_ms_from_config(

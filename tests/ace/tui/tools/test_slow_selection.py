@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
+
+import pytest
 
 from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools.slow import (
+    agent_is_active_for_slow_tool_calls,
     format_long_duration,
     select_slow_tool_calls,
     slow_tool_call_threshold_ms_from_config,
@@ -28,6 +32,31 @@ def _entry(**overrides: object) -> ToolCallEntry:
     }
     kwargs.update(overrides)
     return ToolCallEntry(**kwargs)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("status", ["PLAN APPROVED", "TALE APPROVED", "BOGUS"])
+def test_sticky_or_unknown_status_does_not_keep_pending_calls_ticking(
+    status: str,
+) -> None:
+    assert agent_is_active_for_slow_tool_calls(SimpleNamespace(status=status)) is False
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        "STARTING",
+        "RUNNING",
+        "RETRYING",
+        "ANSWERED",
+        "WORKING PLAN",
+        "WORKING TALE",
+        "EPIC APPROVED",
+        "PLAN COMMITTED",
+        "WAITING",
+    ],
+)
+def test_in_flight_status_keeps_pending_calls_ticking(status: str) -> None:
+    assert agent_is_active_for_slow_tool_calls(SimpleNamespace(status=status)) is True
 
 
 def test_format_long_duration_promotes_minutes() -> None:

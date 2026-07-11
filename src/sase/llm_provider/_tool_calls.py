@@ -41,6 +41,7 @@ from ._tool_call_io import (
     append_jsonl as _append_jsonl,
     append_writer_diagnostic as _append_writer_diagnostic,
 )
+from ._tool_call_finalize import finalize_pending_tool_calls
 
 __all__ = [
     "HOOK_COLLECTOR_EVENTS",
@@ -62,4 +63,5 @@ __all__ = [
     "append_codex_tool_call_event",
     "append_qwen_tool_call_event",
     "append_tool_call_collector_diagnostic",
+    "finalize_pending_tool_calls",
 ]
