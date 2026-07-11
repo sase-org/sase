@@ -299,7 +299,7 @@ present and `cargo` is available, it also builds and installs the local `sase_co
 ```bash
 just install       # Install with dev deps
 just fmt           # Auto-format code
-just lint          # Run ruff, mypy, pyscripts, pyvision, pylimit, keep-sorted, and SASE validation
+just lint          # Run ruff, mypy, pyscripts, pyvision, pylimit, and keep-sorted
 just test          # Fast parallel test run, including PNG visual snapshots
 just test-slow     # Slow pytest subset only
 just test-visual   # ACE PNG visual regression snapshots only

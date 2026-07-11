@@ -42,6 +42,13 @@ def test_check_mirrors_lint_pylimit_stage() -> None:
     assert 'tools/run_silent "lint (pylimit)"     just _lint-pylimit' in output
 
 
+def test_lint_does_not_run_sase_validation() -> None:
+    output = _dry_run("lint")
+
+    assert "Running SASE validation" not in output
+    assert "just validate" not in output
+
+
 def test_public_pylimit_target_uses_private_lint_stage() -> None:
     output = _dry_run("pylimit", "900", "800", "700")
 

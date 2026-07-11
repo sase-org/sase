@@ -121,7 +121,7 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + pyvision + pylimit + keep-sorted + SASE validation)
+# Run linters (ruff + mypy + pyscripts + pyvision + pylimit + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -133,8 +133,6 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-pyvision
     @printf "\n---------- Checking Python file line counts... ----------\n"
     @just _lint-pylimit
-    @printf "\n---------- Running SASE validation... ----------\n"
-    @just validate
 
 # Run ruff linter on Python files (private, extracted for per-stage wrapping)
 _lint-ruff: _setup
@@ -241,7 +239,7 @@ test-tox: _setup
 test-py VER: _setup
     {{ venv_bin }}/tox -e py{{ VER }}
 
-# Run all checks (format check + lint + test) with context-efficient output for agents
+# Run all checks (format check + lint + SASE validation + test) with context-efficient output for agents
 check: _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
