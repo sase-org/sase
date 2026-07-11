@@ -132,6 +132,36 @@ class TestWorkflowVariablesHeader:
         assert "  ▣ sase-core\n" in header.plain
         assert "    9f8e7d6c5b4a feat: linked core\n" in header.plain
 
+    def test_commit_cwd_matching_nested_linked_workspace_is_not_primary(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        primary = tmp_path / "bob-cli_10"
+        linked = primary / ".sase" / "workspaces" / "bob-plugins"
+        agent = make_agent(
+            workspace_dir=str(primary),
+            step_output={
+                "meta_commit_message": "fix: linked plugin",
+                "meta_new_commit": "9f8e7d6c5b4a3",
+                "meta_commit_cwd": str(linked),
+            },
+            linked_repos=(
+                LinkedRepoMetadata(
+                    name="bob-plugins",
+                    workspace_dir=str(linked),
+                ),
+            ),
+        )
+        hint_state = HeaderHintState(1, {}, str(primary), {})
+
+        header, _ = build_header_text(agent, cheap=True, hint_state=hint_state)
+
+        assert "  ▣ bob-plugins\n" in header.plain
+        assert "  ▣ test\n" not in header.plain
+        assert "    [1] 9f8e7d6c5b4a fix: linked plugin\n" in header.plain
+        assert hint_state.commit_views[1].repo_name == "bob-plugins"
+        assert hint_state.commit_views[1].is_primary is False
+
     def test_meta_commits_render_primary_group_first_then_linked(
         self,
         tmp_path: Path,
@@ -171,6 +201,44 @@ class TestWorkflowVariablesHeader:
         assert header.plain.index("  ▣ test\n") < header.plain.index("  ▣ sase-core\n")
         assert "    111111111111 feat: primary workspace\n" in header.plain
         assert "    222222222222 feat: linked core\n" in header.plain
+
+    def test_meta_commits_attribute_nested_linked_and_primary_workspaces(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        primary = tmp_path / "bob-cli_10"
+        linked = primary / ".sase" / "workspaces" / "bob-plugins"
+        agent = make_agent(
+            workspace_dir=str(primary),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "fix: linked plugin",
+                        "sha": "222222222222bbbb",
+                        "cwd": str(linked),
+                    },
+                    {
+                        "message": "feat: primary workspace",
+                        "sha": "111111111111aaaa",
+                        "cwd": str(primary),
+                    },
+                ],
+            },
+            linked_repos=(
+                LinkedRepoMetadata(
+                    name="bob-plugins",
+                    workspace_dir=str(linked),
+                ),
+            ),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert header.plain.index("  ▣ test\n") < header.plain.index(
+            "  ▣ bob-plugins\n"
+        )
+        assert "    111111111111 feat: primary workspace\n" in header.plain
+        assert "    222222222222 fix: linked plugin\n" in header.plain
 
     def test_meta_commits_same_cwd_render_one_group_with_multiple_rows(
         self,
@@ -299,6 +367,39 @@ class TestWorkflowVariablesHeader:
             ("test", "111111111111", str(primary_diff), True),
             ("test", "333333333333", str(shared_legacy_diff), True),
             ("sase-core", "222222222222", str(linked_diff), False),
+        ]
+
+    def test_agent_commit_diffs_attribute_nested_linked_workspace(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        primary = tmp_path / "bob-cli_10"
+        linked = primary / ".sase" / "workspaces" / "bob-plugins"
+        linked_diff = tmp_path / "linked.diff"
+        agent = make_agent(
+            workspace_dir=str(primary),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "fix: linked plugin",
+                        "sha": "222222222222bbbb",
+                        "cwd": str(linked),
+                        "diff_path": str(linked_diff),
+                    },
+                ],
+            },
+            linked_repos=(
+                LinkedRepoMetadata(
+                    name="bob-plugins",
+                    workspace_dir=str(linked),
+                ),
+            ),
+        )
+
+        commit_diffs = agent_commit_diffs(agent)
+
+        assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
+            ("bob-plugins", False)
         ]
 
     def test_load_commit_diff_text_reads_persisted_file(self, tmp_path: Path) -> None:
