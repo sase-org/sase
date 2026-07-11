@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.sdd.store import write_sdd_store_record
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     record_sdd_commit_result_marker,
@@ -395,7 +396,7 @@ class TestAppendCommitsEntry:
 
 
 class TestHandleSasePlan:
-    """Verify handle_sase_plan gates copy/frontmatter/staging on version_controlled."""
+    """Verify handle_sase_plan honors each SDD storage layout."""
 
     def test_vc_true_copies_plan_into_repo(self, tmp_path: Path) -> None:
         """version_controlled=True: plan is copied into sdd/tales/<YYYYMM>/."""
@@ -442,8 +443,8 @@ class TestHandleSasePlan:
         assert "SASE_PLAN=sdd/tales/202605/my_plan.md" in payload["message"]
         assert str(repo_dir) not in payload["message"]
 
-    def test_vc_false_does_not_copy_plan(self, tmp_path: Path) -> None:
-        """version_controlled=False: plan NOT copied, no _plan_path, no PLAN= tag."""
+    def test_local_store_copies_external_plan_and_tags_it(self, tmp_path: Path) -> None:
+        """Store-backed plans are copied and tagged relative to the store."""
         plan_file = tmp_path / "my_plan.md"
         plan_file.write_text("# Plan\nstatus: wip\n")
 
@@ -456,12 +457,53 @@ class TestHandleSasePlan:
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("local"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch("sase.sdd.files.get_yyyymm", return_value="202603"),
+            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
         ):
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" not in payload
-        assert not (repo_dir / "plans").exists()
-        assert "PLAN=" not in payload["message"]
+        dest = repo_dir / ".sase" / "sdd" / "tales" / "202603" / "my_plan.md"
+        assert dest.exists()
+        assert "status: done" in dest.read_text(encoding="utf-8")
+        assert payload["message"].endswith("SASE_PLAN=tales/202603/my_plan.md")
+        mock_commit.assert_called_once()
+        store_arg, message = mock_commit.call_args.args
+        assert store_arg.sdd_dir == repo_dir / ".sase" / "sdd"
+        assert message == "Add SDD plan for my_plan"
+        assert mock_commit.call_args.kwargs == {"paths": [str(dest)]}
+
+    def test_separate_repo_plan_is_tagged_without_code_repo_staging(
+        self, tmp_path: Path
+    ) -> None:
+        """An approved companion-store plan is tagged but not copied or staged."""
+        repo_dir = tmp_path / "repo"
+        plan_file = repo_dir / ".sase" / "sdd" / "tales" / "202607" / "my_plan.md"
+        plan_file.parent.mkdir(parents=True)
+        plan_file.write_text("---\nstatus: wip\n---\n# Plan\n", encoding="utf-8")
+        write_sdd_store_record(
+            repo_dir,
+            {
+                "storage": "separate_repo",
+                "provider": "github",
+                "repo": "owner/repo--sdd",
+                "remote_url": "git@example.com:owner/repo--sdd.git",
+                "discovery": "found",
+            },
+        )
+        payload: dict = {"message": "fix: bug"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
+        ):
+            handle_sase_plan(payload, str(repo_dir))
+
+        assert "_plan_path" not in payload
+        assert "status: done" in plan_file.read_text(encoding="utf-8")
+        assert payload["message"].endswith("SASE_PLAN=tales/202607/my_plan.md")
+        mock_commit.assert_not_called()
 
     def test_archive_fallback_vc_true_copies(self, tmp_path: Path) -> None:
         """Archive fallback + version_controlled=True: copies into YYYYMM subdir."""
@@ -490,8 +532,8 @@ class TestHandleSasePlan:
         assert "_plan_path" in payload
         assert (repo_dir / "sdd" / "tales" / "202603" / "my_plan.md").exists()
 
-    def test_archive_fallback_vc_false_no_copy(self, tmp_path: Path) -> None:
-        """Archive fallback + version_controlled=False: does NOT copy into repo."""
+    def test_archive_fallback_local_copies_into_store(self, tmp_path: Path) -> None:
+        """An archived plan is normalized, committed, and tagged in the store."""
         archive_dir = tmp_path / ".sase" / "plans"
         archive_dir.mkdir(parents=True)
         archive_plan = archive_dir / "my_plan.md"
@@ -510,12 +552,17 @@ class TestHandleSasePlan:
             patched_sdd_policy("local"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("os.path.expanduser", return_value=str(tmp_path)),
+            patch("sase.sdd.files.get_yyyymm", return_value="202603"),
+            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
         ):
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" not in payload
-        assert not (repo_dir / "plans").exists()
-        assert "PLAN=" not in payload["message"]
+        dest = repo_dir / ".sase" / "sdd" / "tales" / "202603" / "my_plan.md"
+        assert dest.exists()
+        assert "status: done" in dest.read_text(encoding="utf-8")
+        assert payload["message"].endswith("SASE_PLAN=tales/202603/my_plan.md")
+        mock_commit.assert_called_once()
 
     def test_vc_true_extracts_yyyymm_from_frontmatter(self, tmp_path: Path) -> None:
         """version_controlled=True: YYYYMM is extracted from create_time frontmatter."""

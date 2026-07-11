@@ -202,7 +202,9 @@ Plan-like beads carry a `tier` value:
 
 For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. Each phase of the epic gets its
 own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. For smaller
-plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file.
+plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The path is relative to the
+repository that owns the plan: `sdd/tales/<YYYYMM>/<name>.md` for in-tree storage and `tales/<YYYYMM>/<name>.md` for
+local or separate-repo stores.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
 workspaces can resolve. Agents can also build paths from `SASE_SDD_DIR`, for example

@@ -116,7 +116,8 @@ Bead association   (inject SASE_BEAD_ID into message when set)
     |
 Bead lifecycle     (close bead, sync beads)                               [skip for proposals]
     |
-Plan handling      (append SASE_PLAN= to message, mark plan done)         [skip for proposals]
+Plan handling      (store/copy plan, append storage-relative SASE_PLAN=,  [skip for proposals]
+                    mark plan done)
     |
 Before hook        (`commit_hooks.before`, e.g. `just fix`)
     |
@@ -403,23 +404,23 @@ has at-least-once execution semantics.
 
 ## Environment Variables
 
-| Variable                            | Purpose                                                          |
-| ----------------------------------- | ---------------------------------------------------------------- |
-| `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)          |
-| `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD` |
-| `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts           |
-| `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance      |
-| `SASE_BEAD_ID`                      | Bead ID to automatically associate with the commit               |
-| `SASE_PLAN`                         | Plan file path for staging and status update                     |
-| `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                     |
-| `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                            |
-| `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                             |
-| `SASE_PR_STATUS`                    | Initial PR ChangeSpec status (`draft`, `wip`, `ready`)           |
-| `SASE_BUG_ID`                       | Bug ID for PR metadata                                           |
-| `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))           |
-| `SASE_LINKED_REPOS_JSON`            | JSON metadata for configured linked repos passed to agents       |
-| `SASE_LINKED_REPO_<ENV_NAME>_DIR`   | Workspace-matched path for one configured linked repo            |
-| `SASE_DISABLE_COMMIT_STOP_HOOK`     | Skip the commit finalizer when set                               |
+| Variable                            | Purpose                                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)                                          |
+| `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD`                                 |
+| `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts                                           |
+| `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                      |
+| `SASE_BEAD_ID`                      | Bead ID to automatically associate with the commit                                               |
+| `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag |
+| `SASE_AGENT_PROJECT_FILE`           | Project file for COMMITS/ChangeSpec tracking                                                     |
+| `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                            |
+| `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                                                             |
+| `SASE_PR_STATUS`                    | Initial PR ChangeSpec status (`draft`, `wip`, `ready`)                                           |
+| `SASE_BUG_ID`                       | Bug ID for PR metadata                                                                           |
+| `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))                                           |
+| `SASE_LINKED_REPOS_JSON`            | JSON metadata for configured linked repos passed to agents                                       |
+| `SASE_LINKED_REPO_<ENV_NAME>_DIR`   | Workspace-matched path for one configured linked repo                                            |
+| `SASE_DISABLE_COMMIT_STOP_HOOK`     | Skip the commit finalizer when set                                                               |
 
 ## Commit Finalizer
 

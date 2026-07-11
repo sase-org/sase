@@ -13,7 +13,7 @@ from sase.bead.project import BEADS_DIRNAME
 from sase.config.core import load_merged_config
 from sase.output import print_status
 from sase.workflows.commit.plan_paths import (
-    format_sase_plan_reference,
+    format_sase_plan_tag_value,
     is_sase_plan_in_repo,
 )
 
@@ -168,19 +168,20 @@ def _get_repo_root(cwd: str) -> str:
     return ""
 
 
-def _infer_prompt_link(repo_root: str, plan_path: str) -> str | None:
-    """Infer a repo-relative SDD prompt link for a plan path, if one exists."""
+def _infer_prompt_link(reference_root: str, plan_path: str) -> str | None:
+    """Infer an SDD-root-relative prompt link for a plan path, if one exists."""
     from pathlib import Path
 
     from sase.sdd.files import find_sdd_file
 
-    prompt = find_sdd_file(Path(repo_root), "prompts", os.path.basename(plan_path))
+    root = Path(reference_root)
+    prompt = find_sdd_file(root, "prompts", os.path.basename(plan_path))
     if prompt is None:
         return None
     try:
-        return prompt.relative_to(Path(repo_root)).as_posix()
+        return prompt.relative_to(root).as_posix()
     except ValueError:
-        return os.path.relpath(prompt, repo_root).replace(os.sep, "/")
+        return os.path.relpath(prompt, reference_root).replace(os.sep, "/")
 
 
 def handle_sase_plan(payload: dict, cwd: str) -> None:
@@ -191,7 +192,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
 
     from sase.sdd.store import resolve_sdd_store
 
-    sdd_in_tree = resolve_sdd_store(cwd, 1).is_in_tree
+    store = resolve_sdd_store(cwd, 1)
 
     # Determine repo root
     repo_root = _get_repo_root(cwd)
@@ -208,12 +209,22 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         else:
             return  # truly missing
 
-    # Only copy plan into repo for version-controlled SDD projects
-    if sdd_in_tree and not in_repo:
+    if not os.path.isabs(plan_path) and repo_root:
+        plan_path = os.path.join(repo_root, plan_path)
+
+    plan_in_store = is_sase_plan_in_repo(plan_path, store.sdd_dir)
+    # A nested store is physically under the workspace but belongs to its own
+    # repository, so it must not be staged with the code commit.
+    plan_in_code_repo = in_repo and (store.is_in_tree or not plan_in_store)
+    should_copy = (
+        not in_repo if store.is_in_tree else not plan_in_store and not plan_in_code_repo
+    )
+
+    if should_copy:
         from sase.sdd.files import get_yyyymm
 
         yyyymm = _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
-        dest = os.path.join(cwd, "sdd", "tales", yyyymm, os.path.basename(plan_path))
+        dest = os.path.join(store.sdd_dir, "tales", yyyymm, os.path.basename(plan_path))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copy2(plan_path, dest)
         # Format the copied plan with prettier (safety net for
@@ -226,19 +237,22 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
             with open(dest, "w", encoding="utf-8") as f:
                 f.write(formatted)
         plan_path = dest
+        plan_in_code_repo = store.is_in_tree
 
-    # Only add frontmatter for in-tree SDD plans.
-    if sdd_in_tree:
+    # Approved store-backed plans already received frontmatter when written.
+    # Copied archives need the same normalization as in-tree plans.
+    if store.is_in_tree or should_copy:
         plan_content = open(plan_path, encoding="utf-8").read()
         if not plan_content.startswith("---\n"):
             from sase.llm_provider._plan_utils import add_create_time_frontmatter
 
             plan_content = add_create_time_frontmatter(plan_content)
 
-        if repo_root:
+        reference_root = repo_root if store.is_in_tree else str(store.sdd_dir)
+        if reference_root:
             from sase.sdd.frontmatter import set_frontmatter_fields
 
-            prompt_link = _infer_prompt_link(repo_root, plan_path)
+            prompt_link = _infer_prompt_link(reference_root, plan_path)
             if prompt_link:
                 plan_content = set_frontmatter_fields(
                     plan_content, {"prompt": prompt_link}
@@ -247,18 +261,29 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan_content)
 
-    plan_ref = format_sase_plan_reference(plan_path, repo_root=repo_root)
+    if should_copy and not store.is_in_tree:
+        from sase.sdd.files import commit_sdd_store_files
+
+        commit_sdd_store_files(
+            store,
+            f"Add SDD plan for {os.path.splitext(os.path.basename(plan_path))[0]}",
+            paths=[plan_path],
+        )
+
+    plan_ref = format_sase_plan_tag_value(
+        plan_path,
+        repo_root=repo_root,
+        store=store,
+    )
     if plan_ref is None:
         plan_ref = os.path.basename(plan_path)
 
-    # Append SASE_PLAN= to commit message for in-tree SDD projects.
-    if sdd_in_tree:
-        from sase.workflows.commit.runtime_tags import update_trailing_commit_tags
+    from sase.workflows.commit.runtime_tags import update_trailing_commit_tags
 
-        message = payload.get("message", "")
-        payload["message"] = update_trailing_commit_tags(
-            message, {"PLAN": plan_ref}, remove_keys={"PLAN"}
-        )
+    message = payload.get("message", "")
+    payload["message"] = update_trailing_commit_tags(
+        message, {"PLAN": plan_ref}, remove_keys={"PLAN"}
+    )
 
     # Mark plan as done
     subprocess.run(
@@ -267,6 +292,6 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         capture_output=True,
     )
 
-    # Only stage plan files that live in the code repository.
-    if sdd_in_tree:
+    # Only stage plan files that belong to the code repository.
+    if plan_in_code_repo:
         payload["_plan_path"] = plan_path
