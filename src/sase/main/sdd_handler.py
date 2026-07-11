@@ -128,7 +128,20 @@ def run_sdd_init(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    ensure_sdd_initialized(store.sdd_dir)
+    from sase.sdd._prompt_migration import migrate_legacy_prompt_directories
+
+    migration = migrate_legacy_prompt_directories(store.sdd_dir)
+    generated_paths = ensure_sdd_initialized(store.sdd_dir)
+    for warning in migration.warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+    if not store.is_in_tree and (migration.moved or migration.changed):
+        from sase.sdd.files import commit_sdd_store_files
+
+        commit_sdd_store_files(
+            store,
+            "Migrate SDD prompts into plan month directories",
+            paths=[*migration.moved, *migration.changed, *generated_paths],
+        )
     readme_path = expected_sdd_readme(str(store.sdd_dir)).path
     print(readme_path)
     return 0
@@ -219,6 +232,27 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
         if import_action is not None:
             actions.append(import_action)
     generated_path = str(resolve_sdd_dir(project_root, 1))
+    from sase.sdd._prompt_migration import plan_legacy_prompt_migration
+
+    sdd_root = Path(generated_path)
+    migration_plan = plan_legacy_prompt_migration(sdd_root)
+    migration_warnings: list[str] = []
+    for migration in migration_plan:
+        if migration.warning:
+            migration_warnings.append(migration.warning)
+        if migration.source == migration.destination or migration.new_content is None:
+            continue
+        actions.append(
+            InitAction(
+                path=migration.destination,
+                operation="create",
+                detail=(
+                    f"move {migration.source.relative_to(sdd_root).as_posix()} to "
+                    f"{migration.destination.relative_to(sdd_root).as_posix()}"
+                ),
+                new_content=migration.new_content,
+            )
+        )
     actions.extend(
         InitAction(
             path=action.path,
@@ -234,7 +268,7 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
         label="SDD",
         summary=_summarize_sdd_actions(actions),
         actions=tuple(actions),
-        warnings=(),
+        warnings=tuple(migration_warnings),
         blockers=(),
     )
 

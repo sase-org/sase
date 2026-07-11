@@ -2,7 +2,7 @@
 
 ``export`` is a full-text escape hatch (like ``show``/``copy``): it prints a
 prompt to stdout, writes it to a chosen file, or snapshots it under
-``sdd/prompts/YYYYMM/`` with provenance frontmatter. ``save`` writes an ordinary
+``sdd/plans/YYYYMM/prompts/`` with provenance frontmatter. ``save`` writes an ordinary
 markdown xprompt file that the existing loader can resolve via ``#name``.
 
 Neither command touches the prompt-history store, so they need no lock; their
@@ -165,7 +165,7 @@ def _build_export_content(record: PromptHistoryRecord, *, metadata: bool) -> str
 
 
 def _sdd_snapshot_path(record: PromptHistoryRecord) -> Path:
-    """Return the default SDD ``prompts/YYYYMM/<slug>_<id>.md`` snapshot path."""
+    """Return the default nested SDD prompt snapshot path."""
     from sase.sdd._paths import get_yyyymm
     from sase.sdd.store import materialize_sdd_store
 
@@ -181,7 +181,7 @@ def _sdd_snapshot_path(record: PromptHistoryRecord) -> Path:
     except Exception:
         workspace_num = None
     store = materialize_sdd_store(workspace, workspace_num or 1)
-    return store.sdd_dir / "prompts" / get_yyyymm() / f"{basename}.md"
+    return store.sdd_dir / "plans" / get_yyyymm() / "prompts" / f"{basename}.md"
 
 
 # ---------------------------------------------------------------------------

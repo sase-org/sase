@@ -207,7 +207,8 @@ def test_write_sdd_files() -> None:
 
         assert prompt_path.exists()
         assert plan_path.exists()
-        assert prompt_path.parent.name == "202603"
+        assert prompt_path.parent.name == "prompts"
+        assert prompt_path.parent.parent.name == "202603"
         assert plan_path.parent.name == "202603"
         prompt_fm, prompt_body, _ = parse_frontmatter(
             prompt_path.read_text(encoding="utf-8")
@@ -217,7 +218,7 @@ def test_write_sdd_files() -> None:
         plan_text = plan_path.read_text(encoding="utf-8")
         assert plan_text.startswith("---\ncreate_time:")
         plan_fm, _, _ = parse_frontmatter(plan_text)
-        assert plan_fm["prompt"] == "prompts/202603/my_plan.md"
+        assert plan_fm["prompt"] == "plans/202603/prompts/my_plan.md"
         assert plan_fm["tier"] == "tale"
         assert "steps:" in plan_text
 
@@ -247,7 +248,7 @@ def test_write_sdd_files_creates_dirs() -> None:
 
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
             write_sdd_files(sdd_dir, "test", "spec", str(plan_file))
-        assert (sdd_dir / "prompts" / "202603").is_dir()
+        assert (sdd_dir / "plans" / "202603" / "prompts").is_dir()
         assert (sdd_dir / "plans" / "202603").is_dir()
 
 
@@ -266,13 +267,13 @@ def test_write_sdd_files_epic_tier() -> None:
                 plan_tier="epic",
             )
 
-        assert prompt_path == sdd_dir / "prompts" / "202603" / "my_epic.md"
+        assert prompt_path == sdd_dir / "plans" / "202603" / "prompts" / "my_epic.md"
         assert plan_path == sdd_dir / "plans" / "202603" / "my_epic.md"
         assert plan_path.exists()
         prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
         plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
         assert prompt_fm["plan"] == "plans/202603/my_epic.md"
-        assert plan_fm["prompt"] == "prompts/202603/my_epic.md"
+        assert plan_fm["prompt"] == "plans/202603/prompts/my_epic.md"
         assert plan_fm["tier"] == "epic"
 
 
@@ -292,7 +293,7 @@ def test_write_sdd_files_uses_canonical_plan_directory_for_both_tiers() -> None:
                     plan_tier=plan_tier,
                 )
 
-        assert (sdd_dir / "prompts" / "202603").is_dir()
+        assert (sdd_dir / "plans" / "202603" / "prompts").is_dir()
         assert (sdd_dir / "plans" / "202603" / "my_tale.md").exists()
         assert (sdd_dir / "plans" / "202603" / "my_epic.md").exists()
         assert not (Path(tmpdir) / "plans").exists()
@@ -321,7 +322,7 @@ def test_write_sdd_files_uses_sdd_relative_links() -> None:
         prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
         plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
         assert prompt_fm["plan"] == "sdd/plans/202603/linked.md"
-        assert plan_fm["prompt"] == "sdd/prompts/202603/linked.md"
+        assert plan_fm["prompt"] == "sdd/plans/202603/prompts/linked.md"
 
 
 def test_write_sdd_files_uses_local_sase_sdd_relative_links() -> None:
@@ -338,7 +339,7 @@ def test_write_sdd_files_uses_local_sase_sdd_relative_links() -> None:
         prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
         plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
         assert prompt_fm["plan"] == ".sase/sdd/plans/202603/linked.md"
-        assert plan_fm["prompt"] == ".sase/sdd/prompts/202603/linked.md"
+        assert plan_fm["prompt"] == ".sase/sdd/plans/202603/prompts/linked.md"
 
 
 def test_write_sdd_files_preserves_existing_plan_frontmatter() -> None:
@@ -363,7 +364,7 @@ def test_write_sdd_files_preserves_existing_plan_frontmatter() -> None:
         assert plan_fm["bead_id"] == "sase-1y"
         assert plan_fm["tier"] == "epic"
         assert plan_fm["status"] == "ready"
-        assert plan_fm["prompt"] == "sdd/prompts/202603/preserve.md"
+        assert plan_fm["prompt"] == "sdd/plans/202603/prompts/preserve.md"
         assert body.lstrip("\n") == "# Plan\n"
 
 

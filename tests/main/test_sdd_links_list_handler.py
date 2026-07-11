@@ -23,7 +23,7 @@ def test_repair_links_write_backfills_unambiguous_pair(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
-    prompt = root / "prompts" / "202605" / "fixme.md"
+    prompt = root / "plans" / "202605" / "prompts" / "fixme.md"
     plan = root / "plans" / "202605" / "fixme.md"
     prompt.parent.mkdir(parents=True, exist_ok=True)
     plan.parent.mkdir(parents=True, exist_ok=True)
@@ -40,12 +40,12 @@ def test_repair_links_write_backfills_unambiguous_pair(
     assert {action["field"] for action in payload["actions"]} == {"plan", "prompt"}
     assert payload["changed_files"] == [
         "plans/202605/fixme.md",
-        "prompts/202605/fixme.md",
+        "plans/202605/prompts/fixme.md",
     ]
     assert "plan: sdd/plans/202605/fixme.md" in prompt.read_text(encoding="utf-8")
     plan_text = plan.read_text(encoding="utf-8")
     assert "keep: true" in plan_text
-    assert "prompt: sdd/prompts/202605/fixme.md" in plan_text
+    assert "prompt: sdd/plans/202605/prompts/fixme.md" in plan_text
 
 
 def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -59,7 +59,7 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     rows = json.loads(capsys.readouterr().out)
     assert {row["path"] for row in rows} == {
         "plans/202605/linked.md",
-        "prompts/202605/linked.md",
+        "plans/202605/prompts/linked.md",
     }
     assert all(row["bidirectional"] for row in rows)
 

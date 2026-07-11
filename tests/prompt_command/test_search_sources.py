@@ -35,11 +35,15 @@ def _by_id(hits: list[PromptHit]) -> dict[str, PromptHit]:
 
 
 def test_sdd_discovers_canonical_legacy_and_local_layouts(tmp_path: Path) -> None:
-    _write(tmp_path / "sdd" / "prompts" / "202604" / "canonical.md", "canonical body\n")
+    _write(
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "canonical.md",
+        "canonical body\n",
+    )
     _write(tmp_path / "prompts" / "legacy.md", "legacy body\n")
     # The local layout is reached by pointing base_dir at a ``.sase/sdd`` root.
     _write(
-        tmp_path / "local_sdd" / "prompts" / "202605" / "localmode.md", "local body\n"
+        tmp_path / "local_sdd" / "plans" / "202605" / "prompts" / "localmode.md",
+        "local body\n",
     )
 
     hits = _by_id(load_sdd_prompt_hits(tmp_path))
@@ -52,10 +56,13 @@ def test_sdd_discovers_canonical_legacy_and_local_layouts(tmp_path: Path) -> Non
 
 def test_sdd_project_root_includes_local_sase_sdd(tmp_path: Path) -> None:
     # A normal project-root scan must also surface the project-local
-    # ``.sase/sdd/prompts`` store, not only the committed canonical/legacy roots.
-    _write(tmp_path / "sdd" / "prompts" / "202604" / "canonical.md", "canonical body\n")
+    # nested ``.sase/sdd`` store, not only the committed canonical/legacy roots.
     _write(
-        tmp_path / ".sase" / "sdd" / "prompts" / "202605" / "localsnap.md",
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "canonical.md",
+        "canonical body\n",
+    )
+    _write(
+        tmp_path / ".sase" / "sdd" / "plans" / "202605" / "prompts" / "localsnap.md",
         "local snapshot body\n",
     )
 
@@ -63,15 +70,18 @@ def test_sdd_project_root_includes_local_sase_sdd(tmp_path: Path) -> None:
     assert set(hits) == {"canonical", "localsnap"}
     assert all(hit.source is PromptSource.SDD for hit in hits.values())
     # The local hit's path is reported relative to the project root.
-    assert hits["localsnap"].path == ".sase/sdd/prompts/202605/localsnap.md"
+    assert hits["localsnap"].path == ".sase/sdd/plans/202605/prompts/localsnap.md"
 
 
 def test_sdd_no_duplicate_when_local_root_overlaps(tmp_path: Path) -> None:
-    # When *base_dir* is itself a ``.sase/sdd`` root, the canonical ``prompts/``
-    # arm and the appended local ``.sase/sdd/prompts`` arm both reach the same
+    # When *base_dir* is itself a ``.sase/sdd`` root, canonical discovery and
+    # the appended project-local arm both reach the same
     # file; resolved-path de-dup must keep it to a single hit.
     sdd_root = tmp_path / ".sase" / "sdd"
-    _write(sdd_root / "prompts" / "202605" / "localmode.md", "local body\n")
+    _write(
+        sdd_root / "plans" / "202605" / "prompts" / "localmode.md",
+        "local body\n",
+    )
     hits = load_sdd_prompt_hits(sdd_root)
     assert [hit.id for hit in hits] == ["localmode"]
 
@@ -81,10 +91,13 @@ def test_sdd_loader_empty_when_no_prompts_dir(tmp_path: Path) -> None:
 
 
 def test_sdd_hit_relative_path_and_locator(tmp_path: Path) -> None:
-    _write(tmp_path / "sdd" / "prompts" / "202604" / "kitty_panel.md", "body\n")
+    _write(
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "kitty_panel.md",
+        "body\n",
+    )
     hit = load_sdd_prompt_hits(tmp_path)[0]
     assert hit.id == "kitty_panel"
-    assert hit.path == "sdd/prompts/202604/kitty_panel.md"
+    assert hit.path == "sdd/plans/202604/prompts/kitty_panel.md"
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +107,7 @@ def test_sdd_hit_relative_path_and_locator(tmp_path: Path) -> None:
 
 def test_sdd_strips_frontmatter_from_text_and_reads_plan(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "prompts" / "202604" / "foo.md",
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "foo.md",
         "---\nplan: sdd/plans/202604/foo.md\n---\n\nFix the widget thoroughly.\n",
     )
     hit = load_sdd_prompt_hits(tmp_path)[0]
@@ -106,7 +119,7 @@ def test_sdd_strips_frontmatter_from_text_and_reads_plan(tmp_path: Path) -> None
 
 def test_sdd_title_is_cleaned_first_line(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "prompts" / "202604" / "foo.md",
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "foo.md",
         "#widget Fix the rendering bug.\nSecond line ignored.\n",
     )
     hit = load_sdd_prompt_hits(tmp_path)[0]
@@ -116,7 +129,8 @@ def test_sdd_title_is_cleaned_first_line(tmp_path: Path) -> None:
 
 def test_sdd_title_falls_back_to_locator_for_empty_body(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "prompts" / "202604" / "empty_body.md", "---\nplan: x\n---\n"
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "empty_body.md",
+        "---\nplan: x\n---\n",
     )
     hit = load_sdd_prompt_hits(tmp_path)[0]
     assert hit.title == "empty_body"
@@ -126,10 +140,10 @@ def test_sdd_date_precedence_frontmatter_then_path(tmp_path: Path) -> None:
     # ``prompt export`` quotes SASE timestamps so YAML round-trips them as
     # strings (unquoted, ``260512_143000`` would parse as an integer).
     _write(
-        tmp_path / "sdd" / "prompts" / "202604" / "dated.md",
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "dated.md",
         "---\nlast_used: '260512_143000'\n---\nbody\n",
     )
-    _write(tmp_path / "sdd" / "prompts" / "202604" / "undated.md", "body\n")
+    _write(tmp_path / "sdd" / "plans" / "202604" / "prompts" / "undated.md", "body\n")
     hits = _by_id(load_sdd_prompt_hits(tmp_path))
     assert hits["dated"].date == "260512_143000"  # frontmatter wins
     assert hits["undated"].date == "260401_000000"  # path YYYYMM fallback
@@ -137,10 +151,10 @@ def test_sdd_date_precedence_frontmatter_then_path(tmp_path: Path) -> None:
 
 def test_sdd_tolerates_malformed_frontmatter(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "prompts" / "202604" / "broken.md",
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "broken.md",
         "---\nplan: [unclosed\n: : :\n---\nstill scanned\n",
     )
-    _write(tmp_path / "sdd" / "prompts" / "202604" / "ok.md", "fine\n")
+    _write(tmp_path / "sdd" / "plans" / "202604" / "prompts" / "ok.md", "fine\n")
     hits = _by_id(load_sdd_prompt_hits(tmp_path))
     # The broken file is still included rather than aborting the scan.
     assert set(hits) == {"broken", "ok"}
@@ -153,7 +167,7 @@ def test_sdd_tolerates_malformed_frontmatter(tmp_path: Path) -> None:
 
 def test_sdd_tags_combine_frontmatter_and_body(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "prompts" / "202604" / "tagged.md",
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "tagged.md",
         "---\nprompt_tags: [review, auth]\n---\nLook at #review and #widget.\n",
     )
     hit = load_sdd_prompt_hits(tmp_path)[0]
@@ -167,7 +181,7 @@ def test_sdd_tags_combine_frontmatter_and_body(tmp_path: Path) -> None:
 
 def test_sdd_tags_accept_comma_delimited_string(tmp_path: Path) -> None:
     _write(
-        tmp_path / "sdd" / "prompts" / "202604" / "csv.md",
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "csv.md",
         "---\nprompt_tags: review, auth\n---\nbody\n",
     )
     hit = load_sdd_prompt_hits(tmp_path)[0]
@@ -175,7 +189,10 @@ def test_sdd_tags_accept_comma_delimited_string(tmp_path: Path) -> None:
 
 
 def test_sdd_no_tags_when_absent(tmp_path: Path) -> None:
-    _write(tmp_path / "sdd" / "prompts" / "202604" / "plain.md", "just prose here\n")
+    _write(
+        tmp_path / "sdd" / "plans" / "202604" / "prompts" / "plain.md",
+        "just prose here\n",
+    )
     hit = load_sdd_prompt_hits(tmp_path)[0]
     assert hit.tags == ()
 
@@ -251,10 +268,13 @@ def test_collect_dedup_prefers_sdd_and_annotates(tmp_path: Path) -> None:
     shared = "Shared prompt about authentication token rotation."
     sha = _sha256(shared)
     _write(
-        tmp_path / "sdd" / "prompts" / "202605" / "rotate.md",
+        tmp_path / "sdd" / "plans" / "202605" / "prompts" / "rotate.md",
         f"---\nsha256: {sha}\nlast_used: 260512_143000\n---\n\n{shared}\n",
     )
-    _write(tmp_path / "sdd" / "prompts" / "202605" / "sdd_only.md", "only in sdd\n")
+    _write(
+        tmp_path / "sdd" / "plans" / "202605" / "prompts" / "sdd_only.md",
+        "only in sdd\n",
+    )
     save_prompt_history(
         [
             PromptEntry(
@@ -282,7 +302,7 @@ def test_collect_dedup_prefers_sdd_and_annotates(tmp_path: Path) -> None:
 
 @pytest.mark.usefixtures("history_file")
 def test_collect_single_source_skips_the_other(tmp_path: Path) -> None:
-    _write(tmp_path / "sdd" / "prompts" / "202605" / "only.md", "sdd body\n")
+    _write(tmp_path / "sdd" / "plans" / "202605" / "prompts" / "only.md", "sdd body\n")
     save_prompt_history(
         [
             PromptEntry(
@@ -302,7 +322,9 @@ def test_collect_single_source_skips_the_other(tmp_path: Path) -> None:
 def test_collect_no_dedup_without_recorded_sha(tmp_path: Path) -> None:
     # An SDD snapshot whose body sha differs from the local entry is never
     # collapsed: dedup is strictly digest-based and conservative.
-    _write(tmp_path / "sdd" / "prompts" / "202605" / "p.md", "body text one\n")
+    _write(
+        tmp_path / "sdd" / "plans" / "202605" / "prompts" / "p.md", "body text one\n"
+    )
     save_prompt_history(
         [
             PromptEntry(

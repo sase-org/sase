@@ -86,7 +86,7 @@ def test_export_sdd_writes_snapshot_with_metadata(
 
     handle_prompt_export(_export_ns(_prompt_id(text), sdd=True))
 
-    snapshots = list((tmp_path / "sdd" / "prompts").rglob("*.md"))
+    snapshots = list((tmp_path / "sdd" / "plans").glob("*/prompts/*.md"))
     assert len(snapshots) == 1
     snapshot = snapshots[0]
     # Default SDD filename is a clean slug plus the short prompt ID.
@@ -111,10 +111,10 @@ def test_export_sdd_writes_snapshot_to_resolved_local_store(
 
     handle_prompt_export(_export_ns(_prompt_id(text), sdd=True))
 
-    snapshots = list((tmp_path / ".sase" / "sdd" / "prompts").rglob("*.md"))
+    snapshots = list((tmp_path / ".sase" / "sdd" / "plans").glob("*/prompts/*.md"))
     assert len(snapshots) == 1
     assert _prompt_id(text) in snapshots[0].name
-    assert not (tmp_path / "sdd" / "prompts").exists()
+    assert not (tmp_path / "sdd" / "plans").exists()
 
 
 def test_export_out_and_sdd_are_mutually_exclusive(

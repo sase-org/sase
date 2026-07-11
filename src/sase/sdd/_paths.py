@@ -7,10 +7,9 @@ _SDD_PROMPT_KINDS = {"prompts", "specs"}
 SDD_CANONICAL_DIRS = (
     "beads",
     "plans",
-    "prompts",
     "research",
 )
-_SDD_CANONICAL_DIRS = set(SDD_CANONICAL_DIRS)
+_SDD_ROOT_DIRS = {*SDD_CANONICAL_DIRS, "prompts"}
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:
@@ -42,6 +41,26 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
     return roots
 
 
+def sdd_prompt_roots(base_dir: Path) -> list[Path]:
+    """Return canonical nested and legacy prompt lookup roots.
+
+    Canonical prompt snapshots live below each plan month directory. Legacy
+    ``prompts/`` and ``specs/`` roots remain readable during migration.
+    """
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for plans_root in (base_dir / "sdd" / "plans", base_dir / "plans"):
+        for root in sorted(plans_root.glob("*/prompts")):
+            if root not in seen:
+                roots.append(root)
+                seen.add(root)
+    for root in sdd_kind_roots(base_dir, "prompts"):
+        if root not in seen:
+            roots.append(root)
+            seen.add(root)
+    return roots
+
+
 def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
     """Search for an SDD file in canonical in-tree or companion layouts.
 
@@ -50,7 +69,12 @@ def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
 
     Returns the first match, or ``None`` if not found.
     """
-    for root in sdd_kind_roots(base_dir, kind):
+    roots = (
+        sdd_prompt_roots(base_dir)
+        if kind in _SDD_PROMPT_KINDS
+        else sdd_kind_roots(base_dir, kind)
+    )
+    for root in roots:
         flat = root / name
         if flat.exists():
             return flat
@@ -96,7 +120,7 @@ def looks_like_sdd_root(path: Path) -> bool:
         return True
     if not path.is_dir():
         return False
-    return any((path / dirname).is_dir() for dirname in _SDD_CANONICAL_DIRS)
+    return any((path / dirname).is_dir() for dirname in _SDD_ROOT_DIRS)
 
 
 def get_primary_workspace_dir(

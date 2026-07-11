@@ -93,7 +93,8 @@ def test_validate_fails_broken_bidirectional_link(
     root = tmp_path / "sdd"
     prompt, plan = write_pair(root)
     plan.write_text(
-        "---\nprompt: sdd/prompts/202605/other.md\n---\n# Plan\n", encoding="utf-8"
+        "---\nprompt: sdd/plans/202605/prompts/other.md\ntier: tale\n---\n# Plan\n",
+        encoding="utf-8",
     )
 
     with pytest.raises(SystemExit) as excinfo:
@@ -172,7 +173,7 @@ def test_validate_quarantines_retired_legend_prompt_links(
     name: str,
 ) -> None:
     root = tmp_path / "sdd"
-    path = root / "prompts" / "202605" / name
+    path = root / "plans" / "202605" / "prompts" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"---\nplan: sdd/legends/202605/{name}\n---\n# Legacy prompt\n",

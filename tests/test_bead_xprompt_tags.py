@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -65,6 +66,23 @@ def test_builtin_xprompts_loaded_from_config() -> None:
     assert (
         "sase bead work <epic_id> --yes" in prompts["bd/new_epic"].steps[0].prompt_part
     )
+
+
+def test_builtin_plan_review_globs_distinguish_prompt_from_plan(
+    tmp_path: Path,
+) -> None:
+    month = tmp_path / "sdd" / "plans" / "202607"
+    prompt = month / "prompts" / "example.md"
+    plan = month / "example.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text("prompt\n", encoding="utf-8")
+    plan.write_text("plan\n", encoding="utf-8")
+
+    body = get_all_prompts()["bd/review/plan"].steps[0].prompt_part
+    assert "@sdd/plans/*/prompts/{{ file_base }}.md" in body
+    assert "@sdd/plans/*/{{ file_base }}.md" in body
+    assert list(tmp_path.glob("sdd/plans/*/prompts/example.md")) == [prompt]
+    assert list(tmp_path.glob("sdd/plans/*/example.md")) == [plan]
 
 
 def test_new_epic_accepts_changespec_inputs() -> None:

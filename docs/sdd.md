@@ -64,11 +64,13 @@ The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
 2. Given a required `tier: tale|epic` frontmatter value and written to `plans/{YYYYMM}/{plan_name}.md`, where `{YYYYMM}`
-   is derived from the current date.
+   is derived from the current date. Its prompt snapshot is written beside it at
+   `plans/{YYYYMM}/prompts/{plan_name}.md`.
 
 Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
-the creation date. This keeps the directories manageable as the number of prompts, plans, and research artifacts grows
-over time. The historical `specs/` prompt alias remains readable, but repository plans are discovered only in `plans/`.
+the creation date. Prompt snapshots are nested under each plan month at `plans/<YYYYMM>/prompts/`. This keeps paired
+artifacts together while plan discovery remains limited to `plans/<YYYYMM>/*.md`. Historical top-level `prompts/` and
+`specs/` aliases remain readable during migration.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
 the bead issue tracker.
@@ -106,11 +108,11 @@ empty later note preserves the earlier value.
 Prompt snapshots and plan-like artifacts link to each other through YAML frontmatter:
 
 ```yaml
-# prompts/202605/example.md
+# plans/202605/prompts/example.md
 plan: plans/202605/example.md
 
 # plans/202605/example.md
-prompt: prompts/202605/example.md
+prompt: plans/202605/prompts/example.md
 tier: tale
 ```
 
@@ -126,7 +128,7 @@ under. The value uses the same syntax `%model` accepts: a bare known model name 
 
 ```yaml
 # plans/202605/example.md
-prompt: prompts/202605/example.md
+prompt: plans/202605/prompts/example.md
 tier: tale
 model: opus
 ```

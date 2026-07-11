@@ -23,6 +23,10 @@ def _git_diff(path: str) -> str:
 def test_diff_text_has_real_edits_classifies_paths() -> None:
     assert diff_text_has_real_edits(_git_diff("src/app.py")) is True
     assert diff_text_has_real_edits(_git_diff("sdd/plans/202606/change.md")) is False
+    assert (
+        diff_text_has_real_edits(_git_diff("sdd/plans/202606/prompts/change.md"))
+        is False
+    )
     # Mixed code + bookkeeping counts as a real edit.
     assert (
         diff_text_has_real_edits(

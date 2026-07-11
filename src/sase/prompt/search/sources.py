@@ -1,6 +1,6 @@
 """Load and unify prompt hits from the SDD snapshot and local-history stores.
 
-This is the read layer: it discovers committed ``sdd/prompts/**`` snapshots
+This is the read layer: it discovers committed ``sdd/plans/*/prompts/**`` snapshots
 (across the canonical, legacy-root, and local ``.sase/sdd`` layouts), adapts the
 machine-wide prompt history into the same :class:`PromptHit` shape, and collapses
 cross-store duplicates by content digest. It is read-only — neither store is
@@ -19,7 +19,7 @@ from sase.history.prompt import list_prompt_records
 from sase.history.prompt_metadata import clean_prompt_preview, summarize_prompt_for_list
 from sase.prompt.search.dates import resolve_sdd_date
 from sase.prompt.search.model import PromptHit, PromptSource
-from sase.sdd._paths import sdd_kind_roots
+from sase.sdd._paths import sdd_prompt_roots
 from sase.sdd.frontmatter import parse_frontmatter
 
 # Frontmatter key for free-form user tags, mirroring ``prompt export`` so a
@@ -50,8 +50,8 @@ def collect_prompt_hits(
 def load_sdd_prompt_hits(base_dir: Path) -> list[PromptHit]:
     """Discover and parse every SDD prompt snapshot under *base_dir*.
 
-    Discovery covers the canonical ``sdd/prompts/``, the legacy root
-    ``prompts/``, and the project-local ``.sase/sdd/prompts/`` layout (see
+    Discovery covers canonical ``sdd/plans/*/prompts/`` directories, the legacy root
+    ``prompts/``, and the project-local ``.sase/sdd`` layout (see
     :func:`_sdd_prompt_roots`), so a normal project-root search surfaces local
     SDD snapshots alongside committed ones. Files are de-duplicated by resolved
     path so overlapping roots are scanned once. A file that cannot be read is
@@ -79,11 +79,10 @@ def load_sdd_prompt_hits(base_dir: Path) -> list[PromptHit]:
 def _sdd_prompt_roots(base_dir: Path) -> list[Path]:
     """Return the de-duplicated prompt-discovery roots for *base_dir*.
 
-    Combines :func:`sdd_kind_roots` (the canonical ``sdd/prompts/`` and legacy
-    root ``prompts/`` layouts, plus their ``specs`` aliases) with the
-    project-local ``.sase/sdd`` store, which keeps the same canonical layout. A
-    normal project-root search therefore includes ``.sase/sdd/prompts/`` instead
-    of only finding it when *base_dir* is already a ``.sase/sdd`` root. Roots are
+    Combines :func:`sdd_prompt_roots` (canonical nested prompt directories and
+    legacy ``prompts``/``specs`` aliases) with the project-local ``.sase/sdd``
+    store. A normal project-root search therefore includes its nested prompts
+    instead of only finding them when *base_dir* is already that SDD root. Roots are
     returned once each; :func:`load_sdd_prompt_hits` still de-dups by resolved
     path so any overlap is scanned a single time.
     """
@@ -91,9 +90,8 @@ def _sdd_prompt_roots(base_dir: Path) -> list[Path]:
     seen: set[Path] = set()
     local_sdd = base_dir / ".sase" / "sdd"
     for root in (
-        *sdd_kind_roots(base_dir, "prompts"),
-        local_sdd / "prompts",
-        local_sdd / "specs",
+        *sdd_prompt_roots(base_dir),
+        *sdd_prompt_roots(local_sdd),
     ):
         if root in seen:
             continue

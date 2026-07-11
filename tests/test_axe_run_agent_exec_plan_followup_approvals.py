@@ -489,7 +489,12 @@ class TestPlanFollowupApprovals:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    tmp_path
+                    / "sdd"
+                    / "plans"
+                    / "202605"
+                    / "prompts"
+                    / "scratch_plan.md",
                     sdd_plan,
                 ),
             ),
@@ -526,7 +531,12 @@ class TestPlanFollowupApprovals:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    tmp_path
+                    / "sdd"
+                    / "plans"
+                    / "202605"
+                    / "prompts"
+                    / "scratch_plan.md",
                     sdd_plan,
                 ),
             ),
@@ -566,7 +576,12 @@ class TestPlanFollowupApprovals:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    tmp_path / "sdd" / "prompts" / "202605" / "scratch_plan.md",
+                    tmp_path
+                    / "sdd"
+                    / "plans"
+                    / "202605"
+                    / "prompts"
+                    / "scratch_plan.md",
                     sdd_plan,
                 ),
             ),
@@ -613,7 +628,7 @@ class TestPlanFollowupApprovals:
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(
-                    tmp_path / "sdd" / "prompts" / "202605" / "epic_plan.md",
+                    tmp_path / "sdd" / "plans" / "202605" / "prompts" / "epic_plan.md",
                     sdd_plan,
                 ),
             ),

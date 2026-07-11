@@ -116,7 +116,9 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "-s",
         "--sdd",
         action="store_true",
-        help="Write an SDD snapshot under sdd/prompts/YYYYMM/ (implies --metadata)",
+        help=(
+            "Write an SDD snapshot under sdd/plans/YYYYMM/prompts/ (implies --metadata)"
+        ),
     )
 
     # sase prompt list
@@ -269,7 +271,7 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Search SDD snapshots and local history for matching prompts",
         description=(
             "Find prompts whose text or metadata contains a literal query,"
-            " across the repo's committed sdd/prompts/ snapshots and the"
+            " across the repo's committed sdd/plans/*/prompts/ snapshots and the"
             " machine-wide local prompt history. SDD snapshots rank first."
         ),
         epilog=(

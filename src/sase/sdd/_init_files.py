@@ -25,16 +25,17 @@ agent environments to locate it.
 
 ## Directory Layout
 
-- `prompts/` stores the original user prompts or expanded prompt snapshots that led to plan-like artifacts.
-- `plans/` stores implementation plans. Its required `tier` frontmatter is `tale` for focused task plans or `epic` for
-  larger multi-phase plans.
+- `plans/` stores implementation plans. Each `plans/<YYYYMM>/prompts/` subdirectory stores the original user prompts or
+  expanded prompt snapshots that led to that month's plans. Plan files require `tier: tale` for focused task plans or
+  `tier: epic` for larger multi-phase plans.
 - `research/` stores exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - `beads/` stores bead issue data for SDD-backed work tracking.
 
-Prompt, plan, and research files are normally organized under a `YYYYMM/` month directory relative to this root, for
-example `prompts/202605/example.md`, `plans/202605/example.md`, and `research/202605/example.md`. Prompt files should
-link to their generated plan-like artifact with frontmatter such as `plan: plans/202605/example.md`; the
-plan-like artifact should link back with `prompt: prompts/202605/example.md`.
+Prompt, plan, and research files are normally organized under a `YYYYMM/` month directory relative to this root. For
+example, a prompt at `plans/202605/prompts/example.md` pairs with `plans/202605/example.md`, while research lives at
+`research/202605/example.md`. Prompt files should link to their generated plan-like artifact with frontmatter such as
+`plan: plans/202605/example.md`; the plan-like artifact should link back with
+`prompt: plans/202605/prompts/example.md`.
 
 ## Commands
 
@@ -47,8 +48,9 @@ plan-like artifact should link back with `prompt: prompts/202605/example.md`.
 
 ## Compatibility
 
-The canonical directories are `prompts/`, `plans/`, `research/`, and `beads/`. The unrelated historical `specs/`
-prompt-directory alias remains readable, but repository plans are discovered and linked only through `plans/`.
+The canonical top-level directories are `plans/`, `research/`, and `beads/`. Prompt snapshots live under
+`plans/<YYYYMM>/prompts/`. Historical top-level `prompts/` and `specs/` aliases remain readable during migration, but
+new snapshots are written only to the nested layout.
 """
 
 SDD_DIRECTORY_README_CONTENT = {
@@ -56,7 +58,8 @@ SDD_DIRECTORY_README_CONTENT = {
 
 The `plans/` directory stores implementation plans. Every plan must declare a plan-file `tier` in YAML frontmatter:
 `tale` for focused task plans or `epic` for larger work that may span multiple phases or beads. This plan-file tier is
-separate from bead tier metadata.
+separate from bead tier metadata. Each month directory may contain a `prompts/` subdirectory holding the prompt
+snapshots paired with that month's plans.
 """,
     "research": """# Research
 

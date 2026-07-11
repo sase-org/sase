@@ -34,7 +34,7 @@ _RELATIVE_RE = re.compile(r"^(\d+)([dwmy])$")
 # A full ``YYYYMM`` month, e.g. ``202604``. Distinguished from a 6-digit
 # ``YYmmdd`` by trying the SASE-native ``YYmmdd`` parse first (see below).
 _YYYYMM_RE = re.compile(r"^(\d{4})(\d{2})$")
-# Canonical SDD subdirectory month segment, e.g. ``sdd/prompts/202604/foo.md``.
+# Canonical SDD month segment, e.g. ``sdd/plans/202604/prompts/foo.md``.
 _PATH_YYYYMM_RE = re.compile(r"^\d{6}$")
 
 # Oldest-sortable floor for hits whose date cannot be resolved at all.
@@ -141,7 +141,7 @@ def resolve_sdd_date(frontmatter: Mapping[str, Any], path: Path) -> str:
     1. frontmatter ``last_used`` then ``timestamp`` — ``prompt export --sdd``
        records these, so they are the most precise;
     2. the ``YYYYMM`` segment of the file's parent directory — the reliable
-       fallback for the canonical ``sdd/prompts/YYYYMM/`` layout;
+       fallback for the canonical ``sdd/plans/YYYYMM/prompts/`` layout;
     3. the file's mtime — last resort.
     """
     for key in ("last_used", "timestamp"):
@@ -171,17 +171,19 @@ def _normalize_date_value(value: Any) -> str | None:
 
 
 def _yyyymm_from_path(path: Path) -> str | None:
-    """Return the first-of-month anchor for a ``.../YYYYMM/file.md`` path."""
-    segment = path.parent.name
-    if not _PATH_YYYYMM_RE.match(segment):
-        return None
-    year, mon = int(segment[:4]), int(segment[4:])
-    if not 1 <= mon <= 12:
-        return None
-    try:
-        return datetime(year, mon, 1).strftime("%y%m%d_000000")
-    except ValueError:
-        return None
+    """Return the first-of-month anchor from a nearby ``YYYYMM`` directory."""
+    for parent in path.parents:
+        segment = parent.name
+        if not _PATH_YYYYMM_RE.match(segment):
+            continue
+        year, mon = int(segment[:4]), int(segment[4:])
+        if not 1 <= mon <= 12:
+            continue
+        try:
+            return datetime(year, mon, 1).strftime("%y%m%d_000000")
+        except ValueError:
+            continue
+    return None
 
 
 def _mtime_anchor(path: Path) -> str:

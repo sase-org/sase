@@ -214,14 +214,15 @@ def test_get_yyyymm_january() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_find_sdd_file_prompts_flat() -> None:
-    """find_sdd_file returns canonical prompt flat path."""
+def test_find_sdd_file_prompts_nested() -> None:
+    """find_sdd_file returns the canonical nested prompt path."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "prompts").mkdir()
-        (base / "prompts" / "my_plan.md").write_text("prompt", encoding="utf-8")
+        nested = base / "plans" / "202603" / "prompts" / "my_plan.md"
+        nested.parent.mkdir(parents=True)
+        nested.write_text("prompt", encoding="utf-8")
         result = find_sdd_file(base, "prompts", "my_plan.md")
-        assert result == base / "prompts" / "my_plan.md"
+        assert result == nested
 
 
 def test_find_sdd_file_sharded_plan() -> None:
@@ -246,27 +247,27 @@ def test_find_sdd_file_finds_canonical_in_tree_plan() -> None:
         assert result == canonical
 
 
-def test_find_sdd_file_prefers_flat() -> None:
-    """find_sdd_file prefers flat path over YYYYMM when both exist."""
+def test_find_sdd_file_prefers_nested_over_legacy() -> None:
+    """find_sdd_file prefers the canonical nested path over legacy roots."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "prompts").mkdir()
-        (base / "prompts" / "my_plan.md").write_text("flat", encoding="utf-8")
-        (base / "prompts" / "202603").mkdir()
-        (base / "prompts" / "202603" / "my_plan.md").write_text(
-            "yyyymm", encoding="utf-8"
-        )
+        legacy = base / "prompts" / "my_plan.md"
+        legacy.parent.mkdir()
+        legacy.write_text("legacy", encoding="utf-8")
+        nested = base / "plans" / "202603" / "prompts" / "my_plan.md"
+        nested.parent.mkdir(parents=True)
+        nested.write_text("nested", encoding="utf-8")
         result = find_sdd_file(base, "prompts", "my_plan.md")
-        assert result == base / "prompts" / "my_plan.md"
+        assert result == nested
 
 
 def test_find_sdd_file_prefers_canonical_sdd_over_legacy() -> None:
     """Canonical sdd/<kind> wins over legacy root <kind>."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "sdd" / "prompts" / "202603").mkdir(parents=True)
+        (base / "sdd" / "plans" / "202603" / "prompts").mkdir(parents=True)
         (base / "specs" / "202603").mkdir(parents=True)
-        canonical = base / "sdd" / "prompts" / "202603" / "my_plan.md"
+        canonical = base / "sdd" / "plans" / "202603" / "prompts" / "my_plan.md"
         legacy = base / "specs" / "202603" / "my_plan.md"
         canonical.write_text("canonical", encoding="utf-8")
         legacy.write_text("legacy", encoding="utf-8")

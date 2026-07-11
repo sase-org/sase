@@ -619,7 +619,7 @@ class TestHandleSasePlan:
         plan_file.write_text("# Plan\n", encoding="utf-8")
 
         repo_dir = tmp_path / "repo"
-        prompt_file = repo_dir / "sdd" / "prompts" / "202603" / "my_plan.md"
+        prompt_file = repo_dir / "sdd" / "plans" / "202603" / "prompts" / "my_plan.md"
         prompt_file.parent.mkdir(parents=True)
         prompt_file.write_text("# Prompt\n", encoding="utf-8")
 
@@ -635,7 +635,7 @@ class TestHandleSasePlan:
 
         dest = repo_dir / "sdd" / "plans" / "202603" / "my_plan.md"
         text = dest.read_text(encoding="utf-8")
-        assert "prompt: sdd/prompts/202603/my_plan.md" in text
+        assert "prompt: sdd/plans/202603/prompts/my_plan.md" in text
         assert payload["_plan_path"] == str(dest)
 
 

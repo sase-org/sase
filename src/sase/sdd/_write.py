@@ -26,7 +26,7 @@ def write_sdd_files(
     plan_tier: str = "tale",
     yyyymm: str | None = None,
 ) -> tuple[Path, Path]:
-    """Write prompts/<YYYYMM>/<name>.md and plans/<YYYYMM>/<name>.md.
+    """Write plans/<YYYYMM>/prompts/<name>.md and its paired plan.
 
     Returns (prompt_path, plan_path).
     """
@@ -39,8 +39,8 @@ def write_sdd_files(
         )
 
     yyyymm = get_yyyymm() if yyyymm is None else yyyymm
-    prompts_dir = sdd_dir / "prompts" / yyyymm
     plans_dir = sdd_dir / "plans" / yyyymm
+    prompts_dir = plans_dir / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
     plans_dir.mkdir(parents=True, exist_ok=True)
 
