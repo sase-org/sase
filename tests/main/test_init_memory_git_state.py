@@ -69,6 +69,45 @@ def test_classify_renames_include_both_paths() -> None:
     ]
 
 
+def test_classify_matches_only_explicit_generated_source_paths() -> None:
+    entries = parse_status_z(
+        b" M AGENTS.md\0 M demos/tapes/AGENTS.md\0 M docs/AGENTS.md\0 M AGENTS.md.bak\0"
+    )
+
+    fold_dirty, other_dirty = classify(
+        entries,
+        "memory",
+        source_paths=("AGENTS.md", "demos/tapes/AGENTS.md"),
+    )
+
+    assert [dirty.path for dirty in fold_dirty] == [
+        "AGENTS.md",
+        "demos/tapes/AGENTS.md",
+    ]
+    assert [dirty.path for dirty in other_dirty] == [
+        "docs/AGENTS.md",
+        "AGENTS.md.bak",
+    ]
+
+
+def test_classify_rename_and_copy_source_boundaries_remain_all_or_nothing() -> None:
+    entries = parse_status_z(
+        b"R  AGENTS.md\0old-AGENTS.md\0C  demos/AGENTS.md\0templates/AGENTS.md\0"
+    )
+
+    fold_dirty, other_dirty = classify(
+        entries,
+        "memory",
+        source_paths=("AGENTS.md", "demos/AGENTS.md"),
+    )
+
+    assert [dirty.path for dirty in fold_dirty] == ["AGENTS.md", "demos/AGENTS.md"]
+    assert [dirty.path for dirty in other_dirty] == [
+        "old-AGENTS.md",
+        "templates/AGENTS.md",
+    ]
+
+
 def test_dirty_path_label() -> None:
     assert dirty_path_label("??") == "new"
     assert dirty_path_label("A ") == "new"

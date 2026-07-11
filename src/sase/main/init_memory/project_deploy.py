@@ -21,6 +21,7 @@ from .git_state import (
     classify,
     dirty_path_label,
     parse_status_z,
+    partition_source_paths,
 )
 from .models import MemoryRootResult
 
@@ -75,33 +76,33 @@ def _display_dirty_path(dirty_path: DirtyPath) -> str:
 
 
 def _print_foreign_dirty_refusal(other_dirty: Iterable[DirtyPath]) -> None:
-    """Explain why non-memory dirty paths prevent an automatic commit."""
+    """Explain why unrelated dirty paths prevent an automatic commit."""
     print(
-        f"{COMMAND_LABEL}: refusing to commit - uncommitted changes outside "
-        "memory/ would be left behind:",
+        f"{COMMAND_LABEL}: refusing to commit - uncommitted changes unrelated "
+        "to the generated memory work would be left behind:",
         file=sys.stderr,
     )
     for dirty_path in other_dirty:
         print(f"  - {_display_dirty_path(dirty_path)}", file=sys.stderr)
     print(
-        "Commit or stash these changes and re-run `sase memory init`, or pass "
+        "Commit or stash these unrelated changes and re-run `sase memory init`, or pass "
         "--no-commit to skip the git commit/push step. The regenerated memory "
         "files have been written but not committed.",
         file=sys.stderr,
     )
 
 
-def _print_fold_prompt(memory_dirty: Iterable[DirtyPath]) -> None:
-    """Prompt for a commit subject when pre-existing memory edits are folded."""
+def _print_fold_prompt(fold_dirty: Iterable[DirtyPath]) -> None:
+    """Prompt for a subject when pre-existing source edits are folded."""
     body = Text()
     body.append(
-        "These memory/ edits will be committed together with the\n"
-        "regenerated AGENTS.md and provider shims:\n\n"
+        "These source or memory edits will be committed together with the\n"
+        "generated memory files and provider shims:\n\n"
     )
-    for dirty_path in memory_dirty:
+    for dirty_path in fold_dirty:
         body.append(f"  - {_display_dirty_path(dirty_path)}\n")
     Console(stderr=True).print(
-        Panel(body, title="Uncommitted memory changes", border_style="cyan")
+        Panel(body, title="Uncommitted source changes", border_style="cyan")
     )
     default_tag = MEMORY_FOLD_DEFAULT_PREFIX.strip()
     print(
@@ -111,27 +112,31 @@ def _print_fold_prompt(memory_dirty: Iterable[DirtyPath]) -> None:
 
 
 def _resolve_fold_commit_message(
-    memory_dirty: tuple[DirtyPath, ...],
+    fold_dirty: tuple[DirtyPath, ...],
     message: str | None,
     *,
     stdin_is_tty: Callable[[], bool],
+    input_func: Callable[[str], str] | None = None,
 ) -> str | None:
-    """Resolve and normalize the message used to fold existing memory edits."""
+    """Resolve and normalize the message used to fold existing source edits."""
     raw_subject = message
     if raw_subject is None:
         if not stdin_is_tty():
             print(
-                f"{COMMAND_LABEL}: memory/ has uncommitted changes to fold into "
-                "the commit, but no commit message was provided and stdin is "
+                f"{COMMAND_LABEL}: source or memory files have uncommitted changes "
+                "to fold into the commit, but no commit message was provided and stdin is "
                 'not a TTY. Re-run with --message "<subject>", or --no-commit '
                 "to skip committing.",
                 file=sys.stderr,
             )
             return None
-        _print_fold_prompt(memory_dirty)
-        print("Commit message > ", end="", flush=True, file=sys.stderr)
+        _print_fold_prompt(fold_dirty)
         try:
-            raw_subject = input()
+            if input_func is None:
+                print("Commit message > ", end="", flush=True, file=sys.stderr)
+                raw_subject = input()
+            else:
+                raw_subject = input_func("Commit message > ")
         except EOFError:
             print(
                 f"{COMMAND_LABEL}: commit message entry reached EOF; aborting.",
@@ -168,12 +173,28 @@ def _unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
     return tuple(unique)
 
 
+def _repo_relative_source_paths(
+    git_root: Path,
+    source_paths: Iterable[Path],
+) -> tuple[str, ...]:
+    root = git_root.resolve(strict=False)
+    relative: list[str] = []
+    for source_path in source_paths:
+        try:
+            rel = source_path.resolve(strict=False).relative_to(root)
+        except ValueError:
+            continue
+        relative.append(rel.as_posix())
+    return tuple(relative)
+
+
 def deploy_to_project_repo(
     project_result: MemoryRootResult,
     *,
     no_commit: bool,
     run_before_commit_hook: Callable[[str], bool],
     stdin_is_tty: Callable[[], bool],
+    input_func: Callable[[str], str] | None = None,
     manage_memory: bool = True,
     git_state: PreInitGitState | None = None,
     message: str | None = None,
@@ -213,26 +234,33 @@ def deploy_to_project_repo(
         memory_dirty = git_state.memory_dirty
         other_dirty = git_state.other_dirty
 
+    source_dirty, other_dirty = partition_source_paths(
+        other_dirty,
+        _repo_relative_source_paths(git_root, project_result.fold_source_paths),
+    )
+    fold_dirty = (*memory_dirty, *source_dirty)
+
     init_changed = bool(
         project_result.written_paths or project_result.deleted_paths or owned_paths
     )
     if other_dirty:
-        if init_changed or memory_dirty:
+        if init_changed or fold_dirty:
             _print_foreign_dirty_refusal(other_dirty)
             return 1
         print(f"{COMMAND_LABEL}: nothing to commit in {git_root}")
         return 0
 
-    if not init_changed and not memory_dirty:
+    if not init_changed and not fold_dirty:
         print(f"{COMMAND_LABEL}: nothing to commit in {git_root}")
         return 0
 
     fold_commit_message: str | None = None
-    if memory_dirty:
+    if fold_dirty:
         fold_commit_message = _resolve_fold_commit_message(
-            memory_dirty,
+            fold_dirty,
             message,
             stdin_is_tty=stdin_is_tty,
+            input_func=input_func,
         )
         if fold_commit_message is None:
             return 1
@@ -246,7 +274,7 @@ def deploy_to_project_repo(
             *project_result.deleted_paths,
             *owned_paths,
             *((project_result.root / "memory" / "sase.md",) if manage_memory else ()),
-            *(git_root / dirty_path.path for dirty_path in memory_dirty),
+            *(git_root / dirty_path.path for dirty_path in fold_dirty),
         )
     )
     for path in stage_paths:

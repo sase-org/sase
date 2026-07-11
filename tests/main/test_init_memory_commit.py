@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.amd.constants import PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from sase.main.init_memory.git_state import DirtyPath, PreInitGitState
 from sase.main.init_memory.models import MemoryRootResult
@@ -309,6 +310,126 @@ def test_init_memory_folds_memory_dirty_with_message(
     assert (
         message == "docs(memory): document obsidian vault workflow\n\nSASE_TYPE=memory"
     )
+
+
+def test_init_memory_folds_root_agents_trigger_with_generated_shims(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
+    (project_root / "sase.yml").unlink()
+    write(
+        project_root / "AGENTS.md", "# Project Instructions\n\nUse the project rules.\n"
+    )
+    git_calls = _install_successful_git(
+        monkeypatch,
+        project_root,
+        status_stdout=b" M AGENTS.md\0",
+    )
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
+    monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda: "sync project instructions")
+
+    assert run_handler(no_commit=False) == 0
+
+    add_paths = {Path(cmd[-1]) for cmd in git_calls if cmd[0] == "git" and "add" in cmd}
+    assert add_paths == {
+        project_root / "AGENTS.md",
+        *(project_root / filename for filename in PROVIDER_SHIM_FILES),
+    }
+    commit = next(cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd)
+    message = commit[commit.index("-m") + 1]
+    assert message == "docs(memory): sync project instructions\n\nSASE_TYPE=memory"
+
+
+def test_init_memory_folds_nested_agents_trigger_with_generated_shims(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
+    assert run_handler() == 0
+    nested = project_root / "demos" / "tapes"
+    write(nested / "AGENTS.md", "# Tape Instructions\n\nUse vhs for tapes.\n")
+    git_calls = _install_successful_git(
+        monkeypatch,
+        project_root,
+        status_stdout=b" M demos/tapes/AGENTS.md\0",
+    )
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
+
+    assert run_handler(no_commit=False, message="document tape workflow") == 0
+
+    add_paths = {Path(cmd[-1]) for cmd in git_calls if cmd[0] == "git" and "add" in cmd}
+    assert nested / "AGENTS.md" in add_paths
+    assert {nested / filename for filename in PROVIDER_SHIM_FILES}.issubset(add_paths)
+
+
+def test_init_memory_agents_trigger_plus_unrelated_dirty_path_refuses_all(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
+    (project_root / "sase.yml").unlink()
+    write(project_root / "AGENTS.md", "# Project Instructions\n")
+    git_calls = _install_successful_git(
+        monkeypatch,
+        project_root,
+        status_stdout=b" M AGENTS.md\0 M src/sase/foo.py\0",
+    )
+    before_hook = MagicMock(return_value=True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
+
+    assert run_handler(no_commit=False, message="sync instructions") == 1
+
+    before_hook.assert_not_called()
+    assert not any("add" in cmd for cmd in git_calls)
+    assert not any("commit" in cmd for cmd in git_calls)
+
+
+def test_init_memory_dirty_agents_without_dependent_shim_change_is_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
+    (project_root / "sase.yml").unlink()
+    agents_content = "# Project Instructions\n\nUse the project rules.\n"
+    write(project_root / "AGENTS.md", agents_content)
+    assert run_handler() == 0
+    git_calls = _install_successful_git(
+        monkeypatch,
+        project_root,
+        status_stdout=b" M AGENTS.md\0",
+    )
+    before_hook = MagicMock(return_value=True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
+
+    assert run_handler(no_commit=False) == 0
+
+    before_hook.assert_not_called()
+    assert not any("add" in cmd for cmd in git_calls)
+    assert not any("commit" in cmd for cmd in git_calls)
+
+
+def test_init_memory_generated_agents_output_is_not_a_foldable_trigger(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
+    assert run_handler() == 0
+    write(project_root / "AGENTS.md", "# Uncommitted custom instructions\n")
+    git_calls = _install_successful_git(
+        monkeypatch,
+        project_root,
+        status_stdout=b" M AGENTS.md\0",
+    )
+    before_hook = MagicMock(return_value=True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
+
+    assert run_handler(no_commit=False, message="must not be used") == 1
+
+    before_hook.assert_not_called()
+    assert not any("add" in cmd for cmd in git_calls)
+    assert not any("commit" in cmd for cmd in git_calls)
 
 
 def test_init_memory_folds_memory_dirty_preserves_conventional_message(

@@ -49,3 +49,4 @@ class MemoryRootResult:
     written_paths: tuple[Path, ...]
     unreferenced: tuple[Path, ...]
     deleted_paths: tuple[Path, ...] = ()
+    fold_source_paths: tuple[Path, ...] = ()

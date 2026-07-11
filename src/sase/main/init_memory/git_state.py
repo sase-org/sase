@@ -97,9 +97,14 @@ def _entry_dirty_paths(entry: _PorcelainStatusEntry) -> tuple[DirtyPath, ...]:
 def classify(
     entries: Iterable[_PorcelainStatusEntry],
     memory_rel: str | Path,
+    *,
+    source_paths: Iterable[str | Path] = (),
 ) -> tuple[tuple[DirtyPath, ...], tuple[DirtyPath, ...]]:
-    """Partition dirty paths into memory and non-memory buckets."""
+    """Partition dirty paths into foldable and unrelated buckets."""
     memory_prefix = _normalize_memory_rel(memory_rel)
+    source_keys = {
+        Path(source_path).as_posix().strip("/") for source_path in source_paths
+    }
     memory_dirty: list[DirtyPath] = []
     other_dirty: list[DirtyPath] = []
     seen: set[str] = set()
@@ -108,11 +113,32 @@ def classify(
             if dirty_path.path in seen:
                 continue
             seen.add(dirty_path.path)
-            if _is_under(dirty_path.path, memory_prefix):
+            normalized_path = Path(dirty_path.path).as_posix().strip("/")
+            if (
+                _is_under(normalized_path, memory_prefix)
+                or normalized_path in source_keys
+            ):
                 memory_dirty.append(dirty_path)
             else:
                 other_dirty.append(dirty_path)
     return tuple(memory_dirty), tuple(other_dirty)
+
+
+def partition_source_paths(
+    dirty_paths: Iterable[DirtyPath],
+    source_paths: Iterable[str | Path],
+) -> tuple[tuple[DirtyPath, ...], tuple[DirtyPath, ...]]:
+    """Partition already-captured paths by exact generated-source matches."""
+    source_keys = {
+        Path(source_path).as_posix().strip("/") for source_path in source_paths
+    }
+    matched: list[DirtyPath] = []
+    unrelated: list[DirtyPath] = []
+    for dirty_path in dirty_paths:
+        normalized_path = Path(dirty_path.path).as_posix().strip("/")
+        bucket = matched if normalized_path in source_keys else unrelated
+        bucket.append(dirty_path)
+    return tuple(matched), tuple(unrelated)
 
 
 def dirty_path_label(status: str) -> str:

@@ -63,6 +63,7 @@ class ProviderShimPlan:
     writes: tuple[_PlannedWrite, ...]
     deletes: tuple[_PlannedDelete, ...]
     blockers: tuple[str, ...] = ()
+    source_path: Path | None = None
 
     @property
     def actions(self) -> tuple[InitAction, ...]:
@@ -375,8 +376,14 @@ def provider_shim_plan(
                 )
 
     if blockers:
-        return ProviderShimPlan(writes=(), deletes=(), blockers=tuple(blockers))
+        return ProviderShimPlan(
+            writes=(),
+            deletes=(),
+            blockers=tuple(blockers),
+            source_path=root / "AGENTS.md",
+        )
     return ProviderShimPlan(
         writes=tuple(writes),
         deletes=tuple(deletes),
+        source_path=root / "AGENTS.md",
     )

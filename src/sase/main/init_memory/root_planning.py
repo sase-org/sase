@@ -140,6 +140,7 @@ def _agent_doc_shim_plans(
                     writes=(),
                     deletes=(),
                     blockers=(read_error or f"{agents_path}: failed to read file",),
+                    source_path=agents_path,
                 )
             )
             continue

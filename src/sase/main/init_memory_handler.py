@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 import sys
+from typing import TextIO
 
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
 from sase.workflows.commit.commit_hooks import run_before_commit_hook
@@ -195,12 +196,16 @@ def _deploy_to_project_repo(
     git_state: PreInitGitState | None = None,
     message: str | None = None,
     owned_paths: Iterable[Path] = (),
+    input_func: Callable[[str], str] | None = None,
+    stdin: TextIO | None = None,
 ) -> int:
+    stdin_is_tty = _stdin_is_tty if stdin is None else stdin.isatty
     return _deploy_project_repo(
         project_result,
         no_commit=no_commit,
         run_before_commit_hook=run_before_commit_hook,
-        stdin_is_tty=_stdin_is_tty,
+        stdin_is_tty=stdin_is_tty,
+        input_func=input_func,
         manage_memory=manage_memory,
         git_state=git_state,
         message=message,
@@ -429,6 +434,8 @@ def run_init_memory(args: argparse.Namespace) -> int:
                 if getattr(args, "_project_config_changed", False)
                 else ()
             ),
+            input_func=getattr(args, "_init_input_func", None),
+            stdin=getattr(args, "_init_stdin", None),
         )
         if project_exit_code != 0:
             exit_code = project_exit_code

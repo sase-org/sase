@@ -73,6 +73,35 @@ def _delete_provider_shim_plan_paths(
     return tuple(path for plan in plans for path in _delete_provider_shim_paths(plan))
 
 
+def _fold_source_paths(
+    plans: Iterable[ProviderShimPlan],
+    *,
+    expected_files: Iterable[MemoryExpectedFile],
+) -> tuple[Path, ...]:
+    """Return user-owned AGENTS.md sources with dependent shim changes.
+
+    An overwrite-managed AGENTS.md is a generated output even when provider
+    shims copy its final content, so it must not become a foldable user source.
+    """
+    generated_sources = {
+        expected.path.resolve(strict=False)
+        for expected in expected_files
+        if expected.path.name == "AGENTS.md" and expected.write_policy == "overwrite"
+    }
+    sources: list[Path] = []
+    seen: set[Path] = set()
+    for plan in plans:
+        source = plan.source_path
+        if source is None or not (plan.writes or plan.deletes):
+            continue
+        resolved = source.resolve(strict=False)
+        if resolved in generated_sources or resolved in seen:
+            continue
+        sources.append(source)
+        seen.add(resolved)
+    return tuple(sources)
+
+
 def initialize_memory_root(
     root: Path,
     linked_entries: Iterable[LinkedRepoMemoryEntry],
@@ -102,10 +131,15 @@ def initialize_memory_root(
         *deleted,
         *_delete_provider_shim_plan_paths(context.additional_shim_plans),
     )
+    fold_source_paths = _fold_source_paths(
+        (context.shim_plan, *context.additional_shim_plans),
+        expected_files=context.expected_files,
+    )
 
     return MemoryRootResult(
         root=root,
         written_paths=written,
         unreferenced=unreferenced_memory_files(root) if manage_memory else (),
         deleted_paths=deleted,
+        fold_source_paths=fold_source_paths,
     )

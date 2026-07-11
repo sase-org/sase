@@ -151,7 +151,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "--message",
         metavar="MESSAGE",
         help=(
-            "Commit subject for folding uncommitted memory/ changes; a "
+            "Commit subject for folding eligible memory and generated-change source edits; a "
             "`docs(memory):` tag is added if omitted"
         ),
     )

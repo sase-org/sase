@@ -82,6 +82,8 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "-M, --enable-project-memory" in memory_init_help
     assert "is_sase_managed: true" in memory_init_help
     assert "managed project memory" in memory_init_help
+    assert "generated-change source edits" in memory_init_help
+    assert "generated-change source edits" in init_alias_help
     assert "loaded @ references" in memory_list_help
     assert "referenced-only plain memory paths" in memory_list_help
     assert "long-term memory markdown file" in memory_read_help
