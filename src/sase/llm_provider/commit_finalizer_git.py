@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 _AUTO_COMMIT_GIT_TIMEOUT_SECONDS = 5
 _SDD_PLAN_DIR_PREFIXES = (
+    "sdd/plans/",
     "sdd/tales/",
     "sdd/epics/",
 )

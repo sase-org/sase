@@ -7,6 +7,7 @@ _SDD_PROMPT_KINDS = {"prompts", "specs"}
 SDD_CANONICAL_DIRS = (
     "beads",
     "epics",
+    "plans",
     "prompts",
     "research",
     "tales",
@@ -32,7 +33,9 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
     if kind in _SDD_PROMPT_KINDS:
         aliases = ("prompts", "specs")
     elif kind in ("tales", "plans"):
-        aliases = ("tales", "plans")
+        aliases = ("plans", "tales")
+    elif kind == "epics":
+        aliases = ("plans", "epics")
     else:
         aliases = (kind,)
     roots: list[Path] = []

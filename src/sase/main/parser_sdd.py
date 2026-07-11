@@ -67,7 +67,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser.add_argument(
         "-k",
         "--kind",
-        choices=("prompts", "tales", "epics", "all"),
+        choices=("prompts", "plans", "tales", "epics", "all"),
         default="all",
         help="File kind to list (default: all)",
     )
@@ -89,7 +89,10 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "kind",
         nargs="?",
         choices=SDD_CANONICAL_DIRS,
-        help="Canonical SDD child directory to append",
+        help=(
+            "SDD child directory to append; tales and epics are deprecated "
+            "aliases for plans"
+        ),
     )
 
     repair_parser = sdd_sub.add_parser(

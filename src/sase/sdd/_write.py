@@ -4,8 +4,6 @@ from pathlib import Path
 
 from sase.sdd._paths import get_yyyymm
 
-_SDD_PLAN_KINDS = {"tales", "epics"}
-_SDD_PLAN_KIND_ALIASES = {"plans": "tales"}
 _QA_HEADER = "### Questions and Answers"
 
 
@@ -28,20 +26,17 @@ def write_sdd_files(
     plan_kind: str = "tales",
     yyyymm: str | None = None,
 ) -> tuple[Path, Path]:
-    """Write prompts/<YYYYMM>/<name>.md and <plan_kind>/<YYYYMM>/<name>.md.
+    """Write prompts/<YYYYMM>/<name>.md and plans/<YYYYMM>/<name>.md.
 
     Returns (prompt_path, plan_path).
     """
-    plan_kind = _SDD_PLAN_KIND_ALIASES.get(plan_kind, plan_kind)
-    if plan_kind not in _SDD_PLAN_KINDS:
-        raise ValueError(
-            f"invalid SDD plan kind {plan_kind!r}; expected one of "
-            f"{sorted(_SDD_PLAN_KINDS)}"
-        )
+    from sase.sdd.plan_tiers import tier_for_plan_kind
+
+    tier = tier_for_plan_kind(plan_kind)
 
     yyyymm = get_yyyymm() if yyyymm is None else yyyymm
     prompts_dir = sdd_dir / "prompts" / yyyymm
-    plans_dir = sdd_dir / plan_kind / yyyymm
+    plans_dir = sdd_dir / "plans" / yyyymm
     prompts_dir.mkdir(parents=True, exist_ok=True)
     plans_dir.mkdir(parents=True, exist_ok=True)
 
@@ -65,7 +60,7 @@ def write_sdd_files(
         content = plan_source.read_text(encoding="utf-8")
         content = format_with_prettier(content)
         content = add_create_time_frontmatter(content)
-        content = set_frontmatter_fields(content, {"prompt": prompt_link})
+        content = set_frontmatter_fields(content, {"prompt": prompt_link, "tier": tier})
         plan_path.write_text(content, encoding="utf-8")
 
     return prompt_path, plan_path

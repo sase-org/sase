@@ -399,7 +399,7 @@ class TestHandleSasePlan:
     """Verify handle_sase_plan honors each SDD storage layout."""
 
     def test_vc_true_copies_plan_into_repo(self, tmp_path: Path) -> None:
-        """version_controlled=True: plan is copied into sdd/tales/<YYYYMM>/."""
+        """version_controlled=True: plan is copied into sdd/plans/<YYYYMM>/."""
         plan_file = tmp_path / "my_plan.md"
         plan_file.write_text("# Plan\nstatus: wip\n")
 
@@ -417,9 +417,10 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" in payload
-        dest = repo_dir / "sdd" / "tales" / "202603" / "my_plan.md"
+        dest = repo_dir / "sdd" / "plans" / "202603" / "my_plan.md"
         assert dest.exists()
-        assert "SASE_PLAN=sdd/tales/202603/my_plan.md" in payload["message"]
+        assert "tier: tale" in dest.read_text(encoding="utf-8")
+        assert "SASE_PLAN=sdd/plans/202603/my_plan.md" in payload["message"]
 
     def test_vc_true_in_repo_absolute_plan_uses_repo_relative_tag(
         self, tmp_path: Path
@@ -463,10 +464,11 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" not in payload
-        dest = repo_dir / ".sase" / "sdd" / "tales" / "202603" / "my_plan.md"
+        dest = repo_dir / ".sase" / "sdd" / "plans" / "202603" / "my_plan.md"
         assert dest.exists()
         assert "status: done" in dest.read_text(encoding="utf-8")
-        assert payload["message"].endswith("SASE_PLAN=tales/202603/my_plan.md")
+        assert "tier: tale" in dest.read_text(encoding="utf-8")
+        assert payload["message"].endswith("SASE_PLAN=plans/202603/my_plan.md")
         mock_commit.assert_called_once()
         store_arg, message = mock_commit.call_args.args
         assert store_arg.sdd_dir == repo_dir / ".sase" / "sdd"
@@ -530,7 +532,7 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" in payload
-        assert (repo_dir / "sdd" / "tales" / "202603" / "my_plan.md").exists()
+        assert (repo_dir / "sdd" / "plans" / "202603" / "my_plan.md").exists()
 
     def test_archive_fallback_local_copies_into_store(self, tmp_path: Path) -> None:
         """An archived plan is normalized, committed, and tagged in the store."""
@@ -558,10 +560,10 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" not in payload
-        dest = repo_dir / ".sase" / "sdd" / "tales" / "202603" / "my_plan.md"
+        dest = repo_dir / ".sase" / "sdd" / "plans" / "202603" / "my_plan.md"
         assert dest.exists()
         assert "status: done" in dest.read_text(encoding="utf-8")
-        assert payload["message"].endswith("SASE_PLAN=tales/202603/my_plan.md")
+        assert payload["message"].endswith("SASE_PLAN=plans/202603/my_plan.md")
         mock_commit.assert_called_once()
 
     def test_vc_true_extracts_yyyymm_from_frontmatter(self, tmp_path: Path) -> None:
@@ -581,7 +583,7 @@ class TestHandleSasePlan:
         ):
             handle_sase_plan(payload, str(repo_dir))
 
-        dest = repo_dir / "sdd" / "tales" / "202511" / "my_plan.md"
+        dest = repo_dir / "sdd" / "plans" / "202511" / "my_plan.md"
         assert dest.exists()
 
     def test_vc_true_adds_prompt_frontmatter_when_prompt_exists(
@@ -605,7 +607,7 @@ class TestHandleSasePlan:
         ):
             handle_sase_plan(payload, str(repo_dir))
 
-        dest = repo_dir / "sdd" / "tales" / "202603" / "my_plan.md"
+        dest = repo_dir / "sdd" / "plans" / "202603" / "my_plan.md"
         text = dest.read_text(encoding="utf-8")
         assert "prompt: sdd/prompts/202603/my_plan.md" in text
         assert payload["_plan_path"] == str(dest)

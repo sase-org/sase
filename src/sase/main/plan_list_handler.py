@@ -16,7 +16,7 @@ from sase.main.plan_inventory import (
 def handle_plan_list_command(args: argparse.Namespace) -> None:
     """Render the plan proposal/approval inventory."""
     try:
-        inventory = build_plan_inventory()
+        inventory = build_plan_inventory(tiers=tuple(getattr(args, "tier", ()) or ()))
     except Exception as exc:
         print(f"sase plan list: cannot read plan inventory: {exc}", file=sys.stderr)
         sys.exit(1)

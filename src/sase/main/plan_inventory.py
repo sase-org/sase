@@ -34,6 +34,7 @@ class _ProposedPlan:
     project: str
     provider_model: str
     plan_path: str
+    tier: str
     response_dir: str
 
 
@@ -47,6 +48,7 @@ class _ApprovedPlan:
     project: str
     provider_model: str
     plan_path: str
+    tier: str
     meta_path: str
 
 
@@ -55,6 +57,7 @@ class _RejectedPlan:
     timestamp: str
     age: str
     plan_path: str
+    tier: str
     note: str = _REJECTED_NOTE
 
 
@@ -64,6 +67,7 @@ class _PlanInventory:
     approved: tuple[_ApprovedPlan, ...]
     rejected: tuple[_RejectedPlan, ...]
     total_archived_proposals: int
+    tier_filter: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -76,13 +80,16 @@ def build_plan_inventory(
     *,
     approved_limit: int = _APPROVED_LIMIT,
     rejected_limit: int = _REJECTED_LIMIT,
+    tiers: tuple[str, ...] = (),
 ) -> _PlanInventory:
     """Build the current plan proposal/approval inventory."""
     display_roots = _display_path_roots()
+    tier_set = set(tiers)
     proposed = _collect_proposed_plans(display_roots=display_roots)
     approved = _collect_approved_plans(
         limit=approved_limit,
         display_roots=display_roots,
+        tiers=tier_set,
     )
 
     represented_paths = {row._plan_key for row in proposed if row._plan_key} | {
@@ -94,13 +101,18 @@ def build_plan_inventory(
         represented_paths=represented_paths,
         limit=rejected_limit,
         display_roots=display_roots,
+        tiers=tier_set,
     )
+
+    if tier_set:
+        proposed = tuple(row for row in proposed if row.tier in tier_set)
 
     return _PlanInventory(
         proposed=proposed,
         approved=approved,
         rejected=rejected,
         total_archived_proposals=len(archived_paths),
+        tier_filter=tiers,
     )
 
 
@@ -112,6 +124,14 @@ def plan_inventory_to_json(inventory: _PlanInventory) -> dict[str, object]:
             "approved_shown": len(inventory.approved),
             "rejected_shown": len(inventory.rejected),
             "total_archived_proposals": inventory.total_archived_proposals,
+            **(
+                {
+                    "tier_filter": list(inventory.tier_filter),
+                    "by_tier": _tier_counts(inventory),
+                }
+                if inventory.tier_filter
+                else {}
+            ),
         },
         "proposed": [_public_row_dict(row) for row in inventory.proposed],
         "approved": [_public_row_dict(row) for row in inventory.approved],
@@ -144,6 +164,15 @@ def render_plan_inventory(
     rich_console.print(
         Panel(summary, title="Plan Pipeline", border_style="cyan", box=box.ROUNDED)
     )
+    if inventory.tier_filter:
+        counts = _tier_counts(inventory)
+        rich_console.print(
+            "Tier filter: "
+            + ", ".join(
+                f"[{_tier_style(tier)}]{tier}[/]: {counts[tier]}"
+                for tier in inventory.tier_filter
+            )
+        )
 
     rich_console.print(
         _section_panel(
@@ -207,6 +236,7 @@ def _proposed_plan_from_notification(
         project=_project_from_action_data(action_data),
         provider_model=provider_model,
         plan_path=_display_path(plan_path, display_roots=display_roots),
+        tier=_tier_for_path(plan_path),
         response_dir=_display_path(
             action_data.get("response_dir"),
             display_roots=display_roots,
@@ -218,6 +248,7 @@ def _collect_approved_plans(
     *,
     limit: int,
     display_roots: _DisplayPathRoots,
+    tiers: set[str],
 ) -> tuple[_ApprovedPlan, ...]:
     target = max(limit, 0)
     if target <= 0:
@@ -243,6 +274,8 @@ def _collect_approved_plans(
             timestamp,
             display_roots=display_roots,
         )
+        if tiers and row.tier not in tiers:
+            continue
         key = path_key(plan_path)
         previous = by_plan_key.get(key)
         if previous is None or timestamp > previous[0]:
@@ -282,6 +315,7 @@ def _approved_plan_from_meta(
             _first_str(meta.get("model")),
         ),
         plan_path=_display_path(plan_path, display_roots=display_roots),
+        tier=_tier_for_path(plan_path),
         meta_path=_display_path(str(meta_path), display_roots=display_roots),
     )
 
@@ -292,6 +326,7 @@ def _collect_rejected_plans(
     represented_paths: set[str],
     limit: int,
     display_roots: _DisplayPathRoots,
+    tiers: set[str],
 ) -> tuple[_RejectedPlan, ...]:
     rows: list[tuple[datetime, _RejectedPlan]] = []
     for path in archived_paths:
@@ -299,6 +334,9 @@ def _collect_rejected_plans(
             continue
         timestamp = _file_mtime(path)
         timestamp_text = timestamp.isoformat()
+        tier = _tier_for_path(str(path))
+        if tiers and tier not in tiers:
+            continue
         rows.append(
             (
                 timestamp,
@@ -306,6 +344,7 @@ def _collect_rejected_plans(
                     timestamp=timestamp_text,
                     age=format_relative_time(timestamp_text),
                     plan_path=_display_path(str(path), display_roots=display_roots),
+                    tier=tier,
                 ),
             )
         )
@@ -442,6 +481,17 @@ def _truthy(value: object) -> bool:
     return False
 
 
+def _tier_for_path(path: str | None) -> str:
+    if not path:
+        return "-"
+    from sase.sdd.plan_tiers import existing_plan_path, read_plan_tier
+
+    candidate = Path(path).expanduser()
+    resolved = existing_plan_path(candidate)
+    tier = read_plan_tier(resolved) if resolved is not None else None
+    return tier or "-"
+
+
 def _first_str(*values: object) -> str | None:
     for value in values:
         if isinstance(value, str) and value.strip():
@@ -481,6 +531,7 @@ def _proposed_table(rows: tuple[_ProposedPlan, ...]) -> Any | None:
     table.add_column("Age", no_wrap=True)
     table.add_column("Agent/Project")
     table.add_column("Model")
+    table.add_column("Tier", no_wrap=True)
     table.add_column("Plan path", ratio=2, overflow="fold")
     for row in rows:
         table.add_row(
@@ -488,6 +539,7 @@ def _proposed_table(rows: tuple[_ProposedPlan, ...]) -> Any | None:
             row.age,
             _agent_project(row.agent, row.project),
             row.provider_model,
+            _tier_text(row.tier),
             row.plan_path,
         )
     return table
@@ -500,12 +552,14 @@ def _approved_table(rows: tuple[_ApprovedPlan, ...]) -> Any | None:
     table.add_column("Approved", no_wrap=True)
     table.add_column("Action", no_wrap=True, style="green")
     table.add_column("Agent/Project")
+    table.add_column("Tier", no_wrap=True)
     table.add_column("Plan path", ratio=2, overflow="fold")
     for row in rows:
         table.add_row(
             row.age,
             row.action,
             _agent_project(row.agent, row.project),
+            _tier_text(row.tier),
             row.plan_path,
         )
     return table
@@ -516,10 +570,11 @@ def _rejected_table(rows: tuple[_RejectedPlan, ...]) -> Any | None:
         return None
     table = _base_table()
     table.add_column("Archived", no_wrap=True)
+    table.add_column("Tier", no_wrap=True)
     table.add_column("Plan path", ratio=2, overflow="fold")
     table.add_column("Note", ratio=1)
     for row in rows:
-        table.add_row(row.age, row.plan_path, row.note)
+        table.add_row(row.age, _tier_text(row.tier), row.plan_path, row.note)
     return table
 
 
@@ -538,3 +593,24 @@ def _agent_project(agent: str, project: str) -> str:
     if project == "-":
         return agent
     return f"{agent} / {project}"
+
+
+def _tier_style(tier: str) -> str:
+    return "green" if tier == "tale" else "magenta" if tier == "epic" else "dim"
+
+
+def _tier_text(tier: str) -> Any:
+    from rich.text import Text
+
+    return Text(tier, style=_tier_style(tier))
+
+
+def _tier_counts(inventory: _PlanInventory) -> dict[str, int]:
+    return {
+        tier: (
+            sum(row.tier == tier for row in inventory.proposed)
+            + sum(row.tier == tier for row in inventory.approved)
+            + sum(row.tier == tier for row in inventory.rejected)
+        )
+        for tier in ("tale", "epic")
+    }

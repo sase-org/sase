@@ -448,7 +448,8 @@ xprompts:
       available, run the `just pyvision` command AFTER closing the epic bead (some symbols can be ignored while an epic
       is open) to make sure we didn't leave any unused code behind.
 
-      Finally, find the plan file associated with this work (which should be in the sdd/epics/ directory, in a YYYYMM
+      Finally, find the plan file associated with this work (which should be in the sdd/plans/ directory with
+      `tier: epic`, in a YYYYMM
       subdirectory). If found, a `status` field should be added (or updated if it already exists) to the frontmatter of
       the plan file with a value of `done`.
   bd/new_epic:
@@ -509,8 +510,9 @@ xprompts:
     input:
       file_base: word
     content: |
-      Can you review the requirements in the @sdd/prompts/**/{{ file_base }}.md file against the plan in the @sdd/tales/**/{{ file_base }}.md
-      file and ensure that the following qualities are met?:
+      Can you review the requirements in the @sdd/prompts/**/{{ file_base }}.md file against the plan in the @sdd/plans/**/{{ file_base }}.md
+      file (or the legacy @sdd/tales/**/{{ file_base }}.md / @sdd/epics/**/{{ file_base }}.md paths)
+      and ensure that the following qualities are met?:
 
         1. ALL requirements in the prompt file have been satisified.
         2. Each phase of the plan is sufficiently detailed.

@@ -54,6 +54,10 @@ def _archived_plan(name: str, *, minutes_ago: int) -> Path:
     return path
 
 
+def _set_plan_tier(path: Path, tier: str) -> None:
+    path.write_text(f"---\ntier: {tier}\n---\n# {path.stem}\n", encoding="utf-8")
+
+
 def _response_dir(root: Path, name: str) -> Path:
     path = root / "responses" / name
     path.mkdir(parents=True)
@@ -307,6 +311,7 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
             "project": "demo",
             "provider_model": "-",
             "plan_path": shared_rows[0]["plan_path"],
+            "tier": "-",
             "meta_path": shared_rows[0]["meta_path"],
         }
     ]
@@ -354,6 +359,31 @@ def test_inventory_includes_day_sharded_approved_plan() -> None:
     assert any(path.endswith("/legacy-approved.md") for path in approved_paths)
     rejected_paths = [str(row["plan_path"]) for row in payload["rejected"]]
     assert all(not path.endswith("/sharded-approved.md") for path in rejected_paths)
+
+
+def test_inventory_tier_filter_and_json_breakdown() -> None:
+    epic = _archived_plan("approved-epic.md", minutes_ago=2)
+    tale = _archived_plan("rejected-tale.md", minutes_ago=3)
+    _set_plan_tier(epic, "epic")
+    _set_plan_tier(tale, "tale")
+    _write_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260613150000",
+        {
+            "plan_approved": True,
+            "plan_action": "epic",
+            "plan_path": str(epic),
+        },
+        minutes_ago=1,
+    )
+
+    payload = plan_inventory_to_json(build_plan_inventory(tiers=("epic",)))
+
+    assert [row["tier"] for row in payload["approved"]] == ["epic"]
+    assert payload["rejected"] == []
+    assert payload["summary"]["tier_filter"] == ["epic"]
+    assert payload["summary"]["by_tier"] == {"tale": 0, "epic": 1}
 
 
 def test_approved_plan_scan_stops_after_limit() -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +21,17 @@ from sase.sdd._link_models import (
     validation_to_json,
 )
 from sase.sdd.frontmatter import set_frontmatter_fields
+from sase.sdd.plan_tiers import (
+    classify_plan_file,
+    iter_link_aliases,
+    normalize_plan_tier,
+)
 
 PLAN_KINDS = ("tales", "epics")
-LEGACY_PLAN_KINDS = ("plans",)
+LEGACY_PLAN_KINDS = ("tales", "epics")
+PHYSICAL_PLAN_KINDS = ("plans", *LEGACY_PLAN_KINDS)
 PROMPT_KINDS = ("prompts", "specs")
-LIST_KINDS = ("prompts", "tales", "epics")
+LIST_KINDS = ("prompts", "plans", "tales", "epics")
 
 # Closed quarantine for historical invalid SDD files only; do not add new files.
 LEGACY_INVALID_SDD_ERROR_ALLOWLIST: frozenset[str] = frozenset(
@@ -84,6 +91,32 @@ def validate_sdd_tree(
                 )
             )
             continue
+
+        physical_kind = Path(file.relpath).parts[0]
+        if physical_kind in LEGACY_PLAN_KINDS:
+            issues.append(
+                _SddIssue(
+                    severity="warning",
+                    code="legacy-plan-directory",
+                    path=file.relpath,
+                    message=(
+                        f"legacy {physical_kind!r} plan directory; run "
+                        "`sase sdd init` to migrate it to 'plans/'"
+                    ),
+                )
+            )
+        elif (
+            physical_kind == "plans"
+            and normalize_plan_tier(file.frontmatter.get("tier")) is None
+        ):
+            issues.append(
+                _SddIssue(
+                    severity="error",
+                    code="plan-tier",
+                    path=file.relpath,
+                    message="'tier' must be either 'tale' or 'epic'",
+                )
+            )
 
         link_field = "plan" if file.kind == "prompts" else "prompt"
         link_value = file.frontmatter.get(link_field)
@@ -193,25 +226,28 @@ def validate_sdd_tree(
 
 def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
     """Return known SDD markdown files under ``root``."""
-    if kind == "plans":
-        kind = "tales"
-    kinds = LIST_KINDS if kind == "all" else (kind,)
     files: list[_SddFile] = []
-    for item_kind in kinds:
-        scan_kinds: tuple[str, ...]
-        if item_kind == "prompts":
-            scan_kinds = PROMPT_KINDS
-        elif item_kind == "tales":
-            scan_kinds = ("tales", *LEGACY_PLAN_KINDS)
-        else:
-            scan_kinds = (item_kind,)
-        for physical_kind in scan_kinds:
+    if kind in {"all", "prompts"}:
+        for physical_kind in PROMPT_KINDS:
             kind_root = root / physical_kind
             if not kind_root.is_dir():
                 continue
             for path in sorted(kind_root.glob("*/*.md")):
-                sdd_file = _read_sdd_file(root, path, item_kind)
+                sdd_file = _read_sdd_file(root, path, "prompts")
                 if sdd_file is not None:
+                    files.append(sdd_file)
+    if kind in {"all", "plans", "tales", "epics"}:
+        for physical_kind in PHYSICAL_PLAN_KINDS:
+            kind_root = root / physical_kind
+            if not kind_root.is_dir():
+                continue
+            for path in sorted(kind_root.glob("*/*.md")):
+                sdd_file = _read_sdd_file(root, path, "tales")
+                if sdd_file is None:
+                    continue
+                item_kind = f"{classify_plan_file(path, sdd_file.frontmatter)}s"
+                sdd_file = replace(sdd_file, kind=item_kind)
+                if kind in {"all", "plans", item_kind}:
                     files.append(sdd_file)
     return sorted(files, key=lambda file: file.relpath)
 
@@ -337,20 +373,19 @@ def _resolve_link_path(root: Path, link: str) -> Path:
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    for prefix in ("sdd/plans/", ".sase/sdd/plans/", "plans/"):
-        if link.startswith(prefix):
-            alias_path = Path(
-                link.replace(prefix, prefix.replace("plans/", "tales/"), 1)
-            )
-            alias_candidates = [
-                root / alias_path,
-                root.parent / alias_path,
-                root.parent.parent / alias_path,
-                Path.cwd() / alias_path,
-            ]
-            for candidate in alias_candidates:
-                if candidate.exists():
-                    return candidate
+    for alias in iter_link_aliases(link):
+        if alias == link:
+            continue
+        alias_path = Path(alias)
+        alias_candidates = [
+            root / alias_path,
+            root.parent / alias_path,
+            root.parent.parent / alias_path,
+            Path.cwd() / alias_path,
+        ]
+        for candidate in alias_candidates:
+            if candidate.exists():
+                return candidate
     if link.startswith("sdd/") or link.startswith(".sase/sdd/"):
         return root.parent / link_path
     return root / link_path

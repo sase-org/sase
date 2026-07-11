@@ -53,8 +53,8 @@ Source of truth:
 Quick Start:
   sase bead init                                 Create sdd/beads/ in current directory
   sase bead create -t "Fix bug" --type phase(<plan-id>)
-  sase bead create -t "New feature" --type plan(sdd/tales/202605/feature.md) --tier plan
-  sase bead create -t "Epic" --type plan(sdd/epics/202605/epic.md) --tier epic
+  sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan
+  sase bead create -t "Epic" --type plan(sdd/plans/202605/epic.md) --tier epic
   sase bead list                                 List open/in-progress issues
   sase bead list --limit=5                       Limit printed issues
   sase bead list --status=open                   List open issues

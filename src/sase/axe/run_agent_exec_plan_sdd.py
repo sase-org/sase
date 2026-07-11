@@ -100,9 +100,9 @@ def _build_sdd_plan_ref(
 
     yyyymm = get_yyyymm()
     if sdd_plan_name and not sdd_in_tree:
-        return f".sase/sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
+        return f".sase/sdd/plans/{yyyymm}/{sdd_plan_name}.md"
     if sdd_plan_name:
-        return f"sdd/{plan_kind}/{yyyymm}/{sdd_plan_name}.md"
+        return f"sdd/plans/{yyyymm}/{sdd_plan_name}.md"
     return fallback_plan_file
 
 
@@ -123,7 +123,7 @@ def build_epic_plan_ref(
         sdd_plan_name=sdd_plan_name,
         sdd_in_tree=sdd_in_tree,
         fallback_plan_file=fallback_plan_file,
-        plan_kind="epics",
+        plan_kind="plans",
     )
 
 

@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import Literal
 
 from sase.bead.project import BEADS_DIRNAME
@@ -224,7 +225,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         from sase.sdd.files import get_yyyymm
 
         yyyymm = _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
-        dest = os.path.join(store.sdd_dir, "tales", yyyymm, os.path.basename(plan_path))
+        dest = os.path.join(store.sdd_dir, "plans", yyyymm, os.path.basename(plan_path))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copy2(plan_path, dest)
         # Format the copied plan with prettier (safety net for
@@ -252,11 +253,13 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         if reference_root:
             from sase.sdd.frontmatter import set_frontmatter_fields
 
+            from sase.sdd.plan_tiers import read_plan_tier
+
+            fields = {"tier": read_plan_tier(Path(plan_path)) or "tale"}
             prompt_link = _infer_prompt_link(reference_root, plan_path)
             if prompt_link:
-                plan_content = set_frontmatter_fields(
-                    plan_content, {"prompt": prompt_link}
-                )
+                fields["prompt"] = prompt_link
+            plan_content = set_frontmatter_fields(plan_content, fields)
 
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan_content)

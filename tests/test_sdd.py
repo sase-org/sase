@@ -212,12 +212,13 @@ def test_write_sdd_files() -> None:
         prompt_fm, prompt_body, _ = parse_frontmatter(
             prompt_path.read_text(encoding="utf-8")
         )
-        assert prompt_fm["plan"] == "tales/202603/my_plan.md"
+        assert prompt_fm["plan"] == "plans/202603/my_plan.md"
         assert prompt_body == "# My Spec\nDetails here"
         plan_text = plan_path.read_text(encoding="utf-8")
         assert plan_text.startswith("---\ncreate_time:")
         plan_fm, _, _ = parse_frontmatter(plan_text)
         assert plan_fm["prompt"] == "prompts/202603/my_plan.md"
+        assert plan_fm["tier"] == "tale"
         assert "steps:" in plan_text
 
 
@@ -234,7 +235,7 @@ def test_write_sdd_files_missing_plan() -> None:
         prompt_fm, prompt_body, _ = parse_frontmatter(
             prompt_path.read_text(encoding="utf-8")
         )
-        assert prompt_fm["plan"] == "tales/202603/my_plan.md"
+        assert prompt_fm["plan"] == "plans/202603/my_plan.md"
         assert prompt_body == "spec content"
 
 
@@ -247,7 +248,7 @@ def test_write_sdd_files_creates_dirs() -> None:
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
             write_sdd_files(sdd_dir, "test", "spec", str(plan_file))
         assert (sdd_dir / "prompts" / "202603").is_dir()
-        assert (sdd_dir / "tales" / "202603").is_dir()
+        assert (sdd_dir / "plans" / "202603").is_dir()
 
 
 def test_write_sdd_files_epic_kind() -> None:
@@ -266,12 +267,13 @@ def test_write_sdd_files_epic_kind() -> None:
             )
 
         assert prompt_path == sdd_dir / "prompts" / "202603" / "my_epic.md"
-        assert plan_path == sdd_dir / "epics" / "202603" / "my_epic.md"
+        assert plan_path == sdd_dir / "plans" / "202603" / "my_epic.md"
         assert plan_path.exists()
         prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
         plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
-        assert prompt_fm["plan"] == "epics/202603/my_epic.md"
+        assert prompt_fm["plan"] == "plans/202603/my_epic.md"
         assert plan_fm["prompt"] == "prompts/202603/my_epic.md"
+        assert plan_fm["tier"] == "epic"
 
 
 def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
@@ -298,11 +300,12 @@ def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
             )
 
         assert (sdd_dir / "prompts" / "202603").is_dir()
-        assert (sdd_dir / "tales" / "202603" / "my_tales.md").exists()
-        assert (sdd_dir / "tales" / "202603" / "my_legacy_plans.md").exists()
-        assert (sdd_dir / "epics" / "202603" / "my_epics.md").exists()
+        assert (sdd_dir / "plans" / "202603" / "my_tales.md").exists()
+        assert (sdd_dir / "plans" / "202603" / "my_legacy_plans.md").exists()
+        assert (sdd_dir / "plans" / "202603" / "my_epics.md").exists()
         assert not (Path(tmpdir) / "plans").exists()
-        assert not (sdd_dir / "plans").exists()
+        assert not (sdd_dir / "tales").exists()
+        assert not (sdd_dir / "epics").exists()
         assert not (Path(tmpdir) / "prompts").exists()
         assert not (Path(tmpdir) / "specs").exists()
 
@@ -325,7 +328,7 @@ def test_write_sdd_files_uses_sdd_relative_links() -> None:
 
         prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
         plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
-        assert prompt_fm["plan"] == "sdd/tales/202603/linked.md"
+        assert prompt_fm["plan"] == "sdd/plans/202603/linked.md"
         assert plan_fm["prompt"] == "sdd/prompts/202603/linked.md"
 
 
@@ -342,7 +345,7 @@ def test_write_sdd_files_uses_local_sase_sdd_relative_links() -> None:
 
         prompt_fm, _, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
         plan_fm, _, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))
-        assert prompt_fm["plan"] == ".sase/sdd/tales/202603/linked.md"
+        assert prompt_fm["plan"] == ".sase/sdd/plans/202603/linked.md"
         assert plan_fm["prompt"] == ".sase/sdd/prompts/202603/linked.md"
 
 

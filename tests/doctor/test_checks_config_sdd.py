@@ -83,9 +83,9 @@ def test_config_sdd_allows_non_strict_validation_warnings(tmp_path: Path) -> Non
     check = check_config_sdd(_doctor_context(tmp_path))
 
     assert check.status == "OK"
-    assert "1 warnings" in check.summary
+    assert "2 warnings" in check.summary
     assert check.details == ()
-    assert check.data["warning_count"] == 1
+    assert check.data["warning_count"] == 2
 
 
 def test_config_sdd_errors_on_orphaned_store_record(tmp_path: Path) -> None:

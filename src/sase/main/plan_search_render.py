@@ -103,7 +103,7 @@ def _display_path(plan: Plan) -> str:
 
     Repo relpaths are ``{kind_dir}/{shard}/{name}.md``; the kind is already shown
     in its own column, so the leading kind directory is dropped to avoid the
-    redundant ``tales/`` prefix. Local relpaths (``{shard}/{name}.md`` or a flat
+    redundant ``plans/`` prefix. Local relpaths (``{shard}/{name}.md`` or a flat
     ``{name}.md``) only lose the extension.
     """
     rel = plan.relpath

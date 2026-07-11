@@ -68,7 +68,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         default="approve",
         help=(
             "Approval kind: approve runs coder without committing an SDD plan; "
-            "tale commits to sdd/tales; epic commits to sdd/epics; commit "
+            "tale commits to sdd/plans with tier tale; epic commits there "
+            "with tier epic; commit "
             "records the plan without launching coder"
         ),
     )
@@ -109,7 +110,10 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "rejected archived plans. This is also the default for bare "
             "`sase plan`."
         ),
-        epilog=("examples:\n  sase plan\n  sase plan list\n  sase plan list --json"),
+        epilog=(
+            "examples:\n  sase plan\n  sase plan list\n  sase plan list --json\n"
+            "  sase plan list --tier epic"
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     list_parser.add_argument(
@@ -117,6 +121,13 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "--json",
         action="store_true",
         help="Print plan inventory as JSON",
+    )
+    list_parser.add_argument(
+        "-t",
+        "--tier",
+        action="append",
+        choices=("tale", "epic"),
+        help="Filter by plan-file tier: tale or epic (repeatable)",
     )
 
     propose_parser = plan_subparsers.add_parser(
@@ -201,7 +212,10 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "--kind",
         choices=["tale", "epic", "research"],
         action="append",
-        help="Filter SDD-store plans by kind: tale, epic, or research (repeatable)",
+        help=(
+            "Filter SDD-store plans by plan-file tier (tale or epic) or by "
+            "research kind (repeatable)"
+        ),
     )
     search_parser.add_argument(
         "-n",

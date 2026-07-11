@@ -250,7 +250,7 @@ def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
 def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
     tmp_path: Path,
 ) -> None:
-    """Version-controlled approval archiving writes under sdd/<kind>/YYYYMM."""
+    """Version-controlled approval archiving writes under sdd/plans/YYYYMM."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     plan_file = tmp_path / "plan.md"
@@ -279,9 +279,10 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
     ):
         saved = _archive_plan_for_approval(notification, "epic")
 
-    assert saved == str(workspace / "sdd" / "epics" / "202605" / "plan.md")
+    assert saved == str(workspace / "sdd" / "plans" / "202605" / "plan.md")
     assert Path(saved).read_text(encoding="utf-8").startswith("---\ncreate_time:")
-    assert not (workspace / ".sase" / "sdd" / "epics").exists()
+    assert "tier: epic" in Path(saved).read_text(encoding="utf-8")
+    assert not (workspace / ".sase" / "sdd" / "plans").exists()
     ensure_sdd.assert_called_once_with(
         str(workspace),
         commit=True,
@@ -290,7 +291,7 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
 
 
 def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
-    """Local SDD approval archiving keeps using .sase/sdd/<kind>/YYYYMM."""
+    """Local SDD approval archiving uses .sase/sdd/plans/YYYYMM."""
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     plan_file = tmp_path / "plan.md"
@@ -319,8 +320,9 @@ def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
     ):
         saved = _archive_plan_for_approval(notification, "approve")
 
-    assert saved == str(workspace / ".sase" / "sdd" / "tales" / "202605" / "plan.md")
+    assert saved == str(workspace / ".sase" / "sdd" / "plans" / "202605" / "plan.md")
     assert Path(saved).exists()
+    assert "tier: tale" in Path(saved).read_text(encoding="utf-8")
     ensure_sdd.assert_not_called()
 
 

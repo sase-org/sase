@@ -41,7 +41,7 @@ async def test_default_choice_is_tale() -> None:
         row = modal.query_one("#approval-choice-tale", Static)
 
         assert "selected" in row.classes
-        assert "sdd/tales" in str(row.render())
+        assert "sdd/plans (tier: tale)" in str(row.render())
 
 
 async def test_constructor_restores_explicit_choice() -> None:
@@ -54,7 +54,7 @@ async def test_constructor_restores_explicit_choice() -> None:
         prompt_display = modal.query_one("#coder-prompt-display", Static)
 
         assert "selected" in epic_row.classes
-        assert "sdd/epics" in str(epic_row.render())
+        assert "sdd/plans (tier: epic)" in str(epic_row.render())
         assert "do the thing" in str(prompt_display.render())
 
 

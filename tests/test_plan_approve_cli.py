@@ -373,13 +373,14 @@ def test_plan_approve_archives_sdd_path_and_refreshes_index(
     ):
         result = _approve_plan_from_cli(selector="abcdef12", kind="tale")
 
-    saved = str(workspace / "sdd" / "tales" / "202606" / "plan.md")
+    saved = str(workspace / "sdd" / "plans" / "202606" / "plan.md")
     assert result.response_json["saved_plan_path"] == saved
     assert (
         json.loads((response_dir / "plan_response.json").read_text())["saved_plan_path"]
         == saved
     )
     assert Path(saved).is_file()
+    assert "tier: tale" in Path(saved).read_text(encoding="utf-8")
     meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
     assert meta["plan_action"] == "tale"
     ensure_sdd.assert_called_once_with(str(workspace), commit=True, push=False)
