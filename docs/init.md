@@ -8,7 +8,7 @@ initializers that need attention:
 sase init -c       # report drift without writing
 sase init          # prompt before each needed initializer
 sase init --yes    # run every needed initializer in order
-sase init -M --yes # opt this project into managed memory, then initialize it
+sase init -M --yes # mark this repository as SASE-managed, then initialize it
 sase init --all --check # check every active main project without writing
 sase init --all         # visit every active main project; prompt when interactive
 sase init --all --yes   # initialize every active main project without prompting
@@ -18,10 +18,11 @@ The coordinator plans in registry order: memory, SDD, then skills. Memory initia
 initialization (managed `AGENTS.md` and its provider instruction copies). Planning is read-only. In non-interactive
 shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
 unattended apply run. Apply runs can write project files, deploy home files through chezmoi when configured, and use
-each initializer's normal commit/push behavior. Bare `sase init` only lets memory init generate managed project memory
-and root `AGENTS.md` content when the current project's own `./sase.yml` sets `memory.enabled: true`. Without that
-explicit local opt-in, it leaves project memory and the root `AGENTS.md` untouched while still copying every existing
-project-tree `AGENTS.md` to the provider instruction files beside it.
+each initializer's normal commit/push behavior. Project-wide ownership requires `is_sase_managed: true` in the current
+repository's own `./sase.yml`; defaults and merged user configuration cannot grant it. Without that local marker, memory
+init leaves project memory and the root `AGENTS.md` untouched while still copying every existing project-tree
+`AGENTS.md` to the provider instruction files beside it, and explicit SDD initialization exits successfully without
+detecting a provider, materializing storage, or generating files.
 
 `sase init --all` uses the registered project inventory, so it can be run inside a project or from an unrelated
 directory. It visits active main projects only: inactive projects, sibling bookkeeping records, and the system-managed
@@ -31,11 +32,12 @@ projects from being attempted; the final summary and exit status reflect the who
 read-only and exits non-zero if any project has drift or cannot be checked. Without a TTY, `--all` remains read-only
 unless `--yes` is supplied.
 
-Use `-M, --enable-project-memory` to create or update the current project's `./sase.yml` with `memory.enabled: true`
-before normal initialization. The option preserves other local configuration and is available on both bare `sase init`
-and `sase memory init` (as well as the `sase init memory` compatibility alias). Because it writes configuration, it
-cannot be combined with `--check`. It also cannot be combined with `--all`; managed project memory must be enabled one
-project at a time.
+Use `-M, --enable-project-memory` to create or update the current project's `./sase.yml` with `is_sase_managed: true`
+before normal initialization. The compatibility spelling remains, but the marker now authorizes SASE management of the
+repository as a whole and thereby enables managed project memory and explicit SDD initialization. The option preserves
+other local configuration and is available on both bare `sase init` and `sase memory init` (as well as the
+`sase init memory` compatibility alias). Because it writes configuration, it cannot be combined with `--check` or
+`--all`; repositories must be marked one at a time.
 
 Explicit subcommands are still available when you need narrower control:
 
@@ -76,7 +78,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase init`                             | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells.    |
 | `sase init -a, --all`                   | Check or initialize every registered active main project, continuing after project errors.  |
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.      |
-| `sase init -M, --enable-project-memory` | Opt the current project into managed memory before running initialization.                  |
+| `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                  |
 | `sase init --yes`                       | Run every needed initializer in memory, SDD, skills order without prompting.                |
 | `sase memory`                           | Alias for `sase memory list`.                                                               |
 | `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.       |
@@ -89,9 +91,9 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase memory log --include proposals`   | Include proposal and review events in the memory audit surface.                             |
 | `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                              |
 | `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                            |
-| `sase memory init`                      | Refresh home and opted-in project memory plus provider copies for existing `AGENTS.md`.     |
+| `sase memory init`                      | Refresh home and SASE-managed project memory plus provider copies for existing `AGENTS.md`. |
 | `sase memory init --check`              | Report memory initialization drift without writing files.                                   |
-| `sase memory init -M`                   | Create/update `./sase.yml` to enable project memory, then initialize it.                    |
+| `sase memory init -M`                   | Mark the repository as SASE-managed, then initialize project memory.                        |
 | `sase memory init -C`                   | Write memory files but skip the project git commit/pull/push path.                          |
 | `sase init memory`                      | Compatibility alias for `sase memory init`.                                                 |
 | `sase init sdd`                         | Compatibility alias for the provider-owned `sase sdd init` flow.                            |
@@ -127,14 +129,14 @@ that creates or refreshes these documents.
 
 ## Memory Initialization
 
-`sase memory init` always initializes the home-level memory surface. It initializes project-local memory only when the
-project explicitly opts in, and independently owns provider instruction copies:
+`sase memory init` always initializes the home-level memory surface. It initializes project-local memory only for a
+SASE-managed repository, and independently owns provider instruction copies:
 
 `sase memory init -M` is the convenience path for a new active main project: it creates or updates `./sase.yml` with the
-required opt-in before loading configuration and running the normal initializer.
+repository-wide marker before loading configuration and running the normal initializer.
 
 - Project memory under `./memory/`, including `memory/README.md` and flat note files with `type`/`parent` frontmatter,
-  only when the project's own `./sase.yml` contains `memory.enabled: true`.
+  only when the project's own `./sase.yml` contains `is_sase_managed: true`.
 - Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
 - A managed project `AGENTS.md` only with that same explicit opt-in. `amd_h1_title` customizes its H1; otherwise SASE
   derives the stable `<project> - Agent Instructions` title.
@@ -143,14 +145,13 @@ required opt-in before loading configuration and running the normal initializer.
   inlined `AGENTS.md` carries no template variables. Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import shims and
   `*.md.tmpl` sources are still recognized and migrated to full copies.
 
-For an enabled project, `sase memory init` inlines each short-term note's body into Tier 1, renders Tier 2 from
+For a SASE-managed project, `sase memory init` inlines each short-term note's body into Tier 1, renders Tier 2 from
 long-note descriptions, adds missing canonical frontmatter, and validates reachability. Missing, false, merged-global,
 or `amd_h1_title`-only configuration does not authorize any project memory or root `AGENTS.md` creation, refresh, or
-validation. Projects that previously relied on a title or inferred onboarding must add:
+validation. The retired `memory.enabled` key is not an alias. Existing projects must replace it once with:
 
 ```yaml
-memory:
-  enabled: true
+is_sase_managed: true
 ```
 
 Home and chezmoi-home initialization is unchanged: those roots remain managed and take an optional title from user
@@ -238,6 +239,11 @@ creates or refreshes generated SDD guides and the directory-map asset. GitHub se
 `<owner>/<repo>--sdd` companion, applies the `sase--sdd` label, and transactionally imports legacy in-tree and local
 artifacts. New companions are public by default; existing private companions remain private. Bare-git projects keep
 their provider-owned in-tree layout.
+
+Both the apply command and `--check` first read the target repository's own `sase.yml`. A missing or false
+`is_sase_managed` marker makes the command an informative, successful no-op before provider or storage work; malformed
+YAML and non-boolean marker values fail safely. With `--path`, the target repository's marker is used rather than the
+caller's configuration.
 
 ```bash
 sase init sdd

@@ -93,7 +93,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     )
     write(
         project_root / "sase.yml",
-        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+        'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     write(project_root / "memory" / "extra.md", short_note("# Extra\n"))
     write(
@@ -189,7 +189,7 @@ def test_init_memory_managed_agents_wraps_long_memory_descriptions(
     )
     write(
         project_root / "sase.yml",
-        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+        'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     write(
         project_root / "memory" / "generated_skills.md",
@@ -245,7 +245,7 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
     )
     write(
         project_root / "sase.yml",
-        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+        'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     write(
         project_root / "memory" / "described.md",
@@ -283,7 +283,7 @@ def test_init_memory_rejects_short_memory_with_deep_heading(
     )
     write(
         project_root / "sase.yml",
-        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+        'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     # A short note with an H4 heading cannot be inlined and must block init.
     write(project_root / "memory" / "bad.md", short_note("# Bad\n\n#### Too Deep\n"))

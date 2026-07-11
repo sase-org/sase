@@ -165,11 +165,14 @@ warning count and appends `(use --show-warnings to display)` so they remain disc
 on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to errors before
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
-The `sase sdd init` command materializes the provider-selected store, then refreshes the top-level README, directory
-map, and generated `README.md` files in `tales/`, `epics/`, and `research/`. On GitHub it finds or creates the required
-public-by-default `<owner>/<repo>--sdd` companion, applies the `sase--sdd` label, and imports durable artifacts from
-legacy in-tree and local stores before recording success. Existing private companions remain private. Provider errors
-fail setup instead of falling back to local storage. `sase init sdd` exposes the same flow and check/path flags.
+For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase sdd init` command materializes the
+provider-selected store, then refreshes the top-level README, directory map, and generated `README.md` files in
+`tales/`, `epics/`, and `research/`. On GitHub it finds or creates the required public-by-default `<owner>/<repo>--sdd`
+companion, applies the `sase--sdd` label, and imports durable artifacts from legacy in-tree and local stores before
+recording success. Existing private companions remain private. Provider errors fail setup instead of falling back to
+local storage. Missing or false markers make the command and `--check` successful no-ops before provider work; invalid
+local configuration fails safely. `sase init sdd` exposes the same flow and check/path flags, and `--path` checks the
+target repository's marker.
 
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
 conceptual prose in those README files.

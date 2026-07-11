@@ -8,11 +8,17 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from sase.project_management import ProjectManagementStatus, project_management_status
+
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
 
 _NON_PROJECT_SDD_MESSAGE = (
     "sase init sdd: not a project directory (no VCS found); skipping SDD initialization"
+)
+_UNMANAGED_SDD_MESSAGE = (
+    "SDD initialization skipped: repository is not SASE-managed; set "
+    "is_sase_managed: true in the target repository's sase.yml to enable it"
 )
 
 
@@ -57,15 +63,21 @@ def run_sdd_init(args: argparse.Namespace) -> int:
             ),
         )
 
+    path = getattr(args, "path", None)
+    project_root, management = _sdd_project_management(path)
+    if not is_project_directory(project_root):
+        print(_NON_PROJECT_SDD_MESSAGE, file=sys.stderr)
+        return 1
+    if management.error is not None:
+        print(f"error: {management.error}", file=sys.stderr)
+        return 1
+    if not management.is_sase_managed:
+        print(_UNMANAGED_SDD_MESSAGE)
+        return 0
+
     from sase.sdd.files import ensure_sdd_initialized, expected_sdd_readme
     from sase.sdd.store import SddMaterializationError, materialize_sdd_store
 
-    path = getattr(args, "path", None)
-    if not is_project_directory(_sdd_init_project_root(path)):
-        print(_NON_PROJECT_SDD_MESSAGE, file=sys.stderr)
-        return 1
-
-    project_root = _sdd_init_project_root(path)
     try:
         store = materialize_sdd_store(project_root, 1)
     except SddMaterializationError as exc:
@@ -80,11 +92,8 @@ def run_sdd_init(args: argparse.Namespace) -> int:
 
 def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for provider work and generated files."""
-    from sase.sdd.files import plan_sdd_init_actions
-    from sase.sdd.store import resolve_sdd_dir
-
     path = getattr(args, "path", None)
-    project_root = _sdd_init_project_root(path)
+    project_root, management = _sdd_project_management(path)
     if not is_project_directory(project_root):
         return InitPlan(
             command="sdd",
@@ -93,6 +102,26 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
             actions=(),
             blockers=(_NON_PROJECT_SDD_MESSAGE,),
         )
+    if management.error is not None:
+        return InitPlan(
+            command="sdd",
+            label="SDD",
+            summary="cannot determine whether the repository is SASE-managed",
+            actions=(),
+            blockers=(management.error,),
+        )
+    if not management.is_sase_managed:
+        return InitPlan(
+            command="sdd",
+            label="SDD",
+            summary=_UNMANAGED_SDD_MESSAGE,
+            actions=(),
+            warnings=(_UNMANAGED_SDD_MESSAGE,),
+            blockers=(),
+        )
+
+    from sase.sdd.files import plan_sdd_init_actions
+    from sase.sdd.store import resolve_sdd_dir
 
     policy = _project_provider_sdd_policy(project_root)
     actions: list[InitAction] = []
@@ -152,10 +181,13 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     return f"{', '.join(summaries[:-1])} and {summaries[-1]}"
 
 
-def _sdd_init_project_root(path: str | Path | None) -> Path:
+def _sdd_project_management(
+    path: str | Path | None,
+) -> tuple[Path, ProjectManagementStatus]:
     from .sdd_init_config import resolve_sdd_init_config_path
 
-    return resolve_sdd_init_config_path(path).parent
+    config_path = resolve_sdd_init_config_path(path)
+    return config_path.parent, project_management_status(config_path)
 
 
 def _project_provider_sdd_policy(project_root: Path) -> str | None:

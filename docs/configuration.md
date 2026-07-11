@@ -12,7 +12,7 @@ and CLI flags.
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
-  - [memory](#memory)
+  - [is_sase_managed](#is_sase_managed)
   - [ace](#ace)
   - [agent_family](#agent_family)
   - [llm_provider](#llm_provider)
@@ -185,8 +185,8 @@ amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructio
 | -------------- | -------------- | ------- | --------------------------------------------------------------------------------------- |
 | `amd_h1_title` | string \| null | `null`  | H1 title used by the `sase memory init` `AGENTS.md` generator when enabled for a scope. |
 
-For ordinary project roots, `memory.enabled: true` in that root's own `./sase.yml` is the authorization switch. An
-enabled project with no title derives `<project> - Agent Instructions`; `amd_h1_title` alone does not opt a project in.
+For ordinary project roots, `is_sase_managed: true` in that root's own `./sase.yml` is the authorization switch. A
+managed project with no title derives `<project> - Agent Instructions`; `amd_h1_title` alone does not opt a project in.
 
 Home roots are the exception. For the live home root, user config from `~/.config/sase/sase.yml` and
 `~/.config/sase/sase_*.yml` can provide the home `AGENTS.md` title. For the chezmoi home source root, source-side config
@@ -195,25 +195,30 @@ source root rather than writing a live-home `AGENTS.md`.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
-### memory
+### is_sase_managed
 
-Controls whether SASE owns project-local memory and the root `AGENTS.md`.
+Controls whether SASE owns repository resources such as project memory, the root `AGENTS.md`, and explicit SDD
+initialization.
 
 ```yaml
-memory:
-  enabled: false # default
+is_sase_managed: false # default
 ```
 
-| Field            | Type    | Default | Description                                                                  |
-| ---------------- | ------- | ------- | ---------------------------------------------------------------------------- |
-| `memory.enabled` | boolean | `false` | Explicitly authorize project memory and managed root `AGENTS.md` generation. |
+| Field             | Type    | Default | Description                                                              |
+| ----------------- | ------- | ------- | ------------------------------------------------------------------------ |
+| `is_sase_managed` | boolean | `false` | Explicitly authorize SASE to manage resources in the current repository. |
 
-Only the current project's checked-in `./sase.yml` is consulted for this authorization. Defaults, user config, and
+Only the target repository's own checked-in `./sase.yml` is consulted for this authorization. Defaults, user config, and
 merged overlays cannot opt repositories in globally. When false or absent, memory init does not create, refresh, or
 validate project memory and does not create or alter the root `AGENTS.md`; it still propagates every existing project
-`AGENTS.md` to provider files beside it. Existing managed projects must add `memory.enabled: true` when migrating.
+`AGENTS.md` to provider files beside it. Explicit `sase sdd init` and its planner or compatibility alias become
+successful no-ops before provider and storage work. Invalid local YAML or a non-boolean marker fails safely.
 
-Home and chezmoi-home memory initialization does not use this project-local switch.
+This is a direct migration: `memory.enabled` is retired and does not authorize repository management. Existing managed
+projects must replace it with top-level `is_sase_managed: true`.
+
+Home and chezmoi-home memory initialization does not use this project-local switch, and provider instruction copies for
+existing project `AGENTS.md` files remain independent of it.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
@@ -1071,10 +1076,12 @@ initialization, existing bare-repo registration, `#git`/workspace materializatio
 Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
 needed.
 
-Running `sase sdd init` or its `sase init sdd` compatibility alias materializes the provider-selected store, then
-refreshes generated SDD guides and the directory map. On GitHub it finds or creates the public-by-default companion,
-ensures its `sase--sdd` label, and losslessly imports legacy in-tree or local artifacts before recording success.
-Existing private companions remain private. `--check` previews provider and generated-file work without writing.
+For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase sdd init` or its `sase init sdd`
+compatibility alias materializes the provider-selected store, then refreshes generated SDD guides and the directory map.
+On GitHub it finds or creates the public-by-default companion, ensures its `sase--sdd` label, and losslessly imports
+legacy in-tree or local artifacts before recording success. Existing private companions remain private. `--check`
+previews provider and generated-file work without writing. Missing or false management markers make both forms
+successful no-ops; invalid local marker configuration fails before provider calls or writes.
 
 Source: `src/sase/default_config.yml`
 
@@ -1558,8 +1565,9 @@ Bare `sase init` is the onboarding coordinator for SASE-managed resources. It ru
 and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
 Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. The memory
 planner (which owns agent-document initialization) only generates managed project `AGENTS.md` from bare `sase init` when
-the current project's own `./sase.yml` sets `memory.enabled: true`. It never infers project ownership from
-`amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
+the current project's own `./sase.yml` sets `is_sase_managed: true`. The SDD planner uses that same local marker and
+skips unmanaged repositories before provider work. Neither planner infers project ownership from `amd_h1_title`,
+existing memory notes, lifecycle state, or merged configuration.
 
 `--all` applies that coordinator to every registered active main project from its recorded primary workspace, even when
 the command starts outside a project. It excludes inactive, sibling, `home`, and other system-managed records, continues
@@ -1574,7 +1582,7 @@ Advanced deploy controls stay on explicit subcommands such as `sase memory init 
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
 | `-a, --all`                   | flag   | -       | Attempt every known active main SASE project and report one aggregate status.        |
 | `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
-| `-M, --enable-project-memory` | flag   | -       | Create/update `./sase.yml` with `memory.enabled: true` before initialization.        |
+| `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.              |
 | `-y, --yes`                   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
 
 ### `sase memory agent-docs`
@@ -1615,31 +1623,33 @@ sase memory log --id <read-id>
 
 ### `sase memory init`
 
-Creates or refreshes home memory and explicitly enabled project memory. Project ownership requires
-`memory.enabled: true` in the project's own `./sase.yml`; `amd_h1_title` is optional title customization, with a stable
-derived title otherwise. It never creates or alters an unmanaged project's root `AGENTS.md`. Independently, it
-overwrites each provider instruction file (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a byte-for-byte copy
-of that root's `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import shims are recognized and migrated to full copies).
-This copy applies to every existing project-tree `AGENTS.md`; directories without one are untouched. For managed roots,
-memory init synchronizes memory: short-term notes are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term
-notes are rendered as a description-driven reference list, and missing long-memory `description` frontmatter is
-inserted. By default it also tries to commit, rebase-pull, and push generated project-side files. `sase init memory` is
-a compatibility alias for this command. Generated linked-repository memory includes `sase workspace open` guidance for
-every configured linked repo.
+Creates or refreshes home memory and memory for SASE-managed projects. Project ownership requires
+`is_sase_managed: true` in the project's own `./sase.yml`; `amd_h1_title` is optional title customization, with a stable
+derived title otherwise. The retired `memory.enabled` key does not authorize management. It never creates or alters an
+unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider instruction file (`CLAUDE.md`,
+`GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a byte-for-byte copy of that root's `AGENTS.md` (legacy `@AGENTS.md` /
+`*.md.tmpl` import shims are recognized and migrated to full copies). This copy applies to every existing project-tree
+`AGENTS.md`; directories without one are untouched. For managed roots, memory init synchronizes memory: short-term notes
+are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes are rendered as a description-driven
+reference list, and missing long-memory `description` frontmatter is inserted. By default it also tries to commit,
+rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias for this command.
+Generated linked-repository memory includes `sase workspace open` guidance for every configured linked repo.
 
-| Flag                          | Values | Default | Description                                                                                                |
-| ----------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------------------------- |
-| `-c, --check`                 | flag   | -       | Report memory initialization drift without writing project or home files.                                  |
-| `-M, --enable-project-memory` | flag   | -       | Create/update `./sase.yml` with `memory.enabled: true` before initialization; incompatible with `--check`. |
-| `-C, --no-commit`             | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config.    |
+| Flag                          | Values | Default | Description                                                                                             |
+| ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |
+| `-c, --check`                 | flag   | -       | Report memory initialization drift without writing project or home files.                               |
+| `-M, --enable-project-memory` | flag   | -       | Set `is_sase_managed: true`, enabling managed project memory; incompatible with `--check`.              |
+| `-C, --no-commit`             | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config. |
 
 ### `sase init sdd`
 
-`sase init sdd` is the compatibility alias for `sase sdd init`. It materializes provider-owned storage and creates or
-refreshes generated SDD README files and the directory map. GitHub setup creates the required public-by-default
-companion when missing, applies the `sase--sdd` label, and imports legacy SDD artifacts transactionally. Existing
-private companions remain private. Bare-git projects refresh generated files automatically during repository setup and
-first SDD writes; the explicit command remains useful for refreshes and `--check` audits.
+`sase init sdd` is the compatibility alias for `sase sdd init`. For targets marked `is_sase_managed: true` in their own
+`sase.yml`, it materializes provider-owned storage and creates or refreshes generated SDD README files and the directory
+map. Missing or false markers produce an informative successful no-op, while invalid local configuration fails before
+provider or filesystem work. `--path` always checks the target repository's marker. GitHub setup creates the required
+public-by-default companion when missing, applies the `sase--sdd` label, and imports legacy SDD artifacts
+transactionally. Existing private companions remain private. Bare-git projects refresh generated files automatically
+during repository setup and first SDD writes; the explicit command remains useful for refreshes and `--check` audits.
 
 | Flag          | Values | Default         | Description                                                        |
 | ------------- | ------ | --------------- | ------------------------------------------------------------------ |

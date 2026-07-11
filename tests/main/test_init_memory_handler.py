@@ -46,8 +46,7 @@ def test_init_memory_uses_local_linked_repos_for_project_and_global_for_home(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: core
     path: ../local-core
@@ -131,8 +130,7 @@ def test_init_memory_non_project_initializes_home_only_without_project_git(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: core
     path: ../sase-core
@@ -246,8 +244,7 @@ def test_init_memory_legacy_workspace_config_uses_workspace_open(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: dotfiles
     path: $STATIC_ONE
@@ -295,8 +292,7 @@ def test_init_memory_mixed_linked_repos_render_workspace_open(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: core
     path: ../sase-core
@@ -360,8 +356,7 @@ def test_init_memory_legacy_relative_paths_use_workspace_open(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: shared
     path: ../shared
@@ -487,8 +482,7 @@ def test_init_memory_reports_missing_linked_repo_descriptions(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: core
     path: ../sase-core

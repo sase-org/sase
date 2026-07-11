@@ -52,7 +52,7 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     )
     write(
         project_root / "sase.yml",
-        'memory:\n  enabled: true\namd_h1_title: "Managed Instructions"\n',
+        'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     write(project_root / "AGENTS.md", "# Stale Instructions\n")
     write(
@@ -89,7 +89,7 @@ def test_memory_plan_repairs_unreferenced_long_memory_without_title(
     # Enabled project memory with no ``amd_h1_title`` derives a stable title.
     write(
         project_root / "sase.yml",
-        "memory:\n  enabled: true\nsdd:\n  version_controlled: true\n",
+        "is_sase_managed: true\nsdd:\n  version_controlled: true\n",
     )
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
     write(
@@ -127,7 +127,7 @@ def test_memory_apply_repairs_unreferenced_long_memory_without_title(
     )
     write(
         project_root / "sase.yml",
-        "memory:\n  enabled: true\nsdd:\n  version_controlled: true\n",
+        "is_sase_managed: true\nsdd:\n  version_controlled: true\n",
     )
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
     write(
@@ -167,7 +167,7 @@ def test_memory_plan_invalid_amd_title_still_blocks(
     )
     write(
         project_root / "sase.yml",
-        "memory:\n  enabled: true\namd_h1_title: 123\n",
+        "is_sase_managed: true\namd_h1_title: 123\n",
     )
     write(
         project_root / "memory" / "cli_rules.md",

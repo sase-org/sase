@@ -1,7 +1,6 @@
 precommit_command: "just fix"
 amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions"
-memory:
-  enabled: true
+is_sase_managed: true
 
 vcs_provider:
   default_hooks:

@@ -134,7 +134,7 @@ def test_bare_init_yes_repairs_unreferenced_long_memory(
     # Explicitly enabled memory with no title uses the derived project title.
     write(
         project_root / "sase.yml",
-        "memory:\n  enabled: true\nsdd:\n  version_controlled: true\n",
+        "is_sase_managed: true\nsdd:\n  version_controlled: true\n",
     )
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
     write(

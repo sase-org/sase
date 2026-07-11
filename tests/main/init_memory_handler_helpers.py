@@ -110,7 +110,7 @@ def patch_standard_paths(
             git_marker.mkdir()
         config_path = project_root / "sase.yml"
         if not config_path.exists():
-            write(config_path, "memory:\n  enabled: true\n")
+            write(config_path, "is_sase_managed: true\n")
     monkeypatch.chdir(project_root)
     monkeypatch.setenv("HOME", str(home_root))
     monkeypatch.setattr(init_memory_handler, "CONFIG_DIR", config_dir)

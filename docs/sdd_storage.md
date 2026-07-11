@@ -33,9 +33,11 @@ GitHub projects require a companion repository. By default sase-github finds or 
 private companions are left private. Set `sdd.repo.name` to `name` or `owner/name` only when an explicit companion
 repository override is needed.
 
-Run `sase sdd init` to create or connect the provider store and refresh generated SDD guides. The `#gh` setup step also
-materializes the companion before claiming and launching work. Authentication, authorization, network, discovery,
-creation, label, clone, import, or initial-push failures stop setup; GitHub projects do not fall back to local storage.
+Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase sdd init` to create or connect the
+provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before
+provider work. The `#gh` setup step also materializes the companion before claiming and launching work. Authentication,
+authorization, network, discovery, creation, label, clone, import, or initial-push failures stop setup; GitHub projects
+do not fall back to local storage.
 
 The first successful materialization is a single adoption transaction:
 

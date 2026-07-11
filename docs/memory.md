@@ -6,7 +6,8 @@ SASE memory is durable context that survives individual agent chats. Notes live 
 - **Short-term memory** uses `type: short`. It is always-loaded instruction context: `sase memory init` inlines each
   short-term note's body verbatim into the `## Tier 1 (short-term) Memory` block of the managed `AGENTS.md` (one
   `### Title (<file>)` section per note, e.g. `### Build & Run Commands (build_and_run)`) when the root opts in with
-  project-local `memory.enabled: true`. `amd_h1_title` optionally customizes the generated title.
+  project-local `is_sase_managed: true`. `amd_h1_title` optionally customizes the generated title. The retired
+  `memory.enabled` key no longer authorizes management.
 - **Long-term memory** uses `type: long`. It is reference context, requires `description` frontmatter, and can set
   `parent: memory/<note>.md` to appear under another long note's `## Children` section.
 - **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and

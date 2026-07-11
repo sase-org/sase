@@ -60,7 +60,7 @@ def test_yes_runs_all_changed_specs_in_order() -> None:
     assert args_seen[1].force is True
 
 
-def test_enable_project_memory_writes_config_before_planning(
+def test_enable_project_memory_writes_management_marker_before_all_planning(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -72,12 +72,22 @@ def test_enable_project_memory_writes_config_before_planning(
 
     def plan_memory(args: argparse.Namespace) -> InitPlan:
         assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
-            "memory:\n  enabled: true\n"
+            "is_sase_managed: true\n"
         )
         return _plan(
             "memory",
             actions=(_changed_action("sase.yml"),),
-            summary="enable project memory",
+            summary="mark repository as SASE-managed",
+        )
+
+    def plan_sdd(args: argparse.Namespace) -> InitPlan:
+        assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
+            "is_sase_managed: true\n"
+        )
+        return _plan(
+            "sdd",
+            actions=(_changed_action(".sase/sdd/README.md"),),
+            summary="initialize SDD",
         )
 
     specs = (
@@ -86,6 +96,12 @@ def test_enable_project_memory_writes_config_before_planning(
             label="Memory",
             plan=plan_memory,
             run=lambda args: calls.append("memory") or 0,
+        ),
+        InitCommandSpec(
+            name="sdd",
+            label="SDD",
+            plan=plan_sdd,
+            run=lambda args: calls.append("sdd") or 0,
         ),
     )
 
@@ -97,7 +113,7 @@ def test_enable_project_memory_writes_config_before_planning(
     )
 
     assert exit_code == 0
-    assert calls == ["memory"]
+    assert calls == ["memory", "sdd"]
 
 
 def test_yes_runs_one_deferred_chezmoi_deploy_after_selected_runs(

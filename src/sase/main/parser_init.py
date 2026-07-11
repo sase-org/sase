@@ -6,14 +6,14 @@ from sase.main.parser_sdd import add_sdd_path_arg
 
 
 def add_enable_project_memory_argument(parser: argparse.ArgumentParser) -> None:
-    """Add the explicit project-memory opt-in flag to an init parser."""
+    """Add the compatibility flag that marks a repository as SASE-managed."""
     parser.add_argument(
         "-M",
         "--enable-project-memory",
         action="store_true",
         help=(
-            "Create or update ./sase.yml with memory.enabled: true before "
-            "initializing (cannot be combined with --check)"
+            "Create or update ./sase.yml with is_sase_managed: true, enabling "
+            "managed project memory (cannot be combined with --check)"
         ),
     )
 

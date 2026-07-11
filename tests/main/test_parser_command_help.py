@@ -80,6 +80,8 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "loaded, referenced, available, and missing memory files" in memory_help
     assert "`sase init memory` is a compatibility alias" in memory_init_help
     assert "-M, --enable-project-memory" in memory_init_help
+    assert "is_sase_managed: true" in memory_init_help
+    assert "managed project memory" in memory_init_help
     assert "loaded @ references" in memory_list_help
     assert "referenced-only plain memory paths" in memory_list_help
     assert "long-term memory markdown file" in memory_read_help
@@ -101,6 +103,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "sase memory log --id <read-id>" in memory_log_help
     assert "Compatibility alias for `sase memory init`" in init_alias_help
     assert "-M, --enable-project-memory" in init_alias_help
+    assert "is_sase_managed: true" in init_alias_help
 
 
 def test_skills_help_documents_log_command() -> None:

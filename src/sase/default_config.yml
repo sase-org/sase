@@ -1,6 +1,5 @@
 amd_h1_title: null
-memory:
-  enabled: false
+is_sase_managed: false
 use_chezmoi: false
 precommit_command: ""
 linked_repos: []

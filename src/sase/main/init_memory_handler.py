@@ -20,13 +20,12 @@ from ._init_chezmoi_deploy import (
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
 from .init_memory.config import (
-    enable_project_memory as _enable_project_memory,
     primary_workspace_root_for_memory as _primary_workspace_root_for_memory,
     project_config_path as _project_config_path,
-    project_memory_enabled as _project_memory_enabled,
     project_memory_name as _project_memory_name,
     linked_entries_from_config as _linked_entries_from_config,
 )
+from sase.project_management import enable_sase_management, project_management_status
 from .init_memory.constants import COMMAND_LABEL
 from .init_memory.git_state import PreInitGitState
 from .init_memory.inventory import print_validation_errors as _print_validation_errors
@@ -48,7 +47,7 @@ class _MemoryInitInputs:
     use_chezmoi: bool
     no_commit: bool
     is_project_dir: bool
-    project_memory_enabled: bool
+    is_sase_managed: bool
     global_config: Path
     project_root: Path
     home_root: Path
@@ -102,11 +101,12 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     project_entries: tuple[_LinkedRepoMemoryEntry, ...]
     project_errors: tuple[str, ...]
     if is_project_dir:
-        project_enabled, project_enabled_error = _project_memory_enabled(project_config)
-        if project_enabled_error is not None:
+        management = project_management_status(project_config)
+        project_managed = management.is_sase_managed
+        if management.error is not None:
             project_entries = ()
-            project_errors = (project_enabled_error,)
-        elif project_enabled:
+            project_errors = (management.error,)
+        elif project_managed:
             project_entries, project_errors = _linked_entries_from_config(
                 project_config, label="project", primary_root=primary_root
             )
@@ -114,7 +114,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
             project_entries = ()
             project_errors = ()
     else:
-        project_enabled = False
+        project_managed = False
         project_entries = ()
         project_errors = ()
     home_entries, home_errors = _linked_entries_from_config(
@@ -123,14 +123,14 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     config_errors = (*project_errors, *home_errors)
     project_name = (
         None
-        if config_errors or not is_project_dir or not project_enabled
+        if config_errors or not is_project_dir or not project_managed
         else _project_memory_name(project_root)
     )
     return _MemoryInitInputs(
         use_chezmoi=use_chezmoi,
         no_commit=bool(getattr(args, "no_commit", False)),
         is_project_dir=is_project_dir,
-        project_memory_enabled=project_enabled,
+        is_sase_managed=project_managed,
         global_config=global_config,
         project_root=project_root,
         home_root=_home_root_path(use_chezmoi),
@@ -146,7 +146,7 @@ def _capture_pre_init_git_state(project_root: Path) -> PreInitGitState | None:
 
 
 def prepare_project_memory_opt_in(args: argparse.Namespace) -> bool:
-    """Apply ``--enable-project-memory`` once, before init planning or writes."""
+    """Apply the compatibility opt-in flag before init planning or writes."""
     if not getattr(args, "enable_project_memory", False):
         return True
     if getattr(args, "_project_memory_opt_in_prepared", False):
@@ -170,19 +170,19 @@ def prepare_project_memory_opt_in(args: argparse.Namespace) -> bool:
     git_state = None if no_commit else _capture_pre_init_git_state(project_root)
     config_path = _project_config_path()
     config_existed = config_path.exists()
-    changed, error = _enable_project_memory(config_path)
-    if error is not None:
-        print(error, file=sys.stderr)
+    update = enable_sase_management(config_path)
+    if update.error is not None:
+        print(update.error, file=sys.stderr)
         return False
 
     args._project_memory_opt_in_prepared = True
-    args._project_config_changed = changed
+    args._project_config_changed = update.changed
     args._project_config_git_state = git_state
-    if changed:
+    if update.changed:
         args._project_config_operation = "update" if config_existed else "create"
         print(
             f"{COMMAND_LABEL}: {args._project_config_operation}d {config_path} "
-            "with memory.enabled: true"
+            "with is_sase_managed: true"
         )
     return True
 
@@ -236,9 +236,9 @@ def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]
                 inputs.project_root,
                 inputs.project_entries,
                 project_name=inputs.project_name,
-                manage_memory=inputs.project_memory_enabled,
+                manage_memory=inputs.is_sase_managed,
                 enable_amd=True,
-                derive_project_title=inputs.project_memory_enabled,
+                derive_project_title=inputs.is_sase_managed,
                 chezmoi_home_roots=chezmoi_home_roots,
                 include_project_agent_docs=True,
             )
@@ -322,7 +322,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
         config_action = InitAction(
             path=_project_config_path(),
             operation=getattr(args, "_project_config_operation", "update"),
-            detail="enable project memory in sase.yml",
+            detail="mark repository as SASE-managed in sase.yml",
         )
         actions = (config_action, *actions)
     blockers = _memory_plan_blockers(root_plans)
@@ -371,7 +371,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
     if inputs.is_project_dir and not inputs.no_commit:
         if not getattr(args, "_project_memory_opt_in_prepared", False):
             git_state = _capture_pre_init_git_state(inputs.project_root)
-        if git_state is not None and not inputs.project_memory_enabled:
+        if git_state is not None and not inputs.is_sase_managed:
             git_state = PreInitGitState(
                 git_root=git_state.git_root,
                 memory_dirty=(),
@@ -384,9 +384,9 @@ def run_init_memory(args: argparse.Namespace) -> int:
             inputs.project_root,
             inputs.project_entries,
             project_name=inputs.project_name,
-            manage_memory=inputs.project_memory_enabled,
+            manage_memory=inputs.is_sase_managed,
             enable_amd=True,
-            derive_project_title=inputs.project_memory_enabled,
+            derive_project_title=inputs.is_sase_managed,
             chezmoi_home_roots=(inputs.home_root,) if inputs.use_chezmoi else (),
             include_project_agent_docs=True,
         )
@@ -405,7 +405,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
         return 1
 
     print(f"{COMMAND_LABEL}: initialized memory")
-    if inputs.is_project_dir and inputs.project_memory_enabled:
+    if inputs.is_project_dir and inputs.is_sase_managed:
         print(f"  project memory target: {_sase_memory_path(inputs.project_root)}")
     print(f"  home memory target: {_home_memory_path(inputs.use_chezmoi)}")
     print(f"  global config source: {inputs.global_config}")
@@ -415,7 +415,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
         project_exit_code = _deploy_to_project_repo(
             project_result,
             no_commit=inputs.no_commit,
-            manage_memory=inputs.project_memory_enabled,
+            manage_memory=inputs.is_sase_managed,
             git_state=git_state,
             message=getattr(args, "message", None),
             owned_paths=(

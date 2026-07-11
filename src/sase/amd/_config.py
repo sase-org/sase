@@ -100,7 +100,7 @@ def resolve_amd_h1_title(
 
     Explicit project / user configuration always wins, and invalid configured
     values still surface as errors. Project memory initialization passes
-    *derive_project_title* only after the local ``memory.enabled`` opt-in has
+    *derive_project_title* only after the local ``is_sase_managed`` marker has
     been validated, making that boolean sufficient by itself.
     """
     title, title_error = _load_amd_h1_title(root)

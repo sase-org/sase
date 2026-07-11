@@ -337,8 +337,7 @@ def test_memory_plan_invalid_linked_repo_config_returns_blocker_without_writing(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: core
     path: ../sase-core
@@ -371,8 +370,7 @@ def test_memory_check_blockers_render_through_shared_output(
     write(
         project_root / "sase.yml",
         """
-memory:
-  enabled: true
+is_sase_managed: true
 linked_repos:
   - name: core
     path: ../sase-core

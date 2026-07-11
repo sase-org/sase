@@ -19,7 +19,8 @@ from tests.main.init_memory_handler_helpers import (
     "local_config",
     [
         None,
-        "memory:\n  enabled: false\nlinked_repos:\n  - malformed\n",
+        "is_sase_managed: false\nlinked_repos:\n  - malformed\n",
+        "memory:\n  enabled: true\n",
         'amd_h1_title: "Legacy title is not an opt-in"\n',
     ],
 )
@@ -45,7 +46,7 @@ def test_unmanaged_project_does_not_manage_memory_or_root_agents(
     else:
         write(config_path, local_config)
     # A merged/global opt-in must not authorize project writes.
-    write(config_dir / "sase.yml", "memory:\n  enabled: true\n")
+    write(config_dir / "sase.yml", "is_sase_managed: true\n")
     agents_content = "# Custom Project Instructions\n\nDo not replace this.\n"
     memory_content = "---\ntype: long\nparent: memory/missing.md\n---\n# Existing\n"
     write(project_root / "AGENTS.md", agents_content)
@@ -92,7 +93,7 @@ def test_enable_project_memory_creates_local_config_before_initializing(
     assert run_memory(enable_project_memory=True) == 0
 
     assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
-        "memory:\n  enabled: true\n"
+        "is_sase_managed: true\n"
     )
     assert (project_root / "memory" / "sase.md").is_file()
     assert (project_root / "AGENTS.md").is_file()
@@ -115,14 +116,14 @@ def test_enable_project_memory_preserves_existing_local_config(
     )
     write(
         project_root / "sase.yml",
-        "# Keep this comment\nlinked_repos: []\nmemory:\n  enabled: false # opt in\n",
+        "# Keep this comment\nlinked_repos: []\nis_sase_managed: false # opt in\n",
     )
 
     assert run_memory(enable_project_memory=True) == 0
 
     config_text = (project_root / "sase.yml").read_text(encoding="utf-8")
     assert config_text == (
-        "# Keep this comment\nlinked_repos: []\nmemory:\n  enabled: true # opt in\n"
+        "# Keep this comment\nlinked_repos: []\nis_sase_managed: true # opt in\n"
     )
 
 
@@ -154,10 +155,9 @@ def test_enable_project_memory_rejects_check_without_writing(
     "config_text, expected_error",
     [
         ("- not\n- a mapping\n", "expected a YAML mapping"),
-        ("memory: null\n", "memory must be a mapping"),
-        ("memory: []\n", "memory must be a mapping"),
-        ('memory:\n  enabled: "yes"\n', "memory.enabled must be a boolean"),
-        ("memory:\n  enabled: 1\n", "memory.enabled must be a boolean"),
+        ("is_sase_managed: [\n", "failed to parse YAML"),
+        ('is_sase_managed: "yes"\n', "is_sase_managed must be a boolean"),
+        ("is_sase_managed: 1\n", "is_sase_managed must be a boolean"),
     ],
 )
 def test_invalid_project_memory_opt_in_blocks_without_writes(
@@ -206,7 +206,7 @@ def test_unmanaged_project_copies_root_and_nested_agents_only(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "sase.yml", "memory:\n  enabled: false\n")
+    write(project_root / "sase.yml", "is_sase_managed: false\n")
     root_content = "# Root\n\nRoot bytes stay exact.\n"
     nested_content = "# Nested\n\nNested bytes stay exact.\n"
     standalone_content = "# Standalone Claude instructions\n"

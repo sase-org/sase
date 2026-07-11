@@ -114,17 +114,22 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
         assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
-def test_config_schema_accepts_boolean_project_memory_opt_in() -> None:
+def test_config_schema_accepts_boolean_sase_management_marker() -> None:
     schema = _schema()
 
-    for enabled in (False, True):
+    for is_managed in (False, True):
         errors = tuple(
-            Draft7Validator(schema).iter_errors({"memory": {"enabled": enabled}})
+            Draft7Validator(schema).iter_errors({"is_sase_managed": is_managed})
         )
         assert errors == ()
 
     with pytest.raises(ValidationError):
-        Draft7Validator(schema).validate({"memory": {"enabled": "true"}})
+        Draft7Validator(schema).validate({"is_sase_managed": "true"})
+
+
+def test_config_schema_rejects_retired_memory_opt_in() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate({"memory": {"enabled": True}})
 
 
 def test_config_schema_accepts_agent_family_plan_approval_defaults() -> None:

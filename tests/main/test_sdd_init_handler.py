@@ -20,7 +20,7 @@ def _local_store(project: Path) -> SddStore:
     return SddStore(storage="local", sdd_dir=sdd_dir, repo_root=sdd_dir)
 
 
-def test_init_materializes_provider_store_without_writing_config(
+def test_init_materializes_provider_store_without_changing_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -32,13 +32,16 @@ def test_init_materializes_provider_store_without_writing_config(
         return _local_store(path)
 
     monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", materialize)
+    config = tmp_path / "sase.yml"
+    original = "is_sase_managed: true\n"
+    config.write_text(original, encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_sdd_command(make_args(sdd_subcommand="init", path=str(tmp_path)))
 
     assert excinfo.value.code == 0
     assert calls == [(tmp_path, 1)]
-    assert not (tmp_path / "sase.yml").exists()
+    assert config.read_text(encoding="utf-8") == original
     readme = tmp_path / ".sase" / "sdd" / "README.md"
     assert readme.is_file()
     assert str(readme) in capsys.readouterr().out
@@ -49,7 +52,9 @@ def test_init_preserves_existing_retired_config_verbatim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = tmp_path / "sase.yml"
-    original = "sdd:\n  storage: local\n  version_controlled: true\n"
+    original = (
+        "is_sase_managed: true\nsdd:\n  storage: local\n  version_controlled: true\n"
+    )
     config.write_text(original, encoding="utf-8")
     monkeypatch.setattr(
         "sase.sdd.store.materialize_sdd_store",
@@ -72,6 +77,7 @@ def test_init_fails_before_generating_files_when_materialization_fails(
         raise SddMaterializationError("provider unavailable")
 
     monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", fail)
+    (tmp_path / "sase.yml").write_text("is_sase_managed: true\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_sdd_command(make_args(sdd_subcommand="init", path=str(tmp_path)))
