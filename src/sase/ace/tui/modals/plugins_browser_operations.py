@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from inspect import Parameter, signature
 from typing import Any
 
@@ -132,12 +133,21 @@ class PluginsBrowserOperationsMixin:
         return summarize(install)
 
     @staticmethod
-    def _make_sase_update_preview(receipt: object | None) -> DevUpdatePreview:
+    def _make_sase_update_preview(
+        receipt: object | None,
+        *,
+        already_refreshed_roots: Collection[str] = (),
+    ) -> DevUpdatePreview:
         from . import plugins_browser_pane as pane_module
 
-        return pane_module._make_sase_dev_update_preview(
-            receipt if isinstance(receipt, ToolReceipt) else None
-        )
+        make_preview = pane_module._make_sase_dev_update_preview
+        typed_receipt = receipt if isinstance(receipt, ToolReceipt) else None
+        if callable_accepts_keyword(make_preview, "already_refreshed_roots"):
+            return make_preview(
+                typed_receipt,
+                already_refreshed_roots=already_refreshed_roots,
+            )
+        return make_preview(typed_receipt)
 
     @staticmethod
     def _worker_error_text(worker: Any, *, kind: str = "install") -> str:

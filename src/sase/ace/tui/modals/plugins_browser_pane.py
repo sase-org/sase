@@ -386,7 +386,12 @@ class PluginsBrowserPane(
                         severity="information",
                     )
                 else:
-                    self.app.call_later(self.action_update_sase)
+                    fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
+                    self.app.call_later(
+                        lambda: self._start_sase_update_preview(
+                            already_refreshed_roots=fresh_roots
+                        )
+                    )
         elif event.state == WorkerState.ERROR:
             self._auto_update_on_load = False
             self._loading = False

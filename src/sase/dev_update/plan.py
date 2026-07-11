@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tomllib
 from collections import OrderedDict
+from collections.abc import Collection
 from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
@@ -22,6 +23,7 @@ from sase.version._git import (
     GitUpstreamStatus,
     classify_git_upstream,
     fetch_git_upstream,
+    git_probe_cache_key,
     probe_git_metadata_at_ref,
 )
 from sase.version._models import CORE_DISTRIBUTION_NAME, VersionPackageRecord
@@ -43,8 +45,10 @@ def plan_dev_update(
     host_record: VersionPackageRecord,
     receipt: ToolReceipt | None = None,
     tool_python: str | None = None,
+    already_refreshed_roots: Collection[str] = (),
 ) -> DevUpdatePlan:
     """Plan a fast-forward-only dev update for editable package records."""
+    fresh_roots = {git_probe_cache_key(Path(root)) for root in already_refreshed_roots}
     packages: list[DevUpdatePackagePlan] = []
     by_root: OrderedDict[str, list[VersionPackageRecord]] = OrderedDict()
     root_statuses: OrderedDict[str, GitUpstreamStatus] = OrderedDict()
@@ -83,7 +87,10 @@ def plan_dev_update(
         root_statuses.setdefault(status.root, status)
 
     for root, status in root_statuses.items():
-        refreshed_status, fetch_error = _refresh_root_status(status)
+        if git_probe_cache_key(Path(root)) in fresh_roots:
+            refreshed_status, fetch_error = status, None
+        else:
+            refreshed_status, fetch_error = _refresh_root_status(status)
         root_statuses[root] = refreshed_status
         root_fetch_errors[root] = fetch_error
 

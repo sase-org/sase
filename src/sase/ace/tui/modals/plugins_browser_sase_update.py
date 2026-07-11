@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.metadata as importlib_metadata
 import time
+from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
@@ -156,7 +157,10 @@ class SaseUpdateActionsMixin:
         ) -> tuple[UpdateSummary, float]: ...
 
         def _make_sase_update_preview(
-            self, receipt: object | None
+            self,
+            receipt: object | None,
+            *,
+            already_refreshed_roots: Collection[str] = (),
         ) -> DevUpdatePreview: ...
 
         def _execute_dev_update(
@@ -179,6 +183,12 @@ class SaseUpdateActionsMixin:
         only discover a no-op after the confirmed ``uv`` run, and surface it as
         an error toast.
         """
+        self._start_sase_update_preview()
+
+    def _start_sase_update_preview(
+        self, *, already_refreshed_roots: Collection[str] = ()
+    ) -> None:
+        """Build the comprehensive preview, optionally reusing fresh git refs."""
         if self._loading or self._sase_update_plan_worker is not None:
             return
         if isinstance(self._uv_tool, NotUvToolInstall):
@@ -186,9 +196,13 @@ class SaseUpdateActionsMixin:
             return
 
         receipt = load_receipt_for_summary(self._uv_tool)
+        fresh_roots = frozenset(already_refreshed_roots)
 
         def task() -> DevUpdatePreview:
-            return self._make_sase_update_preview(receipt)
+            return self._make_sase_update_preview(
+                receipt,
+                already_refreshed_roots=fresh_roots,
+            )
 
         self._sase_update_plan_worker = self.run_worker(  # type: ignore[attr-defined]
             task, thread=True, exclusive=True, group="sase-update-plan"

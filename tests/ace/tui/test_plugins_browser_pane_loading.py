@@ -212,12 +212,19 @@ async def test_updates_pane_auto_update_fires_once_after_initial_load(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog())
-    calls: list[PluginsBrowserPane] = []
+    fresh_roots = frozenset({"/repo/sase", "/repo/sase-github"})
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        fresh_editable_roots=fresh_roots,
+    )
+    calls: list[tuple[PluginsBrowserPane, frozenset[str]]] = []
     monkeypatch.setattr(
         PluginsBrowserPane,
-        "action_update_sase",
-        lambda self: calls.append(self),
+        "_start_sase_update_preview",
+        lambda self, *, already_refreshed_roots=(): calls.append(
+            (self, frozenset(already_refreshed_roots))
+        ),
     )
 
     async with AcePage() as page:
@@ -227,11 +234,70 @@ async def test_updates_pane_auto_update_fires_once_after_initial_load(
         await page.wait_for(lambda _s: bool(modal.query("#updates")))
         pane = modal.query_one("#updates", PluginsBrowserPane)
         await page.wait_for(lambda _s: not pane._loading)
-        await page.wait_for(lambda _s: calls == [pane])
+        await page.wait_for(lambda _s: calls == [(pane, fresh_roots)])
         await page.pause()
 
-        assert calls == [pane]
+        assert calls == [(pane, fresh_roots)]
         assert pane._auto_update_on_load is False
+
+
+async def test_updates_pane_auto_update_preview_reuses_load_freshness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    fresh_roots = frozenset({"/repo/sase", "/repo/sase-github"})
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        fresh_editable_roots=fresh_roots,
+    )
+    planned_with: list[frozenset[str]] = []
+
+    def _preview(
+        _receipt: object | None,
+        *,
+        already_refreshed_roots: frozenset[str] = frozenset(),
+    ) -> pbp._DevUpdatePreview:
+        planned_with.append(frozenset(already_refreshed_roots))
+        return pbp._DevUpdatePreview(plan=None, subject="sase")
+
+    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", _preview)
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
+        page.app.push_screen(modal)
+        await page.expect_modal("PluginActionConfirmModal")
+
+        assert planned_with == [fresh_roots]
+
+
+async def test_updates_pane_manual_update_does_not_reuse_load_freshness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        fresh_editable_roots=frozenset({"/repo/sase"}),
+    )
+    planned_with: list[frozenset[str]] = []
+
+    def _preview(
+        _receipt: object | None,
+        *,
+        already_refreshed_roots: frozenset[str] = frozenset(),
+    ) -> pbp._DevUpdatePreview:
+        planned_with.append(frozenset(already_refreshed_roots))
+        return pbp._DevUpdatePreview(plan=None, subject="sase")
+
+    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", _preview)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+
+        assert planned_with == [frozenset()]
 
 
 async def test_updates_pane_auto_update_clears_on_initial_load_error(

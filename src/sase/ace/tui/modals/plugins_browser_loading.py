@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sase.config import load_merged_config
 from sase.main.update_routing import update_mode
@@ -31,6 +32,10 @@ from sase.updates.incoming_commits import (
     core_package_commit_spec,
     fetch_incoming_commits,
 )
+from sase.version._git import git_probe_cache_key
+
+
+_FRESH_EDITABLE_STATES = frozenset({"current", "update_available", "dirty", "diverged"})
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,7 @@ class PluginsLoadResult:
     core_incoming_commits: dict[str, IncomingCommits] = field(default_factory=dict)
     install_mode: str | None = None
     dev_root: str | None = None
+    fresh_editable_roots: frozenset[str] = frozenset()
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -127,7 +133,34 @@ def load_plugins_catalog_for_pane(
         core_incoming_commits=core_incoming_commits,
         install_mode=install_mode,
         dev_root=dev_root,
+        fresh_editable_roots=_fresh_editable_roots(core_versions, catalog),
     )
+
+
+def _fresh_editable_roots(
+    core_versions: CoreVersions,
+    catalog: PluginCatalog,
+) -> frozenset[str]:
+    """Return roots proven refreshed by this online latest-version load."""
+    roots = {
+        _canonical_root(package.git_root)
+        for package in core_versions.packages
+        if package.install_type == "editable"
+        and package.latest_state in _FRESH_EDITABLE_STATES
+        and package.git_root
+    }
+    roots.update(
+        _canonical_root(entry.latest.git_root)
+        for entry in catalog.entries
+        if entry.latest.source == "editable"
+        and entry.latest.state in _FRESH_EDITABLE_STATES
+        and entry.latest.git_root
+    )
+    return frozenset(roots)
+
+
+def _canonical_root(root: str) -> str:
+    return str(git_probe_cache_key(Path(root)))
 
 
 def _detect_install_mode(install: object | None) -> str | None:

@@ -128,6 +128,36 @@ def test_plan_dev_update_fetches_once_per_root(
     assert plan.roots[0].packages == ("sase", "sase-github")
 
 
+def test_plan_dev_update_reuses_only_explicitly_refreshed_roots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _record("sase", role="host", source_root="/repo/fresh")
+    plugin = _record("sase-github", role="plugin", source_root="/repo/other")
+    fetched: set[str] = set()
+
+    def classify(root: Path) -> GitUpstreamStatus:
+        root_text = str(root)
+        behind = 2 if root_text == "/repo/fresh" or root_text in fetched else 0
+        return _status(root_text, behind=behind)
+
+    def fetch(status: GitUpstreamStatus) -> None:
+        fetched.add(status.root)
+
+    monkeypatch.setattr(plan_mod, "classify_git_upstream", classify)
+    monkeypatch.setattr(plan_mod, "fetch_git_upstream", fetch)
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update(
+        [host, plugin],
+        host_record=host,
+        already_refreshed_roots={"/repo/fresh"},
+    )
+
+    assert fetched == {"/repo/other"}
+    assert [root.status for root in plan.roots] == ["actionable", "actionable"]
+    assert [root.behind for root in plan.roots] == [2, 2]
+
+
 def test_plan_dev_update_fetch_failure_degrades_honestly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,7 +26,11 @@ class DevUpdatePreview:
     error: str | None = None
 
 
-def make_sase_dev_update_preview(receipt: ToolReceipt | None) -> DevUpdatePreview:
+def make_sase_dev_update_preview(
+    receipt: ToolReceipt | None,
+    *,
+    already_refreshed_roots: Collection[str] = (),
+) -> DevUpdatePreview:
     """Plan a full ``sase update`` for editable host/core/plugin packages.
 
     A ``None`` plan means no editable runtime packages are installed, so callers
@@ -40,7 +45,13 @@ def make_sase_dev_update_preview(receipt: ToolReceipt | None) -> DevUpdatePrevie
     )
     if not editable:
         return DevUpdatePreview(plan=None, subject="sase")
-    return _plan(editable, records=records, receipt=receipt, subject="sase")
+    return _plan(
+        editable,
+        records=records,
+        receipt=receipt,
+        subject="sase",
+        already_refreshed_roots=already_refreshed_roots,
+    )
 
 
 def make_plugin_dev_update_preview(
@@ -201,6 +212,7 @@ def _plan(
     records: tuple[VersionPackageRecord, ...],
     receipt: ToolReceipt | None,
     subject: str,
+    already_refreshed_roots: Collection[str] = (),
 ) -> DevUpdatePreview:
     host = _host_record(records)
     if host is None:
@@ -210,7 +222,12 @@ def _plan(
             error="Runtime inventory is missing the host `sase` package.",
         )
     try:
-        plan = plan_dev_update(targets, host_record=host, receipt=receipt)
+        plan = plan_dev_update(
+            targets,
+            host_record=host,
+            receipt=receipt,
+            already_refreshed_roots=already_refreshed_roots,
+        )
     except Exception as exc:  # noqa: BLE001 - update planning should toast clearly.
         return DevUpdatePreview(plan=None, subject=subject, error=str(exc))
     return DevUpdatePreview(plan=plan, subject=subject)

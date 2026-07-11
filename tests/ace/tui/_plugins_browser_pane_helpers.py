@@ -170,6 +170,7 @@ def _patch_catalog(
     uv_tool: object | None = None,
     core_versions: CoreVersions | None = None,
     core_incoming_commits: dict[str, IncomingCommits] | None = None,
+    fresh_editable_roots: frozenset[str] = frozenset(),
 ) -> None:
     result = pbp._PluginsLoadResult(
         catalog=catalog,
@@ -178,6 +179,7 @@ def _patch_catalog(
         uv_tool=uv_tool,
         core_versions=core_versions or _core_versions(),
         core_incoming_commits=core_incoming_commits or {},
+        fresh_editable_roots=fresh_editable_roots,
     )
     monkeypatch.setattr(pbp, "_load_plugins_catalog", lambda **_kw: result)
     monkeypatch.setattr(pbp, "_collect_installed_core_versions", _core_versions)
