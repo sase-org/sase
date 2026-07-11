@@ -116,7 +116,7 @@ class TestAgentArtifactMetadata:
         assert "Artifacts: 2" not in header.plain
         assert "ARTIFACTS: 2" not in header.plain
         assert "(chat, image)" not in header.plain
-        assert "  • ~/.sase/plans/202605/approved_plan.md\n" in header.plain
+        assert "  ▤ ~/.sase/plans/202605/approved_plan.md\n" in header.plain
         assert "~/.sase/plans/202605/approved_plan.md" in header.plain
         assert explicit.path.replace(str(home), "~") in header.plain
         assert "chat.md" not in header.plain
@@ -215,6 +215,6 @@ class TestAgentArtifactMetadata:
         result = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "Artifacts:\n  • [1] sdd/tales/202605/plan.md\n" in plain
+        assert "Artifacts:\n  ▤ [1] sdd/tales/202605/plan.md\n" in plain
         assert "ARTIFACTS:" not in plain
         assert result.file_hints[1] == str(sdd_plan)

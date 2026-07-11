@@ -20,8 +20,14 @@ _COLOR_BASENAME = "bold #87AFFF"
 _COLOR_PATH_MISSING = "dim #87AFFF"
 _COLOR_BASENAME_MISSING = "dim #87AFFF"
 _COLOR_MISSING_SUFFIX = "dim italic #FF8787"
-_GLYPH_STYLE = "bold #FFD787"
-_ARTIFACT_ENTRY_PREFIX = "•"
+_ICON_BY_VIEW_MODE = {
+    "image": ("▨", "bold #5FD7AF"),
+    "video": ("▶", "bold #FF875F"),
+    "pdf": ("▤", "bold #D7D7AF"),
+    "markdown": ("▤", "bold #D7D7AF"),
+    "text": ("•", "bold #FFD787"),
+}
+_FALLBACK_ARTIFACT_ICON = _ICON_BY_VIEW_MODE["text"]
 
 
 @dataclass(frozen=True)
@@ -29,6 +35,7 @@ class AgentArtifactPath:
     display_path: str
     actual_path: str
     exists: bool = True
+    view_mode: str = "text"
 
 
 def append_agent_artifacts_section(
@@ -44,7 +51,10 @@ def append_agent_artifacts_section(
 
     text.append("Artifacts:\n", style=_COLOR_HEADER)
     for artifact in artifacts:
-        text.append(f"  {_ARTIFACT_ENTRY_PREFIX} ", style=_GLYPH_STYLE)
+        icon, icon_style = _artifact_icon(artifact.view_mode, exists=artifact.exists)
+        text.append("  ")
+        text.append(icon, style=icon_style)
+        text.append(" ")
         if hint_state is not None:
             text.append(f"[{hint_state.hint_counter}] ", style="bold #FFFF00")
             hint_state.hint_mappings[hint_state.hint_counter] = artifact.actual_path
@@ -60,13 +70,14 @@ def agent_artifact_paths(agent: Agent) -> list[AgentArtifactPath]:
     if artifacts_dir is None:
         return []
 
+    from sase.ace.tui.graphics import artifact_view_mode
     from sase.core.agent_artifact_facade import list_agent_artifacts
 
     try:
         artifacts = list_agent_artifacts(artifacts_dir)
     except Exception:
         return []
-    display_items: list[tuple[str, str | None, str | None]] = [
+    display_items: list[tuple[str, str | None, str | None, str]] = [
         (
             artifact.path,
             # Persisted default artifacts live in the global store under an
@@ -76,6 +87,7 @@ def agent_artifact_paths(agent: Agent) -> list[AgentArtifactPath]:
             # path so the panel surfaces where the artifact was filed.
             artifact.source_path if not artifact.explicit else None,
             artifact.workspace_dir,
+            artifact_view_mode(artifact.path, kind=artifact.kind) or "text",
         )
         for artifact in artifacts
         if artifact.path and artifact.kind not in {"chat", "pdf"}
@@ -100,17 +112,19 @@ def agent_artifact_paths(agent: Agent) -> list[AgentArtifactPath]:
                 basename.startswith("followup_prompt") and basename.endswith(".md")
             ):
                 continue
-            display_items.append((artifact.path, None, artifact.workspace_dir))
+            display_items.append(
+                (artifact.path, None, artifact.workspace_dir, "markdown")
+            )
 
     return _dedupe_paths(display_items, agent.workspace_dir)
 
 
 def _dedupe_paths(
-    paths: list[tuple[str, str | None, str | None]],
+    paths: list[tuple[str, str | None, str | None, str]],
     fallback_workspace_dir: str | None,
 ) -> list[AgentArtifactPath]:
     by_actual_path: dict[str, AgentArtifactPath] = {}
-    for path, display_source, artifact_workspace_dir in paths:
+    for path, display_source, artifact_workspace_dir, view_mode in paths:
         workspace_dir = artifact_workspace_dir or fallback_workspace_dir
         actual_path = _resolve_actual_path(path, workspace_dir)
         display_path = _display_path(
@@ -123,9 +137,17 @@ def _dedupe_paths(
                 display_path=display_path,
                 actual_path=actual_path,
                 exists=os.path.exists(actual_path),
+                view_mode=view_mode,
             ),
         )
     return list(by_actual_path.values())
+
+
+def _artifact_icon(view_mode: str, *, exists: bool) -> tuple[str, str]:
+    icon, style = _ICON_BY_VIEW_MODE.get(view_mode, _FALLBACK_ARTIFACT_ICON)
+    if not exists:
+        style = f"dim {style}"
+    return icon, style
 
 
 def _append_path(text: Text, path: str, *, exists: bool = True) -> None:
