@@ -6,11 +6,13 @@ import json
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from PIL import Image
 
 from tests.ace.tui.visual import png_diff
+from tests.ace.tui.visual.conftest import _visual_artifact_root
 from tests.ace.tui.visual.png_diff import (
     AcePngSnapshotFixture,
     diff_pngs,
@@ -71,6 +73,19 @@ def _write_golden(tmp_path: Path, name: str, png: bytes) -> None:
 
 def _clear_png_tolerance_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
+
+
+def test_relative_artifact_root_is_anchored_after_chdir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    config = MagicMock(spec=pytest.Config)
+    config.getoption.return_value = ".pytest_cache/sase-visual"
+    config.rootpath = repo_root
+    monkeypatch.chdir(tmp_path)
+
+    assert _visual_artifact_root(config) == repo_root / ".pytest_cache" / "sase-visual"
 
 
 def test_update_mode_writes_png_golden(tmp_path: Path) -> None:

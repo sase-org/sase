@@ -136,6 +136,7 @@ class FakeyRetryHarness:
         monkeypatch.setenv("SASE_HOME", str(self.home))
         monkeypatch.setenv("SASE_TMPDIR", str(tmp_path / "tmp"))
         monkeypatch.setenv("SASE_FAKEY_PATH", str(fakey_binary))
+        monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
         monkeypatch.setenv("FAKEY_STATE_DIR", str(self.state_dir))
         monkeypatch.chdir(self.workspace)
         self.configure_retry(

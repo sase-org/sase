@@ -4,11 +4,18 @@ import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.file_references import (
     AGENT_PROMPT_WRAP_WIDTH,
     DEFAULT_MARKDOWN_WRAP_WIDTH,
     format_with_prettier,
 )
+
+
+@pytest.fixture(autouse=True)
+def _prettier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SASE_DISABLE_PRETTIER", raising=False)
 
 
 def _fake_run_capturing(captured: list[list[str]]) -> Any:
@@ -63,6 +70,19 @@ def test_format_with_prettier_missing_prettier_returns_text() -> None:
     """Fallback behavior is unchanged when prettier is unavailable."""
     with patch("sase.file_references.shutil.which", return_value=None):
         assert format_with_prettier("untouched", print_width=80) == "untouched"
+
+
+def test_format_with_prettier_disabled_returns_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The environment switch bypasses prettier even when it is installed."""
+    monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
+    with patch(
+        "sase.file_references.shutil.which", return_value="/usr/bin/prettier"
+    ) as mock_which:
+        assert format_with_prettier("untouched", print_width=80) == "untouched"
+
+    mock_which.assert_not_called()
 
 
 def test_format_with_prettier_failure_returns_text() -> None:

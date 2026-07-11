@@ -471,8 +471,8 @@ def format_with_prettier(
 
     Uses prettier with --prose-wrap=always to format the text as markdown,
     wrapping prose at *print_width* columns (default ``DEFAULT_MARKDOWN_WRAP_WIDTH``).
-    Falls back to returning the original text if prettier is not installed or
-    fails.
+    Falls back to returning the original text if prettier is disabled via
+    ``SASE_DISABLE_PRETTIER``, is not installed, or fails.
 
     Args:
         text: The markdown text to format.
@@ -480,7 +480,7 @@ def format_with_prettier(
             preprocessing passes ``AGENT_PROMPT_WRAP_WIDTH``; other callers
             (plans, SDD files, skills, notifications) keep the default.
     """
-    if shutil.which("prettier") is None:
+    if os.environ.get("SASE_DISABLE_PRETTIER") or shutil.which("prettier") is None:
         return text
 
     try:

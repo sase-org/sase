@@ -20,6 +20,8 @@ def _force_color_for_visual_snapshots(
     # from the caller's shell would otherwise force grayscale rendering and
     # cause every snapshot to diff against the committed golden.
     monkeypatch.delenv("NO_COLOR", raising=False)
+    # Prompt rendering must not depend on whether the host has prettier on PATH.
+    monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
     # Pin the app version so the "sase ace (v…)" header title is byte-stable
     # across runs and install shapes. AceApp seeds the title from
     # ``initial_app_version()`` in ``__init__`` and refines it off-thread from
@@ -97,15 +99,23 @@ def _stub_plugin_incoming_commits(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _visual_artifact_root(config: pytest.Config) -> Path:
+    """Return the configured artifact path anchored to pytest's root."""
+    artifact_root = Path(config.getoption("--sase-visual-artifact-dir")).expanduser()
+    rootpath = config.rootpath
+    repo_root = Path(rootpath) if rootpath is not None else Path.cwd()
+    if not artifact_root.is_absolute():
+        artifact_root = repo_root / artifact_root
+    return artifact_root
+
+
 @pytest.fixture
 def ace_png_visual(
     request: pytest.FixtureRequest,
 ) -> AcePngSnapshotFixture:
     """ACE PNG visual snapshot assertion helper."""
     update = bool(request.config.getoption("--sase-update-visual-snapshots"))
-    artifact_root = Path(
-        request.config.getoption("--sase-visual-artifact-dir")
-    ).expanduser()
+    artifact_root = _visual_artifact_root(request.config)
     rootpath = request.config.rootpath
     repo_root = Path(rootpath) if rootpath is not None else Path.cwd()
     location = request.node.location
