@@ -6,6 +6,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
 from sase.sdd._plan_migration import (
@@ -65,7 +67,9 @@ def test_list_and_validate_canonical_and_legacy_plan_files(tmp_path: Path) -> No
     assert any(issue.code == "legacy-plan-directory" for issue in validation.warnings)
 
 
-def test_migration_moves_backfills_rewrites_and_is_idempotent(tmp_path: Path) -> None:
+def test_migration_moves_backfills_rewrites_and_is_idempotent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "sdd"
     tale = _write(root / "tales" / "202607" / "same.md", "# Tale\n")
     _write(
@@ -94,6 +98,16 @@ def test_migration_moves_backfills_rewrites_and_is_idempotent(tmp_path: Path) ->
             design="sdd/epics/202607/same.md",
             tier=BeadTier.EPIC,
         )
+
+    refresh_calls = 0
+    original_refresh = BeadProject._refresh_db_from_jsonl
+
+    def counted_refresh(project: BeadProject) -> None:
+        nonlocal refresh_calls
+        refresh_calls += 1
+        original_refresh(project)
+
+    monkeypatch.setattr(BeadProject, "_refresh_db_from_jsonl", counted_refresh)
 
     planned = plan_legacy_plan_migration(root)
     assert (
@@ -124,7 +138,9 @@ def test_migration_moves_backfills_rewrites_and_is_idempotent(tmp_path: Path) ->
 
     with BeadProject(tmp_path, beads_dirname="sdd/beads") as project:
         assert project.show(bead.id).design == "sdd/plans/202607/same_1.md"
+    assert refresh_calls == 1
 
     rerun = migrate_legacy_plan_directories(root)
     assert rerun.moved == ()
     assert rerun.changed == ()
+    assert refresh_calls == 1
