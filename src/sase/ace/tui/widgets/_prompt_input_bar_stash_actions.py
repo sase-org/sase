@@ -99,8 +99,8 @@ class PromptInputBarStashActionsMixin(_MixinBase):
 
         Reached by the ``gs`` / ``<Ctrl+G> s`` keymap.
 
-        Prompt mode only.  Each non-empty pane becomes its own stash entry —
-        order preserved, original ``pane_index`` recorded — and all of them carry
+        Prompt mode only. Non-empty panes are captured in order and persisted as
+        one canonical bundle row, with the earliest original ``pane_index`` and
         the bar's shared frontmatter. A frontmatter-only draft is captured as an
         empty pane carrying that frontmatter. The whole bar is dismissed
         (``dismiss_bar``). When there is nothing stashable, an empty ``Stashed``

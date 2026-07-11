@@ -34,7 +34,7 @@ async def test_confirm_restores_into_mounted_bar_in_order(
     _seed(
         path,
         [
-            ("a", "2026-06-16T10:00:00", "alpha", "model: c"),
+            ("a", "2026-06-16T10:00:00", "alpha", "model: c", True),
             ("b", "2026-06-16T11:00:00", "beta", "model: c"),
             ("c", "2026-06-16T12:00:00", "gamma", ""),
         ],
@@ -53,6 +53,7 @@ async def test_confirm_restores_into_mounted_bar_in_order(
 
     remaining = read_prompt_stash_snapshot(path).entries
     assert [e.id for e in remaining] == ["a", "c"]
+    assert remaining[0].pinned is True
     assert harness.notifications == [("Restored 2 prompts", None)]
     assert harness.applied_counts == [2]  # badge reflects remaining count
 
@@ -200,13 +201,16 @@ async def test_confirm_none_is_noop() -> None:
 # --- pin toggle ------------------------------------------------------------
 
 
-async def test_pin_toggled_persists_without_badge_refresh(
+async def test_bundle_pin_toggled_persists_and_refreshes_badge_counts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _skip_without_pinned_binding()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
-    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
+    _seed(
+        path,
+        [("bundle", "2026-06-16T10:00:00", "alpha\n---\nbeta", "")],
+    )
     harness = _RestoreHarness()
 
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
@@ -294,7 +298,15 @@ async def test_confirm_keep_only_expands_bundle_without_popping(
     _point_store_at(monkeypatch, path)
     _seed(
         path,
-        [("bundle", "2026-06-16T10:00:00", "alpha\n---\nbeta", "model: c")],
+        [
+            (
+                "bundle",
+                "2026-06-16T10:00:00",
+                "alpha\n---\nbeta",
+                "model: c",
+                True,
+            )
+        ],
     )
     bar = _FakeBar(mode="prompt")
     harness = _RestoreHarness(bar=bar)
@@ -306,6 +318,8 @@ async def test_confirm_keep_only_expands_bundle_without_popping(
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
-    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["bundle"]
+    remaining = read_prompt_stash_snapshot(path).entries
+    assert [e.id for e in remaining] == ["bundle"]
+    assert remaining[0].pinned is True
     assert harness.notifications == [("Restored 2 prompts", None)]
     assert harness.applied_counts == []

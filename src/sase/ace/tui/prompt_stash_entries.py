@@ -11,11 +11,6 @@ def entry_prompt_segments(entry: PromptStashEntryWire) -> list[str]:
     return PromptStackState.from_text(entry.text).texts
 
 
-def entry_is_bundle(entry: PromptStashEntryWire) -> bool:
-    """Whether *entry* restores as more than one prompt pane."""
-    return len(entry_prompt_segments(entry)) > 1
-
-
 def entries_to_restore_items(
     entries: list[PromptStashEntryWire],
 ) -> list[tuple[str, str]]:
@@ -29,6 +24,5 @@ def entries_to_restore_items(
 
 __all__ = [
     "entries_to_restore_items",
-    "entry_is_bundle",
     "entry_prompt_segments",
 ]

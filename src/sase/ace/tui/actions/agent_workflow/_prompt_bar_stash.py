@@ -382,8 +382,8 @@ class PromptBarStashMixin:
         from sase.core.paths import prompt_stash_path
         from sase.core.prompt_stash_facade import pop_prompt_stash
 
-        # The panel does not currently mark keep ids, but global ``@`` uses the
-        # transport path to load a lone pinned entry without popping it.
+        # Pinned panel selections and global ``@`` restores use keep ids so the
+        # loaded entries remain available as templates.
         restore_ids = [*result.pop_ids, *result.keep_ids]
         remove_ids = [*result.pop_ids, *result.delete_ids]
         if not restore_ids and not remove_ids:
@@ -662,10 +662,6 @@ class PromptBarStashMixin:
     ) -> None:
         """Apply badge counts from an already-available store snapshot."""
         self._apply_prompt_stash_counts(*self._prompt_stash_snapshot_counts(snapshot))
-
-    def _apply_prompt_stash_count(self, count: int) -> None:
-        """Push *count* into the ``StashedPromptsIndicator`` badge widget."""
-        self._apply_prompt_stash_counts(count, 0)
 
     def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
         """Push total and pinned counts into the stash indicator widget."""

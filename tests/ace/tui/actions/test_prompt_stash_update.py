@@ -50,9 +50,6 @@ class _UpdateHarness(PromptBarStashMixin):
     def _unmount_prompt_bar_after_submit(self) -> None:
         self.unmount_after_submit_calls += 1
 
-    def _apply_prompt_stash_count(self, count: int) -> None:
-        self._apply_prompt_stash_counts(count, 0)
-
     def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
         self.applied_counts.append(count)
         self.applied_pinned_counts.append(pinned_count)

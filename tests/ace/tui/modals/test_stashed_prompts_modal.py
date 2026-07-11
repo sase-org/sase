@@ -3,9 +3,10 @@
 Covers the pure row helpers (preview truncation, project chip, marker styling,
 and shortcut gutter) and the modal's selection model: digit keys restore a
 numbered row, ``space`` toggles a persistent pin intent, ``tab`` marks
-restore+pop, ``a`` toggles all single-prompt rows for restore+pop, ``d`` marks a
-row for deletion, ``enter`` confirms (the marked set, or the highlighted row
-when nothing is marked), and ``esc`` cancels.
+rows for restore, ``a`` toggles all rows, ``d`` marks a row for deletion,
+``enter`` confirms (the marked set, or the highlighted row when nothing is
+marked), and ``esc`` cancels. Pinned restores stay stashed; unpinned restores
+are popped.
 """
 
 from __future__ import annotations
@@ -233,15 +234,15 @@ async def test_enter_with_no_toggle_restores_highlighted() -> None:
     assert app.result.delete_ids == []
 
 
-async def test_enter_with_no_toggle_restores_highlighted_bundle() -> None:
-    app = _ModalHost([_entry("bundle", "one\n---\ntwo")])
+async def test_enter_with_no_toggle_keeps_pinned_highlighted_bundle() -> None:
+    app = _ModalHost([_entry("bundle", "one\n---\ntwo", pinned=True)])
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
-    assert app.result.pop_ids == ["bundle"]
-    assert app.result.keep_ids == []
+    assert app.result.pop_ids == []
+    assert app.result.keep_ids == ["bundle"]
     assert app.result.delete_ids == []
 
 
@@ -336,6 +337,18 @@ async def test_digit_restores_bundle_row_to_pop() -> None:
     assert app.result.delete_ids == []
 
 
+async def test_digit_restores_pinned_bundle_row_to_keep() -> None:
+    app = _ModalHost([_entry("bundle", "one\n---\ntwo", pinned=True)])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("1")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == []
+    assert app.result.keep_ids == ["bundle"]
+    assert app.result.delete_ids == []
+
+
 async def test_space_toggles_pin_and_posts_events() -> None:
     app = _ModalHost([_entry("a")])
     async with app.run_test(size=(100, 30)) as pilot:
@@ -361,24 +374,29 @@ async def test_space_toggles_pin_and_posts_events() -> None:
         ]
 
 
-async def test_space_is_inert_for_bundle_rows() -> None:
-    app = _ModalHost(
-        [
-            _entry("bundle", "one\n---\ntwo", created_at="2026-06-16T12:00:00"),
-            _entry("single", "solo", created_at="2026-06-16T11:00:00"),
-        ]
-    )
+async def test_space_toggles_bundle_pin_and_posts_events() -> None:
+    app = _ModalHost([_entry("bundle", "one\n---\ntwo")])
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("space")  # highlighted bundle is not restore-selectable
-        await pilot.press("j")
-        await pilot.press("enter")
+        modal = app.screen
+        assert isinstance(modal, StashedPromptsModal)
+
+        await pilot.press("space")
         await pilot.pause()
-    assert app.pin_events == []
-    assert isinstance(app.result, StashRestoreResult)
-    assert app.result.pop_ids == ["single"]
-    assert app.result.keep_ids == []
-    assert app.result.delete_ids == []
+        assert modal._pinned == {"bundle"}
+        assert modal._entries[0].pinned is True
+        option = modal._build_options()[0]
+        assert isinstance(option.prompt, Text)
+        assert "📌" in option.prompt.plain
+
+        await pilot.press("space")
+        await pilot.pause()
+        assert modal._pinned == set()
+        assert modal._entries[0].pinned is False
+        assert [(event.entry.id, event.pinned) for event in app.pin_events] == [
+            ("bundle", True),
+            ("bundle", False),
+        ]
 
 
 async def test_tab_toggles_then_enter_restores_pop_set() -> None:
@@ -403,7 +421,7 @@ async def test_tab_toggles_then_enter_restores_pop_set() -> None:
     assert app.result.delete_ids == []
 
 
-async def test_pin_is_orthogonal_to_pop_selection() -> None:
+async def test_marked_pinned_row_confirms_to_keep() -> None:
     app = _ModalHost([_entry("a")])
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
@@ -417,8 +435,8 @@ async def test_pin_is_orthogonal_to_pop_selection() -> None:
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
-    assert app.result.pop_ids == ["a"]
-    assert app.result.keep_ids == []
+    assert app.result.pop_ids == []
+    assert app.result.keep_ids == ["a"]
     assert app.result.delete_ids == []
 
 
@@ -434,7 +452,19 @@ async def test_toggle_all_then_enter_restores_everything() -> None:
     assert app.result.keep_ids == []
 
 
-async def test_toggle_all_selects_only_single_prompt_rows() -> None:
+async def test_tab_marks_bundle_row_for_restore_and_pop() -> None:
+    app = _ModalHost([_entry("bundle", "one\n---\ntwo")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == ["bundle"]
+    assert app.result.keep_ids == []
+
+
+async def test_toggle_all_selects_bundle_rows() -> None:
     app = _ModalHost(
         [
             _entry("bundle", "one\n---\ntwo", created_at="2026-06-16T12:00:00"),
@@ -448,8 +478,26 @@ async def test_toggle_all_selects_only_single_prompt_rows() -> None:
         await pilot.press("enter")
         await pilot.pause()
     assert isinstance(app.result, StashRestoreResult)
-    assert set(app.result.pop_ids) == {"a", "b"}
-    assert "bundle" not in app.result.pop_ids
+    assert set(app.result.pop_ids) == {"bundle", "a", "b"}
+    assert app.result.keep_ids == []
+
+
+async def test_toggle_all_partitions_pinned_and_unpinned_rows() -> None:
+    app = _ModalHost(
+        [
+            _entry("pinned", pinned=True, created_at="2026-06-16T12:00:00"),
+            _entry("unpinned", created_at="2026-06-16T11:00:00"),
+        ]
+    )
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.press("enter")
+        await pilot.pause()
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == ["unpinned"]
+    assert app.result.keep_ids == ["pinned"]
+    assert app.result.delete_ids == []
 
 
 async def test_delete_mark_returns_delete_ids_not_restore() -> None:
@@ -531,7 +579,7 @@ async def test_title_and_hints_describe_unified_panel() -> None:
         hints = modal._hint_text()
         assert "1-9" in hints
         assert "restore row" in hints
-        assert "restore+pop" in hints
+        assert "tab ✓ restore" in hints
         assert "pin" in hints
         assert "📌" in hints
         assert "delete" in hints

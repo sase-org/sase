@@ -66,9 +66,6 @@ class _CompletionApp(LaunchTaskMixin, PromptBarStashMixin):
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
 
-    def _apply_prompt_stash_count(self, count: int) -> None:
-        self._apply_prompt_stash_counts(count, 0)
-
     def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
         self.applied_counts.append(count)
         self.applied_pinned_counts.append(pinned_count)

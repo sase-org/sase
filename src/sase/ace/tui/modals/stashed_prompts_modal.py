@@ -3,10 +3,11 @@
 Lists stashed prompts newest-first with numbered restore keycaps, a relative
 age, an originating-project chip, bundle marker, persistent pin marker, and a
 one-line preview. ``1``-``9`` restore rows 1-9, ``0`` restores row 10, ``space``
-toggles a single-prompt row's pin and posts an intent message for the app layer
-to persist immediately, ``tab`` marks it to restore and pop, ``d`` marks any row
-for deletion, and ``enter`` confirms. The modal never touches the store
-directly; restore/delete decisions are returned as :class:`StashRestoreResult`.
+toggles any row's pin and posts an intent message for the app layer to persist
+immediately, ``tab`` marks it to restore, ``d`` marks any row for deletion, and
+``enter`` confirms. Pinned rows are restored while staying stashed; unpinned
+rows are restored and popped. The modal never touches the store directly;
+restore/delete decisions are returned as :class:`StashRestoreResult`.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from sase.ace.tui.prompt_stash_entries import entry_is_bundle, entry_prompt_segments
+from sase.ace.tui.prompt_stash_entries import entry_prompt_segments
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 
 from .base import OptionListNavigationMixin
@@ -67,7 +68,7 @@ class StashedPromptsModal(
     _option_list_id = "stashed-prompts-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        Binding("tab", "toggle_pop", "Restore + pop", priority=True),
+        Binding("tab", "toggle_pop", "Restore", priority=True),
         ("space", "toggle_pin", "Pin"),
         ("a", "toggle_all", "All"),
         ("d", "mark_delete", "Delete"),
@@ -88,9 +89,6 @@ class StashedPromptsModal(
         )
         self._prompt_counts = {
             entry.id: len(entry_prompt_segments(entry)) for entry in self._entries
-        }
-        self._bundle_ids = {
-            entry.id for entry in self._entries if entry_is_bundle(entry)
         }
         self._pop: set[str] = set()
         self._pinned: set[str] = {entry.id for entry in self._entries if entry.pinned}
@@ -118,7 +116,7 @@ class StashedPromptsModal(
     def _hint_text(self) -> str:
         return (
             "1-9 0  restore row    j/k ↑/↓ navigate    enter confirm    "
-            f"esc/q cancel\nspace {PIN_GLYPH} pin    tab ✓ restore+pop    "
+            f"esc/q cancel\nspace {PIN_GLYPH} pin    tab ✓ restore    "
             "d ✗ delete    a all"
         )
 
@@ -142,9 +140,6 @@ class StashedPromptsModal(
         return options
 
     # -- selection state -----------------------------------------------------
-
-    def _is_selectable(self, entry: PromptStashEntryWire) -> bool:
-        return entry.id not in self._bundle_ids
 
     def _highlighted_index_and_entry(
         self,
@@ -179,8 +174,6 @@ class StashedPromptsModal(
         entry = self._highlighted_entry()
         if entry is None:
             return
-        if not self._is_selectable(entry):
-            return
         if entry.id in self._pop:
             self._pop.discard(entry.id)
         else:
@@ -193,8 +186,6 @@ class StashedPromptsModal(
         if highlighted is None:
             return
         index, entry = highlighted
-        if not self._is_selectable(entry):
-            return
         pinned = entry.id not in self._pinned
         if pinned:
             self._pinned.add(entry.id)
@@ -206,16 +197,14 @@ class StashedPromptsModal(
         self.post_message(self.PinToggled(updated, pinned))
 
     def action_toggle_all(self) -> None:
-        selectable_ids = {
-            entry.id for entry in self._entries if self._is_selectable(entry)
-        }
-        if not selectable_ids:
+        entry_ids = {entry.id for entry in self._entries}
+        if not entry_ids:
             return
-        if selectable_ids <= self._pop:
-            self._pop.difference_update(selectable_ids)
+        if entry_ids <= self._pop:
+            self._pop.difference_update(entry_ids)
         else:
-            self._pop.update(selectable_ids)
-            self._deleted.difference_update(selectable_ids)
+            self._pop.update(entry_ids)
+            self._deleted.difference_update(entry_ids)
         self._refresh_rows()
 
     def action_mark_delete(self) -> None:
@@ -240,17 +229,15 @@ class StashedPromptsModal(
         self.dismiss(self._single_restore_result(self._entries[index]))
 
     def action_confirm(self) -> None:
-        pop_ids = [e.id for e in self._entries if e.id in self._pop]
+        marked = [e.id for e in self._entries if e.id in self._pop]
+        pop_ids = [entry_id for entry_id in marked if entry_id not in self._pinned]
+        keep_ids = [entry_id for entry_id in marked if entry_id in self._pinned]
         delete_ids = [e.id for e in self._entries if e.id in self._deleted]
-        # Marked restores are explicit restore+pop choices; keep_ids only comes
-        # from the pin-aware single-row restore path.
-        keep_ids: list[str] = []
-        if not pop_ids and not delete_ids:
+        if not marked and not delete_ids:
             highlighted = self._highlighted_entry()
             if highlighted is not None:
                 self.dismiss(self._single_restore_result(highlighted))
                 return
-        if not pop_ids and not delete_ids:
             self.dismiss(None)
             return
         self.dismiss(
