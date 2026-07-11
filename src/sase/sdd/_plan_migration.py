@@ -210,18 +210,23 @@ def _rewrite_bead_designs(
         return []
     try:
         from sase.bead.project import BeadProject
+        from sase.core import bead_mutation_facade as rust_beads
 
         project_root = sdd_root if (sdd_root / ".git").is_dir() else sdd_root.parent
         beads_dirname = (
             "beads" if project_root == sdd_root else f"{sdd_root.name}/beads"
         )
         with BeadProject(project_root, beads_dirname=beads_dirname) as project:
+            updated = False
             for issue in project.list_issues():
                 if not issue.design:
                     continue
                 rewritten = _rewrite_reference(issue.design, path_map)
                 if rewritten != issue.design:
-                    project.update(issue.id, design=rewritten)
+                    rust_beads.update(project.beads_dir, issue.id, design=rewritten)
+                    updated = True
+            if updated:
+                project._refresh_db_from_jsonl()
         return [beads_dir]
     except Exception as exc:
         warnings.append(f"could not rewrite bead design paths: {exc}")
