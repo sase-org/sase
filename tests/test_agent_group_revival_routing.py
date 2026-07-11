@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import call, patch
 
-from sase.ace.tui.modals import ProjectSelectModal
+from sase.ace.tui.modals import DismissedAgentSelectModal
 from sase.ace.tui.modals.saved_agent_group_revival_modal import (
     SavedAgentGroupRevivalModal,
     SavedAgentGroupRevivalResult,
@@ -52,7 +52,7 @@ def test_agents_r_opens_saved_group_revival_panel() -> None:
     assert isinstance(capture.pushed[0][0], SavedAgentGroupRevivalModal)
 
 
-def test_custom_search_result_opens_legacy_project_scope_flow() -> None:
+def test_custom_search_result_opens_unscoped_dismissed_archive() -> None:
     app = FakeReviveApp()
     capture = _ScreenCapture()
     app.app = capture  # type: ignore[attr-defined]
@@ -75,20 +75,59 @@ def test_custom_search_result_opens_legacy_project_scope_flow() -> None:
         app._revive_agent()
 
     callback = capture.pushed[0][1]
-    with (
-        patch(
-            "sase.ace.tui.modals.project_select_modal.list_launchable_projects",
-            return_value=[],
-        ),
-        patch(
-            "sase.ace.tui.modals.project_select_modal.find_all_changespecs",
-            return_value=[],
-        ),
-    ):
-        callback(SavedAgentGroupRevivalResult(action="custom_search"))
+    callback(SavedAgentGroupRevivalResult(action="custom_search"))
 
     assert len(capture.pushed) == 2
-    assert isinstance(capture.pushed[1][0], ProjectSelectModal)
+    assert isinstance(capture.pushed[1][0], DismissedAgentSelectModal)
+
+
+def test_custom_search_pages_global_archive_and_revives_without_scope() -> None:
+    app = FakeReviveApp()
+    capture = _ScreenCapture()
+    app.app = capture  # type: ignore[attr-defined]
+    recent = make_agent(cl_name="recent", raw_suffix="20260527130000")
+    older = make_agent(cl_name="older", raw_suffix="20260527120000")
+    oldest = make_agent(cl_name="oldest", raw_suffix="20260527110000")
+    app._dismissed_agent_objects = [recent]
+    revived_single: list[object] = []
+    revived_batches: list[list[object]] = []
+    app._do_revive_agent = revived_single.append  # type: ignore[method-assign]
+    app._do_revive_agents = revived_batches.append  # type: ignore[method-assign]
+
+    with patch(
+        "sase.ace.dismissed_agents.load_dismissed_bundles_page",
+        side_effect=[([older], False), ([oldest], True)],
+    ) as load_page:
+        app._open_custom_revival_search()
+        modal = capture.pushed[0][0]
+        assert isinstance(modal, DismissedAgentSelectModal)
+        assert modal._page_loader is not None
+
+        first_visible, _, first_exhausted = modal._page_loader()
+        second_visible, _, second_exhausted = modal._page_loader()
+
+    assert load_page.call_args_list == [
+        call(limit=250, offset=0),
+        call(limit=250, offset=250),
+    ]
+    assert {agent.identity for agent in first_visible} == {
+        recent.identity,
+        older.identity,
+    }
+    assert {agent.identity for agent in second_visible} == {
+        recent.identity,
+        older.identity,
+        oldest.identity,
+    }
+    assert not first_exhausted
+    assert second_exhausted
+
+    selection_callback = capture.pushed[0][1]
+    selection_callback([recent])
+    selection_callback([older, oldest])
+
+    assert revived_single == [recent]
+    assert revived_batches == [[older, oldest]]
 
 
 def test_saved_group_result_dispatches_to_phase_four_hook() -> None:

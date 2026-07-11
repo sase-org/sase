@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from pathlib import Path
 
 from rich.text import Text
 from textual import events
@@ -42,6 +43,11 @@ def _response_filter_corpus(content: str) -> str:
 def _agent_filter_label(agent: Agent) -> str:
     """Return searchable row text, including display and canonical names."""
     parts = [f"[{agent.display_type}] {agent.display_name}", agent.cl_name]
+    if agent.project_file:
+        project_name = Path(agent.project_file).parent.name
+        parts.append(project_name)
+        if agent.project_display_name and agent.project_display_name != project_name:
+            parts.append(agent.project_display_name)
     if agent.agent_name:
         parts.append(f"@{agent.agent_name}")
     return " ".join(part for part in parts if part)
@@ -101,6 +107,7 @@ class DismissedAgentSelectModal(
         super().__init__()
         self.agents = agents
         self._all_dismissed = all_dismissed or agents
+        self._filter_labels: dict[int, str] = {}
         self._chat_contents: dict[int, str] = {}
         self._filtered: list[tuple[int, Agent]] = list(enumerate(agents))
         self._step_counts: dict[str, int] = self._compute_step_counts()
@@ -135,10 +142,9 @@ class DismissedAgentSelectModal(
 
     async def on_mount(self) -> None:
         """Focus the filter input and pre-load chat contents."""
-        for i, agent in enumerate(self.agents):
-            content = agent.get_response_content()
-            if content:
-                self._chat_contents[i] = _response_filter_corpus(content)
+        self._filter_labels, self._chat_contents = await asyncio.to_thread(
+            self._filter_corpora_for_agents, self.agents
+        )
 
         filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
         filter_input.focus()
@@ -184,6 +190,8 @@ class DismissedAgentSelectModal(
         loading_archive: bool = False,
         page_exhausted: bool | None = None,
         preserve_highlight: bool = False,
+        filter_labels: dict[int, str] | None = None,
+        response_corpora: dict[int, str] | None = None,
     ) -> None:
         """Replace modal contents after an on-demand bundle load."""
         preserve_identity = (
@@ -204,11 +212,8 @@ class DismissedAgentSelectModal(
         if page_exhausted is not None:
             self._page_exhausted = page_exhausted
 
-        self._chat_contents.clear()
-        for i, agent in enumerate(self.agents):
-            content = agent.get_response_content()
-            if content:
-                self._chat_contents[i] = _response_filter_corpus(content)
+        self._filter_labels = filter_labels or {}
+        self._chat_contents = response_corpora or {}
 
         try:
             filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
@@ -277,13 +282,29 @@ class DismissedAgentSelectModal(
         filter_lower = filter_text.lower()
         results: list[tuple[int, Agent]] = []
         for i, agent in enumerate(self.agents):
-            label = _agent_filter_label(agent)
+            label = self._filter_labels.get(i)
+            if label is None:
+                label = _agent_filter_label(agent)
             if filter_lower in label.lower():
                 results.append((i, agent))
                 continue
             if i in self._chat_contents and filter_lower in self._chat_contents[i]:
                 results.append((i, agent))
         return results
+
+    @staticmethod
+    def _filter_corpora_for_agents(
+        agents: list[Agent],
+    ) -> tuple[dict[int, str], dict[int, str]]:
+        """Prepare reusable label/response text outside keystroke handling."""
+        labels: dict[int, str] = {}
+        responses: dict[int, str] = {}
+        for i, agent in enumerate(agents):
+            labels[i] = _agent_filter_label(agent).lower()
+            content = agent.get_response_content()
+            if content:
+                responses[i] = _response_filter_corpus(content)
+        return labels, responses
 
     def action_toggle_mark(self) -> None:
         """Toggle mark on highlighted agent and advance cursor."""
@@ -412,6 +433,9 @@ class DismissedAgentSelectModal(
             agents, all_dismissed, exhausted = await asyncio.to_thread(
                 self._page_loader
             )
+            filter_labels, response_corpora = await asyncio.to_thread(
+                self._filter_corpora_for_agents, agents
+            )
         except Exception as exc:
             self.notify(f"Failed to load dismissed archive: {exc}", severity="error")
             self._page_loading = False
@@ -429,6 +453,8 @@ class DismissedAgentSelectModal(
             loading_archive=False,
             page_exhausted=exhausted,
             preserve_highlight=preserve_highlight,
+            filter_labels=filter_labels,
+            response_corpora=response_corpora,
         )
 
     def action_load_more(self) -> None:

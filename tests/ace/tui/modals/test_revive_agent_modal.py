@@ -74,6 +74,27 @@ def test_filter_matches_agent_label_and_response_content(tmp_path: Path) -> None
     assert modal._get_filtered_agents("missing") == []
 
 
+def test_filter_discriminates_shared_changespec_by_project_identity() -> None:
+    widgets = make_agent(
+        cl_name="shared-pr",
+        raw_suffix="20260512120000",
+        project_file="/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase",
+        project_display_name="widgets",
+    )
+    gadgets = make_agent(
+        cl_name="shared-pr",
+        raw_suffix="20260512120100",
+        project_file="/tmp/projects/gh_acme__gadgets/gh_acme__gadgets.sase",
+        project_display_name="gadgets",
+    )
+    modal = DismissedAgentSelectModal([widgets, gadgets])
+
+    assert modal._get_filtered_agents("gh_acme__widgets") == [(0, widgets)]
+    assert modal._get_filtered_agents("widgets") == [(0, widgets)]
+    assert modal._get_filtered_agents("gh_acme__gadgets") == [(1, gadgets)]
+    assert modal._get_filtered_agents("gadgets") == [(1, gadgets)]
+
+
 def test_project_agent_label_metadata_response_and_filter_are_humanized(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

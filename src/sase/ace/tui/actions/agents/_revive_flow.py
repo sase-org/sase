@@ -145,20 +145,8 @@ class AgentReviveFlowMixin:
         )
 
     def _open_custom_revival_search(self) -> None:
-        """Show the legacy project selection modal for custom revival search."""
-        from ...modals import ProjectSelectModal, ProjectSelectResult, SelectionItem
-
-        def _on_project_selected(result: ProjectSelectResult | None) -> None:
-            if result is None:
-                return
-            selection = result.selection
-            if not isinstance(selection, SelectionItem):
-                return
-            self._show_dismissed_agents_for_scope(selection)  # type: ignore[attr-defined]
-
-        self.app.push_screen(  # type: ignore[attr-defined]
-            ProjectSelectModal(include_all=True), _on_project_selected
-        )
+        """Open the recent dismissed-agent archive for local filtering."""
+        self._show_dismissed_agents_for_custom_search()  # type: ignore[attr-defined]
 
     def _revive_saved_agent_group(
         self,

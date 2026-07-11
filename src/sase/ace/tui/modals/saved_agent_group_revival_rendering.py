@@ -112,7 +112,8 @@ def build_saved_group_preview(
         preview.append("Custom revival search", style="bold #D7AFFF")
         preview.append("\n\n")
         preview.append(
-            "Open the existing project/PR scoped dismissed-agent search.",
+            "Load the 250 most recent dismissed agents, then filter them "
+            "in the next panel.",
             style="dim",
         )
         return preview
