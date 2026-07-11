@@ -453,13 +453,22 @@ class TestHandleSasePlan:
         repo_dir.mkdir()
 
         payload: dict = {"message": "fix: bug"}
+        committed_contents: list[str] = []
+
+        def capture_committed_plan(*_args: object, **kwargs: object) -> None:
+            paths = kwargs["paths"]
+            assert isinstance(paths, list)
+            committed_contents.append(Path(paths[0]).read_text(encoding="utf-8"))
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patched_sdd_policy("local"),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
             patch("sase.sdd.files.get_yyyymm", return_value="202603"),
-            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
+            patch(
+                "sase.sdd.files.commit_sdd_store_files",
+                side_effect=capture_committed_plan,
+            ) as mock_commit,
         ):
             handle_sase_plan(payload, str(repo_dir))
 
@@ -474,6 +483,8 @@ class TestHandleSasePlan:
         assert store_arg.sdd_dir == repo_dir / ".sase" / "sdd"
         assert message == "Add SDD plan for my_plan"
         assert mock_commit.call_args.kwargs == {"paths": [str(dest)]}
+        assert committed_contents == [dest.read_text(encoding="utf-8")]
+        assert "status: done" in committed_contents[0]
 
     def test_separate_repo_plan_is_tagged_without_code_repo_staging(
         self, tmp_path: Path
@@ -494,18 +505,33 @@ class TestHandleSasePlan:
             },
         )
         payload: dict = {"message": "fix: bug"}
+        committed_contents: list[str] = []
+
+        def capture_committed_plan(*_args: object, **kwargs: object) -> None:
+            paths = kwargs["paths"]
+            assert isinstance(paths, list)
+            committed_contents.append(Path(paths[0]).read_text(encoding="utf-8"))
 
         with (
             patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
             patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
-            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
+            patch(
+                "sase.sdd.files.commit_sdd_store_files",
+                side_effect=capture_committed_plan,
+            ) as mock_commit,
         ):
             handle_sase_plan(payload, str(repo_dir))
 
         assert "_plan_path" not in payload
         assert "status: done" in plan_file.read_text(encoding="utf-8")
         assert payload["message"].endswith("SASE_PLAN=tales/202607/my_plan.md")
-        mock_commit.assert_not_called()
+        mock_commit.assert_called_once()
+        store_arg, message = mock_commit.call_args.args
+        assert store_arg.sdd_dir == repo_dir / ".sase" / "sdd"
+        assert message == "Complete SDD plan for my_plan"
+        assert mock_commit.call_args.kwargs == {"paths": [str(plan_file)]}
+        assert committed_contents == [plan_file.read_text(encoding="utf-8")]
+        assert "status: done" in committed_contents[0]
 
     def test_archive_fallback_vc_true_copies(self, tmp_path: Path) -> None:
         """Archive fallback + version_controlled=True: copies into YYYYMM subdir."""
