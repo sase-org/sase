@@ -59,6 +59,7 @@ CLAUDE.local.md
 # Copied context files (from @ file references)
 .sase/
 .sase_beads/
+/sase/repos/
 sdd/beads/beads.db*
 
 # Hypothesis

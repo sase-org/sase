@@ -1,10 +1,10 @@
 """Helpers for the per-clone ``.git/info/exclude`` ignore file.
 
 This file behaves like ``.gitignore`` but is local to a clone and not
-checked in. SASE uses it to keep workspace-scoped scratch state (e.g.
-``.sase/``) untracked without modifying any project's tracked
-``.gitignore``, so ``git clean -fd`` invoked by embedded ``#git``
-pre-steps does not wipe sase-managed files.
+checked in. SASE uses it to keep workspace-scoped scratch state (``.sase/``)
+and host-scoped linked clones (``/sase/repos/``) untracked, so ``git clean
+-fd`` invoked by embedded ``#git`` pre-steps does not wipe SASE-managed
+files before the project's tracked ``.gitignore`` is initialized.
 """
 
 from __future__ import annotations

@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 from typing import Any
+import warnings
 
 import yaml  # type: ignore[import-untyped]
 
@@ -35,6 +36,12 @@ OPENED_SIBLINGS_FILENAME = "opened_siblings.json"
 # Canonical config key plus its deprecated alias.
 LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
+
+# Host-scoped linked clones live inside the host checkout. Keep the legacy
+# location during the compatibility window so existing clones (including WIP)
+# can be discovered and migrated without recloning.
+LINKED_REPO_CLONES_SUBDIR = ("sase", "repos")
+LEGACY_LINKED_REPO_CLONES_SUBDIR = (".sase", "workspaces")
 
 _OPENED_SCHEMA_VERSION = 2
 
@@ -546,6 +553,80 @@ def _normalize_path(path: str) -> str:
     return str(Path(path).expanduser().resolve(strict=False))
 
 
+def linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
+    """Return the canonical host-scoped clone path for linked repo *name*."""
+
+    return _normalize_path(
+        str(Path(host_checkout).joinpath(*LINKED_REPO_CLONES_SUBDIR, name))
+    )
+
+
+def _legacy_linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
+    return _normalize_path(
+        str(Path(host_checkout).joinpath(*LEGACY_LINKED_REPO_CLONES_SUBDIR, name))
+    )
+
+
+def resolve_linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
+    """Resolve a linked clone without materializing or migrating it.
+
+    The canonical path wins whenever it exists. A legacy-only clone remains
+    visible to read-only callers until the next materializing operation moves
+    it into the canonical location.
+    """
+
+    canonical = linked_repo_clone_dir(host_checkout, name)
+    legacy = _legacy_linked_repo_clone_dir(host_checkout, name)
+    if not Path(canonical).exists() and Path(legacy).exists():
+        return legacy
+    return canonical
+
+
+def _linked_repo_clone_location(
+    workspace_dir: str | Path,
+) -> tuple[Path, str] | None:
+    """Return ``(host_checkout, name)`` for a known linked-clone layout."""
+
+    path = Path(workspace_dir).expanduser().resolve(strict=False)
+    if len(path.parents) < 3:
+        return None
+    parent_pair = (path.parent.parent.name, path.parent.name)
+    if parent_pair not in {
+        LINKED_REPO_CLONES_SUBDIR,
+        LEGACY_LINKED_REPO_CLONES_SUBDIR,
+    }:
+        return None
+    return path.parents[2], path.name
+
+
+def _prepare_linked_repo_clone_dir(host_checkout: Path, name: str) -> str:
+    """Protect and migrate a host-scoped linked clone before materialization."""
+
+    from sase.workspace_provider.git_exclude import ensure_git_info_exclude_entry
+
+    ensure_git_info_exclude_entry(str(host_checkout), "/sase/repos/")
+    canonical = Path(linked_repo_clone_dir(host_checkout, name))
+    legacy = Path(_legacy_linked_repo_clone_dir(host_checkout, name))
+
+    if canonical.exists() and legacy.exists():
+        warnings.warn(
+            f"Both canonical and legacy linked-repo clones exist for {name!r}; "
+            f"using {canonical} and leaving stale legacy clone {legacy}",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+        return str(canonical)
+
+    if legacy.exists() and not canonical.exists():
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        os.rename(legacy, canonical)
+        try:
+            legacy.parent.rmdir()
+        except OSError:
+            pass
+    return str(canonical)
+
+
 def _resolve_workspace_dir(
     primary_dir: str,
     *,
@@ -565,9 +646,7 @@ def _resolve_workspace_dir(
         .resolve(workspace_num)
         .checkout_dir.rstrip("/")
     )
-    target = _normalize_path(
-        str(Path(host_workspace_dir) / ".sase" / "workspaces" / name)
-    )
+    target = resolve_linked_repo_clone_dir(host_workspace_dir, name)
     if not materialize:
         return target
 
@@ -584,6 +663,11 @@ def materialize_linked_repo_workspace(
     """Clone a host-scoped linked workspace and initialize its SDD companion."""
 
     from sase.workspace_provider.utils import ensure_git_clone_at
+
+    location = _linked_repo_clone_location(workspace_dir)
+    if location is not None:
+        host_checkout, name = location
+        workspace_dir = _prepare_linked_repo_clone_dir(host_checkout, name)
 
     checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
     try:

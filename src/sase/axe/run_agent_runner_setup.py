@@ -260,12 +260,13 @@ def enter_agent_workspace(workspace_dir: str, workspace_num: int = 1) -> None:
         workspace_num=workspace_num,
     )
 
-    # Keep ``.sase/`` untracked in this clone. Some workflows use it for
-    # project-local runtime artifacts, and ``.git/info/exclude`` is git's
-    # per-clone ignore file honored by ``git clean``.
+    # Keep runtime state and host-scoped linked clones untracked in this clone.
+    # ``.git/info/exclude`` is git's per-clone ignore file honored by
+    # ``git clean`` even before the tracked project .gitignore is initialized.
     from sase.workspace_provider.git_exclude import ensure_git_info_exclude_entry
 
     ensure_git_info_exclude_entry(workspace_dir, ".sase/")
+    ensure_git_info_exclude_entry(workspace_dir, "/sase/repos/")
 
 
 def build_output_variable_namespaces(wait_names: list[str]) -> dict[str, Any]:

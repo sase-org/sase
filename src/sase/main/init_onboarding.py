@@ -134,7 +134,10 @@ def _render_no_specs(console: Console) -> None:
     console.print("SASE initialization check", style="bold")
     console.print()
     console.print("No init planners are registered yet.")
-    console.print("Run an explicit subcommand: init memory, init sdd, or init skills.")
+    console.print(
+        "Run an explicit subcommand: init memory, init sdd, init skills, or "
+        "init workspace."
+    )
 
 
 def _prompt_for_plan(
@@ -205,7 +208,9 @@ def _active_onboarding_specs(
 ) -> tuple[InitCommandSpec, ...]:
     active_specs = tuple(iter_init_command_specs() if specs is None else specs)
     if specs is None and not is_project_directory():
-        return tuple(spec for spec in active_specs if spec.name != "sdd")
+        return tuple(
+            spec for spec in active_specs if spec.name not in {"sdd", "workspace"}
+        )
     return active_specs
 
 

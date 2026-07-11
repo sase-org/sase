@@ -59,6 +59,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     "src/sase/llm_provider/codex.py:_codex_subprocess_env": DirOpReview(
         exemption="Shadow CODEX_HOME cache, not an agent artifact directory.",
     ),
+    "src/sase/linked_repos.py:_prepare_linked_repo_clone_dir": DirOpReview(
+        exemption=(
+            "Moves a host-scoped linked repository checkout from the legacy "
+            ".sase/workspaces path to sase/repos, not an agent artifact directory."
+        ),
+    ),
     "src/sase/main/workspace_handler_migration.py:handle_migrate": DirOpReview(
         exemption=(
             "Moves a workspace checkout directory under a managed root, not an "

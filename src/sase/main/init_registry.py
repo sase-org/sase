@@ -23,10 +23,12 @@ def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
     """Return registered onboarding specs in execution order.
 
     The memory spec now owns agent-document initialization (managed AGENTS.md
-    and provider shims), so onboarding registers memory, SDD, and skills specs.
+    and provider shims), so onboarding registers memory, SDD, skills, and
+    workspace specs.
     """
     from .init_skills_handler import plan_init_skills, run_init_skills
     from .init_memory_handler import plan_init_memory, run_init_memory
+    from .init_workspace_handler import plan_init_workspace, run_init_workspace
     from .sdd_handler import plan_sdd_init, run_sdd_init
 
     return (
@@ -47,6 +49,12 @@ def iter_init_command_specs() -> tuple[InitCommandSpec, ...]:
             label="Skills",
             plan=plan_init_skills,
             run=run_init_skills,
+        ),
+        InitCommandSpec(
+            name="workspace",
+            label="Workspace",
+            plan=plan_init_workspace,
+            run=run_init_workspace,
         ),
     )
 

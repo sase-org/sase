@@ -181,12 +181,13 @@ SASE keeps durable state outside any one chat session:
 - **Configured linked repos** - Project and user config can expose related repositories to launched agents as
   workspace-matched directories via the `linked_repos` key (the legacy `sibling_repos` key still works as a deprecated
   alias). SASE records those paths in environment variables and agent metadata so cross-repo work uses the same numbered
-  workspace as the main checkout. Numbered linked checkouts live under
-  `<host_workspace>/.sase/workspaces/<linked_repo>`, so two host projects cannot collide. ACE uses that metadata for
-  live context: dirty linked repos can appear in a non-terminal agent's `DELTAS` section, and linked workspaces opened
-  inside the agent with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` appear in the
-  `SASE CONTEXT` `WORKSPACES` lane and the `t` tmux chooser. In that command, `-p/--project` names the configured linked
-  repo's backing project record.
+  workspace as the main checkout. Numbered linked checkouts live under `<host_workspace>/sase/repos/<linked_repo>`, so
+  two host projects cannot collide. `sase init workspace` adds the tracked `/sase/repos/` ignore rule; existing legacy
+  `.sase/workspaces/` clones are recognized and moved on first materialization. ACE uses that metadata for live context:
+  dirty linked repos can appear in a non-terminal agent's `DELTAS` section, and linked workspaces opened inside the
+  agent with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` appear in the `SASE CONTEXT`
+  `WORKSPACES` lane and the `t` tmux chooser. In that command, `-p/--project` names the configured linked repo's backing
+  project record.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them

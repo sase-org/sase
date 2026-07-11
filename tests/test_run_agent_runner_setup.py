@@ -13,6 +13,7 @@ from sase.axe.run_agent_exec_markers import (
 from sase.axe.run_agent_exec_plan_artifacts import write_plan_path_artifact
 from sase.axe.run_agent_runner_setup import (
     capture_sdd_base_sha,
+    enter_agent_workspace,
     prepare_linked_repo_workspaces_if_needed,
     prepare_workspace_if_needed,
     preprocess_prompt_xprompts,
@@ -48,6 +49,26 @@ def _resolution(
             ),
         )
     )
+
+
+def test_enter_agent_workspace_installs_runtime_ignore_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, str]] = []
+    monkeypatch.chdir(tmp_path)
+    with (
+        patch("sase.sdd.env.set_sdd_dir_env"),
+        patch(
+            "sase.workspace_provider.git_exclude.ensure_git_info_exclude_entry",
+            side_effect=lambda workspace, pattern: calls.append((workspace, pattern)),
+        ),
+    ):
+        enter_agent_workspace(str(tmp_path), 10)
+
+    assert calls == [
+        (str(tmp_path), ".sase/"),
+        (str(tmp_path), "/sase/repos/"),
+    ]
 
 
 def test_write_submitted_xprompt_artifact_preserves_exact_prompt(
@@ -340,10 +361,10 @@ def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note
     assert meta["sibling_repos"] == resolution.to_jsonable()
     written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
     assert written["linked_repos"][0]["workspace_dir"] == str(
-        workspace / ".sase" / "workspaces" / "core"
+        workspace / "sase" / "repos" / "core"
     )
     assert written["sibling_repos"][0]["workspace_dir"] == str(
-        workspace / ".sase" / "workspaces" / "core"
+        workspace / "sase" / "repos" / "core"
     )
     assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
     assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"

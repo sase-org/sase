@@ -55,7 +55,10 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "Run read-only install, config, provider, project, and state diagnostics."
         in help_text
     )
-    assert "Check or initialize AGENTS.md, memory, SDD guides, and skills." in help_text
+    assert (
+        "Check or initialize memory, SDD guides, skills, and workspace ignores."
+        in help_text
+    )
     assert (
         "Show the exact SASE host, Rust core, and plugin packages loaded by this process."
         in help_text

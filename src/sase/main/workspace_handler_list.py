@@ -152,12 +152,19 @@ def resolve_checkout_path(
             )
         else:
             host_checkout = host_store.resolve(workspace_num).checkout_dir.rstrip("/")
-        workspace_dir = os.path.join(
-            host_checkout, ".sase", "workspaces", ctx.project_name
+        from sase.linked_repos import (
+            linked_repo_clone_dir,
+            materialize_linked_repo_workspace,
+            resolve_linked_repo_clone_dir,
+        )
+
+        workspace_dir = (
+            linked_repo_clone_dir(host_checkout, ctx.project_name)
+            if materialize
+            else resolve_linked_repo_clone_dir(host_checkout, ctx.project_name)
         )
         if not materialize:
-            return os.path.normpath(workspace_dir)
-        from sase.linked_repos import materialize_linked_repo_workspace
+            return workspace_dir
 
         return materialize_linked_repo_workspace(
             primary_dir=ctx.primary_workspace_dir,

@@ -70,7 +70,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     ),
     _CompactRootCommand(
         "init",
-        "Check or initialize AGENTS.md, memory, SDD guides, and skills.",
+        "Check or initialize memory, SDD guides, skills, and workspace ignores.",
     ),
     _CompactRootCommand(
         "version",

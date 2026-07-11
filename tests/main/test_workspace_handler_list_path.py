@@ -111,7 +111,7 @@ class TestPath:
         )
 
         assert path == str(
-            host_primary.with_name("main_10") / ".sase" / "workspaces" / "core"
+            host_primary.with_name("main_10") / "sase" / "repos" / "core"
         )
 
     def test_linked_repo_primary_passthrough(self, tmp_path: Path) -> None:
@@ -134,6 +134,33 @@ class TestPath:
         )
 
         assert path == str(linked_primary)
+
+    def test_linked_repo_path_falls_back_to_legacy_clone(self, tmp_path: Path) -> None:
+        host_primary = tmp_path / "main"
+        linked_primary = tmp_path / "core"
+        host_checkout = tmp_path / "main_10"
+        legacy = host_checkout / ".sase" / "workspaces" / "core"
+        host_primary.mkdir()
+        linked_primary.mkdir()
+        legacy.mkdir(parents=True)
+        ctx = ProjectContext(
+            project_name="core",
+            project_file=str(tmp_path / "core.sase"),
+            primary_workspace_dir=str(linked_primary),
+            store=WorkspaceStore(str(linked_primary)),
+            is_sibling=True,
+            is_configured_linked_repo=True,
+            linked_host_primary_workspace_dir=str(host_primary),
+        )
+
+        path = resolve_checkout_path(
+            ctx,
+            10,
+            materialize=False,
+            load_config=lambda: {"workspace": {"root": "adjacent"}},
+        )
+
+        assert path == str(legacy.resolve())
 
     def test_linked_repo_numbered_path_requires_host_context(
         self, tmp_path: Path

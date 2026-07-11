@@ -48,9 +48,7 @@ def test_resolves_relative_sibling_from_primary_not_numbered_workspace(
     assert len(resolution.repos) == 1
     repo = resolution.repos[0]
     assert repo.primary_dir == str(sibling.resolve())
-    assert repo.workspace_dir == str(
-        (workspace / ".sase" / "workspaces" / "core").resolve()
-    )
+    assert repo.workspace_dir == str((workspace / "sase" / "repos" / "core").resolve())
     assert repo.workspace_num == 10
 
 
@@ -79,7 +77,7 @@ def test_non_materializing_resolution_uses_managed_workspace_root(
 
     assert resolution.warnings == ()
     repo = resolution.repos[0]
-    expected = managed_root / "sase-suite" / "sase_10" / ".sase" / "workspaces" / "core"
+    expected = managed_root / "sase-suite" / "sase_10" / "sase" / "repos" / "core"
     assert repo.workspace_dir == str(expected.resolve(strict=False))
     assert not expected.exists()
 
@@ -113,7 +111,7 @@ def test_legacy_strategy_is_ignored(
     repo = resolution.repos[0]
     assert repo.primary_dir == str(chezmoi.resolve())
     assert repo.workspace_dir == str(
-        (tmp_path / "sase_10" / ".sase" / "workspaces" / "chezmoi").resolve()
+        (tmp_path / "sase_10" / "sase" / "repos" / "chezmoi").resolve()
     )
     assert resolution.warnings
 
@@ -143,10 +141,10 @@ def test_env_aliases_are_sanitized_and_json_is_canonical(tmp_path: Path) -> None
 
     env = resolution.to_env()
     assert env["SASE_SIBLING_REPO_SASE_CORE_DIR"] == str(
-        (tmp_path / "main_4" / ".sase" / "workspaces" / "sase-core").resolve()
+        (tmp_path / "main_4" / "sase" / "repos" / "sase-core").resolve()
     )
     assert env["SASE_SIBLING_REPO_SASE_CORE_2_DIR"] == str(
-        (tmp_path / "main_4" / ".sase" / "workspaces" / "sase.core").resolve()
+        (tmp_path / "main_4" / "sase" / "repos" / "sase.core").resolve()
     )
     loaded = json.loads(env[SIBLING_REPOS_JSON_ENV])
     assert [item["env_name"] for item in loaded] == ["SASE_CORE", "SASE_CORE_2"]

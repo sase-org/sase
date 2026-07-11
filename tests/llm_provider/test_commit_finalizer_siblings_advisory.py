@@ -58,7 +58,7 @@ def test_new_linked_record_is_blocking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     main = tmp_path / "sase_10"
-    linked = main / ".sase" / "workspaces" / "chezmoi"
+    linked = main / "sase" / "repos" / "chezmoi"
     main.mkdir()
     init_git_repo(linked)
     dirty_file = linked / "dotfile"

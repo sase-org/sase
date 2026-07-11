@@ -207,6 +207,11 @@ def main() -> NoReturn:
 
             handle_init_skills_command(args)
 
+        if args.init_subcommand == "workspace":
+            from .init_workspace_handler import handle_init_workspace_command
+
+            handle_init_workspace_command(args)
+
         parser.error(f"unknown init subcommand: {args.init_subcommand}")
 
     # --- launch ---

@@ -14,15 +14,15 @@ sase init --all         # visit every active main project; prompt when interacti
 sase init --all --yes   # initialize every active main project without prompting
 ```
 
-The coordinator plans in registry order: memory, SDD, then skills. Memory initialization owns agent-document
-initialization (managed `AGENTS.md` and its provider instruction copies). Planning is read-only. In non-interactive
-shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes` when you want an
-unattended apply run. Apply runs can write project files, deploy home files through chezmoi when configured, and use
-each initializer's normal commit/push behavior. Project-wide ownership requires `is_sase_managed: true` in the current
-repository's own `./sase.yml`; defaults and merged user configuration cannot grant it. Without that local marker, memory
-init leaves project memory and the root `AGENTS.md` untouched while still copying every existing project-tree
-`AGENTS.md` to the provider instruction files beside it, and explicit SDD initialization exits successfully without
-detecting a provider, materializing storage, or generating files.
+The coordinator plans in registry order: memory, SDD, skills, then workspace ignore rules. Memory initialization owns
+agent-document initialization (managed `AGENTS.md` and its provider instruction copies). Planning is read-only. In
+non-interactive shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes`
+when you want an unattended apply run. Apply runs can write project files, deploy home files through chezmoi when
+configured, and use each initializer's normal commit/push behavior. Project-wide ownership requires
+`is_sase_managed: true` in the current repository's own `./sase.yml`; defaults and merged user configuration cannot
+grant it. Without that local marker, memory init leaves project memory and the root `AGENTS.md` untouched while still
+copying every existing project-tree `AGENTS.md` to the provider instruction files beside it, and explicit SDD
+initialization exits successfully without detecting a provider, materializing storage, or generating files.
 
 One resource-specific exception is intentionally non-bypassable: `--yes` can run the SDD initializer, but it cannot
 approve creation of a missing GitHub SDD companion. That creation always requires an interactive `y`/`yes` response to
@@ -58,6 +58,9 @@ sase memory log --path generated_skills.md
 sase memory log --id <read-id>
 sase init sdd
 sase init sdd --check
+sase init workspace
+sase init workspace --check
+sase init workspace --no-commit
 sase skill list
 sase skill init --dry-run
 sase skill log
@@ -79,11 +82,11 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 
 | Command                                 | Purpose                                                                                     |
 | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase init`                             | Check memory, SDD, and skills; prompt once per needed initializer in interactive shells.    |
+| `sase init`                             | Check memory, SDD, skills, and workspace ignores; prompt once per needed initializer.       |
 | `sase init -a, --all`                   | Check or initialize every registered active main project, continuing after project errors.  |
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.      |
 | `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                  |
-| `sase init --yes`                       | Run every needed initializer in memory, SDD, skills order without prompting.                |
+| `sase init --yes`                       | Run every needed initializer in memory, SDD, skills, workspace order without prompting.     |
 | `sase memory`                           | Alias for `sase memory list`.                                                               |
 | `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.       |
 | `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                    |
@@ -102,6 +105,9 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase init memory`                      | Compatibility alias for `sase memory init`.                                                 |
 | `sase init sdd`                         | Compatibility alias for the provider-owned `sase sdd init` flow.                            |
 | `sase init sdd --check`                 | Report provider and generated-file work without writing files.                              |
+| `sase init workspace`                   | Add `/sase/repos/` to the root `.gitignore` and use the normal project commit/push flow.    |
+| `sase init workspace --check`           | Report a missing linked-repo ignore rule without writing files.                             |
+| `sase init workspace --no-commit`       | Add the linked-repo ignore rule without committing or pushing it.                           |
 | `sase skill`                            | Alias for `sase skill list`.                                                                |
 | `sase skill list`                       | Inspect generated skill sources, provider targets, and deployed-file drift without writing. |
 | `sase skill init`                       | Generate skill files; existing files require confirmation or `--force`.                     |
@@ -115,7 +121,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
 the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory,
-only SDD, or only skill generated files.
+only SDD, only skill generated files, or only workspace ignore rules.
 
 ## Agent Documents
 

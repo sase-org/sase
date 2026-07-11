@@ -561,8 +561,11 @@ linked_repos:
 | `linked_repos[].description` | string | required | Human-readable purpose used when generating agent memory for the linked repository. |
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
-`<host_workspace>/.sase/workspaces/<linked_repo>`, naturally namespaced by host project and workspace number. SASE
-passes the resolved paths into environment variables and agent metadata:
+`<host_workspace>/sase/repos/<linked_repo>`, naturally namespaced by host project and workspace number. During the
+compatibility window, read-only resolution still finds a legacy `.sase/workspaces/<linked_repo>` clone; the next
+materializing operation moves it to the canonical path. `sase init workspace` manages the tracked `/sase/repos/` ignore
+rule, while SASE also installs the rule in `.git/info/exclude` before materialization. SASE passes the resolved paths
+into environment variables and agent metadata:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |
@@ -1713,6 +1716,13 @@ before overwriting. `sase init skills` is a compatibility alias for `sase skill 
 | `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                    |
 | `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.         |
 | `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                  |
+
+### `sase init workspace`
+
+`sase init workspace` ensures the project root `.gitignore` contains `/sase/repos/`, protecting the host-scoped
+linked-repository clone directory durably. `-c, --check` reports drift without writing, `-d, --diff` renders the
+proposed full-file diff, and `-C, --no-commit` writes the rule without the normal project commit/pull/push sequence.
+Bare `sase init` and `sase validate` include the same check for Git projects.
 
 ### `sase workspace`
 

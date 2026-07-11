@@ -248,6 +248,13 @@ primary workspace path, and the registry path. CWD-based project inference (used
 similar callers) reads the nearest marker first and only falls back to sibling-pattern scanning for adjacent legacy
 layouts.
 
+Configured linked repositories for a numbered checkout are cloned beneath that host checkout at
+`sase/repos/<linked_repo>`. SASE protects the directory immediately with the per-clone `/sase/repos/` exclude rule; run
+`sase init workspace` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to report drift,
+`--diff` to preview it, or `--no-commit` to write the rule without the normal project commit/push sequence. A linked
+clone found only at the legacy `.sase/workspaces/<linked_repo>` path remains visible to read-only resolution and is
+moved to the canonical path the next time it is materialized.
+
 ### Registry
 
 For non-adjacent roots SASE maintains a per-project registry alongside the checkouts. The registry tracks every

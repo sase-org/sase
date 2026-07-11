@@ -14,9 +14,11 @@ from sase.linked_repos import (
     SIBLING_REPOS_JSON_ENV,
     apply_linked_repo_env,
     linked_repo_metadata_from_env,
+    materialize_linked_repo_workspace,
     opened_linked_repo_names,
     opened_linked_repo_records,
     record_opened_linked_repo,
+    resolve_linked_repo_clone_dir,
     resolve_linked_repos_for_project,
     scrub_linked_repo_env,
 )
@@ -51,9 +53,7 @@ def test_resolves_canonical_linked_repos_key(tmp_path: Path) -> None:
     assert len(resolution.repos) == 1
     repo = resolution.repos[0]
     assert repo.primary_dir == str(linked.resolve())
-    assert repo.workspace_dir == str(
-        (workspace / ".sase" / "workspaces" / "core").resolve()
-    )
+    assert repo.workspace_dir == str((workspace / "sase" / "repos" / "core").resolve())
     assert repo.workspace_num == 10
 
 
@@ -161,10 +161,10 @@ def test_distinct_names_with_colliding_env_names_still_alias(tmp_path: Path) -> 
 
     env = resolution.to_env()
     assert env["SASE_LINKED_REPO_SASE_CORE_DIR"] == str(
-        (tmp_path / "main_4" / ".sase" / "workspaces" / "sase-core").resolve()
+        (tmp_path / "main_4" / "sase" / "repos" / "sase-core").resolve()
     )
     assert env["SASE_LINKED_REPO_SASE_CORE_2_DIR"] == str(
-        (tmp_path / "main_4" / ".sase" / "workspaces" / "sase.core").resolve()
+        (tmp_path / "main_4" / "sase" / "repos" / "sase.core").resolve()
     )
 
 
@@ -187,9 +187,7 @@ def test_env_emits_linked_and_sibling_aliases(tmp_path: Path) -> None:
     )
 
     env = resolution.to_env()
-    workspace_dir = str(
-        (tmp_path / "sase_4" / ".sase" / "workspaces" / "core").resolve()
-    )
+    workspace_dir = str((tmp_path / "sase_4" / "sase" / "repos" / "core").resolve())
     primary_dir = str(core.resolve())
     assert env["SASE_LINKED_REPO_CORE_DIR"] == workspace_dir
     assert env["SASE_LINKED_REPO_CORE_PRIMARY_DIR"] == primary_dir
@@ -228,7 +226,7 @@ def test_legacy_workspace_strategy_is_ignored_with_warning(tmp_path: Path) -> No
     repo = resolution.repos[0]
     assert repo.primary_dir == str(chezmoi.resolve())
     assert repo.workspace_dir == str(
-        (tmp_path / "sase_10" / ".sase" / "workspaces" / "chezmoi").resolve()
+        (tmp_path / "sase_10" / "sase" / "repos" / "chezmoi").resolve()
     )
     assert any("deprecated workspace" in warning for warning in resolution.warnings)
     assert "workspace_strategy" not in repo.to_json_dict()
@@ -277,9 +275,79 @@ def test_apply_replaces_stale_inherited_env(tmp_path: Path) -> None:
 
     assert "SASE_SIBLING_REPO_STALE_DIR" not in env
     assert env["UNRELATED"] == "keep"
-    workspace_dir = tmp_path / "sase_4" / ".sase" / "workspaces" / "core"
+    workspace_dir = tmp_path / "sase_4" / "sase" / "repos" / "core"
     assert env["SASE_LINKED_REPO_CORE_DIR"] == str(workspace_dir.resolve())
     assert env["SASE_SIBLING_REPO_CORE_DIR"] == str(workspace_dir.resolve())
+
+
+def test_non_materializing_resolution_falls_back_to_legacy_clone(
+    tmp_path: Path,
+) -> None:
+    host = tmp_path / "main_10"
+    legacy = host / ".sase" / "workspaces" / "core"
+    legacy.mkdir(parents=True)
+
+    assert resolve_linked_repo_clone_dir(host, "core") == str(legacy.resolve())
+
+
+def test_materialize_migrates_legacy_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host = tmp_path / "main_10"
+    (host / ".git" / "info").mkdir(parents=True)
+    legacy = host / ".sase" / "workspaces" / "core"
+    legacy.mkdir(parents=True)
+    (legacy / "wip.txt").write_text("keep me", encoding="utf-8")
+    canonical = host / "sase" / "repos" / "core"
+    ensured: list[str] = []
+    monkeypatch.setattr(
+        "sase.workspace_provider.utils.ensure_git_clone_at",
+        lambda _primary, _num, target: ensured.append(target) or target,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone", lambda *_args: None
+    )
+
+    result = materialize_linked_repo_workspace(
+        primary_dir=str(tmp_path / "core"),
+        workspace_dir=str(legacy),
+        workspace_num=10,
+    )
+
+    assert result == str(canonical)
+    assert ensured == [str(canonical)]
+    assert (canonical / "wip.txt").read_text(encoding="utf-8") == "keep me"
+    assert not legacy.exists()
+    assert not legacy.parent.exists()
+    exclude = host / ".git" / "info" / "exclude"
+    assert "/sase/repos/" in exclude.read_text(encoding="utf-8").splitlines()
+
+
+def test_materialize_prefers_canonical_when_both_clone_paths_exist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host = tmp_path / "main_10"
+    legacy = host / ".sase" / "workspaces" / "core"
+    canonical = host / "sase" / "repos" / "core"
+    legacy.mkdir(parents=True)
+    canonical.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.workspace_provider.utils.ensure_git_clone_at",
+        lambda _primary, _num, target: target,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone", lambda *_args: None
+    )
+
+    with pytest.warns(RuntimeWarning, match="stale legacy clone"):
+        result = materialize_linked_repo_workspace(
+            primary_dir=str(tmp_path / "core"),
+            workspace_dir=str(legacy),
+            workspace_num=10,
+        )
+
+    assert result == str(canonical)
+    assert legacy.is_dir()
 
 
 def test_metadata_from_env_prefers_linked_then_falls_back() -> None:

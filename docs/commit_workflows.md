@@ -448,9 +448,9 @@ Antigravity (`agy`), Qwen, OpenCode, and provider plugins share the same behavio
    fail the invocation instead of silently accepting dirty work.
 
 Configured linked repos are resolved to host-scoped directories before agent launch. For example, an agent in `sase_10`
-sees a `../sase-core` linked repo at `sase_10/.sase/workspaces/sase-core`. The linked-repo dirty-check path is
-Git-specific: non-Git linked-repo paths can still be exposed through environment variables and metadata, but the
-finalizer does not enforce them as dirty targets.
+sees a `../sase-core` linked repo at `sase_10/sase/repos/sase-core`. The linked-repo dirty-check path is Git-specific:
+non-Git linked-repo paths can still be exposed through environment variables and metadata, but the finalizer does not
+enforce them as dirty targets.
 
 When the only enforced dirty state is the exact SDD status closeout described above, the finalizer creates the commit
 itself instead of running a follow-up provider invocation. The result artifact records

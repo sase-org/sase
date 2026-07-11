@@ -79,7 +79,8 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize SASE-managed resources",
         description=(
             "Check and initialize SASE-managed resources. With no subcommand, "
-            "runs the onboarding coordinator for memory, SDD, and skills."
+            "runs the onboarding coordinator for memory, SDD, skills, and "
+            "workspace ignore rules."
         ),
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
@@ -196,3 +197,32 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     add_skills_init_arguments(skills_parser)
+
+    workspace_parser = init_subparsers.add_parser(
+        "workspace",
+        help="Initialize workspace ignore rules",
+        description=(
+            "Add the tracked root .gitignore rule that protects host-scoped "
+            "linked repository clones under sase/repos/."
+        ),
+    )
+    workspace_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Report workspace ignore-rule drift without writing files",
+    )
+    workspace_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Show the full .gitignore diff",
+    )
+    workspace_parser.add_argument(
+        "-C",
+        "--no-commit",
+        action="store_true",
+        help="Write .gitignore without committing or pushing the change",
+    )
