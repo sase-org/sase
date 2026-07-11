@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from unittest.mock import call, patch
 
@@ -85,9 +86,21 @@ def test_custom_search_pages_global_archive_and_revives_without_scope() -> None:
     app = FakeReviveApp()
     capture = _ScreenCapture()
     app.app = capture  # type: ignore[attr-defined]
-    recent = make_agent(cl_name="recent", raw_suffix="20260527130000")
-    older = make_agent(cl_name="older", raw_suffix="20260527120000")
-    oldest = make_agent(cl_name="oldest", raw_suffix="20260527110000")
+    recent = make_agent(
+        cl_name="recent",
+        raw_suffix="20260527130000",
+        start_time=datetime(2026, 5, 27, 13, 0, 0),
+    )
+    older = make_agent(
+        cl_name="older",
+        raw_suffix="20260527120000",
+        start_time=datetime(2026, 5, 27, 12, 0, 0),
+    )
+    oldest = make_agent(
+        cl_name="oldest",
+        raw_suffix="20260527110000",
+        start_time=datetime(2026, 5, 27, 11, 0, 0),
+    )
     app._dismissed_agent_objects = [recent]
     revived_single: list[object] = []
     revived_batches: list[list[object]] = []
@@ -110,15 +123,15 @@ def test_custom_search_pages_global_archive_and_revives_without_scope() -> None:
         call(limit=250, offset=0),
         call(limit=250, offset=250),
     ]
-    assert {agent.identity for agent in first_visible} == {
+    assert [agent.identity for agent in first_visible] == [
         recent.identity,
         older.identity,
-    }
-    assert {agent.identity for agent in second_visible} == {
+    ]
+    assert [agent.identity for agent in second_visible] == [
         recent.identity,
         older.identity,
         oldest.identity,
-    }
+    ]
     assert not first_exhausted
     assert second_exhausted
 
@@ -128,6 +141,74 @@ def test_custom_search_pages_global_archive_and_revives_without_scope() -> None:
 
     assert revived_single == [recent]
     assert revived_batches == [[older, oldest]]
+
+
+def test_custom_search_rows_are_globally_ordered_by_agent_recency() -> None:
+    app = FakeReviveApp()
+    newest = make_agent(
+        cl_name="zulu-change",
+        project_file="/tmp/projects/zulu-project/zulu-project.sase",
+        raw_suffix="20260711150000",
+        start_time=datetime(2026, 7, 11, 15, 0, 0),
+    )
+    legacy = make_agent(
+        cl_name="beta-change",
+        project_file="/tmp/projects/beta-project/beta-project.sase",
+        raw_suffix="20260711140000",
+        start_time=None,
+    )
+    older_project_agent = make_agent(
+        cl_name="alpha-project",
+        project_file="/tmp/projects/alpha-project/alpha-project.sase",
+        raw_suffix="20260711130000",
+        start_time=datetime(2026, 7, 11, 13, 0, 0),
+    )
+    equal_recency_a = make_agent(
+        cl_name="alpha-tie",
+        raw_suffix="20260711120001",
+        start_time=datetime(2026, 7, 11, 12, 0, 0),
+    )
+    equal_recency_z = make_agent(
+        cl_name="zulu-tie",
+        raw_suffix="20260711120000",
+        start_time=datetime(2026, 7, 11, 12, 0, 0),
+    )
+    undated = make_agent(
+        cl_name="aardvark-undated",
+        raw_suffix="legacy-without-a-date",
+        start_time=None,
+    )
+    child = make_agent(
+        cl_name="child-step",
+        raw_suffix="20260711160000",
+        start_time=datetime(2026, 7, 11, 16, 0, 0),
+        parent_timestamp=newest.raw_suffix,
+        parent_workflow=newest.workflow,
+        step_index=1,
+    )
+    dismissed = [
+        undated,
+        equal_recency_z,
+        older_project_agent,
+        child,
+        newest,
+        equal_recency_a,
+        legacy,
+    ]
+
+    visible, all_dismissed = app._dismissed_agent_rows(dismissed)
+
+    assert [agent.identity for agent in visible] == [
+        newest.identity,
+        legacy.identity,
+        older_project_agent.identity,
+        equal_recency_a.identity,
+        equal_recency_z.identity,
+        undated.identity,
+    ]
+    assert all_dismissed == dismissed
+    assert child in all_dismissed
+    assert child not in visible
 
 
 def test_saved_group_result_dispatches_to_phase_four_hook() -> None:

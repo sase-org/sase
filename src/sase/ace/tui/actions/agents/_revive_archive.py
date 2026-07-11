@@ -5,11 +5,28 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 from ...models.agent import AgentType
+from ...models._timestamps import parse_timestamp_14_digit
 from ._revive_helpers import merge_dismissed_agents
 from ._revive_index import sync_dismissed_agent_artifact_index
 
 if TYPE_CHECKING:
     from ...models import Agent
+
+
+def _dismissed_agent_recency_key(
+    agent: Agent,
+) -> tuple[bool, float, str, str, str]:
+    """Return a newest-first key with stable identity tie-breaking."""
+    recency = agent.start_time
+    if recency is None:
+        recency = parse_timestamp_14_digit(agent.raw_suffix)
+    return (
+        recency is None,
+        0.0 if recency is None else -recency.timestamp(),
+        agent.agent_type.value,
+        agent.cl_name,
+        agent.raw_suffix or "",
+    )
 
 
 class AgentReviveArchiveMixin:
@@ -79,20 +96,10 @@ class AgentReviveArchiveMixin:
         self, agents: list[Agent]
     ) -> tuple[list[Agent], list[Agent]]:
         """Return sorted visible parents and all rows for the loaded pages."""
-        filtered = list(agents)
-        # Sort: project-level agents first, then by ChangeSpec name, then most recent first
-        filtered.sort(
-            key=lambda a: (
-                0 if a.is_project_agent else 1,
-                a.cl_name,
-                float("inf") if a.start_time is None else -a.start_time.timestamp(),
-            )
-        )
-
-        # Only show top-level DONE entries (no child steps)
-        all_dismissed = list(filtered)
-        filtered = [a for a in filtered if not a.is_workflow_child]
-        return filtered, all_dismissed
+        all_dismissed = list(agents)
+        visible = [agent for agent in agents if not agent.is_workflow_child]
+        visible.sort(key=_dismissed_agent_recency_key)
+        return visible, all_dismissed
 
     def _repair_dismissed_projection(self) -> None:
         """Repair the compact dismissed identity projection from bundle identities."""
