@@ -97,6 +97,13 @@ class AliasView:
         """Whether a temporary override is currently shaping this alias."""
         return self.override is not None
 
+    @property
+    def references(self) -> str | None:
+        """Return the immediate alias referenced by the configured value."""
+        if self.configured_value is None or not self.configured_value.startswith("@"):
+            return None
+        return self.configured_value[1:].strip() or None
+
 
 @dataclass(frozen=True)
 class BucketView:

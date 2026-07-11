@@ -43,6 +43,7 @@ _KIND_STYLES: dict[str, str] = {
 _OVERRIDE_TAG_STYLE = "bold #AF87FF"
 _CONFIGURED_TAG_STYLE = "#87D787"
 _IMPLICIT_TAG_STYLE = "dim #9E9E9E"
+_REFERENCE_TAG_STYLE = "bold #87D7FF"
 _DESCRIPTION_STYLE = "italic #B0B0B0"
 _DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
 _BUCKET_STYLE = "bold #FFD787"
@@ -68,17 +69,29 @@ def _override_chip(override: TemporaryLLMOverride, now: float) -> str:
     return f"override · {format_remaining(override.expires_at - now)} left"
 
 
-def state_tag(view: AliasView, now: float) -> tuple[str, str]:
-    """Return ``(text, style)`` for the provenance / override state column."""
+def _append_reference(text: Text, target: str) -> None:
+    """Append a consistently styled alias-reference suffix to *text*."""
+    text.append(" → ", style=_IMPLICIT_TAG_STYLE)
+    text.append(f"@{target}", style=_REFERENCE_TAG_STYLE)
+
+
+def state_tag(view: AliasView, now: float) -> Text:
+    """Return the styled provenance / override state column for *view*."""
     if view.override is not None:
-        return _override_chip(view.override, now), _OVERRIDE_TAG_STYLE
+        return Text(_override_chip(view.override, now), style=_OVERRIDE_TAG_STYLE)
     if view.configured:
-        return "configured", _CONFIGURED_TAG_STYLE
+        text = Text("configured", style=_CONFIGURED_TAG_STYLE)
+        if view.references is not None:
+            _append_reference(text, view.references)
+        return text
     if view.name == DEFAULT_MODEL_ALIAS_NAME:
-        return "implicit", _IMPLICIT_TAG_STYLE
+        return Text("implicit", style=_IMPLICIT_TAG_STYLE)
+    text = Text("implicit", style=_IMPLICIT_TAG_STYLE)
     if view.kind == "provider_coder":
-        return "implicit → @coder", _IMPLICIT_TAG_STYLE
-    return "implicit → @default", _IMPLICIT_TAG_STYLE
+        _append_reference(text, "coder")
+    else:
+        _append_reference(text, "default")
+    return text
 
 
 def _provider_model_text(view: AliasView) -> Text:
@@ -124,8 +137,7 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
     badge.truncate(provider_model_width, overflow="ellipsis", pad=True)
     text.append_text(badge)
     text.append(_STATE_GAP)
-    tag_text, tag_style = state_tag(view, now)
-    text.append(tag_text, style=tag_style)
+    text.append_text(state_tag(view, now))
     return text
 
 

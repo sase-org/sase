@@ -68,38 +68,68 @@ def test_state_tag_configured() -> None:
         configured=True,
         configured_value="claude/opus",
     )
-    text, _ = _state_tag(view, now=0.0)
-    assert text == "configured"
+    text = _state_tag(view, now=0.0)
+    assert text.plain == "configured"
 
 
-def test_state_tag_implicit_default() -> None:
-    text, _ = _state_tag(make_alias_view("default", "default"), now=0.0)
-    assert text == "implicit"
-
-
-def test_state_tag_implicit_role() -> None:
-    text, _ = _state_tag(make_alias_view("coder", "role"), now=0.0)
-    assert text == "implicit → @default"
-
-
-def test_state_tag_implicit_provider_coder() -> None:
-    text, _ = _state_tag(
+def test_state_tag_configured_reference_uses_shared_reference_accent() -> None:
+    configured = _state_tag(
+        make_alias_view(
+            "coder",
+            "role",
+            configured=True,
+            configured_value="@default",
+        ),
+        now=0.0,
+    )
+    implicit = _state_tag(
         make_alias_view("codex_coder", "provider_coder"),
         now=0.0,
     )
-    assert text == "implicit → @coder"
+
+    assert configured.plain == "configured → @default"
+    configured_target = next(
+        span
+        for span in configured.spans
+        if configured.plain[span.start : span.end] == "@default"
+    )
+    implicit_target = next(
+        span
+        for span in implicit.spans
+        if implicit.plain[span.start : span.end] == "@coder"
+    )
+    assert configured_target.style == implicit_target.style
+    assert "#87d7ff" in str(configured_target.style).lower()
+
+
+def test_state_tag_implicit_default() -> None:
+    text = _state_tag(make_alias_view("default", "default"), now=0.0)
+    assert text.plain == "implicit"
+
+
+def test_state_tag_implicit_role() -> None:
+    text = _state_tag(make_alias_view("coder", "role"), now=0.0)
+    assert text.plain == "implicit → @default"
+
+
+def test_state_tag_implicit_provider_coder() -> None:
+    text = _state_tag(
+        make_alias_view("codex_coder", "provider_coder"),
+        now=0.0,
+    )
+    assert text.plain == "implicit → @coder"
 
 
 def test_state_tag_override_with_remaining() -> None:
     view = make_alias_view("coder", "role", override=make_override(expires_at=3600.0))
-    text, _ = _state_tag(view, now=0.0)
-    assert text == "override · 1h left"
+    text = _state_tag(view, now=0.0)
+    assert text.plain == "override · 1h left"
 
 
 def test_state_tag_override_until_cleared() -> None:
     view = make_alias_view("coder", "role", override=make_override(expires_at=None))
-    text, _ = _state_tag(view, now=0.0)
-    assert text == "override · until cleared"
+    text = _state_tag(view, now=0.0)
+    assert text.plain == "override · until cleared"
 
 
 def test_render_alias_row_contains_name_provider_and_state() -> None:
@@ -132,8 +162,8 @@ def test_render_alias_rows_align_state_column() -> None:
 
     short_line = _render_alias_row(short, now=0.0, provider_model_width=width).plain
     wide_line = _render_alias_row(wide, now=0.0, provider_model_width=width).plain
-    short_state, _ = _state_tag(short, now=0.0)
-    wide_state, _ = _state_tag(wide, now=0.0)
+    short_state = _state_tag(short, now=0.0).plain
+    wide_state = _state_tag(wide, now=0.0).plain
 
     assert short_state in short_line
     assert wide_state in wide_line
@@ -179,8 +209,8 @@ def test_render_alias_row_ellipsizes_long_provider_model_label() -> None:
 
     long_line = _render_alias_row(long_view, now=0.0, provider_model_width=width).plain
     short_line = _render_alias_row(short, now=0.0, provider_model_width=width).plain
-    long_state, _ = _state_tag(long_view, now=0.0)
-    short_state, _ = _state_tag(short, now=0.0)
+    long_state = _state_tag(long_view, now=0.0).plain
+    short_state = _state_tag(short, now=0.0).plain
 
     assert "…" in long_line
     assert long_state in long_line

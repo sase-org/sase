@@ -110,6 +110,31 @@ def test_configured_value_shadows_role_alias(
     assert coder.configured_value == "codex/o3"
 
 
+@pytest.mark.parametrize(
+    ("configured_value", "expected"),
+    [
+        ("@default", "default"),
+        ("claude/opus", None),
+        (None, None),
+    ],
+)
+def test_alias_view_references(
+    configured_value: str | None,
+    expected: str | None,
+) -> None:
+    view = AliasView(
+        name="coder",
+        kind="role",
+        configured=configured_value is not None,
+        configured_value=configured_value,
+        provider="claude",
+        model="opus",
+        override=None,
+    )
+
+    assert view.references == expected
+
+
 def test_unconfigured_provider_coder_follows_configured_coder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
