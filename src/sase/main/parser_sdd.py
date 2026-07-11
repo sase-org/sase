@@ -42,6 +42,12 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Report provider and generated-file work without writing files",
     )
+    init_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        help="Show full file diffs for planned SDD changes",
+    )
     add_sdd_path_arg(init_parser)
 
     links_parser = sdd_sub.add_parser(

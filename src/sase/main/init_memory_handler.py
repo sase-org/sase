@@ -314,6 +314,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
             path=change.path,
             operation=change.operation,
             detail=change.detail,
+            new_content=change.new_content,
         )
         for root_plan in root_plans
         for change in root_plan.changes
@@ -360,6 +361,11 @@ def run_init_memory(args: argparse.Namespace) -> int:
     if inputs.config_errors:
         _print_config_errors(inputs.config_errors)
         return 1
+
+    if getattr(args, "diff", False):
+        from .init_preview import preview_console, render_plan_diff
+
+        render_plan_diff(preview_console(sys.stdout), plan_init_memory(args))
 
     root_plans = _memory_root_plans(inputs)
     root_plan_blockers = _memory_root_plan_blockers(root_plans)

@@ -17,6 +17,7 @@ def test_parser_accepts_bare_init_modes() -> None:
     assert init_args.all is False
     assert init_args.yes is False
     assert init_args.check is False
+    assert init_args.diff is False
     assert init_args.enable_project_memory is False
 
     enable_args = parser.parse_args(["init", "--enable-project-memory"])
@@ -38,6 +39,9 @@ def test_parser_accepts_bare_init_modes() -> None:
     assert short_check_args.init_subcommand is None
     assert short_check_args.check is True
 
+    assert parser.parse_args(["init", "--diff"]).diff is True
+    assert parser.parse_args(["init", "-d"]).diff is True
+
     all_args = parser.parse_args(["init", "--all"])
     assert all_args.all is True
 
@@ -58,6 +62,7 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
 
     sdd_long_args = parser.parse_args(["sdd", "init", "--check"])
     assert sdd_long_args.check is True
+    assert parser.parse_args(["sdd", "init", "-d"]).diff is True
 
     memory_short_args = parser.parse_args(["memory", "init", "-c"])
     assert memory_short_args.command == "memory"
@@ -73,16 +78,19 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
 
     memory_long_args = parser.parse_args(["memory", "init", "--check"])
     assert memory_long_args.check is True
+    assert parser.parse_args(["memory", "init", "--diff"]).diff is True
 
     init_sdd_args = parser.parse_args(["init", "sdd", "--check"])
     assert init_sdd_args.command == "init"
     assert init_sdd_args.init_subcommand == "sdd"
     assert init_sdd_args.check is True
+    assert parser.parse_args(["init", "sdd", "-d"]).diff is True
 
     init_memory_args = parser.parse_args(["init", "memory", "--check"])
     assert init_memory_args.command == "init"
     assert init_memory_args.init_subcommand == "memory"
     assert init_memory_args.check is True
+    assert parser.parse_args(["init", "memory", "--diff"]).diff is True
 
     init_memory_enable_args = parser.parse_args(["init", "memory", "-M"])
     assert init_memory_enable_args.enable_project_memory is True
@@ -90,10 +98,12 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
     parent_sdd_args = parser.parse_args(["init", "--check", "sdd"])
     assert parent_sdd_args.init_subcommand == "sdd"
     assert parent_sdd_args.check is True
+    assert parser.parse_args(["init", "--diff", "sdd"]).diff is True
 
     parent_memory_args = parser.parse_args(["init", "--check", "memory"])
     assert parent_memory_args.init_subcommand == "memory"
     assert parent_memory_args.check is True
+    assert parser.parse_args(["init", "--diff", "memory"]).diff is True
 
     skill_short_args = parser.parse_args(["skill", "init", "-c"])
     assert skill_short_args.command == "skill"
@@ -102,15 +112,18 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
 
     skill_long_args = parser.parse_args(["skill", "init", "--check"])
     assert skill_long_args.check is True
+    assert parser.parse_args(["skill", "init", "-d"]).diff is True
 
     init_skills_args = parser.parse_args(["init", "skills", "--check"])
     assert init_skills_args.command == "init"
     assert init_skills_args.init_subcommand == "skills"
     assert init_skills_args.check is True
+    assert parser.parse_args(["init", "skills", "--diff"]).diff is True
 
     parent_skills_args = parser.parse_args(["init", "--check", "skills"])
     assert parent_skills_args.init_subcommand == "skills"
     assert parent_skills_args.check is True
+    assert parser.parse_args(["init", "--diff", "skills"]).diff is True
 
 
 def test_parser_rejects_bare_init_check_yes_conflict() -> None:
@@ -151,12 +164,14 @@ def test_init_help_lists_existing_subcommands(
     assert "skills" in out
     assert "-a, --all" in out
     assert "-c, --check" in out
+    assert "-d, --diff" in out
     assert "-M, --enable-project-memory" in out
     assert "is_sase_managed:" in out
     assert "Advanced deploy controls live on explicit subcommands" in out
     assert "active main SASE project" in out
     assert out.index("-a, --all") < out.index("-c, --check")
-    assert out.index("-c, --check") < out.index("-M, --enable-project-memory")
+    assert out.index("-c, --check") < out.index("-d, --diff")
+    assert out.index("-d, --diff") < out.index("-M, --enable-project-memory")
     assert out.index("-M, --enable-project-memory") < out.index("-y, --yes")
 
 

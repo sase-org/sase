@@ -38,6 +38,7 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
         action.path for action in plan.actions
     }
     assert project_root / "AGENTS.md" in {action.path for action in plan.actions}
+    assert all(action.new_content is not None for action in plan.actions)
     assert not (project_root / "memory").exists()
     assert not (home_root / "memory").exists()
 

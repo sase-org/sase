@@ -32,6 +32,7 @@ class MemoryFileChange:
     path: Path
     operation: MemoryChangeOperation
     detail: str = ""
+    new_content: MemoryExpectedContent | None = None
 
 
 @dataclass(frozen=True)

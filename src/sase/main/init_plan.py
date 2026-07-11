@@ -16,6 +16,7 @@ class InitAction:
     path: Path
     operation: InitOperation
     detail: str = ""
+    new_content: str | bytes | None = None
 
 
 @dataclass(frozen=True)

@@ -13,9 +13,11 @@ import sys
 from typing import Literal, TextIO
 
 from rich.console import Console
+from rich.text import Text
 
 from ._init_chezmoi_deploy import defer_chezmoi_deploy, deploy_deferred_chezmoi
 from .init_plan import InitAction, InitPlan
+from .init_preview import preview_console, render_plan_diff, render_plan_inventory
 from .init_project_scope import (
     InitProjectInventory,
     InitProjectTarget,
@@ -23,8 +25,6 @@ from .init_project_scope import (
     resolve_init_project_inventory,
 )
 from .init_registry import InitCommandSpec, iter_init_command_specs
-
-_MAX_ACTION_DETAILS = 3
 
 InitRunStatus = Literal[
     "current",
@@ -43,17 +43,6 @@ class _InitRunResult:
     status: InitRunStatus
 
 
-def _console_for(file: TextIO) -> Console:
-    is_tty = file.isatty()
-    return Console(
-        file=file,
-        force_terminal=is_tty,
-        color_system="auto" if is_tty else None,
-        no_color=not is_tty,
-        soft_wrap=True,
-    )
-
-
 def _fallback_summary(plan: InitPlan) -> str:
     if plan.summary:
         return plan.summary
@@ -63,21 +52,6 @@ def _fallback_summary(plan: InitPlan) -> str:
         detail = f" {action.detail}" if action.detail else ""
         return f"{action.operation} {action.path}{detail}"
     return f"{count} actions"
-
-
-def _display_path(path: Path) -> str:
-    resolved = path.resolve(strict=False)
-    cwd = Path.cwd().resolve(strict=False)
-    try:
-        return str(resolved.relative_to(cwd)) or "."
-    except ValueError:
-        pass
-
-    home = Path.home().resolve(strict=False)
-    try:
-        return f"~/{resolved.relative_to(home)}"
-    except ValueError:
-        return str(path)
 
 
 def _command_width(plans: Sequence[InitPlan]) -> int:
@@ -90,20 +64,13 @@ def _render_row(prefix: str, plan: InitPlan, *, command_width: int) -> str:
     )
 
 
-def _render_action_details(console: Console, plan: InitPlan) -> None:
-    for action in plan.actions[:_MAX_ACTION_DETAILS]:
-        detail = f"  {action.detail}" if action.detail else ""
-        console.print(
-            f"    - {action.operation:<9} {_display_path(action.path)}{detail}"
-        )
-
-    remaining = len(plan.actions) - _MAX_ACTION_DETAILS
-    if remaining > 0:
-        noun = "action" if remaining == 1 else "actions"
-        console.print(f"    ... {remaining} more {noun}", style="dim")
-
-
-def _render_plans(console: Console, plans: Sequence[InitPlan]) -> None:
+def _render_plans(
+    console: Console,
+    plans: Sequence[InitPlan],
+    *,
+    show_diff: bool = False,
+    show_prompt_tip: bool = False,
+) -> None:
     console.print("SASE initialization check", style="bold")
 
     up_to_date = [plan for plan in plans if not plan.has_changes and plan.runnable]
@@ -125,8 +92,24 @@ def _render_plans(console: Console, plans: Sequence[InitPlan]) -> None:
         console.print("Needs attention:", style="bold")
         for plan in changed:
             prefix = "run" if plan.runnable else "hold"
-            console.print(_render_row(prefix, plan, command_width=command_width))
-            _render_action_details(console, plan)
+            prefix_style = "green" if plan.runnable else "red"
+            row = Text()
+            row.append(f"  {prefix:<4}", style=prefix_style)
+            row.append(
+                f" init {plan.command:<{command_width}}  {_fallback_summary(plan)}"
+            )
+            console.print(row)
+            render_plan_inventory(console, plan)
+            if show_diff:
+                render_plan_diff(console, plan)
+
+        if show_prompt_tip and not blockers and any(plan.runnable for plan in changed):
+            console.print()
+            console.print(
+                "Tip: answer `d` at a prompt below to review the full diff "
+                "before deciding.",
+                style="dim",
+            )
 
     if warnings:
         console.print()
@@ -158,6 +141,7 @@ def _prompt_for_plan(
     plan: InitPlan,
     *,
     input_func: Callable[[str], str],
+    console: Console,
 ) -> bool:
     command = f"sase init {plan.command}"
     if plan.command == "skills":
@@ -167,8 +151,16 @@ def _prompt_for_plan(
         prompt += " This may commit and push generated project memory changes."
     if plan.command == "sdd" and _plan_may_create_companion_repo(plan):
         prompt += " This may create and push to a GitHub companion repository."
-    answer = input_func(f"{prompt} [y/N] ")
-    return answer.strip().lower() in {"y", "yes"}
+    while True:
+        answer = input_func(f"{prompt} [y/N/d] ").strip().lower()
+        if answer in {"y", "yes"}:
+            return True
+        if answer in {"", "n", "no"}:
+            return False
+        if answer in {"d", "diff"}:
+            render_plan_diff(console, plan)
+            continue
+        console.print("y = apply, n = skip, d = show diff", style="dim")
 
 
 def _plan_may_create_companion_repo(plan: InitPlan) -> bool:
@@ -194,6 +186,8 @@ def _apply_args(
     apply_args.onboarding = True
     apply_args._init_input_func = input_func
     apply_args._init_stdin = stdin
+    # The coordinator already rendered an explicitly requested preview.
+    apply_args.diff = False
     if spec.name == "skills":
         apply_args.force = True
     return apply_args
@@ -226,12 +220,20 @@ def _render_check_summary(
     console: Console,
     specs: Sequence[InitCommandSpec],
     plans: Sequence[InitPlan],
+    *,
+    show_diff: bool = False,
+    show_prompt_tip: bool = False,
 ) -> tuple[bool, bool, bool]:
     has_changes, has_blockers, has_warnings = _plan_check_status(plans)
     if not has_changes and not has_blockers and not has_warnings:
         _render_noop(console, specs)
     else:
-        _render_plans(console, plans)
+        _render_plans(
+            console,
+            plans,
+            show_diff=show_diff,
+            show_prompt_tip=show_prompt_tip,
+        )
     return has_changes, has_blockers, has_warnings
 
 
@@ -243,7 +245,7 @@ def run_init_check(
 ) -> int:
     """Run a read-only initialization check and return a process exit code."""
     active_specs = tuple(specs)
-    out_console = console or _console_for(sys.stdout)
+    out_console = console or preview_console(sys.stdout)
 
     if not active_specs:
         _render_no_specs(out_console)
@@ -254,6 +256,7 @@ def run_init_check(
         out_console,
         active_specs,
         plans,
+        show_diff=getattr(args, "diff", False),
     )
     if has_blockers:
         return 1
@@ -279,7 +282,11 @@ def _run_changed_plans(
             should_run = True
         else:
             try:
-                should_run = _prompt_for_plan(plan, input_func=input_func)
+                should_run = _prompt_for_plan(
+                    plan,
+                    input_func=input_func,
+                    console=console,
+                )
             except EOFError:
                 should_run = False
             except KeyboardInterrupt:
@@ -325,7 +332,7 @@ def _run_init_onboarding_result(
             return _InitRunResult(1, "failed")
 
     active_specs = _active_onboarding_specs(specs)
-    out_console = console or _console_for(sys.stdout)
+    out_console = console or preview_console(sys.stdout)
     is_tty = (stdin or sys.stdin).isatty()
     effective_stdin = stdin or sys.stdin
 
@@ -338,6 +345,12 @@ def _run_init_onboarding_result(
         out_console,
         active_specs,
         plans,
+        show_diff=getattr(args, "diff", False),
+        show_prompt_tip=(
+            is_tty
+            and not getattr(args, "yes", False)
+            and not getattr(args, "check", False)
+        ),
     )
 
     if has_blockers:
@@ -474,7 +487,7 @@ def run_init_onboarding_all(
     console: Console | None = None,
 ) -> int:
     """Run bare onboarding for every active main SASE project."""
-    out_console = console or _console_for(sys.stdout)
+    out_console = console or preview_console(sys.stdout)
     inventory: InitProjectInventory = resolve_init_project_inventory()
     if inventory.error is not None:
         out_console.print(f"init --all: {inventory.error}", style="red")

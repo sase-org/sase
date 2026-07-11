@@ -39,6 +39,12 @@ def test_plan_providerless_project_targets_local_fallback_without_config_write(
         action.path.is_relative_to(tmp_path / ".sase" / "sdd")
         for action in plan.actions
     )
+    assert all(
+        isinstance(action.new_content, bytes)
+        if action.path.suffix == ".png"
+        else isinstance(action.new_content, str)
+        for action in plan.actions
+    )
     assert not (tmp_path / ".sase" / "sdd").exists()
 
 

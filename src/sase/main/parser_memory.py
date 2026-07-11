@@ -75,6 +75,12 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Report memory initialization drift without writing files",
     )
+    init_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        help="Show full file diffs for planned memory changes",
+    )
     add_enable_project_memory_argument(init_parser)
     init_parser.add_argument(
         "-m",

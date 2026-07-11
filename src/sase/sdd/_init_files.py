@@ -138,6 +138,7 @@ def plan_sdd_init_actions(
                     path=expected_file.path,
                     operation=operation,
                     detail=sdd_init_detail_for_path(expected_file.path),
+                    new_content=expected_file.content,
                 )
             )
 
@@ -149,6 +150,7 @@ def plan_sdd_init_actions(
                 path=expected_map.path,
                 operation=operation,
                 detail="directory map asset",
+                new_content=expected_map.content,
             )
         )
 

@@ -28,6 +28,25 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
         help="Report generated skill-file drift without writing files",
     )
     parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Show full generated skill-file diffs",
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show what would be written without writing",
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Overwrite existing files without confirmation",
+    )
+    parser.add_argument(
         "-A",
         "--no-apply",
         action="store_true",
@@ -38,18 +57,6 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
         "--no-commit",
         action="store_true",
         help="With use_chezmoi: skip the entire git commit/push/apply sequence",
-    )
-    parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Overwrite existing files without confirmation",
-    )
-    parser.add_argument(
-        "-n",
-        "--dry-run",
-        action="store_true",
-        help="Show what would be written without writing",
     )
     parser.add_argument(
         "-P",
@@ -93,6 +100,12 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Report initialization drift without writing files or running initializers",
     )
+    init_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        help="Show full file diffs for planned changes",
+    )
     add_enable_project_memory_argument(project_scope_group)
     mode_group.add_argument(
         "-y",
@@ -124,6 +137,13 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         default=argparse.SUPPRESS,
         help="Report memory initialization drift without writing files",
+    )
+    memory_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Show full file diffs for planned memory changes",
     )
     add_enable_project_memory_argument(memory_parser)
     memory_parser.add_argument(
@@ -157,6 +177,13 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         default=argparse.SUPPRESS,
         help="Report provider and generated-file work without writing files",
+    )
+    sdd_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Show full file diffs for planned SDD changes",
     )
     add_sdd_path_arg(sdd_parser)
 

@@ -505,7 +505,7 @@ def test_blocker_prints_and_exits_1_without_running(
     assert "invalid sibling repo config" in out
 
 
-def test_needs_attention_output_snapshot_caps_path_details(
+def test_needs_attention_output_snapshot_lists_every_action(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     calls: list[str] = []
@@ -543,11 +543,129 @@ def test_needs_attention_output_snapshot_caps_path_details(
         "\n"
         "Needs attention:\n"
         "  run  init memory  refresh 4 memory files\n"
-        "    - update    memory/sase.md  project memory\n"
-        "    - create    AGENTS.md  project instructions\n"
-        "    - overwrite CLAUDE.md  provider shim\n"
-        "    ... 1 more action\n"
+        "       ~ update     memory/sase.md  –  project memory\n"
+        "       + create     AGENTS.md       –  project instructions\n"
+        "       ~ overwrite  CLAUDE.md       –  provider shim\n"
+        "       ~ overwrite  GEMINI.md       –  provider shim\n"
     )
+
+
+def test_interactive_prompt_diff_then_no_renders_diff_and_reprompts(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = tmp_path / "AGENTS.md"
+    target.write_text("old line\n", encoding="utf-8")
+    calls: list[str] = []
+    prompts: list[str] = []
+    responses = iter(["d", "n"])
+    specs = (
+        _spec(
+            "memory",
+            _plan(
+                "memory",
+                actions=(
+                    InitAction(
+                        target,
+                        "update",
+                        "managed agent instructions",
+                        "new line\n",
+                    ),
+                ),
+            ),
+            calls,
+        ),
+    )
+
+    def _answer(prompt: str) -> str:
+        prompts.append(prompt)
+        return next(responses)
+
+    assert (
+        run_init_onboarding(
+            _args(),
+            specs=specs,
+            stdin=_TtyStringIO(),
+            input_func=_answer,
+        )
+        == 0
+    )
+
+    out = capsys.readouterr().out
+    assert "@@ -1 +1 @@" in out
+    assert "-old line" in out
+    assert "+new line" in out
+    assert len(prompts) == 2
+    assert all(prompt.endswith("[y/N/d] ") for prompt in prompts)
+    assert calls == []
+
+
+def test_interactive_prompt_invalid_answer_prints_hint_and_reprompts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+    responses = iter(["maybe", "n"])
+    prompt_count = 0
+    specs = (
+        _spec(
+            "memory",
+            _plan("memory", actions=(_changed_action(),)),
+            calls,
+        ),
+    )
+
+    def _answer(_prompt: str) -> str:
+        nonlocal prompt_count
+        prompt_count += 1
+        return next(responses)
+
+    assert (
+        run_init_onboarding(
+            _args(),
+            specs=specs,
+            stdin=_TtyStringIO(),
+            input_func=_answer,
+        )
+        == 0
+    )
+
+    assert "y = apply, n = skip, d = show diff" in capsys.readouterr().out
+    assert prompt_count == 2
+    assert calls == []
+
+
+def test_check_diff_renders_full_diff_and_reports_drift(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = tmp_path / "README.md"
+    target.write_text("before\n", encoding="utf-8")
+    calls: list[str] = []
+    specs = (
+        _spec(
+            "sdd",
+            _plan(
+                "sdd",
+                actions=(InitAction(target, "update", "README", "after\n"),),
+            ),
+            calls,
+        ),
+    )
+
+    assert (
+        run_init_onboarding(
+            _args(check=True, diff=True),
+            specs=specs,
+            stdin=StringIO(),
+            input_func=_reject_prompt,
+        )
+        == 1
+    )
+
+    out = capsys.readouterr().out
+    assert "-before" in out
+    assert "+after" in out
+    assert calls == []
 
 
 def test_warning_without_changes_is_visible_and_successful(

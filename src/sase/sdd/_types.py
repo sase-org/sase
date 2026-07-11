@@ -23,3 +23,4 @@ class SddInitAction(NamedTuple):
     path: Path
     operation: SddInitOperation
     detail: str
+    new_content: str | bytes | None = None

@@ -3,7 +3,6 @@
 import argparse
 from collections.abc import Sequence
 from dataclasses import dataclass
-import difflib
 import re
 import shutil
 import subprocess
@@ -478,13 +477,23 @@ def _prompt_overwrite(target: Path, new_content: str) -> bool:
         if answer == "n":
             return False
         if answer == "d":
-            diff = difflib.unified_diff(
-                existing.splitlines(keepends=True),
-                new_content.splitlines(keepends=True),
-                fromfile=str(target),
-                tofile="(new)",
+            from .init_preview import preview_console, render_plan_diff
+
+            render_plan_diff(
+                preview_console(sys.stdout),
+                InitPlan(
+                    command="skills",
+                    label="Skills",
+                    summary="",
+                    actions=(
+                        InitAction(
+                            path=target,
+                            operation="overwrite",
+                            new_content=new_content,
+                        ),
+                    ),
+                ),
             )
-            sys.stdout.writelines(diff)
 
 
 def _deploy_to_chezmoi(written_paths: list[Path], args: argparse.Namespace) -> int:
@@ -554,6 +563,7 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
                 path=target.path,
                 operation=operation,
                 detail=detail,
+                new_content=target.content,
             )
         )
 
@@ -610,6 +620,33 @@ def run_init_skills(args: argparse.Namespace) -> int:
     )
     if targets and not use_prettier:
         print(_PRETTIER_WARNING, file=sys.stderr)
+
+    if getattr(args, "diff", False):
+        from .init_preview import preview_console, render_plan_diff
+
+        preview_actions: list[InitAction] = []
+        for target in targets:
+            planned = _planned_skill_operation(target)
+            if planned is None:
+                continue
+            operation, detail = planned
+            preview_actions.append(
+                InitAction(
+                    path=target.path,
+                    operation=operation,
+                    detail=detail,
+                    new_content=target.content,
+                )
+            )
+        render_plan_diff(
+            preview_console(sys.stdout),
+            InitPlan(
+                command="skills",
+                label="Skills",
+                summary="",
+                actions=tuple(preview_actions),
+            ),
+        )
 
     written = 0
     skipped = 0

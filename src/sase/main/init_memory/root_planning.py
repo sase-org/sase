@@ -61,6 +61,7 @@ def _compare_expected_memory_files(
                     path=expected.path,
                     operation="create",
                     detail=expected.detail,
+                    new_content=expected.content,
                 )
             )
             continue
@@ -77,6 +78,7 @@ def _compare_expected_memory_files(
                     path=expected.path,
                     operation=expected.stale_operation,
                     detail=expected.detail,
+                    new_content=expected.content,
                 )
             )
             continue
@@ -86,6 +88,7 @@ def _compare_expected_memory_files(
                     path=expected.path,
                     operation=expected.stale_operation,
                     detail=expected.detail,
+                    new_content=expected.content,
                 )
             )
     return tuple(changes)
@@ -103,6 +106,7 @@ def _provider_shim_changes(plan: ProviderShimPlan) -> tuple[MemoryFileChange, ..
                 path=write.path,
                 operation=cast(MemoryChangeOperation, write.action.operation),
                 detail=write.action.detail,
+                new_content=write.content,
             )
         )
     for delete in plan.deletes:

@@ -85,6 +85,8 @@ def test_plan_missing_target_reports_create_without_writing(
     assert [(action.operation, action.path) for action in plan.actions] == [
         ("create", target)
     ]
+    assert isinstance(plan.actions[0].new_content, str)
+    assert plan.actions[0].new_content.endswith("\nbody\n")
     assert "create 1 provider skill file" == plan.summary
     assert plan.warnings == (init_skills_handler._PRETTIER_WARNING,)
     assert not target.exists()
@@ -121,6 +123,7 @@ def test_plan_differing_target_reports_overwrite(
     assert [(action.operation, action.path) for action in plan.actions] == [
         ("overwrite", target)
     ]
+    assert plan.actions[0].new_content != "stale skill\n"
     assert plan.summary == "overwrite 1 provider skill file"
 
 
@@ -466,6 +469,24 @@ def test_dry_run_lists_only_real_changes(
     out = capsys.readouterr().out
     assert f"overwrite: {targets['stale']}" in out
     assert str(targets["current"]) not in out
+
+
+def test_overwrite_prompt_d_uses_shared_diff_renderer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = tmp_path / "SKILL.md"
+    target.write_text("old body\n", encoding="utf-8")
+    answers = iter(["d", "n"])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+
+    assert init_skills_handler._prompt_overwrite(target, "new body\n") is False
+
+    out = capsys.readouterr().out
+    assert "@@ -1 +1 @@" in out
+    assert "-old body" in out
+    assert "+new body" in out
 
 
 def test_unknown_provider_errors_at_runtime(

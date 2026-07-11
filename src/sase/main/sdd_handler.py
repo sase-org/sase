@@ -78,6 +78,11 @@ def run_sdd_init(args: argparse.Namespace) -> int:
         print(_UNMANAGED_SDD_MESSAGE)
         return 0
 
+    if getattr(args, "diff", False):
+        from .init_preview import preview_console, render_plan_diff
+
+        render_plan_diff(preview_console(sys.stdout), plan_sdd_init(args))
+
     from sase.sdd.files import ensure_sdd_initialized, expected_sdd_readme
     from sase.sdd.store import (
         SddMaterializationError,
@@ -219,6 +224,7 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
             path=action.path,
             operation=action.operation,
             detail=action.detail,
+            new_content=action.new_content,
         )
         for action in plan_sdd_init_actions(generated_path)
     )
