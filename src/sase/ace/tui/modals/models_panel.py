@@ -23,6 +23,7 @@ offer a ``use_chezmoi``-aware commit+push. Temporary-override state lives in
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
@@ -33,8 +34,10 @@ from textual.widgets._option_list import Option
 from sase.config import ConfigEditOp
 from sase.llm_provider import (
     AliasView,
+    BucketView,
     TemporaryLLMOverride,
     build_alias_views,
+    build_models_panel_rows,
     clear_alias_override,
     set_alias_override,
     set_alias_override_until,
@@ -73,10 +76,12 @@ from .models_panel_edit_helpers import (
 )
 from .models_panel_rendering import (
     PROVIDER_MODEL_CELL_MAX as _PROVIDER_MODEL_CELL_MAX,
+    description_text_for_row as _description_text_for_row,
     description_text_for_view as _description_text_for_view,
     kind_label as _kind_label,
     provider_model_column_width as _provider_model_column_width,
     render_alias_row as _render_alias_row,
+    render_bucket_row as _render_bucket_row,
     state_tag as _state_tag,
 )
 from .models_panel_types import ModelsPanelResult
@@ -112,6 +117,10 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         ("up", "prev_option", "Previous"),
         ("ctrl+n", "next_option", "Next"),
         ("ctrl+p", "prev_option", "Previous"),
+        ("l", "enter_bucket", "Open bucket"),
+        ("right", "enter_bucket", "Open bucket"),
+        ("h", "leave_bucket", "Back"),
+        ("left", "leave_bucket", "Back"),
         ("o", "override", "Override"),
         ("x", "clear", "Clear"),
         ("e", "edit", "Edit"),
@@ -122,7 +131,11 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         super().__init__()
         self._changed = False
         self._views: list[AliasView] = []
-        self._view_by_name: dict[str, AliasView] = {}
+        self._top_rows: list[AliasView | BucketView] = []
+        self._bucket_by_name: dict[str, BucketView] = {}
+        self._row_by_id: dict[str, AliasView | BucketView] = {}
+        self._active_bucket: str | None = None
+        self._updating_highlight = False
         self._pending_alias = ""
         self._pending_raw_model = ""
         self._pending_edit_view: AliasView | None = None
@@ -143,72 +156,147 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
 
     def compose(self) -> ComposeResult:
         with Container(id="models-panel-container"):
-            yield Static("[bold cyan]Models[/bold cyan]", id="models-panel-title")
+            yield Static(self._title_text(), id="models-panel-title")
             yield OptionList(*self._build_options(), id="models-panel-list")
             yield Static("", id="models-panel-description")
-            yield Static(self._footer_markup(), id="models-panel-footer")
+            yield Static("", id="models-panel-footer")
 
     def on_mount(self) -> None:
         option_list = self.query_one("#models-panel-list", OptionList)
         option_list.focus()
         if option_list.option_count and option_list.highlighted is None:
-            option_list.highlighted = 0
-        self._update_description_strip()
+            self._set_highlighted_index(option_list, 0)
+        self._update_context()
 
-    @staticmethod
-    def _footer_markup() -> str:
-        return (
+    def _footer_markup(self) -> str:
+        row = self._selected_row()
+        if self._active_bucket is None and isinstance(row, BucketView):
+            return (
+                "[green]l/enter[/green]=Open  "
+                "[dim]j/k[/dim]=Navigate  "
+                "[dim]esc[/dim]=Close"
+            )
+        footer = (
             "[green]o[/green]=Override  "
             "[green]x[/green]=Clear  "
             "[green]e[/green]=Edit  "
-            "[green]r[/green]=Reset  "
-            "[dim]j/k[/dim]=Navigate  "
-            "[dim]esc[/dim]=Close"
+            "[green]r[/green]=Reset"
         )
+        if self._active_bucket is not None:
+            footer += "  [green]h[/green]=Back"
+        return footer + ("  [dim]j/k[/dim]=Navigate  [dim]esc[/dim]=Close")
+
+    def _title_text(self) -> Text:
+        text = Text("Models", style="bold cyan")
+        if self._active_bucket is not None:
+            text.append(" › ", style="dim")
+            text.append(self._active_bucket, style="bold #FFD787")
+        return text
 
     # -- option building -----------------------------------------------
 
     def _build_options(self) -> list[Option]:
-        now = _now()
         self._views = build_alias_views()
-        self._view_by_name = {view.name: view for view in self._views}
-        provider_model_width = _provider_model_column_width(self._views)
-        return [
-            Option(
-                _render_alias_row(
-                    view, now=now, provider_model_width=provider_model_width
-                ),
-                id=view.name,
-            )
-            for view in self._views
-        ]
+        self._top_rows = build_models_panel_rows(self._views)
+        self._bucket_by_name = {
+            row.name: row for row in self._top_rows if isinstance(row, BucketView)
+        }
+        if (
+            self._active_bucket is not None
+            and self._active_bucket not in self._bucket_by_name
+        ):
+            self._active_bucket = None
+        return self._render_current_options()
 
-    def _refresh_rows(self, *, keep: str | None = None) -> None:
-        """Rebuild the list in place, preserving the highlighted alias."""
+    @staticmethod
+    def _row_id(row: AliasView | BucketView) -> str:
+        if isinstance(row, BucketView):
+            return f"bucket:{row.name}"
+        return row.name
+
+    def _current_rows(self) -> list[AliasView | BucketView]:
+        if self._active_bucket is None:
+            return self._top_rows
+        bucket = self._bucket_by_name.get(self._active_bucket)
+        return list(bucket.members) if bucket is not None else []
+
+    def _render_current_options(self) -> list[Option]:
+        rows = self._current_rows()
+        alias_rows = [row for row in rows if isinstance(row, AliasView)]
+        provider_model_width = _provider_model_column_width(alias_rows)
+        now = _now()
+        self._row_by_id = {self._row_id(row): row for row in rows}
+        options: list[Option] = []
+        for row in rows:
+            row_id = self._row_id(row)
+            if isinstance(row, BucketView):
+                prompt = _render_bucket_row(
+                    row, provider_model_width=provider_model_width
+                )
+            else:
+                prompt = _render_alias_row(
+                    row, now=now, provider_model_width=provider_model_width
+                )
+            options.append(Option(prompt, id=row_id))
+        return options
+
+    def _set_highlighted_index(
+        self, option_list: OptionList, index: int | None
+    ) -> None:
+        self._updating_highlight = True
+        try:
+            option_list.highlighted = index
+        finally:
+            self._updating_highlight = False
+
+    def _replace_display(self, *, keep: str | None = None) -> None:
         option_list = self.query_one("#models-panel-list", OptionList)
-        preferred = keep or self._highlighted_alias()
         option_list.clear_options()
-        option_list.add_options(self._build_options())
+        option_list.add_options(self._render_current_options())
+        self._restore_highlight(option_list, keep)
+        self._update_context()
+
+    def _restore_highlight(
+        self, option_list: OptionList, preferred: str | None
+    ) -> None:
         if preferred is not None:
             try:
-                option_list.highlighted = option_list.get_option_index(preferred)
-                self._update_description_strip()
+                index = option_list.get_option_index(preferred)
+                self._set_highlighted_index(option_list, index)
                 return
             except Exception:
                 pass
-        if option_list.option_count:
-            option_list.highlighted = 0
+        self._set_highlighted_index(
+            option_list, 0 if option_list.option_count else None
+        )
+
+    def _refresh_rows(self, *, keep: str | None = None) -> None:
+        """Reload and rebuild rows, preserving the highlighted row when possible."""
+        option_list = self.query_one("#models-panel-list", OptionList)
+        preferred = keep or self._highlighted_row_id()
+        option_list.clear_options()
+        option_list.add_options(self._build_options())
+        self._restore_highlight(option_list, preferred)
+        self._update_context()
+
+    def _update_context(self) -> None:
+        """Refresh the title, description strip, and context-aware footer."""
+        try:
+            self.query_one("#models-panel-title", Static).update(self._title_text())
+            self.query_one("#models-panel-footer", Static).update(self._footer_markup())
+        except Exception:
+            pass
         self._update_description_strip()
 
     def _update_description_strip(self) -> None:
-        """Refresh the description strip for the currently highlighted alias."""
+        """Refresh the description strip for the currently highlighted row."""
         try:
             description = self.query_one("#models-panel-description", Static)
         except Exception:
             return
-        description.update(_description_text_for_view(self._selected_view()))
+        description.update(_description_text_for_row(self._selected_row()))
 
-    def _highlighted_alias(self) -> str | None:
+    def _highlighted_row_id(self) -> str | None:
         option_list = self.query_one("#models-panel-list", OptionList)
         highlighted = option_list.highlighted
         if highlighted is None:
@@ -219,20 +307,32 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
             return None
         return str(option.id) if option.id is not None else None
 
-    def _selected_view(self) -> AliasView | None:
-        alias = self._highlighted_alias()
-        if alias is None:
+    def _selected_row(self) -> AliasView | BucketView | None:
+        row_id = self._highlighted_row_id()
+        if row_id is None:
             return None
-        return self._view_by_name.get(alias)
+        return self._row_by_id.get(row_id)
+
+    def _selected_alias(self) -> AliasView | None:
+        row = self._selected_row()
+        if isinstance(row, BucketView):
+            self.notify("Press `l`/`enter` to open this bucket")
+            return None
+        return row
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
     ) -> None:
+        if self._updating_highlight:
+            return
         if event.option is not None and event.option.id is not None:
-            view = self._view_by_name.get(str(event.option.id))
+            row = self._row_by_id.get(str(event.option.id))
             try:
                 self.query_one("#models-panel-description", Static).update(
-                    _description_text_for_view(view)
+                    _description_text_for_row(row)
+                )
+                self.query_one("#models-panel-footer", Static).update(
+                    self._footer_markup()
                 )
             except Exception:
                 pass
@@ -249,10 +349,29 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         """Alias for :meth:`action_close` (overrides the navigation mixin)."""
         self.action_close()
 
+    def action_enter_bucket(self) -> None:
+        """Drill into the highlighted top-level bucket."""
+        if self._active_bucket is not None:
+            return
+        row = self._selected_row()
+        if not isinstance(row, BucketView):
+            return
+        self._active_bucket = row.name
+        first = row.members[0].name if row.members else None
+        self._replace_display(keep=first)
+
+    def action_leave_bucket(self) -> None:
+        """Return to the top-level rows and restore the source bucket cursor."""
+        bucket = self._active_bucket
+        if bucket is None:
+            return
+        self._active_bucket = None
+        self._replace_display(keep=f"bucket:{bucket}")
+
     def action_override(self) -> None:
         if self._override_worker is not None or self._clear_worker is not None:
             return
-        view = self._selected_view()
+        view = self._selected_alias()
         if view is None:
             return
         self._pending_alias = view.name
@@ -267,7 +386,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
     def action_clear(self) -> None:
         if self._override_worker is not None or self._clear_worker is not None:
             return
-        view = self._selected_view()
+        view = self._selected_alias()
         if view is None:
             return
         if view.override is None:
@@ -452,7 +571,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
     # -- persistent edit / reset ---------------------------------------
 
     def action_edit(self) -> None:
-        view = self._selected_view()
+        view = self._selected_alias()
         if view is None:
             return
         self._pending_edit_view = view
@@ -465,7 +584,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
         )
 
     def action_reset(self) -> None:
-        view = self._selected_view()
+        view = self._selected_alias()
         if view is None:
             return
         if not view.configured:
@@ -645,4 +764,7 @@ class ModelsPanel(OptionListNavigationMixin, ModalScreen[ModelsPanelResult]):
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
-        self.action_override()
+        if isinstance(self._selected_row(), BucketView):
+            self.action_enter_bucket()
+        else:
+            self.action_override()

@@ -15,6 +15,7 @@ import pytest
 import yaml  # type: ignore[import-untyped]
 
 from sase.ace.tui.keymaps.types import LeaderModeKeymaps
+from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.help_modal.bindings import (
     agents_bindings,
     axe_bindings,
@@ -109,3 +110,11 @@ def test_footer_leader_bindings_include_models_panel() -> None:
 def test_footer_leader_bindings_present_on_every_tab(tab: str) -> None:
     bindings = _capture_footer(tab)
     assert any(label == "models panel" for _, label in bindings)
+
+
+def test_models_panel_includes_bucket_drill_bindings() -> None:
+    bindings = {(binding[0], binding[1]) for binding in ModelsPanel.BINDINGS}
+    assert ("l", "enter_bucket") in bindings
+    assert ("right", "enter_bucket") in bindings
+    assert ("h", "leave_bucket") in bindings
+    assert ("left", "leave_bucket") in bindings

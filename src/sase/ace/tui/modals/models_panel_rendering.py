@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from rich.text import Text
 
 from sase.ace.tui.provider_styles import provider_model_badge_markup
-from sase.llm_provider import AliasView
+from sase.llm_provider import AliasView, BucketView
 from sase.llm_provider.config import DEFAULT_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
@@ -45,6 +45,8 @@ _CONFIGURED_TAG_STYLE = "#87D787"
 _IMPLICIT_TAG_STYLE = "dim #9E9E9E"
 _DESCRIPTION_STYLE = "italic #B0B0B0"
 _DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
+_BUCKET_STYLE = "bold #FFD787"
+_BUCKET_DIM_STYLE = "dim #FFD787"
 
 
 def _pad(value: str, width: int) -> str:
@@ -127,6 +129,25 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
     return text
 
 
+def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
+    """Render one collapsed bucket using the alias-row column skeleton."""
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append(_pad("▸ bucket", _KIND_CELL), style=_BUCKET_STYLE)
+    text.append(" ")
+    text.append(_pad(bucket.name, _NAME_CELL), style="bold")
+    text.append(" ")
+    count_label = f"{bucket.alias_count} aliases"
+    text.append(_pad(count_label, provider_model_width), style="dim")
+    text.append(_STATE_GAP)
+    if bucket.override_count:
+        text.append(
+            f"override · {bucket.override_count} active", style=_OVERRIDE_TAG_STYLE
+        )
+    else:
+        text.append("bucket", style=_BUCKET_DIM_STYLE)
+    return text
+
+
 def description_text_for_view(view: AliasView | None) -> Text:
     """Return the two-line description strip content for *view*."""
     if view is None:
@@ -140,3 +161,29 @@ def description_text_for_view(view: AliasView | None) -> Text:
             style=_DESCRIPTION_MISSING_STYLE,
         )
     return Text("", style=_DESCRIPTION_STYLE)
+
+
+def _description_text_for_bucket(bucket: BucketView) -> Text:
+    """Return the two-line description and effective-model mix for *bucket*."""
+    text = Text()
+    if bucket.description:
+        text.append(bucket.description, style=_DESCRIPTION_STYLE)
+    else:
+        text.append(
+            "no description - set "
+            f"llm_provider.model_aliases.buckets.{bucket.name}.description",
+            style=_DESCRIPTION_MISSING_STYLE,
+        )
+    text.append("\n")
+    text.append(
+        " · ".join(f"{model} ×{count}" for model, count in bucket.model_counts),
+        style="dim",
+    )
+    return text
+
+
+def description_text_for_row(row: AliasView | BucketView | None) -> Text:
+    """Dispatch Models-panel description rendering by row type."""
+    if isinstance(row, BucketView):
+        return _description_text_for_bucket(row)
+    return description_text_for_view(row)

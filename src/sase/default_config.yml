@@ -321,6 +321,10 @@ llm_provider:
   #     blogger:
   #       model: claude/opus
   #       description: "Agents that draft and edit blog posts."
+  #       bucket: writing          # optional Models-panel grouping
+  #   buckets:
+  #     writing:
+  #       description: "Writing and editing roles."
   retry:
     claude:
       max_retries: 3

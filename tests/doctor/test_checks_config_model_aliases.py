@@ -152,8 +152,10 @@ def test_model_aliases_ok_when_config_is_clean(
                     "big": {
                         "model": "claude/opus",
                         "description": "Large review agents.",
+                        "bucket": "review",
                     }
                 },
+                "buckets": {"review": {"description": "Review roles."}},
             },
         },
     )
@@ -162,3 +164,34 @@ def test_model_aliases_ok_when_config_is_clean(
 
     assert check.status == "OK"
     assert not check.data["problems"]
+
+
+def test_model_aliases_warns_on_dangling_bucket_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "research_a": {
+                        "model": "codex/gpt-5.6-sol",
+                        "description": "Lead researcher.",
+                        "bucket": "research",
+                    }
+                },
+                "buckets": {
+                    "research": {"description": "Research roles."},
+                    "unused": {"description": "No members."},
+                },
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "WARN"
+    by_key = {row["key"]: row["message"] for row in check.data["problems"]}
+    assert "model_aliases.buckets.research" not in by_key
+    assert "model_aliases.buckets.unused" in by_key
+    assert "no custom aliases" in by_key["model_aliases.buckets.unused"]

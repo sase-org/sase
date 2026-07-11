@@ -56,6 +56,7 @@ def _view(
     override: TemporaryLLMOverride | None = None,
     configured_source: str | None = None,
     description: str | None = None,
+    bucket: str | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -67,6 +68,7 @@ def _view(
         override=override,
         configured_source=configured_source,
         description=description,
+        bucket=bucket,
     )
 
 
@@ -160,6 +162,62 @@ def _override_views() -> list[AliasView]:
     return rows
 
 
+def _bucket_views() -> list[AliasView]:
+    return [
+        _view(
+            "default",
+            "default",
+            provider="claude",
+            model="opus",
+            description="Model used when a prompt has no %model directive.",
+        ),
+        _view("coder", "role", provider="claude", model="opus"),
+        _view(
+            "research_a",
+            "user",
+            configured=True,
+            configured_value="codex/gpt-5.6-sol",
+            provider="codex",
+            model="gpt-5.6-sol",
+            configured_source="custom",
+            description="Lead researcher and consolidator.",
+            bucket="research",
+        ),
+        _view(
+            "research_b",
+            "user",
+            configured=True,
+            configured_value="claude/opus",
+            provider="claude",
+            model="opus",
+            configured_source="custom",
+            description="Second-opinion researcher.",
+            bucket="research",
+        ),
+        _view(
+            "research_c",
+            "user",
+            configured=True,
+            configured_value="codex/gpt-5.6-sol",
+            provider="codex",
+            model="gpt-5.6-sol",
+            configured_source="custom",
+            description="Extra researcher lane.",
+            bucket="research",
+        ),
+        _view(
+            "fast",
+            "user",
+            configured=True,
+            configured_value="claude/haiku",
+            provider="claude",
+            model="haiku",
+            configured_source="custom",
+            description="Quick low-cost follow-up agents.",
+        ),
+    ]
+
+
 async def test_models_panel_default_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -205,6 +263,62 @@ async def test_models_panel_overrides_png_snapshot(
             page,
             "models_panel_overrides_120x40",
             title="ACE models panel (overrides active)",
+        )
+
+
+async def test_models_panel_bucket_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: _bucket_views()
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.alias_view.model_alias_bucket_description",
+        lambda name: "Research-swarm model roles: lead, second-opinion, extra.",
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "j")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_bucket_120x40",
+            title="ACE models panel (bucket collapsed)",
+        )
+
+
+async def test_models_panel_bucket_drilled_in_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: _bucket_views()
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.alias_view.model_alias_bucket_description",
+        lambda name: "Research-swarm model roles: lead, second-opinion, extra.",
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "j", "l")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_bucket_drilled_in_120x40",
+            title="ACE models panel (bucket open)",
         )
 
 

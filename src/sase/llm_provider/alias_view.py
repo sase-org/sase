@@ -17,6 +17,7 @@ wins), and the active override itself when present.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import Literal, cast
 
@@ -26,6 +27,8 @@ from .config import (
     EPIC_LANDER_MODEL_ALIAS_NAME,
     PHASE_WORKER_MODEL_ALIAS_NAME,
     get_model_aliases,
+    model_alias_bucket,
+    model_alias_bucket_description,
     model_alias_config_source,
     model_alias_description,
     model_alias_kind,
@@ -67,6 +70,7 @@ class AliasView:
             target is a bare/unknown model that runs on the default provider.
         model: The currently-effective model name.
         override: The active temporary override for this alias, or ``None``.
+        bucket: The optional Models-panel bucket for a custom alias.
     """
 
     name: str
@@ -78,11 +82,50 @@ class AliasView:
     override: TemporaryLLMOverride | None
     configured_source: str | None = None
     description: str | None = None
+    bucket: str | None = None
 
     @property
     def is_overridden(self) -> bool:
         """Whether a temporary override is currently shaping this alias."""
         return self.override is not None
+
+
+@dataclass(frozen=True)
+class BucketView:
+    """A collapsed Models-panel bucket containing custom alias rows."""
+
+    name: str
+    description: str | None
+    members: tuple[AliasView, ...]
+
+    @property
+    def alias_count(self) -> int:
+        """Return the number of member aliases."""
+        return len(self.members)
+
+    @property
+    def override_count(self) -> int:
+        """Return the number of members with an active temporary override."""
+        return sum(member.is_overridden for member in self.members)
+
+    @staticmethod
+    def _model_label(member: AliasView) -> str:
+        return f"{member.provider}/{member.model}" if member.provider else member.model
+
+    @property
+    def model_counts(self) -> tuple[tuple[str, int], ...]:
+        """Return distinct effective models ordered by count, then name."""
+        counts = Counter(self._model_label(member) for member in self.members)
+        return tuple(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+    @property
+    def model_summary(self) -> str:
+        """Return the dominant effective model plus the other-distinct count."""
+        if not self.model_counts:
+            return ""
+        dominant = self.model_counts[0][0]
+        other_count = len(self.model_counts) - 1
+        return f"{dominant} +{other_count}" if other_count else dominant
 
 
 def _alias_kind(name: str) -> AliasKind:
@@ -163,8 +206,41 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
                 override=override,
                 configured_source=model_alias_config_source(name),
                 description=model_alias_description(name),
+                bucket=model_alias_bucket(name),
             )
         )
 
     views.sort(key=_sort_key)
     return views
+
+
+def build_models_panel_rows(
+    views: list[AliasView] | None = None,
+) -> list[AliasView | BucketView]:
+    """Fold bucketed custom aliases into top-level Models-panel rows.
+
+    Non-user aliases retain their canonical order. In the user region, bucket
+    rows come first alphabetically, followed by ungrouped aliases alphabetically.
+    Bucket metadata without any member aliases intentionally produces no row.
+    """
+    source = build_alias_views() if views is None else list(views)
+    non_user = sorted((view for view in source if view.kind != "user"), key=_sort_key)
+    user = [view for view in source if view.kind == "user"]
+
+    members_by_bucket: dict[str, list[AliasView]] = {}
+    ungrouped: list[AliasView] = []
+    for view in user:
+        if view.bucket:
+            members_by_bucket.setdefault(view.bucket, []).append(view)
+        else:
+            ungrouped.append(view)
+
+    buckets = [
+        BucketView(
+            name=name,
+            description=model_alias_bucket_description(name),
+            members=tuple(sorted(members, key=lambda member: member.name)),
+        )
+        for name, members in sorted(members_by_bucket.items())
+    ]
+    return [*non_user, *buckets, *sorted(ungrouped, key=lambda view: view.name)]

@@ -23,6 +23,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
       aliases that live in ``model_aliases.custom``;
     - names present in both nested maps;
     - custom alias objects missing a usable ``model`` or ``description``;
+    - bucket metadata entries that have no member aliases;
     - ``model_aliases.builtin`` / ``model_aliases.custom`` values that reference
       a retired implicit ``@worker`` / ``@other`` alias;
     - merged alias values that reference an ``@<alias>`` name that resolves to
@@ -33,6 +34,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
         get_custom_model_aliases,
         get_llm_provider_config,
         get_model_aliases,
+        model_alias_bucket_names,
         model_alias_kind,
         model_alias_names,
         strip_model_alias_prefix,
@@ -49,6 +51,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
     raw_builtin = raw_model_alias_entries.get("builtin", {})
     raw_custom = raw_model_alias_entries.get("custom", {})
     raw_custom_entries = raw_custom if isinstance(raw_custom, dict) else {}
+    raw_buckets = raw_model_alias_entries.get("buckets", {})
     raw_top_custom = config.get("custom_model_aliases")
     problems: list[dict[str, str]] = []
 
@@ -99,7 +102,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
     for raw_key, value in sorted(
         raw_model_alias_entries.items(), key=lambda item: str(item[0])
     ):
-        if raw_key in {"builtin", "custom"}:
+        if raw_key in {"builtin", "custom", "buckets"}:
             continue
         if not isinstance(raw_key, str):
             continue
@@ -120,6 +123,30 @@ def check_config_model_aliases() -> DiagnosticCheck:
         if not isinstance(value, str) or not value.strip():
             message += " (and keep the model target as a non-empty string)"
         problems.append({"key": f"model_aliases.{alias}", "message": message})
+
+    if raw_buckets and not isinstance(raw_buckets, dict):
+        problems.append(
+            {
+                "key": "model_aliases.buckets",
+                "message": "llm_provider.model_aliases.buckets must be a metadata map",
+            }
+        )
+    elif isinstance(raw_buckets, dict):
+        member_buckets = model_alias_bucket_names()
+        for raw_bucket in sorted(raw_buckets, key=str):
+            if not isinstance(raw_bucket, str):
+                continue
+            bucket = raw_bucket.strip()
+            if bucket and bucket not in member_buckets:
+                problems.append(
+                    {
+                        "key": f"model_aliases.buckets.{bucket}",
+                        "message": (
+                            f"model_aliases.buckets.{bucket} has metadata but no "
+                            "custom aliases reference this bucket"
+                        ),
+                    }
+                )
 
     if raw_builtin and not isinstance(raw_builtin, dict):
         problems.append(

@@ -13,6 +13,9 @@ from sase.llm_provider.config import (
     format_model_directive_value,
     get_builtin_model_aliases,
     get_custom_model_aliases,
+    model_alias_bucket,
+    model_alias_bucket_description,
+    model_alias_bucket_names,
     model_alias_config_source,
     model_alias_description,
     model_alias_names,
@@ -63,6 +66,50 @@ def test_custom_model_aliases_parse_defensively(mock_config: MagicMock) -> None:
         "blogger": "claude/opus",
         "no_description": "codex/o3",
     }
+
+
+@patch("sase.llm_provider.config.get_llm_provider_config")
+def test_custom_model_alias_buckets_parse_defensively(
+    mock_config: MagicMock,
+) -> None:
+    mock_config.return_value = {
+        "model_aliases": {
+            "custom": {
+                " research_a ": {
+                    "model": "codex/gpt-5.6-sol",
+                    "description": "Lead.",
+                    "bucket": " research ",
+                },
+                "research_b": {
+                    "model": "claude/opus",
+                    "description": "Second opinion.",
+                    "bucket": " ",
+                },
+                "research_c": {
+                    "model": "codex/gpt-5.6-sol",
+                    "description": "Extra.",
+                },
+                "bad": {
+                    "model": "codex/o3",
+                    "description": "Bad tag.",
+                    "bucket": 123,
+                },
+            },
+            "buckets": {
+                "research": {"description": " Research roles. "},
+                "blank": {"description": " "},
+            },
+        }
+    }
+
+    assert model_alias_bucket("research_a") == "research"
+    assert model_alias_bucket("research_b") is None
+    assert model_alias_bucket("research_c") is None
+    assert model_alias_bucket("bad") is None
+    assert model_alias_bucket_names() == {"research"}
+    assert model_alias_bucket_description("research") == "Research roles."
+    assert model_alias_bucket_description("blank") is None
+    assert model_alias_bucket_description("missing") is None
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")

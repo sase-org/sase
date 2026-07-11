@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, call
 
+import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Static
+from textual.widgets import OptionList, Static
 
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
@@ -42,8 +43,12 @@ from sase.ace.tui.modals.models_panel_time import (
     OverrideUntilModal,
     ResolvedOverrideUntil,
 )
+from sase.ace.tui.modals.models_panel_rendering import (
+    description_text_for_row,
+    render_bucket_row,
+)
 from sase.ace.tui.widgets import AliasOverridesIndicator, LLMOverrideIndicator
-from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
+from sase.llm_provider import AliasKind, AliasView, BucketView, TemporaryLLMOverride
 from tests._temporary_llm_override_helpers import full_registry
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +85,7 @@ def _view(
     override: TemporaryLLMOverride | None = None,
     configured_source: str | None = None,
     description: str | None = None,
+    bucket: str | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -91,6 +97,7 @@ def _view(
         override=override,
         configured_source=configured_source,
         description=description,
+        bucket=bucket,
     )
 
 
@@ -277,6 +284,61 @@ def test_description_text_for_user_alias_without_description_hints_config_path()
     assert "llm_provider.model_aliases.custom.blogger.description" in text.plain
 
 
+def test_render_bucket_row_contains_count_and_override_state() -> None:
+    bucket = BucketView(
+        name="research",
+        description="Research roles.",
+        members=(
+            _view("research_a", "user", bucket="research", override=_override()),
+            _view("research_b", "user", bucket="research"),
+        ),
+    )
+
+    line = render_bucket_row(bucket, provider_model_width=13).plain
+
+    assert "▸ bucket" in line
+    assert "research" in line
+    assert "2 aliases" in line
+    assert "override · 1 active" in line
+
+
+def test_description_text_for_bucket_shows_description_and_model_mix() -> None:
+    bucket = BucketView(
+        name="research",
+        description="Research roles.",
+        members=(
+            _view(
+                "research_a",
+                "user",
+                provider="codex",
+                model="gpt-5.6-sol",
+                bucket="research",
+            ),
+            _view(
+                "research_b",
+                "user",
+                provider="claude",
+                model="opus",
+                bucket="research",
+            ),
+            _view(
+                "research_c",
+                "user",
+                provider="codex",
+                model="gpt-5.6-sol",
+                bucket="research",
+            ),
+        ),
+    )
+
+    text = description_text_for_row(bucket).plain
+
+    assert text.splitlines() == [
+        "Research roles.",
+        "codex/gpt-5.6-sol ×2 · claude/opus ×1",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Duration picker presets
 # ---------------------------------------------------------------------------
@@ -364,9 +426,50 @@ async def test_on_duration_picked_invalid_notifies_error(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _patch_views(monkeypatch, views: list[AliasView]) -> None:
+def _patch_views(
+    monkeypatch,
+    views: list[AliasView],
+    *,
+    bucket_descriptions: dict[str, str] | None = None,
+) -> None:
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
+    monkeypatch.setattr(
+        "sase.llm_provider.alias_view.model_alias_bucket_description",
+        lambda name: (bucket_descriptions or {}).get(name),
+    )
     monkeypatch.setattr(models_panel, "_now", lambda: 0.0)
+
+
+def _bucketed_views() -> list[AliasView]:
+    return [
+        _view(
+            "research_a",
+            "user",
+            configured=True,
+            configured_source="custom",
+            provider="codex",
+            model="gpt-5.6-sol",
+            description="Lead researcher.",
+            bucket="research",
+        ),
+        _view(
+            "research_b",
+            "user",
+            configured=True,
+            configured_source="custom",
+            provider="claude",
+            model="opus",
+            description="Second-opinion researcher.",
+            bucket="research",
+        ),
+        _view(
+            "plain",
+            "user",
+            configured=True,
+            configured_source="custom",
+            description="Ungrouped alias.",
+        ),
+    ]
 
 
 async def test_panel_escape_closes_unchanged(monkeypatch) -> None:
@@ -462,6 +565,99 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         await pilot.press("j")
         await pilot.pause()
         assert "Draft blog posts." in description.content.plain
+
+
+async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> None:
+    _patch_views(
+        monkeypatch,
+        _bucketed_views(),
+        bucket_descriptions={"research": "Research roles."},
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+
+        assert panel._highlighted_row_id() == "bucket:research"
+        assert "l/enter" in str(panel.query_one("#models-panel-footer", Static).content)
+        assert (
+            "Research roles."
+            in panel.query_one("#models-panel-description", Static).content.plain
+        )
+
+        await pilot.press("l")
+        await pilot.pause()
+        assert panel._active_bucket == "research"
+        assert panel._highlighted_row_id() == "research_a"
+        assert panel.query_one("#models-panel-title", Static).content.plain == (
+            "Models › research"
+        )
+        assert "h" in str(panel.query_one("#models-panel-footer", Static).content)
+
+        await pilot.press("h")
+        await pilot.pause()
+        assert panel._active_bucket is None
+        assert panel._highlighted_row_id() == "bucket:research"
+        assert panel.query_one("#models-panel-title", Static).content.plain == "Models"
+
+
+async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
+    _patch_views(monkeypatch, _bucketed_views())
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert panel._active_bucket == "research"
+        assert panel._highlighted_row_id() == "research_a"
+
+
+@pytest.mark.parametrize("key", ["o", "x", "e", "r"])
+async def test_alias_actions_on_bucket_are_guarded(monkeypatch, key: str) -> None:
+    _patch_views(monkeypatch, _bucketed_views())
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        await pilot.press(key)
+        await pilot.pause()
+
+        assert pilot.app.screen is panel
+        panel.notify.assert_called_once_with("Press `l`/`enter` to open this bucket")
+
+
+async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
+    monkeypatch,
+) -> None:
+    views = [_bucketed_views()[0]]
+    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
+    monkeypatch.setattr(
+        "sase.llm_provider.alias_view.model_alias_bucket_description",
+        lambda name: None,
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: 0.0)
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        await pilot.press("l")
+        await pilot.pause()
+        assert panel._active_bucket == "research"
+
+        views.clear()
+        panel._refresh_rows(keep="research_a")
+        await pilot.pause()
+
+        assert panel._active_bucket is None
+        assert panel.query_one("#models-panel-title", Static).content.plain == "Models"
+        assert panel.query_one("#models-panel-list", OptionList).option_count == 0
 
 
 async def test_panel_description_strip_has_visible_content_area(monkeypatch) -> None:

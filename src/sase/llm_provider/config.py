@@ -214,6 +214,57 @@ def _custom_model_alias_descriptions() -> dict[str, str]:
     return descriptions
 
 
+def _custom_model_alias_buckets() -> dict[str, str]:
+    """Return custom alias-to-bucket membership from configured ``bucket`` tags."""
+    value = _raw_model_aliases_config().get("custom", {})
+    if not isinstance(value, dict):
+        return {}
+
+    buckets: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not isinstance(item, dict):
+            continue
+        alias = key.strip()
+        bucket = item.get("bucket")
+        if not isinstance(bucket, str):
+            continue
+        bucket_name = bucket.strip()
+        if alias and bucket_name:
+            buckets[alias] = bucket_name
+    return buckets
+
+
+def model_alias_bucket(name: str) -> str | None:
+    """Return the Models-panel bucket for custom alias *name*, if configured."""
+    alias = name.strip()
+    if not alias:
+        return None
+    return _custom_model_alias_buckets().get(alias)
+
+
+def model_alias_bucket_description(bucket: str) -> str | None:
+    """Return the optional human description for Models-panel *bucket*."""
+    bucket_name = bucket.strip()
+    if not bucket_name:
+        return None
+    value = _raw_model_aliases_config().get("buckets", {})
+    if not isinstance(value, dict):
+        return None
+    metadata = value.get(bucket_name)
+    if not isinstance(metadata, dict):
+        return None
+    description = metadata.get("description")
+    if not isinstance(description, str):
+        return None
+    text = description.strip()
+    return text or None
+
+
+def model_alias_bucket_names() -> set[str]:
+    """Return bucket names referenced by at least one custom alias."""
+    return set(_custom_model_alias_buckets().values())
+
+
 def _get_model_aliases() -> dict[str, str]:
     """Return merged configured aliases; custom aliases win collisions."""
     return get_builtin_model_aliases() | get_custom_model_aliases()

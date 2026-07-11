@@ -287,6 +287,48 @@ def test_config_schema_accepts_described_custom_model_aliases() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_model_alias_buckets() -> None:
+    schema = _schema()
+    config = {
+        "llm_provider": {
+            "model_aliases": {
+                "custom": {
+                    "research_a": {
+                        "model": "codex/gpt-5.6-sol",
+                        "description": "Lead researcher.",
+                        "bucket": "research",
+                    }
+                },
+                "buckets": {"research": {"description": "Research-swarm model roles."}},
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
+
+
+def test_config_schema_rejects_unknown_model_alias_bucket_metadata_key() -> None:
+    schema = _schema()
+    config = {
+        "llm_provider": {
+            "model_aliases": {
+                "buckets": {"research": {"description": "Research.", "extra": True}}
+            }
+        }
+    }
+
+    errors = list(Draft7Validator(schema).iter_errors(config))
+
+    assert any(
+        "Additional properties are not allowed" in error.message for error in errors
+    )
+
+
 @pytest.mark.parametrize(
     ("alias_value", "message"),
     [

@@ -6,12 +6,21 @@ with shared preprocessing, postprocessing, and orchestration.
 
 from ._invoke import invoke_agent
 from ._subprocess import stream_process_output
-from .alias_view import AliasKind, AliasView, build_alias_views
+from .alias_view import (
+    AliasKind,
+    AliasView,
+    BucketView,
+    build_alias_views,
+    build_models_panel_rows,
+)
 from .base import LLMProvider
 from .config import (
     ModelAliasConfigSource,
     get_builtin_model_aliases,
     get_custom_model_aliases,
+    model_alias_bucket,
+    model_alias_bucket_description,
+    model_alias_bucket_names,
     model_alias_config_source,
     model_alias_description,
 )
@@ -51,6 +60,7 @@ __all__ = [
     "AIMessage",
     "AliasKind",
     "AliasView",
+    "BucketView",
     "BaseMessage",
     "FileRefMode",
     "HumanMessage",
@@ -65,6 +75,7 @@ __all__ = [
     "RetryState",
     "TemporaryLLMOverride",
     "build_alias_views",
+    "build_models_panel_rows",
     "clear_alias_override",
     "clear_temporary_override",
     "get_active_alias_override",
@@ -79,6 +90,9 @@ __all__ = [
     "is_retryable_error",
     "log_prompt_and_response",
     "model_alias_config_source",
+    "model_alias_bucket",
+    "model_alias_bucket_description",
+    "model_alias_bucket_names",
     "model_alias_description",
     "parse_override_duration",
     "preprocess_prompt",
