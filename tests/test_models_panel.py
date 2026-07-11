@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, call
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.containers import Container
 from textual.widgets import OptionList, Static
 
 import sase.ace.tui.modals.models_panel as models_panel
@@ -212,6 +213,23 @@ def test_render_alias_rows_align_state_column() -> None:
     assert short_state in short_line
     assert wide_state in wide_line
     assert short_line.index(short_state) == wide_line.index(wide_state)
+
+
+def test_render_alias_row_preserves_production_length_provider_model_label() -> None:
+    """A representative badge that exceeded the old cap remains readable."""
+    view = _view(
+        "default",
+        "default",
+        provider="claude",
+        model="claude-fable-4-10",
+    )
+
+    width = _provider_model_column_width([view])
+    line = _render_alias_row(view, now=0.0, provider_model_width=width).plain
+
+    assert width == len("CLAUDE(claude-fable-4-10)")
+    assert "CLAUDE(claude-fable-4-10)" in line
+    assert "…" not in line
 
 
 def test_render_alias_row_ellipsizes_long_provider_model_label() -> None:
@@ -660,7 +678,7 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
         assert panel.query_one("#models-panel-list", OptionList).option_count == 0
 
 
-async def test_panel_description_strip_has_visible_content_area(monkeypatch) -> None:
+async def test_panel_preferred_width_fits_production_description(monkeypatch) -> None:
     """The strip must lay out with a non-zero content area, not just hold text.
 
     Regression for the invisible-strip bug: the Static's ``content`` was always
@@ -672,18 +690,39 @@ async def test_panel_description_strip_has_visible_content_area(monkeypatch) -> 
     its fix live entirely in that stylesheet; the default ``_TestApp`` applies
     no CSS and so cannot exercise the border-box height math.
     """
+    description_text = (
+        "Model used when a prompt has no %model directive; every other alias "
+        "ultimately falls back to it."
+    )
+    assert len(description_text) == 96
     _patch_views(
         monkeypatch,
-        [_view("default", "default", description="Default model.")],
+        [_view("default", "default", description=description_text)],
     )
 
     async with _StyledTestApp().run_test(size=(120, 40)) as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        container = panel.query_one("#models-panel-container", Container)
         description = panel.query_one("#models-panel-description", Static)
-        assert "Default model." in description.content.plain
+        assert container.region.width == 110
+        assert description.content.plain == description_text
+        assert description.content_size.width >= len(description_text)
         assert description.content_size.height == 2
+
+
+async def test_panel_width_is_contained_by_narrow_viewport(monkeypatch) -> None:
+    _patch_views(monkeypatch, [_view("default", "default")])
+
+    async with _StyledTestApp().run_test(size=(80, 40)) as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        container = panel.query_one("#models-panel-container", Container)
+
+        assert container.region.x >= 0
+        assert container.region.right <= panel.size.width
 
 
 async def test_set_flow_threads_model_and_duration(monkeypatch) -> None:

@@ -78,8 +78,11 @@ def _calm_views() -> list[AliasView]:
             "default",
             "default",
             provider="claude",
-            model="opus",
-            description="Model used when a prompt has no %model directive.",
+            model="claude-fable-4-10",
+            description=(
+                "Model used when a prompt has no %model directive; every other "
+                "alias ultimately falls back to it."
+            ),
         ),
         _view(
             "coder",
@@ -169,7 +172,10 @@ def _bucket_views() -> list[AliasView]:
             "default",
             provider="claude",
             model="opus",
-            description="Model used when a prompt has no %model directive.",
+            description=(
+                "Model used when a prompt has no %model directive; every other "
+                "alias ultimately falls back to it."
+            ),
         ),
         _view("coder", "role", provider="claude", model="opus"),
         _view(

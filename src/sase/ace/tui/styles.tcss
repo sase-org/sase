@@ -936,7 +936,8 @@ ModelsPanel {
 }
 
 #models-panel-container {
-    width: 84;
+    width: 110;
+    max-width: 95%;
     height: auto;
     /* Full-budget: container border (2) + padding (2) + title + margin (2) +
        list cap (22) + description strip margin + height (1 + 4 = 5) + footer

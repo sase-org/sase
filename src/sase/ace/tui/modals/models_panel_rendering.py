@@ -18,12 +18,12 @@ _NAME_CELL = 16
 
 # The provider/model badge is treated as its own column so the rightmost
 # state/provenance tag lines up across rows. The column is sized to the widest
-# badge currently visible, capped so the state tag stays inside the 84-column
-# modal budget: content width (78, after the double border and 1 2 padding)
-# minus the fixed kind/name columns and their inner spaces (31), minus the
-# fixed gap before the state tag (3), minus the longest state tag
-# ("override · until cleared", 24) leaves 20 columns for the badge.
-PROVIDER_MODEL_CELL_MAX = 20
+# badge currently visible, capped so the state tag stays inside the preferred
+# 110-column modal budget. Its roughly 100-cell option rows leave room for the
+# fixed kind/name columns, inner spaces, state gap, longest state tag, and a
+# 32-cell provider/model badge. Narrow viewports fall back to whole-row
+# ellipsis via the Rich Text returned by :func:`render_alias_row`.
+PROVIDER_MODEL_CELL_MAX = 32
 _STATE_GAP = "   "
 
 _KIND_LABELS: dict[str, str] = {
