@@ -538,6 +538,15 @@ in run artifacts for ACE context. The `-p/--project` value is the linked repo's 
 hidden sibling-state ProjectSpec for that name when needed. Entries can live in user config or a project-local
 `sase.yml`; local entries are resolved relative to the project's primary workspace directory.
 
+Linked repositories are lazy by default. Set `auto_clone: true` for a repository that every launched agent needs; SASE
+materializes and prepares those entries before execution. Lazy entries remain available through `sase workspace open`,
+but their per-repository `*_DIR` environment variables are not exported until the clone exists. Repositories with
+`auto_clone: true` are omitted from generated agent instructions because agents do not need to open them manually.
+
+Managed projects (`is_sase_managed: true`) also receive deterministic `<project>--plans` (`auto_clone: true`) and
+`<project>--research` (lazy) linked-repository entries. A project-local entry with either name overrides its default.
+Set project-local `default_linked_repos: false` to disable both injected entries.
+
 The deprecated `sibling_repos` key is still accepted as an alias during the compatibility window. Prefer `linked_repos`
 in new config.
 
@@ -546,6 +555,7 @@ linked_repos:
   - name: core
     path: ../sase-core
     description: Shared backend/domain behavior used by SASE frontends.
+    auto_clone: true
   - name: github
     path: ../sase-github
     description: GitHub VCS and workspace provider plugin.
@@ -554,18 +564,20 @@ linked_repos:
     description: User dotfiles source managed by chezmoi.
 ```
 
-| Field                        | Type   | Default  | Description                                                                         |
-| ---------------------------- | ------ | -------- | ----------------------------------------------------------------------------------- |
-| `linked_repos[].name`        | string | required | Stable alias used in generated environment variable names and memory summaries.     |
-| `linked_repos[].path`        | string | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
-| `linked_repos[].description` | string | required | Human-readable purpose used when generating agent memory for the linked repository. |
+| Field                        | Type    | Default  | Description                                                                         |
+| ---------------------------- | ------- | -------- | ----------------------------------------------------------------------------------- |
+| `default_linked_repos`       | boolean | `true`   | Inject managed-project `--plans` and `--research` companion entries.                |
+| `linked_repos[].auto_clone`  | boolean | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
+| `linked_repos[].name`        | string  | required | Stable alias used in generated environment variable names and memory summaries.     |
+| `linked_repos[].path`        | string  | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
+| `linked_repos[].description` | string  | required | Human-readable purpose used when generating agent memory for the linked repository. |
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/<linked_repo>`, naturally namespaced by host project and workspace number. During the
 compatibility window, read-only resolution still finds a legacy `.sase/workspaces/<linked_repo>` clone; the next
 materializing operation moves it to the canonical path. `sase init workspace` manages the tracked `/sase/repos/` ignore
-rule, while SASE also installs the rule in `.git/info/exclude` before materialization. SASE passes the resolved paths
-into environment variables and agent metadata:
+rule, while SASE also installs the rule in `.git/info/exclude` before materialization. SASE passes resolved metadata for
+all entries and exports per-repository paths only for materialized entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |

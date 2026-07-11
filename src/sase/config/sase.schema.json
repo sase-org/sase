@@ -10,6 +10,11 @@
       "required": ["name", "path", "description"],
       "additionalProperties": false,
       "properties": {
+        "auto_clone": {
+          "type": "boolean",
+          "description": "Materialize and synchronize this linked repository automatically before each agent launch.",
+          "default": false
+        },
         "name": {
           "type": "string",
           "description": "Stable alias used in prompts, metadata, and SASE_LINKED_REPO_<NAME>_DIR env vars.",
@@ -971,6 +976,11 @@
           "type": "string"
         }
       ]
+    },
+    "default_linked_repos": {
+      "type": "boolean",
+      "description": "Inject the default plans and research companion linked repositories for SASE-managed projects.",
+      "default": true
     },
     "linked_repos": {
       "type": "array",

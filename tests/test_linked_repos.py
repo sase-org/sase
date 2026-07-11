@@ -55,6 +55,132 @@ def test_resolves_canonical_linked_repos_key(tmp_path: Path) -> None:
     assert repo.primary_dir == str(linked.resolve())
     assert repo.workspace_dir == str((workspace / "sase" / "repos" / "core").resolve())
     assert repo.workspace_num == 10
+    assert repo.auto_clone is False
+
+
+def test_threads_auto_clone_and_gates_unmaterialized_env_paths(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "sase"
+    linked = tmp_path / "sase-core"
+    primary.mkdir()
+    linked.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "workspace": {"root": "adjacent"},
+            "linked_repos": [
+                {
+                    "name": "core",
+                    "path": "../sase-core",
+                    "auto_clone": True,
+                }
+            ],
+        },
+        materialize=False,
+    )
+
+    repo = resolution.repos[0]
+    assert repo.auto_clone is True
+    env = resolution.to_env()
+    assert "SASE_LINKED_REPO_CORE_DIR" not in env
+    assert "SASE_LINKED_REPO_CORE_PRIMARY_DIR" not in env
+    assert json.loads(env[LINKED_REPOS_JSON_ENV])[0]["auto_clone"] is True
+
+    Path(repo.workspace_dir).mkdir(parents=True)
+    env = resolution.to_env()
+    assert env["SASE_LINKED_REPO_CORE_DIR"] == repo.workspace_dir
+    assert env["SASE_LINKED_REPO_CORE_PRIMARY_DIR"] == repo.primary_dir
+
+
+def test_managed_project_injects_default_companions(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    plans = tmp_path / "sase--plans"
+    research = tmp_path / "sase--research"
+    for path in (primary, plans, research):
+        path.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "is_sase_managed": True,
+            "workspace": {"root": "adjacent"},
+            "linked_repos": [],
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert [(repo.name, repo.auto_clone) for repo in resolution.repos] == [
+        ("sase--plans", True),
+        ("sase--research", False),
+    ]
+
+
+def test_default_companions_honor_override_and_opt_out(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    override = tmp_path / "custom-research"
+    for path in (primary, override):
+        path.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    overridden = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "is_sase_managed": True,
+            "linked_repos": [
+                {
+                    "name": "sase--research",
+                    "path": "../custom-research",
+                    "auto_clone": True,
+                }
+            ],
+        },
+        materialize=False,
+    )
+    assert [repo.name for repo in overridden.repos] == ["sase--research"]
+    assert overridden.repos[0].primary_dir == str(override.resolve())
+    assert overridden.repos[0].auto_clone is True
+
+    opted_out = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "is_sase_managed": True,
+            "default_linked_repos": False,
+            "linked_repos": [],
+        },
+        materialize=False,
+    )
+    assert opted_out.repos == ()
+    assert opted_out.warnings == ()
+
+
+def test_missing_default_companions_are_skipped_quietly(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={"is_sase_managed": True, "linked_repos": []},
+        materialize=False,
+    )
+
+    assert resolution.repos == ()
+    assert resolution.warnings == ()
 
 
 def test_resolves_legacy_sibling_repos_key(tmp_path: Path) -> None:
@@ -144,6 +270,8 @@ def test_distinct_names_with_colliding_env_names_still_alias(tmp_path: Path) -> 
     for path in (primary, first, second):
         path.mkdir()
     project_file = _project_file(tmp_path / "project.sase", primary)
+    (tmp_path / "main_4" / "sase" / "repos" / "sase-core").mkdir(parents=True)
+    (tmp_path / "main_4" / "sase" / "repos" / "sase.core").mkdir(parents=True)
 
     resolution = resolve_linked_repos_for_project(
         project_file=str(project_file),
@@ -174,6 +302,7 @@ def test_env_emits_linked_and_sibling_aliases(tmp_path: Path) -> None:
     primary.mkdir()
     core.mkdir()
     project_file = _project_file(tmp_path / "project.sase", primary)
+    (tmp_path / "sase_4" / "sase" / "repos" / "core").mkdir(parents=True)
 
     resolution = resolve_linked_repos_for_project(
         project_file=str(project_file),
@@ -254,6 +383,7 @@ def test_apply_replaces_stale_inherited_env(tmp_path: Path) -> None:
     primary.mkdir()
     core.mkdir()
     project_file = _project_file(tmp_path / "project.sase", primary)
+    (tmp_path / "sase_4" / "sase" / "repos" / "core").mkdir(parents=True)
 
     resolution = resolve_linked_repos_for_project(
         project_file=str(project_file),

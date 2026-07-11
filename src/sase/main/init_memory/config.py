@@ -9,7 +9,12 @@ import re
 import subprocess
 from typing import Any
 
-from sase.linked_repos import LINKED_REPOS_CONFIG_KEY, SIBLING_REPOS_CONFIG_KEY
+from sase.linked_repos import (
+    DEFAULT_LINKED_REPOS_CONFIG_KEY,
+    DEFAULT_RESEARCH_DESCRIPTION,
+    LINKED_REPOS_CONFIG_KEY,
+    SIBLING_REPOS_CONFIG_KEY,
+)
 from sase.project_management import load_local_config
 
 from .constants import COMMAND_LABEL
@@ -168,9 +173,33 @@ def linked_entries_from_config(
     if not isinstance(raw, list):
         return (), (f"{config_path}: {source_key} must be a list",)
 
+    raw_entries = list(raw)
+    if (
+        config.get("is_sase_managed") is True
+        and config.get(DEFAULT_LINKED_REPOS_CONFIG_KEY) is not False
+    ):
+        root = primary_root or config_path.parent
+        project_name = project_memory_name(root)
+        research_name = f"{project_name}--research"
+        explicit_names = {
+            name.strip()
+            for item in raw_entries
+            if isinstance(item, Mapping)
+            and isinstance((name := item.get("name")), str)
+            and name.strip()
+        }
+        if research_name not in explicit_names:
+            raw_entries.append(
+                {
+                    "name": research_name,
+                    "path": f"../{research_name}",
+                    "description": DEFAULT_RESEARCH_DESCRIPTION,
+                }
+            )
+
     entries: list[LinkedRepoMemoryEntry] = []
     errors: list[str] = []
-    for index, item in enumerate(raw):
+    for index, item in enumerate(raw_entries):
         prefix = f"{config_path}: {source_key}[{index}]"
         if not isinstance(item, Mapping):
             errors.append(f"{prefix} must be a mapping")
@@ -198,11 +227,21 @@ def linked_entries_from_config(
 
         path = raw_path.strip()
 
+        auto_clone = item.get("auto_clone", False)
+        if not isinstance(auto_clone, bool):
+            errors.append(
+                f"{prefix} ({name.strip()!r}) field 'auto_clone' must be a boolean"
+            )
+            continue
+        if auto_clone:
+            continue
+
         entries.append(
             LinkedRepoMemoryEntry(
                 name=name.strip(),
                 description=" ".join(description.strip().split()),
                 path=path,
+                auto_clone=auto_clone,
             )
         )
 

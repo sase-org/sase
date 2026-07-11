@@ -489,6 +489,50 @@ def test_config_schema_requires_linked_repo_descriptions(repos_key: str) -> None
     )
 
 
+def test_config_schema_accepts_linked_repo_auto_clone_and_default_opt_out() -> None:
+    schema = _schema()
+    config = {
+        "default_linked_repos": False,
+        "linked_repos": [
+            {
+                "name": "core",
+                "path": "../sase-core",
+                "description": "Shared core.",
+                "auto_clone": True,
+            }
+        ],
+    }
+
+    assert list(Draft7Validator(schema).iter_errors(config)) == []
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_path"),
+    [
+        ({"default_linked_repos": "no"}, ["default_linked_repos"]),
+        (
+            {
+                "linked_repos": [
+                    {
+                        "name": "core",
+                        "path": "../sase-core",
+                        "description": "Shared core.",
+                        "auto_clone": "yes",
+                    }
+                ]
+            },
+            ["linked_repos", 0, "auto_clone"],
+        ),
+    ],
+)
+def test_config_schema_rejects_non_boolean_linked_repo_controls(
+    config: dict[str, object], expected_path: list[object]
+) -> None:
+    errors = list(Draft7Validator(_schema()).iter_errors(config))
+
+    assert [list(error.absolute_path) for error in errors] == [expected_path]
+
+
 def _format_schema_error(error: ValidationError) -> str:
     path = ".".join(str(part) for part in error.absolute_path) or "<root>"
     return f"{path}: {error.message}"

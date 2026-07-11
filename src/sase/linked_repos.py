@@ -36,6 +36,12 @@ OPENED_SIBLINGS_FILENAME = "opened_siblings.json"
 # Canonical config key plus its deprecated alias.
 LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
+DEFAULT_LINKED_REPOS_CONFIG_KEY = "default_linked_repos"
+
+DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans, prompt snapshots, and bead state."
+DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated media."
+
+_DEFAULT_LINKED_REPO_MARKER = "_sase_default_linked_repo"
 
 # Host-scoped linked clones live inside the host checkout. Keep the legacy
 # location during the compatibility window so existing clones (including WIP)
@@ -55,6 +61,13 @@ class _ResolvedLinkedRepo:
     primary_dir: str
     workspace_dir: str
     workspace_num: int
+    auto_clone: bool = False
+
+    @property
+    def is_materialized(self) -> bool:
+        """Return whether the workspace path can safely be exported."""
+
+        return Path(self.workspace_dir).is_dir()
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -63,6 +76,7 @@ class _ResolvedLinkedRepo:
             "primary_dir": self.primary_dir,
             "workspace_dir": self.workspace_dir,
             "workspace_num": self.workspace_num,
+            "auto_clone": self.auto_clone,
         }
 
 
@@ -88,6 +102,8 @@ class LinkedRepoResolution:
             SIBLING_REPOS_JSON_ENV: json_value,
         }
         for repo in self.repos:
+            if not repo.is_materialized:
+                continue
             env[f"{LINKED_REPO_ENV_PREFIX}{repo.env_name}_DIR"] = repo.workspace_dir
             env[f"{LINKED_REPO_ENV_PREFIX}{repo.env_name}_PRIMARY_DIR"] = (
                 repo.primary_dir
@@ -319,8 +335,14 @@ def resolve_linked_repos_for_project(
     """Resolve configured linked repos for a launched project workspace."""
 
     primary_workspace_dir = _primary_workspace_dir(project_file, workspace_dir)
+    local_config = _read_project_local_config(primary_workspace_dir)
     resolution_config = _resolution_config(primary_workspace_dir, config)
     entries, merge_warnings = _merged_entries_from_config(resolution_config)
+    entries = _inject_default_linked_repos(
+        entries,
+        primary_workspace_dir=primary_workspace_dir,
+        local_config=config if config is not None else local_config,
+    )
     resolution = _resolve_linked_repos(
         entries,
         primary_workspace_dir=primary_workspace_dir,
@@ -354,6 +376,7 @@ def _resolve_linked_repos(
     for entry in entries:
         name = entry.get("name")
         raw_path = entry.get("path")
+        auto_clone = entry.get("auto_clone") is True
         if not isinstance(name, str) or not name.strip():
             warnings.append("Skipping linked repo with missing name")
             continue
@@ -369,6 +392,8 @@ def _resolve_linked_repos(
 
         primary_dir = _resolve_config_path(raw_path, relative_to=primary_root)
         if not Path(primary_dir).is_dir():
+            if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True:
+                continue
             warnings.append(
                 f"Skipping linked repo {name!r}: primary path does not exist: {primary_dir}"
             )
@@ -396,6 +421,7 @@ def _resolve_linked_repos(
                 primary_dir=primary_dir,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
+                auto_clone=auto_clone,
             )
         )
 
@@ -492,6 +518,61 @@ def _merged_entries_from_config(
     return merged, warnings
 
 
+def _inject_default_linked_repos(
+    entries: Sequence[Mapping[str, Any]],
+    *,
+    primary_workspace_dir: str,
+    local_config: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    """Inject managed-project companion repos unless locally disabled.
+
+    The entries are derived solely from project-local configuration. Missing
+    companion checkouts are marked so resolution can skip them quietly until
+    the companion repositories have been created and materialized.
+    """
+
+    merged = list(entries)
+    if local_config.get("is_sase_managed") is not True:
+        return merged
+    if local_config.get(DEFAULT_LINKED_REPOS_CONFIG_KEY) is False:
+        return merged
+
+    project_name = Path(primary_workspace_dir).resolve(strict=False).name
+    if not project_name:
+        return merged
+
+    configured_names = {
+        name.strip()
+        for entry in entries
+        if isinstance((name := entry.get("name")), str) and name.strip()
+    }
+    defaults = (
+        (
+            f"{project_name}--plans",
+            DEFAULT_PLANS_DESCRIPTION,
+            True,
+        ),
+        (
+            f"{project_name}--research",
+            DEFAULT_RESEARCH_DESCRIPTION,
+            False,
+        ),
+    )
+    for name, description, auto_clone in defaults:
+        if name in configured_names:
+            continue
+        merged.append(
+            {
+                "name": name,
+                "path": f"../{name}",
+                "description": description,
+                "auto_clone": auto_clone,
+                _DEFAULT_LINKED_REPO_MARKER: True,
+            }
+        )
+    return merged
+
+
 def _entries_for_key(config: Mapping[str, Any], key: str) -> list[Mapping[str, Any]]:
     raw = config.get(key, [])
     if not isinstance(raw, list):
@@ -538,6 +619,7 @@ def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
     return {
         "name": name if isinstance(name, str) else "",
         "path": path if isinstance(path, str) else "",
+        "auto_clone": entry.get("auto_clone") is True,
     }
 
 

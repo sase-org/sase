@@ -86,7 +86,9 @@ def prepare_linked_repo_workspaces_if_needed(
     repos = [
         repo
         for repo in resolution.repos
-        if repo.workspace_dir and repo.workspace_dir != repo.primary_dir
+        if repo.auto_clone
+        and repo.workspace_dir
+        and repo.workspace_dir != repo.primary_dir
     ]
     if not repos:
         return
@@ -119,6 +121,9 @@ def prepare_linked_repo_workspaces_if_needed(
             raise RuntimeError(
                 f"Failed to prepare linked repo {name!r} workspace: {workspace_dir}"
             )
+    from sase.linked_repos import apply_linked_repo_env
+
+    apply_linked_repo_env(os.environ, resolution)
     print("========================================")
     print()
 

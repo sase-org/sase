@@ -16,6 +16,7 @@ class LinkedRepoMemoryEntry:
     name: str
     description: str
     path: str
+    auto_clone: bool = False
 
 
 @dataclass(frozen=True)

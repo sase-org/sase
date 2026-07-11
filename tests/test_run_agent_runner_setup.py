@@ -37,6 +37,7 @@ def _resolution(
     primary_dir: str = "/repos/sase-core",
     workspace_dir: str = "/repos/sase-core_7",
     workspace_num: int = 7,
+    auto_clone: bool = True,
 ) -> LinkedRepoResolution:
     return LinkedRepoResolution(
         repos=(
@@ -46,6 +47,7 @@ def _resolution(
                 primary_dir=primary_dir,
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
+                auto_clone=auto_clone,
             ),
         )
     )
@@ -489,6 +491,20 @@ def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel() -> None
             {"backup_suffix": "linked-core"},
         )
     ]
+
+
+def test_prepare_linked_repo_workspaces_skips_lazy_entries() -> None:
+    with (
+        patch("sase.linked_repos.materialize_linked_repo_workspace") as materialize,
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            resolution=_resolution(auto_clone=False),
+            cl_name="feature",
+        )
+
+    materialize.assert_not_called()
+    prepare.assert_not_called()
 
 
 def test_prepare_linked_repo_workspaces_skips_primary_paths() -> None:

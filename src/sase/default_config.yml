@@ -4,6 +4,11 @@ use_chezmoi: false
 commit_hooks:
   before: ""
   after: ""
+# SASE-managed projects receive <project>--plans and <project>--research
+# linked repositories unless project-local configuration disables them.
+default_linked_repos: true
+# Linked repositories are lazy by default. Set auto_clone: true per entry when
+# every launched agent needs the repository materialized in its workspace.
 linked_repos: []
 
 agent_family:

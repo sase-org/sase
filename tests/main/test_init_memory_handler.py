@@ -110,6 +110,74 @@ sibling_repos:
             assert (root / filename).read_text() == agents
 
 
+def test_init_memory_excludes_auto_clone_and_injects_managed_research(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+linked_repos:
+  - name: core
+    path: ../core
+    description: Always-present core.
+    auto_clone: true
+  - name: plugin
+    path: ../plugin
+    description: Lazy plugin.
+""",
+    )
+
+    assert run_handler() == 0
+
+    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    assert "`core`: Always-present core." not in memory
+    assert "`plugin`: Lazy plugin." in memory
+    assert "`project--research`: Durable SASE research reports" in memory
+
+
+def test_init_memory_default_linked_repos_opt_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+default_linked_repos: false
+linked_repos: []
+""",
+    )
+
+    assert run_handler() == 0
+
+    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    assert "project--research" not in memory
+
+
 def test_init_memory_non_project_initializes_home_only_without_project_git(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -404,9 +472,10 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
+    assert "`project--research`: Durable SASE research reports" in project_memory
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        not in project_memory
+        in project_memory
     )
     assert (
         'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
