@@ -49,10 +49,21 @@ def _record(
     )
 
 
-def _write_project_spec(projects_root: Path, project_name: str) -> Path:
-    project_file = projects_root / project_name / f"{project_name}.sase"
+def _write_project_spec(
+    projects_root: Path,
+    project_name: str,
+    *,
+    changespec_names: tuple[str, ...] = (),
+    archive: bool = False,
+) -> Path:
+    suffix = "-archive" if archive else ""
+    project_file = projects_root / project_name / f"{project_name}{suffix}.sase"
     project_file.parent.mkdir(parents=True, exist_ok=True)
-    project_file.write_text(f"WORKSPACE_DIR: /tmp/{project_name}\n", encoding="utf-8")
+    content = "" if archive else f"WORKSPACE_DIR: /tmp/{project_name}\n"
+    content += "".join(
+        f"NAME: {name}\nDESCRIPTION:\nSTATUS: WIP\n\n" for name in changespec_names
+    )
+    project_file.write_text(content, encoding="utf-8")
     return project_file
 
 
@@ -78,10 +89,19 @@ def _metadata() -> tuple[WorkflowMetadata, ...]:
 
 
 @pytest.fixture(autouse=True)
-def _patch_project_alias_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+def _patch_project_alias_sources(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     import sase.workspace_provider._registry as registry
 
+    projects_root = tmp_path / "canonicalize-projects"
+    projects_root.mkdir()
     monkeypatch.setattr(registry, "get_all_workflow_metadata", _metadata)
+    monkeypatch.setattr(
+        "sase.project_aliases.sase_projects_dir",
+        lambda: projects_root,
+    )
     monkeypatch.setattr(
         "sase.project_aliases.load_project_alias_map",
         lambda projects_root=None: {},
@@ -252,6 +272,111 @@ def test_canonicalize_project_aliases_in_prompt_rewrites_generated_github_aliase
 
     assert canonicalize_project_aliases_in_prompt(prompt) == (
         "#gh:gh_foo_org__foo fix\n#gh:gh_bar_org__foo fix\n#gh:foo-org/foo keep"
+    )
+
+
+def test_canonicalize_preserves_literal_display_prefixed_changespec(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    monkeypatch.setattr("sase.project_aliases.sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"sase": "gh_sase-org__sase"},
+    )
+    _write_project_spec(
+        projects_root,
+        "gh_sase-org__sase",
+        changespec_names=("sase_fix_just_linters_14",),
+    )
+
+    assert (
+        canonicalize_project_aliases_in_prompt("#gh:sase_fix_just_linters_14 review")
+        == "#gh:sase_fix_just_linters_14 review"
+    )
+
+
+def test_canonicalize_keeps_legacy_prefix_rewrite_without_literal_changespec(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"sase": "gh_sase-org__sase"},
+    )
+
+    assert canonicalize_project_aliases_in_prompt("#gh:sase_legacy_fix review") == (
+        "#gh:gh_sase-org__sase_legacy_fix review"
+    )
+
+
+def test_canonicalize_preserves_literal_archived_changespec(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    monkeypatch.setattr("sase.project_aliases.sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"sase": "gh_sase-org__sase"},
+    )
+    _write_project_spec(
+        projects_root,
+        "gh_sase-org__sase",
+        changespec_names=("sase_archived_fix",),
+        archive=True,
+    )
+
+    assert canonicalize_project_aliases_in_prompt("#gh:sase_archived_fix resume") == (
+        "#gh:sase_archived_fix resume"
+    )
+
+
+def test_canonicalize_repairs_previously_mangled_changespec_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    monkeypatch.setattr("sase.project_aliases.sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"sase": "gh_sase-org__sase"},
+    )
+    _write_project_spec(
+        projects_root,
+        "gh_sase-org__sase",
+        changespec_names=("sase_fix_just_linters_14",),
+    )
+
+    assert (
+        canonicalize_project_aliases_in_prompt(
+            "#gh:gh_sase-org__sase_fix_just_linters_14 review"
+        )
+        == "#gh:sase_fix_just_linters_14 review"
+    )
+
+
+def test_canonicalize_does_not_repair_resolvable_compound_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    monkeypatch.setattr("sase.project_aliases.sase_projects_dir", lambda: projects_root)
+    monkeypatch.setattr(
+        "sase.project_aliases.load_project_alias_map",
+        lambda projects_root=None: {"sase": "gh_sase-org__sase"},
+    )
+    _write_project_spec(
+        projects_root,
+        "gh_sase-org__sase",
+        changespec_names=("fix_just_linters_14", "sase_fix_just_linters_14"),
+    )
+
+    assert (
+        canonicalize_project_aliases_in_prompt(
+            "#gh:gh_sase-org__sase_fix_just_linters_14 review"
+        )
+        == "#gh:gh_sase-org__sase_fix_just_linters_14 review"
     )
 
 

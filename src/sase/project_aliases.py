@@ -567,6 +567,28 @@ def find_project_ref_owner(
     return None
 
 
+def _load_project_changespec_names(project: str) -> frozenset[str]:
+    """Return active and archived ChangeSpec names for *project*."""
+    from sase.ace.changespec import parse_project_file
+    from sase.ace.changespec.project_spec_path import preferred_project_spec_path
+
+    project_dir = sase_projects_dir() / project
+    names: set[str] = set()
+    for archive in (False, True):
+        project_file = Path(
+            preferred_project_spec_path(
+                str(project_dir),
+                project,
+                archive=archive,
+            )
+        )
+        if project_file.is_file():
+            names.update(
+                changespec.name for changespec in parse_project_file(str(project_file))
+            )
+    return frozenset(names)
+
+
 def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
     """Rewrite project alias refs in VCS launch tags to canonical project names."""
     if "#" not in prompt:
@@ -584,9 +606,56 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
     if not alias_map:
         return prompt
 
+    changespec_names_by_project: dict[str, frozenset[str]] = {}
+
+    def changespec_names(project: str) -> frozenset[str]:
+        names = changespec_names_by_project.get(project)
+        if names is None:
+            names = _load_project_changespec_names(project)
+            changespec_names_by_project[project] = names
+        return names
+
+    aliases_by_project: dict[str, list[str]] = {}
+    for alias, project in alias_map.items():
+        aliases_by_project.setdefault(project, []).append(alias)
+    for aliases in aliases_by_project.values():
+        aliases.sort(key=lambda item: (-len(item), item))
+
+    canonical_projects = sorted(
+        aliases_by_project,
+        key=lambda item: (-len(item), item),
+    )
+
+    def repair_mangled_ref(ref: str) -> str | None:
+        for project in canonical_projects:
+            prefix = f"{project}_"
+            if not ref.startswith(prefix):
+                continue
+
+            suffix = ref[len(prefix) :]
+            names = changespec_names(project)
+            if ref in names or suffix in names:
+                return None
+
+            for alias in aliases_by_project[project]:
+                candidate = f"{alias}_{suffix}"
+                if candidate in names:
+                    return candidate
+        return None
+
     def replace(match: re.Match[str]) -> str:
         ref = match.group("ref") or match.group("paren") or ""
-        canonical = _rewrite_ref_with_known_prefix(ref, alias_map)
+        canonical = alias_map.get(ref)
+        if canonical is None:
+            canonical = repair_mangled_ref(ref)
+        if canonical is None:
+            canonical = _rewrite_ref_with_known_prefix(
+                ref,
+                alias_map,
+                allow_prefix_rewrite=lambda original_ref, project: (
+                    original_ref not in changespec_names(project)
+                ),
+            )
         if canonical is None:
             return match.group(0)
 
@@ -605,6 +674,8 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
 def _rewrite_ref_with_known_prefix(
     ref: str,
     replacement_by_ref: Mapping[str, str],
+    *,
+    allow_prefix_rewrite: Callable[[str, str], bool] | None = None,
 ) -> str | None:
     replacement = replacement_by_ref.get(ref)
     if replacement is not None:
@@ -618,6 +689,10 @@ def _rewrite_ref_with_known_prefix(
     ):
         prefix = f"{known_ref}_"
         if ref.startswith(prefix):
+            if allow_prefix_rewrite is not None and not allow_prefix_rewrite(
+                ref, known_replacement
+            ):
+                return None
             return f"{known_replacement}_{ref[len(prefix) :]}"
     return None
 
