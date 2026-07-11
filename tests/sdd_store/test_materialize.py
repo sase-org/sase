@@ -11,10 +11,15 @@ from sase.sdd.store import (
     SddMaterializationError,
     create_and_materialize_sdd_store,
     materialize_sdd_store,
+    preflight_sdd_companion,
     read_sdd_store_record,
     write_sdd_store_record,
 )
-from sase.workspace_provider._hookspec import WorkflowMetadata, hookimpl
+from sase.workspace_provider._hookspec import (
+    SddCompanionPreflight,
+    WorkflowMetadata,
+    hookimpl,
+)
 from tests.sdd_store._helpers import (
     clone,
     commit_all,
@@ -136,6 +141,27 @@ class _MetadataOnlyProvider:
         )
 
 
+class _PreflightProvider(_MetadataOnlyProvider):
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict[str, object]]] = []
+
+    @hookimpl
+    def ws_preflight_sdd_companion(
+        self,
+        primary_workspace_dir: str,
+        workspace_dir: str,
+        options: dict[str, object],
+    ) -> SddCompanionPreflight | None:
+        self.calls.append((primary_workspace_dir, workspace_dir, options))
+        return SddCompanionPreflight(
+            status="not_found",
+            provider="FakeHub",
+            host="example.test",
+            repo="owner/repo--sdd",
+            visibility="public",
+        )
+
+
 def _install_provider(
     monkeypatch: pytest.MonkeyPatch,
     provider: object,
@@ -157,6 +183,43 @@ def _remote_with_files(tmp_path: Path, files: dict[str, str]) -> Path:
     git(["push", "-u", "origin", "main"], seed)
     shutil.rmtree(seed)
     return remote
+
+
+def test_preflight_dispatches_read_only_provider_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "repo"
+    primary.mkdir()
+    provider = _PreflightProvider()
+    _install_provider(monkeypatch, provider)
+
+    result = preflight_sdd_companion(primary, 1)
+
+    assert result.status == "not_found"
+    assert result.repo == "owner/repo--sdd"
+    assert len(provider.calls) == 1
+    called_primary, called_workspace, options = provider.calls[0]
+    assert called_primary == str(primary)
+    assert called_workspace == str(primary)
+    assert options["provider_policy"] == "separate_repo"
+    assert "staging_dir" not in options
+    assert "create" not in options
+    assert not (primary / ".sase").exists()
+
+
+def test_preflight_fails_closed_when_provider_hook_is_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "repo"
+    primary.mkdir()
+    _install_provider(monkeypatch, _MetadataOnlyProvider())
+
+    with pytest.raises(SddMaterializationError, match="Update the provider plugin"):
+        preflight_sdd_companion(primary, 1)
+
+    assert not (primary / ".sase").exists()
 
 
 def test_materialization_bootstraps_primary_and_numbered_workspace(

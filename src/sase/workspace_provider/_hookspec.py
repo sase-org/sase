@@ -19,6 +19,24 @@ VcsRepoCandidateErrorKind = Literal[
     "unsupported_namespace",
     "unknown",
 ]
+SddCompanionPreflightStatus = Literal["found", "not_found", "unavailable"]
+
+
+@dataclass(frozen=True)
+class SddCompanionPreflight:
+    """Read-only discovery result for a provider-owned SDD companion.
+
+    ``visibility`` is the visibility the provider intends to use if the
+    companion must be created. ``message`` carries an actionable explanation
+    when ``status`` is ``"unavailable"``.
+    """
+
+    status: SddCompanionPreflightStatus
+    provider: str
+    host: str
+    repo: str
+    visibility: str
+    message: str = ""
 
 
 @dataclass
@@ -200,6 +218,21 @@ class WorkspaceHookSpec:
         target, and return a positive schema-versioned record mapping for
         ``.sase/sdd-store.json``. Return ``None`` only when the provider does
         not own the current workspace.
+        """
+        ...
+
+    @hookspec(firstresult=True)
+    def ws_preflight_sdd_companion(
+        self,
+        primary_workspace_dir: str,
+        workspace_dir: str,
+        options: dict[str, object],
+    ) -> SddCompanionPreflight | None:
+        """Discover the external SDD companion without mutating state.
+
+        This explicit-init hook may perform authoritative network reads. It
+        must not create or label repositories, clone, or write local state.
+        Return ``None`` only when the provider does not own the workspace.
         """
         ...
 

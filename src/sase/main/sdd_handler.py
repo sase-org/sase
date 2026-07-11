@@ -6,12 +6,15 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any, TextIO
 
 from sase.project_management import ProjectManagementStatus, project_management_status
 
 from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
+
+if TYPE_CHECKING:
+    from sase.workspace_provider import SddCompanionPreflight
 
 _NON_PROJECT_SDD_MESSAGE = (
     "sase init sdd: not a project directory (no VCS found); skipping SDD initialization"
@@ -76,10 +79,46 @@ def run_sdd_init(args: argparse.Namespace) -> int:
         return 0
 
     from sase.sdd.files import ensure_sdd_initialized, expected_sdd_readme
-    from sase.sdd.store import SddMaterializationError, materialize_sdd_store
+    from sase.sdd.store import (
+        SddMaterializationError,
+        materialize_sdd_store,
+        preflight_sdd_companion,
+    )
 
+    # Every explicit init starts guarded. This also fails closed if provider
+    # policy detection is transiently unavailable here but succeeds later in
+    # the materializer.
+    creation_authorized = False
     try:
-        store = materialize_sdd_store(project_root, 1)
+        if _project_provider_sdd_policy(project_root) == "separate_repo":
+            # Guard every explicit separate-repo materialization, including the
+            # fast existing-record path. If that local record disappears in a
+            # race, the provider must not silently recreate the remote.
+            creation_authorized = False
+            if _plan_sdd_companion_repo_action(project_root) is not None:
+                preflight = preflight_sdd_companion(project_root, 1)
+                if preflight.status == "unavailable":
+                    detail = preflight.message or (
+                        f"could not verify {preflight.provider} SDD companion "
+                        f"repository {preflight.repo}"
+                    )
+                    raise SddMaterializationError(detail)
+                if preflight.status == "not_found":
+                    if not _confirm_sdd_companion_creation(args, preflight):
+                        return 1
+                    creation_authorized = True
+                elif preflight.status != "found":
+                    raise SddMaterializationError(
+                        "The workspace provider returned an invalid SDD companion "
+                        "preflight result. Update the provider plugin and rerun "
+                        "`sase sdd init`."
+                    )
+
+        store = materialize_sdd_store(
+            project_root,
+            1,
+            sdd_creation_authorized=creation_authorized,
+        )
     except SddMaterializationError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -88,6 +127,48 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     readme_path = expected_sdd_readme(str(store.sdd_dir)).path
     print(readme_path)
     return 0
+
+
+def _confirm_sdd_companion_creation(
+    args: argparse.Namespace,
+    preflight: SddCompanionPreflight,
+) -> bool:
+    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
+    resource = f"{preflight.provider} SDD companion repository"
+    if not stdin.isatty():
+        print(
+            f"error: {resource} creation cancelled: "
+            "interactive y/yes confirmation is required",
+            file=sys.stderr,
+        )
+        return False
+
+    input_func = getattr(args, "_init_input_func", None) or input
+    prompt = (
+        f"Create {preflight.visibility} {preflight.provider} SDD companion "
+        f"repository {preflight.repo} on {preflight.host}? [y/N] "
+    )
+    try:
+        answer = input_func(prompt)
+    except EOFError:
+        print(
+            f"error: {resource} creation cancelled: no confirmation was received",
+            file=sys.stderr,
+        )
+        return False
+    except KeyboardInterrupt:
+        print(
+            f"\nerror: {resource} creation cancelled",
+            file=sys.stderr,
+        )
+        return False
+    if answer.strip().lower() in {"y", "yes"}:
+        return True
+    print(
+        f"{resource} creation cancelled; SDD initialization is incomplete",
+        file=sys.stderr,
+    )
+    return False
 
 
 def plan_sdd_init(args: argparse.Namespace) -> InitPlan:

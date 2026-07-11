@@ -6,7 +6,10 @@ from dataclasses import dataclass
 import logging
 from pathlib import Path
 import subprocess
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from sase.workspace_provider import SddCompanionPreflight
 
 from sase.sdd._paths import get_primary_workspace_dir
 from sase.sdd._store_adoption import (
@@ -83,6 +86,7 @@ __all__ = [
     "ensure_workspace_sdd_clone",
     "materialized_sdd_clone",
     "materialize_sdd_store",
+    "preflight_sdd_companion",
     "normalize_sdd_store_record",
     "read_sdd_store_record",
     "resolve_sdd_dir",
@@ -146,11 +150,60 @@ def materialized_sdd_clone(
     return clone if clone_matches_record(clone, record) else None
 
 
-def materialize_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore:
-    """Materialize the provider-selected store or fail without a local fallback."""
+def materialize_sdd_store(
+    workspace_dir: str | Path,
+    workspace_num: int,
+    *,
+    sdd_creation_authorized: bool | None = None,
+) -> SddStore:
+    """Materialize the provider-selected store or fail without a local fallback.
 
-    store, _created = _materialize_sdd_store(workspace_dir, workspace_num)
+    ``sdd_creation_authorized`` is an explicit-init guard. Omitting it preserves
+    provider-owned behavior for other materialization consumers; passing a
+    boolean requires providers to honor that per-invocation authorization.
+    """
+
+    store, _created = _materialize_sdd_store(
+        workspace_dir,
+        workspace_num,
+        sdd_creation_authorized=sdd_creation_authorized,
+    )
     return store
+
+
+def preflight_sdd_companion(
+    workspace_dir: str | Path,
+    workspace_num: int,
+) -> SddCompanionPreflight:
+    """Return authoritative, read-only provider discovery for explicit init."""
+    from sase.workspace_provider import (
+        SddCompanionPreflight,
+        preflight_sdd_companion as dispatch,
+    )
+
+    workspace = Path(workspace_dir).expanduser()
+    primary = Path(
+        get_primary_workspace_dir(str(workspace), workspace_num)
+    ).expanduser()
+    record = read_sdd_store_record(primary)
+    options = _provider_options(
+        workspace,
+        workspace_num,
+        policy=SDD_STORAGE_SEPARATE_REPO,
+        existing_record=(
+            cast(SddStoreRecord, record) if _is_materialized_record(record) else None
+        ),
+    )
+    try:
+        result = dispatch(str(primary), str(workspace), options)
+    except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
+        raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
+    if not isinstance(result, SddCompanionPreflight):
+        raise SddMaterializationError(
+            "The workspace provider does not support authoritative SDD companion "
+            "preflight. Update the provider plugin and rerun `sase sdd init`."
+        )
+    return result
 
 
 def create_and_materialize_sdd_store(
@@ -173,6 +226,8 @@ def create_and_materialize_sdd_store(
 def _materialize_sdd_store(
     workspace_dir: str | Path,
     workspace_num: int,
+    *,
+    sdd_creation_authorized: bool | None = None,
 ) -> tuple[SddStore, bool]:
     workspace = Path(workspace_dir).expanduser()
     primary = Path(
@@ -225,6 +280,7 @@ def _materialize_sdd_store(
                         else None
                     ),
                     staging=staging,
+                    sdd_creation_authorized=sdd_creation_authorized,
                 )
                 normalized = normalize_sdd_store_record(result)
                 created = bool(result.get("created"))
@@ -378,21 +434,23 @@ def _provider_materialization_result(
     policy: SddStorage | None,
     existing_record: SddStoreRecord | None,
     staging: Path,
+    sdd_creation_authorized: bool | None,
 ) -> dict[str, Any]:
-    options: dict[str, object] = {
-        "workspace_num": workspace_num,
-        "provider_policy": policy or "",
-        "vcs_name": _detect_vcs_name(workspace) or "",
-        "staging_dir": str(staging),
-        "create": True,
-    }
-    if existing_record is not None:
-        if existing_record.repo:
-            options["sdd_repo"] = existing_record.repo
-        if existing_record.host:
-            options["sdd_host"] = existing_record.host
-        if existing_record.remote_url:
-            options["sdd_remote_url"] = existing_record.remote_url
+    options = _provider_options(
+        workspace,
+        workspace_num,
+        policy=policy,
+        existing_record=existing_record,
+    )
+    options.update(
+        {
+            "workspace_num": workspace_num,
+            "staging_dir": str(staging),
+            "create": True,
+        }
+    )
+    if sdd_creation_authorized is not None:
+        options["sdd_creation_authorized"] = sdd_creation_authorized
 
     try:
         from sase.workspace_provider import materialize_sdd_store as dispatch
@@ -419,6 +477,28 @@ def _provider_materialization_result(
             "repository. Update the provider plugin and rerun `sase sdd init`."
         )
     return cast(dict[str, Any], compatibility_result)
+
+
+def _provider_options(
+    workspace: Path,
+    workspace_num: int,
+    *,
+    policy: SddStorage | None,
+    existing_record: SddStoreRecord | None,
+) -> dict[str, object]:
+    options: dict[str, object] = {
+        "workspace_num": workspace_num,
+        "provider_policy": policy or "",
+        "vcs_name": _detect_vcs_name(workspace) or "",
+    }
+    if existing_record is not None:
+        if existing_record.repo:
+            options["sdd_repo"] = existing_record.repo
+        if existing_record.host:
+            options["sdd_host"] = existing_record.host
+        if existing_record.remote_url:
+            options["sdd_remote_url"] = existing_record.remote_url
+    return options
 
 
 def _positive_result(result: object) -> bool:

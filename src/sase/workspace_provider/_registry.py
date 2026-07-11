@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 from ._hookspec import (
     ResolvedRef,
+    SddCompanionPreflight,
     VcsRefNamespaces,
     VcsRepoCandidates,
     WorkflowMetadata,
@@ -276,6 +277,19 @@ def materialize_sdd_store(
 ) -> dict[str, object] | None:
     """Materialize a provider-required external SDD store."""
     return _get_manager().materialize_sdd_store(
+        primary_workspace_dir=primary_workspace_dir,
+        workspace_dir=workspace_dir,
+        options=options,
+    )
+
+
+def preflight_sdd_companion(
+    primary_workspace_dir: str,
+    workspace_dir: str,
+    options: dict[str, object],
+) -> SddCompanionPreflight | None:
+    """Perform provider-owned, read-only SDD companion discovery."""
+    return _get_manager().preflight_sdd_companion(
         primary_workspace_dir=primary_workspace_dir,
         workspace_dir=workspace_dir,
         options=options,

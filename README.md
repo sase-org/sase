@@ -100,7 +100,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 ```bash
 sase init -c             # check initialization drift without writing files
 sase init --all --check  # check every active main project without writing files
-sase init --all --yes    # initialize every active main project unattended
+sase init --all --yes    # apply all initializers; missing GitHub SDD repos still require y/yes
 sase doctor -v           # readable install, config, project, provider, and state report
 sase version             # inspect the exact SASE packages loaded by this environment
 sase ace                  # open the interactive control surface; press # for the Admin Center (Config / Logs / Projects / Tasks / Updates / XPrompts)

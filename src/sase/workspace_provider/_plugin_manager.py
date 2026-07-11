@@ -4,6 +4,7 @@ import pluggy
 
 from ._hookspec import (
     ResolvedRef,
+    SddCompanionPreflight,
     VcsRefNamespaces,
     VcsRepoCandidates,
     WorkflowMetadata,
@@ -93,6 +94,18 @@ class WorkspacePluginManager:
         options: dict[str, object],
     ) -> dict[str, object] | None:
         return self._pm.hook.ws_materialize_sdd_store(  # type: ignore[no-any-return]
+            primary_workspace_dir=primary_workspace_dir,
+            workspace_dir=workspace_dir,
+            options=options,
+        )
+
+    def preflight_sdd_companion(
+        self,
+        primary_workspace_dir: str,
+        workspace_dir: str,
+        options: dict[str, object],
+    ) -> SddCompanionPreflight | None:
+        return self._pm.hook.ws_preflight_sdd_companion(  # type: ignore[no-any-return]
             primary_workspace_dir=primary_workspace_dir,
             workspace_dir=workspace_dir,
             options=options,

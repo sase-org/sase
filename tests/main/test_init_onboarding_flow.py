@@ -9,6 +9,10 @@ import pytest
 
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_plan import InitAction
+from sase.main.init_registry import InitCommandSpec
+from sase.main.sdd_handler import run_sdd_init
+from sase.sdd.store import SddStore
+from sase.workspace_provider import SddCompanionPreflight
 from tests.main.init_onboarding_helpers import (
     _TtyStringIO,
     _args,
@@ -299,6 +303,92 @@ def test_sdd_prompt_mentions_companion_repo_creation() -> None:
     assert exit_code == 0
     assert calls == ["sdd"]
     assert "This may create and push to a GitHub companion repository." in prompts[0]
+
+
+@pytest.mark.parametrize(
+    ("yes", "responses", "expected_prompt_count"),
+    [
+        (False, ["yes", "yes"], 2),
+        (True, ["yes"], 1),
+    ],
+)
+def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    yes: bool,
+    responses: list[str],
+    expected_prompt_count: int,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "sase.yml").write_text("is_sase_managed: true\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    prompts: list[str] = []
+    answers = iter(responses)
+    authorizations: list[bool | None] = []
+    monkeypatch.setattr(
+        "sase.main.sdd_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.sdd_handler._plan_sdd_companion_repo_action",
+        lambda _root: InitAction(
+            tmp_path / ".sase" / "sdd",
+            "create",
+            "create or connect the provider companion SDD repository",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.preflight_sdd_companion",
+        lambda _root, _workspace: SddCompanionPreflight(
+            status="not_found",
+            provider="GitHub",
+            host="github.com",
+            repo="acme/widget--sdd",
+            visibility="public",
+        ),
+    )
+
+    def materialize(
+        _root: Path,
+        _workspace: int,
+        *,
+        sdd_creation_authorized: bool | None = None,
+    ) -> SddStore:
+        authorizations.append(sdd_creation_authorized)
+        sdd_dir = tmp_path / ".sase" / "sdd"
+        return SddStore("local", sdd_dir, sdd_dir)
+
+    monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", materialize)
+    plan = _plan(
+        "sdd",
+        actions=(
+            InitAction(
+                tmp_path / ".sase" / "sdd",
+                "create",
+                "create or connect GitHub companion repository acme/widget--sdd",
+            ),
+        ),
+    )
+    spec = InitCommandSpec("sdd", "SDD", lambda _args: plan, run_sdd_init)
+
+    def answer(prompt: str) -> str:
+        prompts.append(prompt)
+        return next(answers)
+
+    exit_code = run_init_onboarding(
+        _args(yes=yes),
+        specs=(spec,),
+        stdin=_TtyStringIO(),
+        input_func=answer,
+    )
+
+    assert exit_code == 0
+    assert len(prompts) == expected_prompt_count
+    assert prompts[-1] == (
+        "Create public GitHub SDD companion repository "
+        "acme/widget--sdd on github.com? [y/N] "
+    )
+    assert authorizations == [True]
 
 
 def test_non_tty_drift_without_yes_prints_summary_and_exits_1(

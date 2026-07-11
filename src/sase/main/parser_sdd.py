@@ -30,6 +30,11 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     init_parser = sdd_sub.add_parser(
         "init",
         help="Materialize provider storage and refresh generated guides",
+        description=(
+            "Materialize provider storage and refresh generated guides. "
+            "Creating a missing GitHub companion always requires an "
+            "interactive, default-no y/yes confirmation."
+        ),
     )
     init_parser.add_argument(
         "-c",

@@ -10,6 +10,8 @@ Usage::
 
 from ._hookspec import (
     ResolvedRef,
+    SddCompanionPreflight,
+    SddCompanionPreflightStatus,
     SUBMITTED_CHECK_EXIT_CODE_CLOSED,
     VcsNamespaceEntry,
     VcsRefNamespaces,
@@ -59,6 +61,7 @@ from ._registry import (
     list_repo_candidates,
     materialize_sdd_store,
     peek_ref,
+    preflight_sdd_companion,
     prepare_mail,
     resolve_ref,
     submit_changespec,
@@ -68,6 +71,8 @@ from ._registry import (
 __all__ = [
     "CheckoutMarker",
     "ResolvedRef",
+    "SddCompanionPreflight",
+    "SddCompanionPreflightStatus",
     "SUBMITTED_CHECK_EXIT_CODE_CLOSED",
     "VcsNamespaceEntry",
     "VcsRefNamespaces",
@@ -105,6 +110,7 @@ __all__ = [
     "load_or_init_registry",
     "materialize_sdd_store",
     "peek_ref",
+    "preflight_sdd_companion",
     "prepare_mail",
     "read_marker",
     "record_workspace",

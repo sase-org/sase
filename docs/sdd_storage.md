@@ -39,6 +39,12 @@ provider work. The `#gh` setup step also materializes the companion before claim
 authorization, network, discovery, creation, label, clone, import, or initial-push failures stop setup; GitHub projects
 do not fall back to local storage.
 
+Explicit `sase sdd init` (including `sase init sdd` and bare-onboarding dispatch) probes GitHub before materialization.
+If the companion is absent, creation requires a fresh interactive `y`/`yes` response to a prompt naming its host,
+repository, and public visibility; the default is no. Non-interactive input and `sase init --yes` cannot grant this
+resource-specific authorization. Existing companions and non-explicit materialization consumers retain their normal
+provider-owned behavior.
+
 The first successful materialization is a single adoption transaction:
 
 1. SASE serializes setup with a primary-workspace lock and asks the provider to find or create the companion.

@@ -1098,6 +1098,11 @@ legacy in-tree or local artifacts before recording success. Existing private com
 previews provider and generated-file work without writing. Missing or false management markers make both forms
 successful no-ops; invalid local marker configuration fails before provider calls or writes.
 
+Explicit initialization first performs authoritative provider discovery. A missing GitHub companion triggers
+`Create public GitHub SDD companion repository <owner>/<repo>--sdd on <host>? [y/N]`; only `y` or `yes` authorizes that
+invocation to create it. The prompt is default-no and unavailable on non-interactive stdin. Bare `sase init --yes`
+bypasses only the coordinator prompt and cannot authorize repository creation; `--check` remains network-free.
+
 Source: `src/sase/default_config.yml`
 
 ### bead
@@ -1578,11 +1583,12 @@ completion clients should filter to entries where `is_skill` is `true`.
 
 Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for memory, SDD,
 and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
-Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. The memory
-planner (which owns agent-document initialization) only generates managed project `AGENTS.md` from bare `sase init` when
-the current project's own `./sase.yml` sets `is_sase_managed: true`. The SDD planner uses that same local marker and
-skips unmanaged repositories before provider work. Neither planner infers project ownership from `amd_h1_title`,
-existing memory notes, lifecycle state, or merged configuration.
+Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. That flag runs
+needed initializers but cannot authorize creation of a missing GitHub SDD companion, which always requires its own
+interactive `y`/`yes` response. The memory planner (which owns agent-document initialization) only generates managed
+project `AGENTS.md` from bare `sase init` when the current project's own `./sase.yml` sets `is_sase_managed: true`. The
+SDD planner uses that same local marker and skips unmanaged repositories before provider work. Neither planner infers
+project ownership from `amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
 
 `--all` applies that coordinator to every registered active main project from its recorded primary workspace, even when
 the command starts outside a project. It excludes inactive, sibling, `home`, and other system-managed records, continues
@@ -1593,12 +1599,12 @@ and with explicit compatibility subcommands.
 Advanced deploy controls stay on explicit subcommands such as `sase memory init --no-commit` and
 `sase skill init --no-push`.
 
-| Flag                          | Values | Default | Description                                                                          |
-| ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------ |
-| `-a, --all`                   | flag   | -       | Attempt every known active main SASE project and report one aggregate status.        |
-| `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed. |
-| `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.              |
-| `-y, --yes`                   | flag   | -       | Run every needed initializer in memory, SDD, skills order without prompting.         |
+| Flag                          | Values | Default | Description                                                                                |
+| ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------ |
+| `-a, --all`                   | flag   | -       | Attempt every known active main SASE project and report one aggregate status.              |
+| `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed.       |
+| `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.                    |
+| `-y, --yes`                   | flag   | -       | Run needed initializers without generic prompts; cannot approve GitHub companion creation. |
 
 ### `sase memory agent-docs`
 
@@ -1665,6 +1671,10 @@ provider or filesystem work. `--path` always checks the target repository's mark
 public-by-default companion when missing, applies the `sase--sdd` label, and imports legacy SDD artifacts
 transactionally. Existing private companions remain private. Bare-git projects refresh generated files automatically
 during repository setup and first SDD writes; the explicit command remains useful for refreshes and `--check` audits.
+
+When the GitHub companion is missing, this alias uses the same default-no repository-specific confirmation as
+`sase sdd init`. Non-interactive stdin, EOF, interruption, and any answer other than `y`/`yes` return nonzero before
+creation or local mutation. There is deliberately no `--yes` option on the explicit SDD initializer.
 
 | Flag          | Values | Default         | Description                                                        |
 | ------------- | ------ | --------------- | ------------------------------------------------------------------ |

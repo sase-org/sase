@@ -174,6 +174,12 @@ local storage. Missing or false markers make the command and `--check` successfu
 local configuration fails safely. `sase init sdd` exposes the same flow and check/path flags, and `--path` checks the
 target repository's marker.
 
+Before explicit initialization creates a missing GitHub companion, it asks
+`Create public GitHub SDD companion repository <owner>/<repo>--sdd on <host>? [y/N]`. Only `y` or `yes` approves. Blank
+input, any other answer, EOF, interruption, and non-interactive stdin cancel with a nonzero exit before repository or
+local-state mutations. An existing remote companion connects without this creation prompt. `--check` remains offline and
+non-interactive, and neither bare `sase init --yes` nor its generic initializer approval authorizes repository creation.
+
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
 conceptual prose in those README files.
 

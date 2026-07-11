@@ -179,13 +179,21 @@ def _plan_may_create_companion_repo(plan: InitPlan) -> bool:
     )
 
 
-def _apply_args(args: argparse.Namespace, spec: InitCommandSpec) -> argparse.Namespace:
+def _apply_args(
+    args: argparse.Namespace,
+    spec: InitCommandSpec,
+    *,
+    input_func: Callable[[str], str],
+    stdin: TextIO,
+) -> argparse.Namespace:
     apply_args = copy.copy(args)
     apply_args.init_subcommand = spec.name
     # Mark the apply as part of bare-``sase init`` onboarding so memory init can
     # derive a managed AGENTS.md title fallback even though ``init_subcommand``
     # now names a spec.
     apply_args.onboarding = True
+    apply_args._init_input_func = input_func
+    apply_args._init_stdin = stdin
     if spec.name == "skills":
         apply_args.force = True
     return apply_args
@@ -258,6 +266,7 @@ def _run_changed_plans(
     plans: Sequence[InitPlan],
     specs: Sequence[InitCommandSpec],
     input_func: Callable[[str], str],
+    stdin: TextIO,
     console: Console,
 ) -> _InitRunResult:
     spec_by_name = {spec.name: spec for spec in specs}
@@ -280,7 +289,9 @@ def _run_changed_plans(
         if not should_run:
             skipped = True
             continue
-        exit_code = spec.run(_apply_args(args, spec))
+        exit_code = spec.run(
+            _apply_args(args, spec, input_func=input_func, stdin=stdin)
+        )
         if exit_code != 0:
             console.print()
             console.print(
@@ -316,6 +327,7 @@ def _run_init_onboarding_result(
     active_specs = _active_onboarding_specs(specs)
     out_console = console or _console_for(sys.stdout)
     is_tty = (stdin or sys.stdin).isatty()
+    effective_stdin = stdin or sys.stdin
 
     if not active_specs:
         _render_no_specs(out_console)
@@ -348,6 +360,7 @@ def _run_init_onboarding_result(
             plans=plans,
             specs=active_specs,
             input_func=input_func,
+            stdin=effective_stdin,
             console=out_console,
         )
 
@@ -357,6 +370,7 @@ def _run_init_onboarding_result(
             plans=plans,
             specs=active_specs,
             input_func=input_func,
+            stdin=effective_stdin,
             console=out_console,
         )
         if result.exit_code != 0:

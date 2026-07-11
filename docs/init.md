@@ -24,6 +24,10 @@ init leaves project memory and the root `AGENTS.md` untouched while still copyin
 `AGENTS.md` to the provider instruction files beside it, and explicit SDD initialization exits successfully without
 detecting a provider, materializing storage, or generating files.
 
+One resource-specific exception is intentionally non-bypassable: `--yes` can run the SDD initializer, but it cannot
+approve creation of a missing GitHub SDD companion. That creation always requires an interactive `y`/`yes` response to
+the repository-specific prompt; unattended initialization can connect an existing companion but cannot create one.
+
 `sase init --all` uses the registered project inventory, so it can be run inside a project or from an unrelated
 directory. It visits active main projects only: inactive projects, sibling bookkeeping records, and the system-managed
 `home` project are excluded. Each project runs from its recorded primary workspace. Missing workspaces, invalid project
@@ -239,6 +243,12 @@ creates or refreshes generated SDD guides and the directory-map asset. GitHub se
 `<owner>/<repo>--sdd` companion, applies the `sase--sdd` label, and transactionally imports legacy in-tree and local
 artifacts. New companions are public by default; existing private companions remain private. Bare-git projects keep
 their provider-owned in-tree layout.
+
+GitHub discovery runs before materialization. If the companion is definitively absent, the command asks
+`Create public GitHub SDD companion repository <owner>/<repo>--sdd on <host>? [y/N]`; only `y` or `yes` proceeds.
+Declines, blank answers, EOF, interruption, and non-interactive stdin leave initialization incomplete and return nonzero
+without creating, labeling, cloning, importing, or writing generated files. `--check` does not probe GitHub or read
+stdin.
 
 Both the apply command and `--check` first read the target repository's own `sase.yml`. A missing or false
 `is_sase_managed` marker makes the command an informative, successful no-op before provider or storage work; malformed

@@ -98,7 +98,10 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "-y",
         "--yes",
         action="store_true",
-        help="Run every needed initializer without prompting",
+        help=(
+            "Run every needed initializer without generic prompts; cannot "
+            "authorize creation of a missing GitHub SDD companion"
+        ),
     )
     init_subparsers = init_parser.add_subparsers(
         dest="init_subcommand",
@@ -142,6 +145,11 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
     sdd_parser = init_subparsers.add_parser(
         "sdd",
         help="Materialize provider SDD storage and refresh generated guides",
+        description=(
+            "Compatibility alias for `sase sdd init`. Creating a missing "
+            "GitHub companion always requires an interactive, default-no "
+            "y/yes confirmation."
+        ),
     )
     sdd_parser.add_argument(
         "-c",

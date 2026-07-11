@@ -224,7 +224,7 @@ def test_run_uses_materialized_path_and_does_not_change_project_config(
     store = SddStore("separate_repo", sdd_dir, sdd_dir, "github", "remote")
     monkeypatch.setattr(
         "sase.sdd.store.materialize_sdd_store",
-        lambda _path, _workspace_num: store,
+        lambda _path, _workspace_num, **_options: store,
     )
     config_before = (tmp_path / "sase.yml").read_text(encoding="utf-8")
 
