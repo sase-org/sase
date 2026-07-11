@@ -20,7 +20,7 @@ class SaveTargetFormat(StrEnum):
     CONFIG = "config"
 
 
-def _build_markdown_xprompt(frontmatter: PromptFrontmatter, body: str) -> str:
+def build_markdown_xprompt(frontmatter: PromptFrontmatter, body: str) -> str:
     """Return the canonical markdown xprompt text for *frontmatter* and *body*."""
     clean_body = body.rstrip()
     frontmatter_block = frontmatter.serialize()
@@ -38,7 +38,7 @@ def save_markdown_xprompt(
 ) -> None:
     """Write a markdown xprompt file."""
     file_path = Path(path)
-    _atomic_write_text(file_path, _build_markdown_xprompt(frontmatter, body))
+    _atomic_write_text(file_path, build_markdown_xprompt(frontmatter, body))
 
 
 def save_markdown_document(path: str | Path, markdown: str) -> None:
@@ -81,7 +81,7 @@ def load_config_xprompt_markdown(config_path: str | Path, name: str) -> str:
     frontmatter = PromptFrontmatter.parse(
         yaml.safe_dump(mapping, sort_keys=False, allow_unicode=True)
     )
-    return _build_markdown_xprompt(frontmatter, body)
+    return build_markdown_xprompt(frontmatter, body)
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
@@ -104,8 +104,13 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
 __all__ = [
     "SaveTargetFormat",
+    "build_markdown_xprompt",
     "load_config_xprompt_markdown",
     "save_config_xprompt",
     "save_markdown_xprompt",
     "save_markdown_document",
 ]
+
+
+# Compatibility for callers that imported the former private helper.
+_build_markdown_xprompt = build_markdown_xprompt

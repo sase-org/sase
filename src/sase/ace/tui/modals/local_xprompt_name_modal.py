@@ -1,8 +1,7 @@
 """Name modal for converting a prompt pane into a local ``xprompts:`` helper.
 
 A small single-field modal for the ``gX`` / ``Ctrl+G X`` prompt-local keymap.
-Unlike :class:`~sase.ace.tui.modals.xprompt_name_modal.XPromptNameModal` -- which
-is tied to a file/config save *location* -- this one is purely about naming a
+Unlike the unified file/config save panel, this one is purely about naming a
 helper stored inline in the prompt bar's shared frontmatter.
 
 The user can type a bare name (``rules``); it is normalized to the ``_``-scoped

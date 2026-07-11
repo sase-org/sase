@@ -19,17 +19,14 @@ from ._prompt_bar_save_xprompt_snippets import (
     write_snippet_sync,
 )
 from ._prompt_bar_save_xprompt_targets import (
-    existing_names_for_location,
-    frontmatter_for_new_target,
-    name_exists_at_location,
-    short_display_path,
-    target_for_new_xprompt,
     write_target_sync,
     write_binding_sync,
 )
 
 if TYPE_CHECKING:
-    from sase.ace.tui.modals import XPromptLocation, XPromptSaveTarget
+    from sase.ace.tui.modals.unified_xprompt_save_modal import (
+        UnifiedXPromptSaveResult,
+    )
     from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
         StashedPromptPane,
     )
@@ -51,8 +48,13 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         import asyncio
 
         from ...modals import UnifiedXPromptSaveModal
-        from ...modals.unified_xprompt_save_modal import load_unified_save_locations
+        from ...modals.unified_xprompt_save_modal import (
+            UnifiedXPromptSaveResult,
+            load_unified_save_locations,
+            load_unified_snippet_locations,
+        )
         from ...widgets import PromptInputBar
+        from sase.xprompt.save_state import load_last_used_locations
 
         if not isinstance(event, PromptInputBar.SaveAsXpromptRequested):
             return
@@ -72,7 +74,11 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             if self._prompt_context is not None
             else None
         )
-        locations = await asyncio.to_thread(load_unified_save_locations, project)
+        locations, snippet_locations, last_used = await asyncio.gather(
+            asyncio.to_thread(load_unified_save_locations, project),
+            asyncio.to_thread(load_unified_snippet_locations, project),
+            asyncio.to_thread(load_last_used_locations),
+        )
 
         non_empty_count = sum(1 for pane in event.panes if pane.text.strip())
         # The snippet save option is always offered. Its source is the active
@@ -85,43 +91,30 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             snippet_body = body if non_empty_count == 1 else ""
         snippet_body = snippet_body.strip()
 
-        def _on_target(target: XPromptSaveTarget | None) -> None:
+        def _on_target(target: UnifiedXPromptSaveResult | None) -> None:
             if target is None:
                 return
-            if target.kind == "create":
-                self._spawn_xprompt_save_task(
-                    self._create_xprompt_flow(frontmatter, body, origin_bar=origin_bar)
-                )
-                return
-            if target.kind == "write":
-                prepared = frontmatter_for_new_target(target, frontmatter, target.name)
+            if target.mode == "xprompt":
                 self._spawn_xprompt_save_task(
                     self._write_xprompt_target(
                         target,
-                        prepared,
                         body,
-                        is_new=not target.exists,
-                        toast_name=target.name,
                         origin_bar=origin_bar,
                     )
                 )
                 return
-            if target.kind == "create_snippet":
-                if not snippet_body:
-                    self.notify(  # type: ignore[attr-defined]
-                        "Current prompt pane is empty - nothing to save as a snippet",
-                        severity="warning",
-                    )
-                    return
-                self._spawn_xprompt_save_task(self._create_snippet_flow(snippet_body))
-                return
-            self._confirm_overwrite_xprompt(
-                target, frontmatter, body, origin_bar=origin_bar
+            self._spawn_xprompt_save_task(
+                self._write_snippet_target(target, snippet_body)
             )
 
         self.push_screen(  # type: ignore[attr-defined]
             UnifiedXPromptSaveModal(
                 locations,
+                snippet_locations=snippet_locations,
+                frontmatter=frontmatter,
+                body=body,
+                snippet_body=snippet_body,
+                pane_count=len(event.panes),
                 initial_name=(
                     frontmatter.name
                     or (
@@ -131,7 +124,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                         else ""
                     )
                 ),
-                allow_create_snippet=True,
+                last_used=last_used,
             ),
             _on_target,
         )
@@ -258,171 +251,28 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         raw = next((pane.frontmatter for pane in panes if pane.frontmatter), "")
         return PromptFrontmatter.parse(raw)
 
-    def _confirm_overwrite_xprompt(
-        self,
-        target: XPromptSaveTarget,
-        frontmatter: PromptFrontmatter,
-        body: str,
-        *,
-        origin_bar: object | None = None,
-    ) -> None:
-        from ...modals import ConfirmActionModal, ConfirmKind
-
-        display_path = target.display_path or target.path
-
-        def _on_confirm(confirmed: bool | None) -> None:
-            if not confirmed:
-                return
-            self._spawn_xprompt_save_task(
-                self._write_xprompt_target(
-                    target,
-                    frontmatter,
-                    body,
-                    is_new=False,
-                    toast_name=target.name,
-                    origin_bar=origin_bar,
-                )
-            )
-
-        self.push_screen(  # type: ignore[attr-defined]
-            ConfirmActionModal(
-                "Overwrite XPrompt",
-                f"Overwrite xprompt '{target.name}'?",
-                subject=display_path,
-                kind=ConfirmKind.DANGER,
-                confirm_label="Overwrite",
-                cancel_label="Cancel",
-            ),
-            _on_confirm,
-        )
-
-    async def _create_xprompt_flow(
-        self,
-        frontmatter: PromptFrontmatter,
-        body: str,
-        *,
-        origin_bar: object | None = None,
-    ) -> None:
-        from ...modals import XPromptLocationModal
-
-        project = (
-            self._prompt_context.project_name
-            if self._prompt_context is not None
-            else None
-        )
-
-        def _on_location(location: XPromptLocation | None) -> None:
-            if location is None:
-                return
-            self._spawn_xprompt_save_task(
-                self._ask_new_xprompt_name(
-                    location, frontmatter, body, origin_bar=origin_bar
-                )
-            )
-
-        self.push_screen(  # type: ignore[attr-defined]
-            XPromptLocationModal(project=project),
-            _on_location,
-        )
-
-    async def _ask_new_xprompt_name(
-        self,
-        location: XPromptLocation,
-        frontmatter: PromptFrontmatter,
-        body: str,
-        *,
-        origin_bar: object | None = None,
-    ) -> None:
-        import asyncio
-
-        from ...modals import XPromptNameModal
-
-        existing_names = await asyncio.to_thread(existing_names_for_location, location)
-
-        def _on_name(name: str | None) -> None:
-            if name is None:
-                return
-            target = target_for_new_xprompt(location, name)
-            if name_exists_at_location(location, name, existing_names):
-                self._confirm_create_overwrite(
-                    target,
-                    frontmatter,
-                    body,
-                    name,
-                    origin_bar=origin_bar,
-                )
-                return
-            self._spawn_xprompt_save_task(
-                self._write_xprompt_target(
-                    target,
-                    frontmatter_for_new_target(target, frontmatter, name),
-                    body,
-                    is_new=True,
-                    toast_name=name,
-                    origin_bar=origin_bar,
-                )
-            )
-
-        self.push_screen(  # type: ignore[attr-defined]
-            XPromptNameModal(
-                location_label=location.label,
-                location_path=location.path,
-                existing_names=existing_names,
-            ),
-            _on_name,
-        )
-
-    def _confirm_create_overwrite(
-        self,
-        target: XPromptSaveTarget,
-        frontmatter: PromptFrontmatter,
-        body: str,
-        name: str,
-        *,
-        origin_bar: object | None = None,
-    ) -> None:
-        from ...modals import ConfirmActionModal, ConfirmKind
-
-        def _on_confirm(confirmed: bool | None) -> None:
-            if not confirmed:
-                return
-            self._spawn_xprompt_save_task(
-                self._write_xprompt_target(
-                    target,
-                    frontmatter_for_new_target(target, frontmatter, name),
-                    body,
-                    is_new=False,
-                    toast_name=name,
-                    origin_bar=origin_bar,
-                )
-            )
-
-        self.push_screen(  # type: ignore[attr-defined]
-            ConfirmActionModal(
-                "Overwrite Existing XPrompt",
-                f"'{name}' already exists at this location.",
-                subject=target.display_path or target.path,
-                kind=ConfirmKind.DANGER,
-                confirm_label="Overwrite",
-                cancel_label="Cancel",
-            ),
-            _on_confirm,
-        )
-
     async def _write_xprompt_target(
         self,
-        target: XPromptSaveTarget,
-        frontmatter: PromptFrontmatter,
+        target: UnifiedXPromptSaveResult,
         body: str,
         *,
-        is_new: bool,
-        toast_name: str,
         origin_bar: object | None = None,
     ) -> None:
         import asyncio
 
+        from sase.xprompt.save import build_markdown_xprompt
+        from sase.xprompt.save_state import save_last_used_location
+
+        source_markdown = (
+            build_markdown_xprompt(target.frontmatter, body)
+            if target.target_format is SaveTargetFormat.MARKDOWN
+            else None
+        )
         try:
-            await asyncio.to_thread(write_target_sync, target, frontmatter, body)
+            await asyncio.to_thread(write_target_sync, target, target.frontmatter, body)
+            await asyncio.to_thread(
+                save_last_used_location, "xprompt", target.location_path
+            )
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to save xprompt: {exc}",
@@ -430,43 +280,39 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             )
             return
 
-        verb = "Created" if is_new else "Saved draft as"
-        self.notify(f"{verb} xprompt '{toast_name}'")  # type: ignore[attr-defined]
-        self._bind_saved_stack(origin_bar, target)
-        self._offer_git_commit(target.path, is_new=is_new, xprompt_name=toast_name)
+        verb = "Created" if not target.exists else "Saved draft as"
+        self.notify(f"{verb} xprompt '{target.name}'")  # type: ignore[attr-defined]
+        self._bind_saved_stack(origin_bar, target, source_markdown=source_markdown)
+        self._offer_git_commit(
+            target.path, is_new=not target.exists, xprompt_name=target.name
+        )
 
     @staticmethod
-    def _bind_saved_stack(origin_bar: object | None, target: XPromptSaveTarget) -> None:
+    def _bind_saved_stack(
+        origin_bar: object | None,
+        target: UnifiedXPromptSaveResult,
+        *,
+        source_markdown: str | None,
+    ) -> None:
         """Bind a still-mounted originating bar after successful save-as."""
         from ...widgets import PromptInputBar
         from ...widgets.prompt_stack import XPromptBinding
 
         if not isinstance(origin_bar, PromptInputBar) or not origin_bar.is_mounted:
             return
-        try:
-            if target.target_format is SaveTargetFormat.CONFIG:
-                name = target.entry_name or target.name
-                binding = XPromptBinding.for_config(target.path, name)
-                source_markdown = None
-            else:
-                binding = XPromptBinding.for_file(target.path)
-                from pathlib import Path
-
-                source_markdown = Path(target.path).read_text(encoding="utf-8")
-        except OSError:
-            return
+        if target.target_format is SaveTargetFormat.CONFIG:
+            name = target.entry_name or target.name
+            binding = XPromptBinding.for_config(target.path, name)
+            source_markdown = None
+        else:
+            binding = XPromptBinding.for_file(target.path)
         origin_bar._stack.bind(binding, source_markdown=source_markdown)
         origin_bar._refresh_title()
 
 
-_existing_names_for_location = existing_names_for_location
 _existing_snippet_names = existing_snippet_names
-_frontmatter_for_new_target = frontmatter_for_new_target
-_name_exists_at_location = name_exists_at_location
 _process_error_text = process_error_text
 _run_git_commit_push_sync = run_git_commit_push_sync
-_short_display_path = short_display_path
-_target_for_new_xprompt = target_for_new_xprompt
 _write_snippet_sync = write_snippet_sync
 _write_target_sync = write_target_sync
 

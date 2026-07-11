@@ -1,96 +1,44 @@
-"""Snippet save flow for prompt-bar drafts."""
+"""Write-side helpers for prompt-bar snippet saves."""
 
 from __future__ import annotations
 
 from pathlib import Path
-
-from sase.ace.tui.actions.agent_workflow._types import PromptContext
+from typing import TYPE_CHECKING
 
 from ._prompt_bar_save_xprompt_git import PromptBarSaveXpromptGitMixin
 from ._prompt_bar_save_xprompt_tasks import PromptBarSaveXpromptTaskMixin
+
+if TYPE_CHECKING:
+    from sase.ace.tui.modals.unified_xprompt_save_modal import (
+        UnifiedXPromptSaveResult,
+    )
 
 
 class PromptBarSaveSnippetMixin(
     PromptBarSaveXpromptTaskMixin,
     PromptBarSaveXpromptGitMixin,
 ):
-    """Handle saving the active prompt pane as an ACE snippet."""
+    """Handle the write and cache refresh after the unified snippet panel."""
 
-    _prompt_context: PromptContext | None
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
 
-    async def _create_snippet_flow(self, body: str) -> None:
-        import asyncio
-
-        from ...modals import (
-            SnippetConfigLocation,
-            SnippetConfigLocationModal,
-            load_snippet_config_locations,
-        )
-
-        project = (
-            self._prompt_context.project_name
-            if self._prompt_context is not None
-            else None
-        )
-        locations = await asyncio.to_thread(load_snippet_config_locations, project)
-        if not any(location.is_selectable for location in locations):
-            self.notify(  # type: ignore[attr-defined]
-                "No writable config file available to store a snippet",
-                severity="warning",
-            )
-            return
-
-        def _on_location(location: SnippetConfigLocation | None) -> None:
-            if location is None:
-                return
-            self._spawn_xprompt_save_task(self._ask_snippet_name(location, body))
-
-        self.push_screen(  # type: ignore[attr-defined]
-            SnippetConfigLocationModal(locations),
-            _on_location,
-        )
-
-    async def _ask_snippet_name(
+    async def _write_snippet_target(
         self,
-        location: object,
+        target: UnifiedXPromptSaveResult,
         body: str,
     ) -> None:
         import asyncio
 
-        from ...modals import SnippetConfigLocation, SnippetNameModal
+        from sase.config import load_merged_config
+        from sase.xprompt.save_state import save_last_used_location
 
-        assert isinstance(location, SnippetConfigLocation)
-        existing_names = await asyncio.to_thread(existing_snippet_names, location.path)
-
-        def _on_name(name: str | None) -> None:
-            if name is None:
-                return
-            self._spawn_xprompt_save_task(self._write_snippet(location, name, body))
-
-        self.push_screen(  # type: ignore[attr-defined]
-            SnippetNameModal(
-                config_path=location.path,
-                display_path=location.display_path,
-                existing_names=existing_names,
-            ),
-            _on_name,
-        )
-
-    async def _write_snippet(
-        self,
-        location: object,
-        name: str,
-        body: str,
-    ) -> None:
-        import asyncio
-
-        from ...modals import SnippetConfigLocation
-
-        assert isinstance(location, SnippetConfigLocation)
         try:
-            await asyncio.to_thread(write_snippet_sync, location.path, name, body)
+            await asyncio.to_thread(write_snippet_sync, target.path, target.name, body)
+            await asyncio.to_thread(
+                save_last_used_location, "snippet", target.location_path
+            )
+            merged = await asyncio.to_thread(load_merged_config)
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to save snippet: {exc}",
@@ -98,29 +46,21 @@ class PromptBarSaveSnippetMixin(
             )
             return
 
+        verb = "Saved" if target.exists else "Created"
         self.notify(  # type: ignore[attr-defined]
-            f"Created snippet '{name}' in {location.display_path}"
+            f"{verb} snippet '{target.name}' in {target.display_path}"
         )
-        self._refresh_snippet_caches()
+        self._refresh_snippet_caches(merged)
         self._offer_git_commit(
-            location.path,
-            is_new=True,
-            xprompt_name=name,
+            target.path,
+            is_new=not target.exists,
+            xprompt_name=target.name,
             noun="snippet",
             commit_type="snippet",
         )
 
-    def _refresh_snippet_caches(self) -> None:
-        """Reload merged ``ace.snippets`` and drop the resolved snippet cache.
-
-        The merged-config cache invalidates itself by file mtime, so re-reading
-        it after the write picks up the new entry; we then refresh the app's
-        ``_user_snippets`` and clear ``_snippets_cache`` so the next
-        ``get_snippets()`` rebuilds with the new template.
-        """
-        from sase.config import load_merged_config
-
-        merged = load_merged_config()
+    def _refresh_snippet_caches(self, merged: object) -> None:
+        """Apply an already-loaded merged config to the in-memory caches."""
         ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
         raw = ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
         if isinstance(raw, dict):
@@ -140,12 +80,7 @@ class PromptBarSaveSnippetMixin(
 
 
 def existing_snippet_names(config_path: str) -> set[str]:
-    """Return the snippet triggers defined in *config_path* only.
-
-    Reads ``ace.snippets`` from the single selected YAML file (not the merged
-    config) so the name modal's "already defined" warning and overwrite behavior
-    reflect what writing to this file would actually replace.
-    """
+    """Return the snippet triggers defined in *config_path* only."""
     import yaml  # type: ignore[import-untyped]
 
     path = Path(config_path)

@@ -29,7 +29,7 @@ from sase.xprompt.loader import (
 from .base import FilterInput, OptionListNavigationMixin
 
 
-def _shorten_display_path(path: str, cwd: str, home: str) -> str:
+def shorten_xprompt_location_path(path: str, cwd: str, home: str) -> str:
     """Shorten a path for display in the location selector.
 
     Paths under CWD become ``./relative``.  Other home-relative paths use
@@ -342,7 +342,7 @@ class XPromptLocationModal(
             options.append(Option(header, id=f"__header__{group_label}", disabled=True))
             for loc in filtered:
                 text = Text()
-                display_path = _shorten_display_path(loc.path, cwd, home)
+                display_path = shorten_xprompt_location_path(loc.path, cwd, home)
                 exists = Path(loc.path).exists()
                 if loc.location_type == "directory":
                     text.append("  📁 ", style="bold")

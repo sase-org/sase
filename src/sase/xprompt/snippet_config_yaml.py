@@ -37,7 +37,7 @@ class _EntryBlock:
     end: int
 
 
-def _generate_snippet_yaml(name: str, template: str) -> list[str]:
+def generate_snippet_yaml(name: str, template: str) -> list[str]:
     """Generate YAML lines for one snippet entry.
 
     Returns lines for insertion under ``ace: -> snippets:`` (4-space indent for
@@ -249,7 +249,7 @@ def insert_snippet_into_config(
         file_text = ""
 
     lines = file_text.split("\n")
-    entry_lines = _generate_snippet_yaml(name, template)
+    entry_lines = generate_snippet_yaml(name, template)
 
     ace = _find_top_level_section(lines, "ace")
     if ace is None:
@@ -303,5 +303,6 @@ def insert_snippet_into_config(
 
 
 __all__ = [
+    "generate_snippet_yaml",
     "insert_snippet_into_config",
 ]

@@ -2069,8 +2069,8 @@ UnifiedXPromptSaveModal {
 }
 
 UnifiedXPromptSaveModal > Container {
-    width: 88%;
-    height: 75%;
+    width: 94%;
+    height: 86%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
@@ -2079,10 +2079,22 @@ UnifiedXPromptSaveModal > Container {
 UnifiedXPromptSaveModal #unified-save-title {
     text-style: bold;
     text-align: center;
+    height: 1;
+    margin-bottom: 1;
 }
 
-UnifiedXPromptSaveModal #unified-save-name {
-    margin: 1 0;
+UnifiedXPromptSaveModal .unified-save-field {
+    height: 3;
+}
+
+UnifiedXPromptSaveModal .unified-save-field-label {
+    width: 13;
+    color: $text-muted;
+    padding-top: 1;
+}
+
+UnifiedXPromptSaveModal .unified-save-field Input {
+    width: 1fr;
 }
 
 UnifiedXPromptSaveModal #unified-save-panels {
@@ -2090,25 +2102,57 @@ UnifiedXPromptSaveModal #unified-save-panels {
 }
 
 UnifiedXPromptSaveModal #unified-save-locations-panel {
-    width: 45%;
+    width: 44%;
+    padding-right: 1;
+}
+
+UnifiedXPromptSaveModal .unified-save-panel-title,
+UnifiedXPromptSaveModal #unified-save-preview-header {
+    height: 2;
+    text-style: bold;
+}
+
+UnifiedXPromptSaveModal #unified-save-locations {
+    height: 1fr;
+    border: solid $secondary;
 }
 
 UnifiedXPromptSaveModal #unified-save-preview-panel {
-    width: 55%;
+    width: 56%;
     border-left: solid $secondary;
     padding-left: 1;
 }
 
-UnifiedXPromptSaveModal #unified-save-status {
-    height: 2;
+UnifiedXPromptSaveModal #unified-save-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
 }
 
 UnifiedXPromptSaveModal #unified-save-preview {
-    height: 1fr;
-    overflow-y: auto;
+    height: auto;
+}
+
+UnifiedXPromptSaveModal #unified-save-verdict {
+    height: 2;
+    margin-top: 1;
+    text-style: bold;
+}
+
+UnifiedXPromptSaveModal .unified-save-verdict-success {
+    color: $success;
+}
+
+UnifiedXPromptSaveModal .unified-save-verdict-warning {
+    color: $warning;
+}
+
+UnifiedXPromptSaveModal .unified-save-verdict-error {
+    color: $error;
 }
 
 UnifiedXPromptSaveModal #unified-save-hints {
+    height: 1;
     color: $text-muted;
     text-align: center;
 }
@@ -4363,109 +4407,6 @@ XPromptLocationModal #location-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
-    margin-top: 1;
-}
-
-/* XPrompt save target selector modal styling */
-XPromptSaveTargetModal {
-    align: center middle;
-}
-
-XPromptSaveTargetModal > Container {
-    width: 92%;
-    height: 80%;
-    border: thick $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-XPromptSaveTargetModal #save-target-title {
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-XPromptSaveTargetModal #save-target-filter-input {
-    width: 100%;
-    margin-bottom: 1;
-}
-
-XPromptSaveTargetModal #save-target-panels {
-    width: 100%;
-    height: 1fr;
-}
-
-XPromptSaveTargetModal #save-target-list-panel {
-    width: 52;
-    height: 100%;
-}
-
-XPromptSaveTargetModal #save-target-list {
-    height: 1fr;
-    border: solid $secondary;
-}
-
-XPromptSaveTargetModal #save-target-preview-panel {
-    width: 1fr;
-    height: 100%;
-    margin-left: 1;
-}
-
-XPromptSaveTargetModal #save-target-preview-scroll {
-    height: 1fr;
-    border: solid $secondary;
-    padding: 0 1;
-}
-
-XPromptSaveTargetModal #save-target-preview {
-    height: auto;
-}
-
-XPromptSaveTargetModal #save-target-hints {
-    height: 1;
-    color: $text-muted;
-    text-align: center;
-    margin-top: 1;
-}
-
-/* XPrompt name input modal styling */
-XPromptNameModal {
-    align: center middle;
-}
-
-XPromptNameModal > Container {
-    width: 60;
-    height: auto;
-    border: thick $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-XPromptNameModal #xprompt-name-title {
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-XPromptNameModal #xprompt-name-location {
-    color: #87D7FF;
-    margin-bottom: 0;
-}
-
-XPromptNameModal #xprompt-name-hint {
-    color: $text-muted;
-    margin-bottom: 1;
-}
-
-XPromptNameModal #xprompt-name-input {
-    width: 100%;
-}
-
-XPromptNameModal #xprompt-name-note {
-    color: #FFD700;
-    margin-top: 1;
-}
-
-XPromptNameModal #xprompt-name-error {
-    color: $error;
     margin-top: 1;
 }
 
