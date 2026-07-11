@@ -271,7 +271,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
         Scans xprompt, prompt, and chat sections for file paths and
         inserts numbered ``[N]`` markers.  Returns the hint mappings so
-        the caller can process user selections.
+        the caller can process user selections.  Advancing the detail
+        generation first prevents deferred work from the preceding plain
+        render from replacing the annotated prompt.
 
         Args:
             agent: The Agent to display with hints.
@@ -279,6 +281,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Returns:
             File hint mappings and deferred tool-call report specs.
         """
+        self._agent_detail_generation += 1
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         return prompt_panel.update_display_with_hints(agent)
 

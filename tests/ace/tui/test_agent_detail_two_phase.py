@@ -3,8 +3,8 @@
 The debounced agent-list refresh should update the detail prompt header
 immediately (cheap, no workers) and defer file/tools/diff worker
 spawns until the j/k burst settles.  Each ``update_display`` /
-``update_display_immediate`` call bumps the monotonic generation token
-so debounced workers can drop stale results.
+``update_display_immediate`` / ``update_display_with_hints`` call bumps the
+monotonic generation token so debounced workers can drop stale results.
 """
 
 from __future__ import annotations
@@ -15,6 +15,9 @@ from typing import Any
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
+from sase.ace.tui.widgets.agent_detail import AgentDetail
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import AgentHintRender
 
 
 @dataclass
@@ -84,6 +87,63 @@ class _FakeAgentDetail:
 class _FooterWidget:
     def update_agent_bindings(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         return
+
+
+class _GenerationPromptPanel:
+    def __init__(self, detail: AgentDetail) -> None:
+        self.detail = detail
+        self.attempt_view_mode = ""
+        self.attempt_pinned_number: int | None = None
+        self.render_context: dict[str, Any] = {}
+        self.hint_render_generations: list[int] = []
+
+    def set_agent_detail_render_context(self, **context: Any) -> None:
+        self.render_context = context
+
+    def update_display(self, _agent: Agent) -> None:
+        return
+
+    def update_display_with_hints(self, _agent: Agent) -> AgentHintRender:
+        self.hint_render_generations.append(self.detail._agent_detail_generation)
+        return AgentHintRender(file_hints={}, tool_call_reports={})
+
+
+class _SecondaryPanel:
+    def update_display(self, *_args: Any, **_kwargs: Any) -> None:
+        return
+
+
+class _Scroll:
+    def add_class(self, _name: str) -> None:
+        return
+
+
+def _detail_with_generation_context() -> tuple[AgentDetail, _GenerationPromptPanel]:
+    detail = AgentDetail.__new__(AgentDetail)
+    detail._current_agent = None
+    detail._current_attempt_number = None
+    detail._attempt_view_mode = "merged"
+    detail._agent_detail_generation = 7
+    detail._panel_mode = DetailPanelMode.AUTO
+    detail._has_file_content = False
+    detail._has_tools_content = False
+    detail._update_panel_indicators = lambda: None  # type: ignore[method-assign]
+    prompt_panel = _GenerationPromptPanel(detail)
+    file_panel = _SecondaryPanel()
+    tools_panel = _SecondaryPanel()
+    scroll = _Scroll()
+
+    def query_one(selector: str, _type: object) -> object:
+        if selector == "#agent-prompt-panel":
+            return prompt_panel
+        if selector == "#agent-file-panel":
+            return file_panel
+        if selector == "#agent-tools-panel":
+            return tools_panel
+        return scroll
+
+    detail.query_one = query_one  # type: ignore[method-assign]
+    return detail, prompt_panel
 
 
 class _Container:
@@ -212,3 +272,23 @@ def test_generation_token_increments_per_phase() -> None:
     app._fire_debounced_detail_update()
     # Full update path also bumps the generation.
     assert app.detail_widget._agent_detail_generation == start + 3
+
+
+def test_hint_render_advances_generation_and_rejects_prior_render_context() -> None:
+    detail, prompt_panel = _detail_with_generation_context()
+    agent = _make_agent("agent_0")
+    detail._update_display_impl(agent)
+    is_current = prompt_panel.render_context["is_current"]
+
+    assert is_current(agent.identity, 7, "merged", None)
+
+    detail.update_display_with_hints(agent)
+
+    assert detail._agent_detail_generation == 8
+    assert prompt_panel.hint_render_generations == [8]
+    assert not is_current(agent.identity, 7, "merged", None)
+
+    detail.update_display_with_hints(agent)
+
+    assert detail._agent_detail_generation == 9
+    assert prompt_panel.hint_render_generations == [8, 9]
