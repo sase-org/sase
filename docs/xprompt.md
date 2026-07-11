@@ -1619,18 +1619,24 @@ deactivate/apply path. The panel also auto-shows when ACE has lifted leading fro
 multi-agent prompt load or an editor-file return from a ` @` review marker / whole-stack `Ctrl+G`. A single prompt
 recalled from history with leading frontmatter but no segment separator stays one verbatim pane instead of auto-opening
 the panel. Typing `---` in the prompt body is passive during live editing: at the very start it stays literal text, and
-after content it does not split the active pane. Add a top-level property with `a` (a picker sourced from the same core
-schema that backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, and use `R` for a
-live-validated raw-YAML escape hatch. The panel owns the canonical YAML it serializes back onto the prompt, so the
-multi-agent launch path is unchanged.
+after content it does not split the active pane. Add a top-level property with `a` (an inline picker sourced from the
+same core schema that backs the editor LSP), edit scalar/list fields inline, delete a field with `d`, undo the latest
+mutation with `u`, and use `R` for a live-validated raw-YAML escape hatch. In raw mode, `Ctrl+C` explicitly discards an
+unparseable buffer. Unknown frontmatter keys remain visible as raw-only rows and survive structured round trips.
 
 The structured `input` and `xprompts` fields render as foldable sub-trees (`h`/`l`): navigate into them with `j`/`k`,
-then `A`/`e`/`d` (or `enter`) add, edit, and delete individual items through small typed sub-form modals. The input
-editor offers a `name`, a core-validated `type` (with its one-line rule shown inline), an optional `default` (blank
-means required), and a `description`; the xprompts editor offers a `_`-prefixed `name` (validated by the same underscore
-rule the launch path enforces), `content`, a compact `name:type[=default]` inputs field, and a `description`. A
-`#_helper` declared here lights up `<ctrl+t>`/`<ctrl+l>` completion and argument hints in every prompt pane exactly like
-a global xprompt — define a helper in the panel and it is instantly usable below.
+use `o`/`A` to insert a ghost row, `e`/`enter` to edit an item in place, `d` to delete, and `J`/`K` to reorder. Cell
+editing uses `Tab`/`Shift+Tab`; `Enter` commits while remaining in the panel. Input types cycle through the core type
+catalog and defaults are live-coerced. Local-helper content uses a bounded multiline editor in the panel. A `#_helper`
+declared here lights up `<ctrl+t>`/`<ctrl+l>` completion and argument hints in every prompt pane exactly like a global
+xprompt — define a helper in the panel and it is instantly usable below.
+
+ACE can also author existing definitions without `$EDITOR`. In the XPrompt Browser, `Enter` loads a simple Markdown or
+config-backed definition as raw body plus structured frontmatter; `E` keeps the external-editor path, and YAML workflow
+graphs remain editor-only. A loaded definition is bound to its source: the prompt title shows the source and a dirty
+dot, `gw` writes it atomically, and an external-change conflict offers overwrite, reload, or save-as. `gd` on a `#name`
+reference loads that definition after stashing the current draft. `gx` is a one-screen save-as view with name, location,
+resolved path, and a live collision/overwrite preview.
 
 ### Frontmatter-Defined Local XPrompts
 

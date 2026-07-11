@@ -22,11 +22,14 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         RestoreRequested: Any
         UpdatePinnedRequested: Any
         SaveAsXpromptRequested: Any
+        WriteXpromptRequested: Any
         _mode: str
         _stack: PromptStackState
 
         def _clear_active_completion_state(self) -> None: ...
-        def load_stack_from_xprompt_markdown(self, text: str) -> None: ...
+        def load_stack_from_xprompt_markdown(
+            self, text: str, *, binding: object | None = None
+        ) -> None: ...
         def _rebuild_stack(self, enter_mode: str | None = None) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
@@ -105,6 +108,11 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         """
         if self._mode != "prompt":
             return
+        if self._stack.binding is not None:
+            self.app.notify(
+                "Stash saved without xprompt binding; restore will use save-as",
+                severity="warning",
+            )
         panes = self.capture_stashable_panes()
         if not panes:
             self.post_message(self.Stashed([], source="all", dismiss_bar=False))
@@ -112,7 +120,9 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         self._clear_active_completion_state()
         self.post_message(self.Stashed(panes, source="all", dismiss_bar=True))
 
-    def stash_all_and_load_xprompt_markdown(self, markdown: str) -> None:
+    def stash_all_and_load_xprompt_markdown(
+        self, markdown: str, *, binding: object | None = None
+    ) -> None:
         """Stash the whole bar as one bundle, then load *markdown* in its place."""
         if self._mode != "prompt":
             return
@@ -120,7 +130,12 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if panes:
             self._clear_active_completion_state()
             self.post_message(self.Stashed(panes, source="all", dismiss_bar=False))
-        self.load_stack_from_xprompt_markdown(markdown)
+        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+
+        self.load_stack_from_xprompt_markdown(
+            markdown,
+            binding=binding if isinstance(binding, XPromptBinding) else None,
+        )
 
     def request_update_pinned_stash(self) -> None:
         """Ask the app to update a pinned stash from the current prompt stack."""
@@ -148,9 +163,24 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             self._clear_active_completion_state()
         self.post_message(
             self.SaveAsXpromptRequested(
-                panes, single_pane=single_pane, snippet_body=snippet_body
+                panes,
+                single_pane=single_pane,
+                snippet_body=snippet_body,
+                origin_bar=self,
             )
         )
+
+    def request_write_xprompt(self) -> None:
+        """Write the bound definition, or fall through to save-as when unbound."""
+        if self._mode != "prompt":
+            return
+        self._sync_state_from_widgets()
+        binding = self._stack.binding
+        if binding is None:
+            self.request_save_as_xprompt()
+            return
+        panes = self.capture_stashable_panes()
+        self.post_message(self.WriteXpromptRequested(panes, binding, self))
 
     def request_open_prompt_stash(self) -> None:
         """Ask the app to open the unified prompt-stash panel.

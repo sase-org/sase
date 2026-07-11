@@ -1,281 +1,78 @@
-"""Widget-level tests for the ``gX`` / ``Ctrl+G X`` local-xprompt conversion.
-
-The prompt-local ``gX`` (NORMAL) / ``Ctrl+G X`` (INSERT) keymap turns the active
-prompt pane into a local ``xprompts:`` helper stored in the bar's shared
-frontmatter, then replaces that pane with an invocation of the helper.  These
-tests drive the whole flow through the real name modal and assert the resulting
-frontmatter and pane text, including the no-op / unchanged paths.
-"""
+"""Prompt-pane conversion through the panel ghost-row flow."""
 
 from __future__ import annotations
 
-from typing import Any
-
 from textual.app import App, ComposeResult
 
-from sase.ace.tui.modals.local_xprompt_name_modal import LocalXPromptNameModal
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.xprompt.models import InputType
-from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 
 class _ConvertApp(App[None]):
-    """Hosts a prompt bar and records notifications."""
-
     ENABLE_COMMAND_PALETTE = False
 
     def __init__(
-        self,
-        initial_value: str = "",
-        *,
-        mode: str = "prompt",
-        initial_xprompt_markdown: str | None = None,
+        self, initial_value: str = "", *, initial_xprompt_markdown: str | None = None
     ) -> None:
         super().__init__()
         self._initial_value = initial_value
-        self._mode = mode
-        self._initial_xprompt_markdown = initial_xprompt_markdown
-        self.notifications: list[tuple[str, str]] = []
+        self._markdown = initial_xprompt_markdown
 
     def compose(self) -> ComposeResult:
         yield PromptInputBar(
             initial_value=self._initial_value,
-            mode=self._mode,
-            initial_xprompt_markdown=self._initial_xprompt_markdown,
+            initial_xprompt_markdown=self._markdown,
             id="prompt-input-bar",
         )
 
-    def notify(self, message: str, **kwargs: Any) -> None:  # type: ignore[override]
-        self.notifications.append((message, kwargs.get("severity", "information")))
+
+async def _open_ghost(
+    app: _ConvertApp, pilot: object
+) -> tuple[PromptInputBar, FrontmatterPanel]:
+    bar = app.query_one(PromptInputBar)
+    await pilot.press("escape", "g", "X")  # type: ignore[attr-defined]
+    await pilot.pause()  # type: ignore[attr-defined]
+    panel = app.query_one(FrontmatterPanel)
+    assert panel._cell_edit is not None and panel._cell_edit.ghost
+    return bar, panel
 
 
-async def _open_convert_modal(
-    pilot: Any,
-    app: _ConvertApp,
-    *,
-    via_ctrl_g: bool = False,
-) -> LocalXPromptNameModal | None:
-    """Trigger ``gX`` / ``Ctrl+G X`` and return the pushed name modal, if any."""
-    if via_ctrl_g:
-        # INSERT-mode Ctrl+G X.
-        await pilot.press("ctrl+g", "X")
-    else:
-        # NORMAL-mode gX.
-        await pilot.press("escape", "g", "X")
-    await pilot.pause()
-    await pilot.pause()
-    screen = app.screen
-    return screen if isinstance(screen, LocalXPromptNameModal) else None
-
-
-async def _submit_name(pilot: Any, modal: LocalXPromptNameModal, name: str) -> None:
-    """Type *name* into the modal and submit it."""
-    modal.query_one("#local-xprompt-name-input", SingleLineVimTextArea).text = name
-    await pilot.pause()
-    await pilot.press("enter")
-    await pilot.pause()
-    await pilot.pause()
-
-
-# -- happy paths ------------------------------------------------------------
-
-
-async def test_gx_converts_pane_and_adds_local_xprompt() -> None:
+async def test_gx_prefills_body_and_commits_invocation() -> None:
     app = _ConvertApp("Do the thing")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is not None
-        await _submit_name(pilot, modal, "rules")
-
-        model = PromptFrontmatter.parse(bar._stack.frontmatter)
-        assert "_rules" in model.xprompts
-        assert model.xprompts["_rules"].content == "Do the thing"
-        assert model.xprompts["_rules"].inputs == []
-        # No inputs -> bare reference, NORMAL-mode target preserved.
-        assert bar.active_text() == "#_rules"
-        assert bar.active_text_area()._vim_mode == "normal"
+    async with app.run_test(size=(100, 32)) as pilot:
+        bar, panel = await _open_ghost(app, pilot)
+        assert panel._cell_edit.values["content"] == "Do the thing"
+        panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "rules"
+        panel._commit_cell_edit()
+        assert panel.model.xprompts["_rules"].content == "Do the thing"
+        assert bar.active_text_area().text == "#_rules"
 
 
-async def test_ctrl_g_x_converts_pane_from_insert_mode() -> None:
-    app = _ConvertApp("Do the thing")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        # Bar mounts in INSERT mode; reach the conversion via Ctrl+G X.
-        assert bar.active_text_area()._vim_mode == "insert"
-
-        modal = await _open_convert_modal(pilot, app, via_ctrl_g=True)
-        assert modal is not None
-        await _submit_name(pilot, modal, "rules")
-
-        model = PromptFrontmatter.parse(bar._stack.frontmatter)
-        assert "_rules" in model.xprompts
-        assert bar.active_text() == "#_rules"
-
-
-async def test_gx_with_jinja_infers_text_inputs_and_named_arg_skeleton() -> None:
+async def test_gx_infers_jinja_inputs() -> None:
     app = _ConvertApp("Review {{ topic }} carefully")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is not None
-        await _submit_name(pilot, modal, "rules")
-
-        model = PromptFrontmatter.parse(bar._stack.frontmatter)
-        helper = model.xprompts["_rules"]
-        assert [arg.name for arg in helper.inputs] == ["topic"]
-        assert helper.inputs[0].type is InputType.TEXT
-
-        text_area = bar.active_text_area()
-        # Named-argument invocation with snippet tabstops, left in INSERT mode.
-        assert text_area.text == "#_rules(topic=)"
-        assert text_area._vim_mode == "insert"
-        assert text_area._snippet_tabstops  # remaining tabstop(s) pending
+    async with app.run_test(size=(100, 32)) as pilot:
+        bar, panel = await _open_ghost(app, pilot)
+        assert panel._cell_edit.values["inputs"] == "topic:text"
+        panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "review"
+        panel._commit_cell_edit()
+        assert "#_review(topic=" in bar.active_text_area().text
 
 
-async def test_gx_does_not_infer_known_globals_as_inputs() -> None:
-    app = _ConvertApp("Path is {{ root }}")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is not None
-        await _submit_name(pilot, modal, "rules")
-
-        helper = PromptFrontmatter.parse(bar._stack.frontmatter).xprompts["_rules"]
-        assert helper.inputs == []
-        assert bar.active_text() == "#_rules"
-
-
-# -- multi-pane + preservation ----------------------------------------------
-
-
-async def test_gx_only_changes_active_pane_in_multi_pane_stack() -> None:
-    app = _ConvertApp("first pane\n---\nsecond {{ topic }}")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        assert len(bar._stack) == 2
-        # The bottom pane is active by default.
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is not None
-        await _submit_name(pilot, modal, "rules")
-
-        bar._sync_state_from_widgets()
-        texts = bar._stack.texts
-        assert texts[0] == "first pane"
-        assert texts[1] == "#_rules(topic=)"
-        assert "_rules" in PromptFrontmatter.parse(bar._stack.frontmatter).xprompts
-
-
-async def test_gx_preserves_existing_frontmatter_and_local_xprompts() -> None:
-    markdown = (
-        "---\nname: my prompt\nxprompts:\n  _existing: old helper\n---\nBrand new body"
-    )
+async def test_gx_preserves_existing_helpers() -> None:
+    markdown = "---\nxprompts:\n  _existing: old helper\n---\nBrand new body"
     app = _ConvertApp(initial_xprompt_markdown=markdown)
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is not None
-        await _submit_name(pilot, modal, "fresh")
-
-        model = PromptFrontmatter.parse(bar._stack.frontmatter)
-        assert model.name == "my prompt"
-        assert model.xprompts["_existing"].content == "old helper"
-        assert model.xprompts["_fresh"].content == "Brand new body"
-        assert bar.active_text() == "#_fresh"
+    async with app.run_test(size=(100, 32)) as pilot:
+        _bar, panel = await _open_ghost(app, pilot)
+        panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = "new"
+        panel._commit_cell_edit()
+        assert list(panel.model.xprompts) == ["_existing", "_new"]
 
 
-# -- no-op / unchanged paths ------------------------------------------------
-
-
-async def test_gx_blank_pane_warns_and_makes_no_change() -> None:
-    app = _ConvertApp("")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is None  # no name modal pushed for a blank pane
-        assert bar._stack.frontmatter == ""
-        assert any(sev == "warning" for _msg, sev in app.notifications)
-
-
-async def test_gx_invalid_jinja_warns_and_makes_no_change() -> None:
-    app = _ConvertApp("Broken {{ unclosed")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is None
-        assert bar._stack.frontmatter == ""
-        assert bar.active_text() == "Broken {{ unclosed"
-        assert any(sev == "warning" for _msg, sev in app.notifications)
-
-
-async def test_gx_duplicate_name_is_rejected_without_overwrite() -> None:
-    markdown = "---\nxprompts:\n  _rules: original helper\n---\nReplacement body"
-    app = _ConvertApp(initial_xprompt_markdown=markdown)
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is not None
-        await _submit_name(pilot, modal, "rules")  # normalizes to _rules (dup)
-
-        # The modal stays open (no dismiss) and nothing was overwritten.
-        assert isinstance(app.screen, LocalXPromptNameModal)
-        helper = PromptFrontmatter.parse(bar._stack.frontmatter).xprompts["_rules"]
-        assert helper.content == "original helper"
-
-
-async def test_gx_cancel_leaves_everything_unchanged() -> None:
+async def test_gx_cancel_leaves_body_unchanged() -> None:
     app = _ConvertApp("Do the thing")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is not None
-        await pilot.press("escape", "escape")  # INSERT -> NORMAL, then cancel
-        await pilot.pause()
-        await pilot.pause()
-
-        assert not isinstance(app.screen, LocalXPromptNameModal)
-        assert bar._stack.frontmatter == ""
-        assert bar.active_text() == "Do the thing"
-
-
-async def test_gx_in_feedback_mode_is_a_noop() -> None:
-    app = _ConvertApp("plan note", mode="feedback")
-
-    async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-
-        modal = await _open_convert_modal(pilot, app)
-        assert modal is None
-        assert bar.active_text() == "plan note"
-        assert bar._stack.frontmatter == ""
+    async with app.run_test(size=(100, 32)) as pilot:
+        bar, panel = await _open_ghost(app, pilot)
+        panel._cancel_active_edit()
+        assert bar.active_text_area().text == "Do the thing"
+        assert panel.model.xprompts == {}

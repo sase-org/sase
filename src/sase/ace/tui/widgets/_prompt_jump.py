@@ -40,7 +40,7 @@ class PromptJumpMixin(_MixinBase):
         def _preview_context(self) -> tuple[str | None, str]: ...
         def _refocus_if_needed(self) -> None: ...
 
-    def _jump_to_definition_under_cursor(self) -> None:
+    def _jump_to_definition_under_cursor(self, *, prefer_load: bool = False) -> None:
         """Resolve and present jump actions for the token under the cursor."""
         offset = self._absolute_offset(self.cursor_location)
         token = detect_jump_target_at_cursor(self.text, offset)
@@ -60,6 +60,7 @@ class PromptJumpMixin(_MixinBase):
                 project=project,
                 base_dir=base_dir,
                 request_id=request_id,
+                prefer_load=prefer_load,
             ),
             name=f"prompt-jump:{request_id}",
         )
@@ -71,6 +72,7 @@ class PromptJumpMixin(_MixinBase):
         project: str | None,
         base_dir: str,
         request_id: int,
+        prefer_load: bool = False,
     ) -> None:
         try:
             payload = await asyncio.to_thread(
@@ -90,7 +92,20 @@ class PromptJumpMixin(_MixinBase):
 
         if request_id != self._prompt_jump_request_id or not self.is_mounted:
             return
+        if prefer_load:
+            if payload.loadable_markdown is None:
+                self.notify(
+                    "This workflow definition is preview/editor-only",
+                    severity="warning",
+                )
+                return
+            self._load_jump_target_into_prompt(payload)
+            return
         self._present_jump_actions(payload)
+
+    def _edit_definition_under_cursor(self) -> None:
+        """Resolve ``gd`` directly into the in-place authoring surface."""
+        self._jump_to_definition_under_cursor(prefer_load=True)
 
     def _present_jump_actions(self, payload: JumpTarget) -> None:
         choices = self._jump_action_choices(payload)
@@ -185,7 +200,46 @@ class PromptJumpMixin(_MixinBase):
         if not callable(load):
             self.notify("Prompt input bar cannot load this target", severity="error")
             return
-        load(payload.loadable_markdown)
+        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+        from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+
+        binding = None
+        if payload.is_editable:
+            try:
+                if (
+                    payload.source_id
+                    and payload.source_id
+                    in {
+                        "config",
+                        "local_config",
+                        "default_config",
+                    }
+                    or (
+                        payload.source_id
+                        and payload.source_id.startswith(
+                            (
+                                "config_overlay:",
+                                "project_local_config:",
+                                "plugin_config:",
+                            )
+                        )
+                    )
+                ):
+                    binding = XPromptBinding.for_config(
+                        payload.source_path, payload.definition_name or ""
+                    )
+                else:
+                    binding = XPromptBinding.for_file(payload.source_path)
+            except OSError:
+                binding = None
+        load(payload.loadable_markdown, binding=binding)
+        if not payload.is_editable:
+            self.notify("Read-only source — gw will save-as", severity="warning")
+        if PromptFrontmatter.parse(payload.loadable_markdown).has_comments:
+            self.notify(
+                "Frontmatter comments cannot survive structured save; inspect raw mode",
+                severity="warning",
+            )
         self._refocus_if_needed()
 
 

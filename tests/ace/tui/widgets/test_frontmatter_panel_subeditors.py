@@ -1,16 +1,9 @@
-"""Structured ``input`` / ``xprompts`` sub-editing in the Frontmatter Panel (Phase 4).
-
-Covers navigating into the unfolded sub-trees and the ``A`` / ``e`` / ``d``
-(and ``enter``) routing into the sub-form modals, with the results applied back
-onto the panel model and persisted onto the prompt stack's frontmatter string.
-"""
+"""Cell-strip editing for frontmatter structured items."""
 
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
-from sase.ace.tui.modals.input_item_modal import InputItemModal
-from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
@@ -37,220 +30,73 @@ async def _open_panel(pilot: object, app: _PromptBarApp) -> FrontmatterPanel:
     return app.query_one(FrontmatterPanel)
 
 
-# --- navigation into sub-items ---------------------------------------------
-
-
-async def test_jk_navigates_into_input_subtree() -> None:
-    """``j`` steps from the ``input`` header into its sub-items."""
-    app = _PromptBarApp("---\ninput:\n  service: word\n---\nfirst\n---\nsecond")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
+async def test_add_input_uses_ghost_cells_and_stays_in_panel() -> None:
+    app = _PromptBarApp("---\ninput:\n  service: word\n---\nbody")
+    async with app.run_test(size=(100, 32)) as pilot:
         panel = await _open_panel(pilot, app)
+        await pilot.press("o")
+        assert panel._cell_edit is not None and panel._cell_edit.ghost
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        editor.text = "dry_run"
+        panel._move_cell(1)
+        editor.text = "bool"
+        panel._move_cell(1)
+        editor.text = "false"
+        panel._commit_cell_edit()
 
-        assert panel._selected_nav() == ("field", "input")
-        await pilot.press("j")
-        await pilot.pause()
-        assert panel._selected_nav() == ("input", "service")
-
-
-# --- add via header / picker -----------------------------------------------
-
-
-async def test_add_input_item_via_header_modal() -> None:
-    """``A`` on the ``input`` header opens the modal; saving adds the item."""
-    app = _PromptBarApp("---\ninput:\n  service: word\n---\nfirst\n---\nsecond")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        panel = await _open_panel(pilot, app)
-
-        await pilot.press("A")  # header selected -> add item
-        await pilot.pause()
-        await pilot.pause()
-        modal = app.screen
-        assert isinstance(modal, InputItemModal)
-        modal.query_one("#input-item-name", SingleLineVimTextArea).text = "dry_run"
-        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "bool"
-        modal.query_one("#input-item-default", SingleLineVimTextArea).text = "false"
-        await pilot.pause()
-        modal.action_save()
-        await pilot.pause()
-        await pilot.pause()
-
-        names = [arg.name for arg in panel.model.inputs]
-        assert names == ["service", "dry_run"]
         dry_run = panel.model.get_input("dry_run")
         assert dry_run is not None and dry_run.default is False
-        assert "dry_run" in bar._stack.frontmatter
-        assert bar._frontmatter_panel_visible()
-        assert app.focused is bar.active_text_area()
-        assert bar.active_text_area()._vim_mode == "insert"
-
-
-async def test_add_xprompt_item_via_header_modal() -> None:
-    """``A`` on the ``xprompts`` header opens the local helper modal."""
-    app = _PromptBarApp(
-        "---\nxprompts:\n  _rules: Follow the checklist\n---\nfirst\n---\nsecond"
-    )
-
-    async with app.run_test(size=(80, 30)) as pilot:
+        assert panel._edit_mode == "rows"
         await pilot.pause()
-        panel = await _open_panel(pilot, app)
-
-        assert panel._selected_nav() == ("field", "xprompts")
-        await pilot.press("A")
-        await pilot.pause()
-        await pilot.pause()
-
-        assert isinstance(app.screen, XPromptItemModal)
-
-
-async def test_begin_add_structured_field_opens_modal() -> None:
-    """Picking ``xprompts`` from the add-property flow opens its sub-form."""
-    app = _PromptBarApp("")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        panel = await _open_panel(pilot, app)
-
-        # ``xprompts`` is offered by the core-schema picker now.
-        assert "xprompts" in [
-            descriptor.name for descriptor in panel.addable_properties()
-        ]
-
-        panel.begin_add("xprompts")
-        await pilot.pause()
-        await pilot.pause()
-        modal = app.screen
-        assert isinstance(modal, XPromptItemModal)
-        modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = "_rules"
-        modal.query_one(
-            "#xprompt-item-content", VimTextArea
-        ).text = "Follow the checklist"
-        await pilot.pause()
-        modal.action_save()
-        await pilot.pause()
-        await pilot.pause()
-
-        assert "_rules" in panel.model.xprompts
-        assert "_rules" in bar._stack.frontmatter
-        assert bar._frontmatter_panel_visible()
-        assert app.focused is bar.active_text_area()
-        assert bar.active_text_area()._vim_mode == "insert"
-        # The freshly authored helper is immediately usable for completion.
-        assert [e.name for e in bar.local_xprompt_assist_entries()] == ["_rules"]
-
-
-async def test_cancel_input_item_modal_returns_focus_to_panel() -> None:
-    """Cancelling a structured sub-form leaves row navigation in the panel."""
-    app = _PromptBarApp("---\ninput:\n  service: word\n---\nfirst\n---\nsecond")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        panel = await _open_panel(pilot, app)
-
-        await pilot.press("A")  # header selected -> add item
-        await pilot.pause()
-        await pilot.pause()
-        modal = app.screen
-        assert isinstance(modal, InputItemModal)
-        modal.action_cancel()
-        await pilot.pause()
-        await pilot.pause()
-
         assert app.focused is panel
+
+
+async def test_edit_input_type_uses_core_catalog() -> None:
+    app = _PromptBarApp("---\ninput:\n  service: word\n---\nbody")
+    async with app.run_test(size=(100, 32)) as pilot:
+        panel = await _open_panel(pilot, app)
+        await pilot.press("j", "e")
+        assert panel._cell_edit is not None
+        panel._move_cell(1)
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        editor.text = "int"
+        panel._commit_cell_edit()
+        assert panel.model.get_input("service").type is InputType.INT  # type: ignore[union-attr]
+
+
+async def test_reorder_and_undo_input_items() -> None:
+    app = _PromptBarApp("---\ninput:\n  a: word\n  b: int\n---\nbody")
+    async with app.run_test(size=(100, 32)) as pilot:
+        panel = await _open_panel(pilot, app)
+        await pilot.press("j", "J")
+        assert [arg.name for arg in panel.model.inputs] == ["b", "a"]
+        await pilot.press("u")
+        assert [arg.name for arg in panel.model.inputs] == ["a", "b"]
+
+
+async def test_xprompt_content_uses_bounded_multiline_editor() -> None:
+    app = _PromptBarApp("")
+    async with app.run_test(size=(100, 34)) as pilot:
+        panel = await _open_panel(pilot, app)
+        panel.begin_add("xprompts")
+        editor = panel.query_one("#frontmatter-inline", SingleLineVimTextArea)
+        editor.text = "rules"
+        panel._move_cell(1)
+        panel._move_cell(1)
+        panel._move_cell(1)
+        assert panel._edit_mode == "content"
+        content = panel.query_one("#frontmatter-content", VimTextArea)
+        content.text = "line one\nline two"
+        panel._commit_cell_edit()
+        assert panel.model.xprompts["_rules"].content == "line one\nline two"
         assert panel._edit_mode == "rows"
 
 
-async def test_cancel_xprompt_item_modal_returns_focus_to_panel() -> None:
-    """Cancelling a new xprompt sub-form leaves the panel active."""
+async def test_cancel_ghost_does_not_add_item() -> None:
     app = _PromptBarApp("")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
+    async with app.run_test(size=(100, 32)) as pilot:
         panel = await _open_panel(pilot, app)
-
-        panel.begin_add("xprompts")
-        await pilot.pause()
-        await pilot.pause()
-        modal = app.screen
-        assert isinstance(modal, XPromptItemModal)
-        modal.action_cancel()
-        await pilot.pause()
-        await pilot.pause()
-
-        assert app.focused is panel
-        assert panel._edit_mode == "rows"
-
-
-# --- edit / delete sub-items -----------------------------------------------
-
-
-async def test_edit_input_subitem_updates_model() -> None:
-    """``e`` on a sub-item edits it through the modal and persists the change."""
-    app = _PromptBarApp("---\ninput:\n  service: word\n---\nfirst\n---\nsecond")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        panel = await _open_panel(pilot, app)
-
-        await pilot.press("j")  # select the ``service`` sub-item
-        await pilot.pause()
-        await pilot.press("e")
-        await pilot.pause()
-        await pilot.pause()
-        modal = app.screen
-        assert isinstance(modal, InputItemModal)
-        # Prefilled from the existing input.
-        assert (
-            modal.query_one("#input-item-name", SingleLineVimTextArea).text == "service"
-        )
-        modal.query_one("#input-item-type", SingleLineVimTextArea).text = "line"
-        await pilot.pause()
-        modal.action_save()
-        await pilot.pause()
-        await pilot.pause()
-
-        service = panel.model.get_input("service")
-        assert service is not None and service.type is InputType.LINE
-        assert "service" in bar._stack.frontmatter
-
-
-async def test_delete_input_subitem_removes_only_that_item() -> None:
-    """``d`` on a sub-item deletes just that input, keeping the rest."""
-    app = _PromptBarApp("---\ninput:\n  a: word\n  b: int\n---\nfirst\n---\nsecond")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        panel = await _open_panel(pilot, app)
-
-        await pilot.press("j")  # select sub-item ``a``
-        await pilot.pause()
-        assert panel._selected_nav() == ("input", "a")
-        await pilot.press("d")
-        await pilot.pause()
-
-        assert [arg.name for arg in panel.model.inputs] == ["b"]
-
-
-async def test_delete_last_input_removes_whole_field() -> None:
-    """Deleting the only input item drops the ``input`` field entirely."""
-    app = _PromptBarApp("---\ninput:\n  service: word\n---\nfirst\n---\nsecond")
-
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        bar = app.query_one(PromptInputBar)
-        panel = await _open_panel(pilot, app)
-
-        await pilot.press("j")  # select the single sub-item
-        await pilot.pause()
-        await pilot.press("d")
-        await pilot.pause()
-
+        panel.begin_add("input")
+        panel._cancel_active_edit()
         assert panel.model.inputs == []
-        assert "input" not in panel.model.present_fields()
-        assert "input" not in bar._stack.frontmatter
+        assert panel.model.is_empty

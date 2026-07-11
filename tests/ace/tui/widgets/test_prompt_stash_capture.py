@@ -14,11 +14,9 @@ from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
-from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 
@@ -84,13 +82,12 @@ async def _add_local_xprompt_from_panel(
     await pilot.pause()  # type: ignore[attr-defined]
     await pilot.pause()  # type: ignore[attr-defined]
 
-    modal = app.screen
-    assert isinstance(modal, XPromptItemModal)
-    modal.query_one("#xprompt-item-name", SingleLineVimTextArea).text = name
-    modal.query_one("#xprompt-item-content", VimTextArea).text = content
+    assert panel._cell_edit is not None and panel._cell_edit.ghost
+    panel.query_one("#frontmatter-inline", SingleLineVimTextArea).text = name
+    panel._cell_edit.values["content"] = content
+    panel._commit_cell_edit()
     await pilot.pause()  # type: ignore[attr-defined]
-    modal.action_save()
-    await pilot.pause()  # type: ignore[attr-defined]
+    await pilot.press("q")  # commit symmetry keeps the panel active until done
     await pilot.pause()  # type: ignore[attr-defined]
 
 

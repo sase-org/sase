@@ -10,6 +10,7 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_models import StashedPromptPan
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+    from sase.ace.tui.widgets.prompt_stack import XPromptBinding
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 
@@ -148,11 +149,28 @@ class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
         *,
         single_pane: bool = False,
         snippet_body: str | None = None,
+        origin_bar: PromptInputBar | None = None,
     ) -> None:
         super().__init__()
         self.panes = panes
         self.single_pane = single_pane
         self.snippet_body = snippet_body
+        self.origin_bar = origin_bar
+
+
+class WriteXpromptRequested(Message, namespace="prompt_input_bar"):
+    """Request a conflict-checked write to the stack's bound source."""
+
+    def __init__(
+        self,
+        panes: list[StashedPromptPane],
+        binding: XPromptBinding,
+        origin_bar: PromptInputBar,
+    ) -> None:
+        super().__init__()
+        self.panes = panes
+        self.binding = binding
+        self.origin_bar = origin_bar
 
 
 class EditorRequested(Message, namespace="prompt_input_bar"):

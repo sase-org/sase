@@ -7,6 +7,8 @@ accessors/mutators, and the core-backed diagnostics hook.  No Textual.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.xprompt.loader_parsing import LocalXPromptNameError
@@ -101,9 +103,36 @@ def test_is_empty_reflects_set_fields() -> None:
     assert not PromptFrontmatter(name="x").is_empty
 
 
-def test_unknown_fields_are_dropped() -> None:
+def test_unknown_fields_are_preserved_after_parity_fields() -> None:
     model = PromptFrontmatter.parse("---\ntitle: x\nbogus: 1\n---")
-    assert model.is_empty
+    assert model.extras == {"title": "x", "bogus": 1}
+    assert model.present_fields() == ["title", "bogus"]
+    assert PromptFrontmatter.parse(model.serialize()).extras == model.extras
+
+
+def test_comments_are_detected_and_original_text_retained() -> None:
+    raw = "---\n# keep this in mind\nname: review  # visible warning\n---"
+    model = PromptFrontmatter.parse(raw)
+    assert model.has_comments
+    assert model.original_text == raw
+
+
+def test_extra_order_is_stable_and_appended_after_parity_fields() -> None:
+    model = PromptFrontmatter.parse(
+        "---\noutput: {type: json_schema}\nname: review\nlog_skill_use: false\n---"
+    )
+    assert list(model.to_mapping()) == ["name", "output", "log_skill_use"]
+
+
+def test_builtin_markdown_frontmatter_corpus_is_idempotent() -> None:
+    roots = [Path("src/sase/xprompts"), Path("src/sase/default_xprompts")]
+    for source in (path for root in roots for path in root.rglob("*.md")):
+        text = source.read_text(encoding="utf-8")
+        if not text.startswith("---\n"):
+            continue
+        model = PromptFrontmatter.parse(text)
+        reparsed = PromptFrontmatter.parse(model.serialize())
+        assert reparsed.to_mapping() == model.to_mapping(), source
 
 
 # --- input vs inputs alias normalization -----------------------------------

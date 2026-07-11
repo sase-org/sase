@@ -19,16 +19,12 @@ from sase.ace.tui.modals import (
     SnippetConfigLocation,
     SnippetConfigLocationModal,
     SnippetNameModal,
-    XPromptSaveTargetModal,
+    UnifiedXPromptSaveModal,
 )
-from sase.ace.tui.modals.xprompt_save_target_modal import (
-    XPromptSaveTarget,
-    _XPromptSaveRow,
-)
+from sase.ace.tui.modals.xprompt_save_target_modal import XPromptSaveTarget
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.xprompt.save import SaveTargetFormat
-from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
 class _SaveHarness(PromptBarSaveXpromptMixin):
@@ -122,22 +118,11 @@ async def test_overwrite_target_confirms_then_writes_markdown(
         target_format=SaveTargetFormat.MARKDOWN,
         display_path=str(path),
     )
-    row = _XPromptSaveRow(
-        name="review",
-        workflow=Workflow(
-            name="review",
-            steps=[WorkflowStep(name="main", prompt_part="old")],
-        ),
-        source_category="CWD xprompts/",
-        source_path=str(path),
-        display_path="./xprompts/review.md",
-        target=target,
-    )
     harness = _SaveHarness()
 
     with patch(
-        "sase.ace.tui.modals.xprompt_save_target_modal.load_xprompt_save_rows",
-        return_value=[row],
+        "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+        return_value=[],
     ):
         await harness.on_prompt_input_bar_save_as_xprompt_requested(
             PromptInputBar.SaveAsXpromptRequested(
@@ -152,7 +137,7 @@ async def test_overwrite_target_confirms_then_writes_markdown(
 
     assert len(harness.pushed) == 1
     modal, on_target = harness.pushed[0]
-    assert isinstance(modal, XPromptSaveTargetModal)
+    assert isinstance(modal, UnifiedXPromptSaveModal)
     assert callable(on_target)
     on_target(target)
 
@@ -420,7 +405,7 @@ def test_is_index_lock_error_detects_git_lock_path() -> None:
 
 def _patch_save_rows() -> object:
     return patch(
-        "sase.ace.tui.modals.xprompt_save_target_modal.load_xprompt_save_rows",
+        "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
         return_value=[],
     )
 
@@ -437,7 +422,7 @@ async def test_single_pane_request_enables_snippet_option() -> None:
         )
 
     modal, _on_target = harness.pushed[0]
-    assert isinstance(modal, XPromptSaveTargetModal)
+    assert isinstance(modal, UnifiedXPromptSaveModal)
     assert modal._allow_create_snippet is True
 
 
@@ -457,7 +442,7 @@ async def test_multi_pane_request_enables_snippet_option() -> None:
         )
 
     modal, _on_target = harness.pushed[0]
-    assert isinstance(modal, XPromptSaveTargetModal)
+    assert isinstance(modal, UnifiedXPromptSaveModal)
     # The snippet option is now always offered, even for multi-pane drafts.
     assert modal._allow_create_snippet is True
 
@@ -498,7 +483,7 @@ async def test_create_snippet_flow_writes_refreshes_and_offers_commit(
 
         assert len(harness.pushed) == 1
         target_modal, on_target = harness.pushed[0]
-        assert isinstance(target_modal, XPromptSaveTargetModal)
+        assert isinstance(target_modal, UnifiedXPromptSaveModal)
         on_target(XPromptSaveTarget(kind="create_snippet"))
         await _wait_save_tasks(harness)
 

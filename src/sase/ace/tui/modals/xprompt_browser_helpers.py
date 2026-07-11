@@ -35,7 +35,7 @@ class BrowserItem:
 def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     """Classify a source path into (category_label, display_path, is_editable)."""
     if source_path is None:
-        return "Built-in", "", True
+        return "Built-in", "", False
 
     home = str(Path.home())
     cwd = str(Path.cwd())
@@ -55,11 +55,11 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
                 module_part.split("/")[0] if "/" in module_part else module_part
             )
         short_name = module_name.replace("_", "-")
-        return f"Plugin ({short_name})", source_path, True
+        return f"Plugin ({short_name})", source_path, False
 
     # Built-in default config xprompts
     if source_path == "default_config":
-        return "Built-in", "sase default_config.yml", True
+        return "Built-in", "sase default_config.yml", False
 
     # Config sources: user sase.yml
     if source_path == "config":
@@ -81,7 +81,7 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     # Inside sase package (built-in)
     if any(source_path.startswith(pkg_dir) for pkg_dir in sase_pkg_dirs):
-        return "Built-in", source_path.replace(home, "~"), True
+        return "Built-in", source_path.replace(home, "~"), False
 
     # Project-specific: ~/.config/sase/xprompts/{proj}/
     project_prefix = os.path.join(home, ".config", "sase", "xprompts")

@@ -40,6 +40,12 @@ class _PromptGPrefixBinding:
 
 _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     _PromptGPrefixBinding(
+        "d",
+        "edit_definition_under_cursor",
+        "_g_prefix_label_definition",
+        "_g_prefix_available_definition",
+    ),
+    _PromptGPrefixBinding(
         "enter",
         "submit_active_pane",
         "_g_prefix_label_submit_active",
@@ -105,6 +111,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_update_pin",
     ),
     _PromptGPrefixBinding(
+        "w",
+        "request_write_xprompt",
+        "_g_prefix_label_write_xprompt",
+        "_g_prefix_available_write_xprompt",
+    ),
+    _PromptGPrefixBinding(
         "x",
         "request_save_as_xprompt",
         "_g_prefix_label_save_xprompt",
@@ -145,6 +157,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         def move_active_pane(self, delta: int, target_mode: str = "normal") -> bool: ...
         def request_open_prompt_stash(self) -> None: ...
         def request_save_as_xprompt(self) -> None: ...
+        def request_write_xprompt(self) -> None: ...
         def request_update_pinned_stash(self) -> None: ...
         def stash_all_panes(self) -> None: ...
         def toggle_frontmatter_panel(self) -> None: ...
@@ -206,6 +219,14 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             return
         self.active_text_area().action_submit_prompt()
 
+    def edit_definition_under_cursor(self) -> None:
+        """Open the xprompt definition at the cursor in the bound stack."""
+        if self._mode != "prompt":
+            return
+        action = getattr(self.active_text_area(), "_edit_definition_under_cursor", None)
+        if callable(action):
+            action()
+
     def _g_focus_next_pane(self, *, target_mode: str = "normal") -> None:
         """Focus the next/lower pane (the ``gj`` keymap)."""
         self.focus_relative(1, target_mode=target_mode)
@@ -229,6 +250,21 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
     def _g_prefix_available_submit_active(self) -> bool:
         """Whether ``g<enter>`` can submit the active prompt pane."""
         return self._mode == "prompt"
+
+    def _g_prefix_available_definition(self) -> bool:
+        if self._mode != "prompt":
+            return False
+        try:
+            from sase.ace.tui.widgets._prompt_jump_target import (
+                detect_jump_target_at_cursor,
+            )
+
+            text_area = self.active_text_area()
+            offset = text_area._absolute_offset(text_area.cursor_location)
+            target = detect_jump_target_at_cursor(text_area.text, offset)
+            return target is not None and target.kind == "xprompt"
+        except Exception:
+            return False
 
     def _g_prefix_available_cancel_all(self) -> bool:
         """Whether ``Ctrl+G Ctrl+C`` can cancel the whole prompt stack."""
@@ -282,6 +318,11 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             self._stack.frontmatter.strip()
         )
 
+    def _g_prefix_available_write_xprompt(self) -> bool:
+        return (
+            self._stack.binding is not None and self._g_prefix_available_save_xprompt()
+        )
+
     def _g_prefix_available_convert_local_xprompt(self) -> bool:
         """Whether ``gX`` can convert the active pane into a local xprompt.
 
@@ -316,6 +357,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             return "launch this pane"
         return "submit this draft"
 
+    def _g_prefix_label_definition(self) -> str:
+        return "edit definition"
+
     def _g_prefix_label_cancel_all(self) -> str:
         """Return the ``Ctrl+G Ctrl+C`` label."""
         return "cancel all panes"
@@ -339,6 +383,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
     def _g_prefix_label_save_xprompt(self) -> str:
         """Return the ``gx`` label."""
         return "save as xprompt"
+
+    def _g_prefix_label_write_xprompt(self) -> str:
+        return "write xprompt" if self._stack.binding is not None else "save as xprompt"
 
     def _g_prefix_label_convert_local_xprompt(self) -> str:
         """Return the ``gX`` label."""

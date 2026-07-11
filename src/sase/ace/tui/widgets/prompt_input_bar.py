@@ -1,5 +1,6 @@
 """Prompt input bar widget for agent workflow in the ace TUI."""
 
+from pathlib import Path
 from typing import Any
 
 from textual.app import ComposeResult
@@ -31,6 +32,7 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     Submitted as _Submitted,
     UpdatePinnedRequested as _UpdatePinnedRequested,
     WorkflowEditorRequested as _WorkflowEditorRequested,
+    WriteXpromptRequested as _WriteXpromptRequested,
 )
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import (
     PromptInputBarStackActionsMixin,
@@ -72,6 +74,7 @@ class PromptInputBar(
     HistoryRequested = _HistoryRequested
     SnippetRequested = _SnippetRequested
     WorkflowEditorRequested = _WorkflowEditorRequested
+    WriteXpromptRequested = _WriteXpromptRequested
 
     BINDINGS = []  # type: ignore[assignment]
 
@@ -143,6 +146,19 @@ class PromptInputBar(
         title = self._base_title
         if self._mode == "prompt" and len(self._stack) > 1:
             title = f"{title} · {len(self._stack)} agents"
+        if self._mode == "prompt" and self._stack.binding is not None:
+            try:
+                self._sync_state_from_widgets()
+            except Exception:
+                pass
+            binding = self._stack.binding
+            path = binding.path
+            home = str(Path.home())
+            if path.startswith(home + "/"):
+                path = "~" + path[len(home) :]
+            title = f"{title} · {binding.name} · {path}"
+            if self._stack.is_dirty:
+                title = f"{title} [bold #D0A215]●[/]"
         if mode_suffix:
             # Border titles parse Rich markup; escape literal mode brackets.
             mode_suffix = mode_suffix.replace("[", "\\[")

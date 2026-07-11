@@ -57,7 +57,7 @@ class XPromptLocation:
     location_type: Literal["directory", "config"]
 
 
-def _get_all_xprompt_locations(
+def get_all_xprompt_locations(
     project: str | None = None,
 ) -> list[tuple[str, list[XPromptLocation]]]:
     """Discover all xprompt locations grouped by category.
@@ -289,7 +289,7 @@ class XPromptLocationModal(
     def __init__(self, project: str | None = None) -> None:
         super().__init__()
         self._project = project
-        self._groups = _get_all_xprompt_locations(project=project)
+        self._groups = get_all_xprompt_locations(project=project)
         self._flat: list[XPromptLocation] = []
         for _, locs in self._groups:
             self._flat.extend(locs)

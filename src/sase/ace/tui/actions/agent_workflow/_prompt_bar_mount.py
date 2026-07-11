@@ -12,6 +12,7 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.xprompt.models import InputArg
+    from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 
 _EDITOR_REVIEW_MARKER = " @"
 
@@ -353,6 +354,7 @@ class PromptBarMountMixin:
         *,
         as_xprompt_markdown: bool = False,
         frontmatter_inputs: list[InputArg] | None = None,
+        binding: XPromptBinding | None = None,
     ) -> None:
         """Show prompt input bar for home directory mode.
 
@@ -391,6 +393,8 @@ class PromptBarMountMixin:
             )
         else:
             bar = PromptInputBar(initial_value=initial_text, id="prompt-input-bar")
+        if binding is not None:
+            bar._stack.bind(binding, source_markdown=initial_text)
         # Stage declared inputs into the stack's frontmatter pre-mount: the
         # panel refresh is a no-op until the bar mounts, and ``on_mount`` then
         # auto-shows the frontmatter panel from the seeded stack.
@@ -430,6 +434,39 @@ class PromptBarMountMixin:
                 history_sort_key="home",
                 frontmatter_inputs=inputs,
             )
+
+        self.call_after_refresh(_mount)  # type: ignore[attr-defined]
+
+    def load_xprompt_definition_into_home_prompt_bar(
+        self,
+        markdown: str,
+        *,
+        display_name: str,
+        binding: XPromptBinding | None,
+        read_only: bool = False,
+        has_comments: bool = False,
+    ) -> None:
+        """Close the browser and author a raw simple xprompt definition."""
+        from textual.screen import ModalScreen
+
+        if isinstance(self.screen, ModalScreen):  # type: ignore[attr-defined]
+            self.pop_screen()  # type: ignore[attr-defined]
+
+        def _mount() -> None:
+            self._show_prompt_input_bar_for_home(
+                initial_text=markdown,
+                display_name=display_name,
+                history_sort_key="home",
+                as_xprompt_markdown=True,
+                binding=binding,
+            )
+            if read_only:
+                self.notify("Read-only source — gw will save-as", severity="warning")  # type: ignore[attr-defined]
+            if has_comments:
+                self.notify(  # type: ignore[attr-defined]
+                    "Frontmatter comments cannot survive structured save; inspect raw mode",
+                    severity="warning",
+                )
 
         self.call_after_refresh(_mount)  # type: ignore[attr-defined]
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import TYPE_CHECKING, cast
 
 from textual import events
@@ -28,7 +29,8 @@ class BrowserFilterInput(Input):
         ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
         ("ctrl+n", "forward('next_option')", "Next"),
         ("ctrl+p", "forward('prev_option')", "Prev"),
-        ("enter", "forward('edit_xprompt')", "Edit"),
+        ("enter", "forward('edit_xprompt')", "Edit here"),
+        ("E", "forward('external_edit_xprompt')", "External editor"),
         ("ctrl+o", "forward('add_xprompt')", "Add"),
         ("ctrl+i", "forward('load_xprompt')", "Load"),
     ]
@@ -92,11 +94,13 @@ class BrowserFilterInput(Input):
             node = getattr(node, "parent", None)
         return None
 
-    def action_forward(self, action_name: str) -> None:
+    async def action_forward(self, action_name: str) -> None:
         """Forward an action to the owning pane."""
         pane = self._pane()
         if pane is not None:
-            getattr(pane, f"action_{action_name}")()
+            result = getattr(pane, f"action_{action_name}")()
+            if inspect.isawaitable(result):
+                await result
 
     def action_scroll_preview_down(self) -> None:
         """Scroll the preview panel down."""

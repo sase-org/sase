@@ -1867,6 +1867,8 @@ In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local 
 | `g=`        | Show/focus the xprompt frontmatter panel; in the focused panel, run its deactivate/apply path          |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                              |
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                         |
+| `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                               |
+| `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                         |
 | `gx`        | Save the current stack as a reusable xprompt or snippet, leaving the bar open                          |
 | `gX`        | Convert the active pane into a frontmatter-local xprompt, leaving the bar open                         |
 
@@ -1884,11 +1886,11 @@ plus the shared prompt frontmatter; when other panes remain the bar stays open, 
 bar closes without also recording the draft as cancelled history. If the active pane is empty, `Ctrl+S` opens the
 stashed-prompt picker instead. `gs` captures all non-empty panes in their current order as one bundled stash row and
 dismisses the bar. `gS` opens an update flow for an existing pinned stash and overwrites the chosen row with the current
-non-empty panes. `gx` opens a save-as-xprompt flow: choose an existing xprompt target to overwrite, create a new
-Markdown/config xprompt, or **Create a new snippet** (which then prompts for the config file that should hold the new
-`ace.snippets` entry); ACE writes the current stack body (joining multiple panes with `---`) and offers to commit the
-changed file when applicable. `gX` instead converts the active pane into a frontmatter-local `_xprompt` and rewrites the
-pane to invoke it.
+non-empty panes. `gx` opens one save screen containing the name, storage location, resolved path, and a live preview
+when the name collides; it can also start snippet creation. A successful save binds the prompt stack to that source.
+`gw` then performs atomic write-back, and if the source changed since load it offers overwrite, reload, or save-as
+instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same bound editing loop. `gX` instead
+converts the active pane through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed helper.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from the main ACE
 tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a

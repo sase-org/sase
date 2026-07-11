@@ -14,6 +14,7 @@ from textual.widgets import Static, TextArea
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
+    XPromptBinding,
     split_frontmatter,
     split_prompt_text,
 )
@@ -89,6 +90,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         _search_command_line_count: int
         _search_command_visible: bool
         _stack: PromptStackState
+        _title_mode_suffix: str
 
         @property
         def _base_title(self) -> str: ...
@@ -300,7 +302,9 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         self._sync_state_from_widgets()
         return self._stack.editor_markdown()
 
-    def load_stack_from_xprompt_markdown(self, text: str) -> None:
+    def load_stack_from_xprompt_markdown(
+        self, text: str, *, binding: XPromptBinding | None = None
+    ) -> None:
         """Reload the whole bar from edited xprompt markdown (the multi-pane ``^G`` return).
 
         This always treats *text* as xprompt markdown via
@@ -313,6 +317,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         keeping the body text verbatim.
         """
         self._stack = PromptStackState.from_text(text)
+        if binding is not None:
+            self._stack.bind(binding, source_markdown=text)
         self._rebuild_stack()
         self.refresh_frontmatter_panel_from_stack()
 
@@ -459,6 +465,8 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
             text_area = self.active_text_area()
         text_area.show_line_numbers = text_area.document.line_count > 1
         text_area._on_prompt_completion_context_changed()
+        self._sync_state_from_widgets()
+        self._refresh_title(self._title_mode_suffix)
         self._schedule_height_update()
 
     def on_text_area_selection_changed(self, event: TextArea.SelectionChanged) -> None:

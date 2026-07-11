@@ -15,6 +15,7 @@ from sase.xprompt.save import (
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals import XPromptLocation, XPromptSaveTarget
+    from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 
 
 def write_target_sync(
@@ -31,6 +32,22 @@ def write_target_sync(
             raise RuntimeError("config insertion failed")
         return
     raise RuntimeError("unsupported xprompt save target")
+
+
+def write_binding_sync(
+    binding: XPromptBinding,
+    frontmatter: PromptFrontmatter,
+    body: str,
+) -> None:
+    """Write a bound stack without depending on modal target types."""
+    if binding.target_format == SaveTargetFormat.MARKDOWN:
+        save_markdown_xprompt(binding.path, frontmatter, body)
+        return
+    if binding.target_format == SaveTargetFormat.CONFIG and binding.entry_name:
+        if save_config_xprompt(binding.path, binding.entry_name, frontmatter, body):
+            return
+        raise RuntimeError("config insertion failed")
+    raise RuntimeError("invalid xprompt binding")
 
 
 def target_for_new_xprompt(
@@ -120,4 +137,5 @@ __all__ = [
     "short_display_path",
     "target_for_new_xprompt",
     "write_target_sync",
+    "write_binding_sync",
 ]

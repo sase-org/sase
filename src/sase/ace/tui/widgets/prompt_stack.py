@@ -23,10 +23,64 @@ later whole-stack submit can re-attach it, keeping ``split -> join`` lossless.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
+from pathlib import Path
+from typing import Literal
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+from sase.xprompt.save import SaveTargetFormat
+
+
+@dataclass(frozen=True)
+class SourceFingerprint:
+    """Disk identity used to reject silent writes over external changes."""
+
+    mtime_ns: int
+    size: int
+    content_hash: str
+
+    @classmethod
+    def from_path(cls, path: str | Path) -> SourceFingerprint:
+        source = Path(path)
+        data = source.read_bytes()
+        stat = source.stat()
+        return cls(stat.st_mtime_ns, stat.st_size, hashlib.sha256(data).hexdigest())
+
+
+@dataclass(frozen=True)
+class XPromptBinding:
+    """The editable xprompt source a prompt stack writes back to."""
+
+    kind: Literal["file", "config"]
+    path: str
+    target_format: SaveTargetFormat
+    loaded_fingerprint: SourceFingerprint
+    entry_name: str | None = None
+
+    @classmethod
+    def for_file(cls, path: str | Path) -> XPromptBinding:
+        return cls(
+            kind="file",
+            path=str(path),
+            target_format=SaveTargetFormat.MARKDOWN,
+            loaded_fingerprint=SourceFingerprint.from_path(path),
+        )
+
+    @classmethod
+    def for_config(cls, path: str | Path, entry_name: str) -> XPromptBinding:
+        return cls(
+            kind="config",
+            path=str(path),
+            target_format=SaveTargetFormat.CONFIG,
+            loaded_fingerprint=SourceFingerprint.from_path(path),
+            entry_name=entry_name,
+        )
+
+    @property
+    def name(self) -> str:
+        return self.entry_name or Path(self.path).stem
 
 
 def split_prompt_text(text: str) -> list[str]:
@@ -95,6 +149,10 @@ class PromptStackState:
     items: list[PromptStackItem] = field(default_factory=list)
     selected_index: int = 0
     frontmatter: str = ""
+    binding: XPromptBinding | None = None
+    _clean_content_hash: str | None = field(default=None, repr=False)
+    _bound_source_markdown: str | None = field(default=None, repr=False)
+    _bound_source_texts: tuple[str, ...] | None = field(default=None, repr=False)
     _next_id: int = field(default=0, repr=False)
 
     # -- construction ---------------------------------------------------------
@@ -202,6 +260,79 @@ class PromptStackState:
         if include_frontmatter and self.frontmatter:
             return f"{self.frontmatter}\n{body}" if body else self.frontmatter
         return body
+
+    @property
+    def is_dirty(self) -> bool:
+        """Whether a bound stack differs from its last loaded/written form."""
+        if self.binding is None or self._clean_content_hash is None:
+            return False
+        return self._draft_hash() != self._clean_content_hash
+
+    def bind(
+        self, binding: XPromptBinding, *, source_markdown: str | None = None
+    ) -> None:
+        self.binding = binding
+        self._clean_content_hash = self._draft_hash()
+        self._bound_source_markdown = source_markdown
+        self._bound_source_texts = (
+            tuple(self.texts) if source_markdown is not None else None
+        )
+
+    def unbind(self) -> None:
+        self.binding = None
+        self._clean_content_hash = None
+        self._bound_source_markdown = None
+        self._bound_source_texts = None
+
+    def source_changed(self) -> bool:
+        binding = self.binding
+        if binding is None:
+            return False
+        try:
+            return (
+                SourceFingerprint.from_path(binding.path) != binding.loaded_fingerprint
+            )
+        except OSError:
+            return True
+
+    def mark_written(self, *, source_markdown: str | None = None) -> None:
+        binding = self.binding
+        if binding is None:
+            return
+        self.binding = XPromptBinding(
+            kind=binding.kind,
+            path=binding.path,
+            target_format=binding.target_format,
+            entry_name=binding.entry_name,
+            loaded_fingerprint=SourceFingerprint.from_path(binding.path),
+        )
+        self._clean_content_hash = self._draft_hash()
+        if source_markdown is not None:
+            self._bound_source_markdown = source_markdown
+            self._bound_source_texts = tuple(self.texts)
+
+    def markdown_preserving_unchanged_body(
+        self, frontmatter: PromptFrontmatter
+    ) -> str | None:
+        """Replace only frontmatter when a bound Markdown body is untouched."""
+        source = self._bound_source_markdown
+        if source is None or self._bound_source_texts != tuple(self.texts):
+            return None
+        old_frontmatter, _ = split_frontmatter(source)
+        new_frontmatter = frontmatter.serialize()
+        if old_frontmatter:
+            remainder = source[len(old_frontmatter) :]
+            return (
+                new_frontmatter + remainder
+                if new_frontmatter
+                else remainder.lstrip("\r\n")
+            )
+        if new_frontmatter:
+            return f"{new_frontmatter}\n\n{source}"
+        return source
+
+    def _draft_hash(self) -> str:
+        return hashlib.sha256(self.join().encode("utf-8")).hexdigest()
 
     def editor_markdown(self) -> str:
         """Render the whole stack as spaced markdown for the all-pane editor.
@@ -387,6 +518,8 @@ class PromptStackState:
 __all__ = [
     "PromptStackItem",
     "PromptStackState",
+    "SourceFingerprint",
+    "XPromptBinding",
     "split_frontmatter",
     "split_prompt_text",
 ]

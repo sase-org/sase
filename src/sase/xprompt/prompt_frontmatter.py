@@ -30,6 +30,8 @@ thing that needs the Rust binding; parse/serialize are pure Python.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
+import re
 from typing import TYPE_CHECKING, Any
 
 import yaml  # type: ignore[import-untyped]
@@ -53,6 +55,24 @@ LOCAL_XPROMPT_SOURCE = "user-prompt"
 # (``frontmatter_field_schema``) and the panel's row order.  Kept local so
 # serialization stays pure Python and does not require the Rust binding.
 _FIELD_ORDER = ("name", "description", "tags", "input", "xprompts", "skill", "snippet")
+_KNOWN_INPUT_KEYS = frozenset({"input", "inputs"})
+_KNOWN_FIELDS = frozenset(_FIELD_ORDER) | _KNOWN_INPUT_KEYS
+
+
+class FrontmatterValueState(StrEnum):
+    """Explicit state for the schema's bool-or-payload field kinds."""
+
+    TRUE = "true"
+    FALSE = "false"
+    PAYLOAD = "payload"
+
+
+@dataclass(frozen=True)
+class FrontmatterStateValue:
+    """A bool state, or an explicitly selected string/list payload."""
+
+    state: FrontmatterValueState
+    payload: str | list[str] | None = None
 
 
 @dataclass
@@ -81,6 +101,13 @@ class PromptFrontmatter:
     xprompts: dict[str, XPrompt] = field(default_factory=dict)
     skill: bool | list[str] | None = None
     snippet: str | bool | None = None
+    # Unknown/non-parity mappings are deliberately retained.  They render as
+    # read-only rows in the structured panel and remain editable in raw mode.
+    extras: dict[str, Any] = field(default_factory=dict)
+    # The original source is excluded from equality: it is provenance for raw
+    # editing/comment warnings, not semantic frontmatter state.
+    original_text: str = field(default="", repr=False, compare=False)
+    has_comments: bool = field(default=False, repr=False, compare=False)
 
     # -- parsing --------------------------------------------------------------
 
@@ -127,6 +154,11 @@ class PromptFrontmatter:
             xprompts=xprompts,
             skill=mapping.get("skill"),
             snippet=mapping.get("snippet"),
+            extras={
+                key: value for key, value in mapping.items() if key not in _KNOWN_FIELDS
+            },
+            original_text=raw.strip(),
+            has_comments=_contains_yaml_comments(raw),
         )
 
     # -- serialization --------------------------------------------------------
@@ -175,7 +207,9 @@ class PromptFrontmatter:
         if self.snippet is not None:
             mapping["snippet"] = self.snippet
         # Defensive: enforce canonical ordering even if fields are added later.
-        return {key: mapping[key] for key in _FIELD_ORDER if key in mapping}
+        ordered = {key: mapping[key] for key in _FIELD_ORDER if key in mapping}
+        ordered.update(self.extras)
+        return ordered
 
     # -- queries --------------------------------------------------------------
 
@@ -187,6 +221,51 @@ class PromptFrontmatter:
     def present_fields(self) -> list[str]:
         """Canonical-order names of the fields currently set (panel rows)."""
         return list(self.to_mapping().keys())
+
+    def field_value(self, name: str) -> Any:
+        """Return a schema field value without panel-side name branching."""
+        if name == "input":
+            return self.inputs
+        if name == "xprompts":
+            return self.xprompts
+        if name in self.extras:
+            return self.extras[name]
+        return getattr(self, name, None)
+
+    def clear_field(self, name: str) -> None:
+        """Unset a schema field or passthrough extra."""
+        if name == "input":
+            self.inputs.clear()
+        elif name == "xprompts":
+            self.xprompts.clear()
+        elif name == "tags":
+            self.tags.clear()
+        elif name in self.extras:
+            del self.extras[name]
+        elif name in {"name", "description", "skill", "snippet"}:
+            setattr(self, name, None)
+
+    def value_state(self, name: str) -> FrontmatterStateValue:
+        """Return explicit state/payload for ``skill`` or ``snippet``."""
+        value = self.field_value(name)
+        if value is True:
+            return FrontmatterStateValue(FrontmatterValueState.TRUE)
+        if value is False:
+            return FrontmatterStateValue(FrontmatterValueState.FALSE)
+        if isinstance(value, list):
+            return FrontmatterStateValue(FrontmatterValueState.PAYLOAD, list(value))
+        return FrontmatterStateValue(FrontmatterValueState.PAYLOAD, value)
+
+    def set_value_state(self, name: str, value: FrontmatterStateValue) -> None:
+        """Set ``skill``/``snippet`` without guessing payloads from keywords."""
+        if name not in {"skill", "snippet"}:
+            raise ValueError(f"{name!r} is not a bool-or-payload field")
+        if value.state is FrontmatterValueState.TRUE:
+            setattr(self, name, True)
+        elif value.state is FrontmatterValueState.FALSE:
+            setattr(self, name, False)
+        else:
+            setattr(self, name, value.payload)
 
     def diagnostics(self) -> list[FrontmatterDiagnostic]:
         """Return core validation diagnostics for the serialized frontmatter.
@@ -278,6 +357,22 @@ def _load_mapping(raw: str) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
+_YAML_COMMENT_RE = re.compile(r"(^|\s)#")
+
+
+def _contains_yaml_comments(raw: str) -> bool:
+    """Best-effort detection of comments canonical YAML cannot preserve."""
+    for line in raw.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            return True
+        # Ignore common quoted hashes; this is intentionally conservative: a
+        # false-positive warning is safer than silently losing a real comment.
+        if _YAML_COMMENT_RE.search(line) and '"#' not in line and "'#" not in line:
+            return True
+    return False
+
+
 def _optional_str(value: Any) -> str | None:
     """Coerce a scalar to ``str`` (or ``None`` when absent/null)."""
     if value is None:
@@ -358,4 +453,9 @@ def _xprompt_to_yaml(xprompt: XPrompt) -> str | dict[str, Any]:
     return value
 
 
-__all__ = ["PromptFrontmatter", "LOCAL_XPROMPT_SOURCE"]
+__all__ = [
+    "FrontmatterStateValue",
+    "FrontmatterValueState",
+    "PromptFrontmatter",
+    "LOCAL_XPROMPT_SOURCE",
+]

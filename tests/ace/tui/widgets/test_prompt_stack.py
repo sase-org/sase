@@ -8,9 +8,12 @@ the stack edges, while absolute focus and removal clamp.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sase.ace.tui.widgets.prompt_stack import (
     PromptStackItem,
     PromptStackState,
+    XPromptBinding,
     split_frontmatter,
     split_prompt_text,
 )
@@ -580,3 +583,43 @@ def test_prompt_stack_item_is_constructible() -> None:
     item = PromptStackItem(text="t", item_id="p0")
     assert item.text == "t"
     assert item.item_id == "p0"
+
+
+def test_binding_dirty_and_external_change_detection(tmp_path: Path) -> None:
+    source = tmp_path / "review.md"
+    source.write_text("body\n", encoding="utf-8")
+    state = PromptStackState.from_text("body\n")
+    state.bind(XPromptBinding.for_file(source))
+    assert not state.is_dirty
+    assert not state.source_changed()
+
+    state.selected_item.text = "changed"
+    assert state.is_dirty
+    source.write_text("external\n", encoding="utf-8")
+    assert state.source_changed()
+
+
+def test_mark_written_refreshes_binding_and_clears_dirty(tmp_path: Path) -> None:
+    source = tmp_path / "review.md"
+    source.write_text("body\n", encoding="utf-8")
+    state = PromptStackState.from_text("body")
+    state.bind(XPromptBinding.for_file(source))
+    state.selected_item.text = "changed"
+    source.write_text("changed\n", encoding="utf-8")
+    state.mark_written()
+    assert not state.is_dirty
+    assert not state.source_changed()
+
+
+def test_bound_markdown_preserves_untouched_body_bytes(tmp_path: Path) -> None:
+    source_text = "---\ndescription: old\n---\n\n  body with spaces  \n"
+    source = tmp_path / "review.md"
+    source.write_text(source_text, encoding="utf-8")
+    state = PromptStackState.from_text(source_text)
+    state.bind(XPromptBinding.for_file(source), source_markdown=source_text)
+
+    frontmatter = state.frontmatter_model
+    frontmatter.description = "new"
+    rewritten = state.markdown_preserving_unchanged_body(frontmatter)
+
+    assert rewritten == "---\ndescription: new\n---\n\n  body with spaces  \n"

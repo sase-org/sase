@@ -52,6 +52,9 @@ class JumpTarget:
     line: int | None
     col: int | None
     loadable_markdown: str | None
+    definition_name: str | None = None
+    source_id: str | None = None
+    is_editable: bool = False
 
 
 class JumpError(Exception):
@@ -179,7 +182,13 @@ def _resolve_xprompt_jump(
 
     source_path = _definition_file_for_source(source_id, token.target)
     source_text = _read_text(source_path, token.target)
-    loadable_markdown = _loadable_markdown(source_id, source_path, source_text)
+    loadable_markdown = _loadable_markdown(
+        source_id,
+        source_path,
+        source_text,
+        name=token.target,
+        is_simple=(isinstance(obj, XPrompt) or obj.is_simple_xprompt()),
+    )
     if loadable_markdown is not None:
         line = _first_markdown_body_line(source_text)
         col = 1
@@ -194,6 +203,9 @@ def _resolve_xprompt_jump(
         line=line,
         col=col,
         loadable_markdown=loadable_markdown,
+        definition_name=token.target,
+        source_id=source_id,
+        is_editable=_source_is_editable(source_id),
     )
 
 
@@ -256,6 +268,9 @@ def _loadable_markdown(
     source_id: str | None,
     source_path: Path,
     source_text: str,
+    *,
+    name: str,
+    is_simple: bool,
 ) -> str | None:
     try:
         from sase.ace.tui.modals.xprompt_browser_helpers import is_yaml_backed_source
@@ -264,9 +279,36 @@ def _loadable_markdown(
     except Exception:
         is_yaml = source_path.suffix.lower() in {".yml", ".yaml"}
 
+    if is_yaml and is_simple and _is_config_source(source_id):
+        try:
+            from sase.xprompt.save import load_config_xprompt_markdown
+
+            return load_config_xprompt_markdown(source_path, name)
+        except Exception:
+            return None
     if is_yaml or source_path.suffix.lower() != ".md":
         return None
     return source_text
+
+
+def _is_config_source(source_id: str | None) -> bool:
+    if source_id in {"config", "local_config", "default_config"}:
+        return True
+    return bool(
+        source_id
+        and source_id.startswith(
+            ("config_overlay:", "project_local_config:", "plugin_config:")
+        )
+    )
+
+
+def _source_is_editable(source_id: str | None) -> bool:
+    try:
+        from sase.ace.tui.modals.xprompt_browser_helpers import classify_source
+
+        return classify_source(source_id)[2]
+    except Exception:
+        return False
 
 
 def _first_markdown_body_line(source_text: str) -> int:

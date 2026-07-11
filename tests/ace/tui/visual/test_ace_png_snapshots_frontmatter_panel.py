@@ -10,12 +10,16 @@ tab so the full ``styles.tcss`` styling applies exactly as it does at runtime.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.input_item_modal import InputItemModal
 from sase.ace.tui.modals.xprompt_item_modal import XPromptItemModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
@@ -135,6 +139,78 @@ async def test_frontmatter_panel_error_png_snapshot(
             page,
             "frontmatter_panel_error_120x40",
             title="ACE frontmatter panel — error state",
+        )
+
+
+async def test_frontmatter_panel_cell_edit_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
+        bar.focus_frontmatter_panel()
+        await wait_for_visual_idle(page)
+        panel = bar.query_one("#frontmatter-panel", FrontmatterPanel)
+        panel._select_nav(("input", "service"))
+        panel._edit_selected()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "frontmatter_panel_cell_edit_120x40",
+            title="ACE frontmatter panel — cell edit",
+        )
+
+
+async def test_frontmatter_panel_ghost_row_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
+        bar.focus_frontmatter_panel()
+        await wait_for_visual_idle(page)
+        panel = bar.query_one("#frontmatter-panel", FrontmatterPanel)
+        panel._select_nav(("field", "input"))
+        panel._add_item_at_selection()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "frontmatter_panel_ghost_row_120x40",
+            title="ACE frontmatter panel — ghost row",
+        )
+
+
+async def test_frontmatter_panel_raw_diagnostics_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
+        bar.focus_frontmatter_panel()
+        await wait_for_visual_idle(page)
+        panel = bar.query_one("#frontmatter-panel", FrontmatterPanel)
+        panel._begin_raw()
+        panel.query_one(
+            "#frontmatter-raw", VimTextArea
+        ).text = "---\ninput:\n  service: wordd\n---"
+        await asyncio.sleep(0.25)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "frontmatter_panel_raw_diagnostics_120x40",
+            title="ACE frontmatter panel — raw diagnostics",
         )
 
 

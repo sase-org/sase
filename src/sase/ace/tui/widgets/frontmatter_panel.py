@@ -20,12 +20,10 @@ Phase 3 scope (this widget):
   focus back to the prompt body (the host bar removes the frontmatter entirely
   when the panel is left empty).
 
-Phase 4 adds structured editing of individual ``input`` / ``xprompts`` items:
-``j``/``k`` navigate into the unfolded sub-trees, and ``A``/``e``/``d`` (or
-``enter``) add, edit, and delete items through small typed sub-form modals
-(:class:`~sase.ace.tui.modals.input_item_modal.InputItemModal` and
-:class:`~sase.ace.tui.modals.xprompt_item_modal.XPromptItemModal`).  Raw mode
-remains the escape hatch for the long tail.
+Structured values are edited in place: ``j``/``k`` navigate into unfolded
+sub-trees, ``o``/``A`` inserts a ghost row, and ``e``/``enter`` opens the row's
+cell strip without obscuring the prompt body. Raw mode remains the escape hatch
+for the long tail and passthrough fields.
 
 The widget owns a working copy of the model and announces edits to the host bar
 via :class:`FrontmatterPanel.Changed`; leaving the panel posts
@@ -103,9 +101,17 @@ class FrontmatterPanel(
         self._pending_ctrl_g = False
         self._editing_field: str | None = None
         self._adding_field: str | None = None
+        self._cell_edit: Any | None = None
+        self._picker_matches: list[str] = []
+        self._picker_selected = 0
+        self._picker_accelerators: dict[str, str] = {}
+        self._feedback = ""
+        self._undo_stack: list[PromptFrontmatter] = []
+        self._raw_diagnostics_generation = 0
         self._content_lines = 1
-        self._schema = {f.name: f for f in frontmatter_field_schema()}
-        self._schema_order = [f.name for f in frontmatter_field_schema()]
+        schema = frontmatter_field_schema()
+        self._schema = {f.name: f for f in schema}
+        self._schema_order = [f.name for f in schema]
 
     # -- composition ----------------------------------------------------------
 
@@ -120,6 +126,14 @@ class FrontmatterPanel(
             show_line_numbers=False,
             soft_wrap=True,
         )
+        yield VimTextArea(
+            "",
+            id="frontmatter-content",
+            classes="hidden",
+            show_line_numbers=False,
+            soft_wrap=True,
+        )
+        yield Static("", id="frontmatter-feedback", classes="hidden")
 
     def on_mount(self) -> None:
         """Render the initial rows once mounted."""
@@ -141,6 +155,12 @@ class FrontmatterPanel(
         self._pending_ctrl_g = False
         self._editing_field = None
         self._adding_field = None
+        self._cell_edit = None
+        self._picker_matches = []
+        self._picker_selected = 0
+        self._picker_accelerators = {}
+        self._feedback = ""
+        self._undo_stack.clear()
         self._show_rows_only()
         self._refresh()
 
@@ -158,10 +178,12 @@ class FrontmatterPanel(
         """Rows the panel occupies above the stack, including its bottom margin."""
         bottom_margin = 1
         if self._edit_mode == "raw":
-            return 12 + bottom_margin
+            return 15 + bottom_margin
         base = self._content_lines + 2
-        if self._edit_mode == "edit":
+        if self._edit_mode in {"edit", "picker", "cell"}:
             return base + 3 + bottom_margin  # inline input plus its top margin
+        if self._edit_mode == "content":
+            return base + 7 + bottom_margin
         return base + bottom_margin
 
     @property
@@ -183,9 +205,9 @@ class FrontmatterPanel(
           parsed (a parse failure keeps focus in raw mode rather than silently
           discarding the invalid edit).
         """
-        if self._edit_mode == "edit":
+        if self._edit_mode in {"edit", "picker", "cell", "content"}:
             self._pending_ctrl_g = False
-            self._cancel_inline_edit()
+            self._cancel_active_edit()
             self._close()
             return
         if self._edit_mode == "raw":
@@ -201,10 +223,35 @@ class FrontmatterPanel(
         """Dispatch panel keys, deferring to child editors while editing."""
         if self._handle_ctrl_g_prefix(event):
             return
-        if self._edit_mode == "edit":
+        if self._edit_mode in {"edit", "picker", "cell"}:
             # Inline editing: literal text entry is preserved (``g`` / ``=`` type
             # into the child editor); only NORMAL-mode ``esc`` is intercepted here.
             self._pending_g = False
+            if self._edit_mode == "picker" and event.character:
+                editor = self.query_one("#frontmatter-inline", SingleLineVimTextArea)
+                field = self._picker_accelerators.get(event.character.casefold())
+                if field is not None and not editor.text:
+                    event.stop()
+                    event.prevent_default()
+                    self._picker_matches = [field]
+                    self._picker_selected = 0
+                    self._commit_picker()
+                    return
+            if self._edit_mode == "cell" and event.key in ("tab", "shift+tab"):
+                event.stop()
+                event.prevent_default()
+                self._move_cell(-1 if event.key == "shift+tab" else 1)
+                return
+            if self._edit_mode == "cell" and event.key in ("space", "h", "l"):
+                inline_editor = self.query_one(
+                    "#frontmatter-inline", SingleLineVimTextArea
+                )
+                if inline_editor._vim_mode == "normal" and self._cycle_active_cell(
+                    -1 if event.key == "h" else 1
+                ):
+                    event.stop()
+                    event.prevent_default()
+                    return
             if event.key == "escape":
                 inline_editor = self.query_one(
                     "#frontmatter-inline", SingleLineVimTextArea
@@ -215,11 +262,38 @@ class FrontmatterPanel(
                 ):
                     return
                 event.stop()
-                self._cancel_inline_edit()
+                self._cancel_active_edit()
+            return
+        if self._edit_mode == "content":
+            self._pending_g = False
+            if event.key == "ctrl+s":
+                event.stop()
+                event.prevent_default()
+                self._commit_cell_edit()
+                return
+            if event.key == "shift+tab":
+                event.stop()
+                event.prevent_default()
+                self._move_cell(-1)
+                return
+            if event.key == "escape":
+                content_editor = self.query_one("#frontmatter-content", VimTextArea)
+                if (
+                    content_editor._vim_mode != "normal"
+                    or content_editor._has_pending_normal_state()
+                ):
+                    return
+                event.stop()
+                self._cancel_active_edit()
             return
         if self._edit_mode == "raw":
             # Raw YAML editing: likewise literal; only NORMAL-mode ``esc`` commits.
             self._pending_g = False
+            if event.key == "ctrl+c":
+                event.stop()
+                event.prevent_default()
+                self._discard_raw()
+                return
             if event.key == "escape":
                 raw_editor = self.query_one("#frontmatter-raw", VimTextArea)
                 if (
@@ -261,10 +335,16 @@ class FrontmatterPanel(
             self._edit_selected()
         elif key == "a":
             self._request_add_property()
-        elif key == "A":
+        elif key in ("A", "o"):
             self._add_item_at_selection()
         elif key == "d":
             self._delete_selected()
+        elif key == "u":
+            self._undo()
+        elif key == "J":
+            self._move_selected_item(1)
+        elif key == "K":
+            self._move_selected_item(-1)
         elif key == "R":
             self._begin_raw()
         elif key in ("escape", "q"):
@@ -307,6 +387,16 @@ class FrontmatterPanel(
                 return node
             node = node.parent
         return None
+
+    def _schedule_layout_update(self) -> None:
+        """Ask the host bar to remeasure after a panel mode-height change."""
+        node = self.parent
+        while node is not None:
+            schedule = getattr(node, "_schedule_height_update", None)
+            if callable(schedule):
+                schedule()
+                return
+            node = node.parent
 
     def _move(self, delta: int) -> None:
         """Move the row selection by *delta* (clamped over nav rows)."""

@@ -9,8 +9,10 @@ entries at the end.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import re
 from pathlib import Path
+import tempfile
 
 import yaml  # type: ignore[import-untyped]
 
@@ -19,6 +21,23 @@ from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 # Matches an xprompt entry key at exactly 2-space indent (e.g. "  foo:" or
 # "  bd/next:").  The captured group is the entry name.
 _ENTRY_RE = re.compile(r"^  ([\w/.:-]+):")
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
 
 
 @dataclass(frozen=True, slots=True)
@@ -279,7 +298,7 @@ def insert_xprompt_into_config(
         lines.append("xprompts:")
         lines.extend(entry_lines)
         lines.append("")
-        path.write_text("\n".join(lines), encoding="utf-8")
+        _atomic_write_text(path, "\n".join(lines))
         return True
 
     # Replace ``xprompts: {}`` with bare ``xprompts:``
@@ -290,7 +309,7 @@ def insert_xprompt_into_config(
     for block in blocks:
         if block.name == name:
             result = lines[: block.start] + entry_lines + lines[block.end :]
-            path.write_text("\n".join(result), encoding="utf-8")
+            _atomic_write_text(path, "\n".join(result))
             return True
 
     insert_before_block = _insert_index_for_new_entry(name, blocks)
@@ -302,7 +321,7 @@ def insert_xprompt_into_config(
         entry_lines,
     )
 
-    path.write_text("\n".join(result), encoding="utf-8")
+    _atomic_write_text(path, "\n".join(result))
     return True
 
 

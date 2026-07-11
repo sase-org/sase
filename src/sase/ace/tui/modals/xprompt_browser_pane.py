@@ -60,7 +60,8 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         ("ctrl+i", "load_xprompt", "Load"),
         ("ctrl+d", "scroll_preview_down", "Scroll Down"),
         ("ctrl+u", "scroll_preview_up", "Scroll Up"),
-        ("enter", "edit_xprompt", "Edit"),
+        ("enter", "edit_xprompt", "Edit here"),
+        ("E", "external_edit_xprompt", "External editor"),
     ]
 
     def __init__(self, project: str | None = None, **kwargs: object) -> None:

@@ -152,7 +152,7 @@ def test_resolves_config_source_to_real_yaml_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = tmp_path / "sase.yml"
-    source.write_text("xprompts:\n  review:\n    prompt: Body\n", encoding="utf-8")
+    source.write_text("xprompts:\n  review:\n    content: Body\n", encoding="utf-8")
     monkeypatch.setattr(
         "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
         lambda name, project=None: XPrompt(
@@ -173,8 +173,8 @@ def test_resolves_config_source_to_real_yaml_file(
     )
 
     assert target.source_path == str(source)
-    assert target.loadable_markdown is None
-    assert target.line == 2
+    assert target.loadable_markdown == "Body\n"
+    assert target.line == 1
 
 
 def test_missing_xprompt_and_definition_file_raise_distinct_errors(

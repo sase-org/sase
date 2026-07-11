@@ -10,7 +10,7 @@ from sase.ace.tui.modals.xprompt_save_target_modal import (
     XPromptSaveTarget,
     XPromptSaveTargetModal,
     _XPromptSaveRow,
-    load_xprompt_save_rows,
+    _load_xprompt_save_rows,
 )
 from sase.xprompt.save import SaveTargetFormat
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
@@ -57,7 +57,7 @@ def test_load_save_rows_excludes_workflows_and_marks_eligible_targets(
             side_effect=lambda source: str(cfg_path) if source == "config" else source,
         ),
     ):
-        rows = load_xprompt_save_rows()
+        rows = _load_xprompt_save_rows()
 
     by_name = {row.name: row for row in rows}
     assert by_name["review"].target is not None

@@ -35,7 +35,7 @@ def test_classify_source_default_xprompts_builtin(tmp_path: Path) -> None:
 
     assert category == "Built-in"
     assert display_path.endswith("default_xprompts/research_swarm.md")
-    assert is_editable is True
+    assert is_editable is False
 
 
 def test_append_input_args_keeps_required_and_optional_modal_styles() -> None:

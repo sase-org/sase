@@ -41,8 +41,8 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         """Convert the active pane into a local xprompt (the ``gX`` keymap).
 
         Prompt mode only.  Captures the active pane's body, infers its inputs
-        from undeclared Jinja variables, prompts for a ``_``-scoped name, and on
-        a valid name stores the body as a local ``xprompts:`` helper in the bar's
+        from undeclared Jinja variables, opens a prefilled ghost row, and on a
+        valid name stores the body as a local ``xprompts:`` helper in the bar's
         shared frontmatter and rewrites the pane into an invocation of it.  A
         blank pane or invalid Jinja in the body leaves everything unchanged and
         notifies; cancelling or naming a duplicate is a no-op too.
@@ -71,23 +71,18 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
             )
             return
         self._clear_active_completion_state()
-        used_names = set(self.local_xprompts())
+        panel = self._frontmatter_panel()  # type: ignore[attr-defined]
+        if panel is None:
+            return
+        self._show_frontmatter_panel(focus=False)  # type: ignore[attr-defined]
+        xprompt = build_local_xprompt("_", body, inputs)
 
-        def _on_name(name: str | None) -> None:
-            if name is None:
-                # Cancelled: restore focus to the untouched pane.
-                try:
-                    self.active_text_area().focus()
-                except Exception:
-                    pass
-                return
-            self._store_local_xprompt_and_replace_pane(
-                name, body, inputs, target_mode=target_mode
-            )
+        def _on_commit(saved: XPrompt) -> None:
+            skeleton = local_xprompt_invocation_skeleton(saved)
+            enter_insert = bool(saved.inputs) or target_mode == "insert"
+            self._replace_active_pane_with_skeleton(skeleton, enter_insert=enter_insert)
 
-        from sase.ace.tui.modals import LocalXPromptNameModal
-
-        self.app.push_screen(LocalXPromptNameModal(used_names=used_names), _on_name)
+        panel.begin_prefilled_xprompt("xprompts", xprompt, on_commit=_on_commit)
 
     def _store_local_xprompt_and_replace_pane(
         self,

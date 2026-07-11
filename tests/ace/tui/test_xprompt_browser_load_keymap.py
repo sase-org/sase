@@ -10,6 +10,8 @@ into prompt frontmatter for parity with the Select XPrompt ``Ctrl+I`` path.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from textual.widgets import Static
@@ -105,6 +107,32 @@ async def test_ctrl_i_loads_non_yaml_xprompt_into_prompt_bar(
         await page.wait_for(lambda _s: bool(page.app.query("#prompt-input-bar")))
         bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
         assert "Just a plain note." in bar.active_text()
+
+
+async def test_enter_loads_raw_definition_and_binds_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "review.md"
+    source.write_text(
+        "---\ndescription: Review carefully\n---\n\nRaw {{ target }} body.\n",
+        encoding="utf-8",
+    )
+    prompts = {
+        "review": _md_xprompt(
+            "review", "Raw {{ target }} body.", source_path=str(source)
+        )
+    }
+    async with AcePage() as page:
+        await _open_xprompts_tab(page, monkeypatch, prompts)
+        await page.press("enter")
+
+        await page.expect_no_modal()
+        await page.wait_for(lambda _s: bool(page.app.query("#prompt-input-bar")))
+        bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
+        assert bar._stack.binding is not None
+        assert bar._stack.binding.path == str(source)
+        assert bar._stack.frontmatter_model.description == "Review carefully"
+        assert "Raw {{ target }} body." in bar.active_text()
 
 
 async def test_ctrl_i_stages_declared_inputs_into_frontmatter(

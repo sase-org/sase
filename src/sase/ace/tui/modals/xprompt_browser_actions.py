@@ -9,6 +9,7 @@ from pathlib import Path
 
 from sase.ace.hints import build_editor_args
 from sase.config import apply_chezmoi, get_use_chezmoi
+from sase.xprompt.config_yaml import insert_xprompt_into_config
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 
 from .confirm_action_modal import ConfirmActionModal
@@ -17,7 +18,6 @@ from .xprompt_browser_helpers import (
     has_git_changes,
     resolve_source_to_file_path,
 )
-from .xprompt_config_yaml import insert_xprompt_into_config
 
 
 class XPromptBrowserActionsMixin:
@@ -30,16 +30,67 @@ class XPromptBrowserActionsMixin:
     - ``notify()``, ``app`` (from ``ModalScreen``)
     """
 
-    def action_edit_xprompt(self) -> None:
-        """Open highlighted xprompt in $EDITOR."""
+    async def action_edit_xprompt(self) -> None:
+        """Load a simple definition raw into a bound prompt bar."""
+        import asyncio
+
+        from sase.ace.tui.modals.xprompt_browser_helpers import is_yaml_backed_source
+        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+        from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+        from sase.xprompt.save import load_config_xprompt_markdown
+
         item = self._get_highlighted_item()  # type: ignore[attr-defined]
         if item is None:
             return
+        if item.kind != "xprompt":
+            self.notify("Workflow graphs use E / $EDITOR", severity="warning")  # type: ignore[attr-defined]
+            return
+        file_path = resolve_source_to_file_path(item.source_path)
+        if file_path is None:
+            self.notify("Definition source is unavailable", severity="error")  # type: ignore[attr-defined]
+            return
+        try:
+            config_backed = is_yaml_backed_source(item.source_path)
+            if config_backed:
+                markdown = await asyncio.to_thread(
+                    load_config_xprompt_markdown, file_path, item.name
+                )
+                binding = (
+                    XPromptBinding.for_config(file_path, item.name)
+                    if item.is_editable
+                    else None
+                )
+            else:
+                markdown = await asyncio.to_thread(
+                    Path(file_path).read_text, encoding="utf-8"
+                )
+                binding = (
+                    XPromptBinding.for_file(file_path) if item.is_editable else None
+                )
+        except Exception as exc:
+            self.notify(f"Could not load definition: {exc}", severity="error")  # type: ignore[attr-defined]
+            return
 
+        loader = getattr(self.app, "load_xprompt_definition_into_home_prompt_bar", None)  # type: ignore[attr-defined]
+        if not callable(loader):
+            return
+        model = PromptFrontmatter.parse(markdown)
+        loader(
+            markdown,
+            display_name=f"#{item.name}",
+            binding=binding,
+            read_only=not item.is_editable,
+            has_comments=model.has_comments,
+        )
+
+    def action_external_edit_xprompt(self) -> None:
+        """Open highlighted editable definition in ``$EDITOR``."""
+        item = self._get_highlighted_item()  # type: ignore[attr-defined]
+        if item is None:
+            return
         if not item.is_editable:
             self.notify("This xprompt is read-only", severity="warning")  # type: ignore[attr-defined]
             return
-
         file_path = resolve_source_to_file_path(item.source_path)
         if file_path is None:
             self.notify("Could not resolve source file path", severity="error")  # type: ignore[attr-defined]

@@ -28,12 +28,13 @@ from .xprompt_browser_helpers import classify_source, resolve_source_to_file_pat
 class XPromptSaveTarget:
     """A selected save target."""
 
-    kind: Literal["create", "overwrite", "create_snippet"]
+    kind: Literal["create", "overwrite", "create_snippet", "write"]
     name: str = ""
     path: str = ""
     target_format: SaveTargetFormat | None = None
     entry_name: str | None = None
     display_path: str = ""
+    exists: bool = False
 
 
 @dataclass(frozen=True)
@@ -110,7 +111,7 @@ class XPromptSaveTargetModal(
         allow_create_snippet: bool = False,
     ) -> None:
         super().__init__()
-        self._rows = rows if rows is not None else load_xprompt_save_rows(project)
+        self._rows = rows if rows is not None else _load_xprompt_save_rows(project)
         self._pane_count = pane_count
         self._has_frontmatter = has_frontmatter
         self._allow_create_snippet = allow_create_snippet
@@ -363,7 +364,7 @@ class XPromptSaveTargetModal(
         scroll.scroll_relative(y=-(height // 2), animate=False)
 
 
-def load_xprompt_save_rows(project: str | None = None) -> list[_XPromptSaveRow]:
+def _load_xprompt_save_rows(project: str | None = None) -> list[_XPromptSaveRow]:
     """Load save-target rows from the xprompt catalog."""
     prompts = get_all_prompts(project=project)
     prompts = {**get_all_project_local_prompts(), **prompts}
@@ -531,5 +532,4 @@ def _short_display_path(path: str) -> str:
 __all__ = [
     "XPromptSaveTarget",
     "XPromptSaveTargetModal",
-    "load_xprompt_save_rows",
 ]
