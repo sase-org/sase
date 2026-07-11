@@ -93,6 +93,7 @@ def _calm_views() -> list[AliasView]:
             model="opus",
         ),
         _view("epic_creator", "role", provider="claude", model="opus"),
+        _view("epic_lander", "role", provider="claude", model="opus"),
         _view(
             "phase_worker",
             "role",
@@ -141,28 +142,36 @@ def _override_views() -> list[AliasView]:
         expires_at=_FROZEN_NOW + 3600.0,
         source="ace",
     )
-    phase_override = TemporaryLLMOverride(
-        provider="claude",
-        model="opus",
-        raw_model="opus",
+    coder_override = TemporaryLLMOverride(
+        provider="codex",
+        model="gpt-5.6-sol",
+        raw_model="codex/gpt-5.6-sol",
         created_at=_FROZEN_NOW,
         expires_at=None,
         source="ace",
     )
-    rows = _calm_views()
-    rows[0] = _view(
-        "default", "default", provider="codex", model="o3", override=default_override
-    )
-    rows[3] = _view(
-        "phase_worker",
-        "role",
-        configured=True,
-        configured_value="codex/o3",
-        provider="claude",
-        model="opus",
-        override=phase_override,
-    )
-    return rows
+    return [
+        _view(
+            "default",
+            "default",
+            provider="codex",
+            model="o3",
+            override=default_override,
+        )
+        if row.name == "default"
+        else _view(
+            "codex_coder",
+            "provider_coder",
+            configured=True,
+            configured_value="codex/o3",
+            provider="codex",
+            model="gpt-5.6-sol",
+            override=coder_override,
+        )
+        if row.name == "codex_coder"
+        else row
+        for row in _calm_views()
+    ]
 
 
 def _bucket_views() -> list[AliasView]:
@@ -269,6 +278,30 @@ async def test_models_panel_overrides_png_snapshot(
             page,
             "models_panel_overrides_120x40",
             title="ACE models panel (overrides active)",
+        )
+
+
+async def test_models_panel_coders_drilled_in_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        models_panel, "build_alias_views", lambda *a, **k: _override_views()
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: _FROZEN_NOW)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await page.press("j", "l")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_coders_drilled_in_120x40",
+            title="ACE models panel (coders bucket open)",
         )
 
 

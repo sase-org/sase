@@ -415,6 +415,9 @@ llm_provider:
       blogger:
         model: claude/opus
         description: Agents that draft and edit blog posts.
+    buckets:
+      coders:
+        description: Coder defaults and provider-specific follow-ups.
 ```
 
 | Field                                | Type   | Default     | Description                                                                                                                                            |
@@ -424,6 +427,7 @@ llm_provider:
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                 |
 | `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only. Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
 | `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each custom alias requires `model` and `description` fields.                       |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                            |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at names such as `%model:@default` or
 `%model:@blogger` while each user's `sase.yml` controls the concrete provider/model. Alias config keys stay bare; the
@@ -431,6 +435,11 @@ Model aliases are resolved when an agent launches, so reusable xprompts can poin
 (chains are followed with cycle/depth protection). Unknown non-alias model values keep the existing fallback behavior
 and run on the default provider. Use `model_aliases.builtin` for builtin role overrides and `model_aliases.custom` for
 user-defined aliases with descriptions.
+
+ACE automatically groups `@coder` and every registered `@<provider>_coder` into a display-only `coders` bucket; alias
+resolution and configuration remain flat. `model_aliases.buckets.coders.description` overrides the built-in bucket
+description. A custom alias with `bucket: coders` joins that same row rather than creating another bucket, while
+remaining independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),

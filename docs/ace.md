@@ -1010,9 +1010,14 @@ and any user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @default`, or an
-`override · <time> left` / `override · until cleared` chip when a temporary override is active. Rows are sorted
-deterministically: `default` first, then the other role aliases, then `<provider>_coder` aliases, then user-defined
-aliases alphabetically.
+`override · <time> left` / `override · until cleared` chip when a temporary override is active. The top level is sorted
+deterministically: `default`, the built-in `coders` bucket, `epic_creator`, `epic_lander`, `phase_worker`, then custom
+buckets and ungrouped user aliases in alphabetical order.
+
+The always-present `coders` bucket groups `coder` first and every registered `<provider>_coder` alias alphabetically.
+Its collapsed row reports the member count and active overrides, while the description strip summarizes the distinct
+effective models. Open any bucket with `l`, Right, or Enter; return with `h` or Left. Inside `coders`, each alias keeps
+its own configured/implicit state and can be edited, reset, overridden, or cleared independently.
 
 The two-line strip below the list explains the highlighted alias. Builtin aliases use fixed descriptions. User aliases
 use `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without one shows that config path as
@@ -1020,13 +1025,15 @@ the fix.
 
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted alias:
 
-| Key           | Action                                                                                     |
-| ------------- | ------------------------------------------------------------------------------------------ |
-| `o` / `Enter` | **Override** — set/change a time-bound temporary override (model picker → duration picker) |
-| `x`           | **Clear** — remove the temporary override on this alias                                    |
-| `e`           | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
-| `r`           | **Reset** — unset the configured value back to its implicit fallback                       |
-| `Esc` / `q`   | Close the panel                                                                            |
+| Key                   | Action                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| `l` / Right / `Enter` | **Open** the highlighted bucket                                                            |
+| `h` / Left            | **Back** to the top level from an open bucket                                              |
+| `o`                   | **Override** — set/change a time-bound temporary override (model picker → duration picker) |
+| `x`                   | **Clear** — remove the temporary override on this alias                                    |
+| `e`                   | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
+| `r`                   | **Reset** — unset the configured value back to its implicit fallback                       |
+| `Esc` / `q`           | Close the panel                                                                            |
 
 ### Temporary overrides
 

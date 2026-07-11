@@ -181,6 +181,7 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
                     }
                 },
                 "buckets": {
+                    "coders": {"description": "Coder follow-up aliases."},
                     "research": {"description": "Research roles."},
                     "unused": {"description": "No members."},
                 },
@@ -192,6 +193,7 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
+    assert "model_aliases.buckets.coders" not in by_key
     assert "model_aliases.buckets.research" not in by_key
     assert "model_aliases.buckets.unused" in by_key
     assert "no custom aliases" in by_key["model_aliases.buckets.unused"]

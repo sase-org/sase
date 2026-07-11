@@ -147,7 +147,7 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
     async with _TestApp().run_test() as pilot:
         pilot.app.push_screen(ModelsPanel())
         await pilot.pause()
-        await pilot.press("e")
+        await pilot.press("l", "e")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelPickerModal)
 
@@ -218,6 +218,7 @@ async def test_action_reset_unconfigured_warns_and_skips(monkeypatch: Any) -> No
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await pilot.press("l")
         panel.notify = MagicMock()  # type: ignore[method-assign]
         panel.action_reset()
         await pilot.pause()
@@ -241,6 +242,7 @@ async def test_action_reset_configured_opens_preview_with_unset(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await pilot.press("l")
         panel.action_reset()
         await pilot.pause()
         screen = pilot.app.screen
@@ -298,6 +300,7 @@ async def test_action_reset_custom_alias_deletes_custom_entry(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await pilot.press("j")
         panel.action_reset()
         await pilot.pause()
         screen = pilot.app.screen

@@ -559,6 +559,9 @@ llm_provider:
       blogger:
         model: claude/opus
         description: Agents that draft and edit blog posts.
+    buckets:
+      coders:
+        description: Coder defaults and provider-specific follow-ups.
 ```
 
 ### Config Fields
@@ -571,6 +574,7 @@ llm_provider:
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                          |
 | `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`). Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
 | `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; descriptions are shown in completions and the Models panel.                                                |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                    |
 
 ## Per-Prompt Provider Switching
 
@@ -621,6 +625,12 @@ legacy flat keys in `model_aliases`, removed top-level `custom_model_aliases`, c
 `model_aliases.builtin`, builtin names under `model_aliases.custom`, collisions between the two maps, missing custom
 descriptions/models, and dangling `@alias` references. In ACE, the Models panel shows descriptions from config; a user
 alias without one shows the `llm_provider.model_aliases.custom.<name>.description` path to fix.
+
+The ACE Models panel automatically folds `@coder` and all registered `@<provider>_coder` aliases into one `coders`
+bucket without changing resolution, completion, launch routing, or config paths. The collapsed bucket summarizes its
+effective-model mix and active overrides; opening it exposes the independently editable aliases. Optional
+`model_aliases.buckets.coders.description` metadata replaces the built-in description, and a custom alias configured
+with `bucket: coders` coalesces into the same display bucket.
 
 A bare `%model` token that is _not_ a configured alias, an explicit `provider/model` target, or a known provider model
 silently falls back to the default provider rather than erroring. To catch this drift — for example a removed
@@ -832,8 +842,9 @@ In addition to the tier-based global override, sase supports **concrete** provid
 temporary, time-bound overrides of a model alias. The ACE `,m` chord opens the [**Models** panel](ace.md#models-panel)
 for setting, changing, and clearing these overrides — for the `default` alias or any role/user alias.
 
-The panel also shows a two-line description for the highlighted alias. Builtin aliases have fixed descriptions, and
-custom aliases read `llm_provider.model_aliases.custom.<name>.description`.
+The panel also shows a two-line description for the highlighted alias or bucket. Builtin aliases have fixed
+descriptions, custom aliases read `llm_provider.model_aliases.custom.<name>.description`, and the built-in `coders`
+bucket reports its aggregate effective-model mix and active override count.
 
 Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
 for new agent launches; an override on any other alias takes effect wherever that alias is resolved (e.g. `@coder`,

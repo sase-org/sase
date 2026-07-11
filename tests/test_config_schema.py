@@ -299,7 +299,35 @@ def test_config_schema_accepts_model_alias_buckets() -> None:
                         "bucket": "research",
                     }
                 },
-                "buckets": {"research": {"description": "Research-swarm model roles."}},
+                "buckets": {
+                    "coders": {"description": "Coder follow-up aliases."},
+                    "research": {"description": "Research-swarm model roles."},
+                },
+            }
+        }
+    }
+
+    errors = sorted(
+        Draft7Validator(schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
+
+
+def test_config_schema_accepts_custom_alias_coalesced_into_coders_bucket() -> None:
+    schema = _schema()
+    config = {
+        "llm_provider": {
+            "model_aliases": {
+                "custom": {
+                    "review_coder": {
+                        "model": "codex/gpt-5.6-sol",
+                        "description": "Reviews coder follow-ups.",
+                        "bucket": "coders",
+                    }
+                },
+                "buckets": {"coders": {"description": "All coder roles."}},
             }
         }
     }

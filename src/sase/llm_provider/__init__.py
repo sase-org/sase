@@ -10,6 +10,8 @@ from .alias_view import (
     AliasKind,
     AliasView,
     BucketView,
+    CODERS_BUCKET_DESCRIPTION,
+    CODERS_BUCKET_NAME,
     build_alias_views,
     build_models_panel_rows,
 )
@@ -61,6 +63,8 @@ __all__ = [
     "AliasKind",
     "AliasView",
     "BucketView",
+    "CODERS_BUCKET_DESCRIPTION",
+    "CODERS_BUCKET_NAME",
     "BaseMessage",
     "FileRefMode",
     "HumanMessage",

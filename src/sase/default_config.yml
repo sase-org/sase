@@ -307,7 +307,9 @@ llm_provider:
   # model (opus), an explicit provider/model (codex/gpt-5.6-sol), a nested
   # provider-local path (opencode/anthropic/claude-sonnet-4-5), or an @<alias>
   # reference. User-invented aliases live under custom and must include a
-  # description for completions and the Models panel.
+  # description for completions and the Models panel. Bucket membership is
+  # display-only: ACE always supplies `coders`, and custom aliases assigned to
+  # it coalesce with the generic and provider-specific coder aliases.
   # model_aliases:
   #   builtin:
   #     default: opus               # model used when a prompt has no %model directive
@@ -323,6 +325,8 @@ llm_provider:
   #       description: "Agents that draft and edit blog posts."
   #       bucket: writing          # optional Models-panel grouping
   #   buckets:
+  #     coders:
+  #       description: "Coder defaults and provider-specific follow-ups."
   #     writing:
   #       description: "Writing and editing roles."
   retry:

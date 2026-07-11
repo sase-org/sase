@@ -14,6 +14,7 @@ from tests._models_panel_helpers import (
     StyledModelsPanelTestApp,
     make_alias_view,
     make_bucketed_views,
+    make_coder_bucket_views,
     make_override,
     patch_alias_views,
 )
@@ -39,12 +40,12 @@ async def test_panel_escape_closes_unchanged(monkeypatch) -> None:
 
 
 async def test_panel_o_opens_model_picker(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("coder", "role")])
+    patch_alias_views(monkeypatch, make_coder_bucket_views())
 
     async with ModelsPanelTestApp().run_test() as pilot:
         pilot.app.push_screen(ModelsPanel())
         await pilot.pause()
-        await pilot.press("o")
+        await pilot.press("j", "l", "o")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelPickerModal)
 
@@ -52,7 +53,11 @@ async def test_panel_o_opens_model_picker(monkeypatch) -> None:
 async def test_panel_x_clears_active_override(monkeypatch) -> None:
     patch_alias_views(
         monkeypatch,
-        [make_alias_view("phase_worker", "role", override=make_override())],
+        [
+            make_alias_view("default", "default"),
+            make_alias_view("coder", "role"),
+            make_alias_view("phase_worker", "role", override=make_override()),
+        ],
     )
     clear_mock = MagicMock(return_value=True)
     monkeypatch.setattr(models_panel, "clear_alias_override", clear_mock)
@@ -66,7 +71,7 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
 
         pilot.app.push_screen(ModelsPanel(), callback=on_dismiss)
         await pilot.pause()
-        await pilot.press("x")
+        await pilot.press("j", "j", "x")
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
@@ -77,10 +82,7 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
 
 
 async def test_panel_x_without_override_does_not_clear(monkeypatch) -> None:
-    patch_alias_views(
-        monkeypatch,
-        [make_alias_view("coder", "role", override=None)],
-    )
+    patch_alias_views(monkeypatch, make_coder_bucket_views())
     clear_mock = MagicMock()
     monkeypatch.setattr(models_panel, "clear_alias_override", clear_mock)
 
@@ -88,7 +90,7 @@ async def test_panel_x_without_override_does_not_clear(monkeypatch) -> None:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("x")
+        await pilot.press("j", "l", "x")
         await pilot.pause()
         clear_mock.assert_not_called()
         assert panel._changed is False
@@ -115,7 +117,7 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         await pilot.pause()
         description = panel.query_one("#models-panel-description", Static)
         assert "Default model." in description.content.plain
-        await pilot.press("j")
+        await pilot.press("j", "j")
         await pilot.pause()
         assert "Draft blog posts." in description.content.plain
 
@@ -131,6 +133,8 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+
+        await pilot.press("j", "j")
 
         assert panel._highlighted_row_id() == "bucket:research"
         assert "l/enter" in str(panel.query_one("#models-panel-footer", Static).content)
@@ -162,11 +166,60 @@ async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await pilot.press("j", "j")
         await pilot.press("enter")
         await pilot.pause()
 
         assert panel._active_bucket == "research"
         assert panel._highlighted_row_id() == "research_a"
+
+
+async def test_panel_coders_bucket_navigation_and_refresh_restore(monkeypatch) -> None:
+    patch_alias_views(monkeypatch, make_coder_bucket_views())
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+
+        await pilot.press("j")
+        assert panel._highlighted_row_id() == "bucket:coders"
+        description = panel.query_one("#models-panel-description", Static).content.plain
+        assert "Generic coder default" in description
+        assert "claude/opus ×2" in description
+
+        await pilot.press("l")
+        await pilot.pause()
+        assert panel._active_bucket == "coders"
+        assert list(panel._row_by_id) == ["coder", "claude_coder", "codex_coder"]
+        assert panel._highlighted_row_id() == "coder"
+
+        await pilot.press("j")
+        assert panel._highlighted_row_id() == "claude_coder"
+        panel._refresh_rows(keep="claude_coder")
+        await pilot.pause()
+        assert panel._active_bucket == "coders"
+        assert panel._highlighted_row_id() == "claude_coder"
+
+        await pilot.press("h")
+        await pilot.pause()
+        assert panel._active_bucket is None
+        assert panel._highlighted_row_id() == "bucket:coders"
+
+
+@pytest.mark.parametrize("member_steps", [[], ["j", "j"]])
+async def test_panel_coders_members_open_override_picker(
+    monkeypatch, member_steps: list[str]
+) -> None:
+    patch_alias_views(monkeypatch, make_coder_bucket_views())
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        pilot.app.push_screen(ModelsPanel())
+        await pilot.pause()
+        await pilot.press("j", "l", *member_steps, "o")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelPickerModal)
 
 
 @pytest.mark.parametrize("key", ["o", "x", "e", "r"])
@@ -178,6 +231,7 @@ async def test_alias_actions_on_bucket_are_guarded(monkeypatch, key: str) -> Non
         panel.notify = MagicMock()  # type: ignore[method-assign]
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await pilot.press("j", "j")
         await pilot.press(key)
         await pilot.pause()
 
@@ -188,7 +242,7 @@ async def test_alias_actions_on_bucket_are_guarded(monkeypatch, key: str) -> Non
 async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
     monkeypatch,
 ) -> None:
-    views = [make_bucketed_views()[0]]
+    views = make_bucketed_views()
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
     monkeypatch.setattr(
         "sase.llm_provider.alias_view.model_alias_bucket_description",
@@ -200,17 +254,17 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("l")
+        await pilot.press("j", "j", "l")
         await pilot.pause()
         assert panel._active_bucket == "research"
 
-        views.clear()
+        views[:] = [view for view in views if view.bucket != "research"]
         panel._refresh_rows(keep="research_a")
         await pilot.pause()
 
         assert panel._active_bucket is None
         assert panel.query_one("#models-panel-title", Static).content.plain == "Models"
-        assert panel.query_one("#models-panel-list", OptionList).option_count == 0
+        assert panel.query_one("#models-panel-list", OptionList).option_count == 3
 
 
 async def test_panel_preferred_width_fits_production_description(monkeypatch) -> None:

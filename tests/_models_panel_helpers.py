@@ -77,6 +77,8 @@ def patch_alias_views(
 
 def make_bucketed_views() -> list[AliasView]:
     return [
+        make_alias_view("default", "default"),
+        make_alias_view("coder", "role"),
         make_alias_view(
             "research_a",
             "user",
@@ -103,5 +105,17 @@ def make_bucketed_views() -> list[AliasView]:
             configured=True,
             configured_source="custom",
             description="Ungrouped alias.",
+        ),
+    ]
+
+
+def make_coder_bucket_views() -> list[AliasView]:
+    return [
+        make_alias_view("default", "default", description="Default model."),
+        make_alias_view("codex_coder", "provider_coder", provider="codex", model="o3"),
+        make_alias_view("coder", "role", provider="claude", model="opus"),
+        make_alias_view("epic_creator", "role"),
+        make_alias_view(
+            "claude_coder", "provider_coder", provider="claude", model="opus"
         ),
     ]

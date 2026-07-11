@@ -48,6 +48,14 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     PHASE_WORKER_MODEL_ALIAS_NAME,
 )
 
+#: Built-in Models-panel bucket for the generic and provider-specific coder roles.
+CODERS_BUCKET_NAME = "coders"
+
+#: Description used when config does not provide metadata for :data:`CODERS_BUCKET_NAME`.
+CODERS_BUCKET_DESCRIPTION = (
+    "Generic coder default and planner-provider-specific coder follow-up aliases."
+)
+
 
 @dataclass(frozen=True)
 class AliasView:
@@ -92,7 +100,7 @@ class AliasView:
 
 @dataclass(frozen=True)
 class BucketView:
-    """A collapsed Models-panel bucket containing custom alias rows."""
+    """A collapsed Models-panel bucket containing builtin and/or custom rows."""
 
     name: str
     description: str | None
@@ -217,15 +225,46 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
 def build_models_panel_rows(
     views: list[AliasView] | None = None,
 ) -> list[AliasView | BucketView]:
-    """Fold bucketed custom aliases into top-level Models-panel rows.
+    """Fold related aliases into top-level Models-panel bucket rows.
 
-    Non-user aliases retain their canonical order. In the user region, bucket
-    rows come first alphabetically, followed by ungrouped aliases alphabetically.
-    Bucket metadata without any member aliases intentionally produces no row.
+    ``coder`` and all ``<provider>_coder`` aliases form the built-in ``coders``
+    bucket, with custom aliases that name the same bucket coalesced after them.
+    Other custom bucket rows come first alphabetically in the user region,
+    followed by ungrouped aliases alphabetically. Bucket metadata without any
+    member aliases intentionally produces no row.
     """
     source = build_alias_views() if views is None else list(views)
-    non_user = sorted((view for view in source if view.kind != "user"), key=_sort_key)
-    user = [view for view in source if view.kind == "user"]
+    coder_members = sorted(
+        (
+            view
+            for view in source
+            if view.name == CODER_MODEL_ALIAS_NAME or view.kind == "provider_coder"
+        ),
+        key=_sort_key,
+    )
+    non_user = sorted(
+        (
+            view
+            for view in source
+            if view.kind != "user"
+            and view.name != CODER_MODEL_ALIAS_NAME
+            and view.kind != "provider_coder"
+        ),
+        key=_sort_key,
+    )
+    user = [
+        view
+        for view in source
+        if view.kind == "user" and view.bucket != CODERS_BUCKET_NAME
+    ]
+    coder_custom_members = sorted(
+        (
+            view
+            for view in source
+            if view.kind == "user" and view.bucket == CODERS_BUCKET_NAME
+        ),
+        key=lambda view: view.name,
+    )
 
     members_by_bucket: dict[str, list[AliasView]] = {}
     ungrouped: list[AliasView] = []
@@ -243,4 +282,20 @@ def build_models_panel_rows(
         )
         for name, members in sorted(members_by_bucket.items())
     ]
-    return [*non_user, *buckets, *sorted(ungrouped, key=lambda view: view.name)]
+    default_rows = [view for view in non_user if view.kind == "default"]
+    other_builtin_rows = [view for view in non_user if view.kind != "default"]
+    coders_bucket = BucketView(
+        name=CODERS_BUCKET_NAME,
+        description=(
+            model_alias_bucket_description(CODERS_BUCKET_NAME)
+            or CODERS_BUCKET_DESCRIPTION
+        ),
+        members=(*coder_members, *coder_custom_members),
+    )
+    return [
+        *default_rows,
+        coders_bucket,
+        *other_builtin_rows,
+        *buckets,
+        *sorted(ungrouped, key=lambda view: view.name),
+    ]

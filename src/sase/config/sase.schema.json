@@ -797,14 +797,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40,
-                    "description": "Optional display-only bucket in the ace Models panel; alias resolution remains flat and unchanged."
+                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged. The built-in coders bucket is supplied by ACE, and custom aliases assigned to coders coalesce with its builtin members."
                   }
                 }
               }
             },
             "buckets": {
               "type": "object",
-              "description": "Optional Models-panel metadata for buckets referenced by custom aliases.",
+              "description": "Optional display-only Models-panel bucket metadata. ACE supplies the built-in coders bucket even without custom members; its description may be overridden here, and custom aliases assigned to coders coalesce with it.",
               "propertyNames": {
                 "minLength": 1,
                 "maxLength": 40
