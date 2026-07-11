@@ -312,6 +312,12 @@ class PromptStepMixin:
             if "/" in self.workflow.name
             else self.workflow.name
         )
+        context_cl_name = self.context.get("cl_name")
+        branch_or_workspace = (
+            context_cl_name
+            if isinstance(context_cl_name, str) and context_cl_name
+            else None
+        )
 
         # -- Agent invocation + post-step section -------------------------
         # Wrapped so that finally-marked post-steps run on failure.
@@ -327,6 +333,7 @@ class PromptStepMixin:
                 agent_type=f"workflow-{base_name}-{step.name}",
                 artifacts_dir=self.artifacts_dir,
                 workflow=self.workflow.name,
+                branch_or_workspace=branch_or_workspace,
                 skip_preprocessing=True,
                 directives=effective_directives,
             )
@@ -344,6 +351,7 @@ class PromptStepMixin:
                     metadata_agent=step.name,
                     metadata_model=step_model,
                     metadata_llm_provider=step_llm_provider,
+                    branch_or_workspace=branch_or_workspace,
                 )
             except Exception:
                 pass

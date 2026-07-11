@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from sase.llm_provider.postprocessing import (
     _save_to_chat_history,
     log_prompt_and_response,
+    postprocess_error,
     save_prompt_to_file,
 )
 from sase.llm_provider.types import LoggingContext
@@ -108,3 +109,27 @@ def test_save_to_chat_history_passes_transcript_model_metadata() -> None:
     assert save_chat.call_args.kwargs["metadata_model"] == "sonnet"
     assert save_chat.call_args.kwargs["metadata_llm_provider"] == "claude"
     assert save_chat.call_args.kwargs["metadata_agent"] is None
+
+
+def test_postprocess_error_warns_when_chat_history_save_fails(
+    capsys: "CaptureFixture[str]",
+) -> None:
+    """Chat persistence failures do not replace the primary provider error."""
+    context = LoggingContext(workflow="wf", suppress_output=True)
+
+    from unittest.mock import patch
+
+    with patch(
+        "sase.llm_provider.postprocessing._save_error_to_chat_history",
+        side_effect=RuntimeError("history unavailable"),
+    ):
+        postprocess_error(
+            prompt="prompt",
+            error_content="provider failed",
+            context=context,
+            model_tier="large",
+            start_timestamp="260501_225009",
+        )
+
+    captured = capsys.readouterr()
+    assert "Warning: Failed to save chat history: history unavailable" in captured.out

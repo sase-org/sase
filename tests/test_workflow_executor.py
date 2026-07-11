@@ -95,15 +95,16 @@ class TestShouldHitl:
             assert getattr(directives, "model", None) == "gemini-3-flash-preview"
 
     def test_prompt_step_chat_history_includes_step_metadata(self) -> None:
-        """Prompt-step chat saves include resolved model/provider and step name."""
+        """Prompt-step chat saves include execution context and step metadata."""
         step = WorkflowStep(name="review", agent="%model:codex/o3\nReview it")
         workflow = _create_test_workflow(name="workflow/main", steps=[step])
 
         with tempfile.TemporaryDirectory() as tmpdir:
             captured: dict[str, object] = {}
 
-            def _fake_invoke_agent(prompt: str, **_: object) -> AIMessage:
+            def _fake_invoke_agent(prompt: str, **kwargs: object) -> AIMessage:
                 captured["prompt"] = prompt
+                captured["invoke_kwargs"] = kwargs
                 return AIMessage(content="ok")
 
             def _fake_save_chat_history(**kwargs: object) -> str:
@@ -123,17 +124,21 @@ class TestShouldHitl:
             ):
                 executor = WorkflowExecutor(
                     workflow=workflow,
-                    args={},
+                    args={"cl_name": "feature_workspace"},
                     artifacts_dir=tmpdir,
                 )
                 assert executor.execute() is True
 
+        invoke_kwargs = captured["invoke_kwargs"]
+        assert isinstance(invoke_kwargs, dict)
+        assert invoke_kwargs["branch_or_workspace"] == "feature_workspace"
         kwargs = captured["chat_kwargs"]
         assert isinstance(kwargs, dict)
         assert kwargs["agent"] == "review"
         assert kwargs["metadata_agent"] == "review"
         assert kwargs["metadata_model"] == "o3"
         assert kwargs["metadata_llm_provider"] == "codex"
+        assert kwargs["branch_or_workspace"] == "feature_workspace"
 
     def test_inherited_vcs_tag_prefixes_bare_prompt_step(self) -> None:
         """Workflow step prompts inherit the wrapper VCS tag before expansion."""

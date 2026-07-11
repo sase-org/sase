@@ -191,12 +191,15 @@ def postprocess_error(
 
     # Save error to central chat history if workflow is set
     if context.workflow:
-        _save_error_to_chat_history(
-            prompt=prompt,
-            error_content=error_content,
-            context=context,
-            start_timestamp=start_timestamp,
-        )
+        try:
+            _save_error_to_chat_history(
+                prompt=prompt,
+                error_content=error_content,
+                context=context,
+                start_timestamp=start_timestamp,
+            )
+        except Exception as e:
+            print(f"Warning: Failed to save chat history: {e}")
 
 
 def _save_to_chat_history(

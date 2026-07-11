@@ -176,7 +176,7 @@ def test_incomplete_load_after_complete_history_dedups_cross_snapshot_same_pid()
         cl_name="active",
         status="RUNNING",
         raw_suffix="20260202120000",
-        workflow="gh-active",
+        workflow="git-active",
         pid=4242,
         workspace_num=9,
         model="cached-model",
