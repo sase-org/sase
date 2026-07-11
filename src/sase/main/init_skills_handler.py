@@ -2,19 +2,27 @@
 
 import argparse
 from collections.abc import Sequence
-from dataclasses import dataclass
-import re
 import shutil
-import subprocess
 import sys
-import tempfile
-import textwrap
 from pathlib import Path
 
-import jinja2
-
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
-from sase.llm_provider.registry import iter_plugins
+from sase.main._init_skills_rendering import (
+    RenderedSkillTarget,
+    format_skill_output as _format_skill_output_impl,
+    format_skill_outputs as _format_skill_outputs_impl,
+    format_unique_skill_outputs_batch as _format_unique_skill_outputs_batch_impl,
+    planned_skill_operation as _planned_skill_operation_impl,
+    render_skill_targets as _render_skill_targets_impl,
+    summarize_skill_actions as _summarize_skill_actions_impl,
+)
+from sase.main._init_skills_sources import (
+    all_providers as _all_providers_impl,
+    provider_context as _provider_context_impl,
+    select_skill_xprompts as _select_skill_xprompts,
+    skill_deploy_subpaths as _skill_deploy_subpaths_impl,
+    target_path_for_subpath as _target_path_for_subpath_impl,
+)
 from sase.main._init_chezmoi_deploy import (
     ChezmoiDeployBehavior,
     defer_chezmoi_paths,
@@ -29,44 +37,12 @@ _PRETTIER_WARNING = (
     f"{_COMMAND_LABEL}: prettier not found on PATH; output may not match "
     "chezmoi CI formatting"
 )
-_PRETTIER_FORMAT_ARGS = [
-    "prettier",
-    "--prose-wrap=always",
-    "--print-width=120",
-    "--parser=markdown",
-]
-# Bound the prettier subprocess: skill planning runs inside `sase doctor`
-# (config.init), which promises bounded checks — a hung prettier shim must
-# degrade to unformatted output instead of hanging the report.
-_PRETTIER_TIMEOUT_SECONDS = 10.0
-
-
-@dataclass(frozen=True)
-class RenderedSkillTarget:
-    """One generated skill file target."""
-
-    path: Path
-    content: str
-    provider: str
-    skill_name: str
-
-
 _RenderedSkillTarget = RenderedSkillTarget
-
-
-@dataclass(frozen=True)
-class _RawRenderedSkillTarget:
-    """One generated skill file target before Markdown formatting."""
-
-    path: Path
-    content: str
-    provider: str
-    skill_name: str
 
 
 def _all_providers() -> list[str]:
     """Return every registered provider name from ``sase_llm`` entry points."""
-    return [name for name, _ in iter_plugins()]
+    return _all_providers_impl()
 
 
 def _registered_provider_names() -> tuple[str, ...]:
@@ -87,14 +63,7 @@ def _provider_validation_error(provider: str | None) -> str | None:
 
 def _provider_context(provider: str) -> dict[str, str]:
     """Return the Jinja2 rendering context a plugin supplies for its SKILL.md."""
-    for name, plugin in iter_plugins():
-        if name != provider:
-            continue
-        method = getattr(plugin, "llm_skill_template_context", None)
-        if method is None:
-            return {}
-        return method() or {}
-    return {}
+    return _provider_context_impl(provider)
 
 
 def _skill_deploy_subpaths(provider: str) -> list[str]:
@@ -105,38 +74,7 @@ def _skill_deploy_subpaths(provider: str) -> list[str]:
     deployment. Plugins may also expose extra deployment locations via
     :meth:`llm_additional_skill_deploy_subpaths`.
     """
-    primary: str | None = f".{provider}"
-    additional: list[str] = []
-
-    for name, plugin in iter_plugins():
-        if name != provider:
-            continue
-        method = getattr(plugin, "llm_skill_deploy_subpath", None)
-        if method is not None:
-            subpath = method()
-            primary = str(subpath) if subpath else None
-        additional_method = getattr(
-            plugin, "llm_additional_skill_deploy_subpaths", None
-        )
-        if additional_method is not None:
-            subpaths = additional_method() or []
-            if isinstance(subpaths, str):
-                additional = [subpaths]
-            else:
-                additional = list(subpaths)
-        break
-
-    result: list[str] = []
-    seen: set[str] = set()
-    for subpath in [primary, *additional]:
-        if subpath is None:
-            continue
-        normalized = str(subpath).strip("/")
-        if not normalized or normalized in seen:
-            continue
-        result.append(normalized)
-        seen.add(normalized)
-    return result
+    return _skill_deploy_subpaths_impl(provider)
 
 
 def _skill_deploy_subpath(provider: str) -> str:
@@ -158,13 +96,12 @@ def _get_target_providers(skill_field: bool | list[str]) -> list[str]:
 
 def _target_path_for_subpath(subpath: str, skill_name: str, use_chezmoi: bool) -> Path:
     """Return the deployment path for one skill subpath."""
-    if use_chezmoi:
-        # Only the first path segment is a dotfile under chezmoi; nested
-        # directories keep their plain names.
-        parts = subpath.split("/")
-        parts[0] = "dot_" + parts[0].removeprefix(".")
-        return CHEZMOI_HOME / Path(*parts) / "skills" / skill_name / "SKILL.md"
-    return Path.home() / subpath / "skills" / skill_name / "SKILL.md"
+    return _target_path_for_subpath_impl(
+        subpath,
+        skill_name,
+        use_chezmoi=use_chezmoi,
+        chezmoi_home=CHEZMOI_HOME,
+    )
 
 
 def _get_target_path(provider: str, skill_name: str, use_chezmoi: bool) -> Path:
@@ -186,11 +123,12 @@ def _get_target_paths(provider: str, skill_name: str, use_chezmoi: bool) -> list
 
 def _load_skill_xprompts() -> list[XPrompt]:
     """Return loaded xprompts that are installable as provider skills."""
-    xprompts = dict(load_xprompts_from_internal())
     # Passing an empty project disables project auto-detection while still
     # loading the global runtime catalog, including user config overlays.
-    xprompts.update(get_all_xprompts(project=""))
-    return sorted((xp for xp in xprompts.values() if xp.skill), key=lambda xp: xp.name)
+    return _select_skill_xprompts(
+        dict(load_xprompts_from_internal()),
+        get_all_xprompts(project=""),
+    )
 
 
 def prettier_available() -> bool:
@@ -208,139 +146,29 @@ def get_skill_target_providers(skill_field: bool | list[str]) -> list[str]:
     return _get_target_providers(skill_field)
 
 
-_PRETTIER_COMMENT_RE = re.compile(r"^<!-- prettier-ignore[^\n]*-->\n?", re.MULTILINE)
-
-
-def _render_skill(
-    body: str, description: str, context: dict[str, str]
-) -> tuple[str, str]:
-    """Render a skill body and description through Jinja2."""
-    env = jinja2.Environment(undefined=jinja2.StrictUndefined)
-    rendered_body = env.from_string(body).render(context)
-    rendered_desc = env.from_string(description).render(context)
-    # Strip prettier-ignore comments (template metadata, not skill content)
-    rendered_body = _PRETTIER_COMMENT_RE.sub("", rendered_body)
-    # Collapse resulting triple+ blank lines and strip leading blanks
-    rendered_body = re.sub(r"\n{3,}", "\n\n", rendered_body)
-    rendered_body = rendered_body.lstrip("\n")
-    return rendered_body, rendered_desc
-
-
-def _skill_use_audit_directive(name: str) -> str:
-    """Return the generated first-step audit directive for a skill."""
-    return (
-        "Before doing anything else, run this command to record that you are "
-        "using this skill:\n\n"
-        "```bash\n"
-        f'sase skill use {name} --reason "<one-line reason for using this skill>"\n'
-        "```\n\n"
-    )
-
-
-def _build_output(
-    name: str, description: str, body: str, log_skill_use: bool = True
-) -> str:
-    """Build the final SKILL.md content with frontmatter.
-
-    When *log_skill_use* is true (the default), the generated skill begins with
-    the audit directive instructing the agent to record its own use. Skills that
-    set ``log_skill_use: false`` in their source omit that directive.
-    """
-    if "\n" in description.strip():
-        # Multi-line: use YAML literal block scalar (|)
-        header = f"---\nname: {name}\ndescription: |\n"
-        for line in description.strip().splitlines():
-            header += f"  {line}\n"
-        header += "---"
-    elif len(f"description: {description}") > 120:
-        # Long single-line: wrap as YAML plain scalar with continuation indent
-        wrapped = textwrap.fill(description, width=118)
-        indented = textwrap.indent(wrapped, "  ")
-        header = f"---\nname: {name}\ndescription:\n{indented}\n---"
-    else:
-        header = f"---\nname: {name}\ndescription: {description}\n---"
-    directive = _skill_use_audit_directive(name) if log_skill_use else ""
-    content = header + "\n\n" + directive + body
-    if not content.endswith("\n"):
-        content += "\n"
-    return content
-
-
 def _prettier_available() -> bool:
     """Return whether generated Markdown can be formatted with prettier."""
     return shutil.which("prettier") is not None
 
 
-def _unescape_prettier_underscores(text: str) -> str:
-    """Apply the post-Prettier underscore unescaping used by existing formatting."""
-    while r"\_" in text:
-        text = text.replace(r"\_", "_")
-    return text
-
-
 def _format_skill_output(output: str, *, use_prettier: bool) -> str:
     """Format generated skill Markdown with the same path used by apply."""
-    if not use_prettier:
-        return output
-
-    from sase.file_references import format_with_prettier
-
-    return format_with_prettier(output)
+    return _format_skill_output_impl(output, use_prettier=use_prettier)
 
 
 def _format_unique_skill_outputs_batch(outputs: Sequence[str]) -> list[str]:
     """Format unique generated skill Markdown bodies with one Prettier command."""
-    if not outputs:
-        return []
-
-    with tempfile.TemporaryDirectory(prefix="sase-init-skills-") as temp_dir:
-        temp_path = Path(temp_dir)
-        paths: list[Path] = []
-        for index, output in enumerate(outputs):
-            path = temp_path / f"skill-{index}.md"
-            path.write_text(output, encoding="utf-8")
-            paths.append(path)
-
-        subprocess.run(
-            [
-                _PRETTIER_FORMAT_ARGS[0],
-                "--write",
-                *_PRETTIER_FORMAT_ARGS[1:],
-                *(str(path) for path in paths),
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_PRETTIER_TIMEOUT_SECONDS,
-        )
-        return [
-            _unescape_prettier_underscores(path.read_text(encoding="utf-8"))
-            for path in paths
-        ]
+    return _format_unique_skill_outputs_batch_impl(outputs)
 
 
 def _format_skill_outputs(outputs: Sequence[str], *, use_prettier: bool) -> list[str]:
     """Format generated skill Markdown once per unique raw output."""
-    raw_outputs = list(outputs)
-    if not use_prettier or not raw_outputs:
-        return raw_outputs
-
-    unique_outputs: list[str] = []
-    unique_indexes: dict[str, int] = {}
-    for output in raw_outputs:
-        if output in unique_indexes:
-            continue
-        unique_indexes[output] = len(unique_outputs)
-        unique_outputs.append(output)
-
-    try:
-        formatted_unique_outputs = _format_unique_skill_outputs_batch(unique_outputs)
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        formatted_unique_outputs = [
-            _format_skill_output(output, use_prettier=True) for output in unique_outputs
-        ]
-
-    return [formatted_unique_outputs[unique_indexes[output]] for output in raw_outputs]
+    return _format_skill_outputs_impl(
+        outputs,
+        use_prettier=use_prettier,
+        batch_formatter=_format_unique_skill_outputs_batch,
+        single_formatter=lambda output: _format_skill_output(output, use_prettier=True),
+    )
 
 
 def _render_skill_targets(
@@ -351,53 +179,17 @@ def _render_skill_targets(
     use_prettier: bool,
 ) -> list[RenderedSkillTarget]:
     """Render every selected skill/provider target without writing files."""
-    raw_targets: list[_RawRenderedSkillTarget] = []
-
-    for xprompt in skill_xprompts:
-        name = xprompt.name
-        description = xprompt.description or ""
-        skill_field = xprompt.skill
-        if not skill_field:
-            continue
-
-        target_providers = _get_target_providers(skill_field)
-        if provider_filter:
-            target_providers = [p for p in target_providers if p == provider_filter]
-
-        for provider in target_providers:
-            context = _provider_context(provider)
-            rendered_body, rendered_desc = _render_skill(
-                xprompt.content, description, context
-            )
-            output = _build_output(
-                name,
-                rendered_desc.strip(),
-                rendered_body,
-                log_skill_use=xprompt.log_skill_use,
-            )
-            for target in _get_target_paths(provider, name, use_chezmoi):
-                raw_targets.append(
-                    _RawRenderedSkillTarget(
-                        path=target,
-                        content=output,
-                        provider=provider,
-                        skill_name=name,
-                    )
-                )
-
-    formatted_outputs = _format_skill_outputs(
-        [target.content for target in raw_targets],
-        use_prettier=use_prettier,
+    return _render_skill_targets_impl(
+        skill_xprompts,
+        provider_filter=provider_filter,
+        use_chezmoi=use_chezmoi,
+        get_target_providers=_get_target_providers,
+        get_provider_context=_provider_context,
+        get_target_paths=_get_target_paths,
+        format_outputs=lambda outputs: _format_skill_outputs(
+            outputs, use_prettier=use_prettier
+        ),
     )
-    return [
-        RenderedSkillTarget(
-            path=target.path,
-            content=content,
-            provider=target.provider,
-            skill_name=target.skill_name,
-        )
-        for target, content in zip(raw_targets, formatted_outputs, strict=True)
-    ]
 
 
 def render_skill_targets(
@@ -420,18 +212,7 @@ def _planned_skill_operation(
     target: RenderedSkillTarget,
 ) -> tuple[InitOperation, str] | None:
     """Return planned operation/detail for a skill target, or ``None``."""
-    detail = f"{target.provider}/{target.skill_name}"
-    if not target.path.exists():
-        return "create", detail
-    try:
-        existing = target.path.read_text(encoding="utf-8")
-    except OSError:
-        return "overwrite", detail
-    except UnicodeDecodeError:
-        return "overwrite", detail
-    if existing == target.content:
-        return None
-    return "overwrite", detail
+    return _planned_skill_operation_impl(target)
 
 
 def planned_skill_operation(
@@ -443,16 +224,7 @@ def planned_skill_operation(
 
 def _summarize_skill_actions(actions: tuple[InitAction, ...]) -> str:
     """Return a compact summary for generated skill actions."""
-    if not actions:
-        return "provider skill files are current"
-    operations = {action.operation for action in actions}
-    count = len(actions)
-    noun = "provider skill file" if count == 1 else "provider skill files"
-    if operations == {"create"}:
-        return f"create {count} {noun}"
-    if operations == {"overwrite"}:
-        return f"overwrite {count} {noun}"
-    return f"refresh {count} {noun}"
+    return _summarize_skill_actions_impl([action.operation for action in actions])
 
 
 def _prompt_overwrite(target: Path, new_content: str) -> bool:
