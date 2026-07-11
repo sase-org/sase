@@ -112,3 +112,19 @@ def test_disowned_agent_launcher_workflows_are_hidden() -> None:
         assert workflow.hidden is True
 
         validate_workflow(workflow)
+
+
+def test_notification_suppressed_launcher_steps_are_hidden() -> None:
+    """Bundled launchers hide every executable step to suppress notifications."""
+    xprompts_dir = Path(__file__).resolve().parents[1] / "xprompts"
+
+    for name in (
+        "audit_recent_bugs",
+        "audit_recent_improvements",
+        "refresh_docs",
+    ):
+        workflow = _load_workflow_from_file(xprompts_dir / f"{name}.yml")
+        assert workflow is not None
+        assert all(step.hidden is True for step in workflow.steps)
+
+        validate_workflow(workflow)

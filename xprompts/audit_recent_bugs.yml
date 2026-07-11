@@ -141,6 +141,7 @@ steps:
       launched: int
 
   - name: update_recent_bug_audit_marker
+    hidden: true
     if: "{{ count_recent_bug_audit_commits.count >= threshold and launch_bug_audit_agent.launched > 0 }}"
     python: |
       import subprocess
