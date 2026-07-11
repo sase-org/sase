@@ -1,6 +1,6 @@
 """Dynamic-width and no-wrap behavior for the AXE sidebar (Phase 1).
 
-Pinned by the AXE-tab visual redesign plan (sdd/epics/202605/
+Pinned by the AXE-tab visual redesign plan (sdd/plans/202605/
 axe_tab_visual_redesign.md). The sidebar must:
 
 * compute a natural width from its widest formatted row so long

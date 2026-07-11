@@ -18,7 +18,7 @@ def _match(
     *,
     source: str = "repo",
     kind: str = "tale",
-    relpath: str = "tales/202606/auth_token_refresh.md",
+    relpath: str = "plans/202606/auth_token_refresh.md",
     name: str = "auth_token_refresh",
     title: str = "Refresh auth tokens on 401",
     status: str = "wip",
@@ -62,7 +62,7 @@ def _compact(matches: list[PlanSearchMatch], *, query: str | None = "auth") -> s
 
 
 def test_display_path_strips_repo_kind_dir_and_extension() -> None:
-    plan = _match(relpath="tales/202606/auth_token_refresh.md").plan
+    plan = _match(relpath="plans/202606/auth_token_refresh.md").plan
     assert R._display_path(plan) == "202606/auth_token_refresh"
 
 
@@ -74,8 +74,8 @@ def test_display_path_keeps_local_shard_and_handles_flat() -> None:
 
 
 def test_repo_source_root_label_reflects_local_sdd_store() -> None:
-    match = _match(relpath="tales/202607/store_plan.md")
-    match.plan.path = "/repo/.sase/sdd/tales/202607/store_plan.md"
+    match = _match(relpath="plans/202607/store_plan.md")
+    match.plan.path = "/repo/.sase/sdd/plans/202607/store_plan.md"
 
     assert R._source_root_label("repo", [match]) == ".sase/sdd/"
 

@@ -849,7 +849,7 @@ original prompts).
 `#bd/new_epic` accepts optional ChangeSpec metadata for the plan bead it creates:
 
 ```text
-#git:sase #bd/new_epic(plan_file_path=sdd/epics/202604/example.md, changespec=sase_feature, bug_id=12345)
+#git:sase #bd/new_epic(plan_file_path=sdd/plans/202604/example.md, changespec=sase_feature, bug_id=12345)
 ```
 
 When `bug_id` is supplied, `changespec` must also be supplied; the generated plan bead is created with the corresponding
@@ -1248,8 +1248,8 @@ Use `%auto:tale` or `%auto:epic` to plan first, then auto-approve and commit the
 tier. Unknown modes raise a `DirectiveError`; valid modes are `plan`, `tale`, and `epic`.
 
 When an agent launched with `%auto:tale` later submits a plan with `/sase_plan` or `sase plan propose`, sase
-auto-approves and commits it as an SDD tale in the resolved store (`sdd/tales/YYYYMM/` in in-tree mode,
-`.sase/sdd/tales/YYYYMM/` otherwise) and launches the coder follow-up — the same path as the TUI Tale action:
+auto-approves and commits it as an SDD tale in the resolved store (`sdd/plans/YYYYMM/` in in-tree mode,
+`.sase/sdd/plans/YYYYMM/` otherwise) and launches the coder follow-up — the same path as the TUI Tale action:
 
 ```
 %auto:tale

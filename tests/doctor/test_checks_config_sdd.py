@@ -76,16 +76,16 @@ def test_config_sdd_uses_materialized_separate_repo_store(
 
 
 def test_config_sdd_allows_non_strict_validation_warnings(tmp_path: Path) -> None:
-    tale = tmp_path / ".sase" / "sdd" / "tales" / "202605" / "unpaired.md"
+    tale = tmp_path / ".sase" / "sdd" / "plans" / "202605" / "unpaired.md"
     tale.parent.mkdir(parents=True)
-    tale.write_text("# Unpaired\n", encoding="utf-8")
+    tale.write_text("---\ntier: tale\n---\n# Unpaired\n", encoding="utf-8")
 
     check = check_config_sdd(_doctor_context(tmp_path))
 
     assert check.status == "OK"
-    assert "2 warnings" in check.summary
+    assert "1 warning" in check.summary
     assert check.details == ()
-    assert check.data["warning_count"] == 2
+    assert check.data["warning_count"] == 1
 
 
 def test_config_sdd_errors_on_orphaned_store_record(tmp_path: Path) -> None:
@@ -137,15 +137,15 @@ def _write_materialized_sdd_record(
 
 def _write_sdd_pair(root: Path) -> None:
     prompt = root / "prompts" / "202605" / "linked.md"
-    tale = root / "tales" / "202605" / "linked.md"
+    tale = root / "plans" / "202605" / "linked.md"
     prompt.parent.mkdir(parents=True, exist_ok=True)
     tale.parent.mkdir(parents=True, exist_ok=True)
     prompt.write_text(
-        "---\nplan: .sase/sdd/tales/202605/linked.md\n---\n# Prompt\n",
+        "---\nplan: .sase/sdd/plans/202605/linked.md\n---\n# Prompt\n",
         encoding="utf-8",
     )
     tale.write_text(
-        "---\nprompt: .sase/sdd/prompts/202605/linked.md\n---\n# Tale\n",
+        "---\nprompt: .sase/sdd/prompts/202605/linked.md\ntier: tale\n---\n# Tale\n",
         encoding="utf-8",
     )
 

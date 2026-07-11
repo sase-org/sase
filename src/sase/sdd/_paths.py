@@ -6,11 +6,9 @@ from pathlib import Path
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
 SDD_CANONICAL_DIRS = (
     "beads",
-    "epics",
     "plans",
     "prompts",
     "research",
-    "tales",
 )
 _SDD_CANONICAL_DIRS = set(SDD_CANONICAL_DIRS)
 
@@ -32,10 +30,6 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
     aliases: tuple[str, ...]
     if kind in _SDD_PROMPT_KINDS:
         aliases = ("prompts", "specs")
-    elif kind in ("tales", "plans"):
-        aliases = ("plans", "tales")
-    elif kind == "epics":
-        aliases = ("plans", "epics")
     else:
         aliases = (kind,)
     roots: list[Path] = []
@@ -49,12 +43,10 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
 
 
 def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
-    """Search for an SDD file, supporting canonical and legacy layouts.
+    """Search for an SDD file in canonical in-tree or companion layouts.
 
-    Canonical version-controlled paths live under ``sdd/{kind}``. Legacy
-    version-controlled paths live at the project root under ``{kind}``. Local
-    SDD mode passes ``.sase/sdd`` as ``base_dir``, where ``{kind}`` remains the
-    canonical local location.
+    Version-controlled paths live under ``sdd/{kind}``. Local SDD mode passes
+    ``.sase/sdd`` as ``base_dir``, where ``{kind}`` is the child directory.
 
     Returns the first match, or ``None`` if not found.
     """

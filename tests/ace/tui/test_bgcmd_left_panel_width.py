@@ -1,6 +1,6 @@
 """Width clamps for the AXE-tab left sidebar (#bgcmd-list-container).
 
-Pins the Phase 1 contract from sdd/epics/202605/axe_tab_visual_redesign.md:
+Pins the Phase 1 contract from sdd/plans/202605/axe_tab_visual_redesign.md:
 ``BgCmdList.WidthChanged`` events resize the sidebar container, clamp to
 the configured min/max, and never starve the right-hand AXE dashboard on
 narrow terminals.

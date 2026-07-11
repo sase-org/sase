@@ -39,10 +39,10 @@ def _make_submitted_planner(base: Path, timestamp: str, name: str) -> Path:
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta["plan"] = True
     meta["plan_submitted_at"] = ["2026-06-25T18:47:16+00:00"]
-    meta["plan_path"] = "sdd/tales/202606/example.md"
+    meta["plan_path"] = "sdd/plans/202606/example.md"
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     (artifact_dir / "plan_path.json").write_text(
-        json.dumps({"plan_path": "sdd/tales/202606/example.md"}),
+        json.dumps({"plan_path": "sdd/plans/202606/example.md"}),
         encoding="utf-8",
     )
     return artifact_dir

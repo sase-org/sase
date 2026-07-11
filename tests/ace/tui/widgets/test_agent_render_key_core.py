@@ -1,6 +1,6 @@
 """Tests for core per-row render-key extraction.
 
-Phase 3 of sdd/tales/202604/instant_jk_navigation.md (bead sase-u.3).
+Phase 3 of sdd/plans/202604/instant_jk_navigation.md (bead sase-u.3).
 """
 
 from __future__ import annotations

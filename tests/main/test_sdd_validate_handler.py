@@ -24,9 +24,9 @@ def test_validate_allows_default_unpaired_warnings(
 ) -> None:
     root = tmp_path / "sdd"
     write_pair(root)
-    unpaired = root / "tales" / "202605" / "legacy.md"
+    unpaired = root / "plans" / "202605" / "unpaired.md"
     unpaired.parent.mkdir(parents=True, exist_ok=True)
-    unpaired.write_text("# Legacy plan\n", encoding="utf-8")
+    unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_sdd_command(make_args(path=str(root)))
@@ -43,9 +43,9 @@ def test_validate_show_warnings_flag_displays_warning_lines(
 ) -> None:
     root = tmp_path / "sdd"
     write_pair(root)
-    unpaired = root / "tales" / "202605" / "legacy.md"
+    unpaired = root / "plans" / "202605" / "unpaired.md"
     unpaired.parent.mkdir(parents=True, exist_ok=True)
-    unpaired.write_text("# Legacy plan\n", encoding="utf-8")
+    unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_sdd_command(make_args(path=str(root), show_warnings=True))
@@ -131,7 +131,7 @@ def test_validate_downgrades_allowlisted_legacy_error(
     path = root / "prompts" / "202605" / "legacy.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        "---\nplan: sdd/tales/202605/missing.md\n---\n# Legacy prompt\n",
+        "---\nplan: sdd/plans/202605/missing.md\n---\n# Legacy prompt\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -153,7 +153,7 @@ def test_validate_downgrades_allowlisted_legacy_error(
             "code": "link-missing-target-legacy-allowed",
             "path": "prompts/202605/legacy.md",
             "message": "'plan' target does not exist: "
-            "sdd/tales/202605/missing.md; "
+            "sdd/plans/202605/missing.md; "
             "legacy SDD validation error allowlisted",
         }
     ]
@@ -197,7 +197,7 @@ def test_validate_does_not_allowlist_other_paths(
     path = root / "prompts" / "202605" / "new.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        "---\nplan: sdd/tales/202605/missing.md\n---\n# New prompt\n",
+        "---\nplan: sdd/plans/202605/missing.md\n---\n# New prompt\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -216,24 +216,25 @@ def test_validate_does_not_allowlist_other_paths(
     assert payload["warnings"] == []
 
 
-def test_validate_resolves_legacy_plans_link_to_canonical_tales(
-    tmp_path: Path,
+def test_validate_does_not_resolve_legacy_plan_link_to_canonical_plan(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "sdd"
     prompt = root / "prompts" / "202605" / "linked.md"
-    plan = root / "tales" / "202605" / "linked.md"
+    plan = root / "plans" / "202605" / "linked.md"
     prompt.parent.mkdir(parents=True)
     plan.parent.mkdir(parents=True)
     prompt.write_text(
-        "---\nplan: sdd/plans/202605/linked.md\n---\n# Prompt\n",
+        "---\nplan: sdd/tales/202605/linked.md\n---\n# Prompt\n",
         encoding="utf-8",
     )
     plan.write_text(
-        "---\nprompt: sdd/prompts/202605/linked.md\n---\n# Plan\n",
+        "---\nprompt: sdd/prompts/202605/linked.md\ntier: tale\n---\n# Plan\n",
         encoding="utf-8",
     )
 
     with pytest.raises(SystemExit) as excinfo:
         handle_sdd_command(make_args(path=str(root), quiet=True))
 
-    assert excinfo.value.code == 0
+    assert excinfo.value.code == 1
+    assert "target does not exist" in capsys.readouterr().err

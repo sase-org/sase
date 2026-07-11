@@ -60,7 +60,7 @@ def _commit_all(repo: Path, message: str) -> None:
 
 def _create_repo_with_plan(repo: Path) -> Path:
     _init_git_repo(repo)
-    plan = repo / "sdd" / "tales" / "test_plan.md"
+    plan = repo / "sdd" / "plans" / "test_plan.md"
     plan.parent.mkdir(parents=True)
     plan.write_text(_PLAN_WIP, encoding="utf-8")
     _commit_all(repo, "initial")

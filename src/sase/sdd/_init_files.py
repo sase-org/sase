@@ -47,9 +47,8 @@ plan-like artifact should link back with `prompt: prompts/202605/example.md`.
 
 ## Compatibility
 
-The canonical directories are `prompts/`, `plans/`, `research/`, and `beads/`. Older trees may still contain `specs/`
-for prompt snapshots or `tales/` and `epics/` for plans. Very old `plans/` links meant tales. SDD tooling resolves these
-legacy spellings in both directions, while `sase sdd init` migrates stored files to canonical `plans/` paths.
+The canonical directories are `prompts/`, `plans/`, `research/`, and `beads/`. The unrelated historical `specs/`
+prompt-directory alias remains readable, but repository plans are discovered and linked only through `plans/`.
 """
 
 SDD_DIRECTORY_README_CONTENT = {

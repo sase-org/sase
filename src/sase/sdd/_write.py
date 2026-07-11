@@ -23,16 +23,20 @@ def write_sdd_files(
     prompt_content: str,
     plan_file: str,
     *,
-    plan_kind: str = "tales",
+    plan_tier: str = "tale",
     yyyymm: str | None = None,
 ) -> tuple[Path, Path]:
     """Write prompts/<YYYYMM>/<name>.md and plans/<YYYYMM>/<name>.md.
 
     Returns (prompt_path, plan_path).
     """
-    from sase.sdd.plan_tiers import tier_for_plan_kind
+    from sase.sdd.plan_tiers import normalize_plan_tier
 
-    tier = tier_for_plan_kind(plan_kind)
+    tier = normalize_plan_tier(plan_tier)
+    if tier is None:
+        raise ValueError(
+            f"invalid SDD plan tier {plan_tier!r}; expected 'tale' or 'epic'"
+        )
 
     yyyymm = get_yyyymm() if yyyymm is None else yyyymm
     prompts_dir = sdd_dir / "prompts" / yyyymm

@@ -263,8 +263,8 @@ def test_family_attach_role_mapping_through_attach_path(
 @pytest.mark.parametrize(
     ("suffix", "parent_plan_path", "expected_sase_plan"),
     [
-        ("code", "sdd/tales/202607/foo.md", "sdd/tales/202607/foo.md"),
-        ("q", "sdd/tales/202607/foo.md", None),
+        ("code", "sdd/plans/202607/foo.md", "sdd/plans/202607/foo.md"),
+        ("q", "sdd/plans/202607/foo.md", None),
         ("code", None, None),
     ],
 )

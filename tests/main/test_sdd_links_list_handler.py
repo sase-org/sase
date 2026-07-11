@@ -24,11 +24,11 @@ def test_repair_links_write_backfills_unambiguous_pair(
 ) -> None:
     root = tmp_path / "sdd"
     prompt = root / "prompts" / "202605" / "fixme.md"
-    plan = root / "epics" / "202605" / "fixme.md"
+    plan = root / "plans" / "202605" / "fixme.md"
     prompt.parent.mkdir(parents=True, exist_ok=True)
     plan.parent.mkdir(parents=True, exist_ok=True)
     prompt.write_text("# Prompt\n", encoding="utf-8")
-    plan.write_text("---\nkeep: yes\n---\n# Epic\n", encoding="utf-8")
+    plan.write_text("---\nkeep: yes\ntier: epic\n---\n# Epic\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
         handle_sdd_command(
@@ -39,10 +39,10 @@ def test_repair_links_write_backfills_unambiguous_pair(
     payload = json.loads(capsys.readouterr().out)
     assert {action["field"] for action in payload["actions"]} == {"plan", "prompt"}
     assert payload["changed_files"] == [
-        "epics/202605/fixme.md",
+        "plans/202605/fixme.md",
         "prompts/202605/fixme.md",
     ]
-    assert "plan: sdd/epics/202605/fixme.md" in prompt.read_text(encoding="utf-8")
+    assert "plan: sdd/plans/202605/fixme.md" in prompt.read_text(encoding="utf-8")
     plan_text = plan.read_text(encoding="utf-8")
     assert "keep: true" in plan_text
     assert "prompt: sdd/prompts/202605/fixme.md" in plan_text
@@ -58,7 +58,7 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert excinfo.value.code == 0
     rows = json.loads(capsys.readouterr().out)
     assert {row["path"] for row in rows} == {
-        "tales/202605/linked.md",
+        "plans/202605/linked.md",
         "prompts/202605/linked.md",
     }
     assert all(row["bidirectional"] for row in rows)
@@ -81,7 +81,7 @@ def test_list_default_uses_configured_separate_repo_store(
         )
 
     assert excinfo.value.code == 0
-    assert capsys.readouterr().out == "tales\ttales/202605/linked.md\n"
+    assert capsys.readouterr().out == "tales\tplans/202605/linked.md\n"
 
 
 def test_list_invalid_path_exits_nonzero(

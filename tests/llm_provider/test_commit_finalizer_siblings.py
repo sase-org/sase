@@ -180,7 +180,7 @@ def test_dirty_observed_same_repo_workspace_from_artifacts_is_ignored(
     add_origin(main, remote)
     add_origin(observed, remote)
     artifacts_dir = tmp_path / "artifacts"
-    dirty_file = observed / "sdd" / "epics" / "observed.png"
+    dirty_file = observed / "sdd" / "plans" / "observed.png"
     dirty_file.parent.mkdir(parents=True)
     dirty_file.write_text("dirty\n", encoding="utf-8")
     write_tool_call_record(

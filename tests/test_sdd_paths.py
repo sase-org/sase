@@ -154,11 +154,11 @@ def test_resolve_sdd_readme_path_sdd_root(tmp_path: Path) -> None:
     )
 
 
-def test_resolve_sdd_readme_path_detects_epics_only_sdd_root(
+def test_resolve_sdd_readme_path_detects_plans_only_sdd_root(
     tmp_path: Path,
 ) -> None:
     sdd_root = tmp_path / "custom-sdd"
-    (sdd_root / "epics").mkdir(parents=True)
+    (sdd_root / "plans").mkdir(parents=True)
 
     assert (
         _resolve_sdd_readme_path(str(sdd_root), cwd=Path("/tmp"))
@@ -224,8 +224,8 @@ def test_find_sdd_file_prompts_flat() -> None:
         assert result == base / "prompts" / "my_plan.md"
 
 
-def test_find_sdd_file_legacy_yyyymm() -> None:
-    """find_sdd_file finds legacy file in YYYYMM subdirectory."""
+def test_find_sdd_file_sharded_plan() -> None:
+    """find_sdd_file finds a canonical file in a YYYYMM subdirectory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
         (base / "plans" / "202603").mkdir(parents=True)
@@ -234,12 +234,12 @@ def test_find_sdd_file_legacy_yyyymm() -> None:
         assert result == base / "plans" / "202603" / "my_plan.md"
 
 
-def test_find_sdd_file_plans_alias_finds_canonical_tales() -> None:
-    """Legacy ``plans`` kind resolves the canonical ``sdd/tales`` location."""
+def test_find_sdd_file_finds_canonical_in_tree_plan() -> None:
+    """The ``plans`` kind resolves the canonical ``sdd/plans`` location."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "sdd" / "tales" / "202603").mkdir(parents=True)
-        canonical = base / "sdd" / "tales" / "202603" / "my_plan.md"
+        (base / "sdd" / "plans" / "202603").mkdir(parents=True)
+        canonical = base / "sdd" / "plans" / "202603" / "my_plan.md"
         canonical.write_text("plan", encoding="utf-8")
 
         result = find_sdd_file(base, "plans", "my_plan.md")
@@ -287,15 +287,15 @@ def test_find_sdd_file_legacy_specs_alias() -> None:
         assert find_sdd_file(base, "specs", "my_plan.md") == legacy
 
 
-def test_find_sdd_file_supports_epics() -> None:
-    """Resolution covers all SDD plan-like kinds."""
+def test_find_sdd_file_does_not_accept_legacy_epics_kind() -> None:
+    """Tier vocabulary is not accepted as a physical lookup directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)
-        (base / "sdd" / "epics" / "202603").mkdir(parents=True)
-        epic = base / "sdd" / "epics" / "202603" / "roadmap.md"
+        (base / "sdd" / "plans" / "202603").mkdir(parents=True)
+        epic = base / "sdd" / "plans" / "202603" / "roadmap.md"
         epic.write_text("epic", encoding="utf-8")
 
-        assert find_sdd_file(base, "epics", "roadmap.md") == epic
+        assert find_sdd_file(base, "epics", "roadmap.md") is None
 
 
 def test_find_sdd_file_missing() -> None:

@@ -143,7 +143,7 @@ def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
 
     with BeadProject.init(workspace_sdd, beads_dirname="beads"):
         pass
-    plan = workspace_sdd / "tales" / "202607" / "round_trip.md"
+    plan = workspace_sdd / "plans" / "202607" / "round_trip.md"
     plan.parent.mkdir(parents=True)
     plan.write_text("# Round trip\n", encoding="utf-8")
     _git(workspace_sdd, "add", ".")

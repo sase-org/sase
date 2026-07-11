@@ -519,10 +519,10 @@ worktrees at their resolved paths. `sase workspace open -p <linked_repo> -r "<re
 opens in `opened_linked_workspaces.json` for ACE context. In that command, `-p/--project` names the configured linked
 repo's hidden backing project record. Dirty enforced workspaces trigger a follow-up invocation that instructs the same
 provider to use the appropriate commit skill. Dirty linked repos are enforced like the main workspace. When the only
-enforced change is one tracked markdown file under `sdd/tales/`, `sdd/epics/`, `sdd/epics/`, and that file's only diff
-is leading front matter changing exactly from `status: wip` to `status: done`, the finalizer creates a direct
-`chore: Mark SDD plan done` commit instead of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass
-writes prompt/response artifacts there, and the final outcome is recorded in `commit_finalizer_result.json`.
+enforced change is one tracked markdown file under `sdd/plans/`, and that file's only diff is leading front matter
+changing exactly from `status: wip` to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit
+instead of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts
+there, and the final outcome is recorded in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.

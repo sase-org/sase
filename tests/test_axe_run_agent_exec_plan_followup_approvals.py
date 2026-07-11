@@ -158,7 +158,7 @@ class TestPlanFollowupApprovals:
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
         mock_commit.assert_called_once()
-        assert mock_commit.call_args.kwargs["plan_kind"] == "epics"
+        assert mock_commit.call_args.kwargs["plan_tier"] == "epic"
 
     def test_approve_no_coder_commit_true_returns_plan_committed(
         self, tmp_path
@@ -253,7 +253,7 @@ class TestPlanFollowupApprovals:
         state = make_state(tmp_path)
         plan_artifacts_dir = state.current_artifacts_dir
         plan_file = str(tmp_path / f"{auto_action}.md")
-        sdd_plan = tmp_path / "sdd" / "tales" / "202606" / f"{auto_action}.md"
+        sdd_plan = tmp_path / "sdd" / "plans" / "202606" / f"{auto_action}.md"
         (tmp_path / f"{auto_action}.md").write_text("# Plan")
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
@@ -293,7 +293,7 @@ class TestPlanFollowupApprovals:
         assert relationships["plan_committed"] is expected_committed
         if expected_committed:
             mock_commit.assert_called_once()
-            assert mock_commit.call_args.kwargs["plan_kind"] == "tales"
+            assert mock_commit.call_args.kwargs["plan_tier"] == "tale"
         else:
             mock_commit.assert_not_called()
 
@@ -302,7 +302,7 @@ class TestPlanFollowupApprovals:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "plan.md"
+        sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "plan.md"
         (tmp_path / "plan.md").write_text("# Plan")
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# SDD")
@@ -471,12 +471,12 @@ class TestPlanFollowupApprovals:
         assert "reasoning_effort" not in followup_base_meta
 
     def test_coder_prompt_uses_saved_sdd_plan_ref(self, tmp_path) -> None:
-        """Normal approved plans hand off the committed sdd/tales file."""
+        """Normal approved plans hand off the committed canonical plan file."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "scratch_plan.md")
         (tmp_path / "scratch_plan.md").write_text("# Plan")
-        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
+        sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
 
@@ -496,7 +496,7 @@ class TestPlanFollowupApprovals:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert "@sdd/tales/202605/scratch_plan.md" in state.current_prompt
+        assert "@sdd/plans/202605/scratch_plan.md" in state.current_prompt
 
     def test_coder_prompt_no_commit_uses_archived_plan_ref(
         self, tmp_path, monkeypatch
@@ -508,7 +508,7 @@ class TestPlanFollowupApprovals:
         archived_plan = tmp_path / "archive" / "scratch_plan.md"
         archived_plan.parent.mkdir()
         archived_plan.write_text("# Archived Plan")
-        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
+        sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
 
@@ -535,7 +535,7 @@ class TestPlanFollowupApprovals:
 
         assert state.current_prompt.startswith("%model:@claude_coder\n#gh:sase ")
         assert f"@{archived_plan}" in state.current_prompt
-        assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
+        assert "@sdd/plans/202605/scratch_plan.md" not in state.current_prompt
         assert os.environ["SASE_PLAN"] == str(archived_plan)
 
     def test_coder_prompt_commit_failure_uses_archived_plan_ref(
@@ -548,7 +548,7 @@ class TestPlanFollowupApprovals:
         archived_plan = tmp_path / "archive" / "scratch_plan.md"
         archived_plan.parent.mkdir()
         archived_plan.write_text("# Archived Plan")
-        sdd_plan = tmp_path / "sdd" / "tales" / "202605" / "scratch_plan.md"
+        sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
 
@@ -578,7 +578,7 @@ class TestPlanFollowupApprovals:
             handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
         assert f"@{archived_plan}" in state.current_prompt
-        assert "@sdd/tales/202605/scratch_plan.md" not in state.current_prompt
+        assert "@sdd/plans/202605/scratch_plan.md" not in state.current_prompt
         assert os.environ["SASE_PLAN"] == str(archived_plan)
         relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
             "relationships"
@@ -595,7 +595,7 @@ class TestPlanFollowupApprovals:
         archived_plan = tmp_path / "archive" / "epic_plan.md"
         archived_plan.parent.mkdir()
         archived_plan.write_text("# Archived Plan")
-        sdd_plan = tmp_path / "sdd" / "epics" / "202605" / "epic_plan.md"
+        sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "epic_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
 
@@ -625,7 +625,7 @@ class TestPlanFollowupApprovals:
             handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
         assert f"#bd/new_epic:{archived_plan}" in state.current_prompt
-        assert "sdd/epics/202605/epic_plan.md" not in state.current_prompt
+        assert "sdd/plans/202605/epic_plan.md" not in state.current_prompt
         relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
             "relationships"
         ]

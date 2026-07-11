@@ -28,19 +28,19 @@ def make_args(**overrides: object) -> argparse.Namespace:
 
 def write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
     prompt = root / "prompts" / "202605" / f"{name}.md"
-    plan = root / "tales" / "202605" / f"{name}.md"
+    plan = root / "plans" / "202605" / f"{name}.md"
     prompt.parent.mkdir(parents=True, exist_ok=True)
     plan.parent.mkdir(parents=True, exist_ok=True)
     prompt.write_text(
-        f"---\nplan: sdd/tales/202605/{name}.md\n---\n# Prompt\n",
+        f"---\nplan: sdd/plans/202605/{name}.md\n---\n# Prompt\n",
         encoding="utf-8",
     )
     plan.write_text(
-        f"---\nprompt: sdd/prompts/202605/{name}.md\n---\n# Plan\n",
+        f"---\nprompt: sdd/prompts/202605/{name}.md\ntier: tale\n---\n# Plan\n",
         encoding="utf-8",
     )
     return prompt, plan
 
 
 def directory_readmes(root: Path) -> dict[str, Path]:
-    return {kind: root / kind / "README.md" for kind in ("tales", "epics", "research")}
+    return {kind: root / kind / "README.md" for kind in ("plans", "research")}

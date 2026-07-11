@@ -23,7 +23,7 @@ from sase.axe.run_agent_exec_plan_sdd import (
     build_epic_plan_ref,
     build_saved_plan_ref,
     commit_sdd_files_for_exec_plan,
-    plan_kind_for_action,
+    plan_tier_for_action,
 )
 from sase.axe.run_agent_helpers import (
     create_followup_artifacts,
@@ -68,12 +68,12 @@ def _accepted_plan_action_for_meta(plan_result: Any) -> str:
 
 
 def _commit_sdd_files(
-    workspace_dir: str, plan_name: str, *, plan_kind: str = "tales"
+    workspace_dir: str, plan_name: str, *, plan_tier: str = "tale"
 ) -> bool:
     return commit_sdd_files_for_exec_plan(
         workspace_dir,
         plan_name,
-        plan_kind=plan_kind,
+        plan_tier=plan_tier,
         logger=logger,
         subprocess_run=subprocess.run,
     )
@@ -289,13 +289,13 @@ def handle_accepted_plan(
                 "Spec prompt expansion failed, using raw prompt", exc_info=True
             )
             expanded = state.current_prompt
-        plan_kind = plan_kind_for_action(plan_result.action)
+        plan_tier = plan_tier_for_action(plan_result.action)
         sdd_prompt_path_obj, sdd_plan_path = write_sdd_files(
             sdd_dir,
             sdd_plan_name,
             expanded,
             plan_result.plan_file,
-            plan_kind=plan_kind,
+            plan_tier=plan_tier,
         )
         sdd_commit_paths = [sdd_prompt_path_obj, sdd_plan_path]
         state.sdd_spec_path = str(sdd_prompt_path_obj)
@@ -322,11 +322,11 @@ def handle_accepted_plan(
     required_sdd_commit_succeeded = True
     if should_commit and sdd_plan_name:
         if sdd_in_tree:
-            plan_kind = plan_kind_for_action(plan_result.action)
+            plan_tier = plan_tier_for_action(plan_result.action)
             required_sdd_commit_succeeded = _commit_sdd_files(
                 ctx.workspace_dir,
                 sdd_plan_name,
-                plan_kind=plan_kind,
+                plan_tier=plan_tier,
             )
         else:
             commit_sdd_store_files(

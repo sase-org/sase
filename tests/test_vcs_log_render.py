@@ -360,7 +360,7 @@ def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
         "tagged subject",
         body=(
             "body text\n\n"
-            "SASE_PLAN=sdd/tales/foo.md\n"
+            "SASE_PLAN=sdd/plans/foo.md\n"
             "SASE_BUG=412\n"
             "SASE_AGENT=worker-1\n"
             "SASE_TYPE=sdd"
@@ -376,7 +376,7 @@ def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
         show_tags=True,
     )
 
-    assert "◆ sdd · @worker-1 · plan sdd/tales/foo.md · #412" in line.plain
+    assert "◆ sdd · @worker-1 · plan sdd/plans/foo.md · #412" in line.plain
     assert _styles_covering(line, "◆") == ["#87D7FF"]
     assert _styles_covering(line, "@") == ["#FFD700"]
     assert _styles_covering(line, "worker-1") == ["#FFD700"]
@@ -468,7 +468,7 @@ def test_full_tag_spans_use_semantic_chip_colors(
         "tagged subject",
         body=(
             "body text\n\n"
-            "SASE_PLAN=sdd/tales/foo.md\n"
+            "SASE_PLAN=sdd/plans/foo.md\n"
             "SASE_BUG=412\n"
             "SASE_AGENT=worker-1\n"
             "SASE_TYPE=sdd"
@@ -490,7 +490,7 @@ def test_full_tag_spans_use_semantic_chip_colors(
     assert [line.plain for line in tag_lines] == [
         "     ◆ type   sdd",
         "     @ agent  worker-1",
-        "       plan   sdd/tales/foo.md",
+        "       plan   sdd/plans/foo.md",
         "     # bug    412",
     ]
     assert _styles_covering(tag_lines[0], "◆") == ["#87D7FF"]

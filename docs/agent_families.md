@@ -211,7 +211,7 @@ Precedence: explicit gate selection > project config override > the role definit
 - **`%auto` / `%a` flows** only enable members that are both default-enabled (after the sticky defaults are applied) and
   declare `auto: run`. Auto plan approval itself remains limited to the `approve`, `tale`, and `epic` kinds.
 - The remote `run` choice (the Telegram/mobile "Run" button) archives the approved plan into the resolved SDD tale path
-  exactly like an interactive Approve (`sdd/tales/YYYYMM/` in in-tree mode, `.sase/sdd/tales/YYYYMM/` otherwise).
+  exactly like an interactive Approve (`sdd/plans/YYYYMM/` in in-tree mode, `.sase/sdd/plans/YYYYMM/` otherwise).
 
 ### Loop Caps
 

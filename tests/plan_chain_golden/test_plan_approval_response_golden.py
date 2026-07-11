@@ -116,7 +116,7 @@ def test_run_choice_archives_plan_side_effect(tmp_path: Path) -> None:
     response_dir = _response_dir(tmp_path)
     plan = tmp_path / "plan.md"
     plan.write_text("# Plan\n", encoding="utf-8")
-    saved_plan_path = str(tmp_path / "sdd" / "tales" / "202607" / "plan.md")
+    saved_plan_path = str(tmp_path / "sdd" / "plans" / "202607" / "plan.md")
 
     with patch(
         "sase.plan_approval_actions._archive_plan_for_approval",

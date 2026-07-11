@@ -259,7 +259,7 @@ def test_waited_agent_variables_load_as_fallback_context(tmp_path: Path) -> None
     assert context == {"agents": {"build": {"report_path": "reports/build.md"}}}
 
 
-_PLAN_PATH = "sdd/tales/202606/example.md"
+_PLAN_PATH = "sdd/plans/202606/example.md"
 
 
 def _augment_submitted_plan_meta(

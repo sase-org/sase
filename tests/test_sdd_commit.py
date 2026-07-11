@@ -64,7 +64,7 @@ def test_commit_sdd_files_stages_only_targeted_paths() -> None:
         )
 
         prompt = sdd_dir / "prompts" / "202605" / "targeted.md"
-        plan = sdd_dir / "tales" / "202605" / "targeted.md"
+        plan = sdd_dir / "plans" / "202605" / "targeted.md"
         prompt.parent.mkdir(parents=True)
         plan.parent.mkdir(parents=True)
         prompt.write_text("prompt", encoding="utf-8")
@@ -99,8 +99,8 @@ def test_commit_sdd_files_stages_only_targeted_paths() -> None:
         ).stdout
 
         assert committed == [
+            "plans/202605/targeted.md",
             "prompts/202605/targeted.md",
-            "tales/202605/targeted.md",
         ]
         assert status == "?? research/202605/notes.md\n"
 
@@ -287,11 +287,11 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
         prompts = Path(ws) / "sdd" / "prompts" / "202603"
-        epics = Path(ws) / "sdd" / "epics" / "202603"
+        plans = Path(ws) / "sdd" / "plans" / "202603"
         prompts.mkdir(parents=True)
-        epics.mkdir(parents=True)
+        plans.mkdir(parents=True)
         prompt_file = prompts / "my_epic.md"
-        plan_file = epics / "my_epic.md"
+        plan_file = plans / "my_epic.md"
         prompt_file.write_text("prompt", encoding="utf-8")
         plan_file.write_text("plan", encoding="utf-8")
 
@@ -306,7 +306,7 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
         with patch(
             "sase.axe.run_agent_exec_plan_accept.subprocess.run", side_effect=fake_run
         ):
-            assert _commit_sdd_files(ws, "my_epic", plan_kind="epics") is True
+            assert _commit_sdd_files(ws, "my_epic", plan_tier="epic") is True
 
         f_values = [
             captured_cmd[0][i + 1] for i, v in enumerate(captured_cmd[0]) if v == "-f"

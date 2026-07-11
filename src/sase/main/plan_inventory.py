@@ -484,11 +484,10 @@ def _truthy(value: object) -> bool:
 def _tier_for_path(path: str | None) -> str:
     if not path:
         return "-"
-    from sase.sdd.plan_tiers import existing_plan_path, read_plan_tier
+    from sase.sdd.plan_tiers import read_plan_tier
 
     candidate = Path(path).expanduser()
-    resolved = existing_plan_path(candidate)
-    tier = read_plan_tier(resolved) if resolved is not None else None
+    tier = read_plan_tier(candidate) if candidate.exists() else None
     return tier or "-"
 
 

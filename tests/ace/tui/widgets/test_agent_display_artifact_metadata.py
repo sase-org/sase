@@ -151,7 +151,7 @@ class TestAgentArtifactMetadata:
         artifacts_dir = tmp_path / "artifacts"
         workspace = tmp_path / "workspace"
         archived_plan = home / ".sase" / "plans" / "202605" / "plan.md"
-        sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+        sdd_plan = workspace / "sdd" / "plans" / "202605" / "plan.md"
         artifacts_dir.mkdir()
         archived_plan.parent.mkdir(parents=True)
         sdd_plan.parent.mkdir(parents=True)
@@ -180,7 +180,7 @@ class TestAgentArtifactMetadata:
         )
 
         assert "~/.sase/plans/202605/plan.md" in header.plain
-        assert "sdd/tales/202605/plan.md" not in header.plain
+        assert "sdd/plans/202605/plan.md" not in header.plain
 
     def test_committed_plan_uses_workspace_relative_path_and_hint_mapping(
         self,
@@ -189,7 +189,7 @@ class TestAgentArtifactMetadata:
         artifacts_dir = tmp_path / "artifacts"
         workspace = tmp_path / "workspace"
         archived_plan = tmp_path / "home" / ".sase" / "plans" / "202605" / "plan.md"
-        sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+        sdd_plan = workspace / "sdd" / "plans" / "202605" / "plan.md"
         artifacts_dir.mkdir()
         archived_plan.parent.mkdir(parents=True)
         sdd_plan.parent.mkdir(parents=True)
@@ -215,6 +215,6 @@ class TestAgentArtifactMetadata:
         result = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "Artifacts:\n  ▤ [1] sdd/tales/202605/plan.md\n" in plain
+        assert "Artifacts:\n  ▤ [1] sdd/plans/202605/plan.md\n" in plain
         assert "ARTIFACTS:" not in plain
         assert result.file_hints[1] == str(sdd_plan)

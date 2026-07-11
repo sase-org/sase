@@ -570,7 +570,7 @@ def test_live_hint_false_for_bookkeeping_only_edits(tmp_path: Path) -> None:
     diff_mod._diff_cache.clear()
     workspace = _setup_workspace(tmp_path)
     agent = _make_running_agent(workspace_dir=str(workspace))
-    provider = _DiffTextProvider(_git_diff("sdd/tales/202606/change.md"))
+    provider = _DiffTextProvider(_git_diff("sdd/plans/202606/change.md"))
 
     with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):

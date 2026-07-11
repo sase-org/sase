@@ -24,12 +24,12 @@ def _commit(body: str, subject: str = "feat: work") -> VcsCommitWire:
 
 def test_parses_trailing_sase_tag_block() -> None:
     view = commit_tag_view(
-        _commit("body text\n\nSASE_TYPE=sdd\nSASE_PLAN=sdd/tales/foo.md")
+        _commit("body text\n\nSASE_TYPE=sdd\nSASE_PLAN=sdd/plans/foo.md")
     )
 
     assert view.tags == (
         ("TYPE", "sdd"),
-        ("PLAN", "sdd/tales/foo.md"),
+        ("PLAN", "sdd/plans/foo.md"),
     )
     assert view.body == "body text"
 
@@ -107,7 +107,7 @@ def test_tag_style_unknown_type_falls_back_to_neutral_mauve() -> None:
 def test_tag_style_ordering_and_known_chip_styles() -> None:
     text = inline_tag_text(
         (
-            ("PLAN", "sdd/tales/foo.md"),
+            ("PLAN", "sdd/plans/foo.md"),
             ("EXTRA", "value"),
             ("BUG", "412"),
             ("MACHINE", "athena"),
@@ -118,7 +118,7 @@ def test_tag_style_ordering_and_known_chip_styles() -> None:
 
     assert (
         text.plain
-        == "◆ sdd · @worker-1 · machine athena · plan sdd/tales/foo.md · #412 · extra value"
+        == "◆ sdd · @worker-1 · machine athena · plan sdd/plans/foo.md · #412 · extra value"
     )
     assert _styles_covering(text, "@") == ["#FFD700"]
     assert _styles_covering(text, "worker-1") == ["#FFD700"]
@@ -127,7 +127,7 @@ def test_tag_style_ordering_and_known_chip_styles() -> None:
     assert _styles_covering(text, "machine") == ["#8A8A8A"]
     assert _styles_covering(text, "athena") == ["#8A8A8A"]
     assert _styles_covering(text, "plan") == ["dim"]
-    assert _styles_covering(text, "sdd/tales/") == ["dim"]
+    assert _styles_covering(text, "sdd/plans/") == ["dim"]
     assert _styles_covering(text, "foo.md") == ["#5FAFFF"]
     assert _styles_covering(text, "extra") == ["dim"]
     assert _styles_covering(text, "value") == []
@@ -138,7 +138,7 @@ def test_full_tag_lines_align_keys_and_reuse_chip_styles() -> None:
         (
             ("BUG", "412"),
             ("TYPE", "sdd"),
-            ("PLAN", "sdd/tales/foo.md"),
+            ("PLAN", "sdd/plans/foo.md"),
             ("AGENT", "worker-1"),
         )
     )
@@ -146,7 +146,7 @@ def test_full_tag_lines_align_keys_and_reuse_chip_styles() -> None:
     assert [line.plain for line in lines] == [
         "     ◆ type   sdd",
         "     @ agent  worker-1",
-        "       plan   sdd/tales/foo.md",
+        "       plan   sdd/plans/foo.md",
         "     # bug    412",
     ]
     assert _styles_covering(lines[0], "◆") == ["#87D7FF"]

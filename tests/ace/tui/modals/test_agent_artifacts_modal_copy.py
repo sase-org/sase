@@ -218,7 +218,7 @@ async def test_artifact_modal_Y_recovers_workspace_from_agent_meta_json(
 ) -> None:
     artifacts_dir = tmp_path / "artifacts"
     workspace = tmp_path / "workspace"
-    source = workspace / "sdd" / "tales" / "202605" / "plan.md"
+    source = workspace / "sdd" / "plans" / "202605" / "plan.md"
     artifacts_dir.mkdir()
     source.parent.mkdir(parents=True)
     source.write_text("# Plan\n", encoding="utf-8")
@@ -229,7 +229,7 @@ async def test_artifact_modal_Y_recovers_workspace_from_agent_meta_json(
     artifact = _artifact(
         1,
         label="plan.md",
-        path="sdd/tales/202605/plan.md",
+        path="sdd/plans/202605/plan.md",
         agent_artifacts_dir=str(artifacts_dir),
     )
     copied: list[str] = []
@@ -249,7 +249,7 @@ async def test_artifact_modal_Y_recovers_workspace_from_agent_meta_json(
 
         assert pilot.app.screen is modal
 
-    assert copied == ["sdd/tales/202605/plan.md"]
+    assert copied == ["sdd/plans/202605/plan.md"]
 
 
 async def test_artifact_modal_y_recovers_workspace_from_agent_meta_json(
@@ -258,7 +258,7 @@ async def test_artifact_modal_y_recovers_workspace_from_agent_meta_json(
 ) -> None:
     artifacts_dir = tmp_path / "artifacts"
     workspace = tmp_path / "workspace"
-    source = workspace / "sdd" / "tales" / "202605" / "plan.md"
+    source = workspace / "sdd" / "plans" / "202605" / "plan.md"
     artifacts_dir.mkdir()
     source.parent.mkdir(parents=True)
     source.write_text("# Plan\n", encoding="utf-8")
@@ -269,7 +269,7 @@ async def test_artifact_modal_y_recovers_workspace_from_agent_meta_json(
     artifact = _artifact(
         1,
         label="plan.md",
-        path="sdd/tales/202605/plan.md",
+        path="sdd/plans/202605/plan.md",
         agent_artifacts_dir=str(artifacts_dir),
     )
     copied: list[str] = []

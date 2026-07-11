@@ -18,11 +18,17 @@ from sase.plan_search import facade
 
 
 def _write_plan(
-    path: Path, *, title: str, status: str, create_time: str, body: str
+    path: Path,
+    *,
+    title: str,
+    status: str,
+    create_time: str,
+    body: str,
+    tier: str = "tale",
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        f"---\ncreate_time: {create_time}\nstatus: {status}\n---\n# {title}\n\n{body}\n"
+        f"---\ntier: {tier}\ncreate_time: {create_time}\nstatus: {status}\n---\n# {title}\n\n{body}\n"
     )
 
 
@@ -33,21 +39,22 @@ def corpus(tmp_path: Path) -> tuple[Path, Path]:
     local = tmp_path / "local_plans"
 
     _write_plan(
-        sdd / "tales" / "202606" / "auth_token_refresh.md",
+        sdd / "plans" / "202606" / "auth_token_refresh.md",
         title="Refresh auth tokens on 401",
         status="wip",
         create_time="2026-06-18 21:29:20",
         body="Retry the request once after refreshing the auth token.",
     )
     _write_plan(
-        sdd / "epics" / "202605" / "unified_auth.md",
+        sdd / "plans" / "202605" / "unified_auth.md",
         title="Unified auth across providers",
         status="done",
         create_time="2026-05-10 09:00:00",
         body="Consolidate the providers behind one interface.",
+        tier="epic",
     )
     _write_plan(
-        sdd / "tales" / "202601" / "login_flow.md",
+        sdd / "plans" / "202601" / "login_flow.md",
         title="Login flow",
         status="wip",
         create_time="2026-01-05 12:00:00",
@@ -125,7 +132,7 @@ def test_search_uses_resolved_local_sdd_store(
     local = tmp_path / "local_plans"
     store = repo / ".sase" / "sdd"
     _write_plan(
-        store / "tales" / "202607" / "local_store_plan.md",
+        store / "plans" / "202607" / "local_store_plan.md",
         title="Local store plan",
         status="wip",
         create_time="2026-07-01 10:00:00",

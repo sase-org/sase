@@ -47,16 +47,16 @@ in run artifacts. If everything is clean, the agent response is postprocessed no
 
 There is one special case before the normal enforced-work follow-up path:
 
-- If the only enforced dirty file is a tracked markdown file under `sdd/tales/` or `sdd/epics/`, and the only file diff
-  is one leading-front-matter line changing from `status: wip` to `status: done`, SASE creates a direct closeout commit
-  with the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag. If enforced changes remain, the
-  finalizer starts bounded follow-up passes with the same provider. Each pass sends one follow-up prompt that lists
-  dirty files and instructs the agent to use a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the
-  main workspace, the skill name is selected from the detected VCS provider; provider-specific generated skills can be
-  scoped to the runtimes that support that provider. For configured linked repos, the current finalizer checks
-  `git status` only in the resolved linked-repo `workspace_dir` assigned to the same workspace number after that
-  linked-repo name appears in `opened_linked_workspaces.json`, and emits Git commit-skill instructions that first `cd`
-  into that linked workspace. Dirty linked repos are enforced after they are opened.
+- If the only enforced dirty file is a tracked markdown file under `sdd/plans/`, and the only file diff is one
+  leading-front-matter line changing from `status: wip` to `status: done`, SASE creates a direct closeout commit with
+  the message `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag. If enforced changes remain, the finalizer
+  starts bounded follow-up passes with the same provider. Each pass sends one follow-up prompt that lists dirty files
+  and instructs the agent to use a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the main workspace,
+  the skill name is selected from the detected VCS provider; provider-specific generated skills can be scoped to the
+  runtimes that support that provider. For configured linked repos, the current finalizer checks `git status` only in
+  the resolved linked-repo `workspace_dir` assigned to the same workspace number after that linked-repo name appears in
+  `opened_linked_workspaces.json`, and emits Git commit-skill instructions that first `cd` into that linked workspace.
+  Dirty linked repos are enforced after they are opened.
 
 Generated skills normally run an observable wrapper such as `sase_git_commit`, which records skill invocation evidence
 and then delegates to `sase commit`. A typical Git skill invocation omits `--type` because the xprompt already set
@@ -438,7 +438,7 @@ Antigravity (`agy`), Qwen, OpenCode, and provider plugins share the same behavio
 4. Check configured linked repos from `SASE_LINKED_REPOS_JSON`, or from project config when available, with
    `git status --porcelain`; opened-workspace markers provide paths for linked repos opened during the run.
 5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout when that is the only enforced
-   change and the file is under `sdd/tales/` or `sdd/epics/`.
+   change and the file is under `sdd/plans/`.
 6. If dirty enforced repos exist, run follow-up provider invocations up to `commit.finalizer.max_passes`. When an
    artifacts directory is available, also write `commit_finalizer_pass_<N>_prompt.md` and
    `commit_finalizer_pass_<N>_response.md`.

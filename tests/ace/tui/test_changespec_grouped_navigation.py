@@ -1,7 +1,7 @@
 """Tests for fold-aware ChangeSpecs-tab navigation, folding, and jump hints.
 
 Phase 4 of the ChangeSpecs-tab ChangeSpec grouping feature
-(``sdd/tales/202604/changespec_group_headings.md``):
+(``sdd/plans/202604/changespec_group_headings.md``):
 
 * ``j`` / ``k`` walks visible ChangeSpec rows plus collapsed banner rows in
   render order.

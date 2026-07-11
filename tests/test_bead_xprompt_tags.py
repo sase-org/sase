@@ -108,9 +108,9 @@ def test_new_epic_colon_args_render_plan_path_guidance() -> None:
         "sase.xprompt.processor.get_all_xprompts",
         return_value={"bd/new_epic": xprompt},
     ):
-        body = process_xprompt_references("#bd/new_epic:sdd/epics/202605/my_feature.md")
+        body = process_xprompt_references("#bd/new_epic:sdd/plans/202605/my_feature.md")
 
-    assert "sdd/epics/202605/my_feature.md" in body
+    assert "sdd/plans/202605/my_feature.md" in body
     assert "--type plan(<plan_file>)" in body
 
 

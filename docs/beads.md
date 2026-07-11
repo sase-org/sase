@@ -29,8 +29,8 @@ metadata.
 ```bash
 SDD_ROOT=$(sase sdd path)
 sase bead init                                          # Initialize beads in current project
-sase bead create -t "New feature" --type "plan(${SDD_ROOT}/tales/202605/feature.md)" --tier plan
-sase bead create -t "Epic" --type "plan(${SDD_ROOT}/epics/202605/epic.md)" --tier epic
+sase bead create -t "New feature" --type "plan(${SDD_ROOT}/plans/202605/feature.md)" --tier plan
+sase bead create -t "Epic" --type "plan(${SDD_ROOT}/plans/202605/epic.md)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
 sase bead list                                          # List open and in-progress issues
 sase bead list --status=open                            # List open issues
@@ -64,15 +64,15 @@ plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 Plan beads carry a tier. The paths below are relative to the effective SDD root. Use `sase sdd path` or `SASE_SDD_DIR`
 to locate that root for providerless local or provider companion layouts.
 
-| Tier   | SDD Path              | Behavior                                                 |
-| ------ | --------------------- | -------------------------------------------------------- |
-| `plan` | `tales/{YYYYMM}/*.md` | Normal non-epic implementation plan                      |
-| `epic` | `epics/{YYYYMM}/*.md` | Executable multi-phase plan accepted by `sase bead work` |
+| Tier   | SDD Path              | Behavior                                           |
+| ------ | --------------------- | -------------------------------------------------- |
+| `plan` | `plans/{YYYYMM}/*.md` | Normal non-epic implementation plan (`tier: tale`) |
+| `epic` | `plans/{YYYYMM}/*.md` | Executable multi-phase plan (`tier: epic`)         |
 
 Epics use the plan syntax:
 
 ```bash
-sase bead create --title "Epic" --type "plan(${SASE_SDD_DIR}/epics/202605/epic.md)" --tier epic
+sase bead create --title "Epic" --type "plan(${SASE_SDD_DIR}/plans/202605/epic.md)" --tier epic
 ```
 
 ### Status Lifecycle
@@ -413,13 +413,13 @@ but they still do not merge numbered sibling workspaces or legacy bead stores fo
 When creating a plan bead with `--type plan(PATH)`, the file path is stored in the `design` field. The ACE TUI can
 navigate from a bead to its linked SDD file.
 
-For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow: `sdd/epics/...`
-in in-tree mode, or `.sase/sdd/epics/...` in local and separate-repo modes. SASE resolves those references against the
+For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow: `sdd/plans/...`
+in in-tree mode, or `.sase/sdd/plans/...` in local and separate-repo modes. SASE resolves those references against the
 effective SDD root when launching bead work. For manual commands and prompts, `SASE_SDD_DIR` or `sase sdd path` is less
 ambiguous than guessing which relative prefix applies.
 
 ### Plan Approval Flow
 
 The plan approval popup in ACE includes normal approval and **E** (Epic) actions. Normal approval saves to the resolved
-SDD tale directory. Epic saves to the resolved epic directory and launches the epic follow-up that creates an
-`epic`-tier plan bead plus phase beads.
+SDD `plans/` directory with `tier: tale`. Epic saves there with `tier: epic` and launches the epic follow-up that
+creates an `epic`-tier plan bead plus phase beads.

@@ -63,15 +63,12 @@ The result is a clean, self-contained document showing exactly what the agent wa
 The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
-2. Written to the action-specific SDD directory, where `{YYYYMM}` is derived from the current date. Paths inside the
-   effective SDD root look like:
-   - normal approval: `tales/{YYYYMM}/{plan_name}.md`
-   - epic approval: `epics/{YYYYMM}/{plan_name}.md`
+2. Given a required `tier: tale|epic` frontmatter value and written to `plans/{YYYYMM}/{plan_name}.md`, where `{YYYYMM}`
+   is derived from the current date.
 
 Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
 the creation date. This keeps the directories manageable as the number of prompts, plans, and research artifacts grows
-over time. Both flat and `YYYYMM` layouts are supported for backwards compatibility — SDD also searches legacy `specs`
-and `plans` paths when resolving files.
+over time. The historical `specs/` prompt alias remains readable, but repository plans are discovered only in `plans/`.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
 the bead issue tracker.
@@ -110,10 +107,11 @@ Prompt snapshots and plan-like artifacts link to each other through YAML frontma
 
 ```yaml
 # prompts/202605/example.md
-plan: tales/202605/example.md
+plan: plans/202605/example.md
 
-# tales/202605/example.md
+# plans/202605/example.md
 prompt: prompts/202605/example.md
+tier: tale
 ```
 
 `sase sdd validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical files
@@ -127,8 +125,9 @@ under. The value uses the same syntax `%model` accepts: a bare known model name 
 (e.g. `codex/gpt-5.6-sol`), or a configured local alias (e.g. `#pro`).
 
 ```yaml
-# tales/202605/example.md
+# plans/202605/example.md
 prompt: prompts/202605/example.md
+tier: tale
 model: opus
 ```
 
@@ -150,7 +149,7 @@ when passing list flags such as `--kind` or `--json`.
 | `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                |
 | `sase init sdd`         | Compatibility alias for the provider-owned `sase sdd init` flow                                         |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
-| `sase sdd list`         | List SDD markdown files; `-k/--kind` filters to `prompts`, `tales`, `epics`, or `all`                   |
+| `sase sdd list`         | List SDD markdown files; `tales`/`epics` are tier filters over `plans/`                                 |
 | `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                         |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
@@ -166,13 +165,13 @@ on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase sdd init` command materializes the
-provider-selected store, then refreshes the top-level README, directory map, and generated `README.md` files in
-`tales/`, `epics/`, and `research/`. On GitHub it finds or creates the required public-by-default `<owner>/<repo>--sdd`
-companion, applies the `sase--sdd` label, and imports durable artifacts from legacy in-tree and local stores before
-recording success. Existing private companions remain private. Provider errors fail setup instead of falling back to
-local storage. Missing or false markers make the command and `--check` successful no-ops before provider work; invalid
-local configuration fails safely. `sase init sdd` exposes the same flow and check/path flags, and `--path` checks the
-target repository's marker.
+provider-selected store, then refreshes the top-level README, directory map, and generated `README.md` files in `plans/`
+and `research/`. On GitHub it finds or creates the required public-by-default `<owner>/<repo>--sdd` companion, applies
+the `sase--sdd` label, and imports durable artifacts from legacy in-tree and local stores before recording success.
+Existing private companions remain private. Provider errors fail setup instead of falling back to local storage. Missing
+or false markers make the command and `--check` successful no-ops before provider work; invalid local configuration
+fails safely. `sase init sdd` exposes the same flow and check/path flags, and `--path` checks the target repository's
+marker.
 
 Before explicit initialization creates a missing GitHub companion, it asks
 `Create public GitHub SDD companion repository <owner>/<repo>--sdd on <host>? [y/N]`. Only `y` or `yes` approves. Blank
@@ -203,13 +202,12 @@ Plan-like beads carry a `tier` value:
 For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. Each phase of the epic gets its
 own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. For smaller
 plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The path is relative to the
-repository that owns the plan: `sdd/tales/<YYYYMM>/<name>.md` for in-tree storage and `tales/<YYYYMM>/<name>.md` for
+repository that owns the plan: `sdd/plans/<YYYYMM>/<name>.md` for in-tree storage and `plans/<YYYYMM>/<name>.md` for
 local or separate-repo stores.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
 workspaces can resolve. Agents can also build paths from `SASE_SDD_DIR`, for example
-`$SASE_SDD_DIR/epics/{YYYYMM}/{name}.md`. If an older flat plan layout is encountered, the resolver still checks both
-canonical and legacy flat/`YYYYMM` locations for backwards compatibility.
+`$SASE_SDD_DIR/plans/{YYYYMM}/{name}.md`.
 
 ## Configuration
 

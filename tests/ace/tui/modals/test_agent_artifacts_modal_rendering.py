@@ -75,7 +75,7 @@ def test_artifact_modal_displays_committed_plan_workspace_relative_path(
     artifacts_dir = tmp_path / "artifacts"
     workspace = tmp_path / "workspace"
     archived_plan = tmp_path / ".sase" / "plans" / "202605" / "plan.md"
-    sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+    sdd_plan = workspace / "sdd" / "plans" / "202605" / "plan.md"
     artifacts_dir.mkdir()
     for path in (archived_plan, sdd_plan):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -101,7 +101,7 @@ def test_artifact_modal_displays_committed_plan_workspace_relative_path(
     assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
         ("plan", str(sdd_plan))
     ]
-    assert "sdd/tales/202605/plan.md" in plain
+    assert "sdd/plans/202605/plan.md" in plain
     assert str(workspace) not in plain
     assert str(archived_plan) not in plain
 

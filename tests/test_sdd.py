@@ -251,7 +251,7 @@ def test_write_sdd_files_creates_dirs() -> None:
         assert (sdd_dir / "plans" / "202603").is_dir()
 
 
-def test_write_sdd_files_epic_kind() -> None:
+def test_write_sdd_files_epic_tier() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir)
         plan_file = sdd_dir / "source_plan.md"
@@ -263,7 +263,7 @@ def test_write_sdd_files_epic_kind() -> None:
                 "my_epic",
                 "spec",
                 str(plan_file),
-                plan_kind="epics",
+                plan_tier="epic",
             )
 
         assert prompt_path == sdd_dir / "prompts" / "202603" / "my_epic.md"
@@ -276,33 +276,25 @@ def test_write_sdd_files_epic_kind() -> None:
         assert plan_fm["tier"] == "epic"
 
 
-def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
+def test_write_sdd_files_uses_canonical_plan_directory_for_both_tiers() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir) / "sdd"
         plan_file = Path(tmpdir) / "source_plan.md"
         plan_file.write_text("# Plan\n", encoding="utf-8")
 
         with patch("sase.sdd.files.get_yyyymm", return_value="202603"):
-            for plan_kind in ("tales", "epics"):
+            for plan_tier in ("tale", "epic"):
                 write_sdd_files(
                     sdd_dir,
-                    f"my_{plan_kind}",
+                    f"my_{plan_tier}",
                     "spec",
                     str(plan_file),
-                    plan_kind=plan_kind,
+                    plan_tier=plan_tier,
                 )
-            write_sdd_files(
-                sdd_dir,
-                "my_legacy_plans",
-                "spec",
-                str(plan_file),
-                plan_kind="plans",
-            )
 
         assert (sdd_dir / "prompts" / "202603").is_dir()
-        assert (sdd_dir / "plans" / "202603" / "my_tales.md").exists()
-        assert (sdd_dir / "plans" / "202603" / "my_legacy_plans.md").exists()
-        assert (sdd_dir / "plans" / "202603" / "my_epics.md").exists()
+        assert (sdd_dir / "plans" / "202603" / "my_tale.md").exists()
+        assert (sdd_dir / "plans" / "202603" / "my_epic.md").exists()
         assert not (Path(tmpdir) / "plans").exists()
         assert not (sdd_dir / "tales").exists()
         assert not (sdd_dir / "epics").exists()
@@ -310,9 +302,9 @@ def test_write_sdd_files_uses_canonical_sdd_kinds_only() -> None:
         assert not (Path(tmpdir) / "specs").exists()
 
 
-def test_write_sdd_files_rejects_unknown_plan_kind() -> None:
-    with pytest.raises(ValueError, match="invalid SDD plan kind"):
-        write_sdd_files(Path("/tmp/sdd"), "bad", "spec", "/tmp/plan.md", plan_kind="x")
+def test_write_sdd_files_rejects_unknown_plan_tier() -> None:
+    with pytest.raises(ValueError, match="invalid SDD plan tier"):
+        write_sdd_files(Path("/tmp/sdd"), "bad", "spec", "/tmp/plan.md", plan_tier="x")
 
 
 def test_write_sdd_files_uses_sdd_relative_links() -> None:
@@ -364,7 +356,7 @@ def test_write_sdd_files_preserves_existing_plan_frontmatter() -> None:
                 "preserve",
                 "prompt",
                 str(plan_file),
-                plan_kind="epics",
+                plan_tier="epic",
             )
 
         plan_fm, body, _ = parse_frontmatter(plan_path.read_text(encoding="utf-8"))

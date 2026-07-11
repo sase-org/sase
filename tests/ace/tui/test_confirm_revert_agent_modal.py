@@ -63,11 +63,11 @@ def test_preview_sdd_paths_dedup_in_order() -> None:
         scope="family",
         workspace_dir="/ws",
         commits=(
-            _commit("aaa", "one", ("sdd/tales/a.md", "src/x.py")),
-            _commit("bbb", "two", ("sdd/tales/a.md", "sdd/epics/b.md")),
+            _commit("aaa", "one", ("sdd/plans/a.md", "src/x.py")),
+            _commit("bbb", "two", ("sdd/plans/a.md", "sdd/plans/b.md")),
         ),
     )
-    assert preview.sdd_paths == ("sdd/tales/a.md", "sdd/epics/b.md")
+    assert preview.sdd_paths == ("sdd/plans/a.md", "sdd/plans/b.md")
 
 
 def test_modal_commit_lines_truncate() -> None:
@@ -125,14 +125,14 @@ def test_modal_sdd_summary_none_and_some() -> None:
         "foo",
         "agent",
         "/ws",
-        (_commit("aaa", "one", ("sdd/tales/a.md",)),),
+        (_commit("aaa", "one", ("sdd/plans/a.md",)),),
     )
     modal = ConfirmRevertAgentModal(preview)
-    assert modal._sdd_summary().plain == "SDD provenance: sdd/tales/a.md"
+    assert modal._sdd_summary().plain == "SDD provenance: sdd/plans/a.md"
 
 
 def test_modal_sdd_summary_truncates_paths() -> None:
-    paths = tuple(f"sdd/tales/{index}.md" for index in range(8))
+    paths = tuple(f"sdd/plans/{index}.md" for index in range(8))
     preview = RevertPreview(
         "foo",
         "agent",
@@ -142,9 +142,9 @@ def test_modal_sdd_summary_truncates_paths() -> None:
     modal = ConfirmRevertAgentModal(preview)
 
     summary = modal._sdd_summary().plain
-    assert "sdd/tales/0.md" in summary
-    assert "sdd/tales/5.md" in summary
-    assert "sdd/tales/6.md" not in summary
+    assert "sdd/plans/0.md" in summary
+    assert "sdd/plans/5.md" in summary
+    assert "sdd/plans/6.md" not in summary
     assert "+2 more" in summary
 
 

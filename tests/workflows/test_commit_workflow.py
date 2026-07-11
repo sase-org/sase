@@ -497,7 +497,7 @@ def test_append_commits_entry_uses_repo_relative_plan_path(
 ) -> None:
     """Absolute in-repo SASE_PLAN is recorded as a repo-relative drawer path."""
     repo_dir = tmp_path / "repo"
-    plan_file = repo_dir / "sdd" / "tales" / "202605" / "my_plan.md"
+    plan_file = repo_dir / "sdd" / "plans" / "202605" / "my_plan.md"
     plan_file.parent.mkdir(parents=True)
     plan_file.write_text("# Plan\n", encoding="utf-8")
     monkeypatch.chdir(repo_dir)
@@ -518,7 +518,7 @@ def test_append_commits_entry_uses_repo_relative_plan_path(
 
     assert entry_id == "1"
     content = project_file.read_text()
-    assert "      | PLAN: sdd/tales/202605/my_plan.md" in content
+    assert "      | PLAN: sdd/plans/202605/my_plan.md" in content
     assert str(repo_dir) not in content
 
 

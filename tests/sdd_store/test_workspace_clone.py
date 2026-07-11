@@ -37,7 +37,7 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
     assert workspace_sdd.is_dir()
     assert not workspace_sdd.is_symlink()
     assert (workspace_sdd / ".git").is_dir()
-    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+    assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
 
@@ -106,7 +106,7 @@ def test_ensure_workspace_sdd_clone_pulls_stale_clean_clone(
 
     assert workspace_sdd.is_dir()
     assert not workspace_sdd.is_symlink()
-    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+    assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
     assert not workspace_sdd.with_name("sdd.stale-backup").exists()
@@ -158,7 +158,7 @@ def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
 
     assert not workspace_sdd.is_symlink()
     assert (workspace_sdd / "local_work.md").read_text(encoding="utf-8") == "wip\n"
-    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+    assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
 
@@ -184,7 +184,7 @@ def test_ensure_workspace_sdd_clone_store_clone_with_dirty_tree_is_preserved(
 
     assert not workspace_sdd.is_symlink()
     assert (workspace_sdd / "local_notes.md").read_text(encoding="utf-8") == "draft\n"
-    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+    assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
 
@@ -238,7 +238,7 @@ def test_ensure_workspace_sdd_clone_stale_clone_makes_relative_prompt_ref_resolv
     ensure_workspace_sdd_clone(tmp_path / "repo_2", 2)
     monkeypatch.chdir(tmp_path / "repo_2")
 
-    prompt = "@.sase/sdd/tales/202607/feature.md\nImplement it now."
+    prompt = "@.sase/sdd/plans/202607/feature.md\nImplement it now."
     assert process_file_references(prompt) == prompt
 
 
@@ -268,7 +268,7 @@ def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
 
     assert workspace_sdd.is_dir()
     assert not workspace_sdd.is_symlink()
-    assert (workspace_sdd / "tales" / "202607" / "feature.md").exists()
+    assert (workspace_sdd / "plans" / "202607" / "feature.md").exists()
 
 
 def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
@@ -292,13 +292,13 @@ def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
 
     assert workspace_sdd.is_dir()
     assert not workspace_sdd.is_symlink()
-    assert (workspace_sdd / "tales" / "202607" / "feature.md").read_text(
+    assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
     assert git(["remote", "get-url", "origin"], workspace_sdd).stdout.strip() == str(
         tmp_path / "missing.git"
     )
-    assert (primary_sdd / "tales" / "202607" / "feature.md").exists()
+    assert (primary_sdd / "plans" / "202607" / "feature.md").exists()
 
 
 def test_ensure_workspace_sdd_clone_missing_store_is_best_effort(

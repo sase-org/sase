@@ -26,11 +26,17 @@ import pytest
 
 
 def _write_plan(
-    path: Path, *, title: str, status: str, create_time: str, body: str
+    path: Path,
+    *,
+    title: str,
+    status: str,
+    create_time: str,
+    body: str,
+    tier: str = "tale",
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        f"---\ncreate_time: {create_time}\nstatus: {status}\n---\n# {title}\n\n{body}\n",
+        f"---\ntier: {tier}\ncreate_time: {create_time}\nstatus: {status}\n---\n# {title}\n\n{body}\n",
         encoding="utf-8",
     )
 
@@ -55,18 +61,19 @@ def corpus(tmp_path: Path) -> tuple[Path, Path]:
     )
 
     _write_plan(
-        repo / "sdd" / "tales" / "202606" / "auth_token_refresh.md",
+        repo / "sdd" / "plans" / "202606" / "auth_token_refresh.md",
         title="Refresh auth tokens on 401",
         status="wip",
         create_time="2026-06-18 21:29:20",
         body="Retry the request once after refreshing the auth token.",
     )
     _write_plan(
-        repo / "sdd" / "epics" / "202605" / "unified_auth.md",
+        repo / "sdd" / "plans" / "202605" / "unified_auth.md",
         title="Unified auth across providers",
         status="done",
         create_time="2026-05-10 09:00:00",
         body="Consolidate the providers behind one interface.",
+        tier="epic",
     )
     _write_plan(
         repo / "sdd" / "research" / "202604" / "auth_strategy.md",

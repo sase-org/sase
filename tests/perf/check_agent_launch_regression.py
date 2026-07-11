@@ -31,7 +31,7 @@ DEFAULT_BASELINE_PATH = (
 DEFAULT_REPORT_PATH = (
     REPO_ROOT
     / "sdd"
-    / "tales"
+    / "plans"
     / "202605"
     / "perf_artifacts"
     / "agent_launch_regression_check.json"

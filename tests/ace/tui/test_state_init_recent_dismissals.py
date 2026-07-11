@@ -1,7 +1,7 @@
 """Startup recent-dismissal cache initialization for the ACE TUI.
 
 Locks the cold-start contract from
-``sdd/tales/202606/recent_restore_perf_fix.md``: ``__init__`` must not read the
+``sdd/plans/202606/recent_restore_perf_fix.md``: ``__init__`` must not read the
 recent dismissed-group store from disk; the revive modal repopulates it lazily.
 """
 

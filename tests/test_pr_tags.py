@@ -294,7 +294,7 @@ class TestAppendPrTags:
         self,
         _mock_fetch: MagicMock,
     ) -> None:
-        payload = {"message": "Add feature\n\nPLAN=sdd/tales/plan.md\nMARKDOWN=false"}
+        payload = {"message": "Add feature\n\nPLAN=sdd/plans/plan.md\nMARKDOWN=false"}
 
         with patch(
             "sase.vcs_provider.config.get_pr_tags",
@@ -303,7 +303,7 @@ class TestAppendPrTags:
             append_pr_tags(payload, None)
 
         assert payload["message"] == (
-            "Add feature\n\nSASE_PLAN=sdd/tales/plan.md\nSASE_MARKDOWN=true"
+            "Add feature\n\nSASE_PLAN=sdd/plans/plan.md\nSASE_MARKDOWN=true"
         )
 
 

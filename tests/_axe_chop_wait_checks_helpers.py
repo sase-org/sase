@@ -55,7 +55,7 @@ def make_submitted_planner(
     timestamp: str,
     name: str,
     *,
-    plan_path: str | None = "sdd/tales/202606/example.md",
+    plan_path: str | None = "sdd/plans/202606/example.md",
     role_suffix: str = "--plan",
     write_plan_path_json: bool = True,
     promoted: bool = True,

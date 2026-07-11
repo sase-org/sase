@@ -332,7 +332,7 @@ def test_create_changespec_for_workflow_uses_repo_relative_plan(
 ) -> None:
     """Absolute in-repo SASE_PLAN is stored as a repo-relative plan_path."""
     repo_dir = tmp_path / "repo"
-    plan_file = repo_dir / "sdd" / "tales" / "202605" / "my_plan.md"
+    plan_file = repo_dir / "sdd" / "plans" / "202605" / "my_plan.md"
     plan_file.parent.mkdir(parents=True)
     plan_file.write_text("# Plan\n", encoding="utf-8")
 
@@ -377,7 +377,7 @@ def test_create_changespec_for_workflow_uses_repo_relative_plan(
         )
         assert result == "proj_plan_3"
         initial_commits = mock_add.call_args.kwargs["initial_commits"]
-        assert initial_commits[0][5] == "sdd/tales/202605/my_plan.md"
+        assert initial_commits[0][5] == "sdd/plans/202605/my_plan.md"
 
 
 def test_create_changespec_for_workflow_plan_outside_home(

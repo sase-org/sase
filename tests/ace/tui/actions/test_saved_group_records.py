@@ -1,7 +1,7 @@
 """Bundle-path resolution behavior of the saved-group record builder.
 
 These lock the perf contract from
-``sdd/tales/202606/recent_restore_perf_fix.md``: the optimistic UI-thread build
+``sdd/plans/202606/recent_restore_perf_fix.md``: the optimistic UI-thread build
 must not probe the filesystem for dismissed bundles, while off-UI-thread callers
 keep the disk-resolving default.
 """

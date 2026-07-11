@@ -62,14 +62,14 @@ def test_discover_includes_sdd_paths(tmp_path: Path) -> None:
     _commit(
         repo,
         _msg("plan files", "foo"),
-        {"sdd/tales/t.md": "# plan\n", "src/x.py": "x = 1\n"},
+        {"sdd/plans/t.md": "# plan\n", "src/x.py": "x = 1\n"},
     )
 
     commits = _discover_agent_commits(str(repo), "foo")
 
     assert len(commits) == 1
-    assert "sdd/tales/t.md" in commits[0].changed_paths
-    assert commits[0].sdd_paths == ("sdd/tales/t.md",)
+    assert "sdd/plans/t.md" in commits[0].changed_paths
+    assert commits[0].sdd_paths == ("sdd/plans/t.md",)
 
 
 def test_preview_rejects_dirty_worktree(tmp_path: Path) -> None:

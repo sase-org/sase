@@ -14,7 +14,7 @@ def commit_sdd_files_for_exec_plan(
     workspace_dir: str,
     plan_name: str,
     *,
-    plan_kind: str = "tales",
+    plan_tier: str = "tale",
     logger: logging.Logger,
     subprocess_run: Callable[..., Any],
 ) -> bool:
@@ -32,7 +32,7 @@ def commit_sdd_files_for_exec_plan(
     base = Path(workspace_dir)
     fname = f"{plan_name}.md"
     prompt_found = find_sdd_file(base, "prompts", fname)
-    plan_found = find_sdd_file(base, plan_kind, fname)
+    plan_found = find_sdd_file(base, "plans", fname)
     files = [str(f) for f in (prompt_found, plan_found) if f is not None]
     if not files:
         return True
@@ -77,7 +77,6 @@ def _build_sdd_plan_ref(
     sdd_plan_name: str | None,
     sdd_in_tree: bool,
     fallback_plan_file: str,
-    plan_kind: str,
 ) -> str:
     """Build the plan reference passed to a plan-container creation xprompt."""
     if sdd_plan_path and sdd_plan_path.exists():
@@ -123,14 +122,13 @@ def build_epic_plan_ref(
         sdd_plan_name=sdd_plan_name,
         sdd_in_tree=sdd_in_tree,
         fallback_plan_file=fallback_plan_file,
-        plan_kind="plans",
     )
 
 
-def plan_kind_for_action(action: str) -> str:
+def plan_tier_for_action(action: str) -> str:
     if action == "epic":
-        return "epics"
-    return "tales"
+        return "epic"
+    return "tale"
 
 
 def build_saved_plan_ref(

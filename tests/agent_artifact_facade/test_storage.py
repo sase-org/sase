@@ -17,7 +17,7 @@ def test_explicit_plan_duplicate_does_not_add_second_plan_row(
 ) -> None:
     artifacts_dir = agent_dir(tmp_path)
     archived_plan = tmp_path / ".sase" / "plans" / "plan.md"
-    sdd_plan = tmp_path / "workspace" / "sdd" / "tales" / "202605" / "plan.md"
+    sdd_plan = tmp_path / "workspace" / "sdd" / "plans" / "202605" / "plan.md"
     explicit_plan = tmp_path / "explicit-plan.md"
     for path in (archived_plan, sdd_plan, explicit_plan):
         path.parent.mkdir(parents=True, exist_ok=True)

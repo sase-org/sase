@@ -330,7 +330,7 @@ sibling checkout are never blocked.
 
 Phase 7 captured a deliberate measurement pass after the Rust default flip; Phase 8 then deleted the Python halves of
 the ported operations, so the historical Python comparisons are frozen evidence rather than live measurements. The raw
-JSON artifacts live under `sdd/tales/202604/perf_artifacts/`; the tables below summarize the medians a reader should
+JSON artifacts live under `sdd/plans/202604/perf_artifacts/`; the tables below summarize the medians a reader should
 expect when running the same harnesses against the same Rust extension.
 
 ### Workstation profile
@@ -350,7 +350,7 @@ Rust. `speedup` reads `python_median / rust_median` against those frozen Python 
 ### Core operations (Phase 7B microbenchmarks)
 
 Driver: `tests/perf/phase7/run_phase7b.py`. One `*_summary.json` artifact per shipped operation under
-`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`; each artifact embeds the Phase 7A
+`sdd/plans/202604/perf_artifacts/rust_backend_phase7_<op>_summary.json`; each artifact embeds the Phase 7A
 `Phase7Metadata` envelope, the relevant scenario summaries, and pre-computed `(workload, scenario)` comparison rows.
 
 | Operation                    | Workload                 | Scenario                   | py median (Phase 7B) | rust median |   speedup |
@@ -381,8 +381,8 @@ The full per-percentile data (min / median / p95 / max) is in each artifact's `w
 ### End-to-end TUI / CLI surfaces (Phase 7C)
 
 Driver: `tests/perf/bench_phase7_e2e.py`. One artifact per `(surface, backend)` invocation under
-`sdd/tales/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agent list` rows sit
-in the gitignored `sdd/tales/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific tree.
+`sdd/plans/202604/perf_artifacts/rust_backend_phase7_<surface>_<backend>.json`; the home-tree `sase agent list` rows sit
+in the gitignored `sdd/plans/202604/perf_artifacts/local_only/` dir because they reflect a workstation-specific tree.
 
 | Surface                      | Workload                          | runs |     rust | python (Phase 7B) |   speedup |
 | ---------------------------- | --------------------------------- | ---- | -------: | ----------------: | --------: |
@@ -537,5 +537,5 @@ deleted; do not reach for them when triaging post-Phase-8 issues.
 The migration ran across nine phases. Phases 0–7 added the Rust backend behind a default-Python escape hatch and the
 parity gate; Phase 8 deleted the dispatcher, the dual-run plumbing, and the Python halves of every ported operation that
 did not need them as host logic. The full per-phase narrative lives in `sdd/research/202604/rust_backend_migration.md`
-and `sdd/epics/202604/rust_backend_phase{0..8}*.md`. The handoffs that record each subphase's changes are alongside
-their plan files (`sdd/epics/202604/rust_backend_phase8_phase8{a..g}_handoff.md`).
+and `sdd/plans/202604/rust_backend_phase{0..8}*.md`. The handoffs that record each subphase's changes are alongside
+their plan files (`sdd/plans/202604/rust_backend_phase8_phase8{a..g}_handoff.md`).

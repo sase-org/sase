@@ -95,12 +95,12 @@ def test_sdd_hit_relative_path_and_locator(tmp_path: Path) -> None:
 def test_sdd_strips_frontmatter_from_text_and_reads_plan(tmp_path: Path) -> None:
     _write(
         tmp_path / "sdd" / "prompts" / "202604" / "foo.md",
-        "---\nplan: sdd/tales/202604/foo.md\n---\n\nFix the widget thoroughly.\n",
+        "---\nplan: sdd/plans/202604/foo.md\n---\n\nFix the widget thoroughly.\n",
     )
     hit = load_sdd_prompt_hits(tmp_path)[0]
     assert hit.text == "Fix the widget thoroughly."
     assert "plan:" not in hit.text
-    assert hit.plan == "sdd/tales/202604/foo.md"
+    assert hit.plan == "sdd/plans/202604/foo.md"
     assert hit.cancelled is None
 
 

@@ -23,13 +23,10 @@ from sase.sdd._link_models import (
 from sase.sdd.frontmatter import set_frontmatter_fields
 from sase.sdd.plan_tiers import (
     classify_plan_file,
-    iter_link_aliases,
     normalize_plan_tier,
 )
 
 PLAN_KINDS = ("tales", "epics")
-LEGACY_PLAN_KINDS = ("tales", "epics")
-PHYSICAL_PLAN_KINDS = ("plans", *LEGACY_PLAN_KINDS)
 PROMPT_KINDS = ("prompts", "specs")
 LIST_KINDS = ("prompts", "plans", "tales", "epics")
 
@@ -93,19 +90,7 @@ def validate_sdd_tree(
             continue
 
         physical_kind = Path(file.relpath).parts[0]
-        if physical_kind in LEGACY_PLAN_KINDS:
-            issues.append(
-                _SddIssue(
-                    severity="warning",
-                    code="legacy-plan-directory",
-                    path=file.relpath,
-                    message=(
-                        f"legacy {physical_kind!r} plan directory; run "
-                        "`sase sdd init` to migrate it to 'plans/'"
-                    ),
-                )
-            )
-        elif (
+        if (
             physical_kind == "plans"
             and normalize_plan_tier(file.frontmatter.get("tier")) is None
         ):
@@ -237,10 +222,8 @@ def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
                 if sdd_file is not None:
                     files.append(sdd_file)
     if kind in {"all", "plans", "tales", "epics"}:
-        for physical_kind in PHYSICAL_PLAN_KINDS:
-            kind_root = root / physical_kind
-            if not kind_root.is_dir():
-                continue
+        kind_root = root / "plans"
+        if kind_root.is_dir():
             for path in sorted(kind_root.glob("*/*.md")):
                 sdd_file = _read_sdd_file(root, path, "tales")
                 if sdd_file is None:
@@ -373,19 +356,6 @@ def _resolve_link_path(root: Path, link: str) -> Path:
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    for alias in iter_link_aliases(link):
-        if alias == link:
-            continue
-        alias_path = Path(alias)
-        alias_candidates = [
-            root / alias_path,
-            root.parent / alias_path,
-            root.parent.parent / alias_path,
-            Path.cwd() / alias_path,
-        ]
-        for candidate in alias_candidates:
-            if candidate.exists():
-                return candidate
     if link.startswith("sdd/") or link.startswith(".sase/sdd/"):
         return root.parent / link_path
     return root / link_path
@@ -509,9 +479,7 @@ def _looks_like_project_root(path: Path) -> bool:
         or (path / "sdd").is_dir()
         or (path / ".sase" / "sdd").is_dir()
     )
-    return has_project_marker and not any(
-        (path / kind).is_dir() for kind in (*LIST_KINDS, *LEGACY_PLAN_KINDS)
-    )
+    return has_project_marker and not any((path / kind).is_dir() for kind in LIST_KINDS)
 
 
 def _resolve_project_sdd_root(project_root: Path) -> Path:

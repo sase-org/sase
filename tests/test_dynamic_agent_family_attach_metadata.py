@@ -47,7 +47,7 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
         "workspace_num": 7,
         "cl_name": "feature",
         "changespec_name": "feature",
-        "sdd_plan_path": "sdd/tales/202607/foo.md",
+        "sdd_plan_path": "sdd/plans/202607/foo.md",
     }
     parent_dir = _write_agent_artifact(
         sase_home,
@@ -75,7 +75,7 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
                 workspace_num=7,
                 cl_name="feature",
                 changespec_name="feature",
-                sdd_plan_path="sdd/tales/202607/foo.md",
+                sdd_plan_path="sdd/plans/202607/foo.md",
             )
         ],
     )

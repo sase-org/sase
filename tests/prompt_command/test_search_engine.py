@@ -75,7 +75,7 @@ def _distinct_field_hit() -> PromptHit:
         title="alpha title",
         text="beta body",
         path="sdd/prompts/202601/delta_path.md",
-        plan="sdd/tales/202601/epsilon_plan.md",
+        plan="sdd/plans/202601/epsilon_plan.md",
         tags=("zeta",),
     )
 
@@ -105,7 +105,7 @@ def test_matched_fields_use_stable_order() -> None:
         title="auth title",
         text="auth body",
         path="sdd/prompts/202601/auth_id.md",
-        plan="sdd/tales/202601/auth.md",
+        plan="sdd/plans/202601/auth.md",
         tags=("auth",),
     )
     result = search_prompts("auth", [hit])

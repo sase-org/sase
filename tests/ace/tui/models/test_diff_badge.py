@@ -22,7 +22,7 @@ def _git_diff(path: str) -> str:
 
 def test_diff_text_has_real_edits_classifies_paths() -> None:
     assert diff_text_has_real_edits(_git_diff("src/app.py")) is True
-    assert diff_text_has_real_edits(_git_diff("sdd/tales/202606/change.md")) is False
+    assert diff_text_has_real_edits(_git_diff("sdd/plans/202606/change.md")) is False
     # Mixed code + bookkeeping counts as a real edit.
     assert (
         diff_text_has_real_edits(
@@ -38,7 +38,7 @@ def test_diff_has_real_edits_is_false_for_sdd_only_diff(tmp_path: Path) -> None:
     diff_path = tmp_path / "commit_diff.diff"
     diff_path.write_text(
         _git_diff("sdd/prompts/202606/change.md")
-        + _git_diff("sdd/tales/202606/change.md"),
+        + _git_diff("sdd/plans/202606/change.md"),
         encoding="utf-8",
     )
 
@@ -71,10 +71,10 @@ def test_diff_has_real_edits_is_false_for_rename_only_plan_diff(
 ) -> None:
     diff_path = tmp_path / "commit_diff.diff"
     diff_path.write_text(
-        """diff --git a/sdd/tales/202606/old.md b/sdd/tales/202606/new.md
+        """diff --git a/sdd/plans/202606/old.md b/sdd/plans/202606/new.md
 similarity index 100%
-rename from sdd/tales/202606/old.md
-rename to sdd/tales/202606/new.md
+rename from sdd/plans/202606/old.md
+rename to sdd/plans/202606/new.md
 """,
         encoding="utf-8",
     )
@@ -85,7 +85,7 @@ rename to sdd/tales/202606/new.md
 def test_diff_has_real_edits_accepts_sase_sdd_variant(tmp_path: Path) -> None:
     diff_path = tmp_path / "commit_diff.diff"
     diff_path.write_text(
-        _git_diff(".sase/sdd/epics/202606/change.md"),
+        _git_diff(".sase/sdd/plans/202606/change.md"),
         encoding="utf-8",
     )
 

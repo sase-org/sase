@@ -1,7 +1,7 @@
 """Tests for the ChangeSpecs-tab grouping-mode cycle action.
 
 Covers Phase 3 of the ChangeSpecs-tab ChangeSpec grouping feature
-(``sdd/tales/202604/changespec_group_headings.md``):
+(``sdd/plans/202604/changespec_group_headings.md``):
 
 * Cycle order ``BY_PROJECT → BY_DATE → BY_STATUS → BY_PROJECT``.
 * Per-mode fold-state preservation across cycles, with no leakage from

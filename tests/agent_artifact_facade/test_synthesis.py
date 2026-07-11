@@ -87,7 +87,7 @@ def test_committed_sdd_plan_is_single_default_plan_artifact(
     artifacts_dir = agent_dir(tmp_path)
     workspace = tmp_path / "workspace"
     archived_plan = tmp_path / ".sase" / "plans" / "plan.md"
-    sdd_plan = workspace / "sdd" / "tales" / "202605" / "plan.md"
+    sdd_plan = workspace / "sdd" / "plans" / "202605" / "plan.md"
     for path in (archived_plan, sdd_plan):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("# Plan\n", encoding="utf-8")
@@ -257,7 +257,7 @@ def test_home_plan_is_skipped_when_matching_workspace_plan_exists(
     home = tmp_path / "home"
     workspace = tmp_path / "workspace"
     home_plan = home / ".sase" / "plans" / "approved.md"
-    workspace_plan = workspace / "sdd" / "tales" / "approved.md"
+    workspace_plan = workspace / "sdd" / "plans" / "approved.md"
     for path in (home_plan, workspace_plan):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("# Plan\n", encoding="utf-8")

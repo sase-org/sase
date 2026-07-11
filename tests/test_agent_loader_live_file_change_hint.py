@@ -165,7 +165,7 @@ def test_completed_diff_path_classification_stays_authoritative(
     tmp_path: Path,
 ) -> None:
     diff_path = tmp_path / "commit_diff.diff"
-    _write_git_diff(diff_path, "sdd/tales/202606/change.md")
+    _write_git_diff(diff_path, "sdd/plans/202606/change.md")
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my-feature",
@@ -231,7 +231,7 @@ def test_completed_linked_bookkeeping_diff_is_suppressed(tmp_path: Path) -> None
     primary.mkdir()
     linked.mkdir()
     linked_diff = tmp_path / "linked.diff"
-    _write_git_diff(linked_diff, "sdd/tales/202607/plan.md")
+    _write_git_diff(linked_diff, "sdd/plans/202607/plan.md")
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my-feature",
@@ -320,7 +320,7 @@ def test_deferred_helper_classifies_bookkeeping_only_edits_false(
     diff_mod._vcs_provider_cache.clear()
     workspace = _setup_workspace(tmp_path)
     agent = _running_agent(str(workspace))
-    provider = _DiffTextProvider(_git_diff("sdd/tales/202606/change.md"))
+    provider = _DiffTextProvider(_git_diff("sdd/plans/202606/change.md"))
 
     with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
@@ -517,7 +517,7 @@ def test_root_plan_uses_family_opened_workspace_records(
         opened_at="2026-07-07T16:00:00+00:00",
     )
     bookkeeping = tmp_path / "plan.diff"
-    _write_git_diff(bookkeeping, "sdd/tales/202606/change.md")
+    _write_git_diff(bookkeeping, "sdd/plans/202606/change.md")
     root = _root_plan_agent(diff_path=str(bookkeeping))
     root.artifacts_dir = str(plan_artifacts)
     child = _active_coder_child(str(tmp_path / "missing-child-primary"))
@@ -561,7 +561,7 @@ def test_redirected_plan_row_uses_active_coder_live_edits(tmp_path: Path) -> Non
     diff_mod._vcs_provider_cache.clear()
     child_workspace = _setup_workspace(tmp_path)
     bookkeeping = tmp_path / "plan.diff"
-    _write_git_diff(bookkeeping, "sdd/tales/202606/change.md")
+    _write_git_diff(bookkeeping, "sdd/plans/202606/change.md")
     root = _root_plan_agent(diff_path=str(bookkeeping))
     root.followup_agents.append(_active_coder_child(str(child_workspace)))
     provider = _DiffTextProvider(_git_diff("src/app.py"))
@@ -582,10 +582,10 @@ def test_redirected_plan_row_false_for_bookkeeping_only_child_edits(
     diff_mod._vcs_provider_cache.clear()
     child_workspace = _setup_workspace(tmp_path)
     bookkeeping = tmp_path / "plan.diff"
-    _write_git_diff(bookkeeping, "sdd/tales/202606/change.md")
+    _write_git_diff(bookkeeping, "sdd/plans/202606/change.md")
     root = _root_plan_agent(diff_path=str(bookkeeping))
     root.followup_agents.append(_active_coder_child(str(child_workspace)))
-    provider = _DiffTextProvider(_git_diff("sdd/tales/202606/notes.md"))
+    provider = _DiffTextProvider(_git_diff("sdd/plans/202606/notes.md"))
 
     with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
         with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
@@ -605,7 +605,7 @@ def test_redirected_plan_row_skips_live_path_when_child_has_diff_path(
     child_diff = tmp_path / "child.diff"
     _write_git_diff(child_diff, "src/app.py")
     bookkeeping = tmp_path / "plan.diff"
-    _write_git_diff(bookkeeping, "sdd/tales/202606/change.md")
+    _write_git_diff(bookkeeping, "sdd/plans/202606/change.md")
     root = _root_plan_agent(diff_path=str(bookkeeping))
     root.followup_agents.append(
         _active_coder_child("/does/not/matter", diff_path=str(child_diff))

@@ -1,6 +1,6 @@
 """Row-formatter visual hierarchy for the AXE sidebar (Phase 2).
 
-Pinned by the AXE-tab visual redesign plan (sdd/epics/202605/
+Pinned by the AXE-tab visual redesign plan (sdd/plans/202605/
 axe_tab_visual_redesign.md). The three row taxonomies (lumberjack,
 chop, bgcmd) must be visually distinguishable at a glance:
 

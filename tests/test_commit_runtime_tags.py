@@ -91,11 +91,11 @@ def test_update_trailing_tags_adds_runtime_tags() -> None:
 
 def test_update_trailing_tags_preserves_existing_metadata() -> None:
     assert update_trailing_commit_tags(
-        "Fix bug\n\nPLAN=sdd/tales/plan.md\nBUG=123",
+        "Fix bug\n\nPLAN=sdd/plans/plan.md\nBUG=123",
         {"AGENT": "agent-a", "MACHINE": "machine-a"},
         remove_keys=RUNTIME_COMMIT_TAG_KEYS,
     ) == (
-        "Fix bug\n\nSASE_PLAN=sdd/tales/plan.md\nSASE_BUG=123"
+        "Fix bug\n\nSASE_PLAN=sdd/plans/plan.md\nSASE_BUG=123"
         "\nSASE_AGENT=agent-a\nSASE_MACHINE=machine-a"
     )
 
@@ -126,14 +126,14 @@ def test_update_trailing_tags_render_every_owned_builtin_prefixed() -> None:
             "TYPE": "sdd",
             "AGENT": "agent-a",
             "MACHINE": "machine-a",
-            "PLAN": "sdd/tales/plan.md",
+            "PLAN": "sdd/plans/plan.md",
             "BUG": "123",
         },
     )
 
     assert updated == (
         "Fix bug\n\nSASE_TYPE=sdd\nSASE_AGENT=agent-a\nSASE_MACHINE=machine-a"
-        "\nSASE_PLAN=sdd/tales/plan.md\nSASE_BUG=123"
+        "\nSASE_PLAN=sdd/plans/plan.md\nSASE_BUG=123"
     )
 
 

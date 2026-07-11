@@ -427,7 +427,7 @@ class TestHandleSasePlan:
     ) -> None:
         """version_controlled=True: existing in-repo plans are tagged repo-relative."""
         repo_dir = tmp_path / "repo"
-        plan_file = repo_dir / "sdd" / "tales" / "202605" / "my_plan.md"
+        plan_file = repo_dir / "sdd" / "plans" / "202605" / "my_plan.md"
         plan_file.parent.mkdir(parents=True)
         plan_file.write_text("---\nstatus: wip\n---\n# Plan\n", encoding="utf-8")
 
@@ -441,7 +441,7 @@ class TestHandleSasePlan:
             handle_sase_plan(payload, str(repo_dir))
 
         assert payload["_plan_path"] == str(plan_file)
-        assert "SASE_PLAN=sdd/tales/202605/my_plan.md" in payload["message"]
+        assert "SASE_PLAN=sdd/plans/202605/my_plan.md" in payload["message"]
         assert str(repo_dir) not in payload["message"]
 
     def test_local_store_copies_external_plan_and_tags_it(self, tmp_path: Path) -> None:
@@ -491,7 +491,7 @@ class TestHandleSasePlan:
     ) -> None:
         """An approved companion-store plan is tagged but not copied or staged."""
         repo_dir = tmp_path / "repo"
-        plan_file = repo_dir / ".sase" / "sdd" / "tales" / "202607" / "my_plan.md"
+        plan_file = repo_dir / ".sase" / "sdd" / "plans" / "202607" / "my_plan.md"
         plan_file.parent.mkdir(parents=True)
         plan_file.write_text("---\nstatus: wip\n---\n# Plan\n", encoding="utf-8")
         write_sdd_store_record(
@@ -524,7 +524,7 @@ class TestHandleSasePlan:
 
         assert "_plan_path" not in payload
         assert "status: done" in plan_file.read_text(encoding="utf-8")
-        assert payload["message"].endswith("SASE_PLAN=tales/202607/my_plan.md")
+        assert payload["message"].endswith("SASE_PLAN=plans/202607/my_plan.md")
         mock_commit.assert_called_once()
         store_arg, message = mock_commit.call_args.args
         assert store_arg.sdd_dir == repo_dir / ".sase" / "sdd"

@@ -1,7 +1,7 @@
 """Tests for the post-mount dismissed-projection sync wiring.
 
 Locks in the cold-start contract from
-``sdd/tales/202606/fast_ace_tui_startup.md``: ``AceApp.__init__`` never
+``sdd/plans/202606/fast_ace_tui_startup.md``: ``AceApp.__init__`` never
 touches the artifact index or dismissed bundle archive, and the
 maintenance sync instead runs as a post-mount background worker that
 nudges an agents refresh when the projection actually changed.

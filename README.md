@@ -205,11 +205,11 @@ SASE keeps durable state outside any one chat session:
   by running agents are gated behind `LaunchApproval` requests resolved in ACE or with `sase launch approve/reject`.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git linked-repo workspaces. Dirty linked clones
-  are enforced like the main workspace. If the only enforced change is one tracked SDD markdown file under `sdd/tales/`
-  or `sdd/epics/` whose leading front matter changes exactly from `status: wip` to `status: done`, SASE commits that
-  closeout directly. Other dirty enforced workspaces trigger bounded follow-up invocations that tell the same agent to
-  use the configured commit skill; if enforced workspaces are still dirty after the configured pass limit, the agent run
-  fails with a clear artifact trail.
+  are enforced like the main workspace. If the only enforced change is one tracked SDD markdown file under `sdd/plans/`
+  whose leading front matter changes exactly from `status: wip` to `status: done`, SASE commits that closeout directly.
+  Other dirty enforced workspaces trigger bounded follow-up invocations that tell the same agent to use the configured
+  commit skill; if enforced workspaces are still dirty after the configured pass limit, the agent run fails with a clear
+  artifact trail.
 - **Durable artifacts** - Agent metadata, chats, notifications, prompt history, dismissed-agent bundles, saved agent
   groups, ChangeSpecs, SDD files, and beads are stored in predictable project/user directories so ACE, AXE, CLI
   commands, and external integrations can share state. Long-term memory reads and write proposals are also

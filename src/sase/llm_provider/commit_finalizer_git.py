@@ -11,11 +11,7 @@ if TYPE_CHECKING:
     from .commit_finalizer_types import DirtyState
 
 _AUTO_COMMIT_GIT_TIMEOUT_SECONDS = 5
-_SDD_PLAN_DIR_PREFIXES = (
-    "sdd/plans/",
-    "sdd/tales/",
-    "sdd/epics/",
-)
+_SDD_PLAN_DIR_PREFIXES = ("sdd/plans/",)
 
 
 @dataclass(frozen=True)

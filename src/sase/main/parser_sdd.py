@@ -21,7 +21,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase sdd path\n"
             "  sase sdd path research\n"
-            "  sase sdd list --kind epics\n"
+            "  sase sdd list --kind epics  # tier filter over plans/\n"
             "  sase sdd validate --show-warnings"
         ),
     )
@@ -69,7 +69,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "--kind",
         choices=("prompts", "plans", "tales", "epics", "all"),
         default="all",
-        help="File kind to list (default: all)",
+        help="Artifact kind; tales/epics filter plans by tier (default: all)",
     )
     list_parser.add_argument(
         "-j", "--json", action="store_true", help="Emit machine-readable JSON"
@@ -89,10 +89,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "kind",
         nargs="?",
         choices=SDD_CANONICAL_DIRS,
-        help=(
-            "SDD child directory to append; tales and epics are deprecated "
-            "aliases for plans"
-        ),
+        help="Canonical SDD child directory to append",
     )
 
     repair_parser = sdd_sub.add_parser(

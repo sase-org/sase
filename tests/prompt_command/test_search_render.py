@@ -76,7 +76,7 @@ def test_json_envelope_shape_and_keys(
         repo,
         "202604",
         "auth_snapshot",
-        "---\nplan: sdd/tales/202604/auth.md\nprompt_tags: [review]\n---\n"
+        "---\nplan: sdd/plans/202604/auth.md\nprompt_tags: [review]\n---\n"
         "Rotate auth tokens nightly.\n",
     )
     _seed(_entry("retry the auth flow on failure", "260601_000000"))
@@ -98,7 +98,7 @@ def test_json_envelope_shape_and_keys(
     assert sdd["id"] == "auth_snapshot"
     assert sdd["path"] == "sdd/prompts/202604/auth_snapshot.md"
     assert sdd["date"] == "2026-04-01"  # frontmatter-less → YYYYMM path fallback
-    assert sdd["plan"] == "sdd/tales/202604/auth.md"
+    assert sdd["plan"] == "sdd/plans/202604/auth.md"
     assert sdd["tags"] == ["review"]
     assert sdd["cancelled"] is None
     assert "body" in sdd["matched_fields"]
@@ -188,7 +188,7 @@ def test_full_renders_sdd_metadata_and_body(
         repo,
         "202604",
         "auth_snapshot",
-        "---\nplan: sdd/tales/202604/auth.md\nprompt_tags: [review]\n---\n"
+        "---\nplan: sdd/plans/202604/auth.md\nprompt_tags: [review]\n---\n"
         "Rotate auth tokens nightly.\n",
     )
     handle_prompt_search(_ns("auth", source="sdd", format="full"))
@@ -199,7 +199,7 @@ def test_full_renders_sdd_metadata_and_body(
     assert "2026-04-01" in out
     # Compact metadata header for the SDD-specific fields.
     assert "path: sdd/prompts/202604/auth_snapshot.md" in out
-    assert "plan: sdd/tales/202604/auth.md" in out
+    assert "plan: sdd/plans/202604/auth.md" in out
     assert "tags: review" in out
     # The body is rendered in full.
     assert "Rotate auth tokens nightly." in out

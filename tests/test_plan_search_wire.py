@@ -38,8 +38,8 @@ def _plan_payload() -> dict[str, Any]:
     return {
         "source": "repo",
         "kind": "tale",
-        "path": "/abs/sdd/tales/202606/auth_token_refresh.md",
-        "relpath": "tales/202606/auth_token_refresh.md",
+        "path": "/abs/sdd/plans/202606/auth_token_refresh.md",
+        "relpath": "plans/202606/auth_token_refresh.md",
         "name": "auth_token_refresh",
         "title": "Refresh auth tokens on 401",
         "status": "wip",
@@ -80,8 +80,8 @@ def test_full_payload_round_trips() -> None:
     assert match.plan == Plan(
         source="repo",
         kind="tale",
-        path="/abs/sdd/tales/202606/auth_token_refresh.md",
-        relpath="tales/202606/auth_token_refresh.md",
+        path="/abs/sdd/plans/202606/auth_token_refresh.md",
+        relpath="plans/202606/auth_token_refresh.md",
         name="auth_token_refresh",
         title="Refresh auth tokens on 401",
         status="wip",

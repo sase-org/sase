@@ -84,7 +84,7 @@ def _bulk_preview() -> BulkRevertPreview:
     primary_one = _commit(
         "4aa21f0",
         "Record bulk revert provenance",
-        ("sdd/tales/202606/revert_modal_redesign.md", "src/sase/ace/tui.py"),
+        ("sdd/plans/202606/revert_modal_redesign.md", "src/sase/ace/tui.py"),
         agent_tag="visual.bulk.alpha",
     )
     primary_two = _commit(

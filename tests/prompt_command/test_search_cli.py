@@ -149,7 +149,7 @@ def test_plan_only_match_shows_why(
         repo,
         "202604",
         "snapshot",
-        "---\nplan: sdd/tales/202604/rotate_tokens.md\n---\nDo the work.\n",
+        "---\nplan: sdd/plans/202604/rotate_tokens.md\n---\nDo the work.\n",
     )
     # 'rotate_tokens' appears only in the plan link, not the body/title/path.
     handle_prompt_search(_ns("rotate_tokens", source="sdd"))

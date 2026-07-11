@@ -19,7 +19,7 @@ def _payload(**medians: float) -> dict[str, object]:
 
 def test_default_baseline_and_report_paths_live_in_expected_locations() -> None:
     perf_dir = REPO_ROOT / "tests" / "perf"
-    report_dir = REPO_ROOT / "sdd" / "tales" / "202605" / "perf_artifacts"
+    report_dir = REPO_ROOT / "sdd" / "plans" / "202605" / "perf_artifacts"
 
     assert DEFAULT_BASELINE_PATH == perf_dir / "agent_launch_phase1_baseline.json"
     assert DEFAULT_REPORT_PATH == report_dir / "agent_launch_regression_check.json"

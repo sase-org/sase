@@ -301,8 +301,8 @@ The core folders are:
 
 - `prompts/`: expanded prompt snapshots. XPrompts are resolved, directives are stripped, and the exact prompt that
   launched work is saved with metadata.
-- `tales/`: ordinary approved implementation plans. A tale is the plan you want a human or agent to understand later.
-- `epics/`: executable multi-phase plans. An epic can be turned into Beads and driven by `sase bead work`.
+- `plans/`: approved implementation plans, classified by `tier: tale|epic`. Tales are focused plans; epics are
+  executable multi-phase plans that can be turned into Beads and driven by `sase bead work`.
 - `beads/`: git-portable issue/dependency state under the resolved SDD store, with bead data, events, JSONL
   compatibility output, and the SQLite query cache.
 

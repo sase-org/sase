@@ -308,7 +308,7 @@ def test_execute_mobile_run_plan_action_archives_plan(tmp_path: Path) -> None:
         files=[str(plan_file)],
         action_data={"response_dir": str(response_dir)},
     )
-    saved_plan_path = str(tmp_path / "sdd" / "tales" / "202605" / "plan.md")
+    saved_plan_path = str(tmp_path / "sdd" / "plans" / "202605" / "plan.md")
 
     with (
         patch(

@@ -34,10 +34,10 @@ both the **expanded prompt snapshot** (every `#xprompt` resolved, every `%direct
 as first-class artifacts on disk. The two files cross-reference each other via `prompt:` and `plan:` frontmatter fields,
 and `sase sdd validate` checks that the link graph is intact.
 
-Two plan tiers, two plan directories under the effective SDD root:
+Two plan tiers share one canonical directory under the effective SDD root:
 
-- **Tales** — ordinary implementation plans, at `tales/{YYYYMM}/{name}.md`.
-- **Epics** — executable multi-phase plans, at `epics/{YYYYMM}/{name}.md`.
+- **Tales** — ordinary implementation plans at `plans/{YYYYMM}/{name}.md` with `tier: tale`.
+- **Epics** — executable multi-phase plans at the same path shape with `tier: epic`.
 
 Storage follows workspace-provider policy. Built-in bare-git projects use in-tree `sdd/`; GitHub projects require a
 companion repository at `.sase/sdd/`; providerless projects use the primary workspace's local `.sase/sdd/` store. A

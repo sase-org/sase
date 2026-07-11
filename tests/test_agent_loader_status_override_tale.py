@@ -390,7 +390,7 @@ def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_working_tale_
 ) -> None:
     """WORKING TALE roots do not show a pencil for plan/prompt-only diffs."""
     diff_path = tmp_path / "commit_diff.diff"
-    _write_git_diff(diff_path, "sdd/tales/202606/change.md")
+    _write_git_diff(diff_path, "sdd/plans/202606/change.md")
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="a5n",
@@ -431,7 +431,7 @@ def test_apply_status_overrides_shows_badge_after_coder_real_diff_propagates(
     """A coder diff still wins over the planner's plan/prompt-only diff."""
     plan_diff = tmp_path / "commit_diff.diff"
     code_diff = tmp_path / "code.diff"
-    _write_git_diff(plan_diff, "sdd/tales/202606/change.md")
+    _write_git_diff(plan_diff, "sdd/plans/202606/change.md")
     _write_git_diff(code_diff, "src/app.py")
     parent = Agent(
         agent_type=AgentType.WORKFLOW,

@@ -78,7 +78,7 @@ def build_separate_repo_clones(tmp_path: Path) -> tuple[Path, Path, Path]:
     clone(companion, workspace_sdd)
 
     # The primary store advances with the just-committed tale and pushes it.
-    tale = primary_sdd / "tales" / "202607" / "feature.md"
+    tale = primary_sdd / "plans" / "202607" / "feature.md"
     tale.parent.mkdir(parents=True)
     tale.write_text("# Plan\n", encoding="utf-8")
     commit_all(primary_sdd, "Add tale")

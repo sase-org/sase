@@ -25,7 +25,7 @@ def test_execute_successful_revert(tmp_path: Path) -> None:
     _commit(
         repo,
         _msg("add feature", "foo"),
-        {"feature.txt": "feature\n", "sdd/tales/t.md": "# plan\n"},
+        {"feature.txt": "feature\n", "sdd/plans/t.md": "# plan\n"},
     )
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
@@ -43,7 +43,7 @@ def test_execute_successful_revert(tmp_path: Path) -> None:
     assert result.pushed is False  # no origin remote
     # The created files are gone and a single revert commit was added.
     assert not (repo / "feature.txt").exists()
-    assert not (repo / "sdd" / "tales" / "t.md").exists()
+    assert not (repo / "sdd" / "plans" / "t.md").exists()
     assert _git(repo, "status", "--porcelain").strip() == ""
     head_after = _git(repo, "rev-parse", "HEAD").strip()
     assert head_after != head_before

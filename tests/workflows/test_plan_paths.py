@@ -14,16 +14,16 @@ def test_format_sase_plan_reference_uses_repo_relative_symlink_path(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "repo"
-    plan = repo / "sdd" / "tales" / "202605" / "my_plan.md"
+    plan = repo / "sdd" / "plans" / "202605" / "my_plan.md"
     plan.parent.mkdir(parents=True)
     plan.write_text("# Plan\n", encoding="utf-8")
 
     repo_link = tmp_path / "repo-link"
     repo_link.symlink_to(repo, target_is_directory=True)
-    linked_plan = repo_link / "sdd" / "tales" / "202605" / "my_plan.md"
+    linked_plan = repo_link / "sdd" / "plans" / "202605" / "my_plan.md"
 
     assert format_sase_plan_reference(str(linked_plan), repo_root=repo) == (
-        "sdd/tales/202605/my_plan.md"
+        "sdd/plans/202605/my_plan.md"
     )
     assert is_sase_plan_in_repo(str(linked_plan), repo)
 
@@ -32,13 +32,13 @@ def test_format_sase_plan_reference_uses_local_sdd_reference(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "repo"
-    local_plan = tmp_path / "primary" / ".sase" / "sdd" / "tales" / "202605"
+    local_plan = tmp_path / "primary" / ".sase" / "sdd" / "plans" / "202605"
     local_plan.mkdir(parents=True)
     plan = local_plan / "my_plan.md"
     plan.write_text("# Plan\n", encoding="utf-8")
 
     assert format_sase_plan_reference(str(plan), repo_root=repo) == (
-        ".sase/sdd/tales/202605/my_plan.md"
+        ".sase/sdd/plans/202605/my_plan.md"
     )
 
 
@@ -64,12 +64,12 @@ def test_format_sase_plan_reference_preserves_external_path(tmp_path: Path) -> N
 def test_format_sase_plan_tag_value_uses_store_relative_path(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     store_root = repo / ".sase" / "sdd"
-    plan = store_root / "tales" / "202607" / "my_plan.md"
+    plan = store_root / "plans" / "202607" / "my_plan.md"
     store = SddStore("separate_repo", store_root, store_root)
 
     assert (
         format_sase_plan_tag_value(str(plan), repo_root=repo, store=store)
-        == "tales/202607/my_plan.md"
+        == "plans/202607/my_plan.md"
     )
 
 
@@ -79,13 +79,13 @@ def test_format_sase_plan_tag_value_detects_sibling_store_clone(
     repo = tmp_path / "repo_2"
     store_root = repo / ".sase" / "sdd"
     sibling_plan = (
-        tmp_path / "repo_1" / ".sase" / "sdd" / "tales" / "202607" / "my_plan.md"
+        tmp_path / "repo_1" / ".sase" / "sdd" / "plans" / "202607" / "my_plan.md"
     )
     store = SddStore("separate_repo", store_root, store_root)
 
     assert (
         format_sase_plan_tag_value(str(sibling_plan), repo_root=repo, store=store)
-        == "tales/202607/my_plan.md"
+        == "plans/202607/my_plan.md"
     )
 
 
@@ -108,10 +108,10 @@ def test_format_sase_plan_tag_value_keeps_in_tree_sdd_prefix(
 ) -> None:
     repo = tmp_path / "repo"
     store_root = repo / "sdd"
-    plan = store_root / "tales" / "202607" / "my_plan.md"
+    plan = store_root / "plans" / "202607" / "my_plan.md"
     store = SddStore("in_tree", store_root, store_root)
 
     assert (
         format_sase_plan_tag_value(str(plan), repo_root=repo, store=store)
-        == "sdd/tales/202607/my_plan.md"
+        == "sdd/plans/202607/my_plan.md"
     )
