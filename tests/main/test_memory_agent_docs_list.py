@@ -100,6 +100,7 @@ def test_build_inventory_scans_project_agents_from_vcs_root_and_prunes(
     write(project / ".sase" / "AGENTS.md", "# Ignored\n")
     write(project / "node_modules" / "AGENTS.md", "# Ignored\n")
     write(project / "__pycache__" / "AGENTS.md", "# Ignored\n")
+    write(project / "sase" / "repos" / "linked" / "AGENTS.md", "# Ignored\n")
     home = tmp_path / "home"
 
     monkeypatch.chdir(nested)

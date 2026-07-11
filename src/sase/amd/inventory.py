@@ -139,8 +139,15 @@ def _project_root(cwd: Path) -> Path:
 
 def _iter_project_agents(root: Path) -> tuple[Path, ...]:
     agents: list[Path] = []
+    linked_repo_parent = root.resolve(strict=False) / "sase"
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(name for name in dirnames if name not in _PRUNED_DIR_NAMES)
+        current = Path(dirpath).resolve(strict=False)
+        dirnames[:] = sorted(
+            name
+            for name in dirnames
+            if name not in _PRUNED_DIR_NAMES
+            and not (current == linked_repo_parent and name == "repos")
+        )
         if AGENTS_FILENAME in filenames:
             agents.append(Path(dirpath) / AGENTS_FILENAME)
     return tuple(sorted(agents, key=lambda path: path.as_posix()))

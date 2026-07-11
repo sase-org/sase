@@ -101,6 +101,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
 
     project_entries: tuple[_LinkedRepoMemoryEntry, ...]
     project_errors: tuple[str, ...]
+    project_name: str | None = None
     if is_project_dir:
         management = project_management_status(project_config)
         project_managed = management.is_sase_managed
@@ -108,8 +109,12 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
             project_entries = ()
             project_errors = (management.error,)
         elif project_managed:
+            project_name = _project_memory_name(project_root)
             project_entries, project_errors = _linked_entries_from_config(
-                project_config, label="project", primary_root=primary_root
+                project_config,
+                label="project",
+                primary_root=primary_root,
+                project_name=project_name,
             )
         else:
             project_entries = ()
@@ -122,11 +127,8 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
         global_config, label="home", primary_root=primary_root
     )
     config_errors = (*project_errors, *home_errors)
-    project_name = (
-        None
-        if config_errors or not is_project_dir or not project_managed
-        else _project_memory_name(project_root)
-    )
+    if config_errors or not is_project_dir or not project_managed:
+        project_name = None
     return _MemoryInitInputs(
         use_chezmoi=use_chezmoi,
         no_commit=bool(getattr(args, "no_commit", False)),

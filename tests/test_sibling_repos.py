@@ -124,6 +124,8 @@ def test_env_aliases_are_sanitized_and_json_is_canonical(tmp_path: Path) -> None
     first.mkdir()
     second.mkdir()
     project_file = _project_file(tmp_path / "project.sase", primary)
+    (tmp_path / "main_4" / "sase" / "repos" / "sase-core").mkdir(parents=True)
+    (tmp_path / "main_4" / "sase" / "repos" / "sase.core").mkdir(parents=True)
 
     resolution = resolve_sibling_repos_for_project(
         project_file=str(project_file),

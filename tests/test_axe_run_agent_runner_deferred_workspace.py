@@ -119,6 +119,8 @@ class TestDeferredWorkspacePreparation:
         sibling.mkdir()
         project_file = tmp_path / "project.sase"
         project_file.write_text(f"WORKSPACE_DIR: {primary}\nNAME: main\n")
+        linked_workspace = primary.with_name("sase_7") / "sase" / "repos" / "core"
+        linked_workspace.mkdir(parents=True)
         resolution = resolve_linked_repos_for_project(
             project_file=str(project_file),
             workspace_dir=str(workspace_dir),
@@ -160,7 +162,6 @@ class TestDeferredWorkspacePreparation:
             )
 
         # Canonical linked env plus the deprecated sibling alias are recomputed.
-        linked_workspace = primary.with_name("sase_7") / "sase" / "repos" / "core"
         assert os.environ["SASE_LINKED_REPO_CORE_DIR"] == str(linked_workspace)
         assert os.environ["SASE_SIBLING_REPO_CORE_DIR"] == str(linked_workspace)
         assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"

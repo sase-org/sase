@@ -136,10 +136,10 @@ directory as you!
 
 Configured linked repositories for this context:
 
-- `sase-core`: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
 - `sase-github`: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
 - `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
+- `sase--research`: Durable SASE research reports and generated media.
 
 When you need to make changes to files in a numbered-workspace linked repo or need to review numbered-workspace linked
 repo code, agents MUST run:

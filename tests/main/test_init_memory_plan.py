@@ -281,12 +281,14 @@ def test_memory_plan_prunes_ignored_nested_agent_docs(
     assert run_memory() == 0
     write(project_root / ".sase" / "AGENTS.md", "# Ignored\n")
     write(project_root / "node_modules" / "pkg" / "AGENTS.md", "# Ignored\n")
+    write(project_root / "sase" / "repos" / "linked" / "AGENTS.md", "# Ignored\n")
 
     plan = plan_memory()
 
     assert plan.actions == ()
     assert not (project_root / ".sase" / "CLAUDE.md").exists()
     assert not (project_root / "node_modules" / "pkg" / "CLAUDE.md").exists()
+    assert not (project_root / "sase" / "repos" / "linked" / "CLAUDE.md").exists()
 
 
 def test_memory_plan_preserves_existing_user_agents_file(

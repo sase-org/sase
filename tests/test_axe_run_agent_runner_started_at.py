@@ -181,6 +181,7 @@ class TestRunStartedAtRecording:
                         primary_dir=str(tmp_path / "sase-core"),
                         workspace_dir=str(linked_workspace_dir),
                         workspace_num=7,
+                        auto_clone=True,
                     ),
                 )
             )

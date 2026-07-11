@@ -160,7 +160,11 @@ def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
 
 
 def linked_entries_from_config(
-    config_path: Path, *, label: str, primary_root: Path | None = None
+    config_path: Path,
+    *,
+    label: str,
+    primary_root: Path | None = None,
+    project_name: str | None = None,
 ) -> tuple[tuple[LinkedRepoMemoryEntry, ...], tuple[str, ...]]:
     loaded = load_local_config(config_path)
     if not loaded.valid:
@@ -178,9 +182,10 @@ def linked_entries_from_config(
         config.get("is_sase_managed") is True
         and config.get(DEFAULT_LINKED_REPOS_CONFIG_KEY) is not False
     ):
-        root = primary_root or config_path.parent
-        project_name = project_memory_name(root)
-        research_name = f"{project_name}--research"
+        resolved_project_name = project_name or project_memory_name(
+            primary_root or config_path.parent
+        )
+        research_name = f"{resolved_project_name}--research"
         explicit_names = {
             name.strip()
             for item in raw_entries
