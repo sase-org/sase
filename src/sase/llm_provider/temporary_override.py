@@ -29,7 +29,10 @@ import os
 import re
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+import fcntl
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +42,7 @@ from .config import DEFAULT_MODEL_ALIAS_NAME
 from .types import ModelTier
 
 _STATE_FILENAME = "llm_override.json"
+_LOCK_FILENAME = "llm_override.lock"
 
 #: On-disk schema version for the per-alias override state file.
 _STATE_VERSION = 2
@@ -50,6 +54,19 @@ def _state_path() -> Path:
     Resolved lazily so ``$SASE_HOME`` and test redirection are honored per-call.
     """
     return sase_home() / _STATE_FILENAME
+
+
+@contextmanager
+def _locked_state() -> Iterator[None]:
+    """Serialize state reads that may clean up and all read/modify/write cycles."""
+    lock_path = sase_home() / _LOCK_FILENAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 @dataclass(frozen=True)
@@ -239,7 +256,7 @@ def _serialize_overrides(overrides: dict[str, TemporaryLLMOverride]) -> dict:
     }
 
 
-def _load_active_overrides(
+def _load_active_overrides_unlocked(
     now: float | None = None,
 ) -> dict[str, TemporaryLLMOverride]:
     """Return the active (non-expired) per-alias overrides, self-cleaning state.
@@ -278,6 +295,14 @@ def _load_active_overrides(
     if changed:
         _atomic_write_json(_state_path(), _serialize_overrides(active))
     return active
+
+
+def _load_active_overrides(
+    now: float | None = None,
+) -> dict[str, TemporaryLLMOverride]:
+    """Return active overrides while serializing self-cleaning file writes."""
+    with _locked_state():
+        return _load_active_overrides_unlocked(now)
 
 
 # ---------------------------------------------------------------------------
@@ -414,9 +439,10 @@ def _write_alias_override(
         source=source.strip(),
     )
 
-    overrides = _load_active_overrides(now=created_at)
-    overrides[cleaned_alias] = override
-    _atomic_write_json(_state_path(), _serialize_overrides(overrides))
+    with _locked_state():
+        overrides = _load_active_overrides_unlocked(now=created_at)
+        overrides[cleaned_alias] = override
+        _atomic_write_json(_state_path(), _serialize_overrides(overrides))
     return override
 
 
@@ -431,28 +457,29 @@ def clear_alias_override(alias: str) -> bool:
     if not cleaned_alias:
         return False
 
-    data = _read_state_dict()
-    if data is None:
-        return False
-    raw_entries, _ = _extract_raw_entries(data)
-    if raw_entries is None:
-        _delete_state_best_effort()
-        return False
-    if cleaned_alias not in raw_entries:
-        return False
+    with _locked_state():
+        data = _read_state_dict()
+        if data is None:
+            return False
+        raw_entries, _ = _extract_raw_entries(data)
+        if raw_entries is None:
+            _delete_state_best_effort()
+            return False
+        if cleaned_alias not in raw_entries:
+            return False
 
-    rebuilt: dict[str, TemporaryLLMOverride] = {}
-    for key, entry in raw_entries.items():
-        if key == cleaned_alias:
-            continue
-        override = _entry_from_dict(entry)
-        if override is not None:
-            rebuilt[key] = override
-    if rebuilt:
-        _atomic_write_json(_state_path(), _serialize_overrides(rebuilt))
-    else:
-        _delete_state_best_effort()
-    return True
+        rebuilt: dict[str, TemporaryLLMOverride] = {}
+        for key, entry in raw_entries.items():
+            if key == cleaned_alias:
+                continue
+            override = _entry_from_dict(entry)
+            if override is not None:
+                rebuilt[key] = override
+        if rebuilt:
+            _atomic_write_json(_state_path(), _serialize_overrides(rebuilt))
+        else:
+            _delete_state_best_effort()
+        return True
 
 
 # ---------------------------------------------------------------------------

@@ -261,15 +261,6 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan_content)
 
-    if should_copy and not store.is_in_tree:
-        from sase.sdd.files import commit_sdd_store_files
-
-        commit_sdd_store_files(
-            store,
-            f"Add SDD plan for {os.path.splitext(os.path.basename(plan_path))[0]}",
-            paths=[plan_path],
-        )
-
     plan_ref = format_sase_plan_tag_value(
         plan_path,
         repo_root=repo_root,
@@ -291,6 +282,20 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         check=False,
         capture_output=True,
     )
+
+    # Store-backed plans must be committed after their status transition.  For a
+    # copied archive this ensures the initial companion commit contains
+    # ``status: done``; for an existing companion plan it avoids leaving the
+    # completion change dirty and unpushed in the SDD clone.
+    if not store.is_in_tree and (should_copy or plan_in_store):
+        from sase.sdd.files import commit_sdd_store_files
+
+        action = "Add" if should_copy else "Complete"
+        commit_sdd_store_files(
+            store,
+            f"{action} SDD plan for {os.path.splitext(os.path.basename(plan_path))[0]}",
+            paths=[plan_path],
+        )
 
     # Only stage plan files that belong to the code repository.
     if plan_in_code_repo:

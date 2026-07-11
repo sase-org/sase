@@ -8,7 +8,9 @@ set/clear, and per-entry expiry pruning with empty-file cleanup. The
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
+import threading
 import time
 
 import pytest
@@ -152,6 +154,39 @@ def test_setting_one_alias_preserves_others() -> None:
         "phase_worker",
         "epic_creator",
     }
+
+
+def test_concurrent_alias_writers_preserve_every_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The process-shared state serializes the full read/modify/write cycle."""
+    import sase.llm_provider.temporary_override as override_store
+
+    writer_count = 8
+    first_write_barrier = threading.Barrier(writer_count)
+    real_atomic_write = override_store._atomic_write_json
+
+    def synchronized_first_write(path: object, data: dict) -> None:
+        try:
+            first_write_barrier.wait(timeout=0.2)
+        except threading.BrokenBarrierError:
+            pass
+        real_atomic_write(path, data)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(override_store, "_atomic_write_json", synchronized_first_write)
+
+    aliases = [f"alias_{index}" for index in range(writer_count)]
+    with ThreadPoolExecutor(max_workers=writer_count) as executor:
+        list(
+            executor.map(
+                lambda alias: set_alias_override(
+                    alias, "codex/o3", None, source="concurrent-test"
+                ),
+                aliases,
+            )
+        )
+
+    assert set(get_active_alias_overrides()) == set(aliases)
 
 
 def test_alias_and_default_overrides_coexist() -> None:
