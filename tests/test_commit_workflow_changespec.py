@@ -7,7 +7,7 @@ import pytest
 from sase.workflows.commit.commit_tracking import create_changespec
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 from tests._commit_workflow_fixtures import (
-    no_precommit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
+    no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
 )
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
@@ -20,7 +20,7 @@ _SUFFIXED_CL_TARGET = (
 
 
 @pytest.fixture(autouse=True)
-def _no_precommit_or_hooks(no_precommit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
+def _no_commit_hooks(no_commit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
     yield
 
 

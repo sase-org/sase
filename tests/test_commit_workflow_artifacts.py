@@ -13,19 +13,22 @@ from sase.workflows.commit.commit_tracking import (
     record_sdd_commit_result_marker,
     write_result_marker,
 )
-from sase.workflows.commit.precommit_hooks import handle_beads, handle_sase_plan
+from sase.workflows.commit.commit_hooks import handle_beads, handle_sase_plan
 from sase.workflows.commit.pr_operations import build_pr_body
 from tests.sdd_policy_helpers import patched_sdd_policy
 
-_CONFIG_TARGET = "sase.workflows.commit.precommit_hooks.load_merged_config"
-_GET_REPO_ROOT_TARGET = "sase.workflows.commit.precommit_hooks._get_repo_root"
+_CONFIG_TARGET = "sase.workflows.commit.commit_hooks.load_merged_config"
+_GET_REPO_ROOT_TARGET = "sase.workflows.commit.commit_hooks._get_repo_root"
 
 
 @pytest.fixture(autouse=True)
-def _no_precommit():  # type: ignore[no-untyped-def]
-    """Prevent precommit commands and SASE_PLAN from running in tests."""
+def _no_commit_hooks():  # type: ignore[no-untyped-def]
+    """Prevent commit hooks and SASE_PLAN from running in tests."""
     with (
-        patch(_CONFIG_TARGET, return_value={"precommit_command": ""}),
+        patch(
+            _CONFIG_TARGET,
+            return_value={"commit_hooks": {"before": "", "after": ""}},
+        ),
         patch.dict("os.environ", {"SASE_PLAN": ""}, clear=False),
     ):
         yield
@@ -569,7 +572,7 @@ class TestHandleBeads:
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
         with patch(
-            "sase.workflows.commit.precommit_hooks.subprocess.run",
+            "sase.workflows.commit.commit_hooks.subprocess.run",
             side_effect=FileNotFoundError,
         ):
             handle_beads(payload, str(tmp_path))
@@ -580,7 +583,7 @@ class TestHandleBeads:
         (tmp_path / "sdd/beads").mkdir(parents=True)
         payload = {"message": "Fix bug"}
         with patch(
-            "sase.workflows.commit.precommit_hooks.subprocess.run",
+            "sase.workflows.commit.commit_hooks.subprocess.run",
         ) as mock_run:
             handle_beads(payload, str(tmp_path))
 

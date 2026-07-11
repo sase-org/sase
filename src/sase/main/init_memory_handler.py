@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
-from sase.workflows.commit.precommit_hooks import run_precommit
+from sase.workflows.commit.commit_hooks import run_before_commit_hook
 
 from ._init_chezmoi_deploy import (
     ChezmoiDeployBehavior,
@@ -199,7 +199,7 @@ def _deploy_to_project_repo(
     return _deploy_project_repo(
         project_result,
         no_commit=no_commit,
-        run_precommit=run_precommit,
+        run_before_commit_hook=run_before_commit_hook,
         stdin_is_tty=_stdin_is_tty,
         manage_memory=manage_memory,
         git_state=git_state,

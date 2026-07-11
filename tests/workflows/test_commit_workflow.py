@@ -288,7 +288,7 @@ def test_explicit_parent_overrides_auto_detect() -> None:
         method="create_pull_request",
     )
     wf._base_cl_name = "child_cl"
-    # Mock enough to reach parent resolution: precommit must succeed,
+    # Mock enough to reach parent resolution: before hook must succeed,
     # then we let the VCS dispatch fail to stop execution after parent
     # is set.
     mock_provider = MagicMock()
@@ -298,7 +298,9 @@ def test_explicit_parent_overrides_auto_detect() -> None:
     with (
         patch("sase.workflows.commit.workflow.handle_beads"),
         patch("sase.workflows.commit.workflow.handle_sase_plan"),
-        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch(
+            "sase.workflows.commit.workflow.run_before_commit_hook", return_value=True
+        ),
         patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
         patch("sase.workflows.commit.workflow.append_pr_tags"),
         patch("sase.workflows.commit.workflow.build_pr_body"),
@@ -329,7 +331,9 @@ def test_explicit_parent_skips_auto_detect() -> None:
     with (
         patch("sase.workflows.commit.workflow.handle_beads"),
         patch("sase.workflows.commit.workflow.handle_sase_plan"),
-        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch(
+            "sase.workflows.commit.workflow.run_before_commit_hook", return_value=True
+        ),
         patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
         patch("sase.workflows.commit.workflow.append_pr_tags"),
         patch("sase.workflows.commit.workflow.build_pr_body"),
@@ -366,7 +370,9 @@ def test_unresolvable_explicit_parent_is_dropped() -> None:
     with (
         patch("sase.workflows.commit.workflow.handle_beads"),
         patch("sase.workflows.commit.workflow.handle_sase_plan"),
-        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch(
+            "sase.workflows.commit.workflow.run_before_commit_hook", return_value=True
+        ),
         patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
         patch("sase.workflows.commit.workflow.append_pr_tags"),
         patch("sase.workflows.commit.workflow.build_pr_body"),
@@ -398,7 +404,9 @@ def test_resolvable_explicit_parent_is_kept() -> None:
     with (
         patch("sase.workflows.commit.workflow.handle_beads"),
         patch("sase.workflows.commit.workflow.handle_sase_plan"),
-        patch("sase.workflows.commit.workflow.run_precommit", return_value=True),
+        patch(
+            "sase.workflows.commit.workflow.run_before_commit_hook", return_value=True
+        ),
         patch("sase.workflows.commit.workflow.apply_project_pr_prefix"),
         patch("sase.workflows.commit.workflow.append_pr_tags"),
         patch("sase.workflows.commit.workflow.build_pr_body"),
@@ -608,13 +616,13 @@ def test_capture_pre_commit_diff_skips_without_cl_name(
     mock_provider.diff.assert_not_called()
 
 
-# --- Precommit runs for SDD commits ---
+# --- Before hook runs for SDD commits ---
 
 
-def test_precommit_runs_during_sdd_commit(
+def test_before_hook_runs_during_sdd_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression: run_precommit() must execute when sase commit is used for SDD files."""
+    """Regression: run_before_commit_hook() must execute when sase commit is used for SDD files."""
     monkeypatch.delenv("SASE_PLAN", raising=False)
     monkeypatch.chdir(tmp_path)
 
@@ -627,12 +635,14 @@ def test_precommit_runs_during_sdd_commit(
     }
     wf = CommitWorkflow(payload=payload, method="create_commit")
 
-    # Make run_precommit fail so the workflow exits early — we only
+    # Make run_before_commit_hook fail so the workflow exits early — we only
     # need to confirm it was called, not that the full workflow succeeds.
-    mock_precommit = MagicMock(return_value=False)
+    mock_before_hook = MagicMock(return_value=False)
 
-    with patch("sase.workflows.commit.workflow.run_precommit", mock_precommit):
+    with patch(
+        "sase.workflows.commit.workflow.run_before_commit_hook", mock_before_hook
+    ):
         wf.run()
 
-    mock_precommit.assert_called_once()
-    assert isinstance(mock_precommit.call_args[0][0], str)  # cwd arg
+    mock_before_hook.assert_called_once()
+    assert isinstance(mock_before_hook.call_args[0][0], str)  # cwd arg

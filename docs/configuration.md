@@ -27,7 +27,7 @@ and CLI flags.
   - [xprompts](#xprompts)
   - [xprompt_aliases](#xprompt_aliases)
   - [use_chezmoi](#use_chezmoi)
-  - [precommit_command](#precommit_command)
+  - [commit_hooks](#commit_hooks)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
   - [mobile_gateway](#mobile_gateway)
@@ -949,20 +949,35 @@ use_chezmoi: true # default: false
 
 Source: `src/sase/config/core.py`
 
-### precommit_command
+### commit_hooks
 
-A shell command to run before commits (e.g., linting, formatting). If set, the commit workflow executes this command
-before creating a commit. An empty string (the default) means no precommit command is run.
+Shell commands that bracket commit-producing VCS dispatches. `before` runs in the repository root after bead and plan
+mutations but before diff capture and dispatch. `after` runs in the repository root only after `create_commit` or
+`create_pull_request` succeeds, including its push where applicable. Proposals run `before` but never run `after`
+because they save a diff without creating a commit.
+
+Both fields default to an empty string. Because the object is deep-merged, a global `before` hook and project-local
+`after` hook compose without either configuration repeating the other phase.
 
 ```yaml
-precommit_command: "just fix" # default: ""
+commit_hooks:
+  before: "just fix" # default: ""
+  after: "chezmoi update -a --force" # default: ""
 ```
 
-| Field               | Type   | Default | Description                                                       |
-| ------------------- | ------ | ------- | ----------------------------------------------------------------- |
-| `precommit_command` | string | `""`    | Shell command to run before commits. Empty string means disabled. |
+| Field                 | Type   | Default | Description                                                                |
+| --------------------- | ------ | ------- | -------------------------------------------------------------------------- |
+| `commit_hooks.before` | string | `""`    | Command before diff capture and VCS dispatch. Empty means disabled.        |
+| `commit_hooks.after`  | string | `""`    | Command after a commit/PR dispatch and push succeed. Empty means disabled. |
 
-Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/workflow.py`
+Hook output is captured and a bounded stdout/stderr tail is printed on failure. A failing `before` hook aborts before
+dispatch. A failing `after` hook leaves the commit checkpoint in place and returns failure even though the commit may
+already be pushed; fix the command and run `sase commit --resume`. The completed after-hook step is checkpointed so a
+normal resume does not rerun it. A crash after the external command succeeds but before that checkpoint write can run it
+again, so `after` commands must be safe to repeat.
+
+Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.py`,
+`src/sase/workflows/commit/workflow.py`
 
 ### timezone
 

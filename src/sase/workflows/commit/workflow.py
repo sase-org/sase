@@ -25,11 +25,12 @@ from sase.workflows.commit.commit_tracking import (
     resolve_project_file,
     write_result_marker,
 )
-from sase.workflows.commit.precommit_hooks import (
+from sase.workflows.commit.commit_hooks import (
     enforce_bead_id_in_message,
     handle_beads,
     handle_sase_plan,
-    run_precommit,
+    run_after_commit_hook,
+    run_before_commit_hook,
 )
 from sase.workflows.commit.pr_operations import (
     append_pr_tags,
@@ -111,14 +112,14 @@ class CommitWorkflow(BaseWorkflow):
         enforce_bead_id_in_message(self._payload)
 
         # Bead lifecycle and SASE_PLAN: skip for proposals.
-        # Must run before precommit so plan files are in place for formatting.
+        # Must run before the before-hook so plan files are in place for formatting.
         if self._method != "create_proposal":
             handle_beads(self._payload, cwd)
             handle_sase_plan(self._payload, cwd)
 
-        # Run precommit command (e.g. `just fix`) after all files are staged
-        if not run_precommit(cwd):
-            _log_commit_failed(self._method, "precommit_failed")
+        # Run commit_hooks.before (e.g. `just fix`) after all files are staged.
+        if not run_before_commit_hook(cwd):
+            _log_commit_failed(self._method, "before_hook_failed")
             return RunResult.FAILED
 
         # Pre-compute the _<N> suffix for create_pull_request so the PR branch is
@@ -236,6 +237,9 @@ class CommitWorkflow(BaseWorkflow):
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
 
+        if not self._run_after_hook(cp):
+            return RunResult.FAILED
+
         print_status(f"{self._method} completed successfully!", "success")
 
         tracking_result = self._run_tracking_steps(cp, result)
@@ -244,6 +248,24 @@ class CommitWorkflow(BaseWorkflow):
 
         checkpoint_delete()
         return RunResult.OK
+
+    def _run_after_hook(self, cp: CommitCheckpoint) -> bool:
+        """Run and checkpoint the post-dispatch hook when this method commits."""
+        if self._method not in ("create_commit", "create_pull_request"):
+            return True
+        if "after_hook" in cp.completed_steps:
+            return True
+        if not run_after_commit_hook(cp.cwd):
+            _log_commit_failed(self._method, "after_hook_failed")
+            print_status(
+                "The commit may already be pushed. Fix the after-hook failure, "
+                "then run `sase commit --resume`; do not create another commit.",
+                "error",
+            )
+            return False
+        cp.completed_steps.append("after_hook")
+        checkpoint_save(cp)
+        return True
 
     def _repoint_reservation_after_resuffix(self) -> None:
         """Move the ChangeSpec reservation to a re-suffixed PR branch name.
@@ -390,7 +412,10 @@ class CommitWorkflow(BaseWorkflow):
             ).inc()
             return RunResult.FAILED
 
-        if cp.method in ("create_commit", "create_pull_request"):
+        if (
+            cp.method in ("create_commit", "create_pull_request")
+            and "dispatch" not in cp.completed_steps
+        ):
             try:
                 ok, err = provider.finalize_commit(cp.payload, cp.cwd)
             except NotImplementedError:
@@ -408,6 +433,16 @@ class CommitWorkflow(BaseWorkflow):
                         status="failed",
                     ).inc()
                     return RunResult.FAILED
+            cp.completed_steps.append("dispatch")
+            checkpoint_save(cp)
+
+        if not wf._run_after_hook(cp):
+            VCS_OPERATIONS.labels(
+                provider=provider_name,
+                operation="commit_resume",
+                status="failed",
+            ).inc()
+            return RunResult.FAILED
 
         _reconcile_changespec_from_project_file(wf, cp)
 

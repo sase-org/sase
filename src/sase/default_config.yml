@@ -1,7 +1,9 @@
 amd_h1_title: null
 is_sase_managed: false
 use_chezmoi: false
-precommit_command: ""
+commit_hooks:
+  before: ""
+  after: ""
 linked_repos: []
 
 agent_family:

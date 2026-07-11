@@ -41,8 +41,9 @@ same result format; they differ only in what the dispatch step produces.
 | **PR**      | `#pr`      | `create_pull_request` | New branch + PR              | ChangeSpec    |
 
 Every flow walks the same pre-dispatch pipeline: bead association → bead lifecycle close (skipped for proposals) → plan
-handling → precommit command → parent PR detection (PR only) → diff capture → checkpoint. Only then does it call the
-VCS-specific `create_commit` / `create_proposal` / `create_pull_request` hook. Post-dispatch, the workflow writes a
+handling → `commit_hooks.before` → parent PR detection (PR only) → diff capture → checkpoint. Only then does it call the
+VCS-specific `create_commit` / `create_proposal` / `create_pull_request` hook. A successful commit or PR dispatch runs
+`commit_hooks.after` before tracking; proposals skip it because they do not create commits. The workflow then writes a
 `commit_result.json` marker for the XPrompt post-steps to read.
 
 ## The Commit-Finalizer Contract
@@ -101,9 +102,11 @@ with `RunResult.CONFLICT` (exit code 2). The CLI prints:
 
 `sase commit --resume` loads the checkpoint, re-checks the working tree for conflict markers, verifies the commit at
 `HEAD` matches the subject line from the checkpointed message, calls the provider's `vcs_finalize_commit` hook to replay
-idempotent post-commit work (bead amend, push with retry), re-runs the tracking steps (COMMITS entry append, ChangeSpec
-creation), and deletes the checkpoint on success. Resume is VCS-agnostic: the same `--resume` flag works for commits,
-proposals, and PRs.
+idempotent post-commit work (bead amend, push with retry), runs `commit_hooks.after`, re-runs the tracking steps
+(COMMITS entry append, ChangeSpec creation), and deletes the checkpoint on success. Completed steps are skipped, so
+resuming an after-hook failure does not duplicate dispatch or a successful hook. After hooks should still be repeatable
+for the crash window between command success and checkpoint persistence. Resume is VCS-agnostic: the same `--resume`
+flag works for commits, proposals, and PRs.
 
 This is the recovery path that makes multi-agent execution survivable. Without it, a conflict on phase 3 of a
 seven-phase epic would mean wiping the workspace and restarting; with it, the human resolves the conflict, runs

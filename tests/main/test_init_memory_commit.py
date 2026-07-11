@@ -123,18 +123,18 @@ def test_init_memory_default_commits_and_pushes_project_changes(
             return MagicMock(returncode=0, stdout="", stderr="To origin\n")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    precommit_calls: list[str] = []
+    before_hook_calls: list[str] = []
 
-    def fake_precommit(cwd: str) -> bool:
-        precommit_calls.append(cwd)
+    def fake_before_hook(cwd: str) -> bool:
+        before_hook_calls.append(cwd)
         return True
 
-    monkeypatch.setattr(init_memory_handler, "run_precommit", fake_precommit)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", fake_before_hook)
     monkeypatch.setattr(init_memory_handler.subprocess, "run", fake_run)
 
     assert run_handler(no_commit=False) == 0
 
-    assert precommit_calls == [str(project_root)]
+    assert before_hook_calls == [str(project_root)]
     deploy_git_calls = _without_project_detection(git_calls)
     verbs = [cmd[cmd.index("git") + 3] for cmd in deploy_git_calls if cmd[0] == "git"]
     assert verbs == [
@@ -173,7 +173,7 @@ def test_enable_project_memory_stages_created_local_config(
     project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
     (project_root / "sase.yml").unlink()
     git_calls = _install_successful_git(monkeypatch, project_root)
-    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
 
     assert run_handler(no_commit=False, enable_project_memory=True) == 0
 
@@ -223,7 +223,7 @@ def test_init_memory_no_upstream_commits_and_skips_pull_push(
             )
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
     monkeypatch.setattr(init_memory_handler.subprocess, "run", fake_run)
 
     assert run_handler(no_commit=False) == 0
@@ -257,13 +257,13 @@ def test_init_memory_no_commit_skips_project_deploy(
         init_memory_handler, "_project_memory_name", lambda root: "project"
     )
 
-    precommit = MagicMock(return_value=True)
+    before_hook = MagicMock(return_value=True)
     git_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
-    monkeypatch.setattr(init_memory_handler, "run_precommit", precommit)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
     monkeypatch.setattr(init_memory_handler.subprocess, "run", git_run)
 
     assert run_handler(no_commit=True) == 0
-    precommit.assert_not_called()
+    before_hook.assert_not_called()
     assert (
         _without_project_detection([call.args[0] for call in git_run.call_args_list])
         == []
@@ -285,11 +285,11 @@ def test_init_memory_folds_memory_dirty_with_message(
         status_stdout=b" M memory/obsidian.md\0",
     )
 
-    precommit_calls: list[str] = []
+    before_hook_calls: list[str] = []
     monkeypatch.setattr(
         init_memory_handler,
-        "run_precommit",
-        lambda cwd: not precommit_calls.append(cwd),
+        "run_before_commit_hook",
+        lambda cwd: not before_hook_calls.append(cwd),
     )
 
     assert (
@@ -300,7 +300,7 @@ def test_init_memory_folds_memory_dirty_with_message(
         == 0
     )
 
-    assert precommit_calls == [str(project_root)]
+    assert before_hook_calls == [str(project_root)]
     assert any(
         "add" in cmd and cmd[-1].endswith("memory/obsidian.md") for cmd in git_calls
     )
@@ -325,7 +325,7 @@ def test_init_memory_folds_memory_dirty_preserves_conventional_message(
         project_root,
         status_stdout=b"A  memory/new_note.md\0",
     )
-    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
 
     assert (
         run_handler(
@@ -354,7 +354,7 @@ def test_init_memory_folds_memory_dirty_with_tty_prompt(
         project_root,
         status_stdout=b" M memory/obsidian.md\0",
     )
-    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
     monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda: "document obsidian vault workflow")
 
@@ -381,13 +381,13 @@ def test_init_memory_memory_dirty_non_tty_without_message_refuses(
         project_root,
         status_stdout=b" M memory/obsidian.md\0",
     )
-    precommit = MagicMock(return_value=True)
-    monkeypatch.setattr(init_memory_handler, "run_precommit", precommit)
+    before_hook = MagicMock(return_value=True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
     monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: False)
 
     assert run_handler(no_commit=False) == 1
 
-    precommit.assert_not_called()
+    before_hook.assert_not_called()
     assert not any("add" in cmd for cmd in git_calls)
     assert not any("commit" in cmd for cmd in git_calls)
 
@@ -406,7 +406,7 @@ def test_init_memory_memory_dirty_empty_prompt_aborts_before_staging(
         project_root,
         status_stdout=b" M memory/obsidian.md\0",
     )
-    monkeypatch.setattr(init_memory_handler, "run_precommit", MagicMock())
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", MagicMock())
     monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda: "")
 
@@ -430,7 +430,7 @@ def test_init_memory_memory_dirty_eof_prompt_aborts_before_staging(
         project_root,
         status_stdout=b" M memory/obsidian.md\0",
     )
-    monkeypatch.setattr(init_memory_handler, "run_precommit", MagicMock())
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", MagicMock())
     monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: True)
 
     def raise_eof() -> str:
@@ -454,13 +454,13 @@ def test_init_memory_foreign_dirty_refuses_without_commit(
         project_root,
         status_stdout=b" M src/sase/foo.py\0",
     )
-    precommit = MagicMock(return_value=True)
-    monkeypatch.setattr(init_memory_handler, "run_precommit", precommit)
+    before_hook = MagicMock(return_value=True)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
 
     assert run_handler(no_commit=False) == 1
 
     assert (project_root / "AGENTS.md").exists()
-    precommit.assert_not_called()
+    before_hook.assert_not_called()
     assert not any("add" in cmd for cmd in git_calls)
     assert not any("commit" in cmd for cmd in git_calls)
 
@@ -472,9 +472,9 @@ def test_init_memory_foreign_dirty_without_init_changes_is_noop(
     project_root = tmp_path / "project"
     project_root.mkdir()
     git_run = MagicMock(return_value=MagicMock(returncode=0, stdout="", stderr=""))
-    precommit = MagicMock(return_value=True)
+    before_hook = MagicMock(return_value=True)
     monkeypatch.setattr(init_memory_handler.subprocess, "run", git_run)
-    monkeypatch.setattr(init_memory_handler, "run_precommit", precommit)
+    monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
 
     result = MemoryRootResult(
         root=project_root,
@@ -496,11 +496,11 @@ def test_init_memory_foreign_dirty_without_init_changes_is_noop(
         )
         == 0
     )
-    precommit.assert_not_called()
+    before_hook.assert_not_called()
     git_run.assert_not_called()
 
 
-def test_init_memory_failing_precommit_aborts_project_deploy(
+def test_init_memory_failing_before_hook_aborts_project_deploy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -530,7 +530,9 @@ def test_init_memory_failing_precommit_aborts_project_deploy(
             return MagicMock(returncode=0, stdout=b"", stderr=b"")
         return MagicMock(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(init_memory_handler, "run_precommit", lambda cwd: False)
+    monkeypatch.setattr(
+        init_memory_handler, "run_before_commit_hook", lambda cwd: False
+    )
     monkeypatch.setattr(init_memory_handler.subprocess, "run", fake_run)
 
     assert run_handler(no_commit=False) == 1

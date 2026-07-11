@@ -110,7 +110,16 @@ def test_resume_replays_tracking_after_conflict_resolution(
 
     _save_checkpoint(cwd=str(tmp_path), payload={"message": "fix: bug"})
 
+    events: list[str] = []
+    provider.finalize_commit.side_effect = lambda *_args: (
+        events.append("finalize") or (True, None)
+    )
+
     with (
+        patch(
+            "sase.workflows.commit.workflow.run_after_commit_hook",
+            side_effect=lambda _cwd: events.append("after") or True,
+        ),
         patch(
             "sase.workflows.commit.workflow.append_commits_entry",
             return_value="42",
@@ -120,9 +129,66 @@ def test_resume_replays_tracking_after_conflict_resolution(
         assert CommitWorkflow.resume() == RunResult.OK
 
     provider.finalize_commit.assert_called_once()
+    assert events == ["finalize", "after"]
     mock_append.assert_called_once()
     assert mock_marker.call_count == 2  # initial + final-with-entry_id
     assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_after_hook_failure_does_not_finalize_or_duplicate_dispatch(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = _make_provider(head_subject="fix: bug")
+    mock_get.return_value = provider
+    _save_checkpoint(
+        cwd=str(tmp_path),
+        completed_steps=["dispatch"],
+        dispatch_result="abc123",
+    )
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.run_after_commit_hook",
+            return_value=True,
+        ) as after_hook,
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="42",
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker"),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    provider.finalize_commit.assert_not_called()
+    after_hook.assert_called_once_with(str(tmp_path))
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_skips_completed_after_hook(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = _make_provider(head_subject="fix: bug")
+    mock_get.return_value = provider
+    _save_checkpoint(
+        cwd=str(tmp_path),
+        completed_steps=["dispatch", "after_hook"],
+        dispatch_result="abc123",
+    )
+
+    with (
+        patch("sase.workflows.commit.workflow.run_after_commit_hook") as after_hook,
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="42",
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker"),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    provider.finalize_commit.assert_not_called()
+    after_hook.assert_not_called()
 
 
 @patch(_PROVIDER_TARGET)

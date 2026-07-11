@@ -65,19 +65,19 @@ Grounding against `src/sase/workflows/commit/workflow.py` (`run` method, lines 1
 1. **Wrong relative order in the band.** The actual execution order from the code is:
    1. Bead lifecycle (`handle_beads`) — skipped for proposals
    2. Plan handling (`handle_sase_plan`) — skipped for proposals
-   3. Precommit (`run_precommit`)
+   3. Before hook (`run_before_commit_hook`)
    4. PR name suffixing (`compute_suffixed_cl_name`) — PR only
    5. Parent detection (`detect_parent_changespec`) — PR only
    6. PR tags / body (`apply_project_pr_prefix`, `append_pr_tags`, `build_pr_body`) — PR only
    7. Diff capture (`capture_pre_commit_diff`)
    8. Checkpoint (`checkpoint_save`)
    9. VCS dispatch
-   10. Tracking (ChangeSpec for PR; result marker; COMMITS entry for commit/propose)
+   10. After hook (`run_after_commit_hook`) — commit/PR only
+   11. Tracking (ChangeSpec for PR; result marker; COMMITS entry for commit/propose)
 
-   The diagram puts `Precommit` first, then `Bead handling`, then `Plan handling`. That contradicts the prompt sidecar's
-   own corrected instruction ("Put bead lifecycle and plan handling before precommit"), and contradicts the doc and
-   code, which both run beads/plan before the precommit hook so plan files are staged when `just fix` (or whatever
-   precommit is configured) runs.
+   The diagram puts the old `Precommit` stage first, then `Bead handling`, then `Plan handling`. That contradicts the
+   prompt sidecar's corrected ordering and the code, which runs beads/plan before `commit_hooks.before` so plan files
+   are staged when the configured before hook runs. It also omits the post-dispatch `commit_hooks.after` stage.
 
 2. **Missing "Bead lifecycle" — replaced with "Bead handling".** The doc's canonical name (and the prompt's required
    label) is **Bead lifecycle**. The diagram shows **Bead handling**. Terminology drift; should match the doc and
@@ -103,22 +103,23 @@ Grounding against `src/sase/workflows/commit/workflow.py` (`run` method, lines 1
 
 For the next phase (`sase-2s.12 — Regenerate diagram: commit-workflow`):
 
-1. **Use the canonical 10-stage chip list, in execution order**, inside the `CommitWorkflow` band, with internal
+1. **Use the canonical 11-stage chip list, in execution order**, inside the `CommitWorkflow` band, with internal
    left-to-right arrows or numeric prefixes so order is unambiguous:
-   `Bead lifecycle → Plan handling → Precommit → PR tags → Parent detection → Diff capture → Checkpoint → VCS dispatch → Result marker → Tracking`.
+   `Bead lifecycle → Plan handling → Before hook → PR tags → Parent detection → Diff capture → Checkpoint → VCS dispatch → After hook → Result marker → Tracking`.
    (This matches the prompt sidecar's "Exact visible labels" list verbatim.)
 2. **Mark proposal-skipped chips visually** — a small "(skipped for #propose)" caption or a dashed border on
    `Bead lifecycle` and `Plan handling`.
 3. **Mark PR-only chips visually** — a small "(PR only)" caption or accent on `PR tags` and `Parent detection`.
-4. **Anchor the conflict-resume loop to specific stages.** The arrow should leave `VCS dispatch` (on conflict) and
+4. **Mark `After hook` commit/PR-only and post-push**, so the proposal branch clearly bypasses it.
+5. **Anchor the conflict-resume loop to specific stages.** The arrow should leave `VCS dispatch` (on conflict) and
    re-enter at `Checkpoint` → `VCS dispatch` (after manual resolve), then continue through `Result marker` and
    `Tracking`. Drawing the loop as an explicit arc between those two chips, instead of a floating side card, makes the
    resume model legible.
-5. **Label the input stack as `xprompts`** so `#commit` / `#propose` / `#pr` read as a category, not as floating tags.
-6. **Keep** the right-side three-card output branches and the "VCS providers: Git, GitHub, Mercurial" note — both are
+6. **Label the input stack as `xprompts`** so `#commit` / `#propose` / `#pr` read as a category, not as floating tags.
+7. **Keep** the right-side three-card output branches and the "VCS providers: Git, GitHub, Mercurial" note — both are
    accurate and readable as-is.
-7. **Rename "Bead handling" → "Bead lifecycle"** to match the doc and prompt.
-8. **Optional but helpful:** add a small label on the Commit finalizer → Commit skill arrow noting "checks dirty repos +
+8. **Rename "Bead handling" → "Bead lifecycle"** to match the doc and prompt.
+9. **Optional but helpful:** add a small label on the Commit finalizer → Commit skill arrow noting "checks dirty repos +
    selects skill" so the finalizer's role as a gate is visible at a glance.
 
 These changes bring the diagram back into alignment with both `docs/commit_workflows.md` and the actual

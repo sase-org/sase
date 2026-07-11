@@ -132,6 +132,23 @@ def test_config_schema_rejects_retired_memory_opt_in() -> None:
         Draft7Validator(_schema()).validate({"memory": {"enabled": True}})
 
 
+def test_config_schema_accepts_closed_commit_hooks_object() -> None:
+    schema = _schema()
+    validator = Draft7Validator(schema)
+
+    assert (
+        tuple(
+            validator.iter_errors(
+                {"commit_hooks": {"before": "just fix", "after": "just deploy"}}
+            )
+        )
+        == ()
+    )
+
+    with pytest.raises(ValidationError):
+        validator.validate({"commit_hooks": {"during": "just nope"}})
+
+
 def test_config_schema_accepts_agent_family_plan_approval_defaults() -> None:
     schema = _schema()
     config = {

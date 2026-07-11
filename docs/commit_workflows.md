@@ -118,7 +118,7 @@ Bead lifecycle     (close bead, sync beads)                               [skip 
     |
 Plan handling      (append SASE_PLAN= to message, mark plan done)         [skip for proposals]
     |
-Precommit command  (e.g. `just fix`)
+Before hook        (`commit_hooks.before`, e.g. `just fix`)
     |
 PR name suffixing  (compute _<N> suffix for unique branch names)          [PR only]
     |
@@ -135,6 +135,8 @@ Diff capture       (save the pre-dispatch diff for tracking)
 Checkpoint         (save resolved payload and tracking state for resume)
     |
 VCS dispatch       (call provider.create_commit / create_proposal / create_pull_request)
+    |
+After hook         (`commit_hooks.after`, after commit/push)              [commit/PR only]
     |
 ChangeSpec         (create ChangeSpec entry in project file)              [PR only]
     |
@@ -349,11 +351,11 @@ the `NotImplementedError` and only replays the tracking steps.
 
 `CommitWorkflow.run()` and `CommitWorkflow.resume()` return a `RunResult` with three states:
 
-| State      | Exit code | Meaning                                                                         |
-| ---------- | --------- | ------------------------------------------------------------------------------- |
-| `OK`       | `0`       | Commit succeeded end-to-end (or resume replayed tracking).                      |
-| `FAILED`   | `1`       | Unrecoverable failure — bail out, no checkpoint is left behind on fatal errors. |
-| `CONFLICT` | `2`       | VCS dispatch hit a merge conflict; a checkpoint is left on disk for resume.     |
+| State      | Exit code | Meaning                                                                       |
+| ---------- | --------- | ----------------------------------------------------------------------------- |
+| `OK`       | `0`       | Commit succeeded end-to-end (or resume replayed tracking).                    |
+| `FAILED`   | `1`       | Failure; an after-hook failure keeps its post-dispatch checkpoint for resume. |
+| `CONFLICT` | `2`       | VCS dispatch hit a merge conflict; a checkpoint is left on disk for resume.   |
 
 The `sase commit` CLI propagates these states to its process exit code, so wrapper skills (`/sase_git_commit`) can
 branch on `$?` to distinguish a real failure from a conflict that the user needs to resolve.
@@ -372,9 +374,10 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
 
 1. `CommitWorkflow.run()` snapshots its resolved state (payload, PR name, project file, diff path, reserved name, parent
    PR) to the checkpoint **before** calling the VCS dispatch method.
-2. If dispatch succeeds, the checkpoint is updated with the dispatch result, tracking steps run, and the file is deleted
-   on success.
-3. If dispatch fails because of a merge conflict (`RunResult.CONFLICT`), the checkpoint is retained and the CLI prints:
+2. If dispatch succeeds for a commit or PR, the checkpoint is updated with the dispatch result and `commit_hooks.after`
+   runs before tracking. Proposals skip the after hook.
+3. If the after hook and tracking succeed, their completed steps are checkpointed and the file is deleted.
+4. If dispatch fails because of a merge conflict (`RunResult.CONFLICT`), the checkpoint is retained and the CLI prints:
 
    > `create_commit` hit a merge conflict: ... Resolve the conflict, then run `sase commit --resume` to finish.
 
@@ -384,12 +387,19 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
 2. Re-check the working tree for conflict markers — if they're still present, refuse to continue with `CONFLICT`.
 3. Verify the commit at `HEAD` matches the subject line from the checkpointed message. If it doesn't, abort with
    `FAILED`; the user is expected to re-run `sase commit` from scratch rather than resume into a foreign commit.
-4. Call the provider's `vcs_finalize_commit` hook to replay idempotent post-commit work (bead amend, push with retry).
-5. Re-run the tracking steps (COMMITS entry append, ChangeSpec creation) using the snapshotted payload.
-6. Delete the checkpoint on success.
+4. If dispatch was not already completed, call the provider's `vcs_finalize_commit` hook to replay idempotent
+   post-commit work (bead amend, push with retry), then checkpoint dispatch completion.
+5. Run `commit_hooks.after` for commit/PR workflows unless its completion is already checkpointed.
+6. Re-run the tracking steps (COMMITS entry append, ChangeSpec creation) using the snapshotted payload.
+7. Delete the checkpoint on success.
 
 Resume is VCS-agnostic: the same `--resume` flag works for commits, proposals, and PRs. Skills emit the on-conflict
 instructions automatically, so agents know to hand control back to the user rather than retry blindly.
+
+An after-hook failure also uses this resume path: the commit may already be pushed, so creating a new commit would risk
+duplication. Fix the hook and run `sase commit --resume`; dispatch/finalization is skipped because its completed step is
+already recorded. After hooks should be repeatable because a crash between command success and checkpoint persistence
+has at-least-once execution semantics.
 
 ## Environment Variables
 
@@ -464,8 +474,8 @@ Diffs can be re-applied to a workspace with `apply_diff_to_workspace()` from `sa
 
 - **Fail-fast:** If `commit_result.json` is missing when the xprompt post-steps run, the workflow fails explicitly
   rather than silently retrying. The finalizer and commit skills are the sanctioned path to commit creation.
-- **Single responsibility:** `CommitWorkflow` owns all orchestration (precommit, beads, plans, VCS dispatch, tracking).
-  XPrompt steps only read and report results.
+- **Single responsibility:** `CommitWorkflow` owns all orchestration (commit hooks, beads, plans, VCS dispatch,
+  tracking). XPrompt steps only read and report results.
 - **Proper proposal semantics:** Proposals save diffs and clean the workspace without creating commits. Bead lifecycle
   and plan handling are skipped because proposals don't represent landed changes.
 - **VCS agnostic:** The same `CommitWorkflow` and xprompt definitions work across Git, GitHub, and Mercurial backends.

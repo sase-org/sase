@@ -173,11 +173,11 @@ the uniform `sase workspace open` instructions for every configured linked repo.
 Every configured `linked_repos` entry (or its deprecated `sibling_repos` alias) must have a non-empty `description`.
 Initialization fails instead of generating ambiguous memory when a description is missing.
 
-By default, project memory initialization runs the configured precommit command, stages generated project files, commits
-them with the standard memory-init commit message, pulls with rebase, and pushes. Use `sase memory init --check` for a
-read-only drift check, or `sase memory init --no-commit` when you want to review generated project files before
-committing. `--no-commit` only skips the project deploy path; home memory deployment still follows `use_chezmoi` when it
-is enabled.
+By default, project memory initialization runs `commit_hooks.before`, stages generated project files, commits them with
+the standard memory-init commit message, pulls with rebase, and pushes. This path does not run `commit_hooks.after`. Use
+`sase memory init --check` for a read-only drift check, or `sase memory init --no-commit` when you want to review
+generated project files before committing. `--no-commit` only skips the project deploy path; home memory deployment
+still follows `use_chezmoi` when it is enabled.
 
 For managed roots, memory validation is reachability-based: Markdown files under `memory/` must be reachable from
 `AGENTS.md` directly or through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the

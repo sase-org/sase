@@ -420,10 +420,11 @@ mixins. It can classify GitHub remotes, create and inspect PRs, preserve immutab
 workspace references such as `#gh:<ref>`, and submit merged PRs through `gh pr merge`.
 
 It does not currently provide the richer Mercurial-specific automation surface. In particular, GitHub PRs do not get
-plugin-supplied default ChangeSpec hooks, metahooks, mentor profiles, PR tags, or a provider-specific precommit/fix
-command unless users configure those in `sase.yml`. Reviewer-comment polling and comment-response automation are not
-enabled for GitHub PR URLs, reviewer discovery during mail preparation is not implemented, `vcs_rewind` has no GitHub
-backend, BUG values are left as provided, and Mercurial-only refresh/split workflows do not have GitHub equivalents.
+plugin-supplied default ChangeSpec hooks, metahooks, mentor profiles, PR tags, or a provider-specific
+`commit_hooks.before` fix command unless users configure those in `sase.yml`. Reviewer-comment polling and
+comment-response automation are not enabled for GitHub PR URLs, reviewer discovery during mail preparation is not
+implemented, `vcs_rewind` has no GitHub backend, BUG values are left as provided, and Mercurial-only refresh/split
+workflows do not have GitHub equivalents.
 
 These are plugin capability gaps, not core VCS limitations: ordinary git operations, diffing, branch management,
 commit/proposal/PR dispatch, conflict resume, and workspace setup are still provided by the shared git implementation.

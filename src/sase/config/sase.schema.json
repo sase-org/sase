@@ -1042,10 +1042,22 @@
         "type": "string"
       }
     },
-    "precommit_command": {
-      "type": "string",
-      "description": "Command to run before commits (e.g., 'just fix'). Empty string means no precommit command.",
-      "default": ""
+    "commit_hooks": {
+      "type": "object",
+      "description": "Commands to run before VCS dispatch and after a commit-producing dispatch succeeds.",
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "type": "string",
+          "description": "Command to run before commit dispatch (e.g., 'just fix'). Empty string means disabled.",
+          "default": ""
+        },
+        "after": {
+          "type": "string",
+          "description": "Command to run after a commit is created and, where applicable, pushed. Empty string means disabled.",
+          "default": ""
+        }
+      }
     },
     "timezone": {
       "type": "string",

@@ -35,6 +35,19 @@ def test_deep_merge_list_replace_nested() -> None:
     assert result == {"a": {"chops": ["z"]}}
 
 
+def test_deep_merge_commit_hook_phases_independently() -> None:
+    """Global and project-local commit hook phases compose as nested config."""
+    base = {"commit_hooks": {"before": "global fix", "after": ""}}
+    override = {"commit_hooks": {"after": "project apply"}}
+
+    result = _deep_merge(base, override)
+
+    assert result["commit_hooks"] == {
+        "before": "global fix",
+        "after": "project apply",
+    }
+
+
 # --- load_default_config tests ---
 
 

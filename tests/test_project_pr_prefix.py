@@ -10,7 +10,7 @@ from sase.vcs_provider.config import (
 )
 from sase.workflows.commit.workflow import CommitWorkflow
 from tests._commit_workflow_fixtures import (
-    no_precommit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
+    no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
 )
 
 _VCS_CONFIG_TARGET = "sase.vcs_provider.config.get_vcs_provider_config"
@@ -19,7 +19,7 @@ _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
 @pytest.fixture(autouse=True)
-def _no_precommit_or_hooks(no_precommit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
+def _no_commit_hooks(no_commit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
     yield
 
 

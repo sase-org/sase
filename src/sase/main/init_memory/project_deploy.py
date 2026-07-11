@@ -172,7 +172,7 @@ def deploy_to_project_repo(
     project_result: MemoryRootResult,
     *,
     no_commit: bool,
-    run_precommit: Callable[[str], bool],
+    run_before_commit_hook: Callable[[str], bool],
     stdin_is_tty: Callable[[], bool],
     manage_memory: bool = True,
     git_state: PreInitGitState | None = None,
@@ -237,7 +237,7 @@ def deploy_to_project_repo(
         if fold_commit_message is None:
             return 1
 
-    if not run_precommit(str(git_root)):
+    if not run_before_commit_hook(str(git_root)):
         return 1
 
     stage_paths = _unique_paths(

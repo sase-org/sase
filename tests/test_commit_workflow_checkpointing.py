@@ -12,7 +12,7 @@ import pytest
 from sase.workflows.commit import checkpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
 from tests._commit_workflow_fixtures import (
-    no_precommit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
+    no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
 )
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
@@ -20,7 +20,7 @@ _PROJECT_NAME_TARGET = "sase.workflows.utils.get_project_from_workspace"
 
 
 @pytest.fixture(autouse=True)
-def _no_precommit_or_hooks(no_precommit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
+def _no_commit_hooks(no_commit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
     yield
 
 
@@ -89,7 +89,7 @@ def test_run_failure_without_conflict_deletes_checkpoint(
 
 
 @patch(_PROVIDER_TARGET)
-def test_run_logs_precommit_failure_reason(
+def test_run_logs_before_hook_failure_reason(
     mock_get: MagicMock, artifacts_dir: Path
 ) -> None:
     provider = _make_provider(dispatch_result=(True, "abc123"))
@@ -98,13 +98,15 @@ def test_run_logs_precommit_failure_reason(
     wf = CommitWorkflow({"message": "fix: bug"}, "create_commit")
 
     with (
-        patch("sase.workflows.commit.workflow.run_precommit", return_value=False),
+        patch(
+            "sase.workflows.commit.workflow.run_before_commit_hook", return_value=False
+        ),
         patch("sase.logs.run_log.log_event") as mock_log,
     ):
         assert wf.run() == RunResult.FAILED
 
     mock_log.assert_any_call(
-        event="commit_failed", method="create_commit", reason="precommit_failed"
+        event="commit_failed", method="create_commit", reason="before_hook_failed"
     )
     provider.create_commit.assert_not_called()
 
@@ -120,6 +122,85 @@ def test_run_success_deletes_checkpoint(
 
     assert wf.run() == RunResult.OK
     assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_commit_hooks_bracket_successful_dispatch(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    events: list[str] = []
+    provider = _make_provider(dispatch_result=(True, "abc123"))
+    provider.create_commit.side_effect = lambda *_args: (
+        events.append("dispatch") or (True, "abc123")
+    )
+    mock_get.return_value = provider
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.run_before_commit_hook",
+            side_effect=lambda _cwd: events.append("before") or True,
+        ),
+        patch(
+            "sase.workflows.commit.workflow.run_after_commit_hook",
+            side_effect=lambda _cwd: events.append("after") or True,
+        ),
+    ):
+        assert (
+            CommitWorkflow({"message": "fix: bug"}, "create_commit").run()
+            == RunResult.OK
+        )
+
+    assert events == ["before", "dispatch", "after"]
+
+
+@patch(_PROVIDER_TARGET)
+def test_after_hook_failure_preserves_post_dispatch_checkpoint(
+    mock_get: MagicMock, artifacts_dir: Path, capsys
+) -> None:
+    provider = _make_provider(dispatch_result=(True, "abc123"))
+    mock_get.return_value = provider
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.run_after_commit_hook",
+            return_value=False,
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker") as marker,
+    ):
+        result = CommitWorkflow({"message": "fix: bug"}, "create_commit").run()
+
+    assert result == RunResult.FAILED
+    loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
+    assert loaded is not None
+    assert loaded.completed_steps == ["dispatch"]
+    assert loaded.dispatch_result == "abc123"
+    marker.assert_not_called()
+    captured = capsys.readouterr()
+    assert "commit may already be pushed" in captured.out.lower()
+    assert "--resume" in captured.out
+
+
+@pytest.mark.parametrize(
+    ("method", "dispatch_result"),
+    [
+        ("create_proposal", (True, "proposal.diff")),
+        ("create_commit", (False, "git add failed")),
+    ],
+)
+@patch(_PROVIDER_TARGET)
+def test_after_hook_skipped_for_proposals_and_failed_dispatches(
+    mock_get: MagicMock,
+    method: str,
+    dispatch_result: tuple[bool, str],
+    artifacts_dir: Path,
+) -> None:
+    provider = _make_provider(dispatch_result=dispatch_result)
+    mock_get.return_value = provider
+
+    with patch("sase.workflows.commit.workflow.run_after_commit_hook") as after_hook:
+        CommitWorkflow({"message": "fix: bug"}, method).run()
+
+    after_hook.assert_not_called()
 
 
 @patch(_PROVIDER_TARGET)
@@ -158,6 +239,7 @@ def test_run_records_completed_steps_in_order_for_create_commit(
     assert seen[0] == []  # pre-dispatch
     assert seen[-1] == [
         "dispatch",
+        "after_hook",
         "write_result_marker",
         "append_commits_entry",
         "final_result_marker",
@@ -201,6 +283,7 @@ def test_run_records_completed_steps_for_pull_request(
     assert seen[0] == []
     assert seen[-1] == [
         "dispatch",
+        "after_hook",
         "create_changespec",
         "write_result_marker",
     ]
