@@ -400,7 +400,7 @@ def _split_companion_provider_setup_needed(project_root: Path) -> bool:
 
 
 def _split_companion_roots(project_root: Path) -> dict[str, Path]:
-    from sase.linked_repos import resolve_linked_repo_clone_dir
+    from sase.linked_repos import companion_repo_clone_dir
     from sase.sdd._paths import get_primary_workspace_dir
     from sase.sdd.store import read_sdd_store_record
 
@@ -419,7 +419,7 @@ def _split_companion_roots(project_root: Path) -> dict[str, Path]:
             if companion is not None
             else f"{project_name}--{kind}"
         )
-        roots[kind] = Path(resolve_linked_repo_clone_dir(project_root, repo_name))
+        roots[kind] = Path(companion_repo_clone_dir(project_root, repo_name))
     return roots
 
 

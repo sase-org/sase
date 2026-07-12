@@ -137,7 +137,7 @@ class TestWorkflowVariablesHeader:
         tmp_path: Path,
     ) -> None:
         primary = tmp_path / "bob-cli_10"
-        linked = primary / "sase" / "repos" / "bob-plugins"
+        linked = primary / "sase" / "repos" / "linked" / "bob-plugins"
         agent = make_agent(
             workspace_dir=str(primary),
             step_output={
@@ -207,7 +207,7 @@ class TestWorkflowVariablesHeader:
         tmp_path: Path,
     ) -> None:
         primary = tmp_path / "bob-cli_10"
-        linked = primary / "sase" / "repos" / "bob-plugins"
+        linked = primary / "sase" / "repos" / "linked" / "bob-plugins"
         agent = make_agent(
             workspace_dir=str(primary),
             step_output={
@@ -374,7 +374,7 @@ class TestWorkflowVariablesHeader:
         tmp_path: Path,
     ) -> None:
         primary = tmp_path / "bob-cli_10"
-        linked = primary / "sase" / "repos" / "bob-plugins"
+        linked = primary / "sase" / "repos" / "linked" / "bob-plugins"
         linked_diff = tmp_path / "linked.diff"
         agent = make_agent(
             workspace_dir=str(primary),

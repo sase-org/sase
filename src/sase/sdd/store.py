@@ -476,10 +476,10 @@ def _sdd_dir_for_storage(
 
 
 def _companion_clone_dir(workspace_dir: str | Path, repo: str) -> Path:
-    from sase.linked_repos import resolve_linked_repo_clone_dir
+    from sase.linked_repos import companion_repo_clone_dir
 
     name = repo.rstrip("/").rsplit("/", 1)[-1]
-    return Path(resolve_linked_repo_clone_dir(workspace_dir, name))
+    return Path(companion_repo_clone_dir(workspace_dir, name))
 
 
 def _is_companion_record(record: SddStoreRecord | None) -> bool:

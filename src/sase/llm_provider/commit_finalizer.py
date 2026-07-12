@@ -367,7 +367,7 @@ def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
         return True
 
     try:
-        from sase.linked_repos import resolve_linked_repo_clone_dir
+        from sase.linked_repos import companion_repo_clone_dir
         from sase.sdd.store import read_sdd_store_record
 
         for primary in primary_candidates:
@@ -378,7 +378,7 @@ def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
                 if companion is None:
                     continue
                 name = companion.repo.rstrip("/").rsplit("/", 1)[-1]
-                clone = Path(resolve_linked_repo_clone_dir(project_path, name))
+                clone = Path(companion_repo_clone_dir(project_path, name))
                 if (clone / ".git").exists():
                     return True
     except Exception:

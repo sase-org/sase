@@ -48,7 +48,9 @@ def test_resolves_relative_sibling_from_primary_not_numbered_workspace(
     assert len(resolution.repos) == 1
     repo = resolution.repos[0]
     assert repo.primary_dir == str(sibling.resolve())
-    assert repo.workspace_dir == str((workspace / "sase" / "repos" / "core").resolve())
+    assert repo.workspace_dir == str(
+        (workspace / "sase" / "repos" / "linked" / "core").resolve()
+    )
     assert repo.workspace_num == 10
 
 
@@ -77,7 +79,9 @@ def test_non_materializing_resolution_uses_managed_workspace_root(
 
     assert resolution.warnings == ()
     repo = resolution.repos[0]
-    expected = managed_root / "sase-suite" / "sase_10" / "sase" / "repos" / "core"
+    expected = (
+        managed_root / "sase-suite" / "sase_10" / "sase" / "repos" / "linked" / "core"
+    )
     assert repo.workspace_dir == str(expected.resolve(strict=False))
     assert not expected.exists()
 
@@ -111,7 +115,7 @@ def test_legacy_strategy_is_ignored(
     repo = resolution.repos[0]
     assert repo.primary_dir == str(chezmoi.resolve())
     assert repo.workspace_dir == str(
-        (tmp_path / "sase_10" / "sase" / "repos" / "chezmoi").resolve()
+        (tmp_path / "sase_10" / "sase" / "repos" / "linked" / "chezmoi").resolve()
     )
     assert resolution.warnings
 
@@ -124,8 +128,12 @@ def test_env_aliases_are_sanitized_and_json_is_canonical(tmp_path: Path) -> None
     first.mkdir()
     second.mkdir()
     project_file = _project_file(tmp_path / "project.sase", primary)
-    (tmp_path / "main_4" / "sase" / "repos" / "sase-core").mkdir(parents=True)
-    (tmp_path / "main_4" / "sase" / "repos" / "sase.core").mkdir(parents=True)
+    (tmp_path / "main_4" / "sase" / "repos" / "linked" / "sase-core").mkdir(
+        parents=True
+    )
+    (tmp_path / "main_4" / "sase" / "repos" / "linked" / "sase.core").mkdir(
+        parents=True
+    )
 
     resolution = resolve_sibling_repos_for_project(
         project_file=str(project_file),
@@ -143,10 +151,10 @@ def test_env_aliases_are_sanitized_and_json_is_canonical(tmp_path: Path) -> None
 
     env = resolution.to_env()
     assert env["SASE_SIBLING_REPO_SASE_CORE_DIR"] == str(
-        (tmp_path / "main_4" / "sase" / "repos" / "sase-core").resolve()
+        (tmp_path / "main_4" / "sase" / "repos" / "linked" / "sase-core").resolve()
     )
     assert env["SASE_SIBLING_REPO_SASE_CORE_2_DIR"] == str(
-        (tmp_path / "main_4" / "sase" / "repos" / "sase.core").resolve()
+        (tmp_path / "main_4" / "sase" / "repos" / "linked" / "sase.core").resolve()
     )
     loaded = json.loads(env[SIBLING_REPOS_JSON_ENV])
     assert [item["env_name"] for item in loaded] == ["SASE_CORE", "SASE_CORE_2"]

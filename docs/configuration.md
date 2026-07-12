@@ -573,11 +573,12 @@ linked_repos:
 | `linked_repos[].description` | string  | required | Human-readable purpose used when generating agent memory for the linked repository. |
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
-`<host_workspace>/sase/repos/<linked_repo>`, naturally namespaced by host project and workspace number. During the
-compatibility window, read-only resolution still finds a legacy `.sase/workspaces/<linked_repo>` clone; the next
-materializing operation moves it to the canonical path. `sase init workspace` manages the tracked `/sase/repos/` ignore
-rule, while SASE also installs the rule in `.git/info/exclude` before materialization. SASE passes resolved metadata for
-all entries and exports per-repository paths only for materialized entries:
+`<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
+workflow launch preparation clears that directory into an internal `<host_workspace>/sase/repos/.linked-cache/` so
+normal linked repos are only restored through audited `sase workspace open` or `auto_clone` materialization. SDD
+companion repos remain durable at `<host_workspace>/sase/repos/<companion_repo>`. `sase init workspace` manages the
+tracked `/sase/repos/` ignore rule, while SASE also installs the rule in `.git/info/exclude` before materialization.
+SASE passes resolved metadata for all entries and exports per-repository paths only for materialized entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |

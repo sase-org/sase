@@ -252,10 +252,10 @@ def _find_legacy_root(primary: Path, workspace: Path) -> Path | None:
 
 
 def _companion_clone_dir(workspace: Path, repo: str) -> Path:
-    from sase.linked_repos import resolve_linked_repo_clone_dir
+    from sase.linked_repos import companion_repo_clone_dir
 
     return Path(
-        resolve_linked_repo_clone_dir(workspace, repo.rstrip("/").rsplit("/", 1)[-1])
+        companion_repo_clone_dir(workspace, repo.rstrip("/").rsplit("/", 1)[-1])
     )
 
 

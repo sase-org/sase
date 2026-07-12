@@ -233,7 +233,7 @@ def _repo_name_for_commit_cwd(
     if cwd is None:
         return _primary_repo_name(agent, step_output)
 
-    # Linked workspaces live at <primary>/sase/repos/<repo>, so match
+    # Linked workspaces live below the primary workspace tree, so match
     # them before the containing primary workspace.
     for repo in agent.linked_repos:
         if _path_is_same_or_inside(cwd, _norm_path(repo.workspace_dir)):

@@ -59,10 +59,22 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     "src/sase/llm_provider/codex.py:_codex_subprocess_env": DirOpReview(
         exemption="Shadow CODEX_HOME cache, not an agent artifact directory.",
     ),
-    "src/sase/linked_repos.py:_prepare_linked_repo_clone_dir": DirOpReview(
+    "src/sase/linked_repos.py:_remove_path": DirOpReview(
         exemption=(
-            "Moves a host-scoped linked repository checkout from the legacy "
-            ".sase/workspaces path to sase/repos, not an agent artifact directory."
+            "Removes only host-scoped linked repository clones or cache entries "
+            "under sase/repos, not agent artifact directories."
+        ),
+    ),
+    "src/sase/linked_repos.py:clear_linked_repo_clones": DirOpReview(
+        exemption=(
+            "Moves launch-scoped linked repository clones into the internal "
+            "sase/repos/.linked-cache directory, not an agent artifact directory."
+        ),
+    ),
+    "src/sase/linked_repos.py:_restore_linked_repo_clone": DirOpReview(
+        exemption=(
+            "Restores a host-scoped linked repository clone from the internal "
+            "sase/repos/.linked-cache directory, not an agent artifact directory."
         ),
     ),
     "src/sase/main/workspace_handler_migration.py:handle_migrate": DirOpReview(

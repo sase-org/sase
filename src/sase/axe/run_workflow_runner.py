@@ -27,6 +27,28 @@ from sase.running_field import release_workspace
 install_sigterm_handler("workflow")
 
 
+def _prepare_workflow_workspace(
+    *,
+    workspace_dir: str,
+    cl_name: str,
+    update_target: str,
+    project_basename: str,
+) -> bool:
+    if not prepare_workspace(
+        workspace_dir,
+        cl_name,
+        update_target,
+        backup_suffix="workflow",
+        project_basename=project_basename,
+    ):
+        return False
+
+    from sase.linked_repos import clear_linked_repo_clones
+
+    clear_linked_repo_clones(workspace_dir)
+    return True
+
+
 def _write_workflow_state(
     artifacts_dir: str,
     workflow_name: str,
@@ -130,11 +152,10 @@ def main() -> None:
         # Prepare workspace before running workflow (skip for home mode)
         if update_target and not is_home_mode:
             print("=== Preparing Workspace ===")
-            if not prepare_workspace(
-                workspace_dir,
-                cl_name,
-                update_target,
-                backup_suffix="workflow",
+            if not _prepare_workflow_workspace(
+                workspace_dir=workspace_dir,
+                cl_name=cl_name,
+                update_target=update_target,
                 project_basename=project_basename,
             ):
                 print("Failed to prepare workspace", file=sys.stderr)

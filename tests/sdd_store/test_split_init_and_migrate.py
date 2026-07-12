@@ -95,7 +95,7 @@ def test_split_init_creates_both_repos_before_writing_record(
 
     monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
     monkeypatch.setattr(
-        "sase.linked_repos.resolve_linked_repo_clone_dir",
+        "sase.linked_repos.companion_repo_clone_dir",
         lambda _workspace, name: str(clones[name.rsplit("--", 1)[-1]]),
     )
 

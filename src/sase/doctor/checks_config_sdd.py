@@ -301,11 +301,11 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
 def _regressed_split_companion_paths(primary: Path) -> tuple[Path, Path] | None:
     """Return split clone paths when they contradict the effective record."""
 
-    from sase.linked_repos import resolve_linked_repo_clone_dir
+    from sase.linked_repos import companion_repo_clone_dir
 
     repo_name = primary.name
-    plans = Path(resolve_linked_repo_clone_dir(primary, f"{repo_name}--plans"))
-    research = Path(resolve_linked_repo_clone_dir(primary, f"{repo_name}--research"))
+    plans = Path(companion_repo_clone_dir(primary, f"{repo_name}--plans"))
+    research = Path(companion_repo_clone_dir(primary, f"{repo_name}--research"))
     if (plans / "beads").is_dir() and research.is_dir():
         return plans, research
     return None

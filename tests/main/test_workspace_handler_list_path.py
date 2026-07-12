@@ -111,7 +111,7 @@ class TestPath:
         )
 
         assert path == str(
-            host_primary.with_name("main_10") / "sase" / "repos" / "core"
+            host_primary.with_name("main_10") / "sase" / "repos" / "linked" / "core"
         )
 
     def test_linked_repo_primary_passthrough(self, tmp_path: Path) -> None:
@@ -135,17 +135,16 @@ class TestPath:
 
         assert path == str(linked_primary)
 
-    def test_linked_repo_path_falls_back_to_legacy_clone(self, tmp_path: Path) -> None:
+    def test_companion_repo_path_stays_in_durable_namespace(
+        self, tmp_path: Path
+    ) -> None:
         host_primary = tmp_path / "main"
-        linked_primary = tmp_path / "core"
-        host_checkout = tmp_path / "main_10"
-        legacy = host_checkout / ".sase" / "workspaces" / "core"
+        linked_primary = tmp_path / "main--plans"
         host_primary.mkdir()
         linked_primary.mkdir()
-        legacy.mkdir(parents=True)
         ctx = ProjectContext(
-            project_name="core",
-            project_file=str(tmp_path / "core.sase"),
+            project_name="main--plans",
+            project_file=str(tmp_path / "main--plans.sase"),
             primary_workspace_dir=str(linked_primary),
             store=WorkspaceStore(str(linked_primary)),
             is_sibling=True,
@@ -160,7 +159,9 @@ class TestPath:
             load_config=lambda: {"workspace": {"root": "adjacent"}},
         )
 
-        assert path == str(legacy.resolve())
+        assert path == str(
+            (tmp_path / "main_10" / "sase" / "repos" / "main--plans").resolve()
+        )
 
     def test_linked_repo_numbered_path_requires_host_context(
         self, tmp_path: Path
@@ -340,6 +341,7 @@ class TestOpen:
             patch(
                 "sase.axe.runner_utils.prepare_workspace", return_value=True
             ) as prepare_workspace,
+            patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
             pytest.raises(SystemExit) as exc,
         ):
             handle_workspace_command(args)
@@ -356,6 +358,7 @@ class TestOpen:
             backup_suffix="workspace-open",
             project_basename=project_name,
         )
+        clear_linked.assert_not_called()
         assert capsys.readouterr().out.strip() == checkout
 
     def test_open_records_sibling_when_artifacts_dir_is_set(

@@ -236,10 +236,10 @@ def _provider_options(workspace_num: int, kind: str) -> dict[str, object]:
 
 
 def _companion_clone_dir(workspace: Path, repo: str) -> Path:
-    from sase.linked_repos import resolve_linked_repo_clone_dir
+    from sase.linked_repos import companion_repo_clone_dir
 
     name = repo.rstrip("/").rsplit("/", 1)[-1]
-    return Path(resolve_linked_repo_clone_dir(workspace, name))
+    return Path(companion_repo_clone_dir(workspace, name))
 
 
 def _push_companion(root: Path) -> None:

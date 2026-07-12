@@ -9,11 +9,12 @@ patch these public functions at runtime.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import errno
 import os
 from pathlib import Path
 import re
+import shutil
 from typing import Any
-import warnings
 
 from sase._linked_repo_config import (
     DEFAULT_LINKED_REPOS_CONFIG_KEY,
@@ -52,11 +53,12 @@ from sase._linked_repo_markers import (
     record_opened_linked_repo,
 )
 
-# Host-scoped linked clones live inside the host checkout. Keep the legacy
-# location during the compatibility window so existing clones (including WIP)
-# can be discovered and migrated without recloning.
-LINKED_REPO_CLONES_SUBDIR = ("sase", "repos")
-LEGACY_LINKED_REPO_CLONES_SUBDIR = (".sase", "workspaces")
+# Host-scoped normal linked clones are launch-scoped and live separately from
+# durable SDD companion clones. The cache is internal and is never exposed to
+# agents through environment variables or opened-workspace markers.
+COMPANION_REPO_CLONES_SUBDIR = ("sase", "repos")
+LINKED_REPO_CLONES_SUBDIR = ("sase", "repos", "linked")
+LINKED_REPO_CACHE_SUBDIR = ("sase", "repos", ".linked-cache")
 
 # Preserve the historical class identity for introspection and pickling even
 # though their implementations now live in the environment helper module.
@@ -67,8 +69,9 @@ __all__ = [
     "DEFAULT_LINKED_REPOS_CONFIG_KEY",
     "DEFAULT_PLANS_DESCRIPTION",
     "DEFAULT_RESEARCH_DESCRIPTION",
-    "LEGACY_LINKED_REPO_CLONES_SUBDIR",
+    "COMPANION_REPO_CLONES_SUBDIR",
     "LINKED_REPO_CLONES_SUBDIR",
+    "LINKED_REPO_CACHE_SUBDIR",
     "LINKED_REPO_ENV_PREFIX",
     "LINKED_REPO_ENV_SUFFIXES",
     "LINKED_REPOS_CONFIG_KEY",
@@ -81,7 +84,10 @@ __all__ = [
     "SIBLING_REPOS_JSON_ENV",
     "LinkedRepoResolution",
     "apply_linked_repo_env",
+    "clear_linked_repo_clones",
+    "companion_repo_clone_dir",
     "is_legacy_static_linked_repo_record",
+    "is_sdd_companion_repo",
     "linked_repo_clone_dir",
     "linked_repo_metadata_from_env",
     "materialize_linked_repo_workspace",
@@ -89,7 +95,6 @@ __all__ = [
     "opened_linked_repo_records",
     "opened_linked_repo_workspace_dirs",
     "record_opened_linked_repo",
-    "resolve_linked_repo_clone_dir",
     "resolve_linked_repos_for_project",
     "scrub_linked_repo_env",
 ]
@@ -220,70 +225,122 @@ def linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
     )
 
 
-def _legacy_linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
+def companion_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
+    """Return the durable host-scoped clone path for SDD companion *name*."""
+
     return normalize_path(
-        str(Path(host_checkout).joinpath(*LEGACY_LINKED_REPO_CLONES_SUBDIR, name))
+        str(Path(host_checkout).joinpath(*COMPANION_REPO_CLONES_SUBDIR, name))
     )
 
 
-def resolve_linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
-    """Resolve a linked clone without materializing or migrating it.
+def _repo_basename(repo: str) -> str:
+    return repo.rstrip("/").rsplit("/", 1)[-1]
 
-    The canonical path wins whenever it exists. A legacy-only clone remains
-    visible to read-only callers until the next materializing operation moves
-    it into the canonical location.
-    """
 
-    canonical = linked_repo_clone_dir(host_checkout, name)
-    legacy = _legacy_linked_repo_clone_dir(host_checkout, name)
-    if not Path(canonical).exists() and Path(legacy).exists():
-        return legacy
-    return canonical
+def _sdd_companion_repo_names(primary_workspace_dir: str | Path) -> frozenset[str]:
+    """Return authoritative SDD companion basenames for a host project."""
+
+    from sase.sdd.store import read_sdd_store_record
+
+    primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
+    record = read_sdd_store_record(primary)
+    if record is not None:
+        return frozenset(
+            _repo_basename(companion.repo)
+            for companion in (record.plans, record.research)
+            if companion is not None
+        )
+
+    project_name = primary.name
+    if not project_name:
+        return frozenset()
+    return frozenset({f"{project_name}--plans", f"{project_name}--research"})
+
+
+def is_sdd_companion_repo(
+    primary_workspace_dir: str | Path,
+    name: str,
+) -> bool:
+    """Return whether *name* is an SDD companion of the host project."""
+
+    return name in _sdd_companion_repo_names(primary_workspace_dir)
+
+
+def _linked_repo_cache_dir(host_checkout: str | Path, name: str) -> Path:
+    return Path(host_checkout).joinpath(*LINKED_REPO_CACHE_SUBDIR, name)
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def clear_linked_repo_clones(workspace_dir: str | Path) -> None:
+    """Stash normal linked clones in the internal cache and empty their root."""
+
+    linked_root = Path(workspace_dir).joinpath(*LINKED_REPO_CLONES_SUBDIR)
+    if not linked_root.is_dir():
+        return
+
+    cache_root = Path(workspace_dir).joinpath(*LINKED_REPO_CACHE_SUBDIR)
+    for child in list(linked_root.iterdir()):
+        if child.is_dir() and not child.is_symlink():
+            cache_root.mkdir(parents=True, exist_ok=True)
+            cached = cache_root / child.name
+            if cached.exists() or cached.is_symlink():
+                _remove_path(cached)
+            os.rename(child, cached)
+        elif child.exists() or child.is_symlink():
+            _remove_path(child)
+
+    # Concurrent or unusual filesystem activity must not leave an unaudited
+    # ready-made entry in the launch-visible directory.
+    for child in list(linked_root.iterdir()):
+        _remove_path(child)
+
+
+def _restore_linked_repo_clone(host_checkout: Path, name: str) -> None:
+    target = Path(linked_repo_clone_dir(host_checkout, name))
+    cached = _linked_repo_cache_dir(host_checkout, name)
+    if target.exists() or target.is_symlink() or not cached.exists():
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.rename(cached, target)
+    except FileNotFoundError:
+        # A parallel opener already consumed the cache entry.
+        return
+    except OSError as exc:
+        if exc.errno not in {errno.EEXIST, errno.ENOTEMPTY}:
+            raise
+        # A parallel opener populated the destination first.
+        return
 
 
 def _linked_repo_clone_location(
     workspace_dir: str | Path,
-) -> tuple[Path, str] | None:
-    """Return ``(host_checkout, name)`` for a known linked-clone layout."""
+) -> tuple[Path, str, bool] | None:
+    """Return ``(host_checkout, name, is_companion)`` for a known layout."""
 
     path = Path(workspace_dir).expanduser().resolve(strict=False)
-    if len(path.parents) < 3:
-        return None
-    parent_pair = (path.parent.parent.name, path.parent.name)
-    if parent_pair not in {
-        LINKED_REPO_CLONES_SUBDIR,
-        LEGACY_LINKED_REPO_CLONES_SUBDIR,
-    }:
-        return None
-    return path.parents[2], path.name
-
-
-def _prepare_linked_repo_clone_dir(host_checkout: Path, name: str) -> str:
-    """Protect and migrate a host-scoped linked clone before materialization."""
-
-    from sase.workspace_provider.git_exclude import ensure_git_info_exclude_entry
-
-    ensure_git_info_exclude_entry(str(host_checkout), "/sase/repos/")
-    canonical = Path(linked_repo_clone_dir(host_checkout, name))
-    legacy = Path(_legacy_linked_repo_clone_dir(host_checkout, name))
-
-    if canonical.exists() and legacy.exists():
-        warnings.warn(
-            f"Both canonical and legacy linked-repo clones exist for {name!r}; "
-            f"using {canonical} and leaving stale legacy clone {legacy}",
-            RuntimeWarning,
-            stacklevel=3,
-        )
-        return str(canonical)
-
-    if legacy.exists() and not canonical.exists():
-        canonical.parent.mkdir(parents=True, exist_ok=True)
-        os.rename(legacy, canonical)
-        try:
-            legacy.parent.rmdir()
-        except OSError:
-            pass
-    return str(canonical)
+    layouts = (
+        (LINKED_REPO_CLONES_SUBDIR, False),
+        (COMPANION_REPO_CLONES_SUBDIR, True),
+    )
+    for subdir, is_companion in layouts:
+        parent_parts = path.parent.parts
+        if len(parent_parts) < len(subdir):
+            continue
+        if tuple(parent_parts[-len(subdir) :]) != subdir:
+            continue
+        host_checkout = path.parent
+        for _ in subdir:
+            host_checkout = host_checkout.parent
+        return host_checkout, path.name, is_companion
+    return None
 
 
 def _resolve_workspace_dir(
@@ -305,7 +362,11 @@ def _resolve_workspace_dir(
         .resolve(workspace_num)
         .checkout_dir.rstrip("/")
     )
-    target = resolve_linked_repo_clone_dir(host_workspace_dir, name)
+    target = (
+        companion_repo_clone_dir(host_workspace_dir, name)
+        if is_sdd_companion_repo(host_primary_dir, name)
+        else linked_repo_clone_dir(host_workspace_dir, name)
+    )
     if not materialize:
         return target
 
@@ -325,8 +386,15 @@ def materialize_linked_repo_workspace(
 
     location = _linked_repo_clone_location(workspace_dir)
     if location is not None:
-        host_checkout, name = location
-        workspace_dir = _prepare_linked_repo_clone_dir(host_checkout, name)
+        host_checkout, name, is_companion = location
+        from sase.workspace_provider.git_exclude import ensure_git_info_exclude_entry
+
+        ensure_git_info_exclude_entry(str(host_checkout), "/sase/repos/")
+        if is_companion:
+            workspace_dir = companion_repo_clone_dir(host_checkout, name)
+        else:
+            workspace_dir = linked_repo_clone_dir(host_checkout, name)
+            _restore_linked_repo_clone(host_checkout, name)
 
     checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
     try:

@@ -215,6 +215,9 @@ def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
     def ensure_workspace_sdd_clone(workspace_dir: str, workspace_num: int) -> None:
         calls.append(("clone", (workspace_dir, workspace_num)))
 
+    def clear_linked_repo_clones(workspace_dir: str) -> None:
+        calls.append(("clear", (workspace_dir,)))
+
     with (
         patch(
             "sase.axe.run_agent_runner_setup.prepare_workspace",
@@ -223,6 +226,10 @@ def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
         patch(
             "sase.sdd.store.ensure_workspace_sdd_clone",
             side_effect=ensure_workspace_sdd_clone,
+        ),
+        patch(
+            "sase.linked_repos.clear_linked_repo_clones",
+            side_effect=clear_linked_repo_clones,
         ),
     ):
         prepare_workspace_if_needed(
@@ -237,6 +244,7 @@ def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
 
     assert calls == [
         ("prepare", ("/tmp/workspace", "feature", "main")),
+        ("clear", ("/tmp/workspace",)),
         ("clone", ("/tmp/workspace", 7)),
     ]
 
@@ -245,6 +253,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_home_mode() -> None:
     with (
         patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
         patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
+        patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
     ):
         prepare_workspace_if_needed(
             workspace_dir="/tmp/workspace",
@@ -257,6 +266,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_home_mode() -> None:
         )
 
     prepare.assert_not_called()
+    clear_linked.assert_not_called()
     ensure_clone.assert_not_called()
 
 
@@ -264,6 +274,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None
     with (
         patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
         patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
+        patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
     ):
         prepare_workspace_if_needed(
             workspace_dir="/tmp/workspace",
@@ -276,6 +287,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None
         )
 
     prepare.assert_not_called()
+    clear_linked.assert_not_called()
     ensure_clone.assert_not_called()
 
 
@@ -363,10 +375,10 @@ def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note
     assert meta["sibling_repos"] == resolution.to_jsonable()
     written = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
     assert written["linked_repos"][0]["workspace_dir"] == str(
-        workspace / "sase" / "repos" / "core"
+        workspace / "sase" / "repos" / "linked" / "core"
     )
     assert written["sibling_repos"][0]["workspace_dir"] == str(
-        workspace / "sase" / "repos" / "core"
+        workspace / "sase" / "repos" / "linked" / "core"
     )
     assert json.loads(os.environ[LINKED_REPOS_JSON_ENV])[0]["name"] == "core"
     assert json.loads(os.environ[SIBLING_REPOS_JSON_ENV])[0]["name"] == "core"
