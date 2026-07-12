@@ -138,6 +138,21 @@ def _eligible_linked_workspace_candidates(
     for repo in _workspace_linked_repos(agent):
         add(repo.name, repo.workspace_dir)
 
+    from sase.linked_repos import companion_repo_clone_dir
+
+    for metadata_agent in _linked_metadata_agents(agent):
+        if not metadata_agent.workspace_dir:
+            continue
+        for kind in ("plans", "research"):
+            workspace_dir = companion_repo_clone_dir(
+                metadata_agent.workspace_dir,
+                kind,
+            )
+            if os.path.isdir(workspace_dir) and os.path.exists(
+                os.path.join(workspace_dir, ".git")
+            ):
+                add(kind, workspace_dir)
+
     try:
         from sase.ace.tui.opened_workspaces import (
             load_opened_workspaces_for_agent_context,
@@ -161,9 +176,15 @@ def should_refresh_linked_delta_groups(agent: Agent) -> bool:
     """
     if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
         return False
-    if not _eligible_static_linked_repos(
-        agent
-    ) and not _has_possible_opened_workspace_markers(agent):
+    has_workspace = any(
+        bool(metadata_agent.workspace_dir)
+        for metadata_agent in _linked_metadata_agents(agent)
+    )
+    if (
+        not _eligible_static_linked_repos(agent)
+        and not _has_possible_opened_workspace_markers(agent)
+        and not has_workspace
+    ):
         return False
 
     identity = agent.identity

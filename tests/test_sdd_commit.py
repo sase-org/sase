@@ -168,6 +168,54 @@ def test_commit_sdd_files_records_agent_marker_when_artifacts_dir_is_set(
     assert results[0]["result"] == head
     assert results[0]["message"].startswith("Record SDD commit")
     assert results[0]["repo_name"] == "sase-org/sase--sdd"
+    diff_path = Path(results[0]["diff_path"])
+    assert diff_path == artifacts_dir / "commit_diffs" / "001.diff"
+    assert "+hello\n" in diff_path.read_text(encoding="utf-8")
+
+
+def test_commit_sdd_files_diff_is_scoped_to_committed_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sdd_dir = tmp_path / "sdd"
+    artifacts_dir = tmp_path / "artifacts"
+    _init_test_git_repo(sdd_dir)
+    artifacts_dir.mkdir()
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    monkeypatch.setattr(
+        "sase.workflows.commit.commit_tracking."
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda *_args, **_kwargs: None,
+    )
+    committed = sdd_dir / "plans" / "plan.md"
+    uncommitted = sdd_dir / "research" / "report.md"
+    committed.parent.mkdir()
+    uncommitted.parent.mkdir()
+    committed.write_text("plan\n", encoding="utf-8")
+    uncommitted.write_text("report\n", encoding="utf-8")
+
+    assert commit_sdd_files(
+        sdd_dir,
+        "Add plan",
+        paths=[committed],
+        artifacts_dir=artifacts_dir,
+        repo_name="plans",
+    )
+
+    results = json.loads((artifacts_dir / "commit_results.json").read_text())
+    diff_text = Path(results[0]["diff_path"]).read_text(encoding="utf-8")
+    assert "plans/plan.md" in diff_text
+    assert "research/report.md" not in diff_text
+    assert (
+        subprocess.run(
+            ["git", "status", "--short"],
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        == "?? research/\n"
+    )
 
 
 def test_commit_sdd_files_skips_agent_marker_when_artifacts_dir_is_unset(

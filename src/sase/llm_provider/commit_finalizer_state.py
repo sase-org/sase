@@ -63,21 +63,77 @@ def collect_dirty_state(
             opened_workspace_dirs=opened_workspace_dirs,
         )
     )
+    sdd_repos = tuple(_dirty_sdd_store_repos(project_dir))
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
     repos.extend(sibling_repos)
+    repos.extend(sdd_repos)
     details = build_dirty_details(
         main_details=main_details,
         main_instruction=main_instruction,
         main_repo=main_repo,
         sibling_repos=sibling_repos,
+        sdd_repos=sdd_repos,
     )
     return DirtyState(
         project_dir=finalizer_git._normalize_path(project_dir),
         repos=tuple(repos),
         details=details,
     )
+
+
+def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
+    """Return dirty external SDD repositories owned by this workspace."""
+
+    try:
+        from sase.sdd._commit_store import sdd_commit_targets, sdd_store_label
+        from sase.sdd.store import (
+            SDD_STORAGE_COMPANION_REPOS,
+            SDD_STORAGE_SEPARATE_REPO,
+            resolve_sdd_store,
+        )
+
+        project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
+        workspace_num = None
+        if project_file:
+            workspace_num = _workspace_num_for_project_file(project_file, project_dir)
+        if workspace_num is None:
+            workspace_num = _workspace_num_from_env()
+        store = resolve_sdd_store(project_dir, workspace_num or 1)
+        if store.storage not in {
+            SDD_STORAGE_SEPARATE_REPO,
+            SDD_STORAGE_COMPANION_REPOS,
+        }:
+            return []
+
+        dirty: list[DirtyRepo] = []
+        targets = sdd_commit_targets(store, None)
+        for index, (target_store, _paths) in enumerate(targets):
+            repo_root = target_store.repo_root.expanduser()
+            if not (repo_root / ".git").exists():
+                continue
+            changed_files = git_changed_files(str(repo_root))
+            if not changed_files:
+                continue
+            fallback = (
+                "research"
+                if store.is_companion_storage and index == 1
+                else "plans"
+                if store.is_companion_storage
+                else "sdd"
+            )
+            dirty.append(
+                DirtyRepo(
+                    name=sdd_store_label(target_store) or fallback,
+                    path=finalizer_git._normalize_path(str(repo_root)),
+                    changed_files=tuple(changed_files),
+                    kind="sdd",
+                )
+            )
+        return dirty
+    except Exception:
+        return []
 
 
 def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:

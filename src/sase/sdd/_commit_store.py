@@ -1,6 +1,7 @@
 """Commit helpers for SDD storage repositories."""
 
 import logging
+import os
 import subprocess
 from collections.abc import Iterable
 from dataclasses import replace
@@ -58,6 +59,11 @@ def commit_sdd_files(
         op="sdd.diff_cached",
     )
     if result.returncode != 0:
+        diff_path = _capture_staged_sdd_diff(
+            sdd_dir,
+            changed_files,
+            artifacts_dir=artifacts_dir,
+        )
         from sase.workflows.commit.runtime_tags import (
             apply_auto_commit_tags_with_runtime,
         )
@@ -76,6 +82,7 @@ def commit_sdd_files(
                 message=message,
                 artifacts_dir=artifacts_dir,
                 repo_name=repo_name,
+                diff_path=diff_path,
             )
         return True
     return False
@@ -135,6 +142,7 @@ def _record_sdd_commit_marker(
     message: str,
     artifacts_dir: str | Path | None,
     repo_name: str | None,
+    diff_path: str | None,
 ) -> None:
     try:
         sha = _git_head_sha(sdd_dir)
@@ -150,9 +158,44 @@ def _record_sdd_commit_marker(
             message=message,
             repo_name=repo_name,
             artifacts_dir=artifacts_dir,
+            diff_path=diff_path,
         )
     except Exception:
         _logger.debug("failed to record SDD commit marker", exc_info=True)
+
+
+def _capture_staged_sdd_diff(
+    sdd_dir: Path,
+    changed_files: list[str],
+    *,
+    artifacts_dir: str | Path | None,
+) -> str | None:
+    resolved_artifacts_dir = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
+    if not resolved_artifacts_dir:
+        return None
+    try:
+        result = run_sdd_git(
+            ["diff", "--cached", "--"] + changed_files,
+            cwd=sdd_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+            op="sdd.capture_cached_diff",
+        )
+        diff_text = result.stdout
+        if not isinstance(diff_text, str) or not diff_text:
+            return None
+        from sase.workflows.commit.commit_tracking import (
+            write_commit_diff_artifact,
+        )
+
+        return write_commit_diff_artifact(
+            diff_text,
+            artifacts_dir=resolved_artifacts_dir,
+        )
+    except Exception:
+        _logger.debug("failed to capture staged SDD diff", exc_info=True)
+        return None
 
 
 def _git_head_sha(repo_dir: Path) -> str | None:

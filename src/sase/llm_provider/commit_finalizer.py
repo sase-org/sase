@@ -181,8 +181,10 @@ def run_commit_finalizer(
         return invoke_result
 
     project_dir = _resolve_finalizer_project_dir()
+    sdd_store_auto_committed = _auto_commit_separate_sdd_store_if_possible(
+        project_dir, artifact_root
+    )
     dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
-    sdd_store_auto_committed = _auto_commit_separate_sdd_store_if_possible(project_dir)
     dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
         project_dir,
         dirty_state,
@@ -244,11 +246,11 @@ def run_commit_finalizer(
         )
         accumulated_usage = _merge_usage(accumulated_usage, follow_up.usage)
 
-        dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
         sdd_store_auto_committed = (
-            _auto_commit_separate_sdd_store_if_possible(project_dir)
+            _auto_commit_separate_sdd_store_if_possible(project_dir, artifact_root)
             or sdd_store_auto_committed
         )
+        dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
         dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
             project_dir,
             dirty_state,
@@ -301,8 +303,10 @@ def _auto_commit_done_plan_status_if_possible(
     return refreshed, True
 
 
-def _auto_commit_separate_sdd_store_if_possible(project_dir: str) -> bool:
-    """Best-effort fallback sync for dirty external SDD stores."""
+def _auto_commit_separate_sdd_store_if_possible(
+    project_dir: str, artifacts_dir: Path | None = None
+) -> bool:
+    """Best-effort safety net for machine-managed external bead state."""
     try:
         if not _separate_sdd_store_repo_may_exist(project_dir):
             return False
@@ -328,8 +332,10 @@ def _auto_commit_separate_sdd_store_if_possible(project_dir: str) -> bool:
             return False
         return commit_sdd_store_files(
             store,
-            "chore(sdd): sync uncommitted SDD store changes",
-            auto_commit_type="sdd",
+            "chore(beads): sync bead state",
+            auto_commit_type="beads",
+            paths=[store.kind_root("beads")],
+            artifacts_dir=artifacts_dir,
         )
     except Exception:
         _logger.warning(

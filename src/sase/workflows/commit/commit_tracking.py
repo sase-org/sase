@@ -66,33 +66,8 @@ def capture_pre_commit_diff(
     Returns the path to the saved diff file, or ``None`` on failure.
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    legacy_diff_path: str | None = None
-    if artifacts_dir:
-        diff_dir = os.path.join(artifacts_dir, "commit_diffs")
-        try:
-            os.makedirs(diff_dir, exist_ok=True)
-            existing_count = sum(
-                1
-                for name in os.listdir(diff_dir)
-                if name.endswith(".diff")
-                and os.path.isfile(os.path.join(diff_dir, name))
-            )
-        except OSError:
-            return None
-        next_index = existing_count + 1
-        diff_path = os.path.join(diff_dir, f"{next_index:03d}.diff")
-        while os.path.exists(diff_path):
-            next_index += 1
-            diff_path = os.path.join(diff_dir, f"{next_index:03d}.diff")
-        legacy_diff_path = os.path.join(artifacts_dir, "commit_diff.diff")
-    else:
-        if not cl_name:
-            return None
-        from sase.core.time import generate_timestamp
-
-        diffs_dir = str(sase_subdir("diffs"))
-        os.makedirs(diffs_dir, exist_ok=True)
-        diff_path = os.path.join(diffs_dir, f"{cl_name}-{generate_timestamp()}.diff")
+    if not artifacts_dir and not cl_name:
+        return None
 
     try:
         diff_with_untracked = getattr(provider, "diff_with_untracked", None)
@@ -111,15 +86,60 @@ def capture_pre_commit_diff(
         return None
     if not ok or not diff_text:
         return None
+    if artifacts_dir:
+        return write_commit_diff_artifact(
+            diff_text,
+            artifacts_dir=artifacts_dir,
+            write_legacy=True,
+        )
+    assert cl_name is not None
+    from sase.core.time import generate_timestamp
+
+    diffs_dir = str(sase_subdir("diffs"))
+    os.makedirs(diffs_dir, exist_ok=True)
+    diff_path = os.path.join(diffs_dir, f"{cl_name}-{generate_timestamp()}.diff")
     try:
         with open(diff_path, "w", encoding="utf-8") as f:
             f.write(diff_text)
     except Exception:
         return None
+    return diff_path
 
-    if legacy_diff_path:
+
+def write_commit_diff_artifact(
+    diff_text: str,
+    *,
+    artifacts_dir: str | os.PathLike[str],
+    write_legacy: bool = False,
+) -> str | None:
+    """Write a sequential per-commit diff artifact and return its path."""
+
+    artifacts_dir_str = os.fspath(artifacts_dir)
+    diff_dir = os.path.join(artifacts_dir_str, "commit_diffs")
+    try:
+        os.makedirs(diff_dir, exist_ok=True)
+        existing_count = sum(
+            1
+            for name in os.listdir(diff_dir)
+            if name.endswith(".diff") and os.path.isfile(os.path.join(diff_dir, name))
+        )
+        next_index = existing_count + 1
+        diff_path = os.path.join(diff_dir, f"{next_index:03d}.diff")
+        while os.path.exists(diff_path):
+            next_index += 1
+            diff_path = os.path.join(diff_dir, f"{next_index:03d}.diff")
+        with open(diff_path, "w", encoding="utf-8") as f:
+            f.write(diff_text)
+    except OSError:
+        return None
+
+    if write_legacy:
         try:
-            with open(legacy_diff_path, "w", encoding="utf-8") as f:
+            with open(
+                os.path.join(artifacts_dir_str, "commit_diff.diff"),
+                "w",
+                encoding="utf-8",
+            ) as f:
                 f.write(diff_text)
         except OSError:
             pass
@@ -338,6 +358,62 @@ def _upsert_commit_results_marker(
         return
 
 
+def _agent_workspace_dir(artifacts_dir: str) -> str | None:
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        meta = None
+    if isinstance(meta, dict):
+        workspace_dir = meta.get("workspace_dir")
+        if isinstance(workspace_dir, str) and workspace_dir.strip():
+            return workspace_dir
+    from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
+
+    for env_name in (*WORKSPACE_PIN_ENV_VARS, "PWD"):
+        workspace_dir = os.environ.get(env_name)
+        if workspace_dir:
+            return workspace_dir
+    return None
+
+
+def _sdd_repo_name_for_commit_cwd(
+    commit_cwd: str,
+    workspace_dir: str | None,
+) -> str | None:
+    """Return an external SDD repository label containing ``commit_cwd``."""
+
+    if not workspace_dir:
+        return None
+    try:
+        from sase.linked_repos import companion_repo_clone_dir
+        from sase.sdd.store import read_sdd_store_record
+
+        cwd = Path(commit_cwd).expanduser().resolve(strict=False)
+        workspace = Path(workspace_dir).expanduser().resolve(strict=False)
+        record = read_sdd_store_record(workspace)
+        for kind in ("plans", "research"):
+            root = Path(companion_repo_clone_dir(workspace, kind))
+            try:
+                cwd.relative_to(root)
+            except ValueError:
+                continue
+            companion = record.companion_for_kind(kind) if record is not None else None
+            return companion.repo if companion is not None and companion.repo else kind
+
+        legacy_root = workspace / ".sase" / "sdd"
+        try:
+            cwd.relative_to(legacy_root)
+        except ValueError:
+            return None
+        if record is not None and record.repo:
+            return record.repo
+        return "sdd"
+    except Exception:
+        return None
+
+
 def record_sdd_commit_result_marker(
     *,
     cwd: str | os.PathLike[str],
@@ -397,6 +473,10 @@ def write_result_marker(
     if not run_id:
         run_id = os.path.basename(os.path.normpath(artifacts_dir))
     commit_cwd = os.getcwd()
+    repo_name = _sdd_repo_name_for_commit_cwd(
+        commit_cwd,
+        _agent_workspace_dir(artifacts_dir),
+    )
 
     marker = {
         "method": method,
@@ -414,6 +494,8 @@ def write_result_marker(
         "diff_path": diff_path,
         "commit_diff_path": diff_path,
     }
+    if repo_name is not None:
+        marker["repo_name"] = repo_name
     marker_path = os.path.join(artifacts_dir, "commit_result.json")
     with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(marker, f)

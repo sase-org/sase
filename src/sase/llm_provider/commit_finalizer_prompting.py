@@ -18,14 +18,16 @@ def build_dirty_details(
     main_instruction: str,
     main_repo: DirtyRepo | None,
     sibling_repos: tuple[DirtyRepo, ...],
+    sdd_repos: tuple[DirtyRepo, ...] = (),
 ) -> str:
-    if main_repo is not None and not sibling_repos and main_details:
+    if main_repo is not None and not sibling_repos and not sdd_repos and main_details:
         return main_details
 
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
     repos.extend(sibling_repos)
+    repos.extend(sdd_repos)
     if not repos:
         return ""
 
@@ -37,6 +39,8 @@ def build_dirty_details(
                 label = "main workspace"
             elif repo.kind == "sibling":
                 label = f"linked repo {repo.name}"
+            else:
+                label = f"SDD companion repo {repo.name}"
             lines.append(f"- {label}: {repo.path}")
             lines.extend(f"  - {path}" for path in repo.changed_files[:20])
             if len(repo.changed_files) > 20:
@@ -45,24 +49,25 @@ def build_dirty_details(
     if main_repo is not None and main_instruction:
         lines.extend(["", "Main workspace commit instructions:", main_instruction])
 
-    if sibling_repos:
+    external_repos = (*sibling_repos, *sdd_repos)
+    if external_repos:
         lines.extend(
             [
                 "",
-                "Linked repository commit instructions:",
+                "External repository commit instructions:",
                 _sibling_commit_instruction(),
             ]
         )
 
-    if sibling_repos:
-        for repo in sibling_repos:
+    if external_repos:
+        for repo in external_repos:
             lines.append(
                 f"- For `{repo.name}`, run `cd {repo.path}` before using "
                 "your /sase_git_commit skill."
             )
         lines.append(
-            "After each linked-repo commit, run `git status --short --branch` in "
-            "that linked repo and make sure it is clean before continuing."
+            "After each external-repo commit, run `git status --short --branch` in "
+            "that repository and make sure it is clean before continuing."
         )
 
     return "\n".join(lines)

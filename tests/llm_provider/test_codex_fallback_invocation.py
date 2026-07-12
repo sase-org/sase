@@ -10,6 +10,14 @@ from sase.llm_provider.codex import CodexProvider
 from sase.llm_provider.types import LLMInvocationError
 
 
+def _codex_popen_call_count(mock_popen: MagicMock) -> int:
+    return sum(
+        1
+        for call in mock_popen.call_args_list
+        if call.args and call.args[0] and Path(call.args[0][0]).name == "codex"
+    )
+
+
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")
 @patch("sase.llm_provider.codex.subprocess.Popen")
 @patch("sase.llm_provider.codex.provider_timer")
@@ -53,7 +61,7 @@ def test_codex_finalizer_runs_from_invoke_agent_when_dirty(
             artifacts_dir=str(artifacts_dir),
         )
 
-    assert mock_popen.call_count == 2
+    assert _codex_popen_call_count(mock_popen) == 2
     second_call_stdin = mock_popen.return_value.stdin.write.call_args_list[-1].args[0]
     assert "src/foo.py" in second_call_stdin
     assert "/sase_git_commit" in second_call_stdin
@@ -182,7 +190,7 @@ def test_codex_finalizer_fails_when_max_passes_stay_dirty(
             artifacts_dir=str(artifacts_dir),
         )
 
-    assert mock_popen.call_count == 3
+    assert _codex_popen_call_count(mock_popen) == 3
     assert '"status": "failed"' in (
         artifacts_dir / "commit_finalizer_result.json"
     ).read_text(encoding="utf-8")

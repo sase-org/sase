@@ -11,7 +11,9 @@ import pytest
 
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer import (
+    CommitFinalizerError,
     _auto_commit_separate_sdd_store_if_possible,
+    collect_dirty_state,
     run_commit_finalizer,
 )
 from sase.llm_provider.types import InvokeResult
@@ -258,8 +260,8 @@ def test_dirty_separate_sdd_store_is_auto_committed_when_main_repo_clean(
     assert _run_git(repo, "status", "--short") == ""
     assert _run_git(sdd_store, "status", "--short") == ""
     commit_message = _run_git(sdd_store, "log", "-1", "--pretty=%B")
-    assert "chore(sdd): sync uncommitted SDD store changes" in commit_message
-    assert "SASE_TYPE=sdd" in commit_message
+    assert "chore(beads): sync bead state" in commit_message
+    assert "SASE_TYPE=beads" in commit_message
     result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
         encoding="utf-8"
     )
@@ -267,7 +269,7 @@ def test_dirty_separate_sdd_store_is_auto_committed_when_main_repo_clean(
     assert '"reason": "auto_committed_sdd_store"' in result_json
 
 
-def test_split_sdd_store_auto_commit_routes_all_companions(
+def test_split_sdd_store_auto_commit_targets_only_bead_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -310,8 +312,10 @@ def test_split_sdd_store_auto_commit_routes_all_companions(
     assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
     commit.assert_called_once_with(
         store,
-        "chore(sdd): sync uncommitted SDD store changes",
-        auto_commit_type="sdd",
+        "chore(beads): sync bead state",
+        auto_commit_type="beads",
+        paths=[plans / "beads"],
+        artifacts_dir=None,
     )
 
 
@@ -328,21 +332,66 @@ def test_separate_sdd_store_auto_commit_runs_after_provider_pass(
     _use_separate_sdd_store_config(monkeypatch)
     provider = MagicMock()
 
+    calls = 0
+
     def invoke(*_: object, **__: object) -> InvokeResult:
-        _run_git(repo, "add", "feature.py")
-        _run_git(repo, "commit", "-q", "-m", "feat: commit main work")
-        notes = sdd_store / "research" / "note.md"
-        notes.parent.mkdir()
-        notes.write_text("forgotten sdd note\n", encoding="utf-8")
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            _run_git(repo, "add", "feature.py")
+            _run_git(repo, "commit", "-q", "-m", "feat: commit main work")
+            notes = sdd_store / "research" / "note.md"
+            notes.parent.mkdir()
+            notes.write_text("forgotten sdd note\n", encoding="utf-8")
+        else:
+            _run_git(sdd_store, "add", "research/note.md")
+            _run_git(sdd_store, "commit", "-q", "-m", "docs: add research note")
         return InvokeResult(content="provider finalized")
 
     provider.invoke.side_effect = invoke
 
     result = _run_finalizer(provider, tmp_path / "artifacts")
 
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nprovider finalized"
+    assert provider.invoke.call_count == 2
+    assert result.content == (
+        "primary response\n\nprovider finalized\n\nprovider finalized"
+    )
     assert _run_git(repo, "status", "--short") == ""
     assert _run_git(sdd_store, "status", "--short") == ""
     commit_message = _run_git(sdd_store, "log", "-1", "--pretty=%B")
-    assert "chore(sdd): sync uncommitted SDD store changes" in commit_message
+    assert "docs: add research note" in commit_message
+
+
+def test_dirty_separate_sdd_non_bead_file_is_prompted_and_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    sdd_store = _create_clean_repo_with_ignored_sdd_store(repo)
+    report = sdd_store / "research" / "report.md"
+    report.parent.mkdir()
+    report.write_text("agent-authored report\n", encoding="utf-8")
+    _set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    _use_separate_sdd_store_config(monkeypatch)
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="still dirty")
+    artifacts_dir = tmp_path / "artifacts"
+
+    dirty_state = collect_dirty_state(str(repo), artifact_root=artifacts_dir)
+
+    assert [
+        (item.kind, item.name, item.changed_files) for item in dirty_state.repos
+    ] == [("sdd", "sdd", ("research/report.md",))]
+    assert f"SDD companion repo sdd: {sdd_store.resolve()}" in dirty_state.details
+    assert f"cd {sdd_store.resolve()}" in dirty_state.details
+    assert "/sase_git_commit" in dirty_state.details
+    assert "git status --short --branch" in dirty_state.details
+
+    with pytest.raises(
+        CommitFinalizerError, match="changes remain after 2 finalizer pass"
+    ):
+        _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 2
+    assert _run_git(sdd_store, "status", "--short") == "?? research/\n"

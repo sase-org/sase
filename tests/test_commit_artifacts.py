@@ -266,6 +266,57 @@ class TestWriteResultMarker:
         persisted = json.loads(meta_path.read_text(encoding="utf-8"))
         assert persisted["commit_diff_path"] == "/tmp/primary.diff"
 
+    def test_companion_commit_records_store_repo_name(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from sase.sdd.store import write_sdd_store_record
+
+        artifacts_dir = tmp_path / "artifacts"
+        primary = tmp_path / "sase_7"
+        companion = primary / "sase" / "repos" / "plans"
+        artifacts_dir.mkdir()
+        companion.mkdir(parents=True)
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps({"workspace_dir": str(primary)}),
+            encoding="utf-8",
+        )
+        write_sdd_store_record(
+            primary,
+            {
+                "schema_version": 2,
+                "storage": "companion_repos",
+                "provider": "github",
+                "companions": {
+                    "plans": {
+                        "repo": "sase-org/sase--plans",
+                        "remote_url": "git@example.com:sase-org/sase--plans.git",
+                    },
+                    "research": {
+                        "repo": "sase-org/sase--research",
+                        "remote_url": "git@example.com:sase-org/sase--research.git",
+                    },
+                },
+            },
+        )
+
+        with (
+            patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
+            patch("os.getcwd", return_value=str(companion)),
+        ):
+            write_result_marker(
+                "create_commit",
+                {"message": "docs: update plan"},
+                "/tmp/plans.diff",
+                "abc123",
+                None,
+            )
+
+        marker = json.loads(
+            (artifacts_dir / "commit_result.json").read_text(encoding="utf-8")
+        )
+        assert marker["repo_name"] == "sase-org/sase--plans"
+
     def test_does_not_update_agent_meta_without_diff_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "agent_meta.json"

@@ -557,6 +557,34 @@ class TestWorkflowVariablesHeader:
         assert "  ▣ sdd\n" in header.plain
         assert "    abcdef123456 Archive approved plan demo\n" in header.plain
 
+    def test_companion_cwd_without_repo_name_is_non_primary(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "sase_18"
+        companion = workspace / "sase" / "repos" / "research"
+        agent = make_agent(
+            workspace_dir=str(workspace),
+            step_output={
+                "meta_commits": [
+                    {
+                        "message": "docs: add research report",
+                        "sha": "abcdef123456",
+                        "cwd": str(companion),
+                        "diff_path": str(tmp_path / "research.diff"),
+                    }
+                ],
+            },
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+        commit_diffs = agent_commit_diffs(agent)
+
+        assert "  ▣ research\n" in header.plain
+        assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
+            ("research", False)
+        ]
+
     def test_workflow_variables_keep_non_commit_meta_fields(self) -> None:
         agent = make_agent(
             step_output={

@@ -312,6 +312,42 @@ def test_compute_linked_delta_groups_includes_opened_workspace_records(
     assert provider.has_changes_calls == [str(opened_workspace)]
 
 
+def test_compute_linked_delta_groups_includes_companion_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "sase_9"
+    research = workspace / "sase" / "repos" / "research"
+    (research / ".git").mkdir(parents=True)
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace={str(research): "?? 202607/report.md"},
+        diff_by_workspace={
+            str(research): """diff --git a/202607/report.md b/202607/report.md
+new file mode 100644
+--- /dev/null
++++ b/202607/report.md
+@@ -0,0 +1 @@
++report
+""",
+        },
+    )
+    _patch_provider(monkeypatch, provider)
+    agent = _agent()
+    agent.workspace_dir = str(workspace)
+
+    groups = linked_deltas_mod.compute_linked_delta_groups(agent)
+
+    assert [group.repo_name for group in groups] == ["research"]
+    assert groups[0].entries == (
+        DeltaEntry(
+            path="202607/report.md",
+            change_type="A",
+            line_stats=DeltaLineStats(added=1),
+        ),
+    )
+    assert provider.has_changes_calls == [str(research)]
+
+
 def test_opened_workspace_uses_recorded_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
