@@ -58,7 +58,7 @@ Issues = "https://github.com/sase-org/sase/issues"
 
 [project.optional-dependencies]
 dev = [
-    "bbugyi-toolong>=0.1.0,<0.2.0",
+    "toobig>=0.1.0,<0.2.0",
     "ruff",
     "mypy",
     "pytest",

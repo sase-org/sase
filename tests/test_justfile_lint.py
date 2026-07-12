@@ -29,17 +29,17 @@ def _dry_run(*args: str) -> str:
     return result.stdout + result.stderr
 
 
-def test_lint_includes_toolong_stage() -> None:
+def test_lint_includes_toobig_stage() -> None:
     output = _dry_run("lint")
 
     assert "Checking Python file line counts" in output
-    assert "just _lint-toolong" in output
+    assert "just _lint-toobig" in output
 
 
-def test_check_mirrors_lint_toolong_stage() -> None:
+def test_check_mirrors_lint_toobig_stage() -> None:
     output = _dry_run("check")
 
-    assert 'tools/run_silent "lint (toolong)"     just _lint-toolong' in output
+    assert 'tools/run_silent "lint (toobig)"      just _lint-toobig' in output
 
 
 def test_lint_does_not_run_sase_validation() -> None:
@@ -73,7 +73,7 @@ def test_ci_lint_job_validates_split_sdd_companions() -> None:
     assert "sase-org/sase--sdd" not in workflow
 
 
-def test_public_toolong_target_uses_private_lint_stage() -> None:
-    output = _dry_run("toolong", "900", "800", "700")
+def test_public_toobig_target_uses_private_lint_stage() -> None:
+    output = _dry_run("toobig", "900", "800", "700")
 
-    assert "just _lint-toolong 900 800 700" in output
+    assert "just _lint-toobig 900 800 700" in output
