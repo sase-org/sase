@@ -30,6 +30,7 @@ class _CollectedDirectives:
     seen_source: dict[str, str] = field(default_factory=dict)
     seen_multi: dict[str, list[str]] = field(default_factory=dict)
     wait_time_args: list[str] = field(default_factory=list)
+    wait_runners_args: list[str] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     name_family_args: tuple[str, str] | None = None
     literal_directives: set[str] = field(default_factory=set)
@@ -62,7 +63,7 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                 try:
                     positional_args, named_args = parse_args(
                         paren_content,
-                        reject_duplicate_named_args=name == "model",
+                        reject_duplicate_named_args=name in {"model", "wait"},
                     )
                 except ValueError as exc:
                     raise DirectiveError(str(exc)) from exc
@@ -82,15 +83,20 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         continue
                     positional_args = raw_args
                 if name == "wait":
-                    unknown_keys = sorted(key for key in named_args if key != "time")
+                    supported_keys = {"runners", "time"}
+                    unknown_keys = sorted(
+                        key for key in named_args if key not in supported_keys
+                    )
                     if unknown_keys:
                         keys = ", ".join(f"{key}=" for key in unknown_keys)
                         raise DirectiveError(
                             f"Unsupported keyword on %wait: {keys}. "
-                            "Only time= is supported."
+                            "Only runners= and time= are supported."
                         )
                     if "time" in named_args:
                         collected.wait_time_args.append(named_args["time"])
+                    if "runners" in named_args:
+                        collected.wait_runners_args.append(named_args["runners"])
                 if name == "model":
                     collected.model_alias_overrides = dict(named_args)
                 if is_multi:

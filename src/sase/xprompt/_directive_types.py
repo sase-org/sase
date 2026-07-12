@@ -90,6 +90,8 @@ class PromptDirectives:
         wait: List of agent names to wait for via positional %wait arguments.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
+        wait_runners: Existing-runner threshold from the
+            %wait(runners=...) keyword.
         auto_mode: Auto-approval mode from ``%auto``/``%a``: ``"plan"``,
             ``"tale"``, ``"epic"``, or None when no auto-approval directive
             was present.
@@ -119,6 +121,7 @@ class PromptDirectives:
     wait: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
+    wait_runners: int | None = None
 
     def __post_init__(self) -> None:
         self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))

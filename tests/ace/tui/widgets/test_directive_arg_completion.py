@@ -92,6 +92,17 @@ def test_wait_arg_completion_ignores_time_keyword_fragment() -> None:
     assert shared == ""
 
 
+def test_wait_paren_arg_completion_suggests_runners_keyword() -> None:
+    candidates, shared = build_directive_arg_completion_candidates(
+        "wait",
+        "run",
+        agent_candidates=[agent_candidate("coder")],
+    )
+
+    assert [candidate.insertion for candidate in candidates] == ["runners="]
+    assert shared == ""
+
+
 def test_directive_arg_completion_builds_model_candidates_from_catalog() -> None:
     with patch(MODEL_CATALOG_PATCH, return_value=model_entries()):
         candidates, shared = build_directive_arg_completion_candidates("model", "")

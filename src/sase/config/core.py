@@ -89,6 +89,19 @@ def get_use_chezmoi() -> bool:
     return bool(data.get("use_chezmoi", False))
 
 
+def get_max_running_agents() -> int:
+    """Return the configured global limit for running user agents.
+
+    ``load_merged_config()`` provides the process cache and invalidates it when
+    a config source changes, so callers can poll this accessor without parsing
+    unchanged YAML on every call while still observing live config edits.
+    """
+    value = load_merged_config().get("max_running_agents", 10)
+    if type(value) is int and value >= 1:
+        return value
+    return 10
+
+
 def _deep_merge(
     base: dict[str, Any],
     override: dict[str, Any],

@@ -1136,6 +1136,12 @@
         }
       }
     },
+    "max_running_agents": {
+      "type": "integer",
+      "description": "Maximum number of root user agents that may be running concurrently across all projects.",
+      "minimum": 1,
+      "default": 10
+    },
     "timezone": {
       "type": "string",
       "description": "IANA timezone name governing all SASE wall-clock display and timestamp generation (e.g., 'America/New_York', 'US/Pacific'). Defaults to the system timezone when unset.",

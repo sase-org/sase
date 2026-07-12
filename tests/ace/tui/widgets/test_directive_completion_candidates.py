@@ -78,7 +78,7 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     )
     assert directive_metadata(name).argument_hint == ":agent or (parent, suffix)"
     assert directive_metadata(wait).description == (
-        "defer launch until agents complete or a time floor passes"
+        "defer launch for agents, a time floor, or a runner threshold"
     )
     assert directive_metadata(alt).description == (
         "split a prompt into variants; shorthand %{A | B}"
@@ -191,6 +191,16 @@ def test_model_paren_completion_offers_alias_keys_and_model_values() -> None:
     )
 
     assert "coder=" in {candidate.insertion for candidate in candidates}
+
+
+def test_wait_paren_completion_uses_keyword_aware_context() -> None:
+    line = "%wait(run"
+    assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+        len("%wait("),
+        len(line),
+        "wait",
+        "run",
+    )
 
 
 def test_model_paren_completion_replaces_kwarg_value_only() -> None:

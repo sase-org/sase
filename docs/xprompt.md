@@ -998,7 +998,7 @@ the prompt before further processing.
 | `%model`  | `%m`  | Override the LLM model for this prompt                           |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
 | `%name`   | `%n`  | Assign an agent name or attach a member to an existing family    |
-| `%wait`   | `%w`  | Wait for another agent/workflow and/or a time floor              |
+| `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold   |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display               |
 | `%auto`   | `%a`  | Auto-approve the submitted plan as plan (default), tale, or epic |
 | `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                |
@@ -1040,6 +1040,9 @@ Directives use the same argument syntax as xprompt references:
 %wait(time=1430)             # Wait until 14:30 today (wraps to tomorrow if past)
 %wait(time=260415/0900)      # Wait until 2026-04-15 at 09:00
 %wait(agent1, time=5m)       # Wait for agent1, then a 5-minute floor
+%wait(runners=3)             # Start when at most 3 agents are already running
+%wait(runners=0)             # Drain barrier: start after all running agents stop
+%wait(agent1, time=5m, runners=1) # Dependencies, then time floor, then runner gate
 #t:5m                        # Shorthand for %wait(time=5m)
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
@@ -1173,8 +1176,17 @@ For a pure time wait, `#t:<time>` is shorthand for `%wait(time=<time>)`.
 - **`yymmdd/HHMM`** — wait until a specific date and time (e.g., `%wait(time=260415/0900)` for 2026-04-15 at 09:00).
   Raises an error if the target is in the past.
 
-Agent dependencies and `time=` combine in one `%wait(...)` directive: dependencies wait first, then the time floor
-applies.
+Agent dependencies, `time=`, and `runners=` combine in one `%wait(...)` directive. Dependencies wait first, then the
+time floor applies, and the runner-slot gate is the final stage.
+
+The `runners=N` keyword is a per-prompt threshold: the agent starts only when at most `N` root user agents are already
+running. It overrides the configured `max_running_agents - 1` threshold for that launch, so it can either lower or raise
+the effective limit. `runners=0` is a drain barrier: the agent waits until no other root user agent is running, and
+later slot waiters queue behind it. Runner-slot admission is first-come-first-served among live waiters. The value must
+be a non-negative integer and may appear only once across a prompt's `%wait` directives.
+
+Without an explicit `runners=`, the global `max_running_agents` config limits concurrent root user agents (default
+`10`). Child agents, workflow Python/bash steps, and axe ChangeSpec runners do not consume these slots.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 
@@ -1534,11 +1546,11 @@ The `%wait` directive supports multiple occurrences — each adds to the wait li
 Do work after all three agents finish.
 ```
 
-Agent dependencies and time floors can be mixed freely:
+Agent dependencies, time floors, and runner thresholds can be mixed freely:
 
 ```
-%wait(agent1, time=5m)
-Wait for agent1 to finish, then wait at least 5 minutes from launch.
+%wait(agent1, time=5m, runners=1)
+Wait for agent1 to finish, wait at least 5 minutes from launch, then wait until at most one other root agent is running.
 ```
 
 ## Command Substitution

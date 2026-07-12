@@ -84,6 +84,16 @@ def _run_extract(
 
 
 class TestExtractDirectivesAutoDismiss:
+    def test_persists_wait_runners_metadata(self, tmp_path: Path) -> None:
+        result = _run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%wait(runners=0)\ndo stuff",
+        )
+
+        assert result["info"].wait_runners == 0
+        assert result["meta"]["wait_runners"] == 0
+
     def test_skips_auto_name_when_auto_dismiss(self, tmp_path: Path) -> None:
         """Auto-dismiss agents should not get an auto-assigned name."""
         result = _run_extract(tmp_path, env_auto_dismiss=True)

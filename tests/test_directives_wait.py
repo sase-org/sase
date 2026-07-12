@@ -214,6 +214,34 @@ def test_wait_time_keyword_combines_with_agent() -> None:
     assert directives.wait_duration == 300.0
 
 
+def test_wait_runners_keyword_sets_threshold() -> None:
+    cleaned, directives = extract_prompt_directives(
+        "%wait(agent_a, runners=0)\nDo work"
+    )
+
+    assert cleaned == "Do work"
+    assert directives.wait == ["agent_a"]
+    assert directives.wait_runners == 0
+
+
+@pytest.mark.parametrize("value", ["-1", "1.5", "many", ""])
+def test_wait_runners_keyword_rejects_non_negative_non_integer(value: str) -> None:
+    with pytest.raises(DirectiveError, match="non-negative integer"):
+        extract_prompt_directives(f"%wait(runners={value})\nDo work")
+
+
+def test_wait_runners_keyword_rejects_multiple_occurrences() -> None:
+    prompt = "%wait(runners=1)\n%wait(runners=2)\nDo work"
+    with pytest.raises(DirectiveError, match="Multiple %wait.*runners"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_runners_keyword_rejects_duplicate_in_one_directive() -> None:
+    prompt = "%wait(runners=1, runners=2)\nDo work"
+    with pytest.raises(DirectiveError, match="Duplicate keyword argument 'runners'"):
+        extract_prompt_directives(prompt)
+
+
 def test_wait_time_keyword_sets_wait_until() -> None:
     """%wait(time=1430) sets wait_until."""
     prompt = "%wait(time=1430)\nDo work"
@@ -245,7 +273,7 @@ def test_wait_time_keyword_repeated_durations_take_max() -> None:
 
 
 def test_wait_unknown_keyword_raises() -> None:
-    """Only time= is supported as a %wait keyword."""
+    """Only the documented keywords are supported on %wait."""
     prompt = "%wait(foo=bar)\nDo work"
     with pytest.raises(DirectiveError, match=r"Unsupported keyword on %wait: foo="):
         extract_prompt_directives(prompt)

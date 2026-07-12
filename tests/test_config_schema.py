@@ -46,6 +46,28 @@ def test_default_config_matches_public_schema() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_max_running_agents() -> None:
+    Draft7Validator(_schema()).validate({"max_running_agents": 1})
+    Draft7Validator(_schema()).validate({"max_running_agents": 25})
+
+
+def test_config_schema_rejects_max_running_agents_below_minimum() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate({"max_running_agents": 0})
+
+
+def test_get_max_running_agents_reads_merged_config(monkeypatch) -> None:
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "load_merged_config",
+        lambda: {"max_running_agents": 7},
+    )
+
+    assert config_core.get_max_running_agents() == 7
+
+
 def test_config_schema_accepts_xprompt_input_descriptions() -> None:
     schema = _schema()
     config = {

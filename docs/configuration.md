@@ -28,6 +28,7 @@ and CLI flags.
   - [xprompt_aliases](#xprompt_aliases)
   - [use_chezmoi](#use_chezmoi)
   - [commit_hooks](#commit_hooks)
+  - [max_running_agents](#max_running_agents)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
   - [mobile_gateway](#mobile_gateway)
@@ -1004,6 +1005,20 @@ again, so `after` commands must be safe to repeat.
 
 Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.py`,
 `src/sase/workflows/commit/workflow.py`
+
+### max_running_agents
+
+The global cap on concurrently running root user agents across all projects. Agents that reach the runner-slot gate
+after the cap is full remain in the standard `WAITING` state until admitted. Child agents, workflow Python/bash steps,
+and axe ChangeSpec runners are excluded; axe runners continue to use their separate `axe.max_*_runners` limits.
+
+```yaml
+max_running_agents: 10
+```
+
+| Field                | Type | Default | Minimum | Description                                                 |
+| -------------------- | ---- | ------- | ------- | ----------------------------------------------------------- |
+| `max_running_agents` | int  | `10`    | `1`     | Maximum concurrently running root user agents on this host. |
 
 ### timezone
 

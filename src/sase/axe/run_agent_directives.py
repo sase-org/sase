@@ -17,6 +17,7 @@ class AgentInfo(NamedTuple):
     wait_identity_deps: list[dict[str, str]]
     wait_duration: float | None
     wait_until: str | None
+    wait_runners: int | None
     model: str | None
     llm_provider: str | None
     vcs_provider: str | None
@@ -265,6 +266,8 @@ def extract_directives_and_write_meta(
             agent_meta["wait_duration"] = directives.wait_duration
         if directives.wait_until is not None:
             agent_meta["wait_until"] = directives.wait_until
+        if directives.wait_runners is not None:
+            agent_meta["wait_runners"] = directives.wait_runners
         if agent_model:
             agent_meta["model"] = agent_model
         if agent_llm_provider:
@@ -372,6 +375,7 @@ def extract_directives_and_write_meta(
         wait_identity_deps=wait_identity_deps,
         wait_duration=directives.wait_duration,
         wait_until=directives.wait_until,
+        wait_runners=directives.wait_runners,
         model=agent_model,
         llm_provider=agent_llm_provider,
         vcs_provider=agent_vcs_provider,

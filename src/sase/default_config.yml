@@ -15,6 +15,10 @@ default_linked_repos: true
 # every launched agent needs the repository materialized in its workspace.
 linked_repos: []
 
+# Maximum number of root user agents that may run concurrently across all
+# projects. Axe ChangeSpec runners use their separate axe.max_* limits.
+max_running_agents: 10
+
 agent_family:
   plan_approval:
     # Per-project sticky defaults for custom members shown in the plan

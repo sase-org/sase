@@ -55,7 +55,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "name": ":agent or (parent, suffix)",
     "repeat": ":count",
     "group": ":tag",
-    "wait": ":agent or (agent, time=5m)",
+    "wait": ":agent or (agent, time=5m, runners=1)",
 }
 
 
@@ -68,7 +68,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "name": "assign an agent name or attach a member to an existing family",
     "repeat": "run the prompt multiple serial iterations",
     "group": "assign a user-managed agent tag",
-    "wait": "defer launch until agents complete or a time floor passes",
+    "wait": "defer launch for agents, a time floor, or a runner threshold",
 }
 
 _EFFORT_ARGUMENT_DESCRIPTIONS: dict[str, str] = {
@@ -96,6 +96,11 @@ _DIRECTIVE_ARGUMENT_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "effort": _EFFORT_ARGUMENT_DESCRIPTIONS,
     "auto": _AUTO_ARGUMENT_DESCRIPTIONS,
 }
+
+_WAIT_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
+    ("runners=", "start when at most this many agents are already running"),
+    ("time=", "start after a duration or absolute wall-clock time"),
+)
 
 
 def is_directive_like_token(token: str) -> bool:
@@ -260,7 +265,7 @@ def build_directive_arg_completion_candidates(
     if canonical == "model":
         return _build_model_arg_completion_candidates(partial)
     if canonical == "wait":
-        return build_agent_arg_completion_candidates(partial, agent_candidates)
+        return _build_wait_arg_completion_candidates(partial, agent_candidates)
 
     values = _DIRECTIVE_ARGUMENT_VALUES.get(canonical)
     if values is None:
@@ -326,6 +331,39 @@ def build_agent_arg_completion_candidates(
         if len(shared_prefix) > len(partial):
             shared_extension = shared_prefix[len(partial) :]
 
+    return candidates, shared_extension
+
+
+def _build_wait_arg_completion_candidates(
+    partial: str,
+    agent_candidates: Sequence[AgentCompletionCandidate] | None,
+) -> tuple[list[CompletionCandidate], str]:
+    """Build agent-name and keyword candidates for ``%wait`` arguments."""
+    agents, _ = build_agent_arg_completion_candidates(partial, agent_candidates)
+    partial_lower = partial.lower()
+    keywords = [
+        CompletionCandidate(
+            display=value,
+            insertion=value,
+            is_dir=False,
+            name=value[:-1],
+            metadata=DirectiveArgCompletionMetadata(
+                directive_name="wait",
+                description=description,
+            ),
+        )
+        for value, description in _WAIT_KEYWORD_ARGUMENTS
+        if value.lower().startswith(partial_lower)
+    ]
+    candidates = [*keywords, *agents]
+
+    shared_extension = ""
+    if len(candidates) > 1:
+        shared_prefix = os.path.commonprefix(
+            [candidate.insertion for candidate in candidates]
+        )
+        if len(shared_prefix) > len(partial):
+            shared_extension = shared_prefix[len(partial) :]
     return candidates, shared_extension
 
 

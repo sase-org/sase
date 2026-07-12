@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -77,6 +78,21 @@ def resolve_wait_time_args(
             f"Use %wait:{raw_arg} to wait for an agent."
         )
     return wait_duration, wait_until
+
+
+def resolve_wait_runners_args(wait_runners_args: list[str]) -> int | None:
+    """Resolve and validate the optional ``%wait(runners=...)`` threshold."""
+    if not wait_runners_args:
+        return None
+    if len(wait_runners_args) > 1:
+        raise DirectiveError("Multiple %wait(runners=...) values are not allowed")
+
+    raw_arg = wait_runners_args[0]
+    if re.fullmatch(r"[0-9]+", raw_arg) is None:
+        raise DirectiveError(
+            "'%wait(runners=...)' requires a non-negative integer argument"
+        )
+    return int(raw_arg)
 
 
 def normalize_model_directive(
