@@ -374,11 +374,8 @@ def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
             record = read_sdd_store_record(primary)
             if record is None or not record.is_companion_storage:
                 continue
-            for companion in (record.plans, record.research):
-                if companion is None:
-                    continue
-                name = companion.repo.rstrip("/").rsplit("/", 1)[-1]
-                clone = Path(companion_repo_clone_dir(project_path, name))
+            for kind in ("plans", "research"):
+                clone = Path(companion_repo_clone_dir(project_path, kind))
                 if (clone / ".git").exists():
                     return True
     except Exception:

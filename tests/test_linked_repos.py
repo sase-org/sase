@@ -17,7 +17,6 @@ from sase.linked_repos import (
     apply_linked_repo_env,
     clear_linked_repo_clones,
     companion_repo_clone_dir,
-    is_sdd_companion_repo,
     linked_repo_clone_dir,
     linked_repo_metadata_from_env,
     materialize_linked_repo_workspace,
@@ -25,6 +24,7 @@ from sase.linked_repos import (
     opened_linked_repo_records,
     record_opened_linked_repo,
     resolve_linked_repos_for_project,
+    sdd_companion_clone_dirname,
     scrub_linked_repo_env,
 )
 
@@ -130,8 +130,8 @@ def test_managed_project_injects_default_companions(tmp_path: Path) -> None:
         ("sase--research", False),
     ]
     assert [Path(repo.workspace_dir) for repo in resolution.repos] == [
-        tmp_path / "sase_4" / "sase" / "repos" / "sase--plans",
-        tmp_path / "sase_4" / "sase" / "repos" / "sase--research",
+        tmp_path / "sase_4" / "sase" / "repos" / "plans",
+        tmp_path / "sase_4" / "sase" / "repos" / "research",
     ]
 
 
@@ -434,18 +434,18 @@ def test_clone_path_helpers_split_linked_and_companion_namespaces(
     assert linked_repo_clone_dir(host, "core") == str(
         (host / "sase" / "repos" / "linked" / "core").resolve()
     )
-    assert companion_repo_clone_dir(host, "main--plans") == str(
-        (host / "sase" / "repos" / "main--plans").resolve()
+    assert companion_repo_clone_dir(host, "plans") == str(
+        (host / "sase" / "repos" / "plans").resolve()
     )
 
 
-def test_companion_classifier_uses_defaults_and_store_record(tmp_path: Path) -> None:
+def test_companion_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     primary = tmp_path / "main"
     primary.mkdir()
 
-    assert is_sdd_companion_repo(primary, "main--plans")
-    assert is_sdd_companion_repo(primary, "main--research")
-    assert not is_sdd_companion_repo(primary, "core")
+    assert sdd_companion_clone_dirname(primary, "main--plans") == "plans"
+    assert sdd_companion_clone_dirname(primary, "main--research") == "research"
+    assert sdd_companion_clone_dirname(primary, "core") is None
 
     from sase.sdd.store import write_sdd_store_record
 
@@ -467,9 +467,9 @@ def test_companion_classifier_uses_defaults_and_store_record(tmp_path: Path) -> 
         },
     )
 
-    assert is_sdd_companion_repo(primary, "custom-plans")
-    assert is_sdd_companion_repo(primary, "custom-research")
-    assert not is_sdd_companion_repo(primary, "main--plans")
+    assert sdd_companion_clone_dirname(primary, "custom-plans") == "plans"
+    assert sdd_companion_clone_dirname(primary, "custom-research") == "research"
+    assert sdd_companion_clone_dirname(primary, "main--plans") is None
 
 
 def test_clear_linked_repo_clones_stashes_directories_and_removes_strays(

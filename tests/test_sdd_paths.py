@@ -216,8 +216,8 @@ def test_get_yyyymm_january() -> None:
 def test_agent_env_exports_all_companion_kind_roots(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    plans = tmp_path / "sase" / "repos" / "repo--plans"
-    research = tmp_path / "sase" / "repos" / "repo--research"
+    plans = tmp_path / "sase" / "repos" / "plans"
+    research = tmp_path / "sase" / "repos" / "research"
     store = SddStore(
         "companion_repos",
         plans,

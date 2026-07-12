@@ -251,15 +251,15 @@ def _write_companion_sdd_record(primary: Path) -> tuple[Path, Path]:
         },
     )
     repos = primary / "sase" / "repos"
-    plans = repos / "widget--plans"
+    plans = repos / "plans"
     (plans / "beads").mkdir(parents=True)
-    return plans, repos / "widget--research"
+    return plans, repos / "research"
 
 
 def _write_regressed_split_clones(primary: Path) -> tuple[Path, Path]:
     repos = primary / "sase" / "repos"
-    plans = repos / f"{primary.name}--plans"
-    research = repos / f"{primary.name}--research"
+    plans = repos / "plans"
+    research = repos / "research"
     (plans / ".git").mkdir(parents=True)
     (plans / "beads").mkdir()
     (research / ".git").mkdir(parents=True)

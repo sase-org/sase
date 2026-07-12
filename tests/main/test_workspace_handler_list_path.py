@@ -160,7 +160,7 @@ class TestPath:
         )
 
         assert path == str(
-            (tmp_path / "main_10" / "sase" / "repos" / "main--plans").resolve()
+            (tmp_path / "main_10" / "sase" / "repos" / "plans").resolve()
         )
 
     def test_linked_repo_numbered_path_requires_host_context(

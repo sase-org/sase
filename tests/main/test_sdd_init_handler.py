@@ -40,8 +40,8 @@ def _local_store(project: Path) -> SddStore:
 
 
 def _split_store(project: Path) -> SddStore:
-    plans = project / "sase" / "repos" / "widget--plans"
-    research = project / "sase" / "repos" / "widget--research"
+    plans = project / "sase" / "repos" / "plans"
+    research = project / "sase" / "repos" / "research"
     return SddStore(
         storage="companion_repos",
         sdd_dir=plans,

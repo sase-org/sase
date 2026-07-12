@@ -273,8 +273,8 @@ def test_split_sdd_store_auto_commit_routes_all_companions(
 ) -> None:
     from sase.sdd.store import SddStore, write_sdd_store_record
 
-    plans = tmp_path / "sase" / "repos" / "project--plans"
-    research = tmp_path / "sase" / "repos" / "project--research"
+    plans = tmp_path / "sase" / "repos" / "plans"
+    research = tmp_path / "sase" / "repos" / "research"
     (plans / ".git").mkdir(parents=True)
     (research / ".git").mkdir(parents=True)
     write_sdd_store_record(

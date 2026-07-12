@@ -26,14 +26,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: sase-org/sase--plans
-          path: sase/repos/sase--plans
+          path: sase/repos/plans
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           persist-credentials: false
       - name: Check out research companion
         uses: actions/checkout@v4
         with:
           repository: sase-org/sase--research
-          path: sase/repos/sase--research
+          path: sase/repos/research
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           persist-credentials: false
       - name: Record split SDD companion store

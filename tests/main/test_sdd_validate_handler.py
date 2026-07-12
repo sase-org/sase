@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.main.sdd_handler import handle_sdd_command
+from sase.sdd.links import validate_sdd_tree
 from tests.main.sdd_handler_helpers import (
     make_args,
     mark_tmp_path_as_project,
@@ -17,6 +18,16 @@ from tests.main.sdd_handler_helpers import (
 __all__ = ["mark_tmp_path_as_project"]
 
 pytestmark = pytest.mark.usefixtures("mark_tmp_path_as_project")
+
+
+def test_validate_accepts_empty_companion_clone_root(tmp_path: Path) -> None:
+    root = tmp_path / "sase" / "repos" / "plans"
+    (root / ".git").mkdir(parents=True)
+
+    validation = validate_sdd_tree(str(root))
+
+    assert validation.ok
+    assert validation.root == root.resolve()
 
 
 def test_validate_allows_default_unpaired_warnings(

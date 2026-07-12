@@ -14,12 +14,12 @@ and `SASE_SDD_BEADS_DIR`.
 
 ## Resolved Layouts
 
-| Resolved layout   | Plans root                             | Meaning                                                                                  |
-| ----------------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `in_tree`         | `{workspace}/sdd`                      | The code repository. Built-in bare-git projects use this provider policy.                |
-| `separate_repo`   | `{workspace}/.sase/sdd`                | One provider companion. This is GitHub's declared policy and the recorded legacy layout. |
-| `companion_repos` | `{workspace}/sase/repos/<repo>--plans` | A recorded two-repository layout created by managed GitHub initialization.               |
-| `local`           | `{primary}/.sase/sdd`                  | A primary-workspace fallback for providerless projects or providers with no SDD policy.  |
+| Resolved layout   | Plans root                     | Meaning                                                                                  |
+| ----------------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| `in_tree`         | `{workspace}/sdd`              | The code repository. Built-in bare-git projects use this provider policy.                |
+| `separate_repo`   | `{workspace}/.sase/sdd`        | One provider companion. This is GitHub's declared policy and the recorded legacy layout. |
+| `companion_repos` | `{workspace}/sase/repos/plans` | A recorded two-repository layout created by managed GitHub initialization.               |
+| `local`           | `{primary}/.sase/sdd`          | A primary-workspace fallback for providerless projects or providers with no SDD policy.  |
 
 Provider policy and resolved layout are related but different. A GitHub provider declares `separate_repo`; explicit
 initialization resolves that requirement into two companions and records `companion_repos`. The latter is a materialized
@@ -39,11 +39,11 @@ unchanged.
 The plans companion keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`) with `beads/`
 beside them. The research companion likewise keeps `<YYYYMM>/` directories at its root. Kind resolution is therefore:
 
-| Kind       | Migrated path                                |
-| ---------- | -------------------------------------------- |
-| `plans`    | `<workspace>/sase/repos/<repo>--plans`       |
-| `beads`    | `<workspace>/sase/repos/<repo>--plans/beads` |
-| `research` | `<workspace>/sase/repos/<repo>--research`    |
+| Kind       | Migrated path                        |
+| ---------- | ------------------------------------ |
+| `plans`    | `<workspace>/sase/repos/plans`       |
+| `beads`    | `<workspace>/sase/repos/plans/beads` |
+| `research` | `<workspace>/sase/repos/research`    |
 
 Initialization clones, initializes, and pushes both repositories in the workspace where it runs. After that, normal
 workspace preparation automatically clones and synchronizes plans; a newly prepared workspace does not clone research

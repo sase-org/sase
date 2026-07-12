@@ -252,8 +252,8 @@ mode behavior.
 
 SDD artifact placement follows provider policy. With `in_tree`, bead commands use the current checkout's `sdd/beads/`
 store. With `separate_repo`, commands first require a usable provider companion and then use the active workspace's
-`.sase/sdd/` clone. With `companion_repos`, each workspace auto-clones `--plans` under `sase/repos/` for plans and
-beads. Initialization also prepares `--research` in its current workspace; other workspaces clone it when explicitly
-ensured. Providerless local storage uses the primary workspace. Numbered sibling stores are not merged; coordinate
-shared state through the normal VCS sync path. Prefer `sase sdd path <kind>` or the `SASE_SDD_*_DIR` variables over
-hard-coded relative paths.
+`.sase/sdd/` clone. With `companion_repos`, each workspace auto-clones `--plans` at `sase/repos/plans` for plans and
+beads. Initialization also prepares `--research` at `sase/repos/research` in its current workspace; other workspaces
+clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered sibling stores are not
+merged; coordinate shared state through the normal VCS sync path. Prefer `sase sdd path <kind>` or the `SASE_SDD_*_DIR`
+variables over hard-coded relative paths.

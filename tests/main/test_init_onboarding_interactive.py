@@ -250,8 +250,8 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
         creation_authorized: dict[str, bool] | None = None,
     ) -> SimpleNamespace:
         authorizations.append(creation_authorized)
-        plans = tmp_path / "sase" / "repos" / "widget--plans"
-        research = tmp_path / "sase" / "repos" / "widget--research"
+        plans = tmp_path / "sase" / "repos" / "plans"
+        research = tmp_path / "sase" / "repos" / "research"
         store = SddStore(
             "companion_repos",
             plans,

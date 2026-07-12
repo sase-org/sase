@@ -401,26 +401,11 @@ def _split_companion_provider_setup_needed(project_root: Path) -> bool:
 
 def _split_companion_roots(project_root: Path) -> dict[str, Path]:
     from sase.linked_repos import companion_repo_clone_dir
-    from sase.sdd._paths import get_primary_workspace_dir
-    from sase.sdd.store import read_sdd_store_record
 
-    primary = Path(get_primary_workspace_dir(str(project_root), 1))
-    record = read_sdd_store_record(primary)
-    project_name = primary.name
-    roots: dict[str, Path] = {}
-    for kind in ("plans", "research"):
-        companion = (
-            record.companion_for_kind(kind)
-            if record is not None and record.is_companion_storage
-            else None
-        )
-        repo_name = (
-            companion.repo.rsplit("/", 1)[-1]
-            if companion is not None
-            else f"{project_name}--{kind}"
-        )
-        roots[kind] = Path(companion_repo_clone_dir(project_root, repo_name))
-    return roots
+    return {
+        kind: Path(companion_repo_clone_dir(project_root, kind))
+        for kind in ("plans", "research")
+    }
 
 
 def _plan_split_companion_repo_actions(

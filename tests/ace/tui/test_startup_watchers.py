@@ -84,7 +84,7 @@ def test_artifact_watcher_targets_plans_companion_beads_dir(
             },
         },
     )
-    beads_dir = tmp_path / "sase" / "repos" / "project--plans" / "beads"
+    beads_dir = tmp_path / "sase" / "repos" / "plans" / "beads"
     beads_dir.mkdir(parents=True)
     captured_paths: list[Path] = []
 

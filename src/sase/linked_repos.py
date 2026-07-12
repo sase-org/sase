@@ -87,7 +87,6 @@ __all__ = [
     "clear_linked_repo_clones",
     "companion_repo_clone_dir",
     "is_legacy_static_linked_repo_record",
-    "is_sdd_companion_repo",
     "linked_repo_clone_dir",
     "linked_repo_metadata_from_env",
     "materialize_linked_repo_workspace",
@@ -96,6 +95,7 @@ __all__ = [
     "opened_linked_repo_workspace_dirs",
     "record_opened_linked_repo",
     "resolve_linked_repos_for_project",
+    "sdd_companion_clone_dirname",
     "scrub_linked_repo_env",
 ]
 
@@ -225,11 +225,11 @@ def linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
     )
 
 
-def companion_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
-    """Return the durable host-scoped clone path for SDD companion *name*."""
+def companion_repo_clone_dir(host_checkout: str | Path, dirname: str) -> str:
+    """Return the durable host-scoped clone path for SDD companion *dirname*."""
 
     return normalize_path(
-        str(Path(host_checkout).joinpath(*COMPANION_REPO_CLONES_SUBDIR, name))
+        str(Path(host_checkout).joinpath(*COMPANION_REPO_CLONES_SUBDIR, dirname))
     )
 
 
@@ -237,33 +237,38 @@ def _repo_basename(repo: str) -> str:
     return repo.rstrip("/").rsplit("/", 1)[-1]
 
 
-def _sdd_companion_repo_names(primary_workspace_dir: str | Path) -> frozenset[str]:
-    """Return authoritative SDD companion basenames for a host project."""
+def _sdd_companion_repo_dirnames(
+    primary_workspace_dir: str | Path,
+) -> dict[str, str]:
+    """Map authoritative SDD companion basenames to clone directory names."""
 
     from sase.sdd.store import read_sdd_store_record
 
     primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
     record = read_sdd_store_record(primary)
     if record is not None:
-        return frozenset(
-            _repo_basename(companion.repo)
-            for companion in (record.plans, record.research)
-            if companion is not None
-        )
+        return {
+            _repo_basename(companion.repo): kind
+            for kind in ("plans", "research")
+            if (companion := record.companion_for_kind(kind)) is not None
+        }
 
     project_name = primary.name
     if not project_name:
-        return frozenset()
-    return frozenset({f"{project_name}--plans", f"{project_name}--research"})
+        return {}
+    return {
+        f"{project_name}--plans": "plans",
+        f"{project_name}--research": "research",
+    }
 
 
-def is_sdd_companion_repo(
+def sdd_companion_clone_dirname(
     primary_workspace_dir: str | Path,
     name: str,
-) -> bool:
-    """Return whether *name* is an SDD companion of the host project."""
+) -> str | None:
+    """Return the clone dirname for companion entry *name*, if it is one."""
 
-    return name in _sdd_companion_repo_names(primary_workspace_dir)
+    return _sdd_companion_repo_dirnames(primary_workspace_dir).get(name)
 
 
 def _linked_repo_cache_dir(host_checkout: str | Path, name: str) -> Path:
@@ -362,9 +367,10 @@ def _resolve_workspace_dir(
         .resolve(workspace_num)
         .checkout_dir.rstrip("/")
     )
+    companion_dirname = sdd_companion_clone_dirname(host_primary_dir, name)
     target = (
-        companion_repo_clone_dir(host_workspace_dir, name)
-        if is_sdd_companion_repo(host_primary_dir, name)
+        companion_repo_clone_dir(host_workspace_dir, companion_dirname)
+        if companion_dirname is not None
         else linked_repo_clone_dir(host_workspace_dir, name)
     )
     if not materialize:

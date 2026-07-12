@@ -126,8 +126,10 @@ def initialize_split_sdd_companions(
             if result.created:
                 created.add(kind)
 
-        plans_root = _companion_clone_dir(workspace, companions["plans"].repo)
-        research_root = _companion_clone_dir(workspace, companions["research"].repo)
+        from sase.linked_repos import companion_repo_clone_dir
+
+        plans_root = Path(companion_repo_clone_dir(workspace, "plans"))
+        research_root = Path(companion_repo_clone_dir(workspace, "research"))
         for kind, root in (("plans", plans_root), ("research", research_root)):
             ensure_companion_sdd_clone(root, companions[kind].remote_url, strict=True)
             generated = list(ensure_sdd_companion_initialized(kind, root))
@@ -233,13 +235,6 @@ def _provider_options(workspace_num: int, kind: str) -> dict[str, object]:
         "sdd_companion_suffix": kind,
         "workspace_num": workspace_num,
     }
-
-
-def _companion_clone_dir(workspace: Path, repo: str) -> Path:
-    from sase.linked_repos import companion_repo_clone_dir
-
-    name = repo.rstrip("/").rsplit("/", 1)[-1]
-    return Path(companion_repo_clone_dir(workspace, name))
 
 
 def _push_companion(root: Path) -> None:

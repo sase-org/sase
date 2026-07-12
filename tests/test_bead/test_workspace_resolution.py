@@ -96,7 +96,7 @@ def test_canonical_project_beads_dir_uses_plans_companion(
             },
         },
     )
-    beads = primary / "sase" / "repos" / "project--plans" / "beads"
+    beads = primary / "sase" / "repos" / "plans" / "beads"
     beads.mkdir(parents=True)
 
     assert _canonical_project_beads_dir(primary) == beads

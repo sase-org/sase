@@ -5,6 +5,7 @@ import shutil
 
 import pytest
 
+from sase.sdd._store_link import ensure_companion_sdd_clone
 from sase.sdd.store import (
     _write_sdd_store_record,
     ensure_sdd_kind_clone,
@@ -87,8 +88,8 @@ def test_ensure_workspace_sdd_clone_syncs_plans_companion_only(
 
     ensure_workspace_sdd_clone(workspace, 2, strict=True)
 
-    plans = workspace / "sase" / "repos" / "repo--plans"
-    research = workspace / "sase" / "repos" / "repo--research"
+    plans = workspace / "sase" / "repos" / "plans"
+    research = workspace / "sase" / "repos" / "research"
     assert (plans / "202607" / "feature.md").read_text(encoding="utf-8") == "# Plan\n"
     assert git(["remote", "get-url", "origin"], plans).stdout.strip() == str(
         plans_remote
@@ -97,6 +98,31 @@ def test_ensure_workspace_sdd_clone_syncs_plans_companion_only(
 
     assert ensure_sdd_kind_clone(workspace, 2, "research", strict=True) == research
     assert (research / ".git").is_dir()
+
+
+def test_moved_companion_clone_with_matching_remote_is_accepted(
+    tmp_path: Path,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    old_clone = tmp_path / "repo--plans"
+    moved_clone = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    commit_all(seed, "Initialize plans")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, old_clone)
+    old_clone.rename(moved_clone)
+    (moved_clone / "local-untracked.md").write_text("keep\n", encoding="utf-8")
+
+    ensure_companion_sdd_clone(moved_clone, str(remote), strict=True)
+
+    assert not old_clone.exists()
+    assert (moved_clone / "local-untracked.md").read_text(encoding="utf-8") == "keep\n"
+    assert git(["remote", "get-url", "origin"], moved_clone).stdout.strip() == str(
+        remote
+    )
 
 
 def test_ensure_workspace_sdd_clone_in_tree_noop(

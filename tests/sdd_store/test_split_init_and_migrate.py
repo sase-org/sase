@@ -96,7 +96,7 @@ def test_split_init_creates_both_repos_before_writing_record(
     monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
     monkeypatch.setattr(
         "sase.linked_repos.companion_repo_clone_dir",
-        lambda _workspace, name: str(clones[name.rsplit("--", 1)[-1]]),
+        lambda _workspace, kind: str(clones[kind]),
     )
 
     outcome = initialize_split_sdd_companions(
@@ -167,8 +167,8 @@ def test_migration_dry_run_rewrites_links_and_apply_is_rerunnable(
     )
     write_sdd_store_record(project, record)
     monkeypatch.setattr(
-        "sase.sdd.migrate._companion_clone_dir",
-        lambda _workspace, repo: roots[repo.rsplit("--", 1)[-1]],
+        "sase.linked_repos.companion_repo_clone_dir",
+        lambda _workspace, kind: str(roots[kind]),
     )
     monkeypatch.setattr(
         "sase.sdd.store.ensure_sdd_kind_clone",

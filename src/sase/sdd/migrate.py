@@ -62,8 +62,10 @@ def plan_split_sdd_migration(
     if record.plans is None or record.research is None:
         raise SddMaterializationError("split SDD companion record is incomplete")
 
-    plans_root = _companion_clone_dir(workspace, record.plans.repo)
-    research_root = _companion_clone_dir(workspace, record.research.repo)
+    from sase.linked_repos import companion_repo_clone_dir
+
+    plans_root = Path(companion_repo_clone_dir(workspace, "plans"))
+    research_root = Path(companion_repo_clone_dir(workspace, "research"))
     legacy_root = _find_legacy_root(primary, workspace)
     if legacy_root is None:
         return _SddMigrationPlan(primary, None, plans_root, research_root, record, ())
@@ -249,14 +251,6 @@ def _find_legacy_root(primary: Path, workspace: Path) -> Path | None:
         if candidate.is_dir():
             return candidate
     return None
-
-
-def _companion_clone_dir(workspace: Path, repo: str) -> Path:
-    from sase.linked_repos import companion_repo_clone_dir
-
-    return Path(
-        companion_repo_clone_dir(workspace, repo.rstrip("/").rsplit("/", 1)[-1])
-    )
 
 
 def _push_companion(root: Path) -> None:

@@ -254,10 +254,10 @@ Configured linked repositories for a numbered checkout are cloned beneath that h
 `sase/repos/linked/<linked_repo>`. Before every agent or workflow launch, SASE clears that launch-visible directory by
 renaming existing clones into the internal `sase/repos/.linked-cache/`; an audited `sase workspace open` or automatic
 clone restores the cached checkout and then prepares it against the current default revision. SDD companion clones
-remain durable at `sase/repos/<companion_repo>`. SASE protects the whole tree immediately with the per-clone
-`/sase/repos/` exclude rule; run `sase init workspace` to add the same rule durably to the tracked root `.gitignore`.
-Use `--check` to report drift, `--diff` to preview it, or `--no-commit` to write the rule without the normal project
-commit/push sequence.
+remain durable at `sase/repos/plans` and `sase/repos/research`. SASE protects the whole tree immediately with the
+per-clone `/sase/repos/` exclude rule; run `sase init workspace` to add the same rule durably to the tracked root
+`.gitignore`. Use `--check` to report drift, `--diff` to preview it, or `--no-commit` to write the rule without the
+normal project commit/push sequence.
 
 ### Registry
 

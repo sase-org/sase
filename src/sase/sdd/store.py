@@ -132,8 +132,10 @@ def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore
     if storage == SDD_STORAGE_COMPANION_REPOS:
         assert record is not None and record.plans is not None
         assert record.research is not None
-        plans_dir = _companion_clone_dir(workspace_dir, record.plans.repo)
-        research_dir = _companion_clone_dir(workspace_dir, record.research.repo)
+        from sase.linked_repos import companion_repo_clone_dir
+
+        plans_dir = Path(companion_repo_clone_dir(workspace_dir, "plans"))
+        research_dir = Path(companion_repo_clone_dir(workspace_dir, "research"))
         return SddStore(
             storage=storage,
             sdd_dir=plans_dir,
@@ -174,7 +176,9 @@ def materialized_sdd_clone(
     if record.is_companion_storage:
         if record.plans is None:
             return None
-        clone = _companion_clone_dir(primary, record.plans.repo)
+        from sase.linked_repos import companion_repo_clone_dir
+
+        clone = Path(companion_repo_clone_dir(primary, "plans"))
         store = resolve_sdd_store(primary, 1)
         from sase.sdd._store_link import is_matching_store_clone
 
@@ -473,13 +477,6 @@ def _sdd_dir_for_storage(
         return workspace / ".sase" / "sdd"
     primary = get_primary_workspace_dir(str(workspace), workspace_num)
     return Path(primary) / ".sase" / "sdd"
-
-
-def _companion_clone_dir(workspace_dir: str | Path, repo: str) -> Path:
-    from sase.linked_repos import companion_repo_clone_dir
-
-    name = repo.rstrip("/").rsplit("/", 1)[-1]
-    return Path(companion_repo_clone_dir(workspace_dir, name))
 
 
 def _is_companion_record(record: SddStoreRecord | None) -> bool:

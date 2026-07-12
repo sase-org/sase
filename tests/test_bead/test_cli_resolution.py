@@ -73,7 +73,7 @@ def test_find_beads_location_companion_store_uses_plans_clone(
             },
         },
     )
-    plans = workspace_2 / "sase" / "repos" / "project--plans"
+    plans = workspace_2 / "sase" / "repos" / "plans"
     (plans / "beads").mkdir(parents=True)
     monkeypatch.chdir(workspace_2)
 

@@ -119,8 +119,8 @@ Normal bead commands read and write one store for the active checkout. In in-tre
 the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. Providerless local commands route
 to the primary workspace's `.sase/sdd/beads/` store. Companion-policy commands first materialize the provider store,
 then route to the active workspace clone so an agent in workspace `#N` writes either its matching `.sase/sdd/` checkout
-or its `sase/repos/<repo>--plans/beads/` directory. If the event store is absent, reads fall back to legacy
-`issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into normal `sase bead` reads.
+or its `sase/repos/plans/beads/` directory. If the event store is absent, reads fall back to legacy `issues.jsonl`.
+Numbered sibling workspaces and legacy stores are not merged into normal `sase bead` reads.
 
 ### Event Log + Compatibility Projections
 

@@ -303,9 +303,8 @@ def _regressed_split_companion_paths(primary: Path) -> tuple[Path, Path] | None:
 
     from sase.linked_repos import companion_repo_clone_dir
 
-    repo_name = primary.name
-    plans = Path(companion_repo_clone_dir(primary, f"{repo_name}--plans"))
-    research = Path(companion_repo_clone_dir(primary, f"{repo_name}--research"))
+    plans = Path(companion_repo_clone_dir(primary, "plans"))
+    research = Path(companion_repo_clone_dir(primary, "research"))
     if (plans / "beads").is_dir() and research.is_dir():
         return plans, research
     return None

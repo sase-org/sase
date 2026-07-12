@@ -576,9 +576,10 @@ Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher wor
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
 workflow launch preparation clears that directory into an internal `<host_workspace>/sase/repos/.linked-cache/` so
 normal linked repos are only restored through audited `sase workspace open` or `auto_clone` materialization. SDD
-companion repos remain durable at `<host_workspace>/sase/repos/<companion_repo>`. `sase init workspace` manages the
-tracked `/sase/repos/` ignore rule, while SASE also installs the rule in `.git/info/exclude` before materialization.
-SASE passes resolved metadata for all entries and exports per-repository paths only for materialized entries:
+companion repos remain durable at `<host_workspace>/sase/repos/plans` and `<host_workspace>/sase/repos/research`.
+`sase init workspace` manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in
+`.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and exports per-repository
+paths only for materialized entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |
@@ -1106,11 +1107,11 @@ sdd:
 | `sdd.push_after_commit` | bool or str | `async` | Controls `git push` after SDD commits in companion repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Newly initialized
-managed GitHub projects use `--plans` and `--research` companion clones under `sase/repos/`; unmigrated GitHub projects
-retain their provider-backed `.sase/sdd/` clone. Both layouts record materialization metadata in the primary workspace's
-`.sase/sdd-store.json`. Providerless projects fall back to a primary-workspace `.sase/sdd/` store. The retired
-`sdd.storage` and `sdd.version_controlled` keys are ignored, stripped before validation, and reported by `sase doctor`
-for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
+managed GitHub projects use `--plans` and `--research` companion repositories cloned at `sase/repos/plans` and
+`sase/repos/research`; unmigrated GitHub projects retain their provider-backed `.sase/sdd/` clone. Both layouts record
+materialization metadata in the primary workspace's `.sase/sdd-store.json`. Providerless projects fall back to a
+primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and `sdd.version_controlled` keys are ignored, stripped
+before validation, and reported by `sase doctor` for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
 
 Newly initialized managed GitHub projects and migrated projects have a schema-version 2 `companion_repos` record. Their
 plans and beads resolve into the auto-cloned `--plans` repository, while research resolves into the separate

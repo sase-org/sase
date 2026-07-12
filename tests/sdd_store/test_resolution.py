@@ -116,8 +116,8 @@ def test_companion_record_round_trips_and_routes_kind_roots(
 
     assert read_sdd_store_record(primary) == written
     store = resolve_sdd_store(workspace, 2)
-    plans = workspace / "sase" / "repos" / "repo--plans"
-    research = workspace / "sase" / "repos" / "repo--research"
+    plans = workspace / "sase" / "repos" / "plans"
+    research = workspace / "sase" / "repos" / "research"
     assert store.is_companion_storage
     assert store.sdd_dir == plans
     assert store.repo_root == plans
