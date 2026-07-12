@@ -17,6 +17,7 @@ from sase.sdd.files import (
     find_sdd_file,
     get_primary_workspace_dir,
     get_yyyymm,
+    is_sdd_internal_path,
     _resolve_sdd_asset_path,
     _resolve_sdd_readme_path,
 )
@@ -195,6 +196,43 @@ def test_sdd_directory_map_package_resource_exists() -> None:
     )
     assert resource.is_file()
     assert resource.name == SDD_DIRECTORY_MAP_FILENAME
+
+
+@pytest.mark.parametrize(
+    "rel_path",
+    [
+        "plans/202607/prompts/foo.md",
+        "202607/prompts/foo.md",
+        "sdd/plans/202607/prompts/foo.md",
+        "prompts/202607/foo.md",
+        "specs/202607/foo.md",
+        "sdd/specs/202607/foo.md",
+        "beads/foo.md",
+        "sdd/beads/foo.md",
+        "README.md",
+        "plans/README.md",
+        "research/README.md",
+        "sdd/README.md",
+        "sdd/plans/README.md",
+    ],
+)
+def test_is_sdd_internal_path(rel_path: str) -> None:
+    assert is_sdd_internal_path(rel_path) is True
+
+
+@pytest.mark.parametrize(
+    "rel_path",
+    [
+        "plans/202607/foo.md",
+        "202607/foo.md",
+        "research/202607/foo.md",
+        "sdd/research/202607/foo.md",
+        "notes/custom.md",
+        "research/prompts.md",
+    ],
+)
+def test_is_sdd_internal_path_keeps_user_facing_documents(rel_path: str) -> None:
+    assert is_sdd_internal_path(rel_path) is False
 
 
 # ---------------------------------------------------------------------------

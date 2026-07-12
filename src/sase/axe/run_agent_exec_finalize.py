@@ -295,6 +295,7 @@ def _collect_default_artifacts(
 def _sdd_repo_scans(ctx: AgentExecContext) -> list[Any]:
     try:
         from sase.axe.image_attachments import ExtraRepoScan
+        from sase.sdd.files import is_sdd_internal_path
         from sase.sdd.store import SDD_STORAGE_SEPARATE_REPO, resolve_sdd_store
 
         store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num)
@@ -331,6 +332,7 @@ def _sdd_repo_scans(ctx: AgentExecContext) -> list[Any]:
             base_sha,
             agent_name=agent_name,
             include_working_tree=include_working_tree,
+            exclude=is_sdd_internal_path,
         )
     ]
 

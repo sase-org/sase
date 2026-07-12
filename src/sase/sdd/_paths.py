@@ -1,7 +1,7 @@
 """SDD path, date, and directory resolution helpers."""
 
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
@@ -11,7 +11,50 @@ SDD_CANONICAL_DIRS = (
     "research",
 )
 _SDD_ROOT_DIRS = {*SDD_CANONICAL_DIRS, "prompts"}
+_SDD_SCAFFOLD_KIND_ROOTS = {*SDD_CANONICAL_DIRS, *_SDD_PROMPT_KINDS}
 _MONTH_DIR_RE = re.compile(r"^\d{6}$")
+
+
+def is_sdd_internal_path(rel_path: str) -> bool:
+    """Return whether an SDD-store path is internal completion-message noise.
+
+    ``rel_path`` is relative to an SDD store repository. Prompt snapshots,
+    bead data, and generated directory guides support SDD workflows but are
+    not user-facing documents worth attaching to agent completion messages.
+    """
+    parts = PurePosixPath(rel_path).parts
+    if not parts or parts[0] in {"/", ".."}:
+        return False
+    if parts[0] == "sdd":
+        parts = parts[1:]
+    if not parts:
+        return False
+
+    if parts[0] == "beads":
+        return True
+    if parts[0] in _SDD_PROMPT_KINDS:
+        return True
+    if _is_month_prompt_path(parts):
+        return True
+
+    if parts == ("README.md",):
+        return True
+    return (
+        len(parts) == 2
+        and parts[0] in _SDD_SCAFFOLD_KIND_ROOTS
+        and parts[1] == "README.md"
+    )
+
+
+def _is_month_prompt_path(parts: tuple[str, ...]) -> bool:
+    if len(parts) >= 3 and _MONTH_DIR_RE.fullmatch(parts[0]):
+        return parts[1] in _SDD_PROMPT_KINDS
+    return bool(
+        len(parts) >= 4
+        and parts[0] == "plans"
+        and _MONTH_DIR_RE.fullmatch(parts[1])
+        and parts[2] in _SDD_PROMPT_KINDS
+    )
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:

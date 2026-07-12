@@ -37,6 +37,9 @@ def test_sdd_repo_scans_pass_attribution_and_storage_policy(tmp_path: Path) -> N
     assert separate_scan[0].base_sha == "context-base"
     assert separate_scan[0].agent_name == "agent"
     assert separate_scan[0].include_working_tree is True
+    assert separate_scan[0].exclude is not None
+    assert separate_scan[0].exclude("plans/202607/prompts/foo.md") is True
+    assert separate_scan[0].exclude("plans/202607/foo.md") is False
 
     ctx.agent_name = None
     ctx.agent_meta = {}
@@ -74,10 +77,14 @@ def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
     run_command(sdd_repo, "git", "commit", "-m", "base")
     base_sha = _git_stdout(sdd_repo, "git", "rev-parse", "HEAD")
 
-    research = sdd_repo / "research" / "example.md"
+    plan = sdd_repo / "plans" / "202607" / "foo.md"
+    prompt = sdd_repo / "plans" / "202607" / "prompts" / "foo.md"
     image = sdd_repo / "research" / "diagram.png"
-    research.parent.mkdir()
-    research.write_text("# Research\n")
+    plan.parent.mkdir(parents=True)
+    prompt.parent.mkdir()
+    image.parent.mkdir()
+    plan.write_text("# Plan\n")
+    prompt.write_text("# Prompt snapshot\n")
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     run_command(sdd_repo, "git", "add", ".")
     run_command(
@@ -156,7 +163,7 @@ def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
         )
 
     expected_pdf = str(
-        artifacts / "markdown_pdfs" / "sase__sdd__research__example.md.pdf"
+        artifacts / "markdown_pdfs" / "sase__sdd__plans__202607__foo.md.pdf"
     )
     image_source = str(image.resolve())
     assert result.markdown_pdf_paths == [expected_pdf]
@@ -166,7 +173,7 @@ def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
     assert done["markdown_pdf_paths"] == [expected_pdf]
     assert done["image_paths"] == [image_source]
     assert json.loads((artifacts / "markdown_pdfs" / "index.json").read_text()) == [
-        {"source_path": str(research.resolve()), "pdf_path": expected_pdf}
+        {"source_path": str(plan.resolve()), "pdf_path": expected_pdf}
     ]
 
     artifacts_by_source = {
@@ -174,7 +181,8 @@ def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
         for artifact in list_agent_artifacts(artifacts)
         if artifact.source_path
     }
-    assert artifacts_by_source[str(research.resolve())].kind == "pdf"
+    assert artifacts_by_source[str(plan.resolve())].kind == "pdf"
+    assert str(prompt.resolve()) not in artifacts_by_source
     assert artifacts_by_source[image_source].kind == "image"
 
     with patch("sase.notifications.senders.notify_workflow_complete") as notify:

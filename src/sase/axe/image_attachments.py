@@ -25,6 +25,7 @@ class ExtraRepoScan:
     base_sha: str | None = None
     agent_name: str | None = None
     include_working_tree: bool = False
+    exclude: Callable[[str], bool] | None = None
 
 
 def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
@@ -205,7 +206,9 @@ def _extra_repo_changed_paths(repo_dir: str, scan: ExtraRepoScan) -> list[str]:
     if scan.include_working_tree:
         paths.extend(_local_changed_paths(repo_dir))
         paths.extend(_untracked_paths(repo_dir))
-    return paths
+    if scan.exclude is None:
+        return paths
+    return [path for path in paths if not scan.exclude(path)]
 
 
 def _attributed_commit_paths(

@@ -7,6 +7,7 @@ from sase.axe.image_attachments import ExtraRepoScan
 from sase.axe.image_attachments import collect_agent_image_paths
 from sase.axe.image_attachments import collect_agent_markdown_paths
 from sase.axe.image_attachments import collect_agent_video_paths
+from sase.sdd.files import is_sdd_internal_path
 
 
 def test_collect_agent_markdown_paths_from_working_tree(tmp_path: Path) -> None:
@@ -333,6 +334,66 @@ def test_extra_repo_working_tree_paths_are_opt_in(tmp_path: Path) -> None:
             )
         ],
     ) == [str(tracked.resolve()), str(untracked.resolve())]
+
+
+def test_extra_repo_scan_can_exclude_sdd_internal_paths(tmp_path: Path) -> None:
+    primary = tmp_path / "workspace"
+    primary.mkdir()
+    _init_repo(primary)
+
+    extra = tmp_path / "sdd"
+    extra.mkdir()
+    _init_repo(extra)
+    (extra / "base.txt").write_text("base\n")
+    _run(extra, "git", "add", ".")
+    _run(extra, "git", "commit", "-m", "base")
+    base_sha = _run(extra, "git", "rev-parse", "HEAD")
+
+    paths = {
+        "plans/202607/foo.md": "# Plan\n",
+        "plans/202607/prompts/foo.md": "# Prompt\n",
+        "prompts/202607/legacy.md": "# Legacy prompt\n",
+        "specs/202607/legacy.md": "# Legacy spec\n",
+        "beads/issue.md": "# Bead\n",
+        "README.md": "# SDD\n",
+        "plans/README.md": "# Plans\n",
+        "research/README.md": "# Research\n",
+        "sdd/README.md": "# Nested SDD\n",
+        "research/202607/result.md": "# Research result\n",
+        "notes/custom.md": "# Custom document\n",
+    }
+    for rel_path, content in paths.items():
+        path = extra / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    _run(extra, "git", "add", ".")
+    _run(
+        extra,
+        "git",
+        "commit",
+        "-m",
+        "add SDD files\n\nSASE_AGENT=agent",
+    )
+
+    unfiltered_scan = ExtraRepoScan(str(extra), base_sha, agent_name="agent")
+    unfiltered = collect_agent_markdown_paths(
+        str(primary), extra_repo_scans=[unfiltered_scan]
+    )
+    assert set(unfiltered) == {str((extra / rel_path).resolve()) for rel_path in paths}
+
+    filtered_scan = ExtraRepoScan(
+        str(extra),
+        base_sha,
+        agent_name="agent",
+        exclude=is_sdd_internal_path,
+    )
+    assert collect_agent_markdown_paths(
+        str(primary), extra_repo_scans=[filtered_scan]
+    ) == [
+        str((extra / "notes/custom.md").resolve()),
+        str((extra / "plans/202607/foo.md").resolve()),
+        str((extra / "research/202607/result.md").resolve()),
+    ]
 
 
 def test_collect_agent_video_paths_from_working_tree(tmp_path: Path) -> None:
