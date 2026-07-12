@@ -52,6 +52,8 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.quick_selected_agent_count = 0
         self.marked_agent_run_count = 0
         self.update_sase_shortcut_count = 0
+        self.open_prompt_stash_count = 0
+        self.scheduled_callbacks: list[Any] = []
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
@@ -59,6 +61,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def notify(self, message: str, **_: Any) -> None:
         self.notifications.append(message)
+
+    def call_later(self, callback: Any) -> None:
+        self.scheduled_callbacks.append(callback)
 
     def _refresh_current_tab(self) -> None:
         self.refresh_count += 1
@@ -120,6 +125,9 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def action_update_sase_shortcut(self) -> None:
         self.update_sase_shortcut_count += 1
+
+    async def action_open_prompt_stash(self) -> None:
+        self.open_prompt_stash_count += 1
 
 
 class _FakeEntryPoints(EntryPointsMixin):

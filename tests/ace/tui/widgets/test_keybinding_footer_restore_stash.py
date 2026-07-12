@@ -1,9 +1,7 @@
-"""Regression: the leader footer no longer advertises a restore-stash keymap.
+"""Regression coverage for the prompt-stash leader footer keymap.
 
-The global ``,P`` restore-stash leader binding was retired in favour of the
-app-level ``@`` binding and prompt-local ``Ctrl+G p`` panel opener. The leader
-footer must never surface a "restore stash" entry, and ``update_leader_bindings``
-no longer accepts the old ``has_stashed_prompts`` gate.
+The old global ``,P`` restore action remains retired, while the unconditional
+panel-only ``,@`` entry requires no synchronous stash-existence gate.
 """
 
 from __future__ import annotations
@@ -29,11 +27,12 @@ def _captured_leader_labels(footer: KeybindingFooter) -> list[str]:
     return [label for _key, label in captured]
 
 
-async def test_leader_footer_never_shows_restore_stash() -> None:
+async def test_leader_footer_shows_panel_only_prompt_stash() -> None:
     app = _Host()
     async with app.run_test():
         footer = app.query_one(KeybindingFooter)
         labels = _captured_leader_labels(footer)
+        assert "prompt stash" in labels
         assert "restore stash" not in labels
 
 

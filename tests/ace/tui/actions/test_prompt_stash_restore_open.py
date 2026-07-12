@@ -104,6 +104,30 @@ async def test_action_restore_prompt_stash_opens_modal(
     assert [e.id for e in modal._entries] == ["b", "a"]
 
 
+async def test_action_open_prompt_stash_single_entry_opens_without_restoring(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Leader panel action keeps a lone entry available for inspection."""
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "model: c")])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    await harness.action_open_prompt_stash()
+
+    assert len(harness.pushed) == 1
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, StashedPromptsModal)
+    assert [e.id for e in modal._entries] == ["a"]
+    assert bar.restored is None
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["a"]
+    assert harness.applied_counts == []
+
+
 # --- global action single-entry shortcuts ---------------------------------
 
 

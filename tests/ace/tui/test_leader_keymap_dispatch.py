@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
 
 
@@ -404,6 +406,27 @@ def test_leader_uppercase_u_opens_sase_update_shortcut() -> None:
     assert app.update_sase_shortcut_count == 1
     assert app._last_leader_key == "U"
     assert app.refresh_count == 1
+
+
+def test_leader_at_schedules_panel_only_action_and_repeat() -> None:
+    app = _FakeApp(current_tab="axe")
+
+    handled = app._handle_leader_key("at")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app._last_leader_key == "at"
+    assert app.scheduled_callbacks == [app.action_open_prompt_stash]
+    assert app.refresh_count == 1
+
+    asyncio.run(app.scheduled_callbacks.pop()())
+    assert app.open_prompt_stash_count == 1
+
+    repeated = app._handle_leader_key("comma")
+    assert repeated is True
+    assert app._last_leader_key == "at"
+    assert app.scheduled_callbacks == [app.action_open_prompt_stash]
+    assert app.refresh_count == 2
 
 
 def test_leader_ctrl_g_edits_first_prompt_history_entry() -> None:

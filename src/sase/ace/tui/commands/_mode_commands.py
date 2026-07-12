@@ -73,6 +73,7 @@ _LEADER_LABELS: dict[str, str] = {
     "mark_all_unread_done_agents_read": "Mark all unread completed agents read",
     "kill_and_edit": "Kill agent and edit",
     "clear_comments": "Clear PR comments",
+    "open_prompt_stash": "Open prompt stash",
     "prompt_history": "Prompt history",
     "prompt_history_edit_first": "Edit first prompt history entry",
     "prompt_history_cancelled": "Prompt history (cancelled)",

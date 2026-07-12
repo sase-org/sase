@@ -205,6 +205,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "History +cancelled (^k older)",
                 ),
                 (
+                    key_sequence_display(lm.prefix, sk(lm.keys, "open_prompt_stash")),
+                    "Open stashed prompts panel",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'agent_run_log'))}",
                     "Agent run log",
                 ),

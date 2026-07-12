@@ -196,14 +196,15 @@ def test_leader_mode_kill_and_edit_is_contextual_x_only() -> None:
     assert "kill_marked_and_edit" not in reg.leader_mode.keys
 
 
-def test_leader_mode_restore_prompt_stash_is_removed() -> None:
-    """The global ``,P`` restore-stash leader key no longer exists.
+def test_leader_mode_opens_prompt_stash_without_reviving_restore_action() -> None:
+    """Leader ``,@`` gets a panel action without reviving global ``,P``.
 
-    Restore/load moved to the app-level ``@`` binding and prompt-local
-    ``Ctrl+G p`` panel opener, so ``restore_prompt_stash`` must be absent from
-    both the typed dataclass defaults and the loaded registry.
+    The old ``restore_prompt_stash`` leader id remains absent so stale ``,P``
+    overrides cannot blur the distinction between restore and panel-only flows.
     """
     reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["open_prompt_stash"] == "at"
+    assert reg.leader_mode.keys["open_prompt_stash"] == "at"
     assert "restore_prompt_stash" not in LeaderModeKeymaps().keys
     assert "restore_prompt_stash" not in reg.leader_mode.keys
 

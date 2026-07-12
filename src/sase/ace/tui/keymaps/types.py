@@ -440,6 +440,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "mark_all_unread_done_agents_read": "u",
             "kill_and_edit": "x",
             "clear_comments": "c",
+            "open_prompt_stash": "at",
             "prompt_history": "full_stop",
             "prompt_history_edit_first": "ctrl+g",
             "prompt_history_cancelled": "greater_than_sign",

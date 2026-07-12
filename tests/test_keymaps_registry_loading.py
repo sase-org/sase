@@ -31,6 +31,13 @@ def test_leader_repeat_last_default_binding() -> None:
     assert reg.leader_mode.keys["repeat_last"] == "comma"
 
 
+def test_leader_prompt_stash_panel_defaults_to_at() -> None:
+    """Typed and loaded leader defaults bind the stash panel to ``@``."""
+    reg = load_keymap_registry({})
+    assert LeaderModeKeymaps().keys["open_prompt_stash"] == "at"
+    assert reg.leader_mode.keys["open_prompt_stash"] == "at"
+
+
 def test_custom_agent_launcher_defaults_to_plus() -> None:
     """The app-level custom-agent launcher defaults to ``plus`` (``+``)."""
     reg = load_keymap_registry({})

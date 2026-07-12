@@ -232,6 +232,7 @@ ace:
           mark_all_unread_done_agents_read: "u"
           kill_and_edit: "x"
           clear_comments: "c"
+          open_prompt_stash: "at"
           jump_to_notification: "n"
           prompt_history: "full_stop"
           prompt_history_edit_first: "ctrl+g"

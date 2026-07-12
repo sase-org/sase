@@ -261,6 +261,10 @@ class PromptBarStashMixin:
         """
         await self._open_prompt_stash_panel(auto_restore_single=True)
 
+    async def action_open_prompt_stash(self) -> None:
+        """Leader shortcut: open the prompt-stash panel without auto-restoring."""
+        await self._open_prompt_stash_panel(auto_restore_single=False)
+
     async def _open_prompt_stash_panel(
         self,
         bar_mode: str | None = None,

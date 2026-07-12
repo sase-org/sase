@@ -57,6 +57,33 @@ async def test_plus_dispatches_custom_agent_and_at_does_not() -> None:
             assert custom_calls == [True]
 
 
+async def test_leader_at_opens_panel_while_bare_at_restores() -> None:
+    """The real key sequence preserves the restore versus panel split."""
+    with _patch_config():
+        async with AcePage() as page:
+            restore_calls: list[bool] = []
+            panel_calls: list[bool] = []
+
+            async def _record_restore() -> None:
+                restore_calls.append(True)
+
+            async def _record_panel() -> None:
+                panel_calls.append(True)
+
+            page.app.action_restore_prompt_stash = _record_restore  # type: ignore[method-assign]
+            page.app.action_open_prompt_stash = _record_panel  # type: ignore[method-assign]
+
+            await page.press("at")
+            await page.pause()
+            assert restore_calls == [True]
+            assert panel_calls == []
+
+            await page.press("comma", "at")
+            await page.pause()
+            assert restore_calls == [True]
+            assert panel_calls == [True]
+
+
 async def test_ctrl_at_dispatches_repeat_agent_binding_not_home_space() -> None:
     """Ctrl+Space dispatches repeat-last while Space dispatches home mode."""
     with _patch_config():

@@ -227,6 +227,7 @@ class KeybindingModesMixin:
         bindings.append((k("prompt_history"), "prompt history"))
         bindings.append((k("prompt_history_edit_first"), "edit history"))
         bindings.append((k("prompt_history_cancelled"), "history (+cancelled)"))
+        bindings.append((k("open_prompt_stash"), "prompt stash"))
         if current_tab == "agents":
             # ,x is contextual: it kills & edits the marked set when marks
             # exist, otherwise the focused row.

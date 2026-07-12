@@ -188,6 +188,12 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["open_prompt_stash"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            self.call_later(self.action_open_prompt_stash)  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["jump_to_notification"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":

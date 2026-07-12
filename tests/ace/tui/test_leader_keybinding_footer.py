@@ -47,6 +47,24 @@ def test_footer_surfaces_repeat_last_on_all_tabs() -> None:
         assert "repeat" in _last_labels(captured)
 
 
+def test_footer_surfaces_configured_prompt_stash_key_on_all_tabs() -> None:
+    footer = KeybindingFooter()
+    footer.set_keymap_registry(
+        load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {"leader_mode": {"keys": {"open_prompt_stash": "P"}}}
+                }
+            }
+        )
+    )
+    captured = _capture_bindings(footer)
+
+    for tab in ("changespecs", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert ("P", "prompt stash") in captured[-1][0]
+
+
 def test_footer_omits_tab_guide_after_help_panel_merge() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)

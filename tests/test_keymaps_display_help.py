@@ -162,6 +162,28 @@ def test_help_modal_lists_global_restore_prompt_stash() -> None:
         assert ("@", "Restore stashed prompt") in pairs
 
 
+def test_help_modal_lists_configured_leader_prompt_stash_panel() -> None:
+    """All main tabs resolve the stash-panel sequence from the registry."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {
+                        "prefix": "semicolon",
+                        "keys": {"open_prompt_stash": "P"},
+                    }
+                }
+            }
+        }
+    )
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        assert (";P", "Open stashed prompts panel") in pairs
+        assert ("@", "Restore stashed prompt") in pairs
+
+
 def test_help_modal_labels_lowercase_a_as_agent_artifacts() -> None:
     """Guard ``a`` as the Agents-tab artifact binding and ``A`` as accept."""
     reg = load_keymap_registry({})
