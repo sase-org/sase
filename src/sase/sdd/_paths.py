@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
+import re
 
 _SDD_PROMPT_KINDS = {"prompts", "specs"}
 SDD_CANONICAL_DIRS = (
@@ -10,6 +11,7 @@ SDD_CANONICAL_DIRS = (
     "research",
 )
 _SDD_ROOT_DIRS = {*SDD_CANONICAL_DIRS, "prompts"}
+_MONTH_DIR_RE = re.compile(r"^\d{6}$")
 
 
 def get_yyyymm(dt: datetime | None = None) -> str:
@@ -38,6 +40,9 @@ def sdd_kind_roots(base_dir: Path, kind: str) -> list[Path]:
             if root not in seen:
                 roots.append(root)
                 seen.add(root)
+    if kind in {"plans", "research"} and _has_month_dirs(base_dir):
+        if base_dir not in seen:
+            roots.append(base_dir)
     return roots
 
 
@@ -49,7 +54,10 @@ def sdd_prompt_roots(base_dir: Path) -> list[Path]:
     """
     roots: list[Path] = []
     seen: set[Path] = set()
-    for plans_root in (base_dir / "sdd" / "plans", base_dir / "plans"):
+    plans_roots = [base_dir / "sdd" / "plans", base_dir / "plans"]
+    if _has_month_dirs(base_dir):
+        plans_roots.append(base_dir)
+    for plans_root in plans_roots:
         for root in sorted(plans_root.glob("*/prompts")):
             if root not in seen:
                 roots.append(root)
@@ -120,7 +128,19 @@ def looks_like_sdd_root(path: Path) -> bool:
         return True
     if not path.is_dir():
         return False
-    return any((path / dirname).is_dir() for dirname in _SDD_ROOT_DIRS)
+    return any(
+        (path / dirname).is_dir() for dirname in _SDD_ROOT_DIRS
+    ) or _has_month_dirs(path)
+
+
+def _has_month_dirs(path: Path) -> bool:
+    try:
+        return any(
+            child.is_dir() and _MONTH_DIR_RE.fullmatch(child.name)
+            for child in path.iterdir()
+        )
+    except OSError:
+        return False
 
 
 def get_primary_workspace_dir(

@@ -50,6 +50,9 @@ def test_parser_registers_sdd_subcommands() -> None:
     assert args.sdd_subcommand == "path"
     assert args.kind == "research"
 
+    args = parser.parse_args(["sdd", "path", "--ensure", "research"])
+    assert args.ensure is True
+
     args = parser.parse_args(["sdd", "repair-links", "-p", "sdd", "-w"])
     assert args.write is True
 

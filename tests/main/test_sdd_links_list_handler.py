@@ -64,6 +64,32 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert all(row["bidirectional"] for row in rows)
 
 
+def test_flat_companion_root_lists_and_validates_plan_pairs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo--plans"
+    prompt = root / "202607" / "prompts" / "linked.md"
+    plan = root / "202607" / "linked.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text("---\nplan: 202607/linked.md\n---\n# Prompt\n", encoding="utf-8")
+    plan.write_text(
+        "---\nprompt: 202607/prompts/linked.md\ntier: tale\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_sdd_command(
+            make_args(sdd_subcommand="list", path=str(root), kind="all", json=True)
+        )
+
+    assert excinfo.value.code == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert {row["path"] for row in rows} == {
+        "202607/linked.md",
+        "202607/prompts/linked.md",
+    }
+
+
 def test_list_default_uses_configured_separate_repo_store(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

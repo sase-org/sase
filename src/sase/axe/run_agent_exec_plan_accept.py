@@ -270,10 +270,12 @@ def handle_accepted_plan(
     sdd_plan_path: Path | None = None
     sdd_commit_paths: list[Path] = []
     sdd_in_tree = True  # safe default (in-tree path is the no-op path)
+    sdd_companion_storage = False
     sdd_dir = Path(ctx.workspace_dir)
     try:
         sdd_store = materialize_sdd_store(ctx.workspace_dir, ctx.workspace_num)
         sdd_in_tree = sdd_store.is_in_tree
+        sdd_companion_storage = sdd_store.is_companion_storage
         sdd_dir = sdd_store.sdd_dir
         if sdd_in_tree:
             ensure_bare_git_sdd_initialized(
@@ -296,6 +298,7 @@ def handle_accepted_plan(
             expanded,
             plan_result.plan_file,
             plan_tier=plan_tier,
+            plans_root=sdd_store.kind_root("plans"),
         )
         sdd_commit_paths = [sdd_prompt_path_obj, sdd_plan_path]
         state.sdd_spec_path = str(sdd_prompt_path_obj)
@@ -444,6 +447,7 @@ def handle_accepted_plan(
             workspace_dir=ctx.workspace_dir,
             sdd_plan_name=sdd_plan_name if plan_committed else None,
             sdd_in_tree=sdd_in_tree,
+            sdd_companion_storage=sdd_companion_storage,
             fallback_plan_file=plan_result.plan_file,
         )
         xprompt_name = "bd/new_epic"
@@ -537,6 +541,7 @@ def handle_accepted_plan(
                 sdd_dir=sdd_dir,
                 workspace_dir=ctx.workspace_dir,
                 sdd_in_tree=sdd_in_tree,
+                sdd_companion_storage=sdd_companion_storage,
                 fallback_plan_file=plan_result.plan_file,
             )
         else:

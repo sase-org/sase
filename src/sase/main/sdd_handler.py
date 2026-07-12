@@ -436,13 +436,24 @@ def _handle_list(args: argparse.Namespace) -> None:
 
 
 def _handle_path(args: argparse.Namespace) -> None:
-    from sase.sdd.store import resolve_sdd_dir
+    from sase.sdd.store import (
+        ensure_sdd_kind_clone,
+        resolve_sdd_dir,
+        resolve_sdd_kind_dir,
+    )
 
     workspace_dir = Path.cwd()
     workspace_num = _current_workspace_num()
-    root = resolve_sdd_dir(workspace_dir, workspace_num)
     kind = getattr(args, "kind", None)
-    print(root if kind is None else root / kind)
+    resolved_kind = kind or "plans"
+    if getattr(args, "ensure", False):
+        ensure_sdd_kind_clone(workspace_dir, workspace_num, resolved_kind, strict=True)
+    root = resolve_sdd_dir(workspace_dir, workspace_num)
+    print(
+        root
+        if kind is None
+        else resolve_sdd_kind_dir(workspace_dir, workspace_num, kind)
+    )
     sys.exit(0)
 
 

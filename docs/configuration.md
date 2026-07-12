@@ -1110,6 +1110,10 @@ require a provider-backed companion clone under `.sase/sdd/`, with materializati
 `sdd.storage` and `sdd.version_controlled` keys are ignored, stripped before validation, and reported by `sase doctor`
 for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
 
+Migrated projects have a schema-version 2 `companion_repos` record. Their plans and beads resolve into the auto-cloned
+`--plans` repository, while research resolves into the lazy `--research` repository. The legacy single-companion shape
+continues to resolve byte-for-byte as before.
+
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
 Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
@@ -1873,7 +1877,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 `sase sdd` manages SDD prompt/artifact documentation and frontmatter links. File-oriented subcommands accept
 `-p/--path`, which may point at an SDD root or at a project root containing `sdd/`. `sase sdd path` resolves the current
-workspace instead and accepts an optional child kind such as `research`. With no subcommand, `sase sdd` defaults to
+workspace instead and accepts an optional kind such as `research`. With no subcommand, `sase sdd` defaults to
 `sase sdd list`. `sase init sdd` is the compatibility alias for `sase sdd init`.
 
 | Subcommand     | Flags                                                                    | Description                                                                                                       |
@@ -1881,7 +1885,7 @@ workspace instead and accepts an optional child kind such as `research`. With no
 | `init`         | `-p/--path`, `-c/--check`                                                | Materialize provider-owned storage, refresh SDD guide files, and report planned work with `--check`               |
 | `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, or `all`                                            |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                                   |
-| `path`         | `[kind]`                                                                 | Print the effective SDD root or one canonical child directory; does not materialize remote stores                 |
+| `path`         | `-e/--ensure`, `[kind]`                                                  | Print the effective root or kind root; `--ensure` materializes and synchronizes its backing companion             |
 | `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                           |
 | `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs; `--write` first materializes provider storage and then writes link fixes |
 

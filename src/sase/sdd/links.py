@@ -211,8 +211,10 @@ def validate_sdd_tree(
 def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
     """Return known SDD markdown files under ``root``."""
     files: list[_SddFile] = []
+    plans_root = root / "plans"
+    if not plans_root.is_dir():
+        plans_root = root
     if kind in {"all", "prompts"}:
-        plans_root = root / "plans"
         if plans_root.is_dir():
             for path in sorted(plans_root.glob("*/prompts/*.md")):
                 sdd_file = _read_sdd_file(root, path, "prompts")
@@ -227,7 +229,7 @@ def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
                 if sdd_file is not None:
                     files.append(sdd_file)
     if kind in {"all", "plans", "tales", "epics"}:
-        kind_root = root / "plans"
+        kind_root = plans_root
         if kind_root.is_dir():
             for path in sorted(kind_root.glob("*/*.md")):
                 sdd_file = _read_sdd_file(root, path, "tales")
@@ -383,9 +385,11 @@ def _read_sdd_file(root: Path, path: Path, kind: str) -> _SddFile | None:
         and parts[0] == "plans"
         and parts[2] == "prompts"
     )
-    if len(parts) != 3 and not nested_prompt:
+    flat_prompt = kind == "prompts" and len(parts) == 3 and parts[1] == "prompts"
+    flat_plan = kind != "prompts" and len(parts) == 2
+    if len(parts) != 3 and not nested_prompt and not flat_prompt and not flat_plan:
         return None
-    yyyymm = parts[1]
+    yyyymm = parts[0] if flat_prompt or flat_plan else parts[1]
     name = path.stem
     frontmatter, _, had_frontmatter, parse_error = _parse_frontmatter_strict(
         path.read_text(encoding="utf-8")
@@ -483,6 +487,12 @@ def _apply_legacy_error_allowlist(issues: list[_SddIssue]) -> list[_SddIssue]:
 
 def _looks_like_project_root(path: Path) -> bool:
     if path.name == "sdd" and path.parent.name == ".sase":
+        return False
+    has_flat_months = any(
+        child.is_dir() and len(child.name) == 6 and child.name.isdigit()
+        for child in path.iterdir()
+    )
+    if has_flat_months:
         return False
     has_project_marker = (
         (path / "sase.yml").is_file()

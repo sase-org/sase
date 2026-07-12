@@ -302,14 +302,13 @@ def _archive_plan_for_approval(
         project_basename = os.path.basename(str(project_dir))
         workspace_dir = get_workspace_directory(project_basename, 1)
         sdd_store = materialize_sdd_store(workspace_dir, 1)
-        sdd_dir = sdd_store.sdd_dir
         if sdd_store.is_in_tree:
             ensure_bare_git_sdd_initialized(
                 workspace_dir,
                 commit=True,
                 push=False,
             )
-        plans_dir = sdd_dir / "plans" / get_yyyymm()
+        plans_dir = sdd_store.kind_root("plans") / get_yyyymm()
         plans_dir.mkdir(parents=True, exist_ok=True)
         src_plan = Path(notification.files[0])
         dest_plan = plans_dir / src_plan.name

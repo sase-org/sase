@@ -128,6 +128,7 @@ def write_sdd_files(
     plan_file: str,
     *,
     plan_tier: str = "tale",
+    plans_root: Path | None = None,
 ) -> tuple[Path, Path]:
     """Write a prompt and tiered plan under canonical directories.
 
@@ -139,6 +140,7 @@ def write_sdd_files(
         prompt_content,
         plan_file,
         plan_tier=plan_tier,
+        plans_root=plans_root,
         yyyymm=get_yyyymm(),
     )
 

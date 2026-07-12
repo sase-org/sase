@@ -22,16 +22,18 @@ depend on.
 
 ## Provider-Owned Storage
 
-The workspace provider selects one of three storage layouts:
+The workspace provider selects a storage layout, and a migrated store record may select the split companion layout:
 
 - `in_tree` stores artifacts under the checkout's `sdd/` directory and commits them with code changes.
 - `local` is the fallback for providerless projects and stores artifacts at the primary workspace's `.sase/sdd/`.
 - `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized companion
   repo.
+- `companion_repos` stores plans and beads in an auto-cloned `--plans` repo and research in a lazy `--research` repo.
+  Monthly directories live directly at each companion root; legacy single-root projects are unchanged.
 
-Use `sase sdd path` to print the effective SDD root, or `sase sdd path research` to print a canonical child directory.
-Launched agents receive the same root in `SASE_SDD_DIR`, so prompts and hooks should use that instead of assuming `sdd/`
-is relative to the current checkout.
+Use `sase sdd path` to print the effective root, or `sase sdd path research --ensure` to materialize and print the
+research root. Launched agents receive `SASE_SDD_DIR` and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks
+should use those resolvers instead of assuming `sdd/` is relative to the checkout.
 
 Project and user configuration cannot override this selection. See [SDD Storage](sdd_storage.md) for the provider
 contract, companion-repo convention, setup guidance, and offline/push behavior.
@@ -152,14 +154,15 @@ when passing list flags such as `--kind` or `--json`.
 | `sase init sdd`         | Compatibility alias for the provider-owned `sase sdd init` flow                                         |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `tales`/`epics` are tier filters over `plans/`                                 |
-| `sase sdd path`         | Print the effective SDD root, or a canonical child directory such as `research`                         |
+| `sase sdd path`         | Print the effective root or kind root; `-e/--ensure` materializes its backing companion                 |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
 
 The file-oriented subcommands accept `-p/--path`, which may point at an SDD root or a project root. `sase sdd path`
-instead resolves the current workspace and accepts an optional child kind such as `research`. Validation treats unpaired
-or ambiguous historical files as warnings by default and promotes them to errors with `--strict`; parse errors, missing
-targets, wrong link kinds, and broken reverse links are errors unless explicitly allowlisted for legacy migration.
+instead resolves the current workspace and accepts an optional kind such as `research`; `--ensure` synchronizes that
+kind's companion. Validation treats unpaired or ambiguous historical files as warnings by default and promotes them to
+errors with `--strict`; parse errors, missing targets, wrong link kinds, and broken reverse links are errors unless
+explicitly allowlisted for legacy migration.
 
 `sase sdd validate` hides warning-severity issues from its text output by default — the summary line still reports the
 warning count and appends `(use --show-warnings to display)` so they remain discoverable without scrolling through noise

@@ -5,7 +5,11 @@ import shutil
 
 import pytest
 
-from sase.sdd.store import _write_sdd_store_record, ensure_workspace_sdd_clone
+from sase.sdd.store import (
+    _write_sdd_store_record,
+    ensure_sdd_kind_clone,
+    ensure_workspace_sdd_clone,
+)
 from tests.sdd_store._helpers import (
     build_separate_repo_clones,
     clone,
@@ -40,6 +44,59 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
     assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
+
+
+def test_ensure_workspace_sdd_clone_syncs_plans_companion_only(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    plans_remote = tmp_path / "plans.git"
+    research_remote = tmp_path / "research.git"
+    seed = tmp_path / "seed"
+    init_bare_repo(plans_remote)
+    init_bare_repo(research_remote)
+    clone(plans_remote, seed)
+    plan = seed / "202607" / "feature.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n", encoding="utf-8")
+    commit_all(seed, "Add plan")
+    git(["push", "-u", "origin", "main"], seed)
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    primary.mkdir()
+    workspace.mkdir()
+    _write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "companion_repos",
+            "provider": "github",
+            "companions": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": str(plans_remote),
+                },
+                "research": {
+                    "repo": "owner/repo--research",
+                    "remote_url": str(research_remote),
+                },
+            },
+        },
+    )
+    provider_patch(None)
+
+    ensure_workspace_sdd_clone(workspace, 2, strict=True)
+
+    plans = workspace / "sase" / "repos" / "repo--plans"
+    research = workspace / "sase" / "repos" / "repo--research"
+    assert (plans / "202607" / "feature.md").read_text(encoding="utf-8") == "# Plan\n"
+    assert git(["remote", "get-url", "origin"], plans).stdout.strip() == str(
+        plans_remote
+    )
+    assert not research.exists()
+
+    assert ensure_sdd_kind_clone(workspace, 2, "research", strict=True) == research
+    assert (research / ".git").is_dir()
 
 
 def test_ensure_workspace_sdd_clone_in_tree_noop(

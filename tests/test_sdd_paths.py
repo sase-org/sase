@@ -8,7 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from sase.sdd._paths import _resolve_primary_from_marker
+from sase.sdd.env import set_sdd_dir_env
 from sase.sdd.files import (
     SDD_DIRECTORY_MAP_FILENAME,
     find_sdd_file,
@@ -17,6 +20,7 @@ from sase.sdd.files import (
     _resolve_sdd_asset_path,
     _resolve_sdd_readme_path,
 )
+from sase.sdd.store import SddStore
 
 
 def _write_checkout_marker(checkout_dir: Path, primary: Path) -> None:
@@ -207,6 +211,31 @@ def test_get_yyyymm_default() -> None:
 def test_get_yyyymm_january() -> None:
     dt = datetime(2026, 1, 5, 0, 0, 0, tzinfo=ZoneInfo("UTC"))
     assert get_yyyymm(dt) == "202601"
+
+
+def test_agent_env_exports_all_companion_kind_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plans = tmp_path / "sase" / "repos" / "repo--plans"
+    research = tmp_path / "sase" / "repos" / "repo--research"
+    store = SddStore(
+        "companion_repos",
+        plans,
+        plans,
+        research_dir=research,
+    )
+    monkeypatch.setattr("sase.sdd.store.resolve_sdd_dir", lambda *_args: plans)
+    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
+    env: dict[str, str] = {}
+
+    set_sdd_dir_env(env, workspace_dir=str(tmp_path), workspace_num=1)
+
+    assert env == {
+        "SASE_SDD_DIR": str(plans),
+        "SASE_SDD_PLANS_DIR": str(plans),
+        "SASE_SDD_BEADS_DIR": str(plans / "beads"),
+        "SASE_SDD_RESEARCH_DIR": str(research),
+    }
 
 
 # ---------------------------------------------------------------------------

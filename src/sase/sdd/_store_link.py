@@ -22,6 +22,47 @@ PrimaryWorkspaceResolver = Callable[[str, int], str]
 StoreResolver = Callable[[str | Path, int], SddStore]
 
 
+def ensure_companion_sdd_clone(
+    clone_dir: Path, remote_url: str, *, strict: bool = False
+) -> None:
+    """Ensure a split-store companion clone exists and tracks its real remote."""
+
+    try:
+        clone_dir = clone_dir.expanduser()
+        clone_dir.parent.mkdir(parents=True, exist_ok=True)
+        if os.path.lexists(clone_dir):
+            matching = (clone_dir / ".git").is_dir() and _same_git_remote(
+                _git_remote_url(clone_dir) or "", remote_url
+            )
+            if not matching:
+                if strict:
+                    _replace_workspace_sdd_clone(
+                        clone_dir, clone_dir.with_name(".missing-primary"), remote_url
+                    )
+                    return
+                _logger.warning(
+                    "Refusing to replace mismatched SDD companion clone at %s",
+                    clone_dir,
+                )
+                return
+            _set_sdd_origin(clone_dir, remote_url)
+            _pull_sdd_clone(clone_dir)
+            return
+
+        if not _clone_sdd_store(remote_url, clone_dir) and strict:
+            raise SddMaterializationError(
+                f"could not create SDD companion clone at {clone_dir}"
+            )
+    except Exception as exc:
+        if strict:
+            if isinstance(exc, SddMaterializationError):
+                raise
+            raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
+        _logger.warning(
+            "Failed to ensure SDD companion clone at %s", clone_dir, exc_info=True
+        )
+
+
 def ensure_workspace_sdd_clone(
     workspace_dir: str | Path,
     workspace_num: int,
@@ -359,6 +400,9 @@ def _is_matching_store_clone(path: Path, store: SddStore) -> bool:
     if origin is None:
         return False
     return _same_git_remote(origin, store.remote_url)
+
+
+is_matching_store_clone = _is_matching_store_clone
 
 
 def _fast_forward_workspace_clone_from_primary(

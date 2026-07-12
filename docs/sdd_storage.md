@@ -5,22 +5,43 @@ The workspace provider owns SDD placement. Use `sase sdd path` when you need the
 ```bash
 sase sdd path
 sase sdd path research
+sase sdd path research --ensure
 ```
 
-`sase sdd path` is a read-only resolver: it does not create, clone, fetch, or verify a companion repository. Launched
-agents receive the same path in `SASE_SDD_DIR`. Prompts, hooks, and skills should use that variable instead of assuming
-that `sdd/` is relative to the current checkout.
+`sase sdd path` is a read-only resolver unless `-e/--ensure` is passed. `--ensure` clones or synchronizes the companion
+that backs the selected kind. Launched agents receive `SASE_SDD_DIR` plus `SASE_SDD_PLANS_DIR`, `SASE_SDD_RESEARCH_DIR`,
+and `SASE_SDD_BEADS_DIR`.
 
 ## Provider Policy
 
-| Provider policy | Root                    | Repository                                                                                      |
-| --------------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `in_tree`       | `{workspace}/sdd`       | The code repository. Built-in bare-git projects use this policy.                                |
-| `separate_repo` | `{workspace}/.sase/sdd` | A required provider companion repository. GitHub projects use this policy.                      |
-| no policy       | `{primary}/.sase/sdd`   | A primary-workspace local store for providerless projects or providers with no SDD declaration. |
+| Provider policy   | Root                                   | Repository                                                                                      |
+| ----------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `in_tree`         | `{workspace}/sdd`                      | The code repository. Built-in bare-git projects use this policy.                                |
+| `separate_repo`   | `{workspace}/.sase/sdd`                | A required provider companion repository. GitHub projects use this policy.                      |
+| `companion_repos` | `{workspace}/sase/repos/<repo>--plans` | A migrated two-repository store; the bare root is the plans clone.                              |
+| no policy         | `{primary}/.sase/sdd`                  | A primary-workspace local store for providerless projects or providers with no SDD declaration. |
 
 A positive materialized-store record at `{primary}/.sase/sdd-store.json` is authoritative, including while offline. Old
 negative records are not policy and are retried at the next materialization attempt.
+
+## Split Plans and Research Companions
+
+Migrated projects use a schema-version 2 store record with `storage: companion_repos`. The record identifies both the
+plans and research repositories and their remotes. That record—not clone or remote existence—is the migration authority.
+Legacy records continue to use the single-root layout unchanged.
+
+The plans companion keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`) with `beads/`
+beside them. The research companion likewise keeps `<YYYYMM>/` directories at its root. Kind resolution is therefore:
+
+| Kind       | Migrated path                                |
+| ---------- | -------------------------------------------- |
+| `plans`    | `<workspace>/sase/repos/<repo>--plans`       |
+| `beads`    | `<workspace>/sase/repos/<repo>--plans/beads` |
+| `research` | `<workspace>/sase/repos/<repo>--research`    |
+
+The plans clone is synchronized during normal workspace preparation. Research remains lazy until a consumer runs
+`sase sdd path research --ensure` (or another operation explicitly ensures that kind). Each clone's `origin` is the real
+companion remote, and refresh uses pull-with-rebase semantics.
 
 The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer select a mode. SASE ignores and
 strips them before schema validation, and `sase doctor` reports where to remove them. This keeps old configuration files

@@ -30,6 +30,12 @@ def commit_sdd_files_for_exec_plan(
     from sase.sdd.files import find_sdd_file
 
     base = Path(workspace_dir)
+    try:
+        from sase.sdd.store import resolve_sdd_dir
+
+        base = resolve_sdd_dir(base, 1)
+    except Exception:
+        pass
     fname = f"{plan_name}.md"
     prompt_found = find_sdd_file(base, "prompts", fname)
     plan_found = find_sdd_file(base, "plans", fname)
@@ -76,10 +82,13 @@ def _build_sdd_plan_ref(
     workspace_dir: str,
     sdd_plan_name: str | None,
     sdd_in_tree: bool,
+    sdd_companion_storage: bool = False,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to a plan-container creation xprompt."""
     if sdd_plan_path and sdd_plan_path.exists():
+        if sdd_companion_storage:
+            return _workspace_relative_or_absolute(sdd_plan_path, workspace_dir)
         if sdd_in_tree:
             try:
                 return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
@@ -98,6 +107,10 @@ def _build_sdd_plan_ref(
     from sase.sdd.files import get_yyyymm
 
     yyyymm = get_yyyymm()
+    if sdd_plan_name and sdd_companion_storage:
+        return _workspace_relative_or_absolute(
+            sdd_dir / yyyymm / f"{sdd_plan_name}.md", workspace_dir
+        )
     if sdd_plan_name and not sdd_in_tree:
         return f".sase/sdd/plans/{yyyymm}/{sdd_plan_name}.md"
     if sdd_plan_name:
@@ -112,6 +125,7 @@ def build_epic_plan_ref(
     workspace_dir: str,
     sdd_plan_name: str | None,
     sdd_in_tree: bool,
+    sdd_companion_storage: bool = False,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to the epic-creation xprompt."""
@@ -121,6 +135,7 @@ def build_epic_plan_ref(
         workspace_dir=workspace_dir,
         sdd_plan_name=sdd_plan_name,
         sdd_in_tree=sdd_in_tree,
+        sdd_companion_storage=sdd_companion_storage,
         fallback_plan_file=fallback_plan_file,
     )
 
@@ -137,10 +152,13 @@ def build_saved_plan_ref(
     sdd_dir: Path,
     workspace_dir: str,
     sdd_in_tree: bool,
+    sdd_companion_storage: bool = False,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to a normal coder follow-up."""
     if sdd_plan_path and sdd_plan_path.exists():
+        if sdd_companion_storage:
+            return _workspace_relative_or_absolute(sdd_plan_path, workspace_dir)
         if sdd_in_tree:
             try:
                 return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
@@ -154,3 +172,10 @@ def build_saved_plan_ref(
             return sdd_plan_path.as_posix()
 
     return fallback_plan_file
+
+
+def _workspace_relative_or_absolute(path: Path, workspace_dir: str) -> str:
+    try:
+        return path.relative_to(Path(workspace_dir)).as_posix()
+    except ValueError:
+        return path.as_posix()

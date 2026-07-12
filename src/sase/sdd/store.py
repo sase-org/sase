@@ -37,11 +37,13 @@ from sase.sdd._store_records import (
 )
 from sase.sdd._store_types import (
     _STORAGE_VALUES,
+    SDD_STORAGE_COMPANION_REPOS,
     SDD_STORAGE_IN_TREE,
     SDD_STORAGE_LOCAL,
     SDD_STORAGE_SEPARATE_REPO,
     SDD_STORE_RECORD_FILENAME,
     SddMaterializationError,
+    SddCompanion,
     SddPushAfterCommit,
     SddStorage,
     SddStore,
@@ -63,9 +65,11 @@ _write_sdd_store_record = write_sdd_store_record
 __all__ = [
     "SDD_STORAGE_IN_TREE",
     "SDD_STORAGE_LOCAL",
+    "SDD_STORAGE_COMPANION_REPOS",
     "SDD_STORAGE_SEPARATE_REPO",
     "SDD_STORE_RECORD_FILENAME",
     "SddInitOutcome",
+    "SddCompanion",
     "SddMaterializationError",
     "SddPushAfterCommit",
     "SddStorage",
@@ -84,12 +88,14 @@ __all__ = [
     "create_and_materialize_sdd_store",
     "delete_sdd_store_record",
     "ensure_workspace_sdd_clone",
+    "ensure_sdd_kind_clone",
     "materialized_sdd_clone",
     "materialize_sdd_store",
     "preflight_sdd_companion",
     "normalize_sdd_store_record",
     "read_sdd_store_record",
     "resolve_sdd_dir",
+    "resolve_sdd_kind_dir",
     "resolve_sdd_store",
     "write_sdd_store_record",
 ]
@@ -108,14 +114,36 @@ class SddInitOutcome:
 def resolve_sdd_dir(workspace_dir: str | Path, workspace_num: int) -> Path:
     """Resolve the effective SDD root without network or filesystem writes."""
 
-    storage, _record, _primary = _resolve_sdd_storage(workspace_dir, workspace_num)
-    return _sdd_dir_for_storage(workspace_dir, workspace_num, storage)
+    return resolve_sdd_store(workspace_dir, workspace_num).sdd_dir
+
+
+def resolve_sdd_kind_dir(
+    workspace_dir: str | Path, workspace_num: int, kind: str
+) -> Path:
+    """Resolve one logical SDD kind without materializing its backing clone."""
+
+    return resolve_sdd_store(workspace_dir, workspace_num).kind_root(kind)
 
 
 def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore:
     """Resolve provider-owned storage policy and concrete filesystem paths."""
 
     storage, record, _primary = _resolve_sdd_storage(workspace_dir, workspace_num)
+    if storage == SDD_STORAGE_COMPANION_REPOS:
+        assert record is not None and record.plans is not None
+        assert record.research is not None
+        plans_dir = _companion_clone_dir(workspace_dir, record.plans.repo)
+        research_dir = _companion_clone_dir(workspace_dir, record.research.repo)
+        return SddStore(
+            storage=storage,
+            sdd_dir=plans_dir,
+            repo_root=plans_dir,
+            provider=record.provider,
+            remote_url=record.plans.remote_url,
+            research_dir=research_dir,
+            research_remote_url=record.research.remote_url,
+        )
+
     sdd_dir = _sdd_dir_for_storage(workspace_dir, workspace_num, storage)
     provider: str | None = None
     remote_url: str | None = None
@@ -142,11 +170,22 @@ def materialized_sdd_clone(
     if not _is_materialized_record(record):
         return None
 
+    assert record is not None
+    if record.is_companion_storage:
+        if record.plans is None:
+            return None
+        clone = _companion_clone_dir(primary, record.plans.repo)
+        store = resolve_sdd_store(primary, 1)
+        from sase.sdd._store_link import is_matching_store_clone
+
+        return (
+            clone if clone.is_dir() and is_matching_store_clone(clone, store) else None
+        )
+
     clone = primary / ".sase" / "sdd"
     if not clone.is_dir():
         return None
 
-    assert record is not None
     return clone if clone_matches_record(clone, record) else None
 
 
@@ -186,6 +225,7 @@ def preflight_sdd_companion(
         get_primary_workspace_dir(str(workspace), workspace_num)
     ).expanduser()
     record = read_sdd_store_record(primary)
+
     options = _provider_options(
         workspace,
         workspace_num,
@@ -234,6 +274,10 @@ def _materialize_sdd_store(
         get_primary_workspace_dir(str(workspace), workspace_num)
     ).expanduser()
     record = read_sdd_store_record(primary)
+
+    if _is_companion_record(record):
+        ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
+        return resolve_sdd_store(workspace, workspace_num), False
 
     if _usable_primary_record(primary, record) and not _legacy_adoption_needed(
         primary, workspace, record
@@ -356,6 +400,11 @@ def ensure_workspace_sdd_clone(
 ) -> None:
     """Ensure a workspace-local clone, optionally failing the setup transaction."""
 
+    store = resolve_sdd_store(workspace_dir, workspace_num)
+    if store.is_companion_storage:
+        ensure_sdd_kind_clone(workspace_dir, workspace_num, "plans", strict=strict)
+        return
+
     _ensure_sdd_clone(
         workspace_dir,
         workspace_num,
@@ -363,6 +412,36 @@ def ensure_workspace_sdd_clone(
         primary_workspace_dir=get_primary_workspace_dir,
         strict=strict,
     )
+
+
+def ensure_sdd_kind_clone(
+    workspace_dir: str | Path,
+    workspace_num: int,
+    kind: str,
+    *,
+    strict: bool = False,
+) -> Path:
+    """Materialize and synchronize the companion clone backing *kind*."""
+
+    store = resolve_sdd_store(workspace_dir, workspace_num)
+    root = store.kind_root(kind)
+    if not store.is_companion_storage:
+        if store.storage == SDD_STORAGE_SEPARATE_REPO:
+            ensure_workspace_sdd_clone(workspace_dir, workspace_num, strict=strict)
+        return root
+
+    remote_url = store.research_remote_url if kind == "research" else store.remote_url
+    if remote_url is None:
+        if strict:
+            raise SddMaterializationError(f"no remote URL recorded for SDD kind {kind}")
+        return root
+
+    from sase.sdd._store_link import ensure_companion_sdd_clone
+
+    ensure_companion_sdd_clone(
+        root if kind != "beads" else root.parent, remote_url, strict=strict
+    )
+    return root
 
 
 def _resolve_sdd_storage(
@@ -373,7 +452,8 @@ def _resolve_sdd_storage(
     primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
     record = read_sdd_store_record(primary)
     if _is_materialized_record(record):
-        return SDD_STORAGE_SEPARATE_REPO, record, primary
+        assert record is not None
+        return record.storage, record, primary
 
     policy = _provider_sdd_storage_policy(workspace)
     storage = policy if policy in _STORAGE_VALUES else SDD_STORAGE_LOCAL
@@ -392,6 +472,21 @@ def _sdd_dir_for_storage(
         return workspace / ".sase" / "sdd"
     primary = get_primary_workspace_dir(str(workspace), workspace_num)
     return Path(primary) / ".sase" / "sdd"
+
+
+def _companion_clone_dir(workspace_dir: str | Path, repo: str) -> Path:
+    from sase.linked_repos import resolve_linked_repo_clone_dir
+
+    name = repo.rstrip("/").rsplit("/", 1)[-1]
+    return Path(resolve_linked_repo_clone_dir(workspace_dir, name))
+
+
+def _is_companion_record(record: SddStoreRecord | None) -> bool:
+    return bool(
+        _is_materialized_record(record)
+        and record is not None
+        and record.is_companion_storage
+    )
 
 
 def _provider_sdd_storage_policy(workspace_dir: str | Path) -> SddStorage | None:

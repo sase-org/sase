@@ -13,6 +13,7 @@ from sase.sdd.store import (
     materialized_sdd_clone,
     read_sdd_store_record,
     resolve_sdd_dir,
+    resolve_sdd_kind_dir,
     resolve_sdd_store,
     write_sdd_store_record,
 )
@@ -82,6 +83,65 @@ def test_positive_record_precedes_provider_policy(
     assert store.storage == SDD_STORAGE_SEPARATE_REPO
     assert store.provider == "github"
     assert store.remote_url == written.remote_url
+
+
+def test_companion_record_round_trips_and_routes_kind_roots(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    workspace = tmp_path / "repo_2"
+    primary = tmp_path / "repo"
+    workspace.mkdir()
+    primary.mkdir()
+    provider_patch("bare_git")
+
+    written = write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "companion_repos",
+            "provider": "github",
+            "companions": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": "git@github.com:owner/repo--plans.git",
+                },
+                "research": {
+                    "repo": "owner/repo--research",
+                    "remote_url": "git@github.com:owner/repo--research.git",
+                },
+            },
+        },
+    )
+
+    assert read_sdd_store_record(primary) == written
+    store = resolve_sdd_store(workspace, 2)
+    plans = workspace / "sase" / "repos" / "repo--plans"
+    research = workspace / "sase" / "repos" / "repo--research"
+    assert store.is_companion_storage
+    assert store.sdd_dir == plans
+    assert store.repo_root == plans
+    assert resolve_sdd_dir(workspace, 2) == plans
+    assert resolve_sdd_kind_dir(workspace, 2, "plans") == plans
+    assert resolve_sdd_kind_dir(workspace, 2, "beads") == plans / "beads"
+    assert resolve_sdd_kind_dir(workspace, 2, "research") == research
+
+
+def test_companion_record_requires_both_kind_mappings(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="plans and research"):
+        write_sdd_store_record(
+            tmp_path,
+            {
+                "schema_version": 2,
+                "storage": "companion_repos",
+                "companions": {
+                    "plans": {
+                        "repo": "owner/repo--plans",
+                        "remote_url": "plans-remote",
+                    }
+                },
+            },
+        )
 
 
 def test_old_negative_record_is_ignored_but_github_policy_stays_separate(

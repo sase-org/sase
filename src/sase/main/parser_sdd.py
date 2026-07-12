@@ -80,16 +80,21 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Print the effective SDD root or one canonical child directory",
         description=(
             "Print the effective SDD root for the current workspace. When kind "
-            "is provided, print that canonical child directory under the root. "
-            "This uses the fast directory-only SDD resolver and does not "
-            "materialize remote stores."
+            "is provided, print the directory that stores that logical kind. "
+            "Resolution is read-only unless --ensure is passed."
         ),
+    )
+    path_parser.add_argument(
+        "-e",
+        "--ensure",
+        action="store_true",
+        help="Materialize and synchronize the backing companion clone",
     )
     path_parser.add_argument(
         "kind",
         nargs="?",
         choices=SDD_CANONICAL_DIRS,
-        help="Canonical SDD child directory to append",
+        help="Canonical SDD kind to resolve",
     )
 
     repair_parser = sdd_sub.add_parser(

@@ -181,7 +181,7 @@ def _sdd_snapshot_path(record: PromptHistoryRecord) -> Path:
     except Exception:
         workspace_num = None
     store = materialize_sdd_store(workspace, workspace_num or 1)
-    return store.sdd_dir / "plans" / get_yyyymm() / "prompts" / f"{basename}.md"
+    return store.kind_root("plans") / get_yyyymm() / "prompts" / f"{basename}.md"
 
 
 # ---------------------------------------------------------------------------

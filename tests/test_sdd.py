@@ -21,6 +21,7 @@ from sase.sdd.files import (
     write_sdd_files,
 )
 from sase.sdd._commit import commit_bare_git_sdd_init_paths
+from sase.sdd._paths import get_yyyymm
 from sase.logs import tui_git_ops_jsonl_path
 from sase.sdd.frontmatter import parse_frontmatter, set_frontmatter_fields
 
@@ -221,6 +222,27 @@ def test_write_sdd_files() -> None:
         assert plan_fm["prompt"] == "plans/202603/prompts/my_plan.md"
         assert plan_fm["tier"] == "tale"
         assert "steps:" in plan_text
+
+
+def test_write_sdd_files_supports_flat_companion_plans_root(tmp_path: Path) -> None:
+    source = tmp_path / "source.md"
+    source.write_text("# Plan\n", encoding="utf-8")
+    plans_root = tmp_path / "repo--plans"
+
+    prompt, plan = write_sdd_files(
+        plans_root,
+        "flat_plan",
+        "# Prompt\n",
+        str(source),
+        plans_root=plans_root,
+    )
+
+    assert prompt == plans_root / get_yyyymm() / "prompts" / "flat_plan.md"
+    assert plan == plans_root / get_yyyymm() / "flat_plan.md"
+    prompt_fm, _, _ = parse_frontmatter(prompt.read_text(encoding="utf-8"))
+    plan_fm, _, _ = parse_frontmatter(plan.read_text(encoding="utf-8"))
+    assert prompt_fm["plan"] == f"{get_yyyymm()}/flat_plan.md"
+    assert plan_fm["prompt"] == f"{get_yyyymm()}/prompts/flat_plan.md"
 
 
 def test_write_sdd_files_missing_plan() -> None:

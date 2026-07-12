@@ -11,8 +11,10 @@ from typing import Any, cast
 from sase.sdd._store_types import (
     _DISCOVERY_VALUES,
     _STORAGE_VALUES,
+    SDD_STORAGE_COMPANION_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
     SDD_STORE_RECORD_FILENAME,
+    SddCompanion,
     SddStorage,
     SddStoreRecord,
 )
@@ -119,6 +121,11 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
     except (TypeError, ValueError):
         schema_version_int = 1
 
+    plans, research = _companions_from_raw(raw)
+    if storage == SDD_STORAGE_COMPANION_REPOS and (
+        schema_version_int < 2 or plans is None or research is None
+    ):
+        return None
     return SddStoreRecord(
         schema_version=schema_version_int,
         storage=cast(SddStorage, storage),
@@ -128,14 +135,22 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
         remote_url=_optional_str(raw.get("remote_url")),
         discovery=_optional_str(raw.get("discovery")),
         probed_at=_optional_str(raw.get("probed_at")),
+        plans=plans,
+        research=research,
     )
 
 
 def _is_materialized_record(record: SddStoreRecord | None) -> bool:
     if record is None:
         return False
-    return (
-        record.storage == SDD_STORAGE_SEPARATE_REPO and record.discovery != "not_found"
+    if record.discovery == "not_found":
+        return False
+    if record.storage == SDD_STORAGE_SEPARATE_REPO:
+        return True
+    return bool(
+        record.storage == SDD_STORAGE_COMPANION_REPOS
+        and record.plans is not None
+        and record.research is not None
     )
 
 
@@ -148,8 +163,10 @@ def _coerce_sdd_store_record(
         raw = record
 
     storage = raw.get("storage")
-    if storage != SDD_STORAGE_SEPARATE_REPO:
-        raise ValueError("SDD store record storage must be 'separate_repo'")
+    if storage not in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_COMPANION_REPOS}:
+        raise ValueError(
+            "SDD store record storage must be 'separate_repo' or 'companion_repos'"
+        )
 
     discovery = raw.get("discovery") or "found"
     if discovery not in _DISCOVERY_VALUES:
@@ -161,15 +178,26 @@ def _coerce_sdd_store_record(
     except (TypeError, ValueError) as exc:
         raise ValueError("SDD store record schema_version must be an integer") from exc
 
+    plans, research = _companions_from_raw(raw)
+    if storage == SDD_STORAGE_COMPANION_REPOS:
+        if schema_version_int < 2:
+            raise ValueError("companion SDD store records require schema_version >= 2")
+        if plans is None or research is None:
+            raise ValueError(
+                "companion SDD store records require plans and research mappings"
+            )
+
     return SddStoreRecord(
         schema_version=schema_version_int,
-        storage=SDD_STORAGE_SEPARATE_REPO,
+        storage=cast(SddStorage, storage),
         provider=_optional_str(raw.get("provider")),
         host=_optional_str(raw.get("host")),
         repo=_optional_str(raw.get("repo")),
         remote_url=_optional_str(raw.get("remote_url")),
         discovery=cast(str, discovery),
         probed_at=_optional_str(raw.get("probed_at")) or _utc_now_iso(),
+        plans=plans,
+        research=research,
     )
 
 
@@ -182,7 +210,40 @@ def _record_to_json(record: SddStoreRecord) -> dict[str, Any]:
         value = getattr(record, key)
         if value is not None:
             data[key] = value
+    if record.storage == SDD_STORAGE_COMPANION_REPOS:
+        data["companions"] = {
+            "plans": _companion_to_json(record.plans),
+            "research": _companion_to_json(record.research),
+        }
     return data
+
+
+def _companions_from_raw(
+    raw: Mapping[str, Any],
+) -> tuple[SddCompanion | None, SddCompanion | None]:
+    companions = raw.get("companions")
+    if not isinstance(companions, Mapping):
+        return None, None
+    return (
+        _coerce_companion(companions.get("plans")),
+        _coerce_companion(companions.get("research")),
+    )
+
+
+def _coerce_companion(value: object) -> SddCompanion | None:
+    if not isinstance(value, Mapping):
+        return None
+    repo = _optional_str(value.get("repo"))
+    remote_url = _optional_str(value.get("remote_url"))
+    if repo is None or remote_url is None:
+        return None
+    return SddCompanion(repo=repo, remote_url=remote_url)
+
+
+def _companion_to_json(companion: SddCompanion | None) -> dict[str, str]:
+    if companion is None:
+        return {}
+    return {"repo": companion.repo, "remote_url": companion.remote_url}
 
 
 def _utc_now_iso() -> str:

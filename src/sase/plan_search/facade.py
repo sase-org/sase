@@ -90,14 +90,31 @@ def search(
 
     binding = require_rust_binding("plan_search")
 
+    repo_path: Path | None = None
     repo_arg: str | None = None
     local_arg: str | None = None
     if source in (SOURCE_ALL, SOURCE_REPO):
-        repo_arg = str(_repo_sdd_root(repo_root, cwd=cwd))
+        repo_path = _repo_sdd_root(repo_root, cwd=cwd)
+        repo_arg = str(repo_path)
     if source in (SOURCE_ALL, SOURCE_LOCAL):
         local_arg = str(_local_plans_dir(local_dir))
 
-    payload: list[dict[str, Any]] = binding(
+    if repo_path is not None and _is_flat_plans_root(repo_path):
+        payload = _search_flat_plans_root(
+            binding,
+            repo_path=repo_path,
+            local_arg=local_arg,
+            query=query,
+            kinds=kinds,
+            statuses=statuses,
+            since=since,
+            until=until,
+            sort=sort,
+            limit=limit,
+        )
+        return plan_search_matches_from_list(payload)
+
+    payload = binding(
         repo_arg,
         local_arg,
         query,
@@ -110,6 +127,104 @@ def search(
         limit,
     )
     return plan_search_matches_from_list(payload)
+
+
+def _is_flat_plans_root(path: Path) -> bool:
+    if (path / "plans").is_dir():
+        return False
+    try:
+        return any(
+            child.is_dir() and len(child.name) == 6 and child.name.isdigit()
+            for child in path.iterdir()
+        )
+    except OSError:
+        return False
+
+
+def _search_flat_plans_root(
+    binding: Any,
+    *,
+    repo_path: Path,
+    local_arg: str | None,
+    query: str | None,
+    kinds: Sequence[str] | None,
+    statuses: Sequence[str] | None,
+    since: str | None,
+    until: str | None,
+    sort: str | None,
+    limit: int | None,
+) -> list[dict[str, Any]]:
+    """Adapt a flat plans companion to the core's resolved-directory input."""
+
+    repo_payload: list[dict[str, Any]] = binding(
+        None,
+        str(repo_path),
+        query,
+        None,
+        _as_str_list(statuses),
+        None,
+        since,
+        until,
+        sort,
+        None,
+    )
+    selected_kinds = {value.lower() for value in kinds} if kinds else None
+    normalized_repo: list[dict[str, Any]] = []
+    for item in repo_payload:
+        plan = dict(item["plan"])
+        frontmatter = dict(plan.get("frontmatter") or {})
+        tier = str(frontmatter.get("tier") or "tale").lower()
+        kind = tier if tier in {"tale", "epic"} else "tale"
+        if selected_kinds is not None and kind not in selected_kinds:
+            continue
+        plan["source"] = SOURCE_REPO
+        plan["kind"] = kind
+        normalized = dict(item)
+        normalized["plan"] = plan
+        normalized["score"] = float(item.get("score", 0.0)) + 1.0
+        normalized_repo.append(normalized)
+
+    local_payload: list[dict[str, Any]] = []
+    if local_arg is not None:
+        local_payload = binding(
+            None,
+            local_arg,
+            query,
+            None,
+            _as_str_list(statuses),
+            None,
+            since,
+            until,
+            sort,
+            None,
+        )
+    merged = [*normalized_repo, *local_payload]
+    _sort_wire_matches(merged, query=query, sort=sort)
+    if limit is not None and limit > 0:
+        return merged[:limit]
+    return merged
+
+
+def _sort_wire_matches(
+    items: list[dict[str, Any]], *, query: str | None, sort: str | None
+) -> None:
+    mode = sort or ("relevance" if query and query.strip() else "recent")
+    items.sort(
+        key=lambda item: (
+            0 if item["plan"].get("source") == SOURCE_REPO else 1,
+            str(item["plan"].get("relpath", "")),
+            str(item["plan"].get("source", "")),
+        )
+    )
+    if mode == "title":
+        items.sort(key=lambda item: str(item["plan"].get("title", "")).lower())
+    else:
+        items.sort(
+            key=lambda item: str(item["plan"].get("created_at", "")),
+            reverse=True,
+        )
+        if mode == "relevance":
+            items.sort(key=lambda item: float(item.get("score", 0.0)), reverse=True)
 
 
 def _as_str_list(values: Sequence[str] | None) -> list[str] | None:
