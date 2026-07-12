@@ -60,8 +60,10 @@ Run `sase prompt <command> --help` for the full flag list of any subcommand.
 stores at once** and ranks repo-relevant snapshots first, so it answers "I remember a prompt about X — find it, whether
 I snapshotted it into this repo or just ran it once last month."
 
-- **Repo SDD snapshots** — the committed `sdd/plans/*/prompts/*.md` files written by `sase prompt export --sdd` (plus
-  legacy top-level `prompts/` and `specs/` layouts). These are curated and repo-specific, so they always **rank first**.
+- **Repo SDD snapshots** — canonical `plans/*/prompts/*.md` snapshots below an SDD root (plus legacy top-level
+  `prompts/` and `specs/` layouts). `sase prompt search` scans the current directory's in-tree and `.sase/sdd` roots;
+  for a split store, run it from `$(sase sdd path plans)` to search the `--plans` companion. These curated snapshots
+  always **rank first**.
 - **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store: every prompt ever submitted on this
   machine, across all repos.
 
@@ -240,12 +242,12 @@ bar contains a stack, ACE saves the non-empty panes as one `---`-separated xprom
 
 ### Export a prompt to SDD
 
-`export` snapshots a prompt as a committed artifact. `--sdd` writes under `sdd/plans/YYYYMM/prompts/` with provenance
-frontmatter (ID, hash, timestamps, status, and source) and a filename built from a clean preview slug plus the prompt
-ID:
+`export` snapshots a prompt as a committed artifact. `--sdd` materializes the resolved store and writes under
+`<resolved-plans-root>/YYYYMM/prompts/` with provenance frontmatter (ID, hash, timestamps, status, and source) and a
+filename built from a clean preview slug plus the prompt ID:
 
 ```bash
-sase prompt export ph_8f3a9c0d12ab -s              # SDD snapshot under sdd/plans/YYYYMM/prompts/
+sase prompt export ph_8f3a9c0d12ab -s              # snapshot under the resolved plans root
 sase prompt export ph_8f3a9c0d12ab -o prompt.md    # write to an arbitrary path
 sase prompt export ph_8f3a9c0d12ab -m              # stdout, wrapped in frontmatter
 sase prompt export ph_8f3a9c0d12ab                 # stdout, byte-exact (like show -f raw)

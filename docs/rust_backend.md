@@ -147,12 +147,12 @@ notes, and the contract snapshot path used by future Android work.
 ## Bead Backend
 
 The `sase bead` path is Rust-owned for data operations. Canonical bead state lives in append-only event streams under
-the resolved SDD bead store (`sdd/beads/events/**` in in-tree mode, `.sase/sdd/beads/events/**` in local or
-separate-repo mode) when present; `issues.jsonl` is regenerated as a compatibility projection, and `beads.db` is a
-compatibility cache. Event reduction, JSONL/config parsing, cache refresh, mutations, single-store ID allocation,
-deterministic epic work planning, and common CLI output planning all live in `sase-core` and are exposed through
-`sase_core_rs`. Python remains the host layer for path discovery, VCS context, xprompt lookup, confirmation prompts,
-launch/rollback, and telemetry side effects.
+the resolved SDD bead store (`sdd/beads/events/**` in in-tree mode, `.sase/sdd/beads/events/**` in local or legacy
+separate-repo mode, and `beads/events/**` in the split `--plans` companion) when present; `issues.jsonl` is regenerated
+as a compatibility projection, and `beads.db` is a compatibility cache. Event reduction, JSONL/config parsing, cache
+refresh, mutations, single-store ID allocation, deterministic epic work planning, and common CLI output planning all
+live in `sase-core` and are exposed through `sase_core_rs`. Python remains the host layer for path discovery, VCS
+context, xprompt lookup, confirmation prompts, launch/rollback, and telemetry side effects.
 
 Golden contract fixtures live under `tests/test_bead/golden/`:
 

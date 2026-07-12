@@ -60,8 +60,8 @@ inspected by users, agents, and automation:
 | ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Project lifecycle state plus review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps. |
 | Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.                     |
 | Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                        |
-| SDD artifacts    | `sdd/` or `.sase/sdd/`                                             | Prompt snapshots, plans, executable epics, and research notes.                                                  |
-| Beads            | `sdd/beads/` or `.sase/sdd/beads/`                                 | Issue graph, JSONL export, SQLite query cache, and epic execution metadata.                                     |
+| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split companion roots   | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase sdd path <kind>`.             |
+| Beads            | The resolved SDD beads directory                                   | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; split stores use `--plans/beads/`.  |
 | Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                         |
 | Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                       |
 | Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.                                |

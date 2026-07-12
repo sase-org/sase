@@ -666,6 +666,26 @@ llm_provider:
       codex_coder: claude/opus # Codex-authored plans hand coding to Claude
 ```
 
+#### Launch-scoped alias overrides
+
+A prompt can override these aliases for only its launch family with keyword arguments on `%model(...)`:
+
+```text
+%model(opus, coder=codex/gpt-5.6-sol)
+%model(phase_worker=claude/sonnet)
+```
+
+The positional value, when present, selects the current agent's model. Keyword keys are bare known alias names; values
+may be concrete model targets or `@other_alias` references. The map is stored in agent metadata and inherited by
+plan/coder follow-ups and explicit family attachments, but not by unrelated nested launches. It does not write
+`sase.yml` or `~/.sase/llm_override.json`.
+
+Launch-scoped values have the highest alias-resolution precedence. They beat machine-wide per-alias temporary overrides
+and configured/implicit aliases at every hop; a launch-scoped `default` also beats the machine-wide temporary default.
+An explicit concrete model for the current agent remains concrete, while an explicit alias is resolved through this
+launch map. See [Launch-Scoped Model Alias Overrides](xprompt.md#launch-scoped-model-alias-overrides) for syntax and
+validation rules.
+
 > **Migration note:** the previously reserved `@worker` and `@other` aliases were removed (epic sase-5d). Route
 > delegated work through the role aliases above (`@coder` / `@phase_worker`) or an explicit model instead of `@worker`,
 > and use `@default` instead of `@other`. `sase doctor` flags configs that still reference the removed aliases or
@@ -838,9 +858,10 @@ choices, and per-bead/land model metadata always win over the role-alias default
 
 ## Temporary Model Overrides
 
-In addition to the tier-based global override, sase supports **concrete** provider/model overrides that act as
-temporary, time-bound overrides of a model alias. The ACE `,m` chord opens the [**Models** panel](ace.md#models-panel)
-for setting, changing, and clearing these overrides — for the `default` alias or any role/user alias.
+In addition to prompt-level [launch-scoped overrides](#launch-scoped-alias-overrides) and the tier-based global
+override, sase supports **concrete** provider/model overrides that act as temporary, time-bound machine-wide overrides
+of a model alias. The ACE `,m` chord opens the [**Models** panel](ace.md#models-panel) for setting, changing, and
+clearing these overrides — for the `default` alias or any role/user alias.
 
 The panel also shows a two-line description for the highlighted alias or bucket. Builtin aliases have fixed
 descriptions, custom aliases read `llm_provider.model_aliases.custom.<name>.description`, and the built-in `coders`
@@ -848,12 +869,14 @@ bucket reports its aggregate effective-model mix and active override count.
 
 Overrides are **per-alias** and independent. The `default` override only changes the _default_ provider/model selection
 for new agent launches; an override on any other alias takes effect wherever that alias is resolved (e.g. `@coder`,
-`@phase_worker`). No override ever changes:
+`@phase_worker`). Machine-wide temporary overrides do not change:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
-- Explicit `%model` prompt directives — they still take precedence.
+- Explicit concrete `%model` prompt targets — they still take precedence. A `%model(...)` alias keyword is a separate,
+  higher-precedence launch-scoped override.
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
-- An explicit `@default` reference — it always resolves to the configured default and ignores the `default` override.
+- An explicit `@default` reference — it ignores the machine-wide `default` override. A launch-scoped `default` still
+  applies within that launch family.
 
 `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for tier-based launches. A concrete
 temporary override supplies a provider and model directly, so it is used only when no explicit model/provider was
@@ -861,16 +884,17 @@ requested.
 
 ### Resolution Order (default provider/model)
 
-When no `%model` directive and no explicit `provider_name` are present, the default is resolved as:
+When no positional `%model` target and no explicit `provider_name` are present, the default is resolved as:
 
-1. **Active `default` temporary override** at `~/.sase/llm_override.json` (if not expired).
-2. `llm_provider.provider` from the merged `sase.yml` config.
-3. Auto-detection by plugin-declared priority (built-ins: claude, codex, qwen, opencode, then agy).
+1. A launch-scoped `default` alias override from `%model(default=...)`, when present.
+2. **Active machine-wide `default` temporary override** at `~/.sase/llm_override.json` (if not expired).
+3. The configured `@default` alias, otherwise the configured/autodetected provider's requested-tier model.
 
-For any **non-`default`** alias, `resolve_model_alias()` consults that alias's active override _before_ its
-configured/implicit value, so an override on `@coder` / `@phase_worker` / a user alias changes what that alias resolves
-to. The `default` alias keeps the two-path behavior above, and an explicit `@default` reference is never
-short-circuited.
+For any **non-`default`** alias, `resolve_model_alias()` consults the launch-scoped map first, then that alias's active
+machine-wide override, then its configured/implicit value. A launch-scoped generic `coder` value also applies at a
+provider-specific `<provider>_coder` hop unless the launch map supplies that more-specific key. Without a launch-scoped
+`default`, the default alias keeps the two-path behavior above, and an explicit `@default` reference is not
+short-circuited by the machine-wide temporary default.
 
 A concrete temporary override sets both the default provider and a concrete `model_override` for the next launch — so
 the agent metadata (running marker, plan review badge, agent rows) reflects the actual model that will run, not just the

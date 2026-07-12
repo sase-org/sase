@@ -113,6 +113,7 @@ sase vcs log --all --sdd # include repos and separate SDD histories from every p
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
 sase sdd path            # print the effective SDD root for this workspace
+sase sdd migrate -c -d   # preview migration from a legacy SDD clone into split companions
 sase plugin list         # browse built-in/community plugins and update indicators
 sase update -n           # preview a SASE core + installed-plugin update
 sase workspace list       # inspect numbered workspaces for the current project
@@ -192,10 +193,14 @@ SASE keeps durable state outside any one chat session:
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
   in the producer's `OUTPUT VARIABLES` metadata panel.
+- **Per-launch model routing** - `%model(opus, coder=codex/gpt-5.6-sol)` can select the current agent's model and
+  override one or more model aliases for only that launch family. The alias map follows plan/coder and explicit family
+  follow-ups, is recorded in agent metadata, and does not change `sase.yml` or the machine-wide temporary overrides.
 - **SDD storage** - Workspace providers own where prompt snapshots, tales, epics, research notes, and beads live.
-  Built-in bare-git projects use in-tree `sdd/`; GitHub projects require a provider-managed companion repository at
-  `.sase/sdd/`. A positive `.sase/sdd-store.json` record keeps a materialized companion usable offline. The retired
-  `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by `sase doctor` for cleanup.
+  Built-in bare-git projects use in-tree `sdd/`. Newly initialized managed GitHub projects use an auto-cloned
+  `<repo>--plans` companion for plans and beads plus a lazy `<repo>--research` companion; unmigrated projects keep their
+  legacy `.sase/sdd/` clone. A positive `.sase/sdd-store.json` record keeps the resolved layout usable offline. The
+  retired `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by `sase doctor` for cleanup.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
   `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` and `sase plan reject [id]`
   write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without
@@ -241,6 +246,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [Mentors](https://sase.sh/mentors/) ([local](docs/mentors.md))
 - [Commit Workflows](https://sase.sh/commit_workflows/) ([local](docs/commit_workflows.md))
 - [Plugins](https://sase.sh/plugins/) ([local](docs/plugins.md))
+- [Fakey Testing Provider](https://sase.sh/fakey/) ([local](docs/fakey.md))
 - [LLM Providers](https://sase.sh/llms/) ([local](docs/llms.md))
 - [VCS Providers](https://sase.sh/vcs/) ([local](docs/vcs.md))
 - [Integration APIs](https://sase.sh/integrations/) ([local](docs/integrations.md))

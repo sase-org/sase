@@ -295,14 +295,15 @@ The forked agent gets a new record and a new workspace. You still have lineage, 
 ## SDD: Prompts, Tales, Epics, And Beads
 
 SASE's [Spec-Driven Development](../../sdd.md) store is where agent intent becomes durable project state. Provider
-policy places it at `sdd/` for in-tree projects or `.sase/sdd/` for providerless local and companion-backed projects.
+policy places it at `sdd/` for in-tree projects, `.sase/sdd/` for providerless local and legacy single-companion
+projects, or split `--plans` and `--research` roots for newly initialized or migrated managed GitHub projects.
 
-The core folders are:
+The core logical roots are:
 
-- `prompts/`: expanded prompt snapshots. XPrompts are resolved, directives are stripped, and the exact prompt that
-  launched work is saved with metadata.
-- `plans/`: approved implementation plans, classified by `tier: tale|epic`. Tales are focused plans; epics are
-  executable multi-phase plans that can be turned into Beads and driven by `sase bead work`.
+- `<plans-root>/<YYYYMM>/prompts/`: expanded prompt snapshots. XPrompts are resolved, directives are stripped, and the
+  exact prompt that launched work is saved with metadata.
+- `<plans-root>/<YYYYMM>/`: approved implementation plans, classified by `tier: tale|epic`. Tales are focused plans;
+  epics are executable multi-phase plans that can be turned into Beads and driven by `sase bead work`.
 - `beads/`: git-portable issue/dependency state under the resolved SDD store, with bead data, events, JSONL
   compatibility output, and the SQLite query cache.
 

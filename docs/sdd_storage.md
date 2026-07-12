@@ -17,8 +17,8 @@ and `SASE_SDD_BEADS_DIR`.
 | Provider policy   | Root                                   | Repository                                                                                      |
 | ----------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `in_tree`         | `{workspace}/sdd`                      | The code repository. Built-in bare-git projects use this policy.                                |
-| `separate_repo`   | `{workspace}/.sase/sdd`                | A required provider companion repository. GitHub projects use this policy.                      |
-| `companion_repos` | `{workspace}/sase/repos/<repo>--plans` | A migrated two-repository store; the bare root is the plans clone.                              |
+| `separate_repo`   | `{workspace}/.sase/sdd`                | A required single companion. GitHub providers declare this policy; legacy stores retain it.     |
+| `companion_repos` | `{workspace}/sase/repos/<repo>--plans` | The two-repository store created for newly managed or migrated GitHub projects.                 |
 | no policy         | `{primary}/.sase/sdd`                  | A primary-workspace local store for providerless projects or providers with no SDD declaration. |
 
 A positive materialized-store record at `{primary}/.sase/sdd-store.json` is authoritative, including while offline. Old
@@ -26,9 +26,10 @@ negative records are not policy and are retried at the next materialization atte
 
 ## Split Plans and Research Companions
 
-Migrated projects use a schema-version 2 store record with `storage: companion_repos`. The record identifies both the
-plans and research repositories and their remotes. That record—not clone or remote existence—is the migration authority.
-Legacy records continue to use the single-root layout unchanged.
+Newly initialized managed GitHub projects and migrated projects use a schema-version 2 store record with
+`storage: companion_repos`. The record identifies both the plans and research repositories and their remotes. That
+record—not clone or remote existence—is the layout authority. Legacy records continue to use the single-root layout
+unchanged.
 
 The plans companion keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`) with `beads/`
 beside them. The research companion likewise keeps `<YYYYMM>/` directories at its root. Kind resolution is therefore:

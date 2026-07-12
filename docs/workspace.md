@@ -48,7 +48,9 @@ Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefix
 
 SASE treats `sdd_storage_policy` as authoritative. `in_tree` takes effect immediately, as it does for the built-in
 bare-git provider. `separate_repo` requires the provider to materialize a companion before SDD writes or workflow setup
-can continue. A positive `.sase/sdd-store.json` record preserves that materialized selection for offline use.
+can continue. A positive `.sase/sdd-store.json` record preserves that materialized selection for offline use. Managed
+GitHub initialization can record the resolved store as `companion_repos`, routing plans/beads and research to separate
+linked clones; that is a materialized-store layout, not an additional provider policy value.
 
 ### ResolvedRef
 

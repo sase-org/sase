@@ -1637,7 +1637,8 @@ The question modal also supports `y` to copy questions and selected answers.
 Pressing `c` in the plan approval modal opens a custom approval dialog. Choose the approval outcome directly: Approve,
 Tale, or Epic. These choices map to the same response protocol used by external approval transports: Approve runs the
 coder without asking the runner to commit an SDD plan, while Tale and Epic commit the plan under the matching tier in
-the resolved SDD store (`sdd/tales|epics` in in-tree mode, `.sase/sdd/...` otherwise).
+the resolved SDD plans root's `<YYYYMM>/` directory. The root may be in-tree, a legacy `.sase/sdd/` clone, or the split
+`--plans` companion; `sase sdd path plans` prints it.
 
 | Key          | Action                                    |
 | ------------ | ----------------------------------------- |

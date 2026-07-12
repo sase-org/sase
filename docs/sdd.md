@@ -65,14 +65,15 @@ The result is a clean, self-contained document showing exactly what the agent wa
 The plan file produced by the agent is:
 
 1. Annotated with a `create_time` frontmatter field
-2. Given a required `tier: tale|epic` frontmatter value and written to `plans/{YYYYMM}/{plan_name}.md`, where `{YYYYMM}`
-   is derived from the current date. Its prompt snapshot is written beside it at
-   `plans/{YYYYMM}/prompts/{plan_name}.md`.
+2. Given a required `tier: tale|epic` frontmatter value and written to `<plans-root>/{YYYYMM}/{plan_name}.md`, where
+   `{YYYYMM}` is derived from the current date. Its prompt snapshot is written beside it at
+   `<plans-root>/{YYYYMM}/prompts/{plan_name}.md`.
 
 Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
-the creation date. Prompt snapshots are nested under each plan month at `plans/<YYYYMM>/prompts/`. This keeps paired
-artifacts together while plan discovery remains limited to `plans/<YYYYMM>/*.md`. Historical top-level `prompts/` and
-`specs/` aliases remain readable during migration.
+the creation date. Prompt snapshots are nested under each plan month at `<plans-root>/<YYYYMM>/prompts/`. This keeps
+paired artifacts together while plan discovery remains limited to `<plans-root>/<YYYYMM>/*.md`. Resolve the plans root
+with `sase sdd path plans` or `SASE_SDD_PLANS_DIR`; historical top-level `prompts/` and `specs/` aliases remain readable
+during migration.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
 the bead issue tracker.
@@ -117,6 +118,10 @@ plan: plans/202605/example.md
 prompt: plans/202605/prompts/example.md
 tier: tale
 ```
+
+The example shows the in-tree/local/legacy single-root link form. In a split `--plans` repository, the same links omit
+the leading `plans/` component (`202605/example.md` and `202605/prompts/example.md`) because monthly directories live at
+the repository root.
 
 `sase sdd validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical files
 as warnings by default and as errors with `--strict`. Research notes are durable SDD context, but they are not part of
@@ -202,6 +207,7 @@ SDD initializes the [bead issue tracker](beads.md) automatically when an epic ag
 - **In-tree mode**: Beads are stored in `sdd/beads/` at the project root.
 - **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo.
 - **Separate-repo mode**: Beads are stored in `.sase/sdd/beads/` inside the companion checkout.
+- **Split companion mode**: Beads are stored at `beads/` in the active workspace's auto-cloned `--plans` repository.
 
 Plan-like beads carry a `tier` value:
 
@@ -212,11 +218,11 @@ For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontma
 own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. For smaller
 plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The path is relative to the
 repository that owns the plan: `sdd/plans/<YYYYMM>/<name>.md` for in-tree storage and `plans/<YYYYMM>/<name>.md` for
-local or separate-repo stores.
+local or legacy separate-repo stores. In a split `--plans` repository, it is `<YYYYMM>/<name>.md`.
 
 When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
-workspaces can resolve. Agents can also build paths from `SASE_SDD_DIR`, for example
-`$SASE_SDD_DIR/plans/{YYYYMM}/{name}.md`.
+workspaces can resolve. Agents can also build paths from the kind-specific root, for example
+`$SASE_SDD_PLANS_DIR/{YYYYMM}/{name}.md`.
 
 ## Configuration
 
@@ -230,7 +236,7 @@ sdd:
 | Option                  | Type        | Default | Description                                                                                                                                                                                                                             |
 | ----------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sdd.repo.name`         | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit` | bool/string | `async` | Separate-repo push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                             |
+| `sdd.push_after_commit` | bool/string | `async` | Companion-repository push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                      |
 
 Storage selection is not configurable. The workspace provider owns it. Retired `sdd.storage` and
 `sdd.version_controlled` keys are ignored and reported by `sase doctor` for cleanup.
@@ -242,5 +248,7 @@ mode behavior.
 
 SDD artifact placement follows provider policy. With `in_tree`, bead commands use the current checkout's `sdd/beads/`
 store. With `separate_repo`, commands first require a usable provider companion and then use the active workspace's
-`.sase/sdd/` clone. Providerless local storage uses the primary workspace. Numbered sibling stores are not merged;
-coordinate shared state through the normal VCS sync path.
+`.sase/sdd/` clone. With `companion_repos`, each workspace auto-clones `--plans` under `sase/repos/` for plans and
+beads; the `--research` clone remains lazy until explicitly ensured. Providerless local storage uses the primary
+workspace. Numbered sibling stores are not merged; coordinate shared state through the normal VCS sync path. Prefer
+`sase sdd path <kind>` or the `SASE_SDD_*_DIR` variables over hard-coded relative paths.

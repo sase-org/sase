@@ -51,6 +51,7 @@ version of this model; the text model above is the authoritative current referen
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
+  - [Launch-Scoped Model Alias Overrides](#launch-scoped-model-alias-overrides)
 - [Command Substitution](#command-substitution)
 - [Protected Content](#protected-content)
 - [XPrompt Aliases](#xprompt-aliases)
@@ -1015,6 +1016,8 @@ Directives use the same argument syntax as xprompt references:
 %model:codex/o3              # Provider/model syntax — switches both provider and model
 %m("agy/Gemini 3.5 Flash (High)") # Quoted provider/model value with spaces/parentheses
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
+%model(opus, coder=codex/gpt-5.6-sol) # This agent uses opus; its coder follow-up uses Codex
+%model(coder=@phase_worker)  # Leave this agent on the default; route @coder through another alias
 %effort:xhigh                # Set the reasoning-effort level for this prompt
 %e:xhigh                     # Same, using alias
 %effort:%{medium | high | xhigh} # Fan out directive values
@@ -1062,6 +1065,29 @@ The `%model` directive also supports automatic provider resolution: known model 
 [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for the full model-to-provider mapping. ACE and
 the xprompt LSP complete `%model:` / `%m:` values from the same model catalog used for provider resolution. The inserted
 value is a canonical model name or configured alias; provider short aliases are only filter/display hints.
+
+### Launch-Scoped Model Alias Overrides
+
+The parenthesized `%model` form accepts keyword arguments that temporarily replace model aliases for one launch family:
+
+```text
+%model(opus, coder=codex/gpt-5.6-sol, phase_worker=claude/sonnet)
+%model(coder=@phase_worker)
+```
+
+The optional positional value still selects the current agent's model. Each `alias=value` entry instead changes how that
+bare alias resolves for delegated launches in the same family. Keys must be known builtin or custom alias names without
+`@`; values may be concrete models, `provider/model` targets, quoted targets, xprompt references, or another alias with
+`@`. Per-alias reasoning-effort suffixes are not supported.
+
+These overrides are launch-scoped, not configuration edits. SASE records them in the agent metadata and carries them
+through plan/coder follow-ups and explicit `%name(parent, suffix)` family attachments. Unrelated nested launches do not
+inherit them. At each alias hop a launch-scoped value wins over a machine-wide temporary override and the configured or
+implicit alias value. The `default` key also wins over the machine-wide default override for that launch family.
+
+The launch preview shows the resulting map before approval. Invalid alias names, missing values, duplicate keys,
+self-references, and ambiguous bare alias values fail with a directive error. Use `@phase_worker`, not `phase_worker`,
+when the value should reference another alias.
 
 A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g. `%model:opus@xhigh`); the effort is
 split off the clean model and behaves exactly like a standalone `%effort` directive. See the
@@ -1248,8 +1274,9 @@ Use `%auto:tale` or `%auto:epic` to plan first, then auto-approve and commit the
 tier. Unknown modes raise a `DirectiveError`; valid modes are `plan`, `tale`, and `epic`.
 
 When an agent launched with `%auto:tale` later submits a plan with `/sase_plan` or `sase plan propose`, sase
-auto-approves and commits it as an SDD tale in the resolved store (`sdd/plans/YYYYMM/` in in-tree mode,
-`.sase/sdd/plans/YYYYMM/` otherwise) and launches the coder follow-up — the same path as the TUI Tale action:
+auto-approves and commits it as an SDD tale in the resolved plans root's `<YYYYMM>/` directory and launches the coder
+follow-up — the same path as the TUI Tale action. Use `sase sdd path plans` instead of assuming whether the root is
+in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` companion:
 
 ```
 %auto:tale

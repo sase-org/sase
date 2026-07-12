@@ -1102,17 +1102,18 @@ sdd:
 | Field                   | Type        | Default | Description                                                                                                                                                                                                                             |
 | ----------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sdd.repo.name`         | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit` | bool or str | `async` | Controls `git push` after SDD commits in `separate_repo`: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                     |
+| `sdd.push_after_commit` | bool or str | `async` | Controls `git push` after SDD commits in companion repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
 
-The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`; GitHub projects
-require a provider-backed companion clone under `.sase/sdd/`, with materialization metadata in the primary workspace's
+The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Newly initialized
+managed GitHub projects use `--plans` and `--research` companion clones under `sase/repos/`; unmigrated GitHub projects
+retain their provider-backed `.sase/sdd/` clone. Both layouts record materialization metadata in the primary workspace's
 `.sase/sdd-store.json`. Providerless projects fall back to a primary-workspace `.sase/sdd/` store. The retired
 `sdd.storage` and `sdd.version_controlled` keys are ignored, stripped before validation, and reported by `sase doctor`
 for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
 
-Migrated projects have a schema-version 2 `companion_repos` record. Their plans and beads resolve into the auto-cloned
-`--plans` repository, while research resolves into the lazy `--research` repository. The legacy single-companion shape
-continues to resolve byte-for-byte as before.
+Newly initialized managed GitHub projects and migrated projects have a schema-version 2 `companion_repos` record. Their
+plans and beads resolve into the auto-cloned `--plans` repository, while research resolves into the lazy `--research`
+repository. The legacy single-companion shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -1121,14 +1122,15 @@ needed.
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase sdd init` or its `sase init sdd`
 compatibility alias materializes the provider-selected store, then refreshes generated SDD guides and the directory map.
-On GitHub it finds or creates the public-by-default companion, ensures its `sase--sdd` label, and losslessly imports
-legacy in-tree or local artifacts before recording success. Existing private companions remain private. `--check`
-previews provider and generated-file work without writing. Missing or false management markers make both forms
-successful no-ops; invalid local marker configuration fails before provider calls or writes.
+On GitHub it finds or creates the public `<owner>/<repo>--plans` and `<owner>/<repo>--research` companions, initializes
+and pushes both, then writes the split store record. Existing legacy `--sdd` stores remain available until
+`sase sdd migrate` is applied. `--check` previews provider and generated-file work without writing. Missing or false
+management markers make both forms successful no-ops; invalid local marker configuration fails before provider calls or
+writes.
 
-Explicit initialization first performs authoritative provider discovery. A missing GitHub companion triggers
-`Create public GitHub SDD companion repository <owner>/<repo>--sdd on <host>? [y/N]`; only `y` or `yes` authorizes that
-invocation to create it. The prompt is default-no and unavailable on non-interactive stdin. Bare `sase init --yes`
+Explicit initialization first performs authoritative provider discovery for both repositories. Each missing GitHub
+companion triggers a separate prompt naming the `--plans` or `--research` repository; only `y` or `yes` authorizes that
+invocation to create it. The prompts are default-no and unavailable on non-interactive stdin. Bare `sase init --yes`
 bypasses only the coordinator prompt and cannot authorize repository creation; `--check` remains network-free.
 
 Source: `src/sase/default_config.yml`
@@ -1882,12 +1884,13 @@ workspace instead and accepts an optional kind such as `research`. With no subco
 
 | Subcommand     | Flags                                                                    | Description                                                                                                       |
 | -------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `init`         | `-p/--path`, `-c/--check`                                                | Materialize provider-owned storage, refresh SDD guide files, and report planned work with `--check`               |
-| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `tales`, `epics`, or `all`                                            |
+| `init`         | `-p/--path`, `-c/--check`, `-d/--diff`                                   | Materialize provider-owned storage, refresh SDD guide files, and preview planned work                             |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                                   |
+| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `plans`, `tales`, `epics`, or `all`                                   |
+| `migrate`      | `-p/--path`, `-c/--check`, `-d/--diff`                                   | Move a legacy SDD clone into initialized split companions; check/diff modes are read-only                         |
 | `path`         | `-e/--ensure`, `[kind]`                                                  | Print the effective root or kind root; `--ensure` materializes and synchronizes its backing companion             |
-| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                           |
 | `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs; `--write` first materializes provider storage and then writes link fixes |
+| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                           |
 
 ### `sase validate`
 

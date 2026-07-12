@@ -34,14 +34,15 @@ both the **expanded prompt snapshot** (every `#xprompt` resolved, every `%direct
 as first-class artifacts on disk. The two files cross-reference each other via `prompt:` and `plan:` frontmatter fields,
 and `sase sdd validate` checks that the link graph is intact.
 
-Two plan tiers share one canonical directory under the effective SDD root:
+Two plan tiers share one canonical plans root:
 
-- **Tales** — ordinary implementation plans at `plans/{YYYYMM}/{name}.md` with `tier: tale`.
+- **Tales** — ordinary implementation plans at `<plans-root>/{YYYYMM}/{name}.md` with `tier: tale`.
 - **Epics** — executable multi-phase plans at the same path shape with `tier: epic`.
 
-Storage follows workspace-provider policy. Built-in bare-git projects use in-tree `sdd/`; GitHub projects require a
-companion repository at `.sase/sdd/`; providerless projects use the primary workspace's local `.sase/sdd/` store. A
-positive companion-store record preserves materialized GitHub storage for offline use.
+Storage follows workspace-provider policy. Built-in bare-git projects use in-tree `sdd/`; newly initialized managed
+GitHub projects use split `--plans` and `--research` companions; unmigrated GitHub projects retain their `.sase/sdd/`
+clone; providerless projects use the primary workspace's local `.sase/sdd/` store. A positive companion-store record
+preserves the resolved GitHub layout for offline use.
 
 `sase sdd list -k epics` lists every epic; `sase sdd validate` checks the prompt/plan link graph; `sase sdd init`
 materializes provider-owned storage and refreshes the generated READMEs and directory-map asset. The reference is in
@@ -113,7 +114,8 @@ SDD plan artifacts are shared through the normal project workflow. With in-tree 
 deliberately checkout-local: `sase bead` reads and mutates the `sdd/beads/` event store in the checkout where the
 command runs. An agent running in `myproject_3` sees `myproject_3/sdd/beads/`, not a merged view of `myproject/`,
 `myproject_2/`, and `myproject_3/`. Providerless local storage resolves numbered checkouts back to the primary
-workspace's `.sase/sdd/beads/` store. With companion policy, each numbered checkout uses its own `.sase/sdd/` clone.
+workspace's `.sase/sdd/beads/` store. With a legacy single companion, each numbered checkout uses its own `.sase/sdd/`
+clone; with split storage, it instead uses `beads/` in its auto-cloned `--plans` repository.
 
 That keeps the source of truth inspectable and unsurprising. For in-tree work, bead state moves between checkouts
 through the same VCS sync path as code and SDD files, and ID allocation uses the active checkout's local `config.json`

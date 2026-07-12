@@ -61,18 +61,18 @@ sase bead work beads-001                                # Launch agents for an e
 Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
 plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 
-Plan beads carry a tier. The paths below are relative to the effective SDD root. Use `sase sdd path` or `SASE_SDD_DIR`
-to locate that root for providerless local or provider companion layouts.
+Plan beads carry a tier. The paths below are relative to the effective plans root. Use `sase sdd path plans` or
+`SASE_SDD_PLANS_DIR` to locate it without depending on the storage layout.
 
-| Tier   | SDD Path              | Behavior                                           |
-| ------ | --------------------- | -------------------------------------------------- |
-| `plan` | `plans/{YYYYMM}/*.md` | Normal non-epic implementation plan (`tier: tale`) |
-| `epic` | `plans/{YYYYMM}/*.md` | Executable multi-phase plan (`tier: epic`)         |
+| Tier   | Plans-root path | Behavior                                           |
+| ------ | --------------- | -------------------------------------------------- |
+| `plan` | `{YYYYMM}/*.md` | Normal non-epic implementation plan (`tier: tale`) |
+| `epic` | `{YYYYMM}/*.md` | Executable multi-phase plan (`tier: epic`)         |
 
 Epics use the plan syntax:
 
 ```bash
-sase bead create --title "Epic" --type "plan(${SASE_SDD_DIR}/plans/202605/epic.md)" --tier epic
+sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.md)" --tier epic
 ```
 
 ### Status Lifecycle
@@ -110,16 +110,17 @@ sdd/beads/
   beads.db              # SQLite compatibility cache (gitignored)
 ```
 
-For providerless local storage and provider-owned companion storage, the directory is `.sase/sdd/beads/` with the same
-structure. Local storage uses the primary workspace. Companion storage uses the active workspace clone and records
-provider/remote metadata in the primary workspace's `.sase/sdd-store.json`.
+Providerless local storage and legacy single-companion storage use `.sase/sdd/beads/` with the same structure. Split
+companion storage uses `beads/` at the root of the active workspace's auto-cloned `--plans` repository. Local storage
+uses the primary workspace; both companion layouts use the active workspace clone and record provider/remote metadata in
+the primary workspace's `.sase/sdd-store.json`.
 
 Normal bead commands read and write one store for the active checkout. In in-tree mode, canonical bead state lives in
 the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. Providerless local commands route
 to the primary workspace's `.sase/sdd/beads/` store. Companion-policy commands first materialize the provider store,
-then route to the active workspace clone so an agent in workspace `#N` writes the matching `.sase/sdd/` checkout. If the
-event store is absent, reads fall back to legacy `issues.jsonl`. Numbered sibling workspaces and legacy stores are not
-merged into normal `sase bead` reads.
+then route to the active workspace clone so an agent in workspace `#N` writes either its matching `.sase/sdd/` checkout
+or its `sase/repos/<repo>--plans/beads/` directory. If the event store is absent, reads fall back to legacy
+`issues.jsonl`. Numbered sibling workspaces and legacy stores are not merged into normal `sase bead` reads.
 
 ### Event Log + Compatibility Projections
 
@@ -150,8 +151,8 @@ form when passing list filters.
 
 ### `sase bead init`
 
-Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; in local and
-separate-repo modes this is `.sase/sdd/beads/`.
+Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; local and legacy
+separate-repo modes use `.sase/sdd/beads/`; split companion mode uses `beads/` in the `--plans` repository.
 
 ### `sase bead create`
 
@@ -414,9 +415,10 @@ When creating a plan bead with `--type plan(PATH)`, the file path is stored in t
 navigate from a bead to its linked SDD file.
 
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow: `sdd/plans/...`
-in in-tree mode, or `.sase/sdd/plans/...` in local and separate-repo modes. SASE resolves those references against the
-effective SDD root when launching bead work. For manual commands and prompts, `SASE_SDD_DIR` or `sase sdd path` is less
-ambiguous than guessing which relative prefix applies.
+in in-tree mode, `.sase/sdd/plans/...` in local and legacy separate-repo modes, or `<YYYYMM>/...` in the split `--plans`
+repository. SASE resolves those references against the effective SDD root when launching bead work. For manual commands
+and prompts, `SASE_SDD_PLANS_DIR` or `sase sdd path plans` is less ambiguous than guessing which relative prefix
+applies.
 
 ### Plan Approval Flow
 
