@@ -28,10 +28,10 @@ steps:
           return "\n---\n".join(segments)
 
       files: list[str] = []
-      toolong = Path(sys.executable).parent / "toolong"
+      toobig = Path(sys.executable).parent / "toobig"
       for tree in ("src", "tests"):
           result = subprocess.run(
-              [str(toolong), "--files-only", tree, *limits],
+              [str(toobig), "--files-only", tree, *limits],
               capture_output=True,
               text=True,
               check=False,

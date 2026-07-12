@@ -52,7 +52,7 @@ def test_workflow_passes_compile_time_validation(pylimit_workflow_path: Path) ->
 def _run_step_python(
     step_python: str,
     *,
-    toolong_outputs: dict[str, str],
+    toobig_outputs: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[str]:
     """Execute the workflow step body in-process with mocked side effects.
@@ -62,11 +62,11 @@ def _run_step_python(
     captured: list[str] = []
 
     def fake_run(cmd, **_kwargs):  # type: ignore[no-untyped-def]  # noqa: ARG001
-        assert cmd[0] == str(Path(sys.executable).parent / "toolong")
+        assert cmd[0] == str(Path(sys.executable).parent / "toobig")
         assert cmd[1] == "--files-only"
         tree = cmd[2]
         assert cmd[3:] == ["1000", "850", "700"]
-        return MagicMock(stdout=toolong_outputs.get(tree, ""), returncode=0)
+        return MagicMock(stdout=toobig_outputs.get(tree, ""), returncode=0)
 
     def fake_launch(prompt, *_args, **_kwargs):  # type: ignore[no-untyped-def]  # noqa: ARG001
         captured.append(prompt)
@@ -95,12 +95,12 @@ def _assert_split_segment(segment: str, *, name: str, path: str) -> None:
 def test_step_no_files_does_not_launch(
     pylimit_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """When toolong reports no offenders, the step must not launch any agent."""
+    """When toobig reports no offenders, the step must not launch any agent."""
     wf = _load_workflow_from_file(pylimit_workflow_path)
     assert wf is not None
     captured = _run_step_python(
         wf.steps[0].python or "",
-        toolong_outputs={"src": "", "tests": "  \n  "},
+        toobig_outputs={"src": "", "tests": "  \n  "},
         monkeypatch=monkeypatch,
     )
     assert captured == []
@@ -115,7 +115,7 @@ def test_step_two_files_launches_chained_multi_prompt(
 
     captured = _run_step_python(
         wf.steps[0].python or "",
-        toolong_outputs={"src": "src/foo.py\nsrc/bar.py\n", "tests": ""},
+        toobig_outputs={"src": "src/foo.py\nsrc/bar.py\n", "tests": ""},
         monkeypatch=monkeypatch,
     )
 
@@ -147,7 +147,7 @@ def test_step_dedups_files_across_trees(
 
     captured = _run_step_python(
         wf.steps[0].python or "",
-        toolong_outputs={
+        toobig_outputs={
             "src": "src/dup.py\n",
             "tests": "src/dup.py\ntests/only.py\n",
         },
@@ -178,7 +178,7 @@ def test_step_names_same_stem_with_collision_suffix(
 
     captured = _run_step_python(
         wf.steps[0].python or "",
-        toolong_outputs={
+        toobig_outputs={
             "src": "src/foo.py\n",
             "tests": "tests/foo.py\n",
         },
