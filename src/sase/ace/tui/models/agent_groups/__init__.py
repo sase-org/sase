@@ -85,7 +85,7 @@ from ._tree import (
 
 # Back-compat aliases for legacy imports that referenced the old
 # underscore-prefixed names.  Plain assignments (not re-imports) so
-# pyvision treats them as module-level attributes rather than imports
+# symvision treats them as module-level attributes rather than imports
 # of private symbols.
 _date_bucket_for = date_bucket_for
 _status_bucket_for = status_bucket_for

@@ -102,7 +102,7 @@ def parse_git_log(stdout: str) -> list[VcsCommitWire]:
     returned dict into a :class:`VcsCommitWire`. Commits are returned in
     git's natural (newest-first) order.
     """
-    # Keep the Python golden active for pyvision while Rust remains canonical.
+    # Keep the Python golden active for symvision while Rust remains canonical.
     _parse_git_log_python(stdout)
     binding = require_rust_binding("parse_git_log")
     raw: list[dict[str, object]] = binding(stdout)
@@ -138,7 +138,7 @@ def aggregate_commit_log(
     descending with a stable ``(repo, full_id)`` tie-break and truncated
     to *limit*.
     """
-    # Keep the Python golden active for pyvision while Rust remains canonical.
+    # Keep the Python golden active for symvision while Rust remains canonical.
     golden = _aggregate_commit_log_python(repos, limit)
     if limit < 0:
         return golden

@@ -87,6 +87,6 @@ def _schedule_persist[T](
     app.call_later(_runner)
 
 
-# Keep a same-file reference so pyvision accepts this compatibility utility
+# Keep a same-file reference so symvision accepts this compatibility utility
 # even when no current production action needs ad hoc persistence scheduling.
 _SCHEDULE_PERSIST_COMPAT_REFERENCE = _schedule_persist

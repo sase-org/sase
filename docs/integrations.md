@@ -3,7 +3,7 @@
 SASE exposes a small set of Python helpers for external plugins, chat clients, mobile clients, and editor integrations.
 These APIs live under `sase.integrations` when they are meant for integration-facing use, or under the subsystem package
 when they are already part of an existing provider contract. Externally consumed public symbols use
-`# pyvision: <repo-uri>` pragmas so unused-code tooling validates them against the tracked files of the consuming
+`# symvision: <repo-uri>` pragmas so unused-code tooling validates them against the tracked files of the consuming
 repository.
 
 For editor setup and user-facing behavior, start with the [editor integration guide](editor.md). This page focuses on

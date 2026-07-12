@@ -36,10 +36,23 @@ def test_lint_includes_toobig_stage() -> None:
     assert "just _lint-toobig" in output
 
 
+def test_lint_includes_symvision_stage() -> None:
+    output = _dry_run("lint")
+
+    assert "Checking for unused Python definitions" in output
+    assert "just _lint-symvision" in output
+
+
 def test_check_mirrors_lint_toobig_stage() -> None:
     output = _dry_run("check")
 
     assert 'tools/run_silent "lint (toobig)"      just _lint-toobig' in output
+
+
+def test_check_mirrors_lint_symvision_stage() -> None:
+    output = _dry_run("check")
+
+    assert 'tools/run_silent "lint (symvision)"   just _lint-symvision' in output
 
 
 def test_lint_does_not_run_sase_validation() -> None:
@@ -77,3 +90,11 @@ def test_public_toobig_target_uses_private_lint_stage() -> None:
     output = _dry_run("toobig", "900", "800", "700")
 
     assert "just _lint-toobig 900 800 700" in output
+
+
+def test_public_symvision_target_uses_published_cli() -> None:
+    output = _dry_run("symvision", "--help")
+
+    assert "BD_COMMAND=tools/sase_bead" in output
+    assert ".venv/bin/symvision src/sase" in output
+    assert "--epic-symbol 'sase-5u(get_max_running_agents)' --help" in output

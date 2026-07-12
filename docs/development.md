@@ -27,7 +27,7 @@ resolving Python dependencies.
 ```bash
 just install       # Install with dev deps
 just fmt           # Auto-format code and Markdown
-just lint          # Run ruff, mypy, pyscripts, pyvision, toobig, and keep-sorted
+just lint          # Run ruff, mypy, pyscripts, symvision, toobig, and keep-sorted
 just test          # Fast parallel test run, including PNG visual snapshots
 just test-slow     # Slow pytest subset only
 just test-visual   # ACE PNG visual regression snapshots only

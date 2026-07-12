@@ -15,7 +15,7 @@ def agent_status_bucket_glyph(bucket: str) -> str:
     return AGENT_STATUS_BUCKET_GLYPHS.get(bucket, "")
 
 
-# pyvision: https://github.com/sase-org/sase-telegram.git
+# symvision: https://github.com/sase-org/sase-telegram.git
 def status_bucket_header(bucket: str, count: int) -> str:
     """Return the shared plain-text status bucket header."""
     glyph = agent_status_bucket_glyph(bucket)

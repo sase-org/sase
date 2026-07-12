@@ -163,7 +163,7 @@ def _set_project_name_locked(
     )
 
 
-# pyvision: https://github.com/sase-org/sase-github.git
+# symvision: https://github.com/sase-org/sase-github.git
 def ensure_project_name_locked(
     project: str,
     name: str,

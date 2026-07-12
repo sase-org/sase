@@ -100,5 +100,5 @@ def _qa_round_from_mapping(raw: dict[str, Any], index: int) -> QARound:
     return build_qa_round(list(questions), response)
 
 
-# Keep a same-file reference so pyvision accepts this YAML-only entry point.
+# Keep a same-file reference so symvision accepts this YAML-only entry point.
 _QA_XPROMPT_ENTRYPOINTS = (_qa_rounds_from_payload,)

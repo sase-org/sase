@@ -317,6 +317,6 @@ def _parse_query_python(query: str) -> QueryExpr:
     return parser.parse()
 
 
-# Keep a same-file reference so pyvision accepts this test-only reference helper
+# Keep a same-file reference so symvision accepts this test-only reference helper
 # as intentionally private.
 _PYTHON_REFERENCE_PARSER = _parse_query_python

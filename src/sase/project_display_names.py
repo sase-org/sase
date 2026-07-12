@@ -173,7 +173,7 @@ def humanize_vcs_refs_in_text(
     )
 
 
-# pyvision: https://github.com/sase-org/sase-telegram.git
+# symvision: https://github.com/sase-org/sase-telegram.git
 def humanize_safe_stem(
     stem: str,
     projects_root: Path | str | None = None,

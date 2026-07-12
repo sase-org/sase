@@ -127,7 +127,7 @@ def read_pending_action_store(*, include_legacy: bool = False) -> dict[str, Any]
     return _load_store(include_legacy=include_legacy)
 
 
-# pyvision: https://github.com/sase-org/sase-telegram.git
+# symvision: https://github.com/sase-org/sase-telegram.git
 def merge_transport_record(
     notification_id: str,
     transport: str,

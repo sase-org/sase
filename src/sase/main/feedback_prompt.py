@@ -127,5 +127,5 @@ def _parse_feedback_bullets(requirements: str) -> list[str]:
     return bullets
 
 
-# Keep a same-file reference so pyvision accepts this YAML-only entry point.
+# Keep a same-file reference so symvision accepts this YAML-only entry point.
 _FEEDBACK_XPROMPT_ENTRYPOINTS = (_assemble_feedback_replan_prompt_from_parent,)

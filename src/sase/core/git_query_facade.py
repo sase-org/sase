@@ -173,7 +173,7 @@ def parse_git_branch_name(stdout: str) -> str | None:
     Otherwise returns the trimmed branch name verbatim. Calls
     ``sase_core_rs.parse_git_branch_name`` directly.
     """
-    # Keep the Python golden active for pyvision while Rust remains canonical.
+    # Keep the Python golden active for symvision while Rust remains canonical.
     _parse_git_branch_name_python(stdout)
     binding = require_rust_binding("parse_git_branch_name")
     return binding(stdout)  # type: ignore[no-any-return]
@@ -213,7 +213,7 @@ def derive_git_workspace_name(
     falls back to ``git rev-parse --show-toplevel`` when the remote is
     unset. Calls ``sase_core_rs.derive_git_workspace_name`` directly.
     """
-    # Keep the helper active in source for pyvision private-symbol checks while
+    # Keep the helper active in source for symvision private-symbol checks while
     # retaining the Rust-backed implementation as the canonical behavior.
     _derive_git_workspace_name_python(remote_url, root_path)
     binding = require_rust_binding("derive_git_workspace_name")
@@ -234,7 +234,7 @@ def parse_git_conflicted_files(stdout: str) -> list[str]:
     are preserved verbatim (no rstrip beyond the line split). Calls
     ``sase_core_rs.parse_git_conflicted_files`` directly.
     """
-    # Keep the Python golden active for pyvision while Rust remains canonical.
+    # Keep the Python golden active for symvision while Rust remains canonical.
     _parse_git_conflicted_files_python(stdout)
     binding = require_rust_binding("parse_git_conflicted_files")
     return binding(stdout)  # type: ignore[no-any-return]
@@ -255,7 +255,7 @@ def parse_git_local_changes(stdout: str) -> str | None:
     ``vcs_has_local_changes`` on a successful command run. Calls
     ``sase_core_rs.parse_git_local_changes`` directly.
     """
-    # Keep the Python golden active for pyvision while Rust remains canonical.
+    # Keep the Python golden active for symvision while Rust remains canonical.
     _parse_git_local_changes_python(stdout)
     binding = require_rust_binding("parse_git_local_changes")
     return binding(stdout)  # type: ignore[no-any-return]

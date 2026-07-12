@@ -464,7 +464,7 @@ xprompts:
 
       If not, plan out the remaining work using your /sase_plan skill (make sure to include closing the bead as the
       final step of the plan) and complete it. Otherwise, close the bead using the `sase bead close` command. If
-      available, run the `just pyvision` command AFTER closing the epic bead (some symbols can be ignored while an epic
+      available, run the `just symvision` command AFTER closing the epic bead (some symbols can be ignored while an epic
       is open) to make sure we didn't leave any unused code behind.
 
       Finally, find the plan file associated with this work (which should be in the sdd/plans/ directory with

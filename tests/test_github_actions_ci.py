@@ -44,5 +44,5 @@ def test_lint_job_uses_single_lint_command() -> None:
     assert any(
         step.get("name") == "Lint" and step.get("run") == "just lint" for step in steps
     )
-    assert not any(step.get("run") == "just pyvision" for step in steps)
+    assert not any(step.get("run") == "just symvision" for step in steps)
     assert not any(step.get("run") == "just toobig" for step in steps)
