@@ -88,6 +88,7 @@ class AmdMemorySyncPlan:
     agents_content: str | None
     description_updates: tuple[AmdLongMemoryDescriptionUpdate, ...]
     blockers: tuple[str, ...] = ()
+    fallback_agents_content: str | None = None
 
 
 def read_text(path: Path) -> tuple[str | None, str | None]:

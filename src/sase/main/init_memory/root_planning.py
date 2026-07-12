@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import cast
 
 from sase.amd._shared import ProviderShimPlan, provider_shim_plan, read_text
-from sase.amd.init import AmdMemorySyncPlan, plan_amd_memory_sync
+from sase.amd.init import (
+    AmdMemorySyncPlan,
+    plan_amd_memory_sync,
+    plan_minimal_agents_sync,
+)
 from sase.amd.inventory import discover_project_agent_docs
 
 from .inventory import unreferenced_memory_files
@@ -42,7 +46,10 @@ def _amd_sync_plan(
     generated_short_notes: dict[str, str],
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
-        return None
+        return plan_minimal_agents_sync(
+            root,
+            generated_short_notes=generated_short_notes,
+        )
     return plan_amd_memory_sync(
         root,
         derive_project_title=derive_project_title,

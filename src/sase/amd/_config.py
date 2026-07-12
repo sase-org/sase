@@ -11,6 +11,8 @@ from ._shared import load_yaml_mapping
 
 _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 _PROJECT_TITLE_SUFFIX = "Agent Instructions"
+_MANAGED_TEMPLATE_KEY = "amd_agents_template"
+_MINIMAL_TEMPLATE_KEY = "amd_agents_minimal_template"
 
 
 def _validate_amd_h1_title(raw: object, *, path: Path) -> tuple[str | None, str | None]:
@@ -46,6 +48,66 @@ def _user_config_dir_for_home_amd_root(root: Path) -> Path | None:
     if _same_resolved_path(root, config_core.CHEZMOI_HOME):
         return config_core.CHEZMOI_HOME / "dot_config" / "sase"
     return None
+
+
+def _validate_amd_template_path(
+    raw: object,
+    *,
+    root: Path,
+    config_path: Path,
+    key: str,
+) -> tuple[Path | None, str | None]:
+    if raw is None:
+        return None, None
+    if not isinstance(raw, str):
+        return None, f"{config_path}: {key} must be a root-relative path or null"
+    value = raw.strip()
+    if not value:
+        return None, f"{config_path}: {key} must not be empty"
+    relative = Path(value)
+    if relative.is_absolute():
+        return None, f"{config_path}: {key} must be a root-relative path"
+
+    resolved_root = root.resolve(strict=False)
+    resolved_path = (root / relative).resolve(strict=False)
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError:
+        return None, f"{config_path}: {key} must stay within {root}"
+    return resolved_path, None
+
+
+def resolve_amd_template_override(
+    root: Path,
+    *,
+    minimal: bool = False,
+) -> tuple[Path | None, str | None]:
+    """Resolve a project or user override for an AMD agent template."""
+    key = _MINIMAL_TEMPLATE_KEY if minimal else _MANAGED_TEMPLATE_KEY
+    user_filename = "AGENTS.minimal.template.md" if minimal else "AGENTS.template.md"
+
+    project_config = root / "sase.yml"
+    if project_config.exists():
+        data, load_error = load_yaml_mapping(project_config)
+        if load_error is not None:
+            return None, load_error
+        if data is not None and key in data:
+            path, path_error = _validate_amd_template_path(
+                data[key],
+                root=root,
+                config_path=project_config,
+                key=key,
+            )
+            if path is not None or path_error is not None:
+                return path, path_error
+
+    config_dir = _user_config_dir_for_home_amd_root(root)
+    if config_dir is None:
+        return None, None
+    user_template = config_dir / user_filename
+    if user_template.exists():
+        return user_template, None
+    return None, None
 
 
 def _user_config_paths(config_dir: Path) -> tuple[Path, ...]:

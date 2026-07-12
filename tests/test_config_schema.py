@@ -114,6 +114,21 @@ def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
         assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_amd_agents_template_paths_or_null() -> None:
+    schema = _schema()
+
+    for key in ("amd_agents_template", "amd_agents_minimal_template"):
+        for value in (None, "templates/AGENTS.md"):
+            errors = sorted(
+                Draft7Validator(schema).iter_errors({key: value}),
+                key=lambda error: list(error.absolute_path),
+            )
+
+            assert errors == [], "\n".join(
+                _format_schema_error(error) for error in errors
+            )
+
+
 def test_config_schema_accepts_boolean_sase_management_marker() -> None:
     schema = _schema()
 

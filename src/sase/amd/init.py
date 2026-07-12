@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from ._memory import plan_amd_memory_sync
+from ._memory import plan_amd_memory_sync, plan_minimal_agents_sync
 from ._shared import AmdMemorySyncPlan
 
 __all__ = [
     "AmdMemorySyncPlan",
     "plan_amd_memory_sync",
+    "plan_minimal_agents_sync",
 ]

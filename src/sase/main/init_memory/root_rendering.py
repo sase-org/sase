@@ -8,7 +8,6 @@ from importlib import resources
 from pathlib import Path
 
 from sase.amd.init import AmdMemorySyncPlan
-from sase.amd.inline_memory import inline_memory_section
 from sase.memory.inventory import MemoryStats, stats_for_text
 from sase.memory.notes import (
     AGENTS_PARENT,
@@ -291,7 +290,8 @@ def _render_memory_readme(
             "## Commands",
             "",
             "- `sase memory list` shows loaded, referenced, available, and missing memory files.",
-            "- `sase memory init` creates or refreshes generated memory files, `AGENTS.md`, provider shims, and this asset-backed README.",
+            "- `sase memory init` creates or refreshes generated memory files, renders `AGENTS.md` and provider shims from `AGENTS.template.md`, and refreshes this asset-backed README.",
+            "- Set `amd_agents_template` (or `amd_agents_minimal_template`) to a root-relative project template in `sase.yml`; home roots can instead use `AGENTS.template.md` (or `AGENTS.minimal.template.md`) in the SASE user config directory.",
             "- `sase memory init --check` reports drift without writing files.",
             "- `sase memory read <note>.md --reason <reason>` reads a long note and records an audited access event.",
             "- `sase memory write` proposes a new long-term memory note for review.",
@@ -301,16 +301,6 @@ def _render_memory_readme(
         ]
     )
     return "\n".join(lines)
-
-
-def _minimal_agents_content(generated_sase_body: str) -> str:
-    """Return a self-contained minimal ``AGENTS.md`` with ``sase.md`` inlined."""
-    section = inline_memory_section(
-        _generated_sase_memory_relative_path().as_posix(),
-        generated_sase_body,
-        number=1,
-    )
-    return format_generated_memory_markdown(f"# Agent Instructions\n\n{section}")
 
 
 def render_expected_memory_files(
@@ -369,11 +359,13 @@ def render_expected_memory_files(
                 stale_operation="overwrite",
             )
         )
-    else:
+    elif amd_sync is not None and amd_sync.fallback_agents_content is not None:
         expected.append(
             MemoryExpectedFile(
                 path=root / "AGENTS.md",
-                content=_minimal_agents_content(generated_sase_body),
+                content=format_generated_memory_markdown(
+                    amd_sync.fallback_agents_content
+                ),
                 detail="agent instruction file",
                 write_policy="create_if_missing",
             )

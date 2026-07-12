@@ -102,6 +102,16 @@
       "description": "Optional H1 title used by generated AMD-managed AGENTS.md. SASE-managed projects derive a stable project title when this is null.",
       "default": null
     },
+    "amd_agents_template": {
+      "type": ["string", "null"],
+      "description": "Optional root-relative path to the Jinja2 template used for AMD-managed AGENTS.md files.",
+      "default": null
+    },
+    "amd_agents_minimal_template": {
+      "type": ["string", "null"],
+      "description": "Optional root-relative path to the Jinja2 template used for create-if-missing minimal AGENTS.md files.",
+      "default": null
+    },
     "is_sase_managed": {
       "type": "boolean",
       "description": "Explicitly authorize SASE to manage repository resources, including project memory, root AGENTS.md, and SDD initialization. Only the target repository's own sase.yml is consulted.",

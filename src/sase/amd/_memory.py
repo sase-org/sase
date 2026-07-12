@@ -14,6 +14,7 @@ from ._shared import (
     AmdMemorySyncPlan,
     read_text,
 )
+from ._template import render_agents_template
 from .constants import AGENTS_FILENAME
 from .inline_memory import inline_memory_section, validate_short_memory_structure
 from sase.memory.notes import (
@@ -183,7 +184,7 @@ def _render_managed_agents(
     *,
     long_memory_descriptions: dict[str, str] | None = None,
     short_memory_bodies: Mapping[str, str] | None = None,
-) -> str:
+) -> tuple[str | None, str | None]:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
     notes = discover_memory_notes(root)
@@ -199,38 +200,14 @@ def _render_managed_agents(
     )
     descriptions = long_memory_descriptions or {}
 
-    lines = [
-        f"# {title}",
-        "",
-        "IMPORTANT: You should not modify any of these memory files without "
-        "approval from the user.",
-        "",
-        "## Tier 1 (short-term) Memory",
-        "",
-        "The following memories contains core (always loaded) context:",
-        "",
-    ]
     bodies = short_memory_bodies or {}
-    for index, (relative_path, body) in enumerate(bodies.items()):
-        if index:
-            lines.append("")
-        lines.extend(
-            inline_memory_section(relative_path, body, number=index + 1).splitlines()
-        )
-    lines.append("")
-    lines.extend(
-        [
-            "## Tier 2 (long-term) Memory",
-            "",
-            "The below files contain detailed reference material. When working "
-            "in their domain, you MUST use your `/sase_memory_read`",
-            "skill to review their contents. Do not read canonical memory files directly.",
-            "",
-        ]
+    tier1_sections = "\n\n".join(
+        inline_memory_section(relative_path, body, number=index + 1).rstrip("\n")
+        for index, (relative_path, body) in enumerate(bodies.items())
     )
-    for index, note in enumerate(top_level_long_notes):
-        if index:
-            lines.append("")
+
+    rendered_long_notes = []
+    for note in top_level_long_notes:
         description = descriptions.get(note.relative_path) or _long_memory_description(
             root / note.path,
             body=note.body,
@@ -238,13 +215,77 @@ def _render_managed_agents(
             description=note.description,
             existing_agents_descriptions=existing_descriptions,
         )
-        lines.extend(
-            render_memory_note_references(
-                (replace(note, description=description),)
-            ).splitlines()
+        rendered_long_notes.append(replace(note, description=description))
+    tier2_entries = render_memory_note_references(rendered_long_notes)
+
+    rendered, render_error = render_agents_template(
+        root,
+        title=title,
+        tier1_sections=tier1_sections,
+        tier2_entries=tier2_entries,
+    )
+    if render_error is not None or rendered is None:
+        return None, render_error or "failed to render AGENTS template"
+
+    parsed = parse_amd_agents_document(rendered)
+    if not parsed.has_short_section:
+        return (
+            None,
+            "rendered AGENTS template is missing structural anchor "
+            "`## Tier 1 (short-term) Memory`",
         )
-    lines.append("")
-    return "\n".join(lines)
+    if not parsed.has_long_section:
+        return (
+            None,
+            "rendered AGENTS template is missing structural anchor "
+            "`## Tier 2 (long-term) Memory`",
+        )
+    expected_short_paths = tuple(bodies)
+    if parsed.short_memory_paths != expected_short_paths:
+        return (
+            None,
+            "rendered AGENTS template has unexpected Tier 1 memory paths: "
+            f"expected {expected_short_paths!r}, found {parsed.short_memory_paths!r}",
+        )
+    expected_long_paths = tuple(note.relative_path for note in top_level_long_notes)
+    parsed_long_paths = tuple(entry.path for entry in parsed.long_memory_entries)
+    if parsed_long_paths != expected_long_paths:
+        return (
+            None,
+            "rendered AGENTS template has unexpected Tier 2 memory paths: "
+            f"expected {expected_long_paths!r}, found {parsed_long_paths!r}",
+        )
+    return rendered, None
+
+
+def plan_minimal_agents_sync(
+    root: Path,
+    *,
+    generated_short_notes: Mapping[str, str],
+) -> AmdMemorySyncPlan:
+    """Plan the create-if-missing fallback agent document from its template."""
+    relative_path = "memory/sase.md"
+    body = generated_short_notes.get(relative_path, "")
+    tier1_sections = inline_memory_section(relative_path, body, number=1).rstrip("\n")
+    rendered, render_error = render_agents_template(
+        root,
+        title="Agent Instructions",
+        tier1_sections=tier1_sections,
+        minimal=True,
+    )
+    if render_error is not None or rendered is None:
+        return AmdMemorySyncPlan(
+            title=None,
+            agents_content=None,
+            description_updates=(),
+            blockers=(render_error or "failed to render minimal AGENTS template",),
+        )
+    return AmdMemorySyncPlan(
+        title=None,
+        agents_content=None,
+        description_updates=(),
+        fallback_agents_content=rendered,
+    )
 
 
 def plan_amd_memory_sync(
@@ -271,10 +312,9 @@ def plan_amd_memory_sync(
             blockers=(title_error,),
         )
     if title is None:
-        return AmdMemorySyncPlan(
-            title=None,
-            agents_content=None,
-            description_updates=(),
+        return plan_minimal_agents_sync(
+            root,
+            generated_short_notes=generated_short_notes or {},
         )
 
     short_memory_bodies = _short_memory_bodies(root, generated_short_notes or {})
@@ -289,12 +329,19 @@ def plan_amd_memory_sync(
 
     descriptions = _long_memory_descriptions(root)
     updates = _long_memory_description_updates(root, descriptions)
-    agents_content = _render_managed_agents(
+    agents_content, template_error = _render_managed_agents(
         root,
         title,
         long_memory_descriptions=descriptions,
         short_memory_bodies=short_memory_bodies,
     )
+    if template_error is not None or agents_content is None:
+        return AmdMemorySyncPlan(
+            title=title,
+            agents_content=None,
+            description_updates=(),
+            blockers=(template_error or "failed to render AGENTS template",),
+        )
     return AmdMemorySyncPlan(
         title=title,
         agents_content=agents_content,
