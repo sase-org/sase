@@ -1,16 +1,31 @@
 """Dependency and time-based waiting helpers for the run agent runner."""
 
+import fcntl
 import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
+from sase.agent.names import is_process_alive
 from sase.axe.run_agent_markers import write_agent_meta
 from sase.axe.runner_utils import was_killed
+from sase.config.core import get_max_running_agents
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
+)
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+)
+from sase.core.paths import sase_home, sase_projects_dir
+from sase.core.runner_slots import (
+    live_runner_slot_waiters,
+    may_start,
+    running_root_agent_count,
 )
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
@@ -107,6 +122,177 @@ def _read_ready_result(ready_path: str) -> bool:
     except OSError:
         pass
     return False
+
+
+_RUNNER_SLOT_POLL_INTERVAL = 2
+_RUNNER_SLOT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
+    include_prompt_step_markers=False,
+    include_raw_prompt_snippets=False,
+    only_workflow_dirs=("ace-run",),
+    include_done_markers=False,
+)
+
+
+def _runner_slot_lock_path() -> Path:
+    return sase_home() / "runner_slots.lock"
+
+
+def _scan_runner_slot_records() -> list[AgentArtifactRecordWire]:
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+
+    return scan_agent_artifacts(sase_projects_dir(), _RUNNER_SLOT_SCAN_OPTIONS).records
+
+
+def _record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
+    cache: dict[str, bool] = {}
+
+    def is_live(record: AgentArtifactRecordWire) -> bool:
+        if record.artifact_dir in cache:
+            return cache[record.artifact_dir]
+        meta = record.agent_meta
+        pid = None if meta is None else meta.pid
+        if pid is None and record.running is not None:
+            pid = record.running.pid
+        alive = is_process_alive(
+            {
+                "pid": pid,
+                "stopped_at": None if meta is None else meta.stopped_at,
+            },
+            Path(record.artifact_dir),
+        )
+        cache[record.artifact_dir] = alive
+        return alive
+
+    return is_live
+
+
+def _read_json_dict(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open(encoding="utf-8") as handle:
+            value = json.load(handle)
+    except (json.JSONDecodeError, OSError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _marker_threshold(
+    waiting_data: dict[str, Any] | None,
+    directive_threshold: int | None,
+) -> tuple[int, bool]:
+    if waiting_data is not None and "slot_requested_at" in waiting_data:
+        explicit = waiting_data.get("wait_runners_explicit") is True
+        marker_value = waiting_data.get("wait_runners")
+        if explicit and type(marker_value) is int and marker_value >= 0:
+            return marker_value, True
+        if not explicit:
+            return get_max_running_agents() - 1, False
+    if directive_threshold is not None:
+        return directive_threshold, True
+    return get_max_running_agents() - 1, False
+
+
+def _remove_waiting_marker(artifacts_dir: str) -> None:
+    try:
+        os.unlink(os.path.join(artifacts_dir, "waiting.json"))
+    except FileNotFoundError:
+        return
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+
+
+def _try_claim_runner_slot(
+    *,
+    artifacts_dir: str,
+    cl_name: str,
+    timestamp: str,
+    directive_threshold: int | None,
+    claim: Callable[[], str],
+) -> tuple[str | None, bool]:
+    """Try one check-and-claim under the global lock.
+
+    Returns ``(run_started_at, parked)``. ``parked`` is true when this call
+    first published the slot queue marker.
+    """
+    lock_path = _runner_slot_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            waiting_path = Path(artifacts_dir) / "waiting.json"
+            waiting_data = _read_json_dict(waiting_path)
+            threshold, explicit = _marker_threshold(waiting_data, directive_threshold)
+            records = _scan_runner_slot_records()
+            is_live = _record_liveness_probe()
+            queue = live_runner_slot_waiters(records, is_live)
+            running_count = running_root_agent_count(records, is_live)
+            if may_start(running_count, threshold, queue, artifacts_dir):
+                run_started_at = claim()
+                _remove_waiting_marker(artifacts_dir)
+                return run_started_at, False
+
+            requested_at = (
+                waiting_data.get("slot_requested_at")
+                if waiting_data is not None
+                else None
+            )
+            if not isinstance(requested_at, str) or not requested_at:
+                requested_at = datetime.now(UTC).isoformat()
+            marker: dict[str, Any] = {
+                "waiting_for": [],
+                "cl_name": cl_name,
+                "timestamp": timestamp,
+                "wait_runners": threshold,
+                "wait_runners_explicit": explicit,
+                "slot_requested_at": requested_at,
+            }
+            parked = waiting_data is None or "slot_requested_at" not in waiting_data
+            if waiting_data != marker:
+                _write_waiting_marker(artifacts_dir, marker)
+            return None, parked
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def wait_for_runner_slot(
+    artifacts_dir: str,
+    cl_name: str,
+    timestamp: str,
+    agent_meta: dict[str, Any],
+    *,
+    wait_runners: int | None,
+    claim: Callable[[], str],
+) -> str:
+    """Pass the final root-agent runner-slot gate and atomically claim RUNNING.
+
+    Child/follow-up agents are exempt so a parent waiting on its children can
+    never deadlock while holding a slot.
+    """
+    if agent_meta.get("parent_timestamp"):
+        return claim()
+
+    while not was_killed():
+        run_started_at, parked = _try_claim_runner_slot(
+            artifacts_dir=artifacts_dir,
+            cl_name=cl_name,
+            timestamp=timestamp,
+            directive_threshold=wait_runners,
+            claim=claim,
+        )
+        if run_started_at is not None:
+            return run_started_at
+        if parked:
+            print("Waiting for a runner slot")
+        time.sleep(_RUNNER_SLOT_POLL_INTERVAL)
+
+    lock_path = _runner_slot_lock_path()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            _remove_waiting_marker(artifacts_dir)
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    print("Agent killed while waiting for a runner slot", file=sys.stderr)
+    sys.exit(128 + 15)
 
 
 def wait_for_dependencies(

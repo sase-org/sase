@@ -39,6 +39,7 @@ nav:
       - Performance Runbook: perf_runbook.md
       - Telemetry: telemetry.md
       - Agent Revival Log: troubleshooting/agent-revival.md
+      - Runner Slot Waits: troubleshooting/runner-slots.md
   - Integrations:
       - Editor Integration: editor.md
       - Integration APIs: integrations.md

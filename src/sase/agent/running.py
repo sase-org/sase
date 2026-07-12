@@ -29,6 +29,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.paths import sase_projects_dir
+from sase.core.runner_slots import is_root_user_agent_record
 from sase.core.time import get_timezone
 
 
@@ -236,9 +237,7 @@ def _running_from_snapshot(
     pairs: list[tuple[str, RunningAgentInfo]] = []
 
     for record in snapshot.records:
-        if record.workflow_dir_name != "ace-run":
-            continue
-        if record.has_done_marker:
+        if not is_root_user_agent_record(record):
             continue
         info = _running_info_from_running_record(
             record, now=now, workspace_cache=workspace_cache

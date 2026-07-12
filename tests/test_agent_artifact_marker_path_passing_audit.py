@@ -8,6 +8,12 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
+    "src/sase/axe/run_agent_wait.py:_remove_waiting_marker": PathPassingReview(
+        lifecycle_coverage=(
+            "Deletes waiting.json and immediately refreshes the Tier 1 artifact "
+            "index for the same artifacts directory."
+        ),
+    ),
     "src/sase/agent/identity.py:require_agent_identity": PathPassingReview(
         exemption=(
             "Read-only audit attribution fallback: artifacts_dir is used only "

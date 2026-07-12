@@ -150,8 +150,7 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-pyvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260708 src/sase \
-        --epic-symbol 'sase-5u(get_max_running_agents)'
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/pyvision-260708 src/sase
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
 _lint-toobig *args:

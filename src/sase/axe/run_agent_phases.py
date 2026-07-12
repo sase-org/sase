@@ -24,6 +24,7 @@ from sase.axe.run_agent_refs import (
 from sase.axe.run_agent_wait import (
     remaining_until,
     wait_for_dependencies,
+    wait_for_runner_slot,
 )
 
 
@@ -174,5 +175,6 @@ __all__ = [
     "resolve_agent_refs_in_prompt",
     "resolve_wait_chat_paths",
     "wait_for_dependencies",
+    "wait_for_runner_slot",
     "write_agent_meta",
 ]

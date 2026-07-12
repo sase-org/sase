@@ -42,6 +42,7 @@ def _agent_info() -> SimpleNamespace:
         ],
         wait_duration=None,
         wait_until=None,
+        wait_runners=None,
         model="gpt-5",
         llm_provider="codex",
         vcs_provider=None,
@@ -150,6 +151,13 @@ def _run_runner_with_wait_result(
                 run_agent_runner,
                 "wait_for_dependencies",
                 return_value=wait_result,
+            )
+        )
+        stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "wait_for_runner_slot",
+                side_effect=lambda *_args, claim, **_kwargs: claim(),
             )
         )
         stack.enter_context(

@@ -64,6 +64,10 @@ def base_patches(artifacts_dir: str) -> dict[str, Any]:
     # Shared mocks for names imported into both runner and exec modules.
     was_killed_mock = MagicMock(return_value=False)
     prepare_ws_mock = MagicMock(return_value=True)
+
+    def pass_runner_slot(*_args: Any, claim: Any, **_kwargs: Any) -> str:
+        return claim()
+
     return {
         # Runner module.
         f"{SETUP}.prepare_workspace": prepare_ws_mock,
@@ -79,6 +83,7 @@ def base_patches(artifacts_dir: str) -> dict[str, Any]:
         f"{FINALIZE}.record_stop_time": MagicMock(),
         f"{RUNNER}.was_killed": was_killed_mock,
         f"{RUNNER}.all_steps_hidden": MagicMock(return_value=True),
+        f"{RUNNER}.wait_for_runner_slot": MagicMock(side_effect=pass_runner_slot),
         # Exec module execution loop.
         f"{EXEC}.was_killed": was_killed_mock,
         f"{EXEC}.reset_killed": MagicMock(),

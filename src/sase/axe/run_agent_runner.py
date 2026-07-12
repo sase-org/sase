@@ -26,6 +26,7 @@ from sase.axe.run_agent_phases import (
     resolve_agent_refs_in_prompt,
     resolve_wait_chat_paths,
     wait_for_dependencies,
+    wait_for_runner_slot,
 )
 from sase.axe.run_agent_repeat_stop import RepeatStopDecision, detect_repeat_stop
 from sase.axe.run_agent_runtime import format_agent_run_runtime
@@ -394,7 +395,14 @@ def main() -> None:
                     output_variable_namespaces=output_variable_namespaces,
                 )
 
-                run_started_at = record_run_started_at(artifacts_dir, agent_meta)
+                run_started_at = wait_for_runner_slot(
+                    artifacts_dir,
+                    cl_name,
+                    timestamp,
+                    agent_meta,
+                    wait_runners=getattr(info, "wait_runners", None),
+                    claim=lambda: record_run_started_at(artifacts_dir, agent_meta),
+                )
                 exec_result = run_execution_loop(ctx, prompt)
                 exec_outcome = exec_result.outcome
                 success = classify_exec_success(
