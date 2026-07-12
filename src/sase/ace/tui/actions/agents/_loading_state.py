@@ -119,6 +119,7 @@ class AgentLoadingStateMixin:
     _agents_refresh_scheduled_full_history: bool
     _agents_refresh_scheduled_full_history_reason: str | None
     _agents_refresh_active_source: str
+    _agents_refresh_async_tasks: set[asyncio.Task[None]]
     # Sticky deferred Tier 2 reconcile state. ``_pending`` is True while
     # the last load reported incomplete history and a full-history pass
     # has not yet been scheduled; ``_armed_mono`` is the monotonic time

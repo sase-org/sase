@@ -21,6 +21,7 @@ from ._prompt_stash_restore_helpers import (
     _seed,
     _skip_without_pinned_binding,
     _skip_without_prompt_stash_bindings,
+    _wait_prompt_stash_tasks,
 )
 
 
@@ -97,6 +98,7 @@ async def test_action_restore_prompt_stash_opens_modal(
     harness = _RestoreHarness()
 
     await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
@@ -116,6 +118,7 @@ async def test_action_open_prompt_stash_single_entry_opens_without_restoring(
     harness = _RestoreHarness(bar=bar)
 
     await harness.action_open_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
@@ -143,6 +146,7 @@ async def test_action_restore_prompt_stash_single_unpinned_restores_and_pops(
     harness = _RestoreHarness(bar=bar)
 
     await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
     assert bar.restored == [("alpha", "model: c")]
@@ -166,6 +170,7 @@ async def test_action_restore_prompt_stash_single_pinned_restores_and_keeps(
     harness = _RestoreHarness(bar=bar)
 
     await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
     assert bar.restored == [("alpha", "model: c")]
@@ -188,6 +193,7 @@ async def test_action_restore_prompt_stash_single_unpinned_mounts_home_and_pops(
     harness = _RestoreHarness(bar=None)
 
     await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
     assert harness.home_mounts == ["alpha"]
@@ -214,6 +220,7 @@ async def test_action_restore_prompt_stash_single_bundle_restores_panes_and_pops
     harness = _RestoreHarness(bar=bar)
 
     await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
@@ -234,6 +241,7 @@ async def test_action_restore_prompt_stash_empty_store_toasts(
     harness = _RestoreHarness()
 
     await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
     assert harness.notifications == [("No stashed prompts to restore", None)]
@@ -256,6 +264,7 @@ async def test_restore_requested_single_entry_still_opens_modal(
     await harness.on_prompt_input_bar_restore_requested(
         PromptInputBar.RestoreRequested("prompt")
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
@@ -279,6 +288,7 @@ async def test_restore_requested_event_routes_through_mode(
     await harness.on_prompt_input_bar_restore_requested(
         PromptInputBar.RestoreRequested("approve_prompt")
     )
+    await _wait_prompt_stash_tasks(harness)
     assert harness.pushed == []
     assert harness.notifications[-1][1] == "warning"
 
@@ -286,5 +296,6 @@ async def test_restore_requested_event_routes_through_mode(
 async def test_non_restore_event_ignored() -> None:
     harness = _RestoreHarness()
     await harness.on_prompt_input_bar_restore_requested(PromptInputBar.Submitted("x"))
+    await _wait_prompt_stash_tasks(harness)
     assert harness.notifications == []
     assert harness.pushed == []

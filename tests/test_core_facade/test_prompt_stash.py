@@ -120,6 +120,24 @@ def test_schema_mismatch_fails_clearly(monkeypatch: pytest.MonkeyPatch) -> None:
         facade.read_prompt_stash_snapshot("/tmp/prompt_stash.jsonl")
 
 
+def test_lock_timeout_is_rehydrated_as_distinct_facade_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class PromptStashLockTimeoutError(RuntimeError):
+        pass
+
+    def fake_read(_path: str) -> dict[str, Any]:
+        raise PromptStashLockTimeoutError("prompt stash lock timed out after 2000ms")
+
+    _fake_module(monkeypatch, read_prompt_stash_snapshot=fake_read)
+
+    with pytest.raises(
+        facade.PromptStashLockTimeoutError,
+        match="lock timed out",
+    ):
+        facade.read_prompt_stash_snapshot("/tmp/prompt_stash.jsonl")
+
+
 def test_append_serializes_entry_dict(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, dict[str, Any]]] = []
 

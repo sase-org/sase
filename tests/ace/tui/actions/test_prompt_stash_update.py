@@ -25,9 +25,9 @@ def _skip_without_update_bindings() -> None:
 
 
 async def _wait_prompt_stash_tasks(harness: object) -> None:
-    tasks = list(getattr(harness, "_prompt_stash_async_tasks", set()))
-    if tasks:
+    while tasks := list(getattr(harness, "_prompt_stash_async_tasks", set())):
         await asyncio.gather(*tasks)
+        await asyncio.sleep(0)
 
 
 class _UpdateHarness(PromptBarStashMixin):
@@ -115,6 +115,7 @@ async def test_zero_pinned_toasts_warning_without_write(
     await harness.on_prompt_input_bar_update_pinned_requested(
         PromptInputBar.UpdatePinnedRequested(_panes())
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
     assert harness.applied_counts == []
@@ -186,6 +187,7 @@ async def test_multiple_pinned_pushes_picker_and_updates_chosen_id(
     await harness.on_prompt_input_bar_update_pinned_requested(
         PromptInputBar.UpdatePinnedRequested(_panes())
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert len(harness.pushed) == 1
     modal, callback = harness.pushed[0]

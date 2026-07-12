@@ -110,6 +110,7 @@ class StartupMountMixin:
 
             self._stall_watchdog = start_event_loop_stall_watchdog(
                 asyncio.get_running_loop(),
+                app=self,
                 context_provider=self._tui_stall_context,
             )
             self._stall_watchdog_suspend_signals_wired = (

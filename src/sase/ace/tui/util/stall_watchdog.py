@@ -1,4 +1,4 @@
-"""Always-on event-loop stall watchdog for the ace TUI."""
+"""Always-on event-loop and Textual message-pump stall watchdog."""
 
 from __future__ import annotations
 
@@ -20,6 +20,10 @@ ENV_DISABLE = "SASE_TUI_STALL_DISABLE"
 ENV_THRESHOLD = "SASE_TUI_STALL_THRESHOLD"
 ENV_THRESHOLD_SECONDS = "SASE_TUI_STALL_THRESHOLD_SECONDS"
 ENV_POLL_INTERVAL = "SASE_TUI_STALL_POLL_INTERVAL"
+ENV_PUMP_DISABLE = "SASE_TUI_PUMP_STALL_DISABLE"
+ENV_PUMP_THRESHOLD = "SASE_TUI_PUMP_STALL_THRESHOLD"
+ENV_PUMP_THRESHOLD_SECONDS = "SASE_TUI_PUMP_STALL_THRESHOLD_SECONDS"
+ENV_PUMP_POLL_INTERVAL = "SASE_TUI_PUMP_STALL_POLL_INTERVAL"
 
 DEFAULT_THRESHOLD_SECONDS = 5.0
 DEFAULT_POLL_INTERVAL_SECONDS = 0.5
@@ -36,12 +40,17 @@ def is_enabled() -> bool:
 def start_event_loop_stall_watchdog(
     loop: asyncio.AbstractEventLoop,
     *,
+    app: Any | None = None,
     context_provider: ContextProvider | None = None,
 ) -> _EventLoopStallWatchdog | None:
     """Start the watchdog unless disabled by environment."""
     if not is_enabled():
         return None
-    watchdog = _EventLoopStallWatchdog(loop, context_provider=context_provider)
+    watchdog = _EventLoopStallWatchdog(
+        loop,
+        pump_app=app,
+        context_provider=context_provider,
+    )
     watchdog.start()
     return watchdog
 
@@ -86,7 +95,7 @@ def subscribe_watchdog_to_suspend_signals(
 
 
 class _EventLoopStallWatchdog:
-    """Detect event-loop stalls from a daemon thread.
+    """Detect event-loop and Textual message-pump stalls from a daemon thread.
 
     The watchdog schedules a cheap beacon onto the Textual event loop. If that
     beacon stops running for longer than ``threshold_seconds``, the watchdog
@@ -98,12 +107,21 @@ class _EventLoopStallWatchdog:
         self,
         loop: asyncio.AbstractEventLoop,
         *,
+        pump_app: Any | None = None,
         context_provider: ContextProvider | None = None,
         threshold_seconds: float | None = None,
         poll_interval_seconds: float | None = None,
+        pump_threshold_seconds: float | None = None,
+        pump_poll_interval_seconds: float | None = None,
         loop_thread_ident: int | None = None,
     ) -> None:
         self._loop = loop
+        self._pump_app = (
+            pump_app
+            if pump_app is not None
+            and os.environ.get(ENV_PUMP_DISABLE, "").lower() not in _TRUTHY
+            else None
+        )
         self._context_provider = context_provider
         self._threshold_seconds = (
             threshold_seconds
@@ -118,6 +136,22 @@ class _EventLoopStallWatchdog:
             if poll_interval_seconds is not None
             else _float_env(ENV_POLL_INTERVAL, DEFAULT_POLL_INTERVAL_SECONDS)
         )
+        self._pump_threshold_seconds = (
+            pump_threshold_seconds
+            if pump_threshold_seconds is not None
+            else _float_env(
+                ENV_PUMP_THRESHOLD_SECONDS,
+                _float_env(ENV_PUMP_THRESHOLD, DEFAULT_THRESHOLD_SECONDS),
+            )
+        )
+        self._pump_poll_interval_seconds = (
+            pump_poll_interval_seconds
+            if pump_poll_interval_seconds is not None
+            else _float_env(
+                ENV_PUMP_POLL_INTERVAL,
+                DEFAULT_POLL_INTERVAL_SECONDS,
+            )
+        )
         self._loop_thread_ident = loop_thread_ident or threading.get_ident()
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
@@ -125,6 +159,11 @@ class _EventLoopStallWatchdog:
         self._ping_pending = False
         self._in_stall = False
         self._stall_started_mono: float | None = None
+        self._pump_ping_pending = False
+        self._pump_ping_started_mono: float | None = None
+        self._last_pump_ping_mono = 0.0
+        self._pump_in_stall = False
+        self._pump_stall_started_mono: float | None = None
         self._pause_depth = 0
         self._thread: threading.Thread | None = None
 
@@ -158,6 +197,7 @@ class _EventLoopStallWatchdog:
         with self._lock:
             self._pause_depth += 1
             self._last_progress_mono = time.monotonic()
+            self._reset_pump_state_locked()
 
     def resume(self) -> None:
         """Resume stall detection after a terminal handoff completes.
@@ -177,6 +217,7 @@ class _EventLoopStallWatchdog:
             self._ping_pending = False
             self._in_stall = False
             self._stall_started_mono = None
+            self._reset_pump_state_locked()
 
     def _run(self) -> None:
         while not self._stop_event.wait(self._poll_interval_seconds):
@@ -190,13 +231,25 @@ class _EventLoopStallWatchdog:
             if paused:
                 continue
             self._schedule_ping()
+            self._schedule_pump_ping(now_mono)
             with self._lock:
                 gap = now_mono - self._last_progress_mono
                 in_stall = self._in_stall
+                pump_started = self._pump_ping_started_mono
+                pump_gap = (
+                    now_mono - pump_started
+                    if self._pump_ping_pending and pump_started is not None
+                    else 0.0
+                )
+                pump_in_stall = self._pump_in_stall
             if gap >= self._threshold_seconds and not in_stall:
                 self._record_stall(now_mono, gap)
             elif gap < self._threshold_seconds and in_stall:
                 self._record_recovery(now_mono)
+            if pump_gap >= self._pump_threshold_seconds and not pump_in_stall:
+                self._record_pump_stall(now_mono, pump_gap)
+            elif pump_gap < self._pump_threshold_seconds and pump_in_stall:
+                self._record_pump_recovery(now_mono)
 
     def _schedule_ping(self) -> None:
         with self._lock:
@@ -215,6 +268,42 @@ class _EventLoopStallWatchdog:
         with self._lock:
             self._last_progress_mono = now_mono
             self._ping_pending = False
+
+    def _schedule_pump_ping(self, now_mono: float) -> None:
+        if self._pump_app is None:
+            return
+        with self._lock:
+            if self._pump_ping_pending:
+                return
+            if now_mono - self._last_pump_ping_mono < self._pump_poll_interval_seconds:
+                return
+            self._pump_ping_pending = True
+            self._pump_ping_started_mono = now_mono
+            self._last_pump_ping_mono = now_mono
+        try:
+            self._loop.call_soon_threadsafe(self._enqueue_pump_mark)
+        except RuntimeError:
+            with self._lock:
+                self._pump_ping_pending = False
+                self._pump_ping_started_mono = None
+            self._stop_event.set()
+
+    def _enqueue_pump_mark(self) -> None:
+        pump_app = self._pump_app
+        if pump_app is None:
+            return
+        try:
+            pump_app.call_later(self._mark_pump_progress)
+        except Exception:
+            log.debug("Failed to enqueue TUI message-pump beacon", exc_info=True)
+            with self._lock:
+                self._pump_ping_pending = False
+                self._pump_ping_started_mono = None
+
+    def _mark_pump_progress(self) -> None:
+        with self._lock:
+            self._pump_ping_pending = False
+            self._pump_ping_started_mono = None
 
     def _record_stall(self, now_mono: float, stall_seconds: float) -> None:
         with self._lock:
@@ -237,7 +326,51 @@ class _EventLoopStallWatchdog:
             self._stall_started_mono = None
         if started is None:
             return
-        log.warning("TUI event loop recovered after %.3fs", now_mono - started)
+        duration = now_mono - started
+        log_tui_stall(self._recovery_record("tui_stall_recovered", duration))
+        log.warning("TUI event loop recovered after %.3fs", duration)
+
+    def _record_pump_stall(self, now_mono: float, stall_seconds: float) -> None:
+        with self._lock:
+            if self._pump_in_stall:
+                return
+            self._pump_in_stall = True
+            self._pump_stall_started_mono = now_mono - stall_seconds
+        try:
+            self._loop.call_soon_threadsafe(
+                self._write_pump_stall_record,
+                stall_seconds,
+            )
+        except RuntimeError:
+            self._write_pump_stall_record(stall_seconds, capture_tasks=False)
+
+    def _write_pump_stall_record(
+        self,
+        stall_seconds: float,
+        *,
+        capture_tasks: bool = True,
+    ) -> None:
+        record = self._pump_stall_record(
+            stall_seconds,
+            capture_tasks=capture_tasks,
+        )
+        log_tui_stall(record)
+        log.warning(
+            "TUI message pump stall detected: %.3fs pid=%s",
+            stall_seconds,
+            record["pid"],
+        )
+
+    def _record_pump_recovery(self, now_mono: float) -> None:
+        with self._lock:
+            started = self._pump_stall_started_mono
+            self._pump_in_stall = False
+            self._pump_stall_started_mono = None
+        if started is None:
+            return
+        duration = now_mono - started
+        log_tui_stall(self._recovery_record("tui_pump_stall_recovered", duration))
+        log.warning("TUI message pump recovered after %.3fs", duration)
 
     def _stall_record(self, stall_seconds: float) -> dict[str, Any]:
         context = self._context()
@@ -252,12 +385,69 @@ class _EventLoopStallWatchdog:
             "loop_thread_ident": self._loop_thread_ident,
             "watchdog_thread_ident": threading.get_ident(),
             "main_thread_stack": stack,
+            "pause_depth": self._current_pause_depth(),
             "sase_version": _sase_version(),
         }
         for key, value in context.items():
             if value is not None:
                 record[key] = value
         return record
+
+    def _pump_stall_record(
+        self,
+        stall_seconds: float,
+        *,
+        capture_tasks: bool,
+    ) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "ts": time.time(),
+            "event": "tui_pump_stall",
+            "pid": os.getpid(),
+            "stall_seconds": round(stall_seconds, 3),
+            "threshold_seconds": self._pump_threshold_seconds,
+            "poll_interval_seconds": self._pump_poll_interval_seconds,
+            "loop_thread_ident": self._loop_thread_ident,
+            "watchdog_thread_ident": threading.get_ident(),
+            "main_thread_stack": _format_thread_stack(self._loop_thread_ident),
+            "asyncio_task_stacks": (
+                _format_asyncio_task_stacks(self._loop) if capture_tasks else []
+            ),
+            "pause_depth": self._current_pause_depth(),
+            "sase_version": _sase_version(),
+        }
+        for key, value in self._context().items():
+            if value is not None:
+                record[key] = value
+        return record
+
+    def _recovery_record(
+        self,
+        event: str,
+        duration_seconds: float,
+    ) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "ts": time.time(),
+            "event": event,
+            "pid": os.getpid(),
+            "duration_seconds": round(duration_seconds, 3),
+            "pause_depth": self._current_pause_depth(),
+            "sase_version": _sase_version(),
+        }
+        for key, value in self._context().items():
+            if value is not None:
+                record[key] = value
+        return record
+
+    def _current_pause_depth(self) -> int:
+        with self._lock:
+            return self._pause_depth
+
+    def _reset_pump_state_locked(self) -> None:
+        self._pump_ping_pending = False
+        self._pump_ping_started_mono = None
+        self._last_pump_ping_mono = time.monotonic()
+        self._pump_in_stall = False
+        self._pump_stall_started_mono = None
 
     def _context(self) -> dict[str, Any]:
         context: dict[str, Any] = {}
@@ -281,6 +471,62 @@ def _format_thread_stack(thread_ident: int) -> list[str]:
     if frame is None:
         return []
     return traceback.format_stack(frame)
+
+
+def _format_asyncio_task_stacks(
+    loop: asyncio.AbstractEventLoop,
+) -> list[dict[str, Any]]:
+    tasks: list[dict[str, Any]] = []
+    try:
+        live_tasks = sorted(asyncio.all_tasks(loop), key=lambda task: task.get_name())
+    except Exception:
+        log.debug("Failed to enumerate asyncio tasks for pump stall", exc_info=True)
+        return tasks
+    for task in live_tasks:
+        try:
+            await_chain = _format_coroutine_await_chain(task.get_coro())
+            stack = [
+                line
+                for frame in task.get_stack(limit=64)
+                for line in traceback.format_stack(frame)
+            ]
+            stack.extend(line for awaited in await_chain for line in awaited["stack"])
+            tasks.append(
+                {
+                    "name": task.get_name(),
+                    "coroutine": repr(task.get_coro()),
+                    "done": task.done(),
+                    "stack": stack,
+                    "await_chain": await_chain,
+                }
+            )
+        except Exception:
+            log.debug("Failed to format asyncio task stack", exc_info=True)
+    return tasks
+
+
+def _format_coroutine_await_chain(coro: Any) -> list[dict[str, Any]]:
+    """Walk nested ``await`` objects so records include the actual handler."""
+    chain: list[dict[str, Any]] = []
+    current: Any = coro
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        frame = getattr(current, "cr_frame", None)
+        if frame is None:
+            frame = getattr(current, "gi_frame", None)
+        if frame is None:
+            frame = getattr(current, "ag_frame", None)
+        chain.append(
+            {
+                "coroutine": repr(current),
+                "stack": traceback.format_stack(frame) if frame is not None else [],
+            }
+        )
+        current = getattr(current, "cr_await", None) or getattr(
+            current, "gi_yieldfrom", None
+        )
+    return chain
 
 
 def _sase_version() -> str | None:

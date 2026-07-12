@@ -14,7 +14,9 @@ top-bar badge (boundary rule D6):
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -68,8 +70,25 @@ class _StashHarness(PromptBarStashMixin):
 
     # Avoid the real widget query; record what the badge would show.
     def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
+        self._prompt_stash_cached_counts = (count, pinned_count)
         self.applied_counts.append(count)
         self.applied_pinned_counts.append(pinned_count)
+
+    def _submit_tracked_task(self, *args: object, **kwargs: object) -> object:
+        task_callable = args[3]
+        assert callable(task_callable)
+        result = task_callable()
+        on_complete = kwargs["on_complete"]
+        assert callable(on_complete)
+        on_complete(
+            SimpleNamespace(
+                success=result.success,
+                payload=result.payload,
+                error=result.error,
+                message=result.message,
+            )
+        )
+        return object()
 
 
 def _point_store_at(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
@@ -101,6 +120,30 @@ def test_non_stashed_event_is_ignored() -> None:
     # A different bar message must not be handled as a stash.
     harness.on_prompt_input_bar_stashed(PromptInputBar.Submitted("x"))
     assert harness.notifications == []
+
+
+def test_capture_handler_submits_store_write_without_running_it_inline() -> None:
+    class _DeferredHarness(_StashHarness):
+        def __init__(self) -> None:
+            super().__init__()
+            self.submissions: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        def _submit_tracked_task(self, *args: object, **kwargs: object) -> object:
+            self.submissions.append((args, kwargs))
+            return object()
+
+    harness = _DeferredHarness()
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(
+            [StashedPromptPane(text="queued")],
+            source="current",
+            dismiss_bar=False,
+        )
+    )
+
+    assert len(harness.submissions) == 1
+    assert harness.notifications == [("Stashed prompt", None)]
+    assert harness.applied_counts == [1]
 
 
 # --- real persistence (needs the Rust store binding) -----------------------
@@ -266,6 +309,7 @@ async def test_app_focus_reconciles_badge_from_disk(
     )
 
     await harness.on_app_focus(None)
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.applied_counts == [2]
     assert harness.applied_pinned_counts == [0]
@@ -280,6 +324,7 @@ async def test_app_focus_is_a_noop_on_empty_store(
     harness = _StashHarness()
 
     await harness.on_app_focus(None)
+    await _wait_prompt_stash_tasks(harness)
 
     # No rows on disk → badge driven to zero, never a crash.
     assert harness.applied_counts == [0]
@@ -313,10 +358,16 @@ def test_capture_toasts_error_when_binding_unavailable(
         )
     )
 
-    assert len(harness.notifications) == 1
-    message, severity = harness.notifications[0]
+    assert len(harness.notifications) == 2
+    message, severity = harness.notifications[-1]
     assert severity == "error"
     assert "Failed to stash prompt" in message
-    assert harness.applied_counts == []  # badge never refreshed
-    assert harness.unmount_after_submit_calls == 0  # bar left intact
+    assert harness.applied_counts == [1, 0]  # optimistic count was rolled back
+    assert harness.unmount_after_submit_calls == 1
     assert not path.exists()  # nothing written
+
+
+async def _wait_prompt_stash_tasks(harness: object) -> None:
+    tasks = list(getattr(harness, "_prompt_stash_async_tasks", set()))
+    if tasks:
+        await asyncio.gather(*tasks)

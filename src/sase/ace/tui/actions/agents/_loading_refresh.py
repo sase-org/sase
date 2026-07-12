@@ -165,7 +165,36 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             fallback_reason=fallback_reason,
             full_history=full_history,
         )
-        self.call_later(self._run_agents_async_refresh)  # type: ignore[attr-defined]
+        self._spawn_agents_refresh_task()
+
+    def _spawn_agents_refresh_task(self) -> None:
+        """Run a refresh outside Textual's serial app message pump."""
+        import asyncio
+
+        coro = self._run_agents_async_refresh()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            coro.close()
+            log.debug("agents async refresh skipped without a running loop")
+            return
+        task = loop.create_task(coro, name="sase-agents-refresh")
+        tasks = getattr(self, "_agents_refresh_async_tasks", None)
+        if tasks is None:
+            tasks = set()
+            self._agents_refresh_async_tasks = tasks
+        tasks.add(task)
+
+        def _done(completed: asyncio.Task[None]) -> None:
+            tasks.discard(completed)
+            if completed.cancelled():
+                return
+            try:
+                completed.result()
+            except Exception:
+                log.exception("Agents async refresh task failed")
+
+        task.add_done_callback(_done)
 
     def _schedule_agent_artifact_delta_refresh(
         self,
@@ -438,7 +467,10 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
     async def _run_agents_async_refresh(self) -> None:
         """Run the async agent refresh with loading guard.
 
-        Defers when the user is mid-burst on j/k: the apply/finalize/render
+        This coroutine runs as an app-held asyncio task, not as a Textual
+        ``call_later`` callback, so awaiting a slow loader cannot starve the
+        app's serial message pump. Defers when the user is mid-burst on j/k:
+        the apply/finalize/render
         leg of this refresh runs on the UI thread and would block the event
         loop through the user's first navigation burst after a launch (or
         any other state-mutating action that triggered a refresh). Re-arm
@@ -449,7 +481,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
-            self.set_timer(delay, self._run_agents_async_refresh)  # type: ignore[attr-defined]
+            self.set_timer(delay, self._spawn_agents_refresh_task)  # type: ignore[attr-defined]
             return
         full_history = getattr(self, "_agents_refresh_scheduled_full_history", False)
         full_history_reason = getattr(

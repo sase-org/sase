@@ -50,6 +50,9 @@ class _FakeRefreshApp(AgentLoadingMixin):
     def call_later(self, callback: Any) -> None:
         self._scheduled.append(callback)
 
+    def _spawn_agents_refresh_task(self) -> None:
+        self._scheduled.append(self._run_agents_async_refresh)
+
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self._timer_calls.append((delay, callback))
 
@@ -77,7 +80,7 @@ async def test_run_refresh_defers_when_user_is_navigating() -> None:
     assert len(app._timer_calls) == 1
     delay, callback = app._timer_calls[0]
     assert 0.05 < delay <= 0.30
-    assert callback == app._run_agents_async_refresh
+    assert callback == app._spawn_agents_refresh_task
 
 
 @pytest.mark.asyncio

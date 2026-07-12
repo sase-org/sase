@@ -26,6 +26,9 @@ class _FakeApp(AgentLoadingMixin):
     def call_later(self, callback: Any) -> None:
         self._scheduled.append(callback)
 
+    def _spawn_agents_refresh_task(self) -> None:
+        self._scheduled.append(self._run_agents_async_refresh)
+
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self._timer_calls.append((delay, callback))
 

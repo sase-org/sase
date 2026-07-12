@@ -45,6 +45,7 @@ async def test_confirm_restores_into_mounted_bar_in_order(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(pop_ids=["b"], keep_ids=["a"], delete_ids=[])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     # Loaded oldest-first regardless of selection order; frontmatter preserved.
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
@@ -77,6 +78,7 @@ async def test_confirm_restores_bundle_row_into_mounted_bar(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(pop_ids=["bundle"], delete_ids=[])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
@@ -104,6 +106,7 @@ async def test_confirm_without_bar_mounts_home_with_combined_text(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(pop_ids=["a", "b"], delete_ids=[])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.home_mounts == ["model: c\nfirst\n---\nsecond\n---\nthird"]
     assert harness.home_mount_xprompt_markdown == [True]
@@ -133,6 +136,7 @@ async def test_confirm_without_bar_mounts_single_body_as_xprompt_markdown(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(pop_ids=["a"], delete_ids=[])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert harness.home_mounts == [f"{frontmatter}\nsingle body"]
     assert harness.home_mount_xprompt_markdown == [True]
@@ -158,6 +162,7 @@ async def test_confirm_delete_only_pops_without_loading(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(delete_ids=["a"])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert bar.restored is None  # nothing loaded
     assert harness.home_mounts == []
@@ -186,6 +191,7 @@ async def test_confirm_restore_and_delete_mixed_summary(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(pop_ids=["a"], delete_ids=["b"])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert bar.restored == [("alpha", "")]
     assert harness.notifications == [("Restored prompt, deleted 1", None)]
@@ -260,6 +266,7 @@ async def test_confirm_keep_only_loads_without_popping(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(keep_ids=["b", "a"])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     # Loaded oldest-first regardless of selection order, but the store keeps
     # every entry.
@@ -284,6 +291,7 @@ async def test_confirm_keep_only_single_restore_summary(
     harness = _RestoreHarness(bar=bar)
 
     await harness._on_prompt_stash_restore_confirmed(StashRestoreResult(keep_ids=["a"]))
+    await _wait_prompt_stash_tasks(harness)
 
     assert bar.restored == [("alpha", "")]
     assert harness.notifications == [("Restored prompt", None)]
@@ -314,6 +322,7 @@ async def test_confirm_keep_only_expands_bundle_without_popping(
     await harness._on_prompt_stash_restore_confirmed(
         StashRestoreResult(keep_ids=["bundle"])
     )
+    await _wait_prompt_stash_tasks(harness)
 
     assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot

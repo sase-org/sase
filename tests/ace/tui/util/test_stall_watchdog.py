@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,20 @@ from sase.ace.tui.util.stall_watchdog import (
     subscribe_watchdog_to_suspend_signals,
 )
 from sase.logs import tui_telemetry
+
+
+class _FakePumpApp:
+    """Queue pump callbacks until the test explicitly delivers them."""
+
+    def __init__(self) -> None:
+        self.callbacks: list[Callable[[], None]] = []
+
+    def call_later(self, callback: Callable[[], None]) -> None:
+        self.callbacks.append(callback)
+
+    def deliver(self) -> None:
+        callback = self.callbacks.pop(0)
+        callback()
 
 
 @pytest.mark.asyncio
@@ -72,6 +87,123 @@ async def test_watchdog_records_one_stall_with_stack_and_context(
     assert record["last_action"] == "launch"
     assert record["last_keypress_age_s"] == 1.25
     assert record["main_thread_stack"]
+
+
+@pytest.mark.asyncio
+async def test_watchdog_writes_loop_recovery_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        threshold_seconds=0.05,
+        poll_interval_seconds=0.01,
+    )
+    try:
+        watchdog.start()
+        await asyncio.sleep(0.03)
+        time.sleep(0.14)
+        await _wait_for_event(path, "tui_stall_recovered")
+    finally:
+        watchdog.stop()
+
+    records = _read_records(path)
+    assert [record["event"] for record in records] == [
+        "tui_stall",
+        "tui_stall_recovered",
+    ]
+    assert records[1]["duration_seconds"] >= 0.05
+    assert records[1]["pause_depth"] == 0
+
+
+@pytest.mark.asyncio
+async def test_watchdog_records_pump_stall_stack_and_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    pump = _FakePumpApp()
+    release_handler = asyncio.Event()
+
+    async def deliberately_stuck_handler() -> None:
+        await release_handler.wait()
+
+    stuck_handler = asyncio.create_task(
+        deliberately_stuck_handler(),
+        name="deliberately-stuck-pump-handler",
+    )
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        pump_app=pump,
+        threshold_seconds=1.0,
+        poll_interval_seconds=0.01,
+        pump_threshold_seconds=0.05,
+        pump_poll_interval_seconds=0.01,
+    )
+    try:
+        watchdog.start()
+        await _wait_for_event(path, "tui_pump_stall")
+        assert len(pump.callbacks) == 1  # no callback flood while stuck
+        pump.deliver()
+        release_handler.set()
+        await stuck_handler
+        await _wait_for_event(path, "tui_pump_stall_recovered")
+    finally:
+        release_handler.set()
+        await stuck_handler
+        watchdog.stop()
+
+    records = _read_records(path)
+    stall = next(r for r in records if r["event"] == "tui_pump_stall")
+    recovery = next(r for r in records if r["event"] == "tui_pump_stall_recovered")
+    assert stall["stall_seconds"] >= 0.05
+    assert stall["pause_depth"] == 0
+    assert any(
+        task["name"] == "deliberately-stuck-pump-handler" and task["stack"]
+        for task in stall["asyncio_task_stacks"]
+    )
+    stuck_task = next(
+        task
+        for task in stall["asyncio_task_stacks"]
+        if task["name"] == "deliberately-stuck-pump-handler"
+    )
+    assert any(
+        "deliberately_stuck_handler" in line
+        for awaited in stuck_task["await_chain"]
+        for line in awaited["stack"]
+    )
+    assert recovery["duration_seconds"] >= 0.05
+
+
+@pytest.mark.asyncio
+async def test_paused_watchdog_quiets_loop_and_pump_beacons(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    pump = _FakePumpApp()
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        pump_app=pump,
+        threshold_seconds=0.05,
+        poll_interval_seconds=0.01,
+        pump_threshold_seconds=0.05,
+        pump_poll_interval_seconds=0.01,
+    )
+    try:
+        watchdog.pause()
+        watchdog.start()
+        await asyncio.sleep(0.12)
+    finally:
+        watchdog.resume()
+        watchdog.stop()
+
+    assert pump.callbacks == []
+    assert not path.exists()
 
 
 @pytest.mark.asyncio
@@ -242,3 +374,18 @@ async def _wait_for_path(path: Path) -> None:
             return
         await asyncio.sleep(0.01)
     raise AssertionError(f"{path} was not written")
+
+
+def _read_records(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+async def _wait_for_event(path: Path, event: str) -> None:
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if any(record.get("event") == event for record in _read_records(path)):
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"{event} was not written to {path}")

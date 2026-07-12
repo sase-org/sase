@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -30,6 +31,9 @@ class _FakeApp(AgentLoadingMixin):
     def call_later(self, callback: Any) -> None:
         self._scheduled.append(callback)
 
+    def _spawn_agents_refresh_task(self) -> None:
+        self._scheduled.append(self._run_agents_async_refresh)
+
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self._timer_calls.append((delay, callback))
 
@@ -41,7 +45,7 @@ class _FakeApp(AgentLoadingMixin):
 
 
 @pytest.mark.asyncio
-async def test_schedule_when_idle_posts_once() -> None:
+async def test_schedule_when_idle_spawns_once() -> None:
     app = _FakeApp()
 
     app._schedule_agents_async_refresh()
@@ -117,3 +121,32 @@ async def test_run_refresh_queues_one_follow_up_when_pending() -> None:
     assert app._scheduled.count(app._run_agents_async_refresh) == 2
     assert app._agents_refresh_pending is False
     assert app._agents_refresh_scheduled is True
+
+
+@pytest.mark.asyncio
+async def test_slow_refresh_task_does_not_block_other_loop_callbacks() -> None:
+    class _LiveTaskApp(_FakeApp):
+        def _spawn_agents_refresh_task(self) -> None:
+            AgentLoadingMixin._spawn_agents_refresh_task(self)
+
+    app = _LiveTaskApp()
+    started = asyncio.Event()
+    release = asyncio.Event()
+    heartbeat = asyncio.Event()
+
+    async def _slow_load(
+        *, full_history: bool = False, source: str = "unknown"
+    ) -> None:
+        del full_history, source
+        started.set()
+        await release.wait()
+
+    app._load_agents_async = _slow_load  # type: ignore[method-assign]
+    app._schedule_agents_async_refresh(source="slow-test")
+    await asyncio.wait_for(started.wait(), timeout=0.5)
+    asyncio.get_running_loop().call_soon(heartbeat.set)
+    await asyncio.wait_for(heartbeat.wait(), timeout=0.1)
+    assert app._agents_refresh_async_tasks
+
+    release.set()
+    await asyncio.gather(*list(app._agents_refresh_async_tasks))

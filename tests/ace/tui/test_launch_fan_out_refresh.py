@@ -32,7 +32,7 @@ def test_request_agents_refresh_re_arms_after_fire() -> None:
     fire()  # type: ignore[misc]
     assert app._agents_refresh_debounce_armed is False
     # The fired timer hands off to _schedule_agents_async_refresh, which
-    # call_laters _run_agents_async_refresh exactly once.
+    # spawns _run_agents_async_refresh exactly once.
     scheduled_runs = [
         cb for cb, _ in app._scheduled if cb == app._run_agents_async_refresh
     ]
@@ -66,8 +66,8 @@ async def test_launch_refresh_respects_navigation_gate() -> None:
     _, fire = app._timer_calls[0]
     fire()  # type: ignore[misc]
 
-    # _schedule_agents_async_refresh posts _run_agents_async_refresh on
-    # the loop. Run it: the gate is hot, so it must defer via set_timer
+    # _schedule_agents_async_refresh spawns _run_agents_async_refresh. Run it:
+    # the gate is hot, so it must defer via set_timer
     # (no actual load yet).
     pending_runs = [
         cb for cb, _ in app._scheduled if cb == app._run_agents_async_refresh
@@ -79,8 +79,8 @@ async def test_launch_refresh_respects_navigation_gate() -> None:
     # The gated refresh re-armed itself with a small delay rather than
     # running the apply leg.
     boundary_timers = [
-        (d, cb) for d, cb in app._timer_calls if cb == app._run_agents_async_refresh
+        (d, cb) for d, cb in app._timer_calls if cb == app._spawn_agents_refresh_task
     ]
     assert boundary_timers, (
-        "expected a gate-boundary set_timer for _run_agents_async_refresh"
+        "expected a gate-boundary set_timer for _spawn_agents_refresh_task"
     )

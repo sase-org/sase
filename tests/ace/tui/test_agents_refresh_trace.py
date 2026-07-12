@@ -40,6 +40,9 @@ class _TraceLoadingApp(AgentLoadingMixin):
     def call_later(self, callback: Any) -> None:
         self._scheduled.append(callback)
 
+    def _spawn_agents_refresh_task(self) -> None:
+        self._scheduled.append(self._run_agents_async_refresh)
+
 
 class _TraceDisplayApp(AgentDisplayMixin):
     def __init__(self) -> None:

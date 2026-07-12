@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -84,6 +85,7 @@ async def test_empty_save_request_toasts_noop() -> None:
     await harness.on_prompt_input_bar_save_as_xprompt_requested(
         PromptInputBar.SaveAsXpromptRequested([])
     )
+    await _wait_save_tasks(harness)
     assert harness.notifications == [("Nothing to save as an xprompt", "warning")]
     assert harness.pushed == []
 
@@ -110,12 +112,60 @@ async def test_request_opens_one_screen_with_active_pane_snippet_source() -> Non
                 snippet_body="beta",
             )
         )
+        await _wait_save_tasks(harness)
 
     modal, _callback = harness.pushed[0]
     assert isinstance(modal, UnifiedXPromptSaveModal)
     assert modal._body == "alpha\n---\nbeta"
     assert modal._snippet_body == "beta"
     assert modal._pane_count == 2
+
+
+async def test_save_request_returns_while_location_reads_are_stuck() -> None:
+    harness = _SaveHarness()
+    entered = threading.Event()
+    release = threading.Event()
+
+    def _slow_locations(*_args: object) -> list[object]:
+        entered.set()
+        release.wait(timeout=1.0)
+        return []
+
+    def _slow_last_used() -> dict[str, str]:
+        entered.set()
+        release.wait(timeout=1.0)
+        return {}
+
+    try:
+        with (
+            patch(
+                "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+                side_effect=_slow_locations,
+            ),
+            patch(
+                "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
+                side_effect=_slow_locations,
+            ),
+            patch(
+                "sase.xprompt.save_state.load_last_used_locations",
+                side_effect=_slow_last_used,
+            ),
+        ):
+            await asyncio.wait_for(
+                harness.on_prompt_input_bar_save_as_xprompt_requested(
+                    PromptInputBar.SaveAsXpromptRequested(
+                        [StashedPromptPane(text="draft")]
+                    )
+                ),
+                timeout=0.05,
+            )
+            await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+    finally:
+        release.set()
+        await _wait_save_tasks(harness)
 
 
 async def test_unified_markdown_result_writes_typed_name_authoritatively(

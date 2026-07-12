@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.modals.unified_xprompt_save_modal import (
         UnifiedXPromptSaveResult,
     )
+    from sase.ace.tui.widgets import PromptInputBar
     from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
         StashedPromptPane,
     )
@@ -44,17 +45,8 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
     async def on_prompt_input_bar_save_as_xprompt_requested(
         self, event: object
     ) -> None:
-        """Open the save-as-xprompt target picker for the captured draft."""
-        import asyncio
-
-        from ...modals import UnifiedXPromptSaveModal
-        from ...modals.unified_xprompt_save_modal import (
-            UnifiedXPromptSaveResult,
-            load_unified_save_locations,
-            load_unified_snippet_locations,
-        )
+        """Schedule the save-target load without holding the app pump."""
         from ...widgets import PromptInputBar
-        from sase.xprompt.save_state import load_last_used_locations
 
         if not isinstance(event, PromptInputBar.SaveAsXpromptRequested):
             return
@@ -69,6 +61,36 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             )
             return
 
+        self._spawn_xprompt_save_task(
+            self._open_save_as_xprompt_picker(
+                panes=event.panes,
+                snippet_body=event.snippet_body,
+                origin_bar=origin_bar,
+                body=body,
+                frontmatter=frontmatter,
+            )
+        )
+
+    async def _open_save_as_xprompt_picker(
+        self,
+        *,
+        panes: list[StashedPromptPane],
+        snippet_body: str | None,
+        origin_bar: PromptInputBar | None,
+        body: str,
+        frontmatter: PromptFrontmatter,
+    ) -> None:
+        """Load save destinations off-thread, then push the picker."""
+        import asyncio
+
+        from ...modals import UnifiedXPromptSaveModal
+        from ...modals.unified_xprompt_save_modal import (
+            UnifiedXPromptSaveResult,
+            load_unified_save_locations,
+            load_unified_snippet_locations,
+        )
+        from sase.xprompt.save_state import load_last_used_locations
+
         project = (
             self._prompt_context.project_name
             if self._prompt_context is not None
@@ -80,13 +102,12 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             asyncio.to_thread(load_last_used_locations),
         )
 
-        non_empty_count = sum(1 for pane in event.panes if pane.text.strip())
+        non_empty_count = sum(1 for pane in panes if pane.text.strip())
         # The snippet save option is always offered. Its source is the active
         # pane captured separately as ``snippet_body``; a legacy/direct event
         # without that field falls back to the xprompt body, but only when a
         # single non-blank pane makes that unambiguous. Snippets are single
         # templates, so the active-pane body never carries ``---`` separators.
-        snippet_body = event.snippet_body
         if snippet_body is None:
             snippet_body = body if non_empty_count == 1 else ""
         snippet_body = snippet_body.strip()
@@ -114,7 +135,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                 frontmatter=frontmatter,
                 body=body,
                 snippet_body=snippet_body,
-                pane_count=len(event.panes),
+                pane_count=len(panes),
                 initial_name=(
                     frontmatter.name
                     or (
@@ -130,6 +151,14 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         )
 
     async def on_prompt_input_bar_write_xprompt_requested(self, event: object) -> None:
+        """Schedule bound-xprompt conflict IO outside the app pump."""
+        from ...widgets import PromptInputBar
+
+        if not isinstance(event, PromptInputBar.WriteXpromptRequested):
+            return
+        self._spawn_xprompt_save_task(self._handle_write_xprompt_requested(event))
+
+    async def _handle_write_xprompt_requested(self, event: object) -> None:
         """Write a bound xprompt, resolving external-change conflicts first."""
         import asyncio
 
